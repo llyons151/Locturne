@@ -155,6 +155,84 @@ plus a free prefixed .com. The .app may be priced as premium.
 | **Floorfirst** | get/hey/use floorfirst.com | Feet on the floor first |
 | **Nocto** | get/hey/use nocto.com | "Night" |
 
+## Moon names (added September 25, 2026)
+
+These match the night theme and the moon scene in onboarding. I started from about
+1,640 moon, luna and midnight names; 1,233 had the .com free. I shortlisted 153 by
+hand, and **all 153 have both .com and .app free**. Only one of them clashes with an
+existing app: Luna Steps, a photo app. The top names were then searched on the web.
+
+**Top moon picks**
+
+| Name | Why | Checks |
+|---|---|---|
+| **Moonbutler** | A posh, sassy raccoon who "attends" your apps overnight | Clean (only Butler, PA moon-market events) |
+| **Moontrot** | The 200-step walk, done by the moon raccoon | Clean. "Moon trot" was an old baseball nickname for Wally Moon's jog |
+| **Moonums** | Cute and teasing | Clean (personal handles only) |
+| **Moonsnooze** | Clear: sleep | Clean, apart from a small 2024 song |
+| **Moonscamp** | A scamp is a rascal, which fits a sassy raccoon | Clean |
+| **Moongrump** / **Moongrouch** | Tired and grumpy | Clean |
+| **Moonprowl** | Raccoons prowl at night | Clean |
+| **Moonsass** | Says the personality outright | Not searched |
+| **Moonyawner** | Tired | Not searched |
+| **Moonlit Paw** / **Moonlit Scamp** | Softer, storybook tone | Not searched |
+
+**Moon names to avoid**
+
+- **Luna Bandit / Lunabandit:** an enemy in Kingdom Hearts II. Gamers will know it.
+- **Moony-anything:** "Moony" is Remus Lupin's nickname in Harry Potter, and a
+  Sailor Moon fan term.
+- **Moonie-anything:** "Moonies" is a slang term for members of the Unification Church.
+- **Mooncoon:** it splits off the racial slur "coon" (see the chat reasoning). The
+  .com is taken anyway.
+- **Moonpaw:** a Warriors cats character, and the .com is taken.
+- **Moonshine-anything:** reads as alcohol.
+- Anything with "Moon Moon" may invite the "Moon Moon" dumb-wolf meme. It's harmless
+  but worth knowing.
+
+**Full list (.com and .app both free)**
+
+- **Moon + word:**
+  Moonbutler · Moontrot · Moonsnooze · Moonsnoozer · Moonums · Moonsass · Moonsassy ·
+  Moongrump · Moongrouch · Moongrumble · Moongremlin · Moonprowl · Moonsneak ·
+  Moonscamp · Moonscoundrel · Moonburglar · Moonrobber · Moonbandito · Moonmasked ·
+  Moonringo · Moonringtail · Moonringer · Moonrac · Moonracc · Moonwaddle ·
+  Moontoddle · Moontrudge · Moonplod · Moonmosey · Moonlump · Moonlug · Moonmop ·
+  Moonsulk · Moontired · Moonlazy · Moonyawner · Moonnapper · Moondrowse · Moonshh ·
+  Moonhushed · Moonshushed · Moonsleeping · Moonsleepy · Moonsdown · Moonisup ·
+  Moonbedtime · Moonnightcap · Mooncranky
+- **Moonbeam:**
+  Moonbeamer · Moonbeam Bandit · Moonbeam Bear · Moonbeam Snooze · Moonbeam Trot ·
+  Moonbeam Steps · Moonbeam Yawn · Moonbeam Mask · Moonbeam Cub · Moonbeamums
+- **Moonlit:**
+  Moonlit Paw · Moonlit Cub · Moonlit Nap · Moonlit Snooze · Moonlit Trot ·
+  Moonlit Loaf · Moonlit Scamp · Moonlit Raccoon · Moonlit Prowl · Moonlit Burrow ·
+  Moonlit Sass
+- **Luna / Lunar / Luno / Lune:**
+  Lunaloaf · Lunanap · Lunascamp · Luna Rascal · Lunatrot · Lunayawn · Lunadoze ·
+  Lunaums · Lunasass · Lunamasked · Lunaburrow · Lunabutler · Lunar Bandit ·
+  Lunar Snooze · Lunar Trot · Lunar Cub · Lunarums · Lunar Slumber · Lunar Yawn ·
+  Lunar Sass · Lunar Burrow · Lunar Butler · Lunobear · Lunobug · Lunopal ·
+  Lunosnooze · Lunowalk · Lunocub · Lunekip · Lunepaw · Lunebandit · Lunemask ·
+  Lunenap
+- **Midnight:**
+  Midnight Snooze · Midnight Scamp · Midnight Butler · Midnight Mask · Midnight Yawn ·
+  Midnight Trot · Midnightums · Midnight Ringo · Midnight Burglar · Midnight Grump
+- **The Moony and Moonie variants** are listed for completeness only; see "Moon names
+  to avoid":
+  Moony Bandit, Moony Mask, Moony Bear, Moonypaws, Moonybug, Moonysnooze, Moonyyawn,
+  Moonytrot, Moonywalk, Moonysteps, Moonyums, Moonybub, Moonycub, Moonypup, Moonyloaf,
+  Moonyscamp, Moonyrascal, Moonyringo, Moonysass, Moonygrump, Moonyburrow,
+  Moonybutler, Moonykip, Moonynap, Moonyowl, Moonywaddle, Mooniebandit, Mooniebear,
+  Mooniepaw, Mooniemask, Mooniebug, Moonienap, Mooniesnooze, Moonieloaf, Mooniecub,
+  Mooniepup, Moonieringo, Mooniesass, Mooniegrump.
+
+**Moon names already taken (.com registered):**
+- Moonpaw, Moonbandit, Moonmask, Moonie, Moonbug, Moonnap
+- Moondoze, Moonyawn, Mooncub, Moonpup, Moonloaf, Moonrascal
+- Moonpie, Moondrop, Moonkin, Moonling, Moonpanda, Halfmoon
+- Sleepymoon, Sassymoon, Grumpymoon, Moonthief, Moonkip, Moonhush
+
 ## Rejected, and why
 
 - **Existing app or brand in the same space:**
