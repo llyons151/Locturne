@@ -62,10 +62,6 @@ export type Morning = {
   start: Date;
 };
 
-function minuteOfDay(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes();
-}
-
 /** Local midnight `offsetDays` from `date`, plus `minutes`. Date normalizes any overflow. */
 function atMinute(date: Date, minutes: number, offsetDays = 0): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offsetDays, 0, minutes);
@@ -77,15 +73,35 @@ function dateKey(date: Date): string {
   return `${date.getFullYear()}-${m}-${d}`;
 }
 
+type Night = { start: Date; end: Date };
+
 /**
- * Is this minute inside [bedtime, morningStart)? The window usually wraps midnight
- * (23:30 to 07:00) but doesn't when bedtime is after midnight (01:00 to 07:00).
+ * The night leading into the morning `offsetDays` from `now`'s date. It usually starts the
+ * evening before (23:30 to 07:00), but on the same day when bedtime is after midnight (01:00
+ * to 07:00). Equal times mean no night: it starts and ends at morning start.
+ *
+ * Working in real instants, not minutes of the day, keeps daylight-saving nights honest. When
+ * clocks go back after bedtime, 01:00 comes round twice, but the night has already begun and
+ * stays begun. A bedtime the clocks skip (02:30 when they jump to 03:00) moves forward the way
+ * JavaScript dates do.
  */
-export function isNightTime(minute: number, bedtime: number, morningStart: number): boolean {
-  if (bedtime === morningStart) return false;
-  return bedtime < morningStart
-    ? minute >= bedtime && minute < morningStart
-    : minute >= bedtime || minute < morningStart;
+function nightBefore(now: Date, s: LockSettings, offsetDays: number): Night {
+  const end = atMinute(now, s.morningStart, offsetDays);
+  if (s.bedtime === s.morningStart) return { start: end, end };
+  const start = atMinute(now, s.bedtime, s.bedtime < s.morningStart ? offsetDays : offsetDays - 1);
+  // A skipped bedtime can land after morning start (02:30 to 03:00 on spring-forward day).
+  // That night simply doesn't happen.
+  return start > end ? { start: end, end } : { start, end };
+}
+
+/** Which morning `now` belongs to: the latest night that has already started. */
+function locate(now: Date, s: LockSettings) {
+  for (const offset of [1, 0, -1]) {
+    const night = nightBefore(now, s, offset);
+    if (now >= night.start) return { offset, night };
+  }
+  // Unreachable: yesterday's night always started before now.
+  return { offset: -1, night: nightBefore(now, s, -1) };
 }
 
 /**
@@ -93,40 +109,26 @@ export function isNightTime(minute: number, bedtime: number, morningStart: numbe
  * it), 03:00 to today's, and with a 01:00 bedtime, 00:30 still belongs to yesterday's.
  */
 export function currentMorning(now: Date, settings: LockSettings): Morning {
-  const minute = minuteOfDay(now);
-  const { bedtime, morningStart } = settings;
-  let offset = 0;
-  if (isNightTime(minute, bedtime, morningStart)) {
-    if (minute >= morningStart) offset = 1;
-  } else if (minute < morningStart) {
-    offset = -1;
-  }
-  const start = atMinute(now, morningStart, offset);
-  return { key: dateKey(start), start };
-}
-
-/** The first bedtime strictly after `now`. */
-export function nextBedtime(now: Date, settings: LockSettings): Date {
-  const today = atMinute(now, settings.bedtime);
-  return today > now ? today : atMinute(now, settings.bedtime, 1);
+  const { night } = locate(now, settings);
+  return { key: dateKey(night.end), start: night.end };
 }
 
 /**
- * When edited settings start applying: the next bedtime after the edit. An edit made during
+ * When edited settings start applying: the start of the next night. An edit made during
  * the night waits for the following night, so nothing can be loosened from bed.
  */
 export function settingsTakeEffectAt(editedAt: Date, settings: LockSettings): Date {
-  return nextBedtime(editedAt, settings);
+  return nightBefore(editedAt, settings, locate(editedAt, settings).offset + 1).start;
 }
 
 export function getLockState(now: Date, settings: LockSettings, facts: MorningFacts): LockState {
-  const morning = currentMorning(now, settings);
-  const minute = minuteOfDay(now);
-  const night = isNightTime(minute, settings.bedtime, settings.morningStart);
+  const { offset, night: window } = locate(now, settings);
+  const night = now < window.end;
+  const morning = { key: dateKey(window.end), start: window.end };
 
   // The night that leads into this morning started the evening before it.
-  const nightBefore = atMinute(morning.start, 0, -1).getDay();
-  const active = settings.activeNights.includes(nightBefore);
+  const evening = atMinute(morning.start, 0, -1).getDay();
+  const active = settings.activeNights.includes(evening);
   const unlocked =
     facts.unlockedMorning === morning.key || facts.steps >= settings.stepGoal;
 
@@ -144,6 +146,6 @@ export function getLockState(now: Date, settings: LockSettings, facts: MorningFa
     blocked,
     stepsRemaining: phase === 'morning' ? Math.max(0, settings.stepGoal - facts.steps) : 0,
     morningKey: morning.key,
-    nextChange: night ? morning.start : nextBedtime(now, settings),
+    nextChange: night ? window.end : nightBefore(now, settings, offset + 1).start,
   };
 }

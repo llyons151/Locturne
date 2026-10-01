@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { Pedometer } from 'expo-sensors';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -75,6 +76,7 @@ export function ScreenTimeLab() {
         <Text style={styles.body}>
           Screen Time only exists on an iPhone. Open this in the development build on a real device.
         </Text>
+        <TextButton label="Back" onPress={() => router.back()} />
       </SafeAreaView>
     );
   }
@@ -116,6 +118,7 @@ export function ScreenTimeLab() {
           />
           <PrimaryButton label="Read this morning’s steps" onPress={() => run('Steps', readSteps)} />
           <TextButton label="Refresh status" onPress={() => note('Refreshed')} />
+          <TextButton label="Back" onPress={() => router.back()} />
         </View>
 
         <Text style={styles.label}>Log</Text>

@@ -73,6 +73,39 @@ Write down anything that fails, with the log lines, under "Results".
 - A nightly self-check, and light anti-shake checks.
 - 3+ nights holding.
 
-## Results
+## Tested off-device (2026-10-01)
+
+Everything Linux can check. `npm test` runs it all (about 30 s); `npm run test:tz` repeats
+it in five time zones.
+
+- **Lock rules** (`lock-state.test.ts`, `lock-state.sweep.test.ts`): hand-written cases,
+  plus every 30 minutes of 2026 for 10 schedules × 5 night patterns × 3 step counts,
+  compared with a separately written reference. Passed in 8 time zones, including the
+  30-minute DST shift (Lord Howe), the 45-minute offset (Chatham) and a midnight DST change
+  (Santiago).
+  - **Bugs it found and fixed:** the first version judged "is it night?" by the time of
+    day. On the night clocks go back, a 01:30 bedtime passed, the clock fell back to 01:00,
+    and the app thought bedtime hadn't happened yet. Apps unlocked the previous morning
+    would have woken for an hour. And `nextChange` (what the scheduler will use)
+    disagreed with the phase by up to an hour. Nights are now real start and end
+    instants. A bedtime the clocks skip past morning start means no night that date.
+  - Mutation check: 11 of 12 deliberate bugs made the tests fail. The 12th
+    (`Math.max` on steps left) can't change behaviour.
+- **Wrapper** (`screen-time.test.ts`): against a fake library. Status mapping, asking for
+  `individual` (never child) access, list ids, shield text, and the button only closing.
+- **Generated iOS project** (`expo prebuild` on Linux): 4 targets. Correct bundle IDs,
+  Team ID, iOS 16.4, Family Controls + App Group entitlements on all four, the three
+  extensions embedded, and the right extension point for each. The extensions inherit the App
+  Group setting from the project level. The shield keys and the 0–255 colours we send match
+  what the Swift reads.
+- **Web**: `/screen-time-lab`, the You tab link, Home and onboarding load with no console
+  errors. The lab shows its "iPhone only" message.
+
+**Not tested, needs EAS or the phone:** compiling the Swift. The generated project uses
+Xcode 16 folder-synced groups with `objectVersion = 54`, which is normal for this plugin on
+EAS but unverified here. Also untested: everything Apple-side, the picker, real shields,
+and the pedometer.
+
+## Results on the iPhone
 
 Nothing yet.
