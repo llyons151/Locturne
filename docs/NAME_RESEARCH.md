@@ -219,3 +219,127 @@ The shortlist:
      the store listing describes the app.
    - Never use LoL hashtags or memes.
    - Have a line ready for the "grundle" joke.
+
+## Follow-up: "branded" short names (September 27, 2026)
+
+A quick RDAP pass on ~60 short, brand-style words and coinages (Nocto, Dawnly, Luno,
+Somni, Hushly, Rouse, Bleary, Mopey, Morrow, Lumen and others) found **every exact .com
+registered**. A short, brand-feeling name means a prefixed .com (get/use/hey), as with
+most apps in this space, so the domain shouldn't decide the name.
+
+- **Nocto:** nocto.app free, getnocto.com and heynocto.com free. But App Store search
+  autocorrects "nocto" to "No Crop" photo apps, and it leans night, not morning.
+- **Bleary:** bleary.app is now registered. getbleary.com and usebleary.com are free.
+  The only App Store hit is a 0-rating travel app.
+- **Trundle:** usetrundle.com is still free.
+
+## Follow-up: Duolingo-style portmanteaus, sleep + blocking (September 27, 2026)
+
+The brief was one half moon or sleep plus one half lock, block or focus, blended
+abstractly the way Duolingo blends "duo" and "lingo". I checked about 100 blends.
+Most "moon/luna + lock/guard/keep/vault" names have the .com taken: Moonlock,
+Lunalock, Moonward, Moonkeep, Dormant, Dormio, Curfew, Blocturnal and Lockturnal.
+
+**All of these have .com and .app free, and no same-name iOS app:**
+Locturne, Lockturne, Blocturne, Lunock, Dormlock, Lullalock, Mooncurfew, Lunoff,
+Shutmoon, Lunalok, Moonlok, Hushbolt. These .com names were free but .app wasn't
+checked: Somnilock, Noctolock, Lullabolt, Snoozevault, Kipvault, Lockamoon, Duskbolt.
+
+**Web checks**
+- **Locturne:** only usernames, a 2017 song by Attic Wood and a clothing tank-top
+  product. No app or software.
+- **Lunock:** a small men's fashion brand (lunockbrand.com).
+
+**Top pick: Locturne** (lock + nocturne). It matches the "Nocturne" visual
+direction, and a nocturne is a night piece for piano. Say it "lock-turn". Buy
+lockturne.com too, to catch misspellings. The raccoon can keep the name Trundle,
+the way the app is Duolingo and the owl is Duo.
+
+**LunaLock (checked September 27, 2026): not recommended.**
+- **The ransomware problem.** "LunaLock" is a ransomware group, first seen in September
+  2025. It attacked the Artists&Clients marketplace and threatened to feed stolen art to
+  AI models. Google results for "LunaLock" are all ransomware coverage (WatchGuard,
+  Security Affairs, ransomware.live). A phone-locking app named after file-locking
+  ransomware is a trust problem.
+- **App Store.** "LunaLock" by 贺 周, Utilities, 0 ratings, released June 16, 2026.
+  An App Store name can't duplicate another app's, so ours would need to be something
+  like "Luna Lock: Sleep Apps".
+- **Domains.**
+  - lunalock.com was registered in 2021, doesn't resolve, and expires October 30, 2026.
+  - lunalock.app, heylunalock.com, getlunalock.com and lunalockapp.com are free.
+
+## Obscure moon and lock words (September 27, 2026)
+
+**Moon words**
+- Selene, Mene, Phoebe, Cynthia (Greek)
+- Luna, Lune (Latin, French)
+- Levana (Hebrew, poetic)
+- Mahina, Hina (Hawaiian, Polynesian)
+- Marama (Māori)
+- Máni (Norse)
+- Tsuki, Tsukuyomi (Japanese)
+- Chandra, Soma (Sanskrit)
+- Qamar, Hilal, Badr (Arabic)
+- Khonsu (Egyptian)
+- Chang'e (Chinese)
+- Astronomy terms: lunation, gibbous, syzygy, earthshine, paraselene, lunula, occultation
+
+**Lock words**
+- Parts of a lock: hasp, ward, tumbler, pawl, detent, escutcheon, shackle
+- Sneck: a door latch (Scots and Northern English)
+- Obex, pessulus, claustra, clavis: Latin for bar, bolt, barrier and key
+- Schloss: German, meaning both lock and castle
+- Ostiary: a doorkeeper
+- Curfew: from *couvre-feu*, "cover the fire", the nightly lockdown bell
+- Double meanings:
+  - Lunette and demilune are crescent-shaped fortifications, so moon and defence in one word.
+  - Occultation is the moon blocking a star.
+
+**Blends with .com and .app both free:**
+Moonhasp, Lunahasp, Selenward, Selenock, Selenlock, Mahinalock, Hinalock, Tsukilock,
+Lunulock, Umbralock, Moonsneck, Nightsneck, Noxobex, Lunaclavis, Clavisluna,
+Vesperlock, Mondschloss.
+
+**Only .app free:** Lunobex, Levanalock, Somalock, Paraselene, Selenic, Lunula,
+Couvrefeu, Ostiary, Lunaward.
+
+**Both taken:** Demilune, Lunette (also a menstrual-cup brand), Mahina, Levana,
+Syzygy, Gibbous, Lunation, Occulta, Obex.
+
+## "Branded" short single words (September 27, 2026)
+
+The user rejected the compound "moon + lock" names as sounding bad. They want the
+short, soft brand feel of names like Opal, Oura and Calm.
+
+**This space is crowded, including by direct competitors.** Screen-time and blocker
+apps already use Neap ("Block Apps & Focus"), Vesper ("Screen Time Blocker"),
+Noxa ("Focus & App Blocker"), Opaline ("Focus & App Blocker") and
+Nocti ("Better Sleep & Focus"). Sleep apps also hold Lull, Lune, Somna, Dusk,
+Tide and Nocturne. Every short real word's .app is registered.
+
+**Other ruled out**
+- Nocta: Drake's Nike sub-brand.
+- Yoru: a Valorant agent, and Riot again.
+- Tuck: tuck.com is a well-known sleep-product review site, "Tuck Sleep".
+- Selene: several period-tracker apps.
+- Luma: the events app, with 18K ratings.
+
+**Hesper (the evening star, Hesperus)**
+- The cleanest of the batch. The only iOS app is "HESPER" (0 ratings, Utilities).
+- Other users of the name: a Montreal dev agency (hellohesper.com), a limoncello
+  brand, and IT firms. None of them is a consumer app.
+- Domains: heyhesper.com and heyhesper.app are free. hesper.com, gethesper.com,
+  usehesper.com, tryhesper.com and hesperapp.com are taken.
+- Not checked with USPTO.
+
+## Decision: Locturne (September 27, 2026)
+
+The user chose **Locturne** (lock + nocturne, said "lock-turn").
+- **Domains.** Rechecked at the decision: locturne.com, locturne.app, lockturne.com
+  and lockturne.app are all unregistered.
+- **Still to do:**
+  - register the domains;
+  - USPTO class 9 search;
+  - secure matching handles;
+  - ~~decide the raccoon's name~~: **Loc**, decided the same day, the way the app is
+    Duolingo and the owl is Duo.

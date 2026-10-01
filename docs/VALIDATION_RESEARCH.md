@@ -280,6 +280,8 @@ This turns the API limitation into the ritual itself: knocking on Trundle's door
 
 - **Family Controls Distribution entitlement.**
   - Needs a separate approval for the app **and each extension** (4 bundle IDs).
+    *Update 2026-09-28: the request form is now a single account-level request
+    with no bundle ID field. See [ENTITLEMENT_SETUP.md](ENTITLEMENT_SETUP.md).*
   - Approval takes about a day to 5+ weeks, with no status updates.
   - Until every ID is approved, EAS and TestFlight builds are effectively blocked. [Apple](https://developer.apple.com/documentation/familycontrols/requesting-the-family-controls-entitlement) · [RNDA README](https://github.com/kingstinct/react-native-device-activity) · [eas-cli#2715](https://github.com/expo/eas-cli/issues/2715)
 - **Known iOS 26 issues:**
@@ -296,7 +298,7 @@ This turns the API limitation into the ritual itself: knocking on Trundle's door
 
 ### Device prototype order
 
-1. Entitlement requests for all four bundle IDs.
+1. Entitlement request (one per account as of 2026-09-28; submitted).
 2. CMPedometer inside ShieldAction.
 3. Unshielding in a TestFlight build.
 4. CMPedometer in the monitor extension.
@@ -399,7 +401,7 @@ The thresholds below are our own suggested bars, set before looking at results.
 
 | When | Step | Pass / signal |
 |---|---|---|
-| Week 0 | Request Family Controls Distribution for 4 bundle IDs. After approval, run a device spike: pedometer in ShieldAction, TestFlight unshield, 3+ nights of scheduling | Shield-tap unlock works in TestFlight. Fallback: in-app check plus a notification |
+| Week 0 | Request Family Controls Distribution (done 2026-09-28). After approval, run a device spike: pedometer in ShieldAction, TestFlight unshield, 3+ nights of scheduling | Shield-tap unlock works in TestFlight. Fallback: in-app check plus a notification |
 | Weeks 1–2 | Concierge test with 10–15 people: iOS Downtime at bedtime, 200 steps before opening apps, step screenshots texted daily, interviews on day 3 and day 10 | Most are still doing it on day 7 and ask when the app launches. Warning signs: skipping when unobserved, or "pointless/annoying" |
 | Weeks 1–3 | 20–30 concept videos across 4 angles on the main account and one fresh faceless account. Link to a "coming soon" waitlist with a paid founding-member option | Measure saves, shares, "what app is this?" comments, sign-ups and paid pre-orders. Pick the winning angle |
 | Weeks 3–8 | TestFlight cohort of 100–300. Instrument blocking-active at D1/D7/D30, morning unlocks, on-time bedtime blocks, bypasses and revocations, and the Sean Ellis survey | Launch gate: D30 blocking-active ≥ 20% and flattening; ≥ 30–40% "very disappointed"; fewer than 1 in 50 nights with a missed block |

@@ -16,6 +16,7 @@ import { Nocturne } from '@/constants/nocturne';
 
 import * as haptic from './haptics';
 import { Reveal } from './motion';
+import { Radius, Space, Type } from './tokens';
 import { useOnMoon } from './ui';
 
 const DAY = 24 * 60;
@@ -328,7 +329,7 @@ function Item({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 28, alignSelf: 'stretch' },
+  wrap: { gap: Space.xl, alignSelf: 'stretch' },
   wheels: { flexDirection: 'row', justifyContent: 'center', alignSelf: 'center', gap: 8 },
   band: { position: 'absolute', left: -20, right: -20, borderRadius: 12, backgroundColor: Nocturne.surface },
   column: { width: 56, overflow: 'hidden' },
@@ -338,14 +339,14 @@ const styles = StyleSheet.create({
   item: { position: 'absolute', left: 0, right: 0, justifyContent: 'center' },
   itemText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', fontVariant: ['tabular-nums'] },
   itemTextWide: { fontSize: 32, fontWeight: '600' },
-  presetBlock: { gap: 10 },
-  presetsLabel: { color: Nocturne.text2, fontSize: 14, fontWeight: '500' },
+  presetBlock: { gap: Space.s },
+  presetsLabel: Type.label,
   presetsLabelOnMoon: { color: Nocturne.text },
   presets: { flexDirection: 'row', gap: 8 },
   preset: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 12,
+    borderRadius: Radius.control,
     borderWidth: 1,
     borderColor: Nocturne.edge,
     backgroundColor: Nocturne.surface,

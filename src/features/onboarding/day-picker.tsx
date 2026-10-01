@@ -4,6 +4,7 @@ import { Nocturne } from '@/constants/nocturne';
 
 import * as haptic from './haptics';
 import { Reveal } from './motion';
+import { Radius, Space } from './tokens';
 
 /** Monday first. The value stored is the day's index here. */
 const DAYS = [
@@ -77,14 +78,13 @@ export function DayPicker({ value, onChange }: { value: number[]; onChange: (day
 const styles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
-    borderRadius: 22,
+    borderRadius: Radius.card,
     backgroundColor: Nocturne.surface,
     borderWidth: 1,
     borderColor: Nocturne.edge,
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 14,
-    gap: 16,
+    paddingHorizontal: Space.l,
+    paddingVertical: Space.l,
+    gap: Space.l,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   count: { color: Nocturne.text, fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },

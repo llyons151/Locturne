@@ -14,7 +14,7 @@ import { DisplayFont, Nocturne } from '@/constants/nocturne';
 
 import * as haptic from './haptics';
 
-/** Numbers use the serif upright. Italic serif always means Trundle is talking. */
+/** Numbers use the serif upright. Italic serif always means Loc is talking. */
 export const NUMBER_FONT = { ...DisplayFont, fontStyle: 'normal', paddingRight: 0, marginRight: 0 } as const;
 
 const ROLL_MS = 1400;

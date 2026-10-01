@@ -1,4 +1,4 @@
-# Trundle — setup notes
+# Locturne — setup notes
 
 Product source of truth: [GAME_PLAN.md](GAME_PLAN.md). The app is being rebuilt from
 scratch; there is no app code yet. The earlier prototype is at the git tag
@@ -22,8 +22,9 @@ Limits to design around:
 ## Accounts and approvals
 - Apple Developer Program: $99/yr.
 - Family Controls entitlement: the development version works immediately. The
-  distribution version needs a request form to Apple for the app's bundle ID and each
-  extension's bundle ID. Approval can take days to weeks — apply on day one.
+  distribution version is one request form per developer account (submitted
+  2026-09-28). Details and status in
+  [docs/ENTITLEMENT_SETUP.md](docs/ENTITLEMENT_SETUP.md).
 
 ## Build route
 Development machine is Linux; Xcode only runs on macOS.
@@ -49,7 +50,7 @@ the extensions.
 
 ## Native work for the current plan
 
-- Keep scheduled and always-blocked app selections distinct. Waking Trundle must
+- Keep scheduled and always-blocked app selections distinct. Waking Loc must
   only release scheduled restrictions.
 - Persist the bedtime/morning schedule and wake state; native enforcement cannot
   depend on the dashboard remaining open.
@@ -57,7 +58,7 @@ the extensions.
   historical steps since the morning start, permissions, device support, and
   background execution. Do not assume a foreground live counter handles this.
 - Verify how reaching the step target can update shields when the app is closed.
-  If opening Trundle is necessary, document that limitation in the experience.
+  If opening Locturne is necessary, document that limitation in the experience.
 - Test on a real iPhone across restarts, midnight, schedule edits, time-zone changes,
   permission changes, and overlapping restrictions.
 - Resolve manual sleep, bypass, and accessibility flows from the game plan before

@@ -8,6 +8,7 @@ import { Nocturne } from '@/constants/nocturne';
 import { AppTile } from './app-icons';
 import * as haptic from './haptics';
 import { Reveal } from './motion';
+import { Radius, Space, Type } from './tokens';
 
 /**
  * The app-picking step, shaped like the real flow so Apple's picker drops in later:
@@ -48,7 +49,7 @@ export function pickedSummary(apps: string[]): string {
 const ROW_ICON = 32;
 
 /** A white "+" tile: the card's tap-me cue, sized like the app icons beside it. */
-function AddTile({ size }: { size: number }) {
+export function AddTile({ size }: { size: number }) {
   return (
     <View style={[styles.add, { width: size, height: size, borderRadius: size * 0.225 }]}>
       <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={size * 0.46} weight="semibold" tintColor="#000000" />
@@ -72,7 +73,21 @@ function Chevron() {
  * chevron. Once apps are picked, it becomes a list of them, ending in "Add or remove apps".
  * On short phones pass a smaller `maxRows`; extra picks fold into a "+N more" row.
  */
-export function AppsCard({ apps, onOpen, maxRows = 6 }: { apps: string[]; onOpen: () => void; maxRows?: number }) {
+/** Key for the "+N more" tile when registering icon views: hidden picks fly out of it. */
+export const MORE_TILE = '__more';
+
+export function AppsCard({
+  apps,
+  onOpen,
+  maxRows = 6,
+  onIconRef,
+}: {
+  apps: string[];
+  onOpen: () => void;
+  maxRows?: number;
+  /** Receives each icon's view, so the sleep animation can start from where the icons are. */
+  onIconRef?: (app: string, view: View | null) => void;
+}) {
   const picked = apps.length > 0;
   const press = () => {
     haptic.tap();
@@ -109,7 +124,9 @@ export function AppsCard({ apps, onOpen, maxRows = 6 }: { apps: string[]; onOpen
       <View style={styles.list}>
         {rows.map((app) => (
           <View key={app} style={styles.listRow}>
-            <AppTile name={app} size={ROW_ICON} />
+            <View ref={(view) => onIconRef?.(app, view)} collapsable={false}>
+              <AppTile name={app} size={ROW_ICON} />
+            </View>
             <Text style={styles.listLabel} numberOfLines={1}>
               {app}
             </Text>
@@ -118,7 +135,11 @@ export function AppsCard({ apps, onOpen, maxRows = 6 }: { apps: string[]; onOpen
         ))}
         {hidden > 0 ? (
           <View style={styles.listRow}>
-            <View style={[styles.more, { width: ROW_ICON, height: ROW_ICON, borderRadius: ROW_ICON * 0.225 }]}>
+            <View
+              ref={(view) => onIconRef?.(MORE_TILE, view)}
+              collapsable={false}
+              style={[styles.more, { width: ROW_ICON, height: ROW_ICON, borderRadius: ROW_ICON * 0.225 }]}
+            >
               <Text style={styles.moreText}>+{hidden}</Text>
             </View>
             <Text style={styles.listLabel}>{hidden} more</Text>
@@ -148,11 +169,14 @@ export function AppPickerSheet({
   apps,
   onDone,
   onClose,
+  header = HEADER,
 }: {
   open: boolean;
   apps: string[];
   onDone: (apps: string[]) => void;
   onClose: () => void;
+  /** The line above the list. The real picker takes the same text as headerText. */
+  header?: string;
 }) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(apps);
@@ -193,7 +217,7 @@ export function AppPickerSheet({
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-          <Text style={styles.groupText}>{HEADER}</Text>
+          <Text style={styles.groupText}>{header}</Text>
           <View style={styles.search}>
             <SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={16} tintColor={Sys.label2} />
             <Text style={styles.searchText}>Search</Text>
@@ -323,20 +347,20 @@ const Sys = {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 22,
+    borderRadius: Radius.card,
     backgroundColor: Nocturne.surface,
     borderWidth: 1,
     borderColor: Nocturne.edge,
-    padding: 18,
-    gap: 16,
+    padding: Space.l,
+    gap: Space.l,
   },
   pressed: { opacity: 0.75 },
   emptyCard: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   emptyText: { flex: 1, gap: 3 },
   cardSub: { color: Nocturne.text2, fontSize: 15 },
   add: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  listHeader: { color: Nocturne.text2, fontSize: 13, fontWeight: '500', letterSpacing: 0.3, marginLeft: 16, marginBottom: 8 },
-  list: { borderRadius: 18, backgroundColor: Nocturne.surface, borderWidth: 1, borderColor: Nocturne.edge, overflow: 'hidden' },
+  listHeader: { ...Type.label, marginLeft: Space.l, marginBottom: Space.s },
+  list: { borderRadius: Radius.card, backgroundColor: Nocturne.surface, borderWidth: 1, borderColor: Nocturne.edge, overflow: 'hidden' },
   listRow: {
     minHeight: 52,
     flexDirection: 'row',

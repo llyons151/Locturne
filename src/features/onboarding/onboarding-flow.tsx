@@ -13,7 +13,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DisplayFont, Nocturne } from '@/constants/nocturne';
@@ -24,6 +24,9 @@ import {
   AGE_MIN,
   ALARM,
   ALARM_ECHO,
+  DEFAULT_EXIT_OFFER,
+  EXIT_OFFERS,
+  FOUND,
   initialAnswers,
   LIGHT_OFFER_HEADLINE,
   MORNING_MINUTES,
@@ -41,6 +44,7 @@ import {
   TRIED,
   TRIED_ECHO,
   type Answers,
+  type ExitOffer,
   type StepId,
 } from './content';
 import {
@@ -52,12 +56,13 @@ import {
   formatWhen,
   isInsideBedtime,
   lifetimeSentence,
+  yearAmount,
   yearSentence,
   weeklyAmount,
   type Estimate,
 } from './estimate';
 import * as haptic from './haptics';
-import { FLIGHT_MS, moonBottom, NightSky, QUIZ_RISE_MS, quizContentTop } from './night-sky';
+import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from './night-sky';
 import { NUMBER_FONT, RollingNumber } from './rolling-number';
 import { Reveal, type TextMotion } from './motion';
 import { useCompact } from './layout';
@@ -80,11 +85,12 @@ import {
 } from './ui';
 import { AgeWheel, TimeWheel } from './time-wheel';
 import { AppleAlertPicture } from './apple-alert';
-import { AppPickerSheet, AppsCard } from './app-picker';
+import { AppPickerSheet, AppsCard, MORE_TILE } from './app-picker';
+import { SleepDrop, type IconOrigin } from './sleep-drop';
 import { DayPicker } from './day-picker';
 import { ScheduleCard } from './schedule-card';
-import { StepTestBody, StepTestFooter, useStepTest } from './step-test';
 import { TomorrowDemo } from './tomorrow-demo';
+import { Gap, noOrphan, Radius, Space, Type, VoiceSize } from './tokens';
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
 // Four presets: one row under the time wheel.
@@ -102,10 +108,6 @@ const AUTO_ADVANCE: StepId[] = ['math'];
 
 /** The two paywall pages. Exit from either goes to `declined` instead of closing. */
 const PAYWALL: StepId[] = ['offer', 'plans'];
-
-/** Screens that close the flow in the same moonlit scene it opens with. */
-// Quiet moments start their content below the moon in the sky photo.
-const MOON_FEATURE: StepId[] = ['intro', 'under-13', 'declined'];
 
 /**
  * The quiz happens on the risen moon: it rises once at the first question and stays up
@@ -131,8 +133,18 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   alarm: 'groggy',
   tried: 'screen-time',
   timeBack: 'mornings',
+  found: 'tiktok',
   apps: ['TikTok', 'Instagram', 'YouTube'],
 };
+
+function isExitOffer(value: string | undefined): value is ExitOffer {
+  return (EXIT_OFFERS as readonly string[]).includes(value ?? '');
+}
+
+/** The exit offer a user actually gets: an extra free week means nothing without trial eligibility. */
+function resolveExitOffer(arm: ExitOffer): ExitOffer {
+  return arm === 'longer-trial' && !PRICES.trialEligible ? 'none' : arm;
+}
 
 function isStep(value: string | undefined): value is StepId {
   return value === 'declined' || (STEPS as readonly string[]).includes(value ?? '');
@@ -164,8 +176,9 @@ function appSummary(apps: string[]): string {
   return `${apps[0]}, ${apps[1]} and ${apps.length - 2} more`;
 }
 
-export function OnboardingFlow({ initialStep }: { initialStep?: string }) {
-  const { width, height } = useWindowDimensions();
+export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: string; exitOffer?: string }) {
+  const exitArm = resolveExitOffer(isExitOffer(exitOffer) ? exitOffer : DEFAULT_EXIT_OFFER);
+  const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [history, setHistory] = useState<StepId[]>([isStep(initialStep) ? initialStep : 'hello']);
@@ -229,9 +242,10 @@ export function OnboardingFlow({ initialStep }: { initialStep?: string }) {
       }
     : undefined;
   const exit = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  // Leaving the paywall lands on one honest "Fair." screen, once. A second exit really exits.
+  // Leaving the paywall lands on one honest "Fair." screen, once (unless the test arm has
+  // no offer). A second exit really exits.
   const leave =
-    PAYWALL.includes(step) && !history.includes('declined')
+    PAYWALL.includes(step) && exitArm !== 'none' && !history.includes('declined')
       ? () => go('declined')
       : exit;
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
@@ -257,6 +271,42 @@ export function OnboardingFlow({ initialStep }: { initialStep?: string }) {
   const simulate = (message: string, then: () => void) => setSimulated({ message, then });
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // "Put N to sleep": the picked icons fall into the moon and come back up asleep (sleep-drop.tsx).
+  // The page fades out around them while it plays.
+  // Plain holders rather than refs: they're only read in event handlers, but renderStep
+  // receives the handlers during render, which the React Compiler flags for refs.
+  const [views] = useState(() => new Map<string, View>());
+  const ROOT = '__root';
+  const [sleepFrom, setSleepFrom] = useState<Record<string, IconOrigin> | null>(null);
+  const pageFade = useSharedValue(1);
+  const pageStyle = useAnimatedStyle(() => ({ opacity: pageFade.value }));
+  const onIconRef = (app: string, view: View | null) => {
+    if (view) views.set(app, view);
+    else views.delete(app);
+  };
+  const measure = (view: View | null | undefined) =>
+    new Promise<{ x: number; y: number; w: number; h: number } | null>((resolve) => {
+      if (!view) return resolve(null);
+      view.measureInWindow((x, y, w, h) => resolve({ x, y, w, h }));
+    });
+  const putToSleep = async () => {
+    if (sleepFrom) return;
+    const root = (await measure(views.get(ROOT))) ?? { x: 0, y: 0 };
+    const from: Record<string, IconOrigin> = {};
+    for (const app of answers.apps) {
+      const box = await measure(views.get(app) ?? views.get(MORE_TILE));
+      if (box) from[app] = { x: box.x - root.x + box.w / 2, y: box.y - root.y + box.h / 2, size: box.w };
+    }
+    pageFade.set(withTiming(0, { duration: 260 }));
+    setSleepFrom(from);
+  };
+  // The next screen comes in while the last icon is still sinking; the overlay clears after.
+  const wokeUp = () => {
+    next();
+    pageFade.set(withTiming(1, { duration: 450 }));
+    setTimeout(() => setSleepFrom(null), 600);
+  };
+
   // While the moon moves (to or from the opener, or into and out of the quiz), the page
   // waits so text enters once it lands.
   const reducedMotion = useReducedMotion();
@@ -278,12 +328,6 @@ export function OnboardingFlow({ initialStep }: { initialStep?: string }) {
 
   const lateNight = isInsideBedtime(answers.bedtime, answers.wake);
   const compact = useCompact();
-  // Lives here so the counter survives the page re-rendering; leaving the page stops it.
-  const stepTest = useStepTest({ simulate });
-  const stopStepTest = stepTest.stop;
-  useEffect(() => {
-    if (step !== 'motion') stopStepTest();
-  }, [step, stopStepTest]);
   const screen = renderStep({
     step,
     answers,
@@ -298,23 +342,27 @@ export function OnboardingFlow({ initialStep }: { initialStep?: string }) {
     purchased,
     lateNight,
     compact,
+    exitArm,
     editing: returnTo !== null,
-    stepTest,
     openPicker: () => setPickerOpen(true),
+    putToSleep,
+    onIconRef,
   });
 
   return (
-    <View style={styles.root}>
+    <View
+      ref={(view) => onIconRef(ROOT, view)}
+      style={styles.root}
+    >
       <NightSky opening={opening} quiz={quiz} />
-      <Shell progress={progressFor(step)} onBack={back} onExit={leave} footer={screen.footer && !moonMoving ? <FooterEnter key={`${step}-${history.length}`}>{screen.footer}</FooterEnter> : undefined}
+      <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
+      <Shell progress={progressFor(step)} onBack={back} onExit={leave} footer={screen.footer && !moonMoving ? <FooterEnter key={`${step}-${history.length}`} secondary={screen.secondary}>{screen.footer}</FooterEnter> : undefined}
       >
         {moonMoving ? null : (
           <StepEnter key={`${step}-${history.length}`} motion={MOTION[step] ?? 'drift'}>
-            {/* Featured-moon screens start below the moon so text never runs across it. */}
             <View
               style={[
                 styles.fill,
-                MOON_FEATURE.includes(step) && { paddingTop: moonBottom(width) - 40 },
                 quiz && { paddingTop: quizContentTop(height, insets.top) },
               ]}
             >
@@ -323,6 +371,8 @@ export function OnboardingFlow({ initialStep }: { initialStep?: string }) {
           </StepEnter>
         )}
       </Shell>
+      </Animated.View>
+      {sleepFrom ? <SleepDrop apps={answers.apps} from={sleepFrom} onDone={wokeUp} /> : null}
       <AppPickerSheet
         open={pickerOpen}
         apps={answers.apps}
@@ -360,28 +410,28 @@ type StepContext = {
   compact: boolean;
   /** Onboarding is happening inside the bedtime window, e.g. at 12:40 AM. */
   lateNight: boolean;
+  /** Which exit offer `declined` shows. Never `none` there: that arm skips the screen. */
+  exitArm: ExitOffer;
   editing: boolean;
-  stepTest: ReturnType<typeof useStepTest>;
   /** Opens the stand-in for Apple's app picker. */
   openPicker: () => void;
+  /** Plays the apps falling asleep into the moon, then moves on. */
+  putToSleep: () => void;
+  onIconRef: (app: string, view: View | null) => void;
 };
 
-/**
- * The cold open reacts to the clock. Fixed hours, not the bedtime answer: that
- * isn't set yet on the first screen.
- */
-function helloOpener(now = new Date()): { head: string; sub: string } {
-  const hour = now.getHours();
-  if (hour >= 22 || hour < 5) {
-    const clock = `${hour % 12 === 0 ? 12 : hour % 12}:${now.getMinutes().toString().padStart(2, '0')}`;
-    return { head: `It’s ${clock}.`, sub: 'Why are we awake.' };
-  }
-  if (hour < 10) return { head: 'You’re still in bed.', sub: 'I can tell. I’m also still in bed.' };
-  return { head: 'No apps until you’re out of bed.', sub: 'I’m Trundle. Raccoon. I don’t do mornings either.' };
-}
+/** The cold open. Same line at every hour. */
+const HELLO = { head: 'No apps until you’re out of bed.', sub: 'I’m Loc. Raccoon. I don’t do mornings well either.' };
 
-function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
-  const { step, answers, numbers, set, choose, next, go, edit, exit, simulate, purchased, lateNight, compact, editing, stepTest, openPicker } = ctx;
+type StepView = {
+  body: ReactNode;
+  footer?: ReactNode;
+  /** One text link, shown just above the primary button so the button stays at the bottom. */
+  secondary?: ReactNode;
+};
+
+function renderStep(ctx: StepContext): StepView {
+  const { step, answers, numbers, set, choose, next, go, edit, exit, simulate, purchased, lateNight, compact, exitArm, editing, openPicker, putToSleep, onIconRef } = ctx;
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
   // "This morning" when it's already the small hours; "Later today" for afternoon wake-ups.
@@ -391,23 +441,20 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
 
   switch (step) {
     case 'hello': {
-      const opener = helloOpener();
       return {
         body: (
           <View style={styles.bottomStack}>
-            <Voice text={opener.head} size={46} />
-            <View style={styles.gap16} />
-            <Voice text={opener.sub} size={24} delay={800} sub />
+            <Voice text={HELLO.head} size={VoiceSize.hero} />
+            <View style={styles.gapHeadline} />
+            <Voice text={HELLO.sub} size={24} delay={800} sub />
           </View>
         ),
-        footer: (
-          <>
-            <PrimaryButton label="Go on" onPress={next} />
-            <TextButton
-              label="Already subscribed? Restore"
-              onPress={() => simulate('Restore Purchases runs here and skips straight to your setup.', () => {})}
-            />
-          </>
+        footer: <PrimaryButton label="Go on" onPress={next} />,
+        secondary: (
+          <TextButton
+            label="Already subscribed? Restore"
+            onPress={() => simulate('Restore Purchases runs here and skips straight to your setup.', () => {})}
+          />
         ),
       };
     }
@@ -422,18 +469,9 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
               <Beat label="Morning" text="They stay asleep until you’re up. Same as me." />
               <Beat label="200 steps" text="About two minutes of walking. They wake up. I do too, unfortunately." />
             </View>
-          </View>
-        ),
-        footer: <PrimaryButton label="Okay" onPress={next} />,
-      };
-
-    case 'intro':
-      return {
-        body: (
-          <View style={styles.top}>
-            <Voice text="A few questions. Then I do math on your nights." size={34} />
-            <View style={styles.gap16} />
-            <Body>About two minutes of questions. Your answers stay on your phone.</Body>
+            {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner. */}
+            <View style={styles.gapSection} />
+            <Body>First, a few questions. Then I do math on your nights. About two minutes, and your answers stay on your phone.</Body>
           </View>
         ),
         footer: <PrimaryButton label="Ask away" onPress={next} />,
@@ -452,7 +490,7 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'nights-per-week': {
       const days = answers.scrollDays ?? [];
       return {
-        ...question(
+        ...moonQuestion(
           'Which nights does that happen?',
           'Tap every one that counts.',
           <DayPicker
@@ -476,7 +514,7 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'bedtime':
       return {
         body: (
-          <View style={styles.fill}>
+          <View style={styles.top}>
             <Title>When do you get into bed?</Title>
             <Body style={styles.sub}>Getting in. Not falling asleep. Those are different.</Body>
             <View style={styles.timeWrap}>
@@ -504,7 +542,7 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
                 }}
               />
             </View>
-            {answers.shift ? <Voice text="Nights are your days. I’ll adjust. Grudgingly." size={22} sub /> : null}
+            {answers.shift ? <Voice text="Nights are your days. I’ll adjust. Grudgingly." size={VoiceSize.aside} sub /> : null}
           </View>
         ),
         footer: <PrimaryButton label={editing ? 'Save' : 'Continue'} onPress={next} />,
@@ -513,7 +551,7 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'wake':
       return {
         body: (
-          <View style={styles.fill}>
+          <View style={styles.top}>
             <Title>When does your alarm go off?</Title>
             <Body style={styles.sub}>The first one. Steps start counting from here.</Body>
             <View style={styles.timeWrap}>
@@ -541,15 +579,15 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'stat':
       return {
         body: (
-          <View style={styles.center}>
+          <View style={styles.moonTop}>
             <Reveal>
               <Text style={styles.statNumber} maxFontSizeMultiplier={1.3}>
                 85%
               </Text>
             </Reveal>
             <Body style={styles.statText}>of U.S. adults check their phone within 10 minutes of waking.</Body>
-            <View style={styles.gap32} />
-            <Voice text={MORNING_ECHO[answers.morningMinutes ?? -1] ?? 'Not just you, then.'} size={28} delay={600} sub />
+            <View style={styles.gapBlock} />
+            <Voice text={MORNING_ECHO[answers.morningMinutes ?? -1] ?? 'Not just you, then.'} size={VoiceSize.aside} delay={600} sub />
           </View>
         ),
         footer: <PrimaryButton label="Continue" onPress={next} />,
@@ -557,11 +595,13 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
 
     case 'age':
       return {
-        ...question(
+        ...moonQuestion(
           'How old are you?',
           'Sleep needs change with age.',
-          <AgeWheel value={answers.age ?? AGE_DEFAULT} onChange={(age) => set('age', age)} min={AGE_MIN} max={AGE_MAX} />,
-          true,
+          // Centred in the space under the title, not pinned above the button like list answers.
+          <View style={styles.center}>
+            <AgeWheel value={answers.age ?? AGE_DEFAULT} onChange={(age) => set('age', age)} min={AGE_MIN} max={AGE_MAX} />
+          </View>,
         ),
         footer: (
           <PrimaryButton
@@ -579,10 +619,10 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'under-13':
       return {
         body: (
-          <View style={styles.center}>
-            <Voice text="Thirteen and up. Those are the rules." size={34} header />
-            <View style={styles.gap16} />
-            <Body>Trundle isn’t for under-13s. Go to bed, though.</Body>
+          <View style={styles.top}>
+            <Voice text="Thirteen and up. Those are the rules." size={VoiceSize.headline} header />
+            <View style={styles.gapHeadline} />
+            <Body>Locturne isn’t for under-13s. Go to bed, though.</Body>
           </View>
         ),
         footer: <PrimaryButton label="Exit" onPress={exit} />,
@@ -602,9 +642,9 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
       const echo = TRIED_ECHO[answers.tried ?? ''] ?? TRIED_ECHO.nothing;
       return {
         body: (
-          <View style={styles.center}>
-            <Voice text={echo.line} size={34} header />
-            <View style={styles.gap16} />
+          <View style={styles.moonTop}>
+            <Voice text={echo.line} size={VoiceSize.headline} header />
+            <View style={styles.gapHeadline} />
             <Body>{echo.body}</Body>
           </View>
         ),
@@ -617,23 +657,26 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
         <Options options={TIME_BACK} value={answers.timeBack} onChoose={choose('timeBack')} tone="moon" />
       ));
 
+    case 'found':
+      return moonQuestion('How’d you find me?', 'Be honest. I won’t be hurt. Much.', (
+        <Options options={FOUND} value={answers.found} onChoose={choose('found')} tone="moon" />
+      ));
+
     case 'math':
       return { body: <MathScreen line={NIGHTS_ECHO[answers.nights ?? ''] ?? 'Counting. Don’t watch me.'} onDone={next} /> };
 
     case 'reveal':
       return {
         body: <RevealScreen numbers={numbers} />,
-        footer: (
-          <>
-            <PrimaryButton label={numbers.lightUser ? 'Keep it that way' : 'Let’s fix this'} onPress={next} />
-            <TextButton
-              label="Share this"
-              onPress={() => {
-                const message = `About ${weeklyAmount(numbers.weeklyMinutes)} a week on my phone in bed. My raccoon is disappointed.`;
-                Share.share({ message }).catch(() => simulate(`The share sheet opens here: “${message}”`, () => {}));
-              }}
-            />
-          </>
+        footer: <PrimaryButton label={numbers.lightUser ? 'Keep it that way' : 'Let’s fix this'} onPress={next} />,
+        secondary: (
+          <TextButton
+            label="Share this"
+            onPress={() => {
+              const message = `About ${weeklyAmount(numbers.weeklyMinutes)} a week on my phone in bed. My raccoon is disappointed.`;
+              Share.share({ message }).catch(() => simulate(`The share sheet opens here: “${message}”`, () => {}));
+            }}
+          />
         ),
       };
 
@@ -646,17 +689,17 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'screen-time':
       return {
         body: (
-          <View style={styles.center}>
-            <Voice text="I need Screen Time access." size={34} header />
-            <View style={styles.gap16} />
+          <View style={styles.top}>
+            <Voice text="I need Screen Time access." size={VoiceSize.headline} header />
+            <View style={styles.gapHeadline} />
             <Body>It’s how I put apps to sleep. What you use stays on your phone. I never see it.</Body>
             <AppleAlertPicture
-              title="“Trundle” Would Like to Access Screen Time"
-              message="Providing “Trundle” access to Screen Time may allow it to see your activity data, restrict content, and limit the usage of apps and websites."
+              title="“Locturne” Would Like to Access Screen Time"
+              message="Providing “Locturne” access to Screen Time may allow it to see your activity data, restrict content, and limit the usage of apps and websites."
               buttons={['Continue', 'Don’t Allow']}
               point={0}
             />
-            {compact ? null : <Voice text="Apple’s box is boring. So am I." size={22} delay={600} sub />}
+            {compact ? null : <Voice text="Apple’s box is boring. So am I." size={VoiceSize.aside} delay={600} sub />}
           </View>
         ),
         footer: (
@@ -677,24 +720,19 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
             <Title>Which apps keep you up?</Title>
             <Body style={styles.sub}>They sleep at bedtime and wake after your walk. Calls and texts aren’t touched.</Body>
             <View style={styles.appsCard}>
-              <AppsCard apps={answers.apps} onOpen={openPicker} maxRows={compact ? 4 : 6} />
+              <AppsCard apps={answers.apps} onOpen={openPicker} maxRows={compact ? 4 : 6} onIconRef={onIconRef} />
             </View>
           </View>
         ),
         footer: (
           <PrimaryButton
             label={!picked ? 'Add apps' : editing ? 'Save' : `Put ${answers.apps.length} to sleep`}
-            onPress={picked ? next : openPicker}
+            // Editing from the summary just saves; the first time, they watch them fall asleep.
+            onPress={!picked ? openPicker : editing ? next : putToSleep}
           />
         ),
       };
     }
-
-    case 'motion':
-      return {
-        body: <StepTestBody phase={stepTest.phase} steps={stepTest.steps} faked={stepTest.faked} lateNight={lateNight} />,
-        footer: <StepTestFooter phase={stepTest.phase} start={stepTest.start} skip={stepTest.stop} next={next} />,
-      };
 
     case 'ready':
       return {
@@ -709,8 +747,8 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
               onChange={edit}
             />
             <Body>{lateNight ? `It’s already past ${bed}. I start the second you’re in.` : 'It isn’t on yet.'}</Body>
-            <View style={styles.gap16} />
-            <Voice text="I’m ready. Emotionally, less so." size={22} delay={700} sub />
+            <View style={styles.gapAside} />
+            <Voice text="I’m ready. Emotionally, less so." size={VoiceSize.aside} delay={700} sub />
           </View>
         ),
         footer: <PrimaryButton label="Looks right" onPress={next} />,
@@ -719,10 +757,10 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
     case 'commit':
       return {
         body: (
-          <View style={styles.center}>
+          <View style={styles.top}>
             <Eyebrow>The deal</Eyebrow>
-            <Title style={styles.pledge}>{`Phone down at ${bed}. Up for 200\u00A0steps.`}</Title>
-            <View style={styles.gap16} />
+            <Title>{`Phone down at ${bed}. Up for 200\u00A0steps.`}</Title>
+            <View style={styles.gapHeadline} />
             <Body>
               {apps} sleep until you’ve walked. Passes cover sick days and travel. Change anything later.
             </Body>
@@ -738,17 +776,30 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
       return {
         body: (
           <View style={styles.top}>
-            <Voice text={headline} size={34} header />
-            <View style={styles.gap16} />
+            <Voice text={headline} size={VoiceSize.headline} header />
+            <View style={styles.gapHeadline} />
             <Body>{ALARM_ECHO[answers.alarm ?? ''] ?? 'I guard them at night. You do the walking.'}</Body>
-            <View style={styles.plan}>
-              {!numbers.lightUser ? (
-                <PlanRow when="Now" what={`About ${weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed.`} />
-              ) : null}
-              <PlanRow when="With me" what={`${apps} can’t open from ${bed} until you’ve walked 200 steps.`} />
-            </View>
+            {PRICES.trialEligible ? (
+              // The trial timeline (Blinkist pattern): the most replicated paywall win in
+              // docs/sub-club/themes/02-paywall-design-and-copy.md. Day 5 matches the reminder toggle.
+              <View style={styles.plan}>
+                <PlanRow when="Tonight" what={`${apps} sleep at ${bed}. $0 today.`} />
+                <PlanRow when="Day 5" what="I remind you. Grudgingly." />
+                <PlanRow
+                  when={`Day ${PRICES.trialDays}`}
+                  what={`${dateFromToday(PRICES.trialDays)}: ${money(PRICES.annual)} for the year, unless you cancel before then.`}
+                />
+              </View>
+            ) : (
+              <View style={styles.plan}>
+                {!numbers.lightUser ? (
+                  <PlanRow when="Now" what={`About ${weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed.`} />
+                ) : null}
+                <PlanRow when="With me" what={`${apps} can’t open from ${bed} until you’ve walked 200 steps.`} />
+              </View>
+            )}
             <Reveal>
-              <Text style={styles.reassure}>Only the apps you pick. Emergency unlock, anytime.</Text>
+              <Text style={styles.reassure}>{noOrphan('Only the apps you pick. Emergency unlock, anytime.')}</Text>
             </Reveal>
           </View>
         ),
@@ -760,48 +811,30 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
       return plansStep(answers, set, purchased, simulate, compact, bed);
 
     case 'declined':
-      return {
-        body: (
-          <View style={styles.center}>
-            <Voice text="Fair." size={34} />
-            <View style={styles.gap16} />
-            <Body>Your setup is saved. Nothing is locked, and nothing will be unless you start.</Body>
-          </View>
-        ),
-        footer: (
-          <>
-            <PrimaryButton label="See plans again" onPress={() => go('plans')} />
-            <TextButton label="Exit preview" onPress={exit} />
-          </>
-        ),
-      };
+      return declinedStep(exitArm, purchased, simulate, exit);
 
     case 'armed':
       return {
         body: (
-          <View style={styles.center}>
-            <Voice text={lateNight ? 'Armed. Starting now. Put it down.' : `Armed. See you at ${bed}.`} size={34} header />
-            <View style={styles.gap16} />
-            <Body style={styles.onImage}>
+          <View style={styles.top}>
+            <Voice text={lateNight ? 'Armed. Starting now. Put it down.' : `Armed. See you at ${bed}.`} size={VoiceSize.headline} header />
+            <View style={styles.gapHeadline} />
+            <Body>
               {answers.plan === 'annual' && PRICES.trialEligible && answers.remindTrial
                 ? 'A heads-up before bedtime. And a warning two days before your trial bills, if you let me send notifications.'
                 : 'A heads-up before bedtime. That’s it. I’m not chatty.'}
             </Body>
-            <View style={styles.gap16} />
+            <View style={styles.gapBlock} />
             <PreviewNote>
               In the real app, “Armed” only shows once tonight’s schedule is confirmed. If it can’t be set, it says so.
             </PreviewNote>
           </View>
         ),
         footer: (
-          <>
-            <PrimaryButton
-              label="Continue"
-              onPress={() =>
-                simulate('iOS asks for notification permission here. “Don’t Allow” is always an option.', next)
-              }
-            />
-          </>
+          <PrimaryButton
+            label="Continue"
+            onPress={() => simulate('iOS asks for notification permission here. “Don’t Allow” is always an option.', next)}
+          />
         ),
       };
 
@@ -809,16 +842,16 @@ function renderStep(ctx: StepContext): { body: ReactNode; footer?: ReactNode } {
       // The last screen: what tomorrow looks like, then bed.
       return {
         body: (
-          <View style={styles.center}>
+          <View style={styles.top}>
             <Title>{`${wakeDay}, ${wake}.`}</Title>
             <View style={styles.plan}>
               <PlanRow when="Steps" what={`Count from ${wake}. Bathroom, kitchen, it all counts.`} />
               <PlanRow when="At 200" what="Open a sleeping app and tap Check steps. Or just open me." />
               <PlanRow when="Bad day" what="Use a pass. No walking." />
             </View>
-            <Voice text={lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`} size={28} delay={700} header />
+            <Voice text={lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`} size={VoiceSize.aside} delay={700} sub />
             <View style={styles.gap8} />
-            <Voice text="I’ll be asleep. Don’t wake me." size={22} delay={1300} sub />
+            <Voice text="I’ll be asleep. Don’t wake me." size={VoiceSize.aside} delay={1300} sub />
           </View>
         ),
         footer: <PrimaryButton label="Finish preview" onPress={exit} />,
@@ -835,35 +868,29 @@ function moonQuestion(title: string, sub: string | undefined, options: ReactNode
   return {
     body: (
       <View style={styles.moonQuestion}>
-        <View>
-          <Title style={styles.moonTitle}>{title}</Title>
-          {sub ? <Body style={[styles.sub, styles.moonSub]}>{sub}</Body> : null}
-        </View>
+        <MoonQuestionHead title={title} sub={sub} />
         {options}
       </View>
     ),
   };
 }
 
-/** Title at the top, answers anchored low where thumbs are. */
-function question(title: string, sub: string | undefined, options: ReactNode, centered = false) {
-  return {
-    body: (
-      <View style={styles.question}>
-        <View style={styles.questionHead}>
-          <Title>{title}</Title>
-          {sub ? <Body style={styles.sub}>{sub}</Body> : null}
-        </View>
-        <View style={centered ? styles.optionsCentered : styles.optionsWrap}>{options}</View>
-      </View>
-    ),
-  };
+/** The question sits up near the top bar, above the moon's curve, not on the moon. */
+function MoonQuestionHead({ title, sub }: { title: string; sub?: string }) {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ marginTop: 60 - quizContentTop(height, insets.top) }}>
+      <Title style={styles.moonTitle}>{title}</Title>
+      {sub ? <Body style={[styles.sub, styles.moonSub]}>{sub}</Body> : null}
+    </View>
+  );
 }
 
 /**
  * The paywall, after the user's two references: a dark card paywall (title, checklist,
- * radio plan rows) with the plant app's plan list (Lifetime, Annual, Monthly, reminder
- * toggle). Annual is selected by default and shows its per-month price. Apple 3.1.2: the
+ * radio plan rows) with the plant app's plan list (Annual, Monthly, reminder toggle).
+ * Lifetime was dropped: at $99.99 next to a $59.99 annual it skipped the trial and capped LTV. Annual is selected by default and shows its per-month price. Apple 3.1.2: the
  * billed amount stays the biggest price on each card, and per-month sits under it.
  * No struck-through "was" prices: there was never a higher price to strike.
  */
@@ -874,14 +901,13 @@ function plansStep(
   simulate: StepContext['simulate'],
   compact: boolean,
   bed: string,
-): { body: ReactNode; footer: ReactNode } {
+): StepView {
   // One line in the checklist: the first app by name, the rest as a count.
   const [first, ...rest] = answers.apps;
   const apps = !first ? 'Your apps' : rest.length ? `${first} and ${rest.length} more` : first;
   const trial = PRICES.trialEligible;
   const annual = money(PRICES.annual);
   const monthly = money(PRICES.monthly);
-  const lifetime = money(PRICES.lifetime);
   const plan = answers.plan;
   const trialPlan = plan === 'annual' && trial;
   const link = (label: string, message: string) => (
@@ -894,33 +920,30 @@ function plansStep(
       ? { title: `Start ${PRICES.trialDays}-day free trial`, sub: 'No payment due now · cancel anytime' }
       : { title: `Subscribe for ${annual}/year`, sub: 'Cancel anytime in Settings' },
     monthly: { title: `Subscribe for ${monthly}/month`, sub: 'Billed today · cancel anytime' },
-    lifetime: { title: `Buy lifetime for ${lifetime}`, sub: 'One payment · no subscription' },
   }[plan];
   const summary = {
     annual: trial
       ? `Free until ${dateFromToday(PRICES.trialDays)}, then ${annual}/year.`
       : `${annual}/year. Cancel anytime.`,
     monthly: `${monthly} today, then monthly. Cancel anytime.`,
-    lifetime: `${lifetime} once. Nothing renews.`,
   }[plan];
   const terms = {
     annual: `${trial ? `${PRICES.trialDays} days free, then ${annual}/year from ${dateFromToday(PRICES.trialDays)}` : `${annual}/year`}. Auto-renews unless cancelled at least 24 hours before renewal.`,
     monthly: `${monthly}/month. Auto-renews unless cancelled at least 24 hours before renewal.`,
-    lifetime: `${lifetime} once. Not a subscription, nothing renews.`,
   }[plan];
   return {
     body: (
       <View style={[styles.paywall, compact && styles.paywallCompact]}>
         <Reveal>
           <Text style={[styles.paywallTitle, compact && styles.paywallTitleCompact]} accessibilityRole="header">
-            {trial ? 'Try Trundle free' : 'Pick a plan'}
+            {trial ? 'Try Locturne free' : 'Pick a plan'}
           </Text>
         </Reveal>
         {compact ? null : (
           <View style={styles.paywallVoice}>
             <Voice
               text={trial ? 'Seven nights free. I’ll sleep through most of them.' : 'Fine. I’ll get up for this.'}
-              size={20}
+              size={VoiceSize.aside}
               delay={500}
               sub
               center
@@ -934,19 +957,12 @@ function plansStep(
         </View>
         <View accessibilityRole="radiogroup" style={styles.planCards}>
           <PlanCard
-            selected={plan === 'lifetime'}
-            onPress={() => set('plan', 'lifetime')}
-            title="Lifetime"
-            price={`${lifetime} once`}
-            detail="Pay once. Yours forever."
-            compact={compact}
-          />
-          <PlanCard
             selected={plan === 'annual'}
             onPress={() => set('plan', 'annual')}
             title="Annual"
-            price={`${money(PRICES.annual / 12)}/month`}
-            detail={`(${money(PRICES.annual)}/year)${trial ? ` · ${PRICES.trialDays} days free` : ''}`}
+            // The billed amount is the big number (App Review 3.1.2); the monthly equivalent is the detail.
+            price={`${annual}/year`}
+            detail={`${money(PRICES.annual / 12)}/month${trial ? ` · ${PRICES.trialDays} days free` : ''}`}
             badge={`Save ${annualSavings()}%`}
             compact={compact}
           />
@@ -980,16 +996,75 @@ function plansStep(
         </View>
       </View>
     ),
+    // The terms sit right above the button that buys, so the button keeps the same spot as every other screen.
     footer: (
       <>
-        <TwoLineCta title={cta.title} sub={cta.sub} onPress={purchase} />
         <Text style={styles.paywallFine}>
           {terms} Preview: nothing is charged.{' '}
           {link('Restore', 'Restore Purchases runs here, for anyone who already subscribed.')} ·{' '}
           {link('Terms', 'Your Terms of Use open here.')} · {link('Privacy', 'Your Privacy Policy opens here.')}
         </Text>
+        <TwoLineCta title={cta.title} sub={cta.sub} onPress={purchase} />
       </>
     ),
+  };
+}
+
+/**
+ * One real offer for people who closed the paywall, picked by the exit-offer test
+ * (`EXIT_OFFERS` in content.ts): half-price annual, or full-price annual with a longer
+ * trial. Shown once (a second exit really exits), and no timer. The full price is named
+ * as a plain comparison, never struck through. The real app must remember it was shown,
+ * so the offer can't be farmed by reinstalling onboarding.
+ */
+function declinedStep(
+  arm: ExitOffer,
+  purchase: () => void,
+  simulate: StepContext['simulate'],
+  exit: () => void,
+): StepView {
+  const longer = arm === 'longer-trial';
+  // `longer-trial` only reaches this screen for trial-eligible users.
+  const trial = PRICES.trialEligible;
+  const days = longer ? PRICES.extendedTrialDays : PRICES.trialDays;
+  const full = money(PRICES.annual);
+  const price = longer ? full : money(PRICES.annualOffer);
+  const link = (label: string, message: string) => (
+    <Text accessibilityRole="link" style={styles.link} onPress={() => simulate(message, () => {})}>
+      {label}
+    </Text>
+  );
+  return {
+    body: (
+      <View style={styles.top}>
+        <Voice text={longer ? 'Fair. Two free weeks, then.' : 'Fair. Half price, then.'} size={VoiceSize.headline} header />
+        <View style={styles.gapHeadline} />
+        <Body>
+          {longer
+            ? `${days} days free instead of ${PRICES.trialDays}, then ${full} a year. This only shows up here, once.`
+            : `Annual for ${price} a year instead of ${full}${trial ? `, still with ${days} days free` : ''}. This price only shows up here, once.`}
+        </Body>
+        <View style={styles.gapAside} />
+        <Voice text="Don’t tell the others." size={VoiceSize.aside} delay={600} sub />
+        <View style={styles.gapSection} />
+        <Body>Or leave. Your setup is saved, and nothing locks unless you start.</Body>
+      </View>
+    ),
+    footer: (
+      <>
+        <Text style={styles.paywallFine}>
+          {`${trial ? `${days} days free, then ${price}/year from ${dateFromToday(days)}` : `${price}/year`}. Auto-renews at ${price}/year unless cancelled at least 24 hours before renewal.`}{' '}
+          Preview: nothing is charged. {link('Terms', 'Your Terms of Use open here.')} ·{' '}
+          {link('Privacy', 'Your Privacy Policy opens here.')}
+        </Text>
+        <TwoLineCta
+          title={trial ? `Start ${days}-day free trial` : `Subscribe for ${price}/year`}
+          sub={trial ? `Then ${price}/year · cancel anytime` : 'Cancel anytime in Settings'}
+          onPress={purchase}
+        />
+      </>
+    ),
+    secondary: <TextButton label="No thanks" onPress={exit} />,
   };
 }
 
@@ -1023,8 +1098,8 @@ function MathScreen({ line, onDone }: { line: string; onDone: () => void }) {
   }, []);
 
   return (
-    <View style={styles.center}>
-      <Voice text={line} size={34} header />
+    <View style={styles.top}>
+      <Voice text={line} size={VoiceSize.headline} header />
       <View style={styles.mathList}>
         {lines.map((line, i) => (
           <Reveal key={line} style={[styles.mathRow, i >= shown && styles.faded]}>
@@ -1040,6 +1115,7 @@ function MathScreen({ line, onDone }: { line: string; onDone: () => void }) {
 /** Above this many hour-squares the grid switches to one square per day. */
 const MAX_HOUR_SQUARES = 1000;
 const CAPTION_SPACE = 34;
+const DAYS_PER_MONTH = 30.44;
 
 function RevealScreen({ numbers }: { numbers: Estimate }) {
   const [landed, setLanded] = useState(false);
@@ -1047,27 +1123,32 @@ function RevealScreen({ numbers }: { numbers: Estimate }) {
   const [area, setArea] = useState({ width: 0, height: 0 });
   const compact = useCompact();
 
-  // One year of it. Hours if every hour fits on screen, otherwise days.
+  // The rest of their life, one box per month, with the months on the phone in bed lit.
+  // Without an age there's no lifetime, so fall back to one year of hours or days.
   // The caption sits right under the squares, so leave room for it.
   const gridHeight = area.height - CAPTION_SPACE;
+  const lifeMonths = numbers.yearsLeft * 12;
+  const litMonths = Math.max(1, Math.round(numbers.lifetimeDays / DAYS_PER_MONTH));
+  const lifeFit = lifeMonths > 0 && numbers.lifetimeDays > 0 ? fitSquares(lifeMonths, area.width, gridHeight) : null;
   const hourFit =
-    numbers.yearlyHours <= MAX_HOUR_SQUARES ? fitSquares(numbers.yearlyHours, area.width, gridHeight) : null;
+    !lifeFit && numbers.yearlyHours <= MAX_HOUR_SQUARES ? fitSquares(numbers.yearlyHours, area.width, gridHeight) : null;
   const unit: 'hour' | 'day' = hourFit ? 'hour' : 'day';
-  const squares = hourFit ? numbers.yearlyHours : Math.max(1, numbers.yearlyDays);
-  const fit = hourFit ?? fitSquares(squares, area.width, gridHeight);
+  const squares = lifeFit ? lifeMonths : hourFit ? numbers.yearlyHours : Math.max(1, numbers.yearlyDays);
+  const yearSquares = hourFit ? numbers.yearlyHours : Math.max(1, numbers.yearlyDays);
+  const fit = lifeFit ?? hourFit ?? fitSquares(squares, area.width, gridHeight);
   const lifetime = lifetimeSentence(numbers.lifetimeDays);
 
   if (numbers.lightUser) {
     return (
-      <View style={styles.center}>
-        <Voice text="You’re barely on it." size={34} />
-        <View style={styles.gap16} />
+      <View style={styles.top}>
+        <Voice text="You’re barely on it." size={VoiceSize.headline} header />
+        <View style={styles.gapHeadline} />
         <Body>
           About {weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed. So I’ll mostly handle mornings.
           Apps stay asleep until you’re up.
         </Body>
-        <View style={styles.gap16} />
-        <Voice text="You’re already ahead. I’ll keep it that way." size={22} delay={700} sub />
+        <View style={styles.gapAside} />
+        <Voice text="You’re already ahead. I’ll keep it that way." size={VoiceSize.aside} delay={700} sub />
       </View>
     );
   }
@@ -1102,19 +1183,30 @@ function RevealScreen({ numbers }: { numbers: Estimate }) {
           <>
             {/* The payoff carries the meaning for VoiceOver; the squares are decoration. */}
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              <RevealGrid squares={squares} fit={fit} onFilled={() => setFilled(true)} />
+              <RevealGrid squares={squares} lit={lifeFit ? litMonths : squares} fit={fit} onFilled={() => setFilled(true)} />
             </View>
             <FadeWhen visible={filled}>
-              <Text style={styles.gridCaption}>One year. Each box is 1 {unit}.</Text>
+              <Text style={styles.gridCaption}>
+                {lifeFit ? 'The rest of your life. Each box is 1 month.' : `One year. Each box is 1 ${unit}.`}
+              </Text>
             </FadeWhen>
           </>
         ) : null}
       </View>
 
       <FadeWhen visible={filled}>
-        {/* The year line always matches the boxes; the lifetime line is a separate, smaller beat. */}
-        <Text style={styles.payoff}>{yearSentence(squares, unit)}</Text>
-        {lifetime ? <Text style={styles.payoffLifetime}>{lifetime}</Text> : null}
+        {/* With the life grid, the lifetime line leads and the year line backs it up. */}
+        {lifeFit && lifetime ? (
+          <>
+            <Text style={styles.payoff}>{lifetime}</Text>
+            <Text style={styles.payoffLifetime}>{yearAmount(numbers.yearlyDays, 'day')}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.payoff}>{yearSentence(yearSquares, unit)}</Text>
+            {lifetime ? <Text style={styles.payoffLifetime}>{lifetime}</Text> : null}
+          </>
+        )}
       </FadeWhen>
     </View>
   );
@@ -1247,139 +1339,83 @@ function PromptCard({ message, onContinue }: { message: string; onContinue: () =
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Nocturne.bg },
+  // Clipped: the sky's moon layers run past the screen edges, which on web widened the
+  // page so full-screen sheets and prompts spilled off the right side.
+  root: { flex: 1, backgroundColor: Nocturne.bg, overflow: 'hidden' },
   fill: { flex: 1 },
-  top: { flex: 1, paddingTop: 20 },
+  // Every dark-sky page anchors here, so headlines start at the same height on each one.
+  top: { flex: 1, paddingTop: Gap.pageTop },
   center: { flex: 1, justifyContent: 'center' },
-  bottomStack: { flex: 1, justifyContent: 'flex-end', paddingBottom: 24 },
-  gap8: { height: 8 },
-  gap16: { height: 16 },
-  gap32: { height: 32 },
-  sub: { marginTop: 10 },
-  question: { flex: 1, justifyContent: 'space-between', paddingTop: 20, gap: 28 },
-  questionHead: {},
-  optionsWrap: { paddingBottom: 8 },
-  optionsCentered: { flex: 1, justifyContent: 'center' },
-  moonQuestion: { flex: 1, justifyContent: 'space-between', gap: 22, paddingBottom: 8 },
-  moonTitle: { textAlign: 'center', fontSize: 24, lineHeight: 29 },
+  // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
+  moonTop: { flex: 1 },
+  bottomStack: { flex: 1, justifyContent: 'flex-end', paddingBottom: Space.xl },
+  gap8: { height: Space.s },
+  gapHeadline: { height: Gap.headline },
+  gapAside: { height: Gap.aside },
+  gapBlock: { height: Gap.block },
+  gapSection: { height: Gap.section },
+  sub: { marginTop: Gap.headline },
+  moonQuestion: { flex: 1, justifyContent: 'space-between', gap: Space.xl, paddingBottom: Space.s },
+  moonTitle: { textAlign: 'center', ...Type.quizTitle },
   moonSub: { textAlign: 'center', color: Nocturne.text },
-  // Bedtime and wake sit under the quiz moon's curve, so they run tight.
-  timeWrap: { marginTop: 16 },
-  warning: { marginTop: 28, textAlign: 'center', color: Nocturne.text },
-  beats: { marginTop: 32, gap: 26 },
-  beat: { gap: 6 },
-  beatLabel: { color: Nocturne.text2, fontSize: 12, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
+  timeWrap: { marginTop: Gap.block },
+  warning: { marginTop: Gap.block, textAlign: 'center', color: Nocturne.text },
+  beats: { marginTop: Gap.block, gap: Space.xl },
+  beat: { gap: Space.s },
+  beatLabel: Type.label,
   beatText: { ...DisplayFont, color: Nocturne.text, fontSize: 26, lineHeight: 30 },
-  // Numbers use the serif upright. Italic serif always means Trundle is talking.
+  // Numbers use the serif upright. Italic serif always means Loc is talking.
   // The stat sits on the quiz moon, centred like the rest of the moon pages.
   statNumber: { ...NUMBER_FONT, color: Nocturne.accent ?? Nocturne.text, fontSize: 108, lineHeight: 112, letterSpacing: -1, textAlign: 'center' },
-  revealUnit: { color: Nocturne.text, fontSize: 24, fontWeight: '600' },
-  statText: { color: Nocturne.text, fontSize: 20, lineHeight: 27, marginTop: 8, textAlign: 'center' },
-  mathList: { marginTop: 32, gap: 16 },
-  mathRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statText: { color: Nocturne.text, ...Type.body, marginTop: Gap.headline, textAlign: 'center' },
+  mathList: { marginTop: Gap.block, gap: Space.l },
+  mathRow: { flexDirection: 'row', alignItems: 'center', gap: Space.m },
   faded: { opacity: 0.35 },
   mathDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: Nocturne.text2 },
   mathDotDone: { backgroundColor: Nocturne.text, borderColor: Nocturne.text },
-  mathLabel: { color: Nocturne.text, fontSize: 17 },
-  revealWrap: { flex: 1, paddingTop: 4 },
-  revealLead: { textAlign: 'center', color: Nocturne.text, fontSize: 18, lineHeight: 25, marginBottom: 4 },
-  revealSub: { marginTop: 2, textAlign: 'center' },
-  paywallVoice: { marginTop: 6, marginHorizontal: 24 },
-  gridArea: { flex: 1, justifyContent: 'center', marginVertical: 16, minHeight: 80 },
-  gridCaption: { color: Nocturne.text2, fontSize: 15, lineHeight: 20, marginTop: 12, textAlign: 'center' },
+  mathLabel: { color: Nocturne.text, ...Type.body },
+  revealWrap: { flex: 1, paddingTop: Gap.pageTop },
+  revealLead: { textAlign: 'center', color: Nocturne.text, ...Type.body, marginBottom: Space.s },
+  revealSub: { marginTop: Space.s, textAlign: 'center' },
+  gridArea: { flex: 1, justifyContent: 'center', marginVertical: Space.l, minHeight: 80 },
+  gridCaption: { color: Nocturne.text2, ...Type.secondary, marginTop: Space.m, textAlign: 'center' },
   hiddenBlock: { opacity: 0 },
-  appsCard: { marginTop: 28 },
-  plan: { marginVertical: 28, gap: 14 },
-  planRow: { flexDirection: 'row', gap: 14, alignItems: 'baseline' },
-  planWhen: { width: 78, color: Nocturne.text2, fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  planWhat: { flex: 1, color: Nocturne.text, fontSize: 17, lineHeight: 23 },
+  appsCard: { marginTop: Gap.block },
+  plan: { marginVertical: Gap.block, gap: Space.m },
+  planRow: { flexDirection: 'row', gap: Space.m, alignItems: 'baseline' },
+  planWhen: { width: 78, ...Type.rowKey, fontVariant: ['tabular-nums'] },
+  planWhat: { flex: 1, color: Nocturne.text, ...Type.body },
   change: { color: Nocturne.text2, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
-  reassure: { color: Nocturne.text, fontSize: 15, lineHeight: 21, fontWeight: '500' },
-  shiftRow: { marginTop: 14, flexDirection: 'row', justifyContent: 'center', marginBottom: 12 },
-  // The user's side of the deal, so sans like every other non-Trundle headline.
-  pledge: { fontSize: 32, lineHeight: 37 },
-  payoffLifetime: { color: Nocturne.text2, fontSize: 17, lineHeight: 22, marginTop: 6, textAlign: 'center' },
+  reassure: { color: Nocturne.text2, ...Type.secondary },
+  shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },
   payoff: { ...NUMBER_FONT, color: Nocturne.accent ?? Nocturne.text, fontSize: 26, lineHeight: 32, letterSpacing: 0.2, textAlign: 'center' },
-  maker: { color: Nocturne.text2, fontSize: 13, lineHeight: 18, marginTop: 8, marginBottom: 14 },
-  onImage: { color: Nocturne.text },
-  plansHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  restoreButton: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: 6 },
-  restore: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
-  timeline: { marginTop: 18 },
-  timelineRow: { flexDirection: 'row', gap: 14, minHeight: 58 },
-  timelineRail: { width: 14, alignItems: 'center' },
-  timelineLine: { flex: 1, width: 2, backgroundColor: Nocturne.track },
-  hiddenLine: { backgroundColor: 'transparent' },
-  timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Nocturne.text2 },
-  timelineDotNow: { backgroundColor: Nocturne.text },
-  timelineBody: { flex: 1, paddingVertical: 8 },
-  timelineLabel: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
-  timelineText: { color: Nocturne.text2, fontSize: 14, lineHeight: 19, marginTop: 2 },
-  planCards: { gap: 10, marginTop: 18, marginBottom: 12 },
-  planCard: {
-    borderRadius: 18,
-    padding: 16,
-    backgroundColor: Nocturne.surface,
-    borderWidth: 2,
-    borderColor: Nocturne.edge,
-  },
-  planCardSelected: { borderColor: Nocturne.text },
-  planCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  planCardTitle: { color: Nocturne.text2, fontSize: 14, fontWeight: '600' },
-  planCardPrice: { color: Nocturne.text, fontSize: 22, fontWeight: '700', marginTop: 4, fontVariant: ['tabular-nums'] },
-  planCardDetail: { color: Nocturne.text2, fontSize: 13, marginTop: 3 },
-  badge: { backgroundColor: Nocturne.cta, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-  badgeText: { color: Nocturne.onCta, fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  trust: { color: Nocturne.text, fontSize: 13, textAlign: 'center', fontWeight: '500' },
-  finePrint: { color: Nocturne.text2, fontSize: 13, lineHeight: 18, marginBottom: 14 },
-  link: { color: Nocturne.text, textDecorationLine: 'underline' },
-  moonScrim: { backgroundColor: `${Nocturne.bg}8C` },
-  moonScrimDim: { backgroundColor: `${Nocturne.bg}CC` },
-  paywall: { flex: 1, justifyContent: 'center', paddingBottom: 8 },
-  // Short phones have no spare height to centre in: start at the top so the title never clips.
-  paywallCompact: { justifyContent: 'flex-start', paddingBottom: 0 },
-  planSummary: { color: Nocturne.text, fontSize: 15, lineHeight: 20, textAlign: 'center', marginBottom: 4 },
-  paywallTop: { flexDirection: 'row', justifyContent: 'flex-start' },
-  paywallTitle: {
-    color: Nocturne.text,
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: -0.4,
-    marginTop: 8,
-    marginHorizontal: 24,
-  },
-  paywallTitleCompact: { fontSize: 25, lineHeight: 30, marginTop: 0 },
-  faq: { marginTop: 20, marginBottom: 16, borderRadius: 16, backgroundColor: Nocturne.surface, padding: 20, gap: 8 },
-  faqTitle: { color: Nocturne.text, fontSize: 17, fontWeight: '700' },
-  faqText: { color: Nocturne.text2, fontSize: 16, lineHeight: 22 },
-  faqVoice: { ...DisplayFont, color: Nocturne.text, fontSize: 18, marginTop: 4 },
-  twoLineCta: {
-    minHeight: 60,
-    borderRadius: 30,
-    backgroundColor: Nocturne.cta,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  pressedCta: { opacity: 0.8 },
-  twoLineTitle: { color: Nocturne.onCta, fontSize: 18, fontWeight: '700' },
-  twoLineSub: { color: Nocturne.onCta, opacity: 0.7, fontSize: 13, fontWeight: '500', marginTop: 1 },
-  paywallFine: { color: Nocturne.text2, fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  payoffLifetime: { color: Nocturne.text2, ...Type.body, marginTop: Space.s, textAlign: 'center' },
+
+  // The paywall: centred like the quiz, but anchored at the top like every other page.
+  paywall: { flex: 1, paddingTop: Gap.pageTop },
+  // Short phones have no spare height: start right under the top bar so the title never clips.
+  paywallCompact: { paddingTop: 0 },
+  paywallTitle: { color: Nocturne.text, ...Type.title, textAlign: 'center' },
+  paywallTitleCompact: Type.quizTitle,
+  paywallVoice: { marginTop: Space.s },
+  checks: { gap: Space.s, marginTop: Space.l, alignSelf: 'center' },
+  checksCompact: { marginTop: Space.s, gap: Space.xs },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  checkText: { color: Nocturne.text, ...Type.body, flexShrink: 1 },
+  planCards: { gap: Space.m, marginTop: Space.l, marginBottom: Space.m },
   planOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: Space.m,
+    borderRadius: Radius.card,
+    paddingHorizontal: Space.l,
+    paddingVertical: Space.m,
     backgroundColor: Nocturne.surface,
     // Always 2 wide, so selecting a plan never nudges the layout.
     borderWidth: 2,
     borderColor: Nocturne.edge,
   },
+  planOptionCompact: { paddingVertical: Space.s },
   planOptionSelected: { borderColor: Nocturne.text, backgroundColor: Nocturne.raised },
   radio: {
     width: 22,
@@ -1392,25 +1428,40 @@ const styles = StyleSheet.create({
   },
   radioOn: { borderColor: Nocturne.text, backgroundColor: Nocturne.text },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Nocturne.onCta },
-  planOptionCompact: { paddingVertical: 10 },
-  planOptionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  planOptionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Space.s },
   planOptionTitle: { color: Nocturne.text, fontSize: 17, fontWeight: '700' },
   // Apple 3.1.2: the billed price is the largest; the per-month line sits under it, smaller.
   planOptionPrice: { color: Nocturne.text, fontSize: 19, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] },
   planOptionDetail: { color: Nocturne.text, opacity: 0.75, fontSize: 14, marginTop: 1, fontVariant: ['tabular-nums'] },
-  checks: { gap: 10, marginTop: 18, alignSelf: 'center' },
-  checksCompact: { marginTop: 10, gap: 6 },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  checkText: { color: Nocturne.text, fontSize: 16, flexShrink: 1 },
-  remindRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 },
-  remindLabel: { color: Nocturne.text, fontSize: 15, flexShrink: 1 },
+  badge: { backgroundColor: Nocturne.cta, borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },
+  badgeText: { color: Nocturne.onCta, fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
+  // One plain sentence about what happens next, white because it's the line to read first.
+  planSummary: { color: Nocturne.text, ...Type.secondary, textAlign: 'center', marginBottom: Space.xs },
+  // Centred as one group, like the checklist above it.
+  remindRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.m, minHeight: 44 },
+  remindLabel: { color: Nocturne.text, ...Type.secondary, flexShrink: 1 },
+  twoLineCta: {
+    minHeight: 60,
+    borderRadius: Radius.pill,
+    backgroundColor: Nocturne.cta,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  pressedCta: { opacity: 0.8 },
+  twoLineTitle: { color: Nocturne.onCta, fontSize: 18, fontWeight: '700' },
+  twoLineSub: { color: Nocturne.onCta, opacity: 0.7, fontSize: 13, fontWeight: '500', marginTop: 1 },
+  paywallFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center' },
+  link: { color: Nocturne.text, textDecorationLine: 'underline' },
+
   modalScrim: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
-    padding: 28,
+    padding: Gap.gutter,
   },
-  modalCard: { backgroundColor: Nocturne.raised, borderRadius: 24, padding: 22, gap: 14 },
-  modalLabel: { color: Nocturne.text, fontSize: 11, fontWeight: '700', letterSpacing: 1.4 },
-  modalText: { color: Nocturne.text, fontSize: 16, lineHeight: 22 },
+  modalCard: { backgroundColor: Nocturne.raised, borderRadius: Radius.card, padding: Space.xl, gap: Space.m },
+  modalLabel: Type.label,
+  modalText: { color: Nocturne.text, ...Type.body },
 });

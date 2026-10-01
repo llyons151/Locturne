@@ -7,6 +7,7 @@ import { AppTile } from './app-icons';
 import { formatClock } from './estimate';
 import { Reveal } from './motion';
 import { NUMBER_FONT } from './rolling-number';
+import { Gap, Radius, Space, Type } from './tokens';
 
 const MAX_ICONS = 5;
 
@@ -34,8 +35,21 @@ export function ScheduleCard({
   return (
     <Reveal style={[styles.card, compact && styles.cardCompact]}>
       <View style={styles.times}>
-        <Time label="Lights out" minutes={bedtime} compact={compact} onChange={() => onChange('bedtime')} />
-        <Time label="Alarm" minutes={wake} compact={compact} onChange={() => onChange('wake')} alignEnd />
+        <Time
+          label="Lights out"
+          icon={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}
+          minutes={bedtime}
+          compact={compact}
+          onChange={() => onChange('bedtime')}
+        />
+        <Time
+          label="Alarm"
+          icon={{ ios: 'sunrise.fill', android: 'wb_twilight', web: 'wb_twilight' }}
+          minutes={wake}
+          compact={compact}
+          onChange={() => onChange('wake')}
+          alignEnd
+        />
       </View>
 
       <View style={styles.walk} accessible accessibilityLabel="Then 200 steps wake your apps">
@@ -82,8 +96,10 @@ function Time({
   compact,
   onChange,
   alignEnd,
+  icon,
 }: {
   label: string;
+  icon: SymbolViewProps['name'];
   minutes: number;
   compact: boolean;
   onChange: () => void;
@@ -92,7 +108,10 @@ function Time({
   const [clock, suffix] = formatClock(minutes).split(' ');
   return (
     <View style={[styles.time, alignEnd && styles.timeEnd]}>
-      <Text style={styles.label}>{label.toUpperCase()}</Text>
+      <View style={[styles.labelRow, alignEnd && styles.labelRowEnd]}>
+        <SymbolView name={icon} size={12} tintColor={Nocturne.text2} />
+        <Text style={styles.label}>{label.toUpperCase()}</Text>
+      </View>
       <Text
         style={[styles.clock, compact && styles.clockCompact]}
         maxFontSizeMultiplier={1.2}
@@ -115,37 +134,41 @@ function ChangeLink({ label, text = 'Change', onPress }: { label: string; text?:
 }
 
 function WalkGlyph({ name }: { name: SymbolViewProps['name'] }) {
-  return <SymbolView name={name} size={18} tintColor={Nocturne.text} />;
+  return <SymbolView name={name} size={18} tintColor={Nocturne.accent ?? Nocturne.text} />;
 }
 
 const styles = StyleSheet.create({
   card: {
-    marginTop: 24,
-    marginBottom: 20,
-    borderRadius: 24,
-    backgroundColor: Nocturne.surface,
+    marginTop: Gap.block,
+    marginBottom: Gap.block,
+    borderRadius: Radius.card,
+    // Frosted moon glass over the night sky, like the quiz moon, not a charcoal box.
+    backgroundColor: Nocturne.frost,
     borderWidth: 1,
     borderColor: Nocturne.edge,
     padding: 20,
   },
-  cardCompact: { marginTop: 16, marginBottom: 14, padding: 16 },
+  cardCompact: { marginTop: Space.l, marginBottom: Space.l, padding: Space.l },
   times: { flexDirection: 'row', justifyContent: 'space-between' },
   time: { gap: 4 },
   timeEnd: { alignItems: 'flex-end' },
-  label: { color: Nocturne.text2, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
-  clock: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 40, lineHeight: 46, fontVariant: ['tabular-nums'] },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  labelRowEnd: { flexDirection: 'row-reverse' },
+  label: Type.label,
+  clock: { ...NUMBER_FONT, color: Nocturne.accent ?? Nocturne.text, fontSize: 40, lineHeight: 46, fontVariant: ['tabular-nums'] },
   clockCompact: { fontSize: 34, lineHeight: 40 },
   suffix: { color: Nocturne.text2, fontSize: 16, fontWeight: '600' },
   change: { color: Nocturne.text2, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
-  walk: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18 },
+  walk: { flexDirection: 'row', alignItems: 'center', gap: Space.s, marginTop: Space.l },
   // Evenly spaced dashes, clipped to whatever width the row leaves.
   dashes: { flex: 1, flexDirection: 'row', gap: 4, overflow: 'hidden' },
-  dash: { width: 4, flexShrink: 0, height: 2, borderRadius: 1, backgroundColor: Nocturne.text2 },
-  walkLabel: { color: Nocturne.text, fontSize: 13, fontWeight: '600' },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: Nocturne.edge, marginVertical: 18 },
+  // Round dots, like footprints across the night.
+  dash: { width: 3, flexShrink: 0, height: 3, borderRadius: 1.5, backgroundColor: Nocturne.text3 },
+  walkLabel: { color: Nocturne.text, fontSize: 13, fontWeight: '600', letterSpacing: 0.3 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: Nocturne.edge, marginVertical: Space.l },
   appsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   icons: { flexDirection: 'row', gap: 8, flexShrink: 1 },
-  more: { backgroundColor: Nocturne.raised, alignItems: 'center', justifyContent: 'center' },
+  more: { backgroundColor: Nocturne.frost, borderWidth: 1, borderColor: Nocturne.edge, alignItems: 'center', justifyContent: 'center' },
   moreLabel: { color: Nocturne.text, fontSize: 14, fontWeight: '700' },
-  appsCaption: { color: Nocturne.text2, fontSize: 14, lineHeight: 19, marginTop: 10 },
+  appsCaption: { color: Nocturne.text2, ...Type.secondary, marginTop: Space.m },
 });

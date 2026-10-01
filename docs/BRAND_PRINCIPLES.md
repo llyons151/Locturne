@@ -1,7 +1,7 @@
 # Brand principles: what AI can't generate
 
 Written September 24, 2026, in response to Opal's founder saying "you can't
-vibecode a brand." This doc turns that line into rules for Trundle. It works
+vibecode a brand." This doc turns that line into rules for Locturne. It works
 alongside [GAME_PLAN.md](../GAME_PLAN.md) (look and voice),
 [MASCOT_DIRECTION.md](MASCOT_DIRECTION.md) and [COLOR_RESEARCH.md](COLOR_RESEARCH.md).
 
@@ -19,7 +19,7 @@ reference, a real experience or a test, never from the first thing a prompt retu
 **The test:** if a single prompt like "sleep app, dark mode, cute mascot" would
 produce it on the first try, it isn't brand. It's the default.
 
-## Where Trundle's brand actually lives
+## Where Locturne's brand actually lives
 
 Ranked by leverage for v1, where there's no illustrated art.
 
@@ -52,7 +52,7 @@ spend disproportionate time on them. Everything else stays plain and quiet.
 ### 3. Honesty as a brand trait
 
 "Never fails silently" is a brand promise, not just engineering. Most blockers
-quietly break and users find out at 1am. Trundle says it plainly, in his voice,
+quietly break and users find out at 1am. Loc says it plainly, in his voice,
 when protection is off. Reliability plus candour becomes the reputation.
 
 ### 4. You
@@ -88,13 +88,14 @@ These read as generated. Don't ship them without a specific reason.
 - Near-black background plus one saturated accent (already rejected).
 - Rounded cards with gradients, glassmorphism everywhere, glow of any kind.
 - Icons in coloured circles, stats tiles, progress rings as decoration.
-- "Welcome to Trundle! 👋" onboarding, confetti on success, "Great job!"
+- "Welcome to Locturne! 👋" onboarding, confetti on success, "Great job!"
 - Stock Lottie animations and raw AI mascot art.
 - Copy that could belong to any wellness app ("Build healthier habits").
 
 ## Next brand actions
 
-1. ~~Decide the name.~~ Trundle, decided September 24, 2026.
+1. ~~Decide the name.~~ Locturne, decided September 27, 2026 (replacing Trundle).
+   See [NAME_RESEARCH.md](NAME_RESEARCH.md).
 2. Write the first 100 lines. The voice rules are in [VOICE.md](VOICE.md).
 3. Film the first 5 concept videos to test voice before building UI.
 4. Mock the shield, the 190–200 step moment, and the share card from references.

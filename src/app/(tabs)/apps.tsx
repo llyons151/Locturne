@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { AppsList } from '@/features/apps/apps-list';
 
 export default function AppsScreen() {
-  return <PlaceholderScreen title="Blocked apps" description="Apps that follow Trundle's schedule, and the always-blocked list." />;
+  return <AppsList />;
 }

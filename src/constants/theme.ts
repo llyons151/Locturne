@@ -14,12 +14,6 @@ export const Colors = {
     backgroundElement: '#F0F0F3',
     backgroundSelected: '#E0E1E6',
     textSecondary: '#60646C',
-    tabBar: '#0D0D0F',
-    tabIcon: '#6E6E73',
-    tabIconSelected: '#FFFFFF',
-    napButton: '#2C2C2E',
-    napButtonSelected: '#3A3A3C',
-    napButtonIcon: '#FFFFFF',
   },
   dark: {
     text: '#ffffff',
@@ -27,12 +21,6 @@ export const Colors = {
     backgroundElement: '#212225',
     backgroundSelected: '#2E3135',
     textSecondary: '#B0B4BA',
-    tabBar: '#0D0D0F',
-    tabIcon: '#6E6E73',
-    tabIconSelected: '#FFFFFF',
-    napButton: '#2C2C2E',
-    napButtonSelected: '#3A3A3C',
-    napButtonIcon: '#FFFFFF',
   },
 } as const;
 

@@ -1,6 +1,6 @@
 # Navigation: center Nap button
 
-Researched September 24, 2026. Question: should Trundle use a bottom nav with a
+Researched September 24, 2026. Question: should Locturne use a bottom nav with a
 prominent center button (like the dark "+" pill in a reference screenshot) that
 starts an immediate nap?
 
@@ -14,7 +14,7 @@ fires an action. Keep native tabs.
 - GAME_PLAN already includes "Tuck him in for a nap" (15/30/60 min). It is the only
   thing a user does on demand; bedtime and morning happen automatically. The
   on-demand action should be the easiest thing to reach.
-- The center slot is also the best spot for short-video demos: one tap, Trundle
+- The center slot is also the best spot for short-video demos: one tap, Loc
   curls up, apps are blocked.
 
 ## Constraints found
@@ -30,7 +30,7 @@ fires an action. Keep native tabs.
   with a `tabBar` render). That gives up Liquid Glass, native minimize, and
   platform accessibility behavior. The earlier HIG audit already flagged the custom
   bar as something to replace.
-- **Wording:** Trundle blocks the user's selected apps, not the whole phone. Avoid
+- **Wording:** Locturne blocks the user's selected apps, not the whole phone. Avoid
   "brick your phone"; Brick is also a competitor's name.
 - **Enforcement risk:** Non-repeating DeviceActivity schedules have lost
   callbacks on iOS 26.3.1 (see VALIDATION_RESEARCH.md). An immediate nap can apply
@@ -42,12 +42,12 @@ fires an action. Keep native tabs.
 `Home` · `Nap` (center) · `Settings`, with room for one more later (e.g. `Apps`).
 Three or four tabs is enough; history and stats are secondary in the plan.
 
-- **Nap tab:** Trundle yawning, 15/30/60 chips, one big "Tuck him in" button.
-  While a nap runs, it shows the countdown and sleeping Trundle.
+- **Nap tab:** Loc yawning, 15/30/60 chips, one big "Tuck him in" button.
+  While a nap runs, it shows the countdown and sleeping Loc.
 - **BottomAccessory while napping:** a small "Napping · 23 min left" pill above the
   tabs, visible from any tab. This is where iOS 26 expects live status.
 - **State rules:**
-  - Night: Nap tab says Trundle is already asleep and offers no start button.
+  - Night: Nap tab says Loc is already asleep and offers no start button.
   - Morning (waking, under 200 steps): decide before shipping. Suggested: nap is
     allowed, and ending it returns to the waking state. It never unlocks
     scheduled apps.

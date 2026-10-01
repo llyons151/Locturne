@@ -22,6 +22,7 @@ import { DisplayFont, Nocturne } from '@/constants/nocturne';
 
 import * as haptic from './haptics';
 import { MotionPage, Reveal, WordsIn, type TextMotion } from './motion';
+import { CTA_HEIGHT, Gap, noOrphan, Radius, Space, Type } from './tokens';
 
 /** Display type is already large; let it grow a little with Dynamic Type, not 3x. */
 export const DISPLAY_MAX_SCALE = 1.3;
@@ -109,19 +110,19 @@ export const useOnMoon = () => useContext(OnMoon);
 
 export function Title({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
   const moon = useOnMoon();
-  return <WordsIn text={children} style={[styles.title, moon && styles.centered, style]} header />;
+  return <WordsIn text={noOrphan(children)} style={[styles.title, moon && styles.centered, style]} header />;
 }
 
 export function Body({ children, style }: PropsWithChildren<{ style?: StyleProp<TextStyle> }>) {
   const moon = useOnMoon();
   return (
     <Reveal>
-      <Text style={[styles.body2, moon && styles.bodyOnMoon, style]}>{children}</Text>
+      <Text style={[styles.body2, moon && styles.bodyOnMoon, style]}>{typeof children === 'string' ? noOrphan(children) : children}</Text>
     </Reveal>
   );
 }
 
-/** Trundle talking: heavy italic serif, entering with the page's text motion. */
+/** Loc talking: heavy italic serif, entering with the page's text motion. */
 export function Voice({
   text,
   size = 34,
@@ -145,7 +146,7 @@ export function Voice({
   return (
     <WordsIn
       key={text}
-      text={text}
+      text={noOrphan(text)}
       style={[styles.voice, { fontSize: size, lineHeight: size * 1.08 }, center && { textAlign: 'center' }]}
       delay={delay}
       header={header}
@@ -157,8 +158,12 @@ export function Voice({
 
 const FOOTER_DELAY_MS = 450;
 
-/** Footer buttons fade up shortly after the page's first line starts, without waiting for it to finish. */
-export function FooterEnter({ children }: PropsWithChildren) {
+/**
+ * Footer buttons fade up shortly after the page's first line starts, without waiting for it to finish.
+ * A text link goes above the primary button, never under it, so the button sits at the
+ * bottom on every screen (docs/onboarding-consistency).
+ */
+export function FooterEnter({ children, secondary }: PropsWithChildren<{ secondary?: ReactNode }>) {
   const reduced = useReducedMotion();
   // Still invisible until it fades in, so a double tap on the last page's button can't land here.
   const [live, setLive] = useState(reduced);
@@ -184,6 +189,7 @@ export function FooterEnter({ children }: PropsWithChildren) {
         },
       ]}
     >
+      {secondary}
       {children}
     </Animated.View>
   );
@@ -442,7 +448,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: Gap.gutter,
     paddingTop: 6,
     paddingBottom: 10,
   },
@@ -460,27 +466,20 @@ export const styles = StyleSheet.create({
   exitButton: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   // Neutral shadow (not a glow) keeps it legible over the moon in the corner.
   exit: { color: Nocturne.text2, fontSize: 15, fontWeight: '500', textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 6 },
-  body: { paddingHorizontal: 24, paddingBottom: 16 },
-  footer: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 8, gap: 10 },
-  eyebrow: {
-    color: Nocturne.text2,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  title: { color: Nocturne.text, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.4 },
-  body2: { color: Nocturne.text2, fontSize: 16, lineHeight: 23 },
+  body: { paddingHorizontal: Gap.gutter, paddingBottom: Space.l },
+  footer: { paddingHorizontal: Gap.gutter, paddingTop: Space.s, paddingBottom: Space.s },
+  eyebrow: { ...Type.label, marginBottom: Gap.headline },
+  title: { color: Nocturne.text, ...Type.title },
+  body2: { color: Nocturne.text2, ...Type.body },
   bodyOnMoon: { color: Nocturne.text, textAlign: 'center' },
   centered: { textAlign: 'center' },
   voice: { ...DisplayFont, color: Nocturne.text, letterSpacing: -0.3 },
-  footerStack: { gap: 10 },
+  footerStack: { gap: Space.s },
   cta: {
-    minHeight: 56,
+    minHeight: CTA_HEIGHT,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 28,
+    borderRadius: Radius.pill,
     backgroundColor: Nocturne.cta,
     alignItems: 'center',
     justifyContent: 'center',
@@ -489,12 +488,12 @@ export const styles = StyleSheet.create({
   ctaLabel: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
   ctaLabelDisabled: { color: Nocturne.text3 },
   pressed: { opacity: 0.75 },
-  textButton: { alignSelf: 'center', paddingVertical: 6 },
+  textButton: { alignSelf: 'center', paddingVertical: Space.xs },
   textButtonLabel: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
-  options: { gap: 10 },
+  options: { gap: Space.m },
   option: {
     minHeight: 58,
-    borderRadius: 18,
+    borderRadius: Radius.pill,
     backgroundColor: Nocturne.surface,
     borderWidth: 1,
     borderColor: Nocturne.edge,
@@ -506,14 +505,14 @@ export const styles = StyleSheet.create({
   optionLabel: { color: Nocturne.text, fontSize: 17, fontWeight: '500' },
   optionLabelSelected: { color: Nocturne.onCta },
   // On the quiz moon: black pills, centred like the rest of the moon page; picked turns moon-white.
-  optionMoon: { backgroundColor: '#000000', borderColor: '#000000', minHeight: 54, paddingVertical: 14, borderRadius: 27, alignItems: 'center' },
+  optionMoon: { backgroundColor: '#000000', borderColor: '#000000', minHeight: 54, paddingVertical: 14, borderRadius: Radius.pill, alignItems: 'center' },
   optionMoonSelected: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
   optionLabelMoon: { color: '#FFFFFF', textAlign: 'center' },
   optionLabelMoonSelected: { color: '#000000' },
   chipSelected: { backgroundColor: Nocturne.cta },
   chipLabelSelected: { color: Nocturne.onCta },
   appChip: {
-    borderRadius: 16,
+    borderRadius: Radius.control,
     backgroundColor: Nocturne.surface,
     borderWidth: 1,
     borderColor: Nocturne.edge,
@@ -524,20 +523,20 @@ export const styles = StyleSheet.create({
   appChipLabel: { color: Nocturne.text, fontSize: 16, fontWeight: '500' },
   previewNote: {
     flexDirection: 'row',
-    gap: 10,
+    gap: Space.m,
     alignItems: 'flex-start',
-    borderRadius: 14,
+    borderRadius: Radius.card,
     borderWidth: 1,
     borderColor: Nocturne.line,
-    padding: 12,
+    padding: Space.l,
   },
-  previewLabel: { color: Nocturne.text, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginTop: 2 },
-  previewText: { flex: 1, color: Nocturne.text2, fontSize: 13, lineHeight: 18 },
+  previewLabel: { ...Type.label, marginTop: 1 },
+  previewText: { flex: 1, color: Nocturne.text2, ...Type.caption },
   // Outlined at rest: a grey fill would read as disabled.
   hold: {
-    minHeight: 64,
-    paddingVertical: 16,
-    borderRadius: 32,
+    minHeight: CTA_HEIGHT,
+    paddingVertical: 14,
+    borderRadius: Radius.pill,
     borderWidth: 2,
     borderColor: Nocturne.text,
     overflow: 'hidden',

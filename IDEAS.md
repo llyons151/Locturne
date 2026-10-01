@@ -1,4 +1,4 @@
-# Trundle — product direction
+# Locturne — product direction
 
 The current plan lives in [GAME_PLAN.md](GAME_PLAN.md). Read it before proposing or
 implementing features.
@@ -6,7 +6,7 @@ implementing features.
 ## Chosen direction
 
 Scheduled bedtime blocking, a 200-step morning wake-up ritual, and a separate
-always-blocked app list. Trundle follows the user's routine; waking him unlocks
+always-blocked app list. Loc follows the user's routine; waking him unlocks
 scheduled apps until bedtime, not for a short earned window.
 
 ## Superseded ideas
@@ -21,7 +21,7 @@ See the game plan for scope, unresolved decisions, and implementation order.
 - Does 200 steps feel like a useful morning ritual over several days?
 - Which schedule defaults fit the first users?
 - What accessible alternative preserves a deliberate morning action?
-- How should putting Trundle to bed early and emergency bypass work?
+- How should putting Loc to bed early and emergency bypass work?
 - Can native step data and blocking reliably deliver the intended experience when
   the app is closed, and what user action is needed if background unlock is limited?
 

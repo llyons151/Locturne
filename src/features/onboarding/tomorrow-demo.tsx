@@ -33,6 +33,7 @@ import { useCompact } from './layout';
 import { Reveal } from './motion';
 import { NUMBER_FONT } from './rolling-number';
 import { Eyebrow, Title } from './ui';
+import { VoiceSize } from './tokens';
 
 const STEP_GOAL = 200;
 
@@ -71,7 +72,7 @@ type Phase = 'home' | 'shield' | 'awake';
 type SharedNumber = ReturnType<typeof useSharedValue<number>>;
 
 /**
- * The product in six seconds, on an iPhone: tap Instagram at 7:00, get Trundle's sleep
+ * The product in six seconds, on an iPhone: tap Instagram at 7:00, get Loc's sleep
  * screen, walk 200 steps underneath, and the sleep screen lifts off the feed.
  */
 export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
@@ -374,7 +375,7 @@ function Phone({
         )}
 
         {/*
-          Trundle's sleep screen, laid out like the Screen Time shield iOS really shows:
+          Loc's sleep screen, laid out like the Screen Time shield iOS really shows:
           icon, title, subtitle, a primary and a secondary button, over a blurred backdrop.
         */}
         <Animated.View pointerEvents="none" style={[styles.shield, { borderRadius: sw * 0.14 }, shieldStyle]}>
@@ -635,7 +636,8 @@ const styles = StyleSheet.create({
   walkGoal: { color: Nocturne.text2, fontSize: 18, fontWeight: '500', fontStyle: 'normal' },
   walkTrack: { height: 6, borderRadius: 3, backgroundColor: Nocturne.track, overflow: 'hidden' },
   walkFill: { height: '100%', backgroundColor: Nocturne.text },
-  walkLine: { ...DisplayFont, color: Nocturne.text, fontSize: 22, lineHeight: 26, minHeight: 52 },
+  // Same size and 1.08 line height as every other Loc aside (Voice in ui.tsx).
+  walkLine: { ...DisplayFont, color: Nocturne.text, fontSize: VoiceSize.aside, lineHeight: 24, minHeight: 48 },
   walkLineCompact: { fontSize: 19, lineHeight: 23, minHeight: 46 },
   emphasis: { textDecorationLine: 'underline' },
 });

@@ -1,4 +1,4 @@
-# Trundle: game plan
+# Locturne: game plan
 
 Updated September 24, 2026. This is the source of truth for product direction. It
 replaces the September 21 plan, which is archived at
@@ -11,7 +11,7 @@ reasoning behind it is in [docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md),
 
 **Your apps go to sleep at bedtime and don't wake up until you get out of bed.**
 
-Trundle is a paid iOS app for people who scroll in bed at both ends of the night.
+Locturne is a paid iOS app for people who scroll in bed at both ends of the night.
 At bedtime it blocks the apps the user chose. In the morning they stay blocked
 until the user walks 200 steps. A sassy, tired raccoon voice runs the whole thing.
 He's strict about the situation and never shames the user.
@@ -22,7 +22,7 @@ He's strict about the situation and never shames the user.
   their sleep, and only 25% of people who tried to cut back say it went extremely or very well.
 - **The bedtime lock is table stakes.** Opal advertises it ("Sleep Time 10PM–8AM
   Block All"). **The morning is the wedge.** Opal's morning ends at a clock time,
-  even if you're still in bed. Trundle's ends when you get up. Morning-task apps
+  even if you're still in bed. Locturne's ends when you get up. Morning-task apps
   are a proven market: Alarmy has 82M downloads, and Early went from launch to
   about $50K a month in four months.
 - **Other indies are circling.** Groggy (Sept 16, 2026) and BedLock (April 2026)
@@ -38,7 +38,7 @@ He's strict about the situation and never shames the user.
 
 1. During onboarding the user picks the apps that sleep at night, a bedtime and a
    morning start time. **Tonight's lock is scheduled before onboarding ends.**
-2. At bedtime, Trundle falls asleep and the selected apps are blocked.
+2. At bedtime, Loc falls asleep and the selected apps are blocked.
 3. At the morning start time the step count begins. The apps stay blocked.
 4. The user walks 200 steps and the apps wake up until the next bedtime.
 5. An always-blocked list stays blocked in every state. If an app is on both
@@ -96,19 +96,31 @@ How to keep the brand from reading as generated:
   state, notifications, and the morning share card.
 - **Never glow** (CLAUDE.md). Never troll-like, and never icy blue (see the LoL
   Trundle conflict).
-- **Name: Trundle** (decided September 24, 2026; Bandit dropped). Still run a
-  USPTO class 9 check and a social handle check before launch
-  ([docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md)).
+- **Name: Locturne** (lock + nocturne, said "lock-turn"). Decided September 27, 2026,
+  replacing Trundle (September 24); the reasoning is in
+  [docs/NAME_RESEARCH.md](docs/NAME_RESEARCH.md). The raccoon is **Loc**, the way the
+  app is Duolingo and the owl is Duo. Still run a USPTO class 9 check and a social
+  handle check before launch.
 - **Voice rules and line bank:** [docs/VOICE.md](docs/VOICE.md).
 
 ## Money
 
-- **Hard paywall at the end of onboarding:** three plans on one page (changed
-  2026-09-25 from the user's references): Lifetime $99.99 once, **Annual $39.99 with
+- **Hard paywall at the end of onboarding:** two plans on one page (lifetime dropped
+  2026-09-26: at $99.99 next to a $59.99 annual it skipped the trial and capped LTV):
+  **Annual $59.99 with
   a 7-day free trial, selected by default** and shown with its per-month price
-  ($3.33/month), and Monthly $9.99 (no trial). Plain renewal terms (App Store
+  ($5.00/month as the smaller detail under $59.99/year; raised from $39.99 on 2026-09-25, see [docs/PAYWALL_VIDEO_NOTES.md](docs/PAYWALL_VIDEO_NOTES.md)), and Monthly $9.99 (no trial).
+  The page before it (`offer`) is the dated trial timeline: Tonight $0 / Day 5
+  reminder / Day 7 charge date (restored 2026-09-25, [docs/sub-club/APPLIED_TO_LOCTURNE.md](docs/sub-club/APPLIED_TO_LOCTURNE.md) P2). Plain renewal terms (App Store
   guideline 3.1.2): the billed amount is the biggest price on each card. No fake
   countdowns, struck-through prices or hidden prices.
+- **One exit offer, as an A/B test** (changed 2026-09-25): closing the paywall shows
+  one of three arms, once: no offer, annual at $29.99/year (half price) with the same
+  trial, or full-price annual with 14 days free. **Default arm: 14 days free**
+  (2026-09-26), since a half-price offer behind the close button spreads fast on TikTok. Judge on net revenue after refunds per
+  install at day 35 (`EXIT_OFFERS` in `content.ts`; [docs/sub-club/APPLIED_TO_LOCTURNE.md](docs/sub-club/APPLIED_TO_LOCTURNE.md) test 3).
+  The half-price product also appears as a downgrade in iOS Settings. There's no timer.
+  The full price is named as a plain comparison, never struck through.
 - Keep a freemium fallback ready if word of mouth is weak (Opal's revenue grew after
   it went freemium).
 - **Onboarding shape:** about 25 screens (details in
@@ -123,11 +135,11 @@ How to keep the brand from reading as generated:
 ## Build order
 
 **Step 0: now**
-- Finish Apple Developer Program enrollment. The team ID error is still open.
-- Register the App ID, the three extension IDs and the App Group, then request
-  Family Controls (Distribution) for each. Follow
+- ~~Finish Apple Developer Program enrollment.~~ Done 2026-09-28.
+- ~~Register the App ID, the three extension IDs and the App Group, then request
+  Family Controls (Distribution).~~ Done 2026-09-28; waiting on Apple. See
   [docs/ENTITLEMENT_SETUP.md](docs/ENTITLEMENT_SETUP.md).
-- Set `ios.bundleIdentifier` in `app.json`.
+- ~~Set `ios.bundleIdentifier` in `app.json`.~~ `com.lukelyons.locturne`.
 - Dev is on Linux with no confirmed Mac, so native extensions are built with EAS
   Build.
 

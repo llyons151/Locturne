@@ -29,6 +29,8 @@ export type Estimate = {
   weeklyHours: number;
   yearlyHours: number;
   yearlyDays: number;
+  /** Years from now until AVERAGE_LIFESPAN. 0 without an age. */
+  yearsLeft: number;
   /** Whole days on the phone in bed from now until AVERAGE_LIFESPAN, at this rate. 0 without an age. */
   lifetimeDays: number;
   /** Minutes between getting into bed and the alarm. */
@@ -67,6 +69,7 @@ export function estimate(input: EstimateInput): Estimate {
     weeklyHours,
     yearlyHours,
     yearlyDays,
+    yearsLeft,
     lifetimeDays,
     timeInBed,
     sleepRoom,
@@ -88,7 +91,12 @@ export function weeklyAmount(weeklyMinutes: number): string {
 
 /** "That’s 786 hours a year." / "That’s 32 days a year." Matches the reveal grid. */
 export function yearSentence(count: number, unit: 'hour' | 'day'): string {
-  return `That’s ${count.toLocaleString('en-US')} ${unit}${count === 1 ? '' : 's'} a year.`;
+  return `That’s ${yearAmount(count, unit)}`;
+}
+
+/** "56 days a year." */
+export function yearAmount(count: number, unit: 'hour' | 'day'): string {
+  return `${count.toLocaleString('en-US')} ${unit}${count === 1 ? '' : 's'} a year.`;
 }
 
 /** "That’s over 5 years of your life." / nothing under a year. */

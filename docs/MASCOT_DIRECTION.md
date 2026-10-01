@@ -1,12 +1,12 @@
 # Mascot direction
 
-Decided September 23, 2026. Replaces the faceted grey rock as Trundle's mascot.
+Decided September 23, 2026. Replaces the faceted grey rock as Locturne's mascot.
 The art brief and final design are still to come. The app was wiped for a
 from-scratch rebuild on September 24, 2026, so no rock art remains in use.
 
 ## Decision: a raccoon
 
-Trundle is a raccoon. Raccoons are night creatures, and he's trying to fix his
+Loc is a raccoon. Raccoons are night creatures, and he's trying to fix his
 sleep schedule alongside you: you're both becoming morning people.
 
 Why a raccoon:
@@ -37,7 +37,7 @@ you finally letting him sleep, and the morning walk is dragging him out of bed.
 |---|---|
 | Bedtime | "Phone down. I'm not asking." |
 | Opening a blocked app | "Shh. I'm sleeping. So are they." |
-| Opening Trundle at 2am | "Why are we awake." |
+| Opening Locturne at 2am | "Why are we awake." |
 | Morning, 0 steps | "No." |
 | 80 / 200 | "I can hear you walking. I'm ignoring it." |
 | 160 / 200 | "Fine. *Fine.*" |
@@ -147,7 +147,7 @@ scene art carries all the color.
   color, so the mask is the brand color inside the art. Pick a muted, painterly
   hue together with the illustrator.
 - **He is the scene, not a sticker.** On Home, the full-bleed hero image *is*
-  Trundle in his den. Settings and lists stay plain monochrome with no mascot.
+  Loc in his den. Settings and lists stay plain monochrome with no mascot.
 - **His lines are the headlines,** set in the italic serif display face. The
   typography is his voice.
 

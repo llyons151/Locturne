@@ -3,7 +3,7 @@
  *
  * Every entry is a Reanimated CSS keyframe applied per unit (line, word or
  * character), so whichever one gets picked drops straight into `Voice` with no
- * new dependency. Tuned for Trundle: tired, deadpan, monochrome, never a glow,
+ * new dependency. Tuned for Locturne: tired, deadpan, monochrome, never a glow,
  * never confetti energy.
  */
 

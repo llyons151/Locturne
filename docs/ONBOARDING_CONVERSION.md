@@ -1,6 +1,6 @@
 # Onboarding and paywall for conversion
 
-September 24, 2026. This covers Trundle's quiz onboarding, the personal number, and
+September 24, 2026. This covers Locturne's quiz onboarding, the personal number, and
 the hard paywall. It **supersedes the screen-count recommendations** in
 [ONBOARDING_RESEARCH.md](ONBOARDING_RESEARCH.md) and
 [OPAL_ONBOARDING_RESEARCH.md](OPAL_ONBOARDING_RESEARCH.md). Those were written for
@@ -28,7 +28,7 @@ other apps.
 | Setup | **Before the paywall, but only armed after purchase** | IKEA effect needs the setup completed (Norton 2012) [S]. Opal's scheduled-session win [M]. A non-payer's phone must never lock [J] |
 | Paywall | **2 pages:** value recap, then a trial timeline (yearly only; monthly behind "See other plans") | Multi-page paywalls convert 12.4% vs 9.1% [S, correlational]. Blinkist: +23% trial starts, −55% complaints [M] |
 | Trial | **7 days**, on the annual plan only | 3-day trials: 55% of cancellations happen on day 0 [S]. RCT: 7-day beat 3-day, +21% subscriptions [S]. Covers 7 bedtime/morning cycles |
-| Prices | **$39.99/yr** (trial) and **$9.99/mo** (no trial, behind a sheet) | Health & Fitness medians [S]. Below Opal and Rise, in line with Cal AI and Quittr. Raised from $34.99/$6.99 during the build; the code (`PRICES` in `content.ts`) is canonical |
+| Prices | **$59.99/yr** (trial; raised from $39.99 on 2026-09-25, see PAYWALL_VIDEO_NOTES.md) and **$9.99/mo** (no trial, behind a sheet) | Health & Fitness medians [S]. Below Opal and Rise, in line with Cal AI and Quittr. Raised from $34.99/$6.99 during the build; the code (`PRICES` in `content.ts`) is canonical |
 | Notifications | Right after purchase, framed as "I'll remind you before your trial ends" | Foodnoms: +58% conversion, +23% LTV [M]. Blinkist opt-in went from 6% to 74% [M] |
 | Rating prompt | **Not in onboarding.** Ask after the first successful 200-step unlock | Apple says ask after a satisfying action; review gating is banned [S] |
 | Leave out | Sign-in, gender, ATT, fake reviews or user counts, countdowns, trial toggle | 5.1.1(v), FTC fake-review rule (2024), 2.3.1, 3.1.2 toggle ban (Jan 2026) |
@@ -132,7 +132,7 @@ hourly breakdowns are unknown.
    The line depends on the clock (fixed hours, since bedtime isn't answered yet):
    10 PM–4:59 AM "It's 12:47." / "Why are we awake." (real time);
    5–9:59 AM "You're still in bed." / "I can tell. I'm also still in bed.";
-   otherwise "Your phone keeps me up." / "I'm Trundle. Raccoon. I'd like to sleep."
+   otherwise "Your phone keeps me up." / "I'm Loc. Raccoon. I'd like to sleep."
 2. How it works, in 3 beats: locks at bedtime → stays locked → 200 steps and it's
    back. Use a real screen recording once one exists.
 3. "Seven questions. Then I do math on your nights." Sectioned progress bar starts.
@@ -206,13 +206,13 @@ italic serif, and badges as an inverted white pill. **No glow.**
 8. Auto-renew terms, then Terms · Privacy · Restore.
 9. Social proof only once real ratings exist.
 
-**Sell Trundle's own features, not "Screen Time access."** Guideline 4.10 forbids
+**Sell Locturne's own features, not "Screen Time access."** Guideline 4.10 forbids
 monetizing built-in capabilities such as the Screen Time APIs.
 
 **A/B tests in order** (big swings only until each variant has about 200
 conversions):
 1. Trial vs no trial.
-2. $34.99 vs $39.99 vs $44.99.
+2. $39.99 vs $59.99 (the current default), then fine-tune around the winner.
 3. Loader vs no loader.
 4. Notifications before vs after the paywall.
 5. Personalized vs generic headline.
@@ -385,7 +385,7 @@ paywall is compliant, and the voice is consistent.
 
 **Fixed the same evening:**
 - Point 1, in part: the daytime cold open is now "No apps until you're out of bed." /
-  "I'm Trundle. Raccoon. I don't do mornings either." The late-night and early-morning
+  "I'm Loc. Raccoon. I don't do mornings either." The late-night and early-morning
   openers are unchanged. The reveal pulls out the morning hours ("2 of them before
   you're even up."). The full morning research is in [MORNING_ANGLE.md](MORNING_ANGLE.md).
 - Point 2: the alarm answer is echoed on the `offer` page (`ALARM_ECHO` in
@@ -474,7 +474,7 @@ still open: real footage and funnel data.
 
 **Founder decisions, September 25, 2026:**
 - **The quiz stays night-first.** It follows the order of the product (bedtime, then
-  morning) and of the moon scene, and Trundle sells on both. This overrides
+  morning) and of the moon scene, and Locturne sells on both. This overrides
   MORNING_ANGLE.md §4's morning-first quiz, which was judgment [J] with teardown
   support [W] and no test data. Mornings are still covered by the opener, the `deal`
   beats, the morning statistic, the reveal's morning line, the `tomorrow` demo and the
@@ -496,7 +496,7 @@ Blinkist trial timeline and the "See other plans" sheet.** That gives up Blinkis
 published result (+23% trial starts, −55% complaints) in exchange for a layout that
 shows all three plans side by side. It's worth an A/B test once there's traffic.
 
-**Top to bottom:** the title "Try Trundle free", his line, then three checks
+**Top to bottom:** the title "Try Locturne free", his line, then three checks
 ("TikTok and 2 more sleep at 11:30 PM", "Awake again after 200 morning steps",
 "Passes for sick days and travel"). Then the plan cards:
 - **Lifetime:** $99.99 once. "Pay once. Yours forever." ($99.99 is placeholder
@@ -522,3 +522,98 @@ trial", "Subscribe for $9.99/month" or "Buy lifetime for $99.99".
   Nocturne monochrome, with a white border on the selected plan.
 - **The reminder toggle isn't a trial toggle.** It doesn't change the plan or the
   price, so the January 2026 toggle ban doesn't apply.
+
+## Three changes after the 7/10 review, September 25, 2026
+
+A code-only review rated the flow 7/10. The founder took three of its fixes:
+
+- **An exit offer on `declined`.** Closing the paywall now leads to "Fair. Half
+  price, then.": annual at **$19.99/year instead of $39.99**, with the same 7-day
+  trial. It's shown once, and closing it again really exits. There's no timer and no
+  struck-through price. The full price is stated as a plain comparison, because the
+  user saw it on the page before. The real app needs it as a separate annual product in
+  the same subscription group (it renews at $19.99), and has to remember that the offer
+  was shown so reinstalling can't farm it. Half off follows Opal's retention offer
+  (PRICING_RESEARCH.md). `PRICES.annualOffer` in `content.ts` sets it.
+- **`intro` is merged into `deal`.** Its line ("First, a few questions. Then I do math
+  on your nights...") now sits under the three beats, and the button reads "Ask away".
+  The first question is now screen 3 instead of 4.
+- **The 10-step walk test (`motion`) is removed for now.** Asking someone who
+  downloaded the app from bed to stand up and walk before the paywall is friction.
+  `step-test.tsx` is kept but not used. **Open:** the Motion & Fitness prompt needs a
+  new home after purchase, next to the notification prompt on `armed`.
+
+The flow is 25 screens (from 27).
+
+**Still open from that review:** social proof near the paywall (the biggest gap),
+and a line connecting the alarm answer to the reveal number.
+
+## Four changes from the Sub Club research, September 25, 2026
+
+From [sub-club/APPLIED_TO_LOCTURNE.md](sub-club/APPLIED_TO_LOCTURNE.md) (all 149 episodes of
+RevenueCat's podcast). The founder took items 1, 2, 4 and 6:
+
+- **The Annual card's big number is now $59.99/year**, with "$5.00/month · 7 days free"
+  as the detail. It had the per-month price as the headline, which broke this doc's own
+  3.1.2 rule.
+- **`offer` is the trial timeline again** for trial-eligible users: Tonight ("{apps}
+  sleep at {bedtime}. $0 today.") / Day 5 ("I remind you. Grudgingly.") / Day 7 ({date}:
+  $59.99 for the year, unless you cancel before then). Headline and alarm echo stay.
+  Users without trial eligibility keep the Now / With me rows. `plans` is unchanged.
+- **New step `found`** after `time-back`: "How'd you find me?" (TikTok / Instagram /
+  YouTube / A friend / App Store / Somewhere else). It's attribution for payers per 1K
+  views, and the one allowed exception to "every answer feeds the number or a setting",
+  since it's never shown back. Opal calls this its most reliable attribution.
+- **The exit offer is an A/B test** (`EXIT_OFFERS`, `DEFAULT_EXIT_OFFER` in
+  `content.ts`): `none` (closing exits), `half-price` ($29.99/year, same trial) or
+  `longer-trial` (full price, 14 days free; trial-eligible users only). Discount offers
+  lost to refunds at BoldVoice and Yousician, and an extension beat a discount at
+  Coconote. Preview an arm with `/onboarding?step=plans&exit=longer-trial`.
+
+
+## Three changes from the conversion review, September 26, 2026
+
+- **Lifetime is dropped from `plans`.** After annual went to $59.99, the $99.99 lifetime
+  was 1.67× annual (PAYWALL_VIDEO_NOTES.md says 2–2.5×) and sat first on the page. It let
+  buyers skip the trial, capped LTV, and would have muddied the trial test. The paywall is
+  now Annual (default, 7-day trial) and Monthly.
+- **The default exit arm is `longer-trial`** (14 days free at full price), not
+  `half-price`. A $29.99 offer behind the close button is easy to spread ("just hit X"),
+  which matters for a TikTok-driven audience, and it shows as a downgrade in iOS Settings.
+  All three arms are still in the test.
+- **`found` moved to between `stat` and `age`.** It sat right before the math loader and
+  stalled the build-up to the reveal. Mid-quiz, after the statistic, is a natural break,
+  and every install (payers and non-payers) still answers it.
+
+## Will it convert? Review, September 26, 2026
+
+A code-and-docs review of the current flow (25 screens, `STEPS` in `content.ts`).
+
+**Verdict: the onboarding is good enough to launch, and more preview polish won't move
+conversion much.** The structure is the proven hard-paywall pattern: quiz, personal
+number, aha demo, setup that starts tonight, commitment, dated trial timeline, two plans,
+one exit offer. Every piece is backed by the Sub Club research and the earlier ratings.
+What decides conversion from here is outside the preview:
+
+1. **Trial → paid depends on the lock working, and that isn't proven yet.** Family
+   Controls isn't approved and the device spike hasn't run. GAME_PLAN says the spike
+   comes before more UI.
+2. **A blocker's trial is the week it annoys you.** Day 5 lands after a few mornings of
+   being blocked. People who revoke Screen Time or delete the app to get out also cancel.
+   The day-5 reminder needs a recap of what they got (mornings up, time before getting up)
+   and one in-app save when a cancellation is detected (APPLIED_TO_LOCTURNE items 5 and 7).
+   This is the biggest conversion lever left, and it lives after onboarding.
+3. **The app-name copy can't ship as written.** `FamilyActivityPicker` returns opaque
+   tokens (APP_PICKER_RESEARCH.md), but `commit`, the `offer` timeline, the paywall
+   checklist and the Share text all put app names into plain strings ("TikTok and 2 more
+   sleep at 11:30 PM"). Picked categories don't even have a count. These lines need a
+   version that works from tokens: a native `Label(token)` icon row, or "Your apps" /
+   "3 apps".
+4. **The real Screen Time prompt is heavier than the mock.** iOS asks for Face ID or the
+   passcode after "Continue". It's the right place for it (Opal does it pre-paywall), but
+   measure exits here first once it's real.
+5. **No social proof near the paywall.** It can't exist before launch. Add a rating or a
+   user count once TestFlight has one.
+
+Nothing in the flow's structure or copy (apart from item 3) needs changing before
+TestFlight. Funnel data will say more than another rating round.

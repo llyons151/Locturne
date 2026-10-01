@@ -80,8 +80,8 @@ Ranked by leverage.
    access). Opal doesn't have this.
 9. **Evidence moat.** Collect opt-in "bedtime shift" data from launch and publish a
    result (the one sec playbook: its peer-reviewed study is a lasting advantage).
-10. **Request the Family Controls distribution entitlements now,** for the app and
-    every extension. Approval takes days to months.
+10. **Request the Family Controls distribution entitlement now.** Approval takes
+    days to months. *(Submitted 2026-09-28, one account-level request.)*
 
 Done well, 1–7 make it an 8/10 idea. A 10 needs the market's verdict: videos that
 convert and D30 blocking still active above 20%.

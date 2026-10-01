@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+
 /**
  * Every onboarding screen sits under the same night sky: blue light from the
  * top-right corner, seen through frosted glass and fading to black. The blur and
@@ -70,6 +71,35 @@ function risingMoon(width: number, height: number) {
   return { left: (width - size) / 2, top: height - size * 0.36, size };
 }
 
+/**
+ * The resting moon's disc (centre and radius, in window points), so other layers can land
+ * things on its surface. Only meaningful while the moon rests at the bottom.
+ */
+export function restingMoonDisc(width: number, height: number) {
+  const m = risingMoon(width, height);
+  return { cx: m.left + m.size / 2, cy: m.top + m.size / 2, r: m.size / 2 };
+}
+
+/** How long the moon takes to rise over the home screen, or sink back when leaving it. */
+export const HOME_RISE_MS = 1100;
+
+/** Room above the home screen's moon for its header row (wordmark, day, settings). */
+export const HOME_HEADER = 52;
+
+/**
+ * The home screen's moon: risen to the top, under the header.
+ * Smaller on short phones so the whole screen fits without scrolling.
+ */
+export function homeMoonDisc(width: number, height: number, insetTop: number) {
+  const r = Math.min(width * 0.27, height * 0.12, 115);
+  return { cx: width / 2, cy: insetTop + HOME_HEADER + 20 + r, r };
+}
+
+function homeMoon(width: number, height: number, insetTop: number) {
+  const d = homeMoonDisc(width, height, insetTop);
+  return { left: d.cx - d.r, top: d.cy - d.r, size: d.r * 2 };
+}
+
 /** The opener's moon: big, centred in the upper part of the screen, above the text. */
 function heroMoon(width: number, height: number) {
   const size = Math.min(width * 0.72, height * 0.34);
@@ -112,7 +142,16 @@ export function quizContentTop(height: number, insetTop: number) {
  * On quiz questions (`quiz`) it rises until its curve fills the bottom of the screen and
  * the options sit on it.
  */
-export function NightSky({ opening = false, quiz = false }: { opening?: boolean; quiz?: boolean }) {
+export function NightSky({
+  opening = false,
+  quiz = false,
+  home = false,
+}: {
+  opening?: boolean;
+  quiz?: boolean;
+  /** The home screen: the moon rises out of the bottom into full view. */
+  home?: boolean;
+}) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -120,6 +159,8 @@ export function NightSky({ opening = false, quiz = false }: { opening?: boolean;
   const progress = useSharedValue(opening ? 0 : 1);
   // 0 = wherever `progress` puts it, 1 = risen for the quiz.
   const risen = useSharedValue(quiz ? 1 : 0);
+  // 0 = wherever the above put it, 1 = risen over the home screen. Starts low so it rises on launch.
+  const homed = useSharedValue(0);
 
   useEffect(() => {
     const target = opening ? 0 : 1;
@@ -135,31 +176,47 @@ export function NightSky({ opening = false, quiz = false }: { opening?: boolean;
       : withTiming(target, { duration: QUIZ_RISE_MS, easing: Easing.bezier(0.65, 0, 0.35, 1) });
   }, [quiz, reduced, risen]);
 
+  useEffect(() => {
+    const target = home ? 1 : 0;
+    homed.value = reduced
+      ? target
+      : withTiming(target, { duration: HOME_RISE_MS, easing: Easing.bezier(0.33, 0, 0.2, 1) });
+  }, [home, reduced, homed]);
+
   const from = heroMoon(width, height);
   const to = MOON_REST === 'bottom' ? risingMoon(width, height) : bakedMoon(width, height);
   const up = quizMoon(width, height, insets.top);
+  const high = homeMoon(width, height, insets.top);
 
-  /** The moon's disc right now: opener → resting place, then resting place → quiz. */
-  const disc = (p: number, q: number) => {
+  /** The moon's disc right now: opener → resting place, then on to the quiz or home screen. */
+  const disc = (p: number, q: number, h: number) => {
     'worklet';
     const size = interpolate(p, [0, 1], [from.size, to.size]);
     const left = interpolate(p, [0, 1], [from.left, to.left]);
     const top = interpolate(p, [0, 1], [from.top, to.top]);
+    const qSize = interpolate(q, [0, 1], [size, up.size]);
+    const qLeft = interpolate(q, [0, 1], [left, up.left]);
+    const qTop = interpolate(q, [0, 1], [top, up.top]);
     return {
-      size: interpolate(q, [0, 1], [size, up.size]),
-      left: interpolate(q, [0, 1], [left, up.left]),
-      top: interpolate(q, [0, 1], [top, up.top]),
+      size: interpolate(h, [0, 1], [qSize, high.size]),
+      left: interpolate(h, [0, 1], [qLeft, high.left]),
+      top: interpolate(h, [0, 1], [qTop, high.top]),
     };
   };
 
   const moonStyle = useAnimatedStyle(() => {
-    const d = disc(progress.value, risen.value);
+    const d = disc(progress.value, risen.value, homed.value);
     const inset = (d.size * (FROST_PAD - 1)) / 2;
-    return { left: d.left - inset, top: d.top - inset, width: d.size * FROST_PAD, height: d.size * FROST_PAD };
+    return {
+      left: d.left - inset,
+      top: d.top - inset,
+      width: d.size * FROST_PAD,
+      height: d.size * FROST_PAD,
+    };
   });
 
   const glowStyle = useAnimatedStyle(() => {
-    const d = disc(progress.value, risen.value);
+    const d = disc(progress.value, risen.value, homed.value);
     const inset = (d.size * (GLOW_PAD - 1)) / 2;
     return {
       left: d.left - inset,

@@ -22,7 +22,7 @@ breaking it up, and screen-time → done is mostly A and C back to back.
 **Rule going forward:** about every third or fourth screen, the main thing on screen
 should be an object or an interaction, not text. Get variety from form (inputs,
 mock UI, live data, motion), not color: Nocturne stays monochrome, no glow, and
-italic serif still means only Trundle is talking.
+italic serif still means only Loc is talking.
 
 ## Changes, in priority order
 
@@ -41,8 +41,8 @@ italic serif still means only Trundle is talking.
    underneath. Keep the Change links. This is the setup payoff and should look
    like an object, not rows of text.
 5. **tried-echo → shield comparison.** Screen Time's limit shield with its "Ignore
-   Limit" button next to Trundle's shield showing "200 steps to go". For answers
-   other than Screen Time, show only Trundle's shield. The real block screen
+   Limit" button next to Locturne's shield showing "200 steps to go". For answers
+   other than Screen Time, show only Locturne's shield. The real block screen
    needs this design anyway.
 6. **armed → live countdown to bedtime.** Big ticking numerals ("Lock in
    3:12:40"), or "Starting now" late at night.

@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "Trundle",
-    "slug": "trundle",
+    "name": "Locturne",
+    "slug": "locturne",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "trundle",
+    "scheme": "locturne",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.lukelyons.locturne",
       "icon": "./assets/expo.icon"
     },
     "android": {
@@ -37,7 +38,7 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "Trundle counts your steps each morning to wake your apps. That’s all it uses motion for."
+          "motionPermission": "Locturne counts your steps each morning to wake your apps. That’s all it uses motion for."
         }
       ]
     ],

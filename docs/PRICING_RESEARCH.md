@@ -5,7 +5,7 @@ Researched 2026-09-24. **The question:** is it true that a weekly subscription w
 Trundle?
 
 Current plan (see `ONBOARDING_CONVERSION.md`; `PRICES` in `content.ts` is canonical):
-- $39.99/yr with a 7-day trial
+- $59.99/yr with a 7-day trial (raised from $39.99 on 2026-09-25)
 - $9.99/mo with no trial, behind "See other plans"
 
 Evidence tags:

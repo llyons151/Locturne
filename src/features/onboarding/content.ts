@@ -1,6 +1,6 @@
 /**
  * Onboarding copy and choices. Voice rules: docs/VOICE.md (brief, deadpan, no
- * exclamation points, no guilt, no statistics in Trundle's mouth).
+ * exclamation points, no guilt, no statistics in Loc's mouth).
  * Flow and evidence: docs/ONBOARDING_CONVERSION.md.
  */
 
@@ -21,8 +21,13 @@ export type Answers = {
   /** What they've tried before. Only feeds his reply on the next screen. */
   tried?: string;
   timeBack?: string;
+  /**
+   * "How'd you find me?" Attribution only: never shown back or used in the number. The one
+   * exception to "every answer feeds the number or a setting" (docs/sub-club/APPLIED_TO_LOCTURNE.md, O1).
+   */
+  found?: string;
   apps: string[];
-  plan: 'annual' | 'monthly' | 'lifetime';
+  plan: 'annual' | 'monthly';
   /** Works nights: the schedule is a block window, not a sleep window. */
   shift?: boolean;
   /** "Remind me before the trial ends" on the paywall. On by default: the reminder is a promise. */
@@ -40,12 +45,14 @@ export const initialAnswers: Answers = {
 export const STEPS = [
   'hello',
   'deal',
-  'intro',
   'nights',
   'night-minutes',
   'nights-per-week',
   'morning-minutes',
   'stat',
+  // Attribution sits mid-quiz, at the break after the statistic, so it doesn't stall the
+  // build-up to the reveal.
+  'found',
   'age',
   'alarm',
   'tried',
@@ -58,7 +65,6 @@ export const STEPS = [
   'tomorrow',
   'screen-time',
   'apps',
-  'motion',
   'ready',
   'commit',
   'offer',
@@ -74,12 +80,12 @@ export type StepId = (typeof STEPS)[number] | 'declined' | 'under-13';
  * post-purchase screens hide it, so the paywall never reads as one more step.
  */
 export const PROGRESS_STEPS: StepId[] = [
-  'intro',
   'nights',
   'night-minutes',
   'nights-per-week',
   'morning-minutes',
   'stat',
+  'found',
   'age',
   'alarm',
   'tried',
@@ -92,7 +98,6 @@ export const PROGRESS_STEPS: StepId[] = [
   'tomorrow',
   'screen-time',
   'apps',
-  'motion',
   'ready',
 ];
 
@@ -161,7 +166,7 @@ export const TRIED: Choice<string>[] = [
 ];
 
 /**
- * His reply to "what have you tried?": the objection, then how Trundle differs. The
+ * His reply to "what have you tried?": the objection, then how Locturne differs. The
  * body stays literal, and never claims there's no way out (emergency unlock exists).
  */
 export const TRIED_ECHO: Record<string, { line: string; body: string }> = {
@@ -195,6 +200,19 @@ export const TIME_BACK: Choice<string>[] = [
   { label: 'Something else', value: 'else' },
 ];
 
+/**
+ * Where they heard about Locturne. Payers per 1K views needs to know which channel an
+ * install came from, and Opal calls this question its most reliable attribution.
+ */
+export const FOUND: Choice<string>[] = [
+  { label: 'TikTok', value: 'tiktok' },
+  { label: 'Instagram', value: 'instagram' },
+  { label: 'YouTube', value: 'youtube' },
+  { label: 'A friend', value: 'friend' },
+  { label: 'App Store', value: 'app-store' },
+  { label: 'Somewhere else', value: 'else' },
+];
+
 /** Paywall headline, echoing the answer to "what would you do with them?" */
 export const OFFER_HEADLINES: Record<string, string> = {
   sleep: 'Earlier nights. For both of us.',
@@ -221,15 +239,39 @@ export const MORNING_ECHO: Record<number, string> = {
  * and every trial string is gated on intro-offer eligibility.
  */
 export const PRICES = {
-  annual: 39.99,
+  annual: 59.99,
   monthly: 9.99,
-  /** One-time purchase, no trial. In line with Jomo ($99.99) and AppBlock ($89.99). */
-  lifetime: 99.99,
+  /**
+   * The one-time offer on `declined`, for people who closed the paywall: annual at half
+   * price, same trial. A separate product in the same subscription group, so it renews at
+   * this price too. Half off follows Opal's retention offer (docs/PRICING_RESEARCH.md).
+   */
+  annualOffer: 29.99,
   trialDays: 7,
+  /** The `longer-trial` exit offer: full-price annual with two free weeks instead of one. */
+  extendedTrialDays: 14,
   trialEligible: true,
 } as const;
 
 export const money = (value: number) => `$${value.toFixed(2)}`;
 
-/** "Save 66%": the annual plan against twelve months of the monthly plan. */
+/** "Save 49%": the annual plan against twelve months of the monthly plan. */
 export const annualSavings = () => Math.floor((1 - PRICES.annual / (PRICES.monthly * 12)) * 100);
+
+/**
+ * What someone who closes the paywall is offered, once. An A/B test, not a decision:
+ * discounts have lost at other apps once refunds were counted, and an extension beat a
+ * discount at Coconote (docs/sub-club/APPLIED_TO_LOCTURNE.md, test 3). Judge the arms on
+ * net revenue after refunds per install at day 35.
+ * - `none`: closing the paywall exits.
+ * - `half-price`: annual at `PRICES.annualOffer`. Being in the same subscription group,
+ *   it also shows up as a downgrade in iOS Settings for every subscriber.
+ * - `longer-trial`: full-price annual with `PRICES.extendedTrialDays` free. Trial-eligible
+ *   users only; everyone else gets `none`.
+ * In the real app the arm comes from remote config. Preview with `?exit=<arm>`.
+ */
+export const EXIT_OFFERS = ['none', 'half-price', 'longer-trial'] as const;
+export type ExitOffer = (typeof EXIT_OFFERS)[number];
+// The longer trial leads until the test says otherwise: a half-price offer behind the close
+// button is easy to spread ("just hit X"), and shows as a downgrade in iOS Settings.
+export const DEFAULT_EXIT_OFFER: ExitOffer = 'longer-trial';

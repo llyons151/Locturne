@@ -14,6 +14,7 @@ import Animated, {
 import { Nocturne } from '@/constants/nocturne';
 
 import { Reveal } from './motion';
+import { Gap, Space, Type } from './tokens';
 
 /**
  * A picture of the alert iOS shows next, with a finger on the button to press. Laid out
@@ -87,13 +88,13 @@ export function AppleAlertPicture({
   );
 }
 
-// Apple's alert blue, only inside the picture: it's their UI, not a Trundle accent.
+// Apple's alert blue, only inside the picture: it's their UI, not a Locturne accent.
 const ALERT_BLUE = '#0A84FF';
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 24, marginBottom: 28, alignItems: 'center' },
-  picture: { alignItems: 'center', gap: 10, opacity: 0.92 },
-  caption: { color: Nocturne.text2, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
+  wrap: { marginTop: Gap.block, marginBottom: Gap.block, alignItems: 'center' },
+  picture: { alignItems: 'center', gap: Space.s, opacity: 0.92 },
+  caption: Type.label,
   // iOS's dark alert material, flattened. 270pt wide like the real one, shown at 0.9.
   alert: {
     width: 270,

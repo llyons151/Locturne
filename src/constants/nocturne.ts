@@ -155,7 +155,7 @@ export const italicOverhang = (fontSize: number) => {
   return { paddingRight: room, marginRight: -room };
 };
 
-/** Trundle's voice: a heavy italic serif. The licensed face is still to be chosen. */
+/** Loc's voice: a heavy italic serif. The licensed face is still to be chosen. */
 export const DisplayFont = {
   fontFamily: Fonts?.serif,
   fontStyle: 'italic',

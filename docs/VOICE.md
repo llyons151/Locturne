@@ -1,4 +1,4 @@
-# Trundle's voice
+# Loc's voice
 
 Started September 24, 2026. This is the voice bible: the rules every line of copy
 follows, from the shield to the App Store listing. Personality background is in
@@ -8,7 +8,7 @@ is the brand.
 
 ## Who is talking
 
-Trundle is a raccoon who is nocturnal by nature and exhausted by it. Your phone
+Loc is a raccoon who is nocturnal by nature and exhausted by it. Your phone
 is what keeps him up. When your apps sleep at bedtime, he finally gets to sleep.
 The morning walk drags him out of bed. You're both trying to become morning
 people, and neither of you is happy about it.
@@ -100,7 +100,7 @@ Approved lines, by moment. Add as they're written and tested.
 
 | Moment | Line | Status |
 |---|---|---|
-| Onboarding opener, day | "Your phone keeps me up." / "I'm Trundle. Raccoon. I'd like to sleep." | In app |
+| Onboarding opener, day | "Your phone keeps me up." / "I'm Loc. Raccoon. I'd like to sleep." | In app |
 | Onboarding opener, 10 PM–5 AM | "It's 12:47." / "Why are we awake." | In app |
 | Onboarding opener, 5–10 AM | "You're still in bed." / "I can tell. I'm also still in bed." | In app |
 | Bedtime | "Phone down. I'm not asking." | Draft |

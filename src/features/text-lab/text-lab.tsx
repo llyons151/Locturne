@@ -10,7 +10,7 @@ import { ANIMATIONS, CURRENT, FAMILIES, type TextAnimation } from './animations'
 
 /** Real onboarding lines (onboarding-flow.tsx), with their sizes and layout. */
 const SAMPLES = [
-  { head: 'Your phone keeps me up.', headSize: 46, sub: 'I’m Trundle. Raccoon. I’d like to sleep.', cta: 'Go on', bottom: true },
+  { head: 'Your phone keeps me up.', headSize: 46, sub: 'I’m Loc. Raccoon. I’d like to sleep.', cta: 'Go on', bottom: true },
   { head: 'A few questions. Then I do math on your nights.', headSize: 36, sub: '', cta: 'Ask away', bottom: false },
   { head: 'Tonight’s lock is ready.', headSize: 36, sub: 'I’m ready. Emotionally, less so.', cta: 'Continue', bottom: false },
   { head: 'Fair.', headSize: 48, sub: '', cta: 'Continue', bottom: false },
@@ -18,7 +18,7 @@ const SAMPLES = [
 ];
 
 const SPEEDS = [0.5, 1, 1.5];
-const STORE_KEY = 'trundle.text-lab';
+const STORE_KEY = 'locturne.text-lab';
 
 type Saved = { id: number; stars: number[] };
 
@@ -294,7 +294,7 @@ export function TextLab() {
     <View style={styles.mainInner}>
       <View style={styles.header}>
         <Text style={styles.h1}>Text lab</Text>
-        <Text style={styles.sub}>50 entrances for Trundle’s voice. Star the ones you like, then tell Claude the numbers.</Text>
+        <Text style={styles.sub}>50 entrances for Loc’s voice. Star the ones you like, then tell Claude the numbers.</Text>
       </View>
       {toolbar}
       {samples}
