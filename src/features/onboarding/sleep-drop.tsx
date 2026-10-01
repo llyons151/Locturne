@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { AppTile } from '@/components/app-icons';
+import { MORE_TILE } from '@/components/app-picker';
 import { restingMoonDisc } from '@/components/night-sky';
 import * as haptic from '@/lib/haptics';
 
@@ -46,6 +47,55 @@ const AWAY = Easing.bezier(0.3, 0, 0.6, 1);
 function rand(seed: number) {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
+}
+
+const ROOT = '__root';
+
+function measure(view: View | null | undefined) {
+  return new Promise<{ x: number; y: number; w: number; h: number } | null>((resolve) => {
+    if (!view) return resolve(null);
+    view.measureInWindow((x, y, w, h) => resolve({ x, y, w, h }));
+  });
+}
+
+/**
+ * Everything the flow needs to play SleepDrop: refs to measure where the icons are, the page
+ * fade around them, and `start` / `finish`. `onDone` runs as the last icon sinks, so the next
+ * screen comes in while it's still falling; the overlay clears after.
+ */
+export function useSleepDrop(apps: string[], onDone: () => void) {
+  // Plain holders rather than refs: they're only read in event handlers, but the step
+  // renderer receives the handlers during render, which the React Compiler flags for refs.
+  const [views] = useState(() => new Map<string, View>());
+  const [from, setFrom] = useState<Record<string, IconOrigin> | null>(null);
+  const pageFade = useSharedValue(1);
+  const pageStyle = useAnimatedStyle(() => ({ opacity: pageFade.value }));
+
+  const onIconRef = (app: string, view: View | null) => {
+    if (view) views.set(app, view);
+    else views.delete(app);
+  };
+  const rootRef = (view: View | null) => onIconRef(ROOT, view);
+
+  const start = async () => {
+    if (from) return;
+    const root = (await measure(views.get(ROOT))) ?? { x: 0, y: 0 };
+    const origins: Record<string, IconOrigin> = {};
+    for (const app of apps) {
+      const box = await measure(views.get(app) ?? views.get(MORE_TILE));
+      if (box) origins[app] = { x: box.x - root.x + box.w / 2, y: box.y - root.y + box.h / 2, size: box.w };
+    }
+    pageFade.set(withTiming(0, { duration: 260 }));
+    setFrom(origins);
+  };
+
+  const finish = () => {
+    onDone();
+    pageFade.set(withTiming(1, { duration: 450 }));
+    setTimeout(() => setFrom(null), 600);
+  };
+
+  return { from, pageStyle, onIconRef, rootRef, start, finish };
 }
 
 export function SleepDrop({

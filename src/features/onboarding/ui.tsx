@@ -405,6 +405,16 @@ function useScreenReader() {
   return enabled;
 }
 
+/** Layout shared by every onboarding page: where content starts, and the standard gaps. */
+export const page = StyleSheet.create({
+  // Every dark-sky page anchors here, so headlines start at the same height on each one.
+  top: { flex: 1, paddingTop: Gap.pageTop },
+  gapHeadline: { height: Gap.headline },
+  gapAside: { height: Gap.aside },
+  gapBlock: { height: Gap.block },
+  gapSection: { height: Gap.section },
+});
+
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flex: 1, minHeight: 0, overflow: 'hidden' },
