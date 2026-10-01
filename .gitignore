@@ -42,3 +42,6 @@ yarn-error.*
 
 # screenshot tool logs
 .playwright-cli/
+
+# Written by the Screen Time targets plugin during prebuild
+targets/*/generated.entitlements

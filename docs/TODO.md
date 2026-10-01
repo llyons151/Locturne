@@ -11,7 +11,8 @@ Tick items off here as they're done.
 
 ## 1. Decisions only you can make
 
-- [ ] **Moving the goalposts:** should changes that *loosen* the lock (removing apps,
+- [x] **Moving the goalposts:** *Decided 2026-10-01: all settings changes, loosening
+  or tightening, apply from the next bedtime, with a plain note on the settings screen.* should changes that *loosen* the lock (removing apps,
   moving bedtime later, lowering the step target) only take effect the next night?
   Tightening would still apply instantly. That's how Erly handles it, and Phone
   Dashboard did the same in the Allcott 2022 trial. A study of 8,000+ HabitLab users
@@ -33,11 +34,12 @@ Tick items off here as they're done.
 - [x] Register the App ID, the three extension IDs and the App Group (2026-09-28).
 - [x] Request Family Controls (Distribution). It's one request per developer
   account now, submitted 2026-09-28. See [ENTITLEMENT_SETUP.md](ENTITLEMENT_SETUP.md).
-- [ ] Wait for Apple's approval email, then enable Family Controls (Distribution)
-  on all four App IDs. Follow up at https://developer.apple.com/contact/ if
-  there's no reply by about October 19.
+- [x] Apple's approval email arrived (by 2026-10-01).
+- [ ] Enable Family Controls (Distribution) on all four App IDs. If an extension ID
+  doesn't offer it, that ID needs its own approval: contact Apple.
 - [x] Set `ios.bundleIdentifier` in `app.json` (`com.lukelyons.locturne`).
-- [ ] Set up EAS Build for native extensions (dev is on Linux, with no Mac).
+- [x] Configure EAS Build and the Screen Time extensions (2026-10-01, [DEVICE_SPIKE.md](DEVICE_SPIKE.md)).
+- [ ] First development build on the iPhone (steps in [DEVICE_SPIKE.md](DEVICE_SPIKE.md)).
 - [ ] Before launch: a USPTO class 9 trademark check on "Locturne", and a check that
   the social handles are free.
 

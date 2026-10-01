@@ -37,6 +37,7 @@ src/
     (dev)/                      design tools, not part of the product
       preset-lab.tsx            /preset-lab
       text-lab.tsx              /text-lab
+      screen-time-lab.tsx       /screen-time-lab  (device spike; linked from the You tab in dev builds)
 
   theme/
     colors.ts                   palettes; `Nocturne` is the active one (?palette= on web)
@@ -47,6 +48,8 @@ src/
   lib/
     haptics.ts                  tap / tick / thud / done (no-ops on web)
     text.ts                     noOrphan: keeps the last word off its own line
+    lock-state.ts               the lock's rules: phase (night/morning/day/off) and which apps sleep. Pure; tests in lock-state.test.ts (`npm test`)
+    screen-time.ts              the only file that calls react-native-device-activity (access, shield, unshield)
 
   hooks/
     use-compact.ts              true on short phones (iPhone SE), so layouts tighten
@@ -61,13 +64,22 @@ src/
     app-icons.tsx, ios-glyphs.tsx  drawn app icons (TikTok, Instagram, Safari…)
     app-picker.tsx              stand-in for Apple's app picker (sheet + card)
     placeholder-screen.tsx      unbuilt tabs
+    screen-time-picker.tsx      Apple's real app picker (the UI half of lib/screen-time.ts)
 
   features/
     home/       home-screen.tsx, moon-lock.tsx
     apps/       apps-list.tsx, catalog.ts
-    dev/        preset-lab/, text-lab/
+    dev/        preset-lab/, text-lab/, screen-time-lab/
     onboarding/ (below)
 ```
+
+## Native iOS (Screen Time)
+
+`targets/` at the repo root holds the three Swift extensions (monitor, shield look, shield
+buttons). They're copied from `react-native-device-activity` and are ours to edit: the plugin's
+automatic copy is off (`copyToTargetFolder: false` in `app.json`) so each target keeps the
+bundle ID registered with Apple. When upgrading the library, diff its `targets/` and
+`ios/Shared.swift` against ours by hand. How it all fits: [DEVICE_SPIKE.md](DEVICE_SPIKE.md).
 
 ## How onboarding fits together
 

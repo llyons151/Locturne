@@ -50,7 +50,13 @@ Rules carried over from the previous plan:
 - The count resets each morning. Reopening the app never resets progress.
 - Bedtime takes precedence: walking at night never unlocks apps.
 - 200 is a default to test, not a validated number. The target is adjustable.
-- The user controls the schedule and both app lists at all times.
+- The user controls the schedule and both app lists at all times, but **every
+  settings change takes effect from the next bedtime** (decided 2026-10-01). An edit
+  made during the night waits for the following night, so nothing can be loosened
+  from bed. The settings screen says so plainly.
+- Nights can be switched off per weekday. A night that's off has no morning lock
+  either (decided 2026-10-01). The always-blocked list still applies.
+- The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
 
 ## Humane exits (required for v1)
 
@@ -137,7 +143,7 @@ How to keep the brand from reading as generated:
 **Step 0: now**
 - ~~Finish Apple Developer Program enrollment.~~ Done 2026-09-28.
 - ~~Register the App ID, the three extension IDs and the App Group, then request
-  Family Controls (Distribution).~~ Done 2026-09-28; waiting on Apple. See
+  Family Controls (Distribution).~~ Done 2026-09-28; approved by 2026-10-01. See
   [docs/ENTITLEMENT_SETUP.md](docs/ENTITLEMENT_SETUP.md).
 - ~~Set `ios.bundleIdentifier` in `app.json`.~~ `com.lukelyons.locturne`.
 - Dev is on Linux with no confirmed Mac, so native extensions are built with EAS

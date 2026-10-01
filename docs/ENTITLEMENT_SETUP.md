@@ -10,7 +10,7 @@ match by meaning if a label differs slightly.
 |---|---|
 | Apple Developer Program | Approved. Team ID `9N5WZT8LV3` |
 | App Group and four App IDs | Registered 2026-09-28 |
-| Family Controls (Distribution) request | Submitted 2026-09-28. Waiting on Apple's email to the account's iCloud address. If there's no reply by about October 19, follow up at https://developer.apple.com/contact/ |
+| Family Controls (Distribution) request | **Approved** (email received by 2026-10-01: "assigned to your account"). Next: enable it on each of the four App IDs (section 4) |
 | `ios.bundleIdentifier` in `app.json` | Set to `com.lukelyons.locturne` |
 
 ## IDs

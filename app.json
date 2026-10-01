@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.lukelyons.locturne",
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "appleTeamId": "9N5WZT8LV3"
     },
     "android": {
       "adaptiveIcon": {
@@ -39,6 +40,14 @@
         "expo-sensors",
         {
           "motionPermission": "Locturne counts your steps each morning to wake your apps. That’s all it uses motion for."
+        }
+      ],
+      [
+        "react-native-device-activity",
+        {
+          "appleTeamId": "9N5WZT8LV3",
+          "appGroup": "group.com.lukelyons.locturne",
+          "copyToTargetFolder": false
         }
       ]
     ],
