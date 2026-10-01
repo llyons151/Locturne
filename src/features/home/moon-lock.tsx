@@ -13,7 +13,7 @@ import Animated, {
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { tick } from '@/features/onboarding/haptics';
+import { tick } from '@/lib/haptics';
 
 /** Moon white for the lock, a shade darker for the shackle, and the night showing through the keyhole. */
 const BODY = '#EEF6FB';

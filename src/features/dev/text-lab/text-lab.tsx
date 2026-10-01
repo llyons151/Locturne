@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindow
 import Animated from 'react-native-reanimated';
 
 import { AppBackground } from '@/components/app-background';
-import { DisplayFont, Nocturne } from '@/constants/nocturne';
+import { DisplayFont, Nocturne } from '@/theme';
 
 import { AnimatedText, plan } from './animated-text';
 import { ANIMATIONS, CURRENT, FAMILIES, type TextAnimation } from './animations';

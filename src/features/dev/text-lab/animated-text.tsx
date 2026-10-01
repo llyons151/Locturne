@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { DisplayFont, Nocturne } from '@/constants/nocturne';
+import { DisplayFont, Nocturne } from '@/theme';
 
 import type { Order, TextAnimation } from './animations';
 

@@ -12,11 +12,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { Nocturne } from '@/constants/nocturne';
+import { Reveal } from '@/components/motion';
+import * as haptic from '@/lib/haptics';
+import { Nocturne, Radius, Space, Type } from '@/theme';
 
-import * as haptic from './haptics';
-import { Reveal } from './motion';
-import { Radius, Space, Type } from './tokens';
 import { useOnMoon } from './ui';
 
 const DAY = 24 * 60;

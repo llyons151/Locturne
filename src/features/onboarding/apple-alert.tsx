@@ -11,10 +11,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Nocturne } from '@/constants/nocturne';
-
-import { Reveal } from './motion';
-import { Gap, Space, Type } from './tokens';
+import { Reveal } from '@/components/motion';
+import { Gap, Nocturne, Space, Type } from '@/theme';
 
 /**
  * A picture of the alert iOS shows next, with a finger on the button to press. Laid out

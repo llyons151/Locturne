@@ -2,9 +2,8 @@ import { memo, useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 
-import { Nocturne } from '@/constants/nocturne';
-
-import * as haptic from './haptics';
+import * as haptic from '@/lib/haptics';
+import { Nocturne } from '@/theme';
 
 /** How long the whole grid takes to fill, regardless of size. */
 const FILL_MS = 1800;

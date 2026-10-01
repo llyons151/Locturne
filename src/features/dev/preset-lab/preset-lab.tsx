@@ -4,9 +4,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppBackground } from '@/components/app-background';
-import { Nocturne } from '@/constants/nocturne';
-import * as haptic from '@/features/onboarding/haptics';
-import { NUMBER_FONT } from '@/features/onboarding/rolling-number';
+import * as haptic from '@/lib/haptics';
+import { Nocturne, NUMBER_FONT } from '@/theme';
 
 /** The bedtime presets from onboarding-flow.tsx, in minutes after midnight. */
 const PRESETS = [22 * 60, 23 * 60, 23 * 60 + 30, 0];

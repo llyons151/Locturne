@@ -1,13 +1,11 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Nocturne } from '@/constants/nocturne';
+import { AppTile } from '@/components/app-icons';
+import { Reveal } from '@/components/motion';
+import { Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
 
-import { AppTile } from './app-icons';
 import { formatClock } from './estimate';
-import { Reveal } from './motion';
-import { NUMBER_FONT } from './rolling-number';
-import { Gap, Radius, Space, Type } from './tokens';
 
 const MAX_ICONS = 5;
 

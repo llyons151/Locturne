@@ -10,9 +10,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { AppTile } from './app-icons';
-import * as haptic from './haptics';
-import { restingMoonDisc } from './night-sky';
+import { AppTile } from '@/components/app-icons';
+import { restingMoonDisc } from '@/components/night-sky';
+import * as haptic from '@/lib/haptics';
 
 /**
  * "Put N to sleep": the page falls away and the picked apps lift out of their rows, then

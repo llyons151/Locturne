@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { BackgroundColors, Spacing } from '@/constants/theme';
+import { Nocturne, Space, Type } from '@/theme';
 
 type PlaceholderScreenProps = {
   title: string;
@@ -11,34 +10,25 @@ type PlaceholderScreenProps = {
   children?: ReactNode;
 };
 
+/** Stand-in for a tab that isn't built yet. */
 export function PlaceholderScreen({ title, description, children }: PlaceholderScreenProps) {
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="subtitle" style={styles.title}>{title}</ThemedText>
-        <ThemedText style={styles.description} themeColor="textSecondary">
-          {description}
-        </ThemedText>
-        {children}
-      </SafeAreaView>
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <Text style={styles.title} accessibilityRole="header">{title}</Text>
+      <Text style={styles.description}>{description}</Text>
+      {children}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
+    gap: Space.s,
+    paddingHorizontal: Space.xl,
   },
-  title: { color: BackgroundColors.text },
-  description: {
-    color: BackgroundColors.textSecondary,
-    textAlign: 'center',
-  },
+  title: { color: Nocturne.text, ...Type.title },
+  description: { color: Nocturne.text2, ...Type.body, textAlign: 'center' },
 });

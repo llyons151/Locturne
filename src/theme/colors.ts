@@ -1,5 +1,3 @@
-import { Fonts } from '@/constants/theme';
-
 /**
  * "Nocturne" tokens (docs/COLOR_RESEARCH.md, section 5). The interface stays quiet and
  * imagery carries the color; never any glow.
@@ -144,22 +142,3 @@ function requestedPalette(): PaletteName {
 export const PALETTE_NAME = requestedPalette();
 
 export const Nocturne: Palette = { ...PALETTES[PALETTE_NAME] };
-
-/**
- * Room for an italic's slanted overhang. iOS and Android size a Text box by the glyphs'
- * advance widths, so the lean of the last letter on each line gets clipped at the right
- * edge. The padding gives it room; the negative margin keeps the layout unchanged.
- */
-export const italicOverhang = (fontSize: number) => {
-  const room = Math.ceil(fontSize * 0.15);
-  return { paddingRight: room, marginRight: -room };
-};
-
-/** Loc's voice: a heavy italic serif. The licensed face is still to be chosen. */
-export const DisplayFont = {
-  fontFamily: Fonts?.serif,
-  fontStyle: 'italic',
-  fontWeight: '800',
-  // Sized for the largest body-level voice lines (~26pt); WordsIn sizes its own per line.
-  ...italicOverhang(26),
-} as const;

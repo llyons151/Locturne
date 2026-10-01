@@ -3,12 +3,11 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Nocturne } from '@/constants/nocturne';
+import * as haptic from '@/lib/haptics';
+import { Nocturne, Radius, Space, Type } from '@/theme';
 
 import { AppTile } from './app-icons';
-import * as haptic from './haptics';
 import { Reveal } from './motion';
-import { Radius, Space, Type } from './tokens';
 
 /**
  * The app-picking step, shaped like the real flow so Apple's picker drops in later:

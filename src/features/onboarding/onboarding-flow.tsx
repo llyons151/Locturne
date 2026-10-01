@@ -16,7 +16,14 @@ import {
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DisplayFont, Nocturne } from '@/constants/nocturne';
+import { AppPickerSheet, AppsCard, MORE_TILE } from '@/components/app-picker';
+import { PrimaryButton, TextButton } from '@/components/buttons';
+import { Reveal, type TextMotion } from '@/components/motion';
+import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
+import { useCompact } from '@/hooks/use-compact';
+import * as haptic from '@/lib/haptics';
+import { noOrphan } from '@/lib/text';
+import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Radius, Space, Type, VoiceSize } from '@/theme';
 
 import {
   AGE_DEFAULT,
@@ -61,11 +68,7 @@ import {
   weeklyAmount,
   type Estimate,
 } from './estimate';
-import * as haptic from './haptics';
-import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from './night-sky';
-import { NUMBER_FONT, RollingNumber } from './rolling-number';
-import { Reveal, type TextMotion } from './motion';
-import { useCompact } from './layout';
+import { RollingNumber } from './rolling-number';
 import { fitSquares, RevealGrid } from './reveal-grid';
 import {
   Body,
@@ -76,21 +79,17 @@ import {
   MoonSurface,
   Options,
   PreviewNote,
-  PrimaryButton,
   Shell,
   StepEnter,
-  TextButton,
   Title,
   Voice,
 } from './ui';
 import { AgeWheel, TimeWheel } from './time-wheel';
 import { AppleAlertPicture } from './apple-alert';
-import { AppPickerSheet, AppsCard, MORE_TILE } from './app-picker';
 import { SleepDrop, type IconOrigin } from './sleep-drop';
 import { DayPicker } from './day-picker';
 import { ScheduleCard } from './schedule-card';
-import { TomorrowDemo } from './tomorrow-demo';
-import { Gap, noOrphan, Radius, Space, Type, VoiceSize } from './tokens';
+import { TomorrowDemo } from './screens/tomorrow-demo';
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
 // Four presets: one row under the time wheel.

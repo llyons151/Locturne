@@ -3,13 +3,17 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  AppTile,
+  BrandIcon,
+  SystemIcon,
+  type BrandName,
+  type SystemName,
+} from '@/components/app-icons';
+import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { useTabBarInset } from '@/components/app-tabs';
-import { DisplayFont, Nocturne } from '@/constants/nocturne';
-import { AppTile, BrandIcon, SystemIcon, type BrandName, type SystemName } from '@/features/onboarding/app-icons';
-import { AddTile, AppPickerSheet } from '@/features/onboarding/app-picker';
-import * as haptic from '@/features/onboarding/haptics';
-import { Gap, Radius, Space, Type } from '@/features/onboarding/tokens';
-import { DISPLAY_MAX_SCALE } from '@/features/onboarding/ui';
+import * as haptic from '@/lib/haptics';
+import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
 import { APPS, type AppEntry } from './catalog';
 

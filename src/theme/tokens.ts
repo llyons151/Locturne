@@ -1,11 +1,11 @@
-import { Nocturne } from '@/constants/nocturne';
+import { Nocturne } from './colors';
 
 /**
- * The onboarding's one small system (docs/onboarding-consistency/README.md). Screens read
+ * The app's one small layout system (docs/onboarding-consistency/README.md). Screens read
  * sizes, gaps and radii from here instead of inventing their own, so every page lines up.
  */
 
-/** Spacing scale. Nothing in onboarding should use a gap that isn't one of these. */
+/** Spacing scale. Nothing should use a gap that isn't one of these. */
 export const Space = {
   xs: 4,
   s: 8,
@@ -41,7 +41,7 @@ export const Radius = {
   control: 12,
 } as const;
 
-/** Loc's italic serif sizes (see Voice in ui.tsx). */
+/** Loc's italic serif sizes (see Voice in features/onboarding/ui.tsx). */
 export const VoiceSize = {
   hero: 46,
   headline: 34,
@@ -70,13 +70,3 @@ export const Type = {
 
 /** Primary buttons are this tall on every screen, with their bottom edge in the same place. */
 export const CTA_HEIGHT = 56;
-
-/**
- * Join the last two words so a line never ends on one lonely word, and keep "I" and "a"
- * with the word after them so they never dangle at the end of a line.
- */
-export function noOrphan(text: string): string {
-  const glued = text.replace(/(^|\s)(I|a|A) /g, '$1$2 ');
-  const i = glued.trimEnd().lastIndexOf(' ');
-  return i > 0 ? `${glued.slice(0, i)} ${glued.slice(i + 1)}` : glued;
-}

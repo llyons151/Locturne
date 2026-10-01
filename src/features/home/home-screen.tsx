@@ -5,15 +5,16 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, 
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppTile } from '@/components/app-icons';
 import { useTabBarInset } from '@/components/app-tabs';
+import { PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
-import { DisplayFont, italicOverhang, Nocturne } from '@/constants/nocturne';
-import { MoonLock } from '@/features/home/moon-lock';
-import { AppTile } from '@/features/onboarding/app-icons';
-import { tap } from '@/features/onboarding/haptics';
-import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/features/onboarding/night-sky';
-import { noOrphan, Space, Type, VoiceSize } from '@/features/onboarding/tokens';
-import { PrimaryButton, TextButton } from '@/features/onboarding/ui';
+import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/components/night-sky';
+import { tap } from '@/lib/haptics';
+import { noOrphan } from '@/lib/text';
+import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
+
+import { MoonLock } from './moon-lock';
 
 /**
  * Home is a status screen, not a dashboard (docs/HOME_SPEC.md): Loc's line, one line of

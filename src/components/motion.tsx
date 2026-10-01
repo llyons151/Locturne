@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type PropsWithChildren } from 'rea
 import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 
-import { italicOverhang } from '@/constants/nocturne';
+import { italicOverhang } from '@/theme';
 
 /**
  * How text arrives on an onboarding page. Picked per page in onboarding-flow.tsx

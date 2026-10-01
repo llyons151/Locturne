@@ -1,12 +1,12 @@
-import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
-import { SymbolView, type SymbolViewProps } from "expo-symbols";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import {
   useEffect,
   useRef,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 import {
   Platform,
   Pressable,
@@ -14,7 +14,7 @@ import {
   View,
   type LayoutChangeEvent,
   type ViewStyle,
-} from "react-native";
+} from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -23,41 +23,40 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
-} from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Nocturne } from "@/constants/nocturne";
-import { Spacing } from "@/constants/theme";
-import { tap } from "@/features/onboarding/haptics";
+import { tap } from '@/lib/haptics';
+import { Nocturne, Space } from '@/theme';
 
-type SymbolName = SymbolViewProps["name"];
+type SymbolName = SymbolViewProps['name'];
 
 // Filled glyphs throughout, as in the iOS 26 tab bar. `size` evens out optical weight:
 // the grid and alarm read larger than the house at the same point size.
 const TABS: Record<string, { label: string; icon: SymbolName; size: number }> = {
   index: {
-    label: "Home",
-    icon: { ios: "house.fill", android: "home", web: "home" },
+    label: 'Home',
+    icon: { ios: 'house.fill', android: 'home', web: 'home' },
     size: 22,
   },
   apps: {
-    label: "Apps",
-    icon: { ios: "square.grid.2x2.fill", android: "apps", web: "apps" },
+    label: 'Apps',
+    icon: { ios: 'square.grid.2x2.fill', android: 'apps', web: 'apps' },
     size: 20,
   },
   nap: {
-    label: "Nap",
-    icon: { ios: "moon.zzz.fill", android: "bedtime", web: "bedtime" },
+    label: 'Nap',
+    icon: { ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' },
     size: 21,
   },
   routine: {
-    label: "Routine",
-    icon: { ios: "alarm.fill", android: "alarm", web: "alarm" },
+    label: 'Routine',
+    icon: { ios: 'alarm.fill', android: 'alarm', web: 'alarm' },
     size: 21,
   },
   profile: {
-    label: "You",
-    icon: { ios: "person.fill", android: "person", web: "person" },
+    label: 'You',
+    icon: { ios: 'person.fill', android: 'person', web: 'person' },
     size: 21,
   },
 };
@@ -75,31 +74,31 @@ const FADE = { duration: 180 };
 /** Space a scrolling tab screen should leave at the bottom so content clears the bar. */
 export function useTabBarInset() {
   const insets = useSafeAreaInsets();
-  return barBottom(insets.bottom) + BAR_HEIGHT + Spacing.three;
+  return barBottom(insets.bottom) + BAR_HEIGHT + Space.l;
 }
 
-const barBottom = (safeBottom: number) => Math.max(safeBottom - BAR_DROP, Spacing.three);
+const barBottom = (safeBottom: number) => Math.max(safeBottom - BAR_DROP, Space.l);
 
 export default function AppTabs() {
   return (
     <Tabs
       screenOptions={({ navigation }) => ({
         headerShown: false,
-        animation: "fade",
-        transitionSpec: { animation: "timing", config: FADE },
+        animation: 'fade',
+        transitionSpec: { animation: 'timing', config: FADE },
         sceneStyle: {
-          backgroundColor: "transparent",
+          backgroundColor: 'transparent',
           // Web keeps visited tabs mounted; hide their content behind the shared backdrop.
-          display: navigation.isFocused() ? "flex" : "none",
+          display: navigation.isFocused() ? 'flex' : 'none',
         },
       })}
       tabBar={(props) => <TabBar {...props} />}
     >
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="apps" />
-      <Tabs.Screen name="nap" />
-      <Tabs.Screen name="routine" />
-      <Tabs.Screen name="profile" />
+      <Tabs.Screen name='index' />
+      <Tabs.Screen name='apps' />
+      <Tabs.Screen name='nap' />
+      <Tabs.Screen name='routine' />
+      <Tabs.Screen name='profile' />
     </Tabs>
   );
 }
@@ -148,7 +147,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
           <View style={styles.row} onLayout={onRowLayout}>
             {rowWidth > 0 && (
               <Animated.View
-                pointerEvents="none"
+                pointerEvents='none'
                 style={[styles.capsule, capsuleStyle]}
               />
             )}
@@ -160,7 +159,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 
               const onPress = () => {
                 const event = navigation.emit({
-                  type: "tabPress",
+                  type: 'tabPress',
                   target: route.key,
                   canPreventDefault: true,
                 });
@@ -233,7 +232,7 @@ function TabButton({
       onPressOut={() => {
         press.set(withSpring(1, PRESS));
       }}
-      accessibilityRole="tab"
+      accessibilityRole='tab'
       accessibilityLabel={tab.label}
       accessibilityState={{ selected: focused }}
       style={styles.tab}
@@ -243,7 +242,7 @@ function TabButton({
           <SymbolView
             name={tab.icon}
             size={tab.size}
-            weight="semibold"
+            weight='semibold'
             tintColor={Nocturne.text}
           />
         </Animated.View>
@@ -260,8 +259,8 @@ function Glass({ style, children }: { style: ViewStyle; children: ReactNode }) {
   if (isLiquidGlassAvailable()) {
     return (
       <GlassView
-        glassEffectStyle="regular"
-        colorScheme="dark"
+        glassEffectStyle='regular'
+        colorScheme='dark'
         isInteractive
         style={[style, styles.fill]}
       >
@@ -274,18 +273,18 @@ function Glass({ style, children }: { style: ViewStyle; children: ReactNode }) {
 
 const styles = StyleSheet.create({
   dock: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
-    alignItems: "center",
+    alignItems: 'center',
     paddingHorizontal: 20,
   },
   barShape: {
-    width: "100%",
+    width: '100%',
     maxWidth: 520,
     height: BAR_HEIGHT,
     borderRadius: BAR_HEIGHT / 2,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   fill: {
     flex: 1,
@@ -294,43 +293,43 @@ const styles = StyleSheet.create({
   // The top edge is a touch brighter, like light catching the rim of the glass.
   // Neutral white only; never a tinted glow.
   frost: {
-    backgroundColor: "rgba(40, 44, 58, 0.55)",
+    backgroundColor: 'rgba(40, 44, 58, 0.55)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.07)",
-    borderTopColor: "rgba(255, 255, 255, 0.24)",
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    borderTopColor: 'rgba(255, 255, 255, 0.24)',
     ...Platform.select({
-      web: { backdropFilter: "blur(24px) saturate(160%)" } as ViewStyle,
+      web: { backdropFilter: 'blur(24px) saturate(160%)' } as ViewStyle,
     }),
   },
   row: {
     flex: 1,
-    flexDirection: "row",
+    flexDirection: 'row',
   },
   capsule: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
     borderRadius: BAR_HEIGHT / 2,
-    backgroundColor: "rgba(255, 255, 255, 0.13)",
+    backgroundColor: 'rgba(255, 255, 255, 0.13)',
   },
   tab: {
     flex: 1,
   },
   tabContent: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 2,
   },
   icon: {
     height: 24,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
     color: Nocturne.text,
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 });

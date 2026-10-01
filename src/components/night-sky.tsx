@@ -230,7 +230,7 @@ export function NightSky({
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Image
-        source={require('../../../assets/onboarding/night-sky-moonless.png')}
+        source={require('@/assets/onboarding/night-sky-moonless.png')}
         style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
         contentFit="cover"
         contentPosition="top right"
@@ -239,7 +239,7 @@ export function NightSky({
       {MOON_REST === 'bottom' ? (
         <Animated.View style={[styles.moon, glowStyle]}>
           <Image
-            source={require('../../../assets/onboarding/moon-glow.png')}
+            source={require('@/assets/onboarding/moon-glow.png')}
             style={StyleSheet.absoluteFill}
             contentFit="contain"
             accessible={false}
@@ -248,7 +248,7 @@ export function NightSky({
       ) : null}
       <Animated.View style={[styles.moon, moonStyle]}>
         <Image
-          source={require('../../../assets/onboarding/moon-frosted.png')}
+          source={require('@/assets/onboarding/moon-frosted.png')}
           style={StyleSheet.absoluteFill}
           contentFit="contain"
           accessible={false}

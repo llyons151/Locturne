@@ -1,10 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Nocturne } from '@/constants/nocturne';
-
-import * as haptic from './haptics';
-import { Reveal } from './motion';
-import { Radius, Space } from './tokens';
+import { Reveal } from '@/components/motion';
+import * as haptic from '@/lib/haptics';
+import { Nocturne, Radius, Space } from '@/theme';
 
 /** Monday first. The value stored is the day's index here. */
 const DAYS = [

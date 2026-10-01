@@ -21,19 +21,16 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 
-import { DisplayFont, Nocturne } from '@/constants/nocturne';
+import { BrandIcon, SystemIcon, type BrandName, type SystemName } from '@/components/app-icons';
+import { Glyph } from '@/components/ios-glyphs';
+import { Reveal } from '@/components/motion';
+import { useCompact } from '@/hooks/use-compact';
+import * as haptic from '@/lib/haptics';
+import { DisplayFont, Nocturne, NUMBER_FONT, VoiceSize } from '@/theme';
 
-import { BrandIcon, SystemIcon, type BrandName, type SystemName } from './app-icons';
-import * as haptic from './haptics';
-import { Glyph } from './ios-glyphs';
-import { useCompact } from './layout';
-import { Reveal } from './motion';
-import { NUMBER_FONT } from './rolling-number';
-import { Eyebrow, Title } from './ui';
-import { VoiceSize } from './tokens';
+import { Eyebrow, Title } from '../ui';
 
 const STEP_GOAL = 200;
 
@@ -49,10 +46,10 @@ const LIFT_AFTER_MS = 320;
 const REDUCED_AWAKE_AT = 3000;
 
 /** Apple's iPhone 17 bezel image (Apple Design Resources), 1350×2760, and its screen opening. */
-const FRAME = require('../../../assets/onboarding/iphone-frame.png');
+const FRAME = require('@/assets/onboarding/iphone-frame.png');
 const PHONE_RATIO = 1350 / 2760;
 const SCREEN = { left: 72 / 1350, top: 69 / 2760, width: 1206 / 1350, height: 2622 / 2760 };
-const WALLPAPER = require('../../../assets/backgrounds/moonlit-night.png');
+const WALLPAPER = require('@/assets/backgrounds/moonlit-night.png');
 
 /** iOS home screen metrics, in points on a 402pt-wide screen. */
 const ICON = 64;
@@ -424,14 +421,14 @@ function Phone({
 
 const TAB = 83;
 const STORIES: { name: string; photo: number }[] = [
-  { name: 'Your story', photo: require('../../../assets/onboarding/avatars/moon.jpg') },
-  { name: 'corgi.daily', photo: require('../../../assets/onboarding/avatars/corgi.jpg') },
-  { name: 'nightowl.jess', photo: require('../../../assets/onboarding/avatars/bed.jpg') },
-  { name: 'pugsofig', photo: require('../../../assets/onboarding/avatars/pug.jpg') },
-  { name: 'backyard.pup', photo: require('../../../assets/onboarding/avatars/puppy.jpg') },
+  { name: 'Your story', photo: require('@/assets/onboarding/avatars/moon.jpg') },
+  { name: 'corgi.daily', photo: require('@/assets/onboarding/avatars/corgi.jpg') },
+  { name: 'nightowl.jess', photo: require('@/assets/onboarding/avatars/bed.jpg') },
+  { name: 'pugsofig', photo: require('@/assets/onboarding/avatars/pug.jpg') },
+  { name: 'backyard.pup', photo: require('@/assets/onboarding/avatars/puppy.jpg') },
 ];
 /** Free Mixkit clip (mixkit.co, free license), cropped to a 4:5 post. */
-const POST_VIDEO = require('../../../assets/onboarding/feed-puppy.mp4');
+const POST_VIDEO = require('@/assets/onboarding/feed-puppy.mp4');
 /** Instagram's script wordmark isn't a font we ship; Snell Roundhand is the closest iOS system face. */
 const WORDMARK_FONT = Platform.select({
   ios: 'SnellRoundhand-Bold',

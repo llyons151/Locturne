@@ -18,14 +18,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DisplayFont, Nocturne } from '@/constants/nocturne';
-
-import * as haptic from './haptics';
-import { MotionPage, Reveal, WordsIn, type TextMotion } from './motion';
-import { CTA_HEIGHT, Gap, noOrphan, Radius, Space, Type } from './tokens';
-
-/** Display type is already large; let it grow a little with Dynamic Type, not 3x. */
-export const DISPLAY_MAX_SCALE = 1.3;
+import { PrimaryButton } from '@/components/buttons';
+import { MotionPage, Reveal, WordsIn, type TextMotion } from '@/components/motion';
+import * as haptic from '@/lib/haptics';
+import { noOrphan } from '@/lib/text';
+import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
 type ShellProps = PropsWithChildren<{
   /** 0–1, or null to hide the bar. */
@@ -192,38 +189,6 @@ export function FooterEnter({ children, secondary }: PropsWithChildren<{ seconda
       {secondary}
       {children}
     </Animated.View>
-  );
-}
-
-export function PrimaryButton({
-  label,
-  onPress,
-  disabled,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        haptic.tap();
-        onPress();
-      }}
-      disabled={disabled}
-      accessibilityRole="button"
-      style={({ pressed }) => [styles.cta, disabled && styles.ctaDisabled, pressed && styles.pressed]}
-    >
-      <Text style={[styles.ctaLabel, disabled && styles.ctaLabelDisabled]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-export function TextButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" hitSlop={8} style={styles.textButton}>
-      <Text style={styles.textButtonLabel}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -440,7 +405,7 @@ function useScreenReader() {
   return enabled;
 }
 
-export const styles = StyleSheet.create({
+const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flex: 1, minHeight: 0, overflow: 'hidden' },
   hidden: { opacity: 0 },
@@ -475,21 +440,7 @@ export const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
   voice: { ...DisplayFont, color: Nocturne.text, letterSpacing: -0.3 },
   footerStack: { gap: Space.s },
-  cta: {
-    minHeight: CTA_HEIGHT,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: Radius.pill,
-    backgroundColor: Nocturne.cta,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaDisabled: { backgroundColor: Nocturne.raised },
-  ctaLabel: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
-  ctaLabelDisabled: { color: Nocturne.text3 },
   pressed: { opacity: 0.75 },
-  textButton: { alignSelf: 'center', paddingVertical: Space.xs },
-  textButtonLabel: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
   options: { gap: Space.m },
   option: {
     minHeight: 58,
