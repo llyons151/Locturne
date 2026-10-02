@@ -35,6 +35,8 @@ import {
 } from '@/theme';
 
 import { LengthPicker } from './length-picker';
+import { NapClock } from './nap-clock';
+import { useSideways } from './use-sideways';
 
 /**
  * The Nap tab: tuck him in for 15, 30 or 60 minutes and the bedtime apps sleep with him.
@@ -87,19 +89,29 @@ export function NapScreen() {
   const [now, setNow] = useState(Date.now);
   const [notice, setNotice] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [focused, setFocused] = useState(false);
+  // Turning the phone on its side mid-nap shows the moon clock. Only listens while it could.
+  const side = useSideways(nap !== null && focused);
 
   // Pick up a nap started earlier (or one iOS already ended) whenever the tab comes back.
   useFocusEffect(
     useCallback(() => {
-      if (!isScreenTimeAvailable()) return;
-      setNap(getNap());
-      setNow(Date.now());
+      setFocused(true);
+      if (isScreenTimeAvailable()) {
+        setNap(getNap());
+        setNow(Date.now());
+      }
+      return () => setFocused(false);
     }, []),
   );
 
   // One tick a second while napping, and every 30 s otherwise (for "until 3:12 pm").
+  // On its side the clock shows whole minutes, so it only ticks as each one turns over,
+  // and every second again for the last minute.
   useEffect(() => {
-    const id = setInterval(() => {
+    const ms = nap ? nap.end - Date.now() : 0;
+    const delay = !nap ? 30_000 : side && ms > 61_000 ? (ms % 60_000 || 60_000) + 20 : 1000;
+    const id = setTimeout(() => {
       const t = Date.now();
       setNow(t);
       if (nap && t >= nap.end) {
@@ -108,9 +120,9 @@ export function NapScreen() {
         setNap(null);
         setLine('ended');
       }
-    }, nap ? 1000 : 30_000);
-    return () => clearInterval(id);
-  }, [nap]);
+    }, delay);
+    return () => clearTimeout(id);
+  }, [nap, side, now]);
 
   const start = async () => {
     const why = blocker();
@@ -183,6 +195,7 @@ export function NapScreen() {
             </View>
           </View>
           <TextButton label="Wake him early" onPress={wake} />
+          <NapClock side={side} progress={done} left={left} until={`Apps asleep until ${timeOf(nap.end)}`} />
         </View>
       ) : (
         <View style={styles.bottom}>
