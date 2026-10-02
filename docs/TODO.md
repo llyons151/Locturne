@@ -32,6 +32,12 @@ Tick items off here as they're done.
   stairs between your bed and your coffee?" right after `wake`. Steps and Scan are
   the alternatives.* Plan in [DOWNSTAIRS_METHOD.md](DOWNSTAIRS_METHOD.md) and
   [LAUNCH_PLAN.md](LAUNCH_PLAN.md) §2.
+- [ ] **Build your own morning:** let users chain methods and set their own targets,
+  places and per-day mornings on a "Your morning" screen, with onboarding still
+  picking one default? The user asked for morning control on 2026-10-01; this is an *idea*
+  until it's copied into GAME_PLAN. [WAKE_METHODS_100.md](WAKE_METHODS_100.md)
+- [ ] **Microphone methods:** allow on-device sound checks (kettle, shower, flush)?
+  They're cheatable with a recording. Decide alongside LAUNCH_PLAN D2 (camera).
 
 ## 2. Step 0: accounts and IDs (blocking everything native)
 
@@ -40,11 +46,10 @@ Tick items off here as they're done.
 - [x] Request Family Controls (Distribution). It's one request per developer
   account now, submitted 2026-09-28. See [ENTITLEMENT_SETUP.md](ENTITLEMENT_SETUP.md).
 - [x] Apple's approval email arrived (by 2026-10-01).
-- [ ] Enable Family Controls (Distribution) on all four App IDs. If an extension ID
-  doesn't offer it, that ID needs its own approval: contact Apple.
+- [x] Enable Family Controls (Distribution) on all four App IDs (2026-10-01).
 - [x] Set `ios.bundleIdentifier` in `app.json` (`com.lukelyons.locturne`).
 - [x] Configure EAS Build and the Screen Time extensions (2026-10-01, [DEVICE_SPIKE.md](DEVICE_SPIKE.md)).
-- [ ] First development build on the iPhone (steps in [DEVICE_SPIKE.md](DEVICE_SPIKE.md)).
+- [x] First development build on the iPhone (EAS build `c26d2c10`; manual blocking works, [DEVICE_SPIKE.md](DEVICE_SPIKE.md)).
 - [ ] Before launch: a USPTO class 9 trademark check on "Locturne", and a check that
   the social handles are free.
 
@@ -123,7 +128,8 @@ Needs the real app:
 - [x] Budget DeviceActivity monitors (16 night + 1 nap + 3 limits) and tell the user when iOS refuses a limit.
 - [ ] Device-test the overlap re-apply: a nap or limit ending mid-night must leave bedtime and always apps shielded.
 - [ ] Per-rule shield text ("Daily limit used up") — iOS has one shield config for the app today.
-- [ ] Removing apps from a limit (or the bedtime/always lists) applies at once; make it wait for bedtime like other loosening.
+- [x] Removing apps from a limit (or the bedtime/always lists) waits for bedtime (2026-10-01). Apple's picker edits a draft; additions apply now, removals at the next bedtime, settled by the monitor extension or on app open. It also fixes removed apps staying shielded forever (iOS keeps one merged blocklist). Needs a device test.
+- [x] Revoked Screen Time access is detected while the app runs (2026-10-01): besides the cached status, `getProtection` checks that an armed night still has its windows and that held lists have a shield up. Shown on the You and Apps tabs. Needs a device test.
 - [ ] Passes, the emergency unlock, and the accessible alternative.
 - [ ] *Idea:* **a short delay and a "go back to sleep" button in front of every
   exit** (passes and the emergency unlock), one sec style. In the one sec trial the
@@ -167,10 +173,10 @@ Needs the real app:
 - [ ] Viral ideas to test: his voice as real audio, roasts when the anti-shake check
   catches cheating, "excuse court" for passes, and a falling-asleep goodnight.
 
-## 7. Marketing (runs alongside the build, starting now)
+## 7. Marketing (starts once the app is polished, decided 2026-10-01)
 
-- [ ] A waitlist page.
-- [ ] 20–30 concept videos across angles, morning-first. Watch for "what app is
+- [ ] A waitlist page, once the morning flow works with real UI (target mid-November).
+- [ ] 20–30 videos of the real app across angles, morning-first. Watch for "what app is
   this?" comments and sign-ups.
 - [ ] Safe stats for hooks: 85% check their phone within 10 minutes of waking, and
   60% of under-30s do so always or often. Use the "47 seconds" and "68% override"
@@ -191,5 +197,142 @@ Needs the real app:
 
 ## 9. Doc housekeeping
 
-- [ ] GAME_PLAN says "Early"; the app is **Erly**.
-- [ ] [SETUP.md](../SETUP.md) says "there is no app code yet", which is out of date.
+- [x] GAME_PLAN says "Early"; the app is **Erly**. (Fixed 2026-10-01.)
+- [x] [SETUP.md](../SETUP.md) says "there is no app code yet", which is out of date. (Fixed 2026-10-01.)
+
+## 10. Wake-up method backlog (ideas, logged 2026-10-01)
+
+All 100 methods from [WAKE_METHODS_100.md](WAKE_METHODS_100.md), with how each is
+proven. Type: P = practical, M = marketing. None is adopted beyond the three v1
+methods until it's copied into GAME_PLAN. The shortlists are at the end of that doc.
+Code methods (D) can be filmed for marketing before launch.
+
+**A. Height (barometer, `CMAltimeter`)**
+
+- [ ] 1. Go downstairs (P+M; OK (v1 hero))
+- [ ] 2. Go upstairs (ground-floor bedrooms) (P; OK)
+- [ ] 3. Stair reps: down, up, down again (M; OK)
+- [ ] 4. Lobby run (apartments) (P+M; OK)
+- [ ] 5. Climb the building (M; OK)
+- [ ] 6. Downstairs speedrun (M; OK)
+- [ ] 7. Basement / laundry run (P; OK)
+- [ ] 8. Downstairs and stay there (P; OK)
+
+**B. Walking and movement (`CMPedometer`, `CMMotionActivity`, GPS)**
+
+- [ ] 9. Walk it off (200 steps) (P; OK (v1))
+- [ ] 10. Pick your number (500 / 1,000 steps) (P; OK)
+- [ ] 11. Brisk minute (P; OK)
+- [ ] 12. Two-part wake (P; OK)
+- [ ] 13. Morning jog (P+M; OK)
+- [ ] 14. Walk the dog (P+M; OK)
+- [ ] 15. End of the street (P; OK)
+- [ ] 16. Out and back (P; OK)
+- [ ] 17. Sunrise walk (M; OK)
+- [ ] 18. Bike ride (P; OK)
+- [ ] 19. Commute unlock (P; OK)
+- [ ] 20. Run a kilometre (P+M; OK)
+- [ ] 21. Apple Watch steps (phone stays on the nightstand) (P; Hardware)
+- [ ] 22. Wheelchair pushes (P; Hardware; a real accessibility option)
+- [ ] 23. Walk with Loc (M; OK)
+- [ ] 24. Steps, phone held upright (P; OK)
+
+**C. Places (geofences, Wi-Fi, map points)**
+
+- [ ] 25. Leave the house (P; OK)
+- [ ] 26. Coffee shop unlock (M; OK)
+- [ ] 27. Gym check-in (P+M; OK)
+- [ ] 28. Campus arrival (P; OK)
+- [ ] 29. Office arrival (P; OK)
+- [ ] 30. Touch grass (M; OK)
+- [ ] 31. Station or bus stop (P; OK)
+- [ ] 32. Your landmark (P; OK)
+- [ ] 33. Loc's pick (M; OK)
+- [ ] 34. Friend's door (P+M; OK)
+- [ ] 35. Out of Wi-Fi range (P; Weak (range varies))
+- [ ] 36. Kitchen Wi-Fi node (P; Weak (mesh roaming is fickle))
+- [ ] 37. Bakery run (M; OK)
+
+**D. Codes (camera barcode scan, the v1 "Scan your code" family)**
+
+- [ ] 38. Scan your code (P; OK (v1))
+- [ ] 39. Coffee bag barcode (P; OK)
+- [ ] 40. Daily tear-off codes (P; OK)
+- [ ] 41. Scavenger chain (M; OK)
+- [ ] 42. Random room (P+M; OK)
+- [ ] 43. Partner hides it (M; OK)
+- [ ] 44. Code in the shower (M; OK)
+- [ ] 45. Bathroom mirror (P; OK)
+- [ ] 46. Inside the fridge (P+M; OK)
+- [ ] 47. In the freezer (M; OK)
+- [ ] 48. Feed the pet (P+M; OK)
+- [ ] 49. Raccoon bin run (M; OK)
+- [ ] 50. Front door, outside (P; OK)
+- [ ] 51. In the car (P; OK)
+- [ ] 52. The kettle (P; OK)
+- [ ] 53. Toothpaste barcode (P; OK)
+- [ ] 54. Water the plant (M; OK)
+- [ ] 55. Cereal box (M; OK)
+- [ ] 56. Medication reminder (P; OK)
+
+**E. Body (sensors, no camera)**
+
+- [ ] 57. Proximity push-ups (P+M; OK (no camera; still check D2))
+- [ ] 58. Jumping jacks (P+M; Weak (pattern can be faked))
+- [ ] 59. Squats (P; Weak)
+- [ ] 60. Jump rope (M; Weak)
+- [ ] 61. Dance break (M; Weak)
+- [ ] 62. Heart rate up (P; Hardware)
+- [ ] 63. Boss mode (P; OK)
+
+**F. Camera with on-device vision**
+
+- [ ] 64. Push-ups on camera (M; Decision)
+- [ ] 65. Sun salutation (M; Decision)
+- [ ] 66. AR kitchen (P+M; Decision; high build cost)
+- [ ] 67. Find Loc in AR (M; Decision)
+- [ ] 68. LiDAR room match (P; Decision; Pro phones only)
+- [ ] 69. Daylight at the window (P; Decision; Weak)
+- [ ] 70. Sky check (M; Decision)
+- [ ] 71. Say hi to the pet (M; Decision)
+
+**G. Sounds (on-device `SoundAnalysis`)**
+
+- [ ] 72. Flush to unlock (M; Decision; Weak)
+- [ ] 73. Kettle on (P+M; Decision; Weak)
+- [ ] 74. Coffee grinder (P+M; Decision; Weak)
+- [ ] 75. Wash your face (P; Decision; Weak)
+- [ ] 76. Shower on (M; Decision; Weak)
+- [ ] 77. Cook breakfast (M; Decision; Weak)
+- [ ] 78. Birdsong (M; Decision; Weak)
+- [ ] 79. Smoothie (M; Decision; Weak)
+- [ ] 80. Brush your teeth (P; Decision; Weak)
+
+**H. Smart home and devices**
+
+- [ ] 81. Open the fridge (P+M; Hardware)
+- [ ] 82. Kitchen motion (P; Hardware)
+- [ ] 83. Hit the light switch (P; Hardware)
+- [ ] 84. Kettle drawing power (P; Hardware)
+- [ ] 85. Kitchen speaker (P; Weak (range))
+- [ ] 86. Kitchen beacon (P; Hardware)
+- [ ] 87. Step on the scale (P; Hardware)
+- [ ] 88. Phone sleeps in the kitchen (P+M; OK; a big existing trend)
+- [ ] 89. AirPods upright (P; Weak)
+
+**I. People**
+
+- [ ] 90. Housemate code (P+M; OK)
+- [ ] 91. Wake-up buddy (M; OK)
+- [ ] 92. Family mode (P; OK; a later product)
+- [ ] 93. First one down (M; OK)
+- [ ] 94. Walk together (M; OK)
+
+**J. Ways to mix methods**
+
+- [ ] 95. Roll the dice (M; OK)
+- [ ] 96. Weekday / weekend (P; OK)
+- [ ] 97. Travel mode (P; OK)
+- [ ] 98. Seasons (P; OK)
+- [ ] 99. Loc's choice of room (P; OK)
+- [ ] 100. Accessible pick (P; OK; needs real user testing)

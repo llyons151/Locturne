@@ -1,7 +1,8 @@
 # Locturne — setup notes
 
-Product source of truth: [GAME_PLAN.md](GAME_PLAN.md). The app is being rebuilt from
-scratch; there is no app code yet. The earlier prototype is at the git tag
+Product source of truth: [GAME_PLAN.md](GAME_PLAN.md). The app is built with Expo and
+`react-native-device-activity`; the device spike is in
+[docs/DEVICE_SPIKE.md](docs/DEVICE_SPIKE.md). The earlier prototype is at the git tag
 `rock-prototype`.
 The technical notes below are earlier implementation leads, not verified SDK 57
 guarantees. Check current official documentation before implementing native services.

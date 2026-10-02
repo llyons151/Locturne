@@ -157,6 +157,20 @@ and the pedometer.
 - Still to check from the lab: that the shield stays up with Locturne fully closed, the
   shield's text and moon icon, Wake, and the step reading.
 
+### To test: list edits and revocation (added 2026-10-01)
+
+Needs a new dev build, because the monitor extension changed (`settleLocturneLists`).
+1. **Removal waits for bedtime.** Put two apps in Always asleep. Remove one: the Apps tab
+   should say it stays asleep until bedtime, and it should stay shielded. Add a third:
+   shielded at once.
+2. **Bedtime settles it with the app closed.** Arm a test night, close Locturne, and wait
+   for the first window. The removed app should open; the others stay shielded.
+3. **Revocation while running.** With a night armed or an always list, go to Settings →
+   Screen Time and remove Locturne's access, then switch back without force-quitting. The
+   You tab should say access is off. If it still says on, note whether
+   `armedWindowNames()` and `isShieldActive()` in the lab changed, since those are the
+   signals it relies on.
+
 ### Home-screen icons can't be customised
 
 Asked 2026-10-02: could blocked apps show a little moon instead of being greyed out? No.

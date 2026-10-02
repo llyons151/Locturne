@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,7 +9,8 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { SwitchRow } from '@/features/routine/controls';
-import { getAccess, isScreenTimeAvailable } from '@/lib/screen-time';
+import { useProtection } from '@/hooks/use-protection';
+import { type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
@@ -25,13 +26,6 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } fr
  * real on iPhone.
  */
 
-type Protection = 'on' | 'off' | 'unavailable';
-
-function protection(): Protection {
-  if (!isScreenTimeAvailable()) return 'unavailable';
-  return getAccess() === 'approved' ? 'on' : 'off';
-}
-
 const STATUS: Record<Protection, { icon: string; android: string; line: string }> = {
   on: { icon: 'lock.fill', android: 'lock', line: 'Screen Time access is on. Your apps sleep on schedule.' },
   // VOICE.md, "Access revoked": clear first, one small wink.
@@ -39,6 +33,11 @@ const STATUS: Record<Protection, { icon: string; android: string; line: string }
     icon: 'exclamationmark.triangle.fill',
     android: 'warning',
     line: 'Screen Time access is off, so I can’t block anything. Turn it back on in Settings. Until then I’m just a raccoon.',
+  },
+  notSetUp: {
+    icon: 'exclamationmark.triangle.fill',
+    android: 'warning',
+    line: 'Screen Time access isn’t on yet, so I can’t block anything. Allow it from the Apps tab.',
   },
   unavailable: { icon: 'iphone', android: 'smartphone', line: 'Blocking needs Screen Time, which only iPhone has.' },
 };
@@ -59,9 +58,9 @@ export function YouScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
 
-  const [status, setStatus] = useState<Protection>(protection);
-  // Access can be switched off in Settings while we're away, so check on every visit.
-  useFocusEffect(useCallback(() => setStatus(protection()), []));
+  // Checks the schedules and shields too, since iOS keeps reporting access as on after
+  // it's revoked, until the app restarts.
+  const [status] = useProtection();
 
   const [alerts, setAlerts] = useState({ bedtime: true, morning: true, trial: true });
   const toggle = (key: keyof typeof alerts) => (on: boolean) => setAlerts((a) => ({ ...a, [key]: on }));
@@ -89,7 +88,7 @@ export function YouScreen() {
         You
       </Text>
 
-      <View style={[styles.status, status === 'off' && styles.statusOff]} accessibilityLiveRegion="polite">
+      <View style={[styles.status, (status === 'off' || status === 'notSetUp') && styles.statusOff]} accessibilityLiveRegion="polite">
         <View style={styles.statusRow}>
           <SymbolView name={sym(s.icon, s.android)} size={18} tintColor={Nocturne.text} style={styles.statusIcon} />
           <Text style={styles.statusText}>{noOrphan(s.line)}</Text>

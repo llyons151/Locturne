@@ -22,11 +22,15 @@ import {
   getFamilyActivitySelectionId,
   isAvailable,
   isShieldActive,
+  isSubsetOf,
+  onAuthorizationStatusChange,
   pollAuthorizationStatus,
   requestAuthorization,
+  setFamilyActivitySelectionId,
   startMonitoring,
   stopMonitoring,
   unblockSelection,
+  union,
   updateShield,
   userDefaultsGet,
   userDefaultsRemove,
@@ -41,7 +45,13 @@ import { WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
  * Block now session picks, and one list per daily limit.
  */
-export type SelectionId = 'night' | 'always' | 'block' | LimitId;
+export type SelectionId = 'night' | 'always' | 'block' | LimitId | DraftId;
+
+/** The lists that stand from day to day, and so follow the next-bedtime rule when edited. */
+export type StandingList = 'night' | 'always' | LimitId;
+
+/** Where Apple's picker writes while a standing list is edited (see `beginListEdit`). */
+export type DraftId = `${StandingList}-next`;
 
 export type ScreenTimeAccess = 'approved' | 'denied' | 'notDetermined';
 
@@ -64,6 +74,36 @@ function toAccess(status: number): ScreenTimeAccess {
  */
 export function getAccess(): ScreenTimeAccess {
   return toAccess(getAuthorizationStatus());
+}
+
+/**
+ * Is Locturne actually protecting anything? `getAccess` alone can't say, because it keeps
+ * answering "approved" after access is revoked in Settings, until the app restarts. When
+ * access goes, iOS also stops every monitored schedule and lifts every shield, so those are
+ * checked too: an armed night with no windows left, or a list that should be asleep with no
+ * shield up, means protection is off whatever the cached status says.
+ */
+export type Protection = 'on' | 'off' | 'notSetUp' | 'unavailable';
+
+export function getProtection(): Protection {
+  if (!isAvailable()) return 'unavailable';
+  const access = getAccess();
+  if (access === 'notDetermined') return 'notSetUp';
+  if (access === 'denied') return 'off';
+  if (getArmedNight() && armedWindowNames().length === 0) return 'off';
+  if (heldLists().length > 0 && !isShieldActive()) return 'off';
+  return 'on';
+}
+
+/**
+ * Calls `listener` when iOS reports a new Screen Time status. iOS doesn't always report a
+ * revocation while the app runs, so also re-check `getProtection` whenever the app returns
+ * to the foreground.
+ */
+export function watchAccess(listener: () => void): () => void {
+  if (!isAvailable()) return () => {};
+  const sub = onAuthorizationStatusChange(listener);
+  return () => sub.remove();
 }
 
 /**
@@ -130,12 +170,17 @@ export function isNightHeld(): boolean {
  */
 export function reapplyStandingBlocks(): void {
   if (!isAvailable() || getAccess() !== 'approved') return;
+  for (const id of heldLists()) shield(id);
+}
+
+/** Every list some rule holds asleep right now, that has apps in it. */
+function heldLists(): SelectionId[] {
   const held: SelectionId[] = ['always'];
   if (isNightHeld()) held.push('night');
   const nap = readNap();
   if (nap && Date.now() < nap.end) held.push(nap.list);
   for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
-  for (const id of new Set(held)) if (hasSelection(id)) shield(id);
+  return [...new Set(held)].filter((id) => selectionSize(id) > 0);
 }
 
 export function isAnyShieldUp(): boolean {
@@ -314,6 +359,90 @@ export function getNap(): ActiveNap | null {
   return nap;
 }
 
+/*
+ * Editing a standing list (GAME_PLAN: every settings change takes effect from the next
+ * bedtime). Apple's picker writes straight into whichever list it's given, so it edits a
+ * draft instead. On Done, apps that were added join the live list at once, since that only
+ * tightens things. If any were removed, the live list keeps them until bedtime, when the
+ * draft replaces it: here when the app next opens (`settleListChanges`), or in the monitor
+ * extension's first window after bedtime (`settleLocturneLists` in
+ * DeviceActivityMonitorExtension.swift), whichever comes first. Keep the two in step.
+ */
+
+const PENDING_LISTS_KEY = 'locturne.pendingLists';
+
+export const draftId = (list: StandingList): DraftId => `${list}-next`;
+
+function getPendingLists(): Partial<Record<StandingList, { from: number }>> {
+  return userDefaultsGet(PENDING_LISTS_KEY) ?? {};
+}
+
+function setPending(list: StandingList, pending: { from: number } | null): void {
+  const all = { ...getPendingLists() };
+  if (pending) all[list] = pending;
+  else delete all[list];
+  userDefaultsSet(PENDING_LISTS_KEY, all);
+}
+
+/** When a list's removals start, or null if none are waiting. */
+export function listChangeStarts(list: StandingList): Date | null {
+  const pending = getPendingLists()[list];
+  return pending ? new Date(pending.from) : null;
+}
+
+/** Points `to` at `from`'s picks, or empties it when `from` has none. */
+function copySelection(from: SelectionId, to: SelectionId): void {
+  const token = getFamilyActivitySelectionId(from);
+  if (token) setFamilyActivitySelectionId({ id: to, familyActivitySelection: token });
+  else clearSelection(to);
+}
+
+/**
+ * Gets the draft ready and returns its id, for Apple's picker. If removals are already
+ * waiting, the draft still holds them, so the picker opens on the list as it will be.
+ */
+export function beginListEdit(list: StandingList): DraftId {
+  if (!getPendingLists()[list]) copySelection(list, draftId(list));
+  return draftId(list);
+}
+
+/**
+ * Applies the picker's draft. Returns `'now'` when nothing was removed, or `'bedtime'` when
+ * removals wait until `takeEffectAt`. Afterwards, re-shield (`reapplyStandingBlocks`) and
+ * re-arm a limit whose list changed, since iOS keeps its own copy of a limit's picks.
+ */
+export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 'bedtime' {
+  const draft = draftId(list);
+  const live = { activitySelectionId: list };
+  const next = { activitySelectionId: draft };
+  if (selectionSize(list) === 0 || (selectionSize(draft) > 0 && isSubsetOf(live, next))) {
+    copySelection(draft, list);
+    clearSelection(draft);
+    setPending(list, null);
+    return 'now';
+  }
+  if (selectionSize(draft) > 0) union(live, next, { persistAsActivitySelectionId: list, stripToken: true });
+  setPending(list, { from: takeEffectAt.getTime() });
+  return 'bedtime';
+}
+
+/**
+ * Swaps in every draft whose bedtime has passed, and returns which lists changed. The old
+ * picks are unshielded first, so removed apps really wake; re-shield and re-arm limits after.
+ */
+export function settleListChanges(now = new Date()): StandingList[] {
+  const settled: StandingList[] = [];
+  for (const [list, pending] of Object.entries(getPendingLists()) as [StandingList, { from: number }][]) {
+    if (pending.from > now.getTime()) continue;
+    if (hasSelection(list)) unshield(list);
+    copySelection(draftId(list), list);
+    clearSelection(draftId(list));
+    setPending(list, null);
+    settled.push(list);
+  }
+  return settled;
+}
+
 /** Forgets a list's picks, so a reused limit slot opens Apple's picker empty. */
 export function clearSelection(id: SelectionId): void {
   const ids = userDefaultsGet<Record<string, string>>(SELECTION_IDS_KEY) ?? {};
@@ -391,18 +520,26 @@ export function removeLimit(id: LimitId): void {
   userDefaultsRemove(usedUpKey(id));
   unshield(id);
   clearSelection(id);
+  clearSelection(draftId(id));
+  setPending(id, null);
   reapplyStandingBlocks();
 }
 
 /**
- * Applies any looser limit edits whose bedtime has passed. Run when the app opens; until
- * then the stricter limit simply stays, which is the safe side.
+ * Applies everything loosened that was waiting for a bedtime that has now passed: list
+ * removals, then looser or removed limits. Run when the app opens; until then the stricter
+ * setting simply stays, which is the safe side.
  */
 export async function settleLimitChanges(now = new Date()): Promise<void> {
+  const lists = settleListChanges(now);
   const settled = settleLimits(getLimits(), now);
-  if (settled.rearm.length === 0 && settled.removed.length === 0) return;
+  if (!lists.length && !settled.rearm.length && !settled.removed.length) return;
   saveLimits(settled.limits);
   for (const id of settled.removed) removeLimit(id);
   for (const limit of settled.rearm) await armLimit(limit, { fresh: true });
+  // A limit whose apps changed at bedtime: hand iOS the new picks.
+  for (const limit of settled.limits) {
+    if (lists.includes(limit.id) && !settled.rearm.includes(limit)) await armLimit(limit);
+  }
   reapplyStandingBlocks();
 }

@@ -22,6 +22,7 @@ import {
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { useTabBarInset } from '@/components/app-tabs';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
+import { useProtection } from '@/hooks/use-protection';
 import {
   editLimit,
   freeLimitId,
@@ -36,16 +37,21 @@ import {
 import * as haptic from '@/lib/haptics';
 import {
   armLimit,
+  beginListEdit,
   clearSelection,
-  getAccess,
+  draftId,
+  finishListEdit,
   getArmedNight,
   getLimits,
   isScreenTimeAvailable,
   limitUsedUpToday,
+  listChangeStarts,
+  reapplyStandingBlocks,
   requestAccess,
   saveLimits,
   selectionSize,
   type SelectionId,
+  type StandingList,
 } from '@/lib/screen-time';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
@@ -77,20 +83,34 @@ const LIVE_GROUPS: { key: 'night' | 'always'; label: string }[] = [
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
+/** When the next bedtime is, for "removed apps wake at 11:30 PM". */
+const clock = (date: Date) => date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+/**
+ * Removals wait for bedtime (GAME_PLAN), so say when, and that they're still asleep. Limits
+ * say it in their header instead.
+ */
+function PendingNote({ list }: { list: StandingList }) {
+  const starts = listChangeStarts(list);
+  if (!starts) return null;
+  return <Text style={styles.footer}>Apps you removed stay asleep until {clock(starts)}, when your change starts.</Text>;
+}
+
 function LiveAppsList() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
 
-  const [access, setAccess] = useState(getAccess);
-  const [editing, setEditing] = useState<SelectionId | null>(null);
+  // Not just the cached access flag: iOS keeps reporting "approved" after a revoke.
+  const [protection, recheckProtection] = useProtection();
+  const [editing, setEditing] = useState<StandingList | null>(null);
   // Bumped whenever the picks may have changed, so counts and native rows re-read them.
   const [revision, setRevision] = useState(0);
   const [limits, setLimits] = useState(getLimits);
   const refresh = useCallback(() => {
-    setAccess(getAccess());
+    recheckProtection();
     setLimits(getLimits());
     setRevision((r) => r + 1);
-  }, []);
+  }, [recheckProtection]);
 
   // Onboarding or the Screen Time lab can change the picks while this tab is hidden.
   useFocusEffect(refresh);
@@ -129,8 +149,19 @@ function LiveAppsList() {
     saveAndArm(next, after && after.minutes !== before?.minutes ? after : undefined);
   };
 
-  // Apple's picker closed on a limit's list: a new limit starts at 30 minutes; an existing
-  // one is re-armed, because iOS keeps its own copy of the picks.
+  /**
+   * Apple's picker closed on a list's draft. Added apps join now; removed ones wait for
+   * bedtime (`finishListEdit`). Newly added apps may need shielding straight away.
+   */
+  const pickedList = (list: StandingList) => {
+    finishListEdit(list, looserEditsStart(new Date(), getArmedNight()));
+    if (isLimitId(list)) pickedLimit(list);
+    reapplyStandingBlocks();
+    refresh();
+  };
+
+  // A limit's list changed: a new limit starts at 30 minutes; an existing one is re-armed,
+  // because iOS keeps its own copy of the picks.
   const pickedLimit = (id: LimitId) => {
     const existing = limits.find((l) => l.id === id);
     if (existing) return saveAndArm(limits, existing);
@@ -139,17 +170,26 @@ function LiveAppsList() {
     saveAndArm([...limits, created], created);
   };
 
-  const addLimit = () => {
-    const id = freeLimitId(limits);
-    if (!id) return;
+  /** Opens Apple's picker on a draft of the list. Only here, never on render. */
+  const edit = (list: StandingList) => {
     haptic.tap();
-    setEditing(id);
+    beginListEdit(list);
+    setEditing(list);
   };
 
+  const addLimit = () => {
+    const id = freeLimitId(limits);
+    if (id) edit(id);
+  };
+
+  // Also the repair path when protection is off: once access is back, put the shields back.
   const allow = async () => {
     haptic.tap();
-    setAccess(await requestAccess());
+    if ((await requestAccess()) === 'approved') reapplyStandingBlocks();
+    refresh();
   };
+
+  const access = protection === 'on' ? 'approved' : 'off';
 
   return (
     <>
@@ -163,13 +203,18 @@ function LiveAppsList() {
           <Text style={styles.summary}>
             {access === 'approved'
               ? `${countPicks(sizes.night)} sleep at bedtime, ${countPicks(sizes.always)} stay asleep all day.`
-              : 'Locturne needs Screen Time access to put apps to sleep.'}
+              : protection === 'off'
+                ? "Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again."
+                : 'Locturne needs Screen Time access to put apps to sleep.'}
           </Text>
         </View>
 
         {access !== 'approved' ? (
           <View style={styles.group}>
-            <EditRow label="Allow Screen Time access" onPress={allow} />
+            <EditRow
+              label={protection === 'off' ? 'Turn Screen Time access back on' : 'Allow Screen Time access'}
+              onPress={allow}
+            />
           </View>
         ) : (
           <>
@@ -190,12 +235,10 @@ function LiveAppsList() {
                   )}
                   <EditRow
                     label={sizes[group.key] ? 'Add or remove apps' : 'Add apps'}
-                    onPress={() => {
-                      haptic.tap();
-                      setEditing(group.key);
-                    }}
+                    onPress={() => edit(group.key)}
                   />
                 </View>
+                <PendingNote list={group.key} />
               </View>
             ))}
 
@@ -206,19 +249,14 @@ function LiveAppsList() {
                   <LimitHeader
                     limit={limit}
                     usedUp={limitUsedUpToday(limit.id)}
+                    appsChangeAt={listChangeStarts(limit.id)}
                     onChange={(m) => setMinutes(limit.id, m)}
                     onRemove={() => setMinutes(limit.id, null)}
                   />
                   {isBlockedAppsViewAvailable && (
                     <PickedRows selectionId={limit.id} count={selectionSize(limit.id)} revision={revision} />
                   )}
-                  <EditRow
-                    label="Add or remove apps"
-                    onPress={() => {
-                      haptic.tap();
-                      setEditing(limit.id);
-                    }}
-                  />
+                  <EditRow label="Add or remove apps" onPress={() => edit(limit.id)} />
                 </View>
               ))}
               {freeLimitId(limits) && (
@@ -237,7 +275,8 @@ function LiveAppsList() {
 
       {editing && (
         <ScreenTimePicker
-          list={editing}
+          // A draft of the list, so removals can wait for bedtime (`beginListEdit`).
+          list={draftId(editing)}
           // The library saves the new picks 0.1s after Done (a debounce), so refreshing on
           // close alone reads the old list. It reports once the save lands; refresh then.
           onPicked={refresh}
@@ -246,10 +285,7 @@ function LiveAppsList() {
             setEditing(null);
             refresh();
             // In case the picker unmounts before its report arrives.
-            setTimeout(() => {
-              refresh();
-              if (isLimitId(closed)) pickedLimit(closed);
-            }, 500);
+            setTimeout(() => pickedList(closed), 500);
           }}
         />
       )}
@@ -298,11 +334,14 @@ function PickedRows({ selectionId, count, revision }: { selectionId: SelectionId
 function LimitHeader({
   limit,
   usedUp,
+  appsChangeAt,
   onChange,
   onRemove,
 }: {
   limit: Pick<DailyLimit, 'minutes' | 'pending'>;
   usedUp: boolean;
+  /** When apps removed from this limit leave it. */
+  appsChangeAt?: Date | null;
   onChange: (minutes: number) => void;
   onRemove: () => void;
 }) {
@@ -311,6 +350,10 @@ function LimitHeader({
   if (pending?.minutes === null) status = 'Ends at bedtime.';
   else if (pending) status = `Goes up to ${limitLabel(pending.minutes)} at bedtime.`;
   else if (usedUp) status = 'Used up today. Back at midnight.';
+  if (appsChangeAt) {
+    const leave = `Removed apps leave at ${clock(appsChangeAt)}.`;
+    status = status ? `${status} ${leave}` : leave;
+  }
 
   return (
     <View style={styles.row}>

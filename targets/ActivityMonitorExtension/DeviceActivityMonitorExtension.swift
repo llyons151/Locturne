@@ -17,6 +17,9 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.intervalDidStart(for: activity)
     logger.log("intervalDidStart")
 
+    // First, so a bedtime window shields the edited list, not the old one.
+    settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
+
     if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) {
       userDefaults?.set(true, forKey: LOCTURNE_NIGHT_HELD_KEY)
     }
@@ -236,6 +239,7 @@ let LOCTURNE_NAP_KEY = "locturne.nap"
 let LOCTURNE_NIGHT_HELD_KEY = "locturne.nightHeld"
 let LOCTURNE_LIMITS_KEY = "locturne.limits"
 let LOCTURNE_LIMIT_REACHED_PREFIX = "locturne.limitReached."
+let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
 
 /// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts.
 func locturneDayKey(_ date: Date = Date()) -> String {
@@ -278,4 +282,41 @@ func reapplyLocturneBlocks(triggeredBy: String) {
     }
   }
   blockSelectedApps(blockSelection: selection, triggeredBy: triggeredBy)
+}
+
+/// Swaps in each edited list whose bedtime has come. The app keeps removals in a draft
+/// (`<list>-next`) until then; this makes them start at bedtime even if Locturne stays
+/// closed. The old picks are unshielded first so removed apps really wake; the re-apply
+/// after each event shields whatever is still held. Keep in step with `settleListChanges`
+/// in src/lib/screen-time.ts.
+@available(iOS 15.0, *)
+func settleLocturneLists(triggeredBy: String) {
+  guard var pending = userDefaults?.dictionary(forKey: LOCTURNE_PENDING_LISTS_KEY) else {
+    return
+  }
+  let now = Date().timeIntervalSince1970 * 1000
+  var changed = false
+
+  for (list, value) in pending {
+    guard let entry = value as? [String: Any],
+      let from = entry["from"] as? Double,
+      from <= now
+    else { continue }
+
+    if let old = getFamilyActivitySelectionById(id: list) {
+      unblockSelection(removeSelection: old, triggeredBy: triggeredBy)
+    }
+    if let next = getFamilyActivitySelectionById(id: "\(list)-next") {
+      setFamilyActivitySelectionById(id: list, activitySelection: next)
+    } else {
+      removeFamilyActivitySelectionById(id: list)
+    }
+    removeFamilyActivitySelectionById(id: "\(list)-next")
+    pending.removeValue(forKey: list)
+    changed = true
+  }
+
+  if changed {
+    userDefaults?.set(pending, forKey: LOCTURNE_PENDING_LISTS_KEY)
+  }
 }

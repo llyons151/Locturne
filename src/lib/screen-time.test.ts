@@ -17,6 +17,17 @@ let failOnStart: string | null = null;
 let store: Record<string, unknown> = {};
 let events: { activityName: string; callbackName: string; lastCalledAt: Date }[] = [];
 
+/*
+ * Picks live in the App Group under `familyActivitySelectionIds`, as in the real library.
+ * Most tests use any string as a token; tokens written `apps:a,b` name their apps, so the
+ * set operations (union, subset) can be checked.
+ */
+const ids = (): Record<string, string> => (store.familyActivitySelectionIds ??= saved) as Record<string, string>;
+const appsOf = (token: string | undefined) =>
+  token?.startsWith('apps:') ? token.slice(5).split(',').filter(Boolean) : token ? ['?'] : [];
+const named = (input: { activitySelectionId: string }) => ids()[input.activitySelectionId];
+let authListener: (() => void) | null = null;
+
 mock.module('react-native-device-activity', {
   namedExports: {
     AuthorizationStatus: { notDetermined: 0, denied: 1, approved: 2 },
@@ -27,12 +38,32 @@ mock.module('react-native-device-activity', {
       status = statusAfterPrompt;
     },
     pollAuthorizationStatus: async () => status,
-    getFamilyActivitySelectionId: (id: string) => saved[id],
+    getFamilyActivitySelectionId: (id: string) => ids()[id],
+    setFamilyActivitySelectionId: ({ id, familyActivitySelection }: { id: string; familyActivitySelection: string }) => {
+      ids()[id] = familyActivitySelection;
+    },
     // The real Swift spells it `webdomainCount`, unlike the library's own types.
-    activitySelectionMetadata: ({ activitySelectionId }: { activitySelectionId: string }) =>
-      saved[activitySelectionId]
+    activitySelectionMetadata: ({ activitySelectionId }: { activitySelectionId: string }) => {
+      const token = ids()[activitySelectionId];
+      if (token?.startsWith('apps:'))
+        return { applicationCount: appsOf(token).length, categoryCount: 0, webdomainCount: 0, includeEntireCategory: false };
+      return token
         ? { applicationCount: 3, categoryCount: 1, webdomainCount: 2, includeEntireCategory: false }
-        : { applicationCount: 0, categoryCount: 0, webdomainCount: 0, includeEntireCategory: false },
+        : { applicationCount: 0, categoryCount: 0, webdomainCount: 0, includeEntireCategory: false };
+    },
+    isSubsetOf: (a: { activitySelectionId: string }, b: { activitySelectionId: string }) => {
+      const superset = appsOf(named(b));
+      return appsOf(named(a)).every((app) => superset.includes(app));
+    },
+    union: (a: { activitySelectionId: string }, b: { activitySelectionId: string }, options: { persistAsActivitySelectionId?: string }) => {
+      const token = `apps:${[...new Set([...appsOf(named(a)), ...appsOf(named(b))])].join(',')}`;
+      if (options.persistAsActivitySelectionId) ids()[options.persistAsActivitySelectionId] = token;
+      calls.push(['union', a, b]);
+    },
+    onAuthorizationStatusChange: (listener: () => void) => {
+      authListener = listener;
+      return { remove: () => (authListener = null) };
+    },
     blockSelection: (...args: unknown[]) => calls.push(['blockSelection', ...args]),
     unblockSelection: (...args: unknown[]) => calls.push(['unblockSelection', ...args]),
     isShieldActive: () => calls.some(([name]) => name === 'blockSelection'),
@@ -50,7 +81,7 @@ mock.module('react-native-device-activity', {
     cleanUpAfterActivity: (name: string) => calls.push(['cleanUpAfterActivity', name]),
     getActivities: () => [...activities],
     getEvents: () => events,
-    userDefaultsGet: (key: string) => store[key],
+    userDefaultsGet: (key: string) => (key === 'familyActivitySelectionIds' ? ids() : store[key]),
     userDefaultsSet: (key: string, value: unknown) => {
       store[key] = value;
     },
@@ -72,6 +103,7 @@ beforeEach(() => {
   failOnStart = null;
   store = {};
   events = [];
+  authListener = null;
 });
 
 test('access maps the library status to words', () => {
@@ -106,7 +138,7 @@ test('lists are addressed by id, and tagged as ours', () => {
 
 test('hasSelection is true only once a list has been picked', () => {
   assert.equal(st.hasSelection('night'), false);
-  saved = { night: 'opaque-token' };
+  ids().night = 'opaque-token';
   assert.equal(st.hasSelection('night'), true);
   assert.equal(st.hasSelection('always'), false);
 });
@@ -288,8 +320,7 @@ test('armLimit does nothing for a limit with no apps picked', async () => {
 
 test('a looser limit at bedtime re-arms fresh, and a removed one stops and forgets its picks', async () => {
   status = 2;
-  saved = { 'limit-0': 'a', 'limit-1': 'b' };
-  store.familyActivitySelectionIds = { 'limit-1': 'b', night: 'n' };
+  store.familyActivitySelectionIds = { 'limit-0': 'a', 'limit-1': 'b', night: 'n' };
   store['locturne.limitReached.limit-0'] = today();
   store['locturne.limits'] = [
     { id: 'limit-0', minutes: 30, pending: { minutes: 60, from: 0 } },
@@ -299,7 +330,7 @@ test('a looser limit at bedtime re-arms fresh, and a removed one stops and forge
   assert.deepEqual(st.getLimits(), [{ id: 'limit-0', minutes: 60 }]);
   assert.equal(store['locturne.limitReached.limit-0'], undefined);
   assert.ok(calls.some(([n, names]) => n === 'stopMonitoring' && (names as string[]).includes('limit-1')));
-  assert.deepEqual(store.familyActivitySelectionIds, { night: 'n' });
+  assert.deepEqual(store.familyActivitySelectionIds, { 'limit-0': 'a', night: 'n' });
   const evts = calls.find(([n]) => n === 'startMonitoring')![3] as { threshold: unknown }[];
   assert.deepEqual(evts[0].threshold, { hour: 1, minute: 0 });
 });
@@ -309,4 +340,131 @@ test('nothing settles before bedtime', async () => {
   store['locturne.limits'] = [{ id: 'limit-0', minutes: 30, pending: { minutes: 60, from: later } }];
   await st.settleLimitChanges();
   assert.deepEqual(calls, []);
+});
+
+/* Editing a list: added apps join now, removed ones wait for bedtime. */
+
+/** What Apple's picker does on Done: save the new picks into the list it was given. */
+const pick = (id: string, ...apps: string[]) => {
+  if (apps.length) ids()[id] = `apps:${apps.join(',')}`;
+  else delete ids()[id];
+};
+const BEDTIME = new Date(2026, 9, 1, 23, 30);
+
+test('adding apps to a list applies at once', () => {
+  saved = { always: 'apps:tiktok' };
+  pick(st.beginListEdit('always'), 'tiktok', 'instagram');
+  assert.equal(st.finishListEdit('always', BEDTIME), 'now');
+  assert.equal(ids().always, 'apps:tiktok,instagram');
+  assert.equal(ids()['always-next'], undefined);
+  assert.equal(st.listChangeStarts('always'), null);
+});
+
+test('a first pick applies at once', () => {
+  pick(st.beginListEdit('night'), 'tiktok');
+  assert.equal(st.finishListEdit('night', BEDTIME), 'now');
+  assert.equal(ids().night, 'apps:tiktok');
+});
+
+test('removing an app keeps it asleep until bedtime, while additions join now', () => {
+  saved = { always: 'apps:tiktok,instagram' };
+  pick(st.beginListEdit('always'), 'instagram', 'x');
+  assert.equal(st.finishListEdit('always', BEDTIME), 'bedtime');
+  assert.deepEqual(appsOf(ids().always).sort(), ['instagram', 'tiktok', 'x']);
+  assert.deepEqual(st.listChangeStarts('always'), BEDTIME);
+  // Reopening the picker shows the list as it will be, not the live one.
+  assert.equal(ids()[st.beginListEdit('always')], 'apps:instagram,x');
+});
+
+test('putting the removed app back cancels the wait', () => {
+  saved = { always: 'apps:tiktok,instagram' };
+  pick(st.beginListEdit('always'), 'instagram');
+  st.finishListEdit('always', BEDTIME);
+  pick(st.beginListEdit('always'), 'instagram', 'tiktok');
+  assert.equal(st.finishListEdit('always', BEDTIME), 'now');
+  assert.equal(st.listChangeStarts('always'), null);
+  assert.deepEqual(appsOf(ids().always).sort(), ['instagram', 'tiktok']);
+});
+
+test('nothing settles before bedtime; after it, the removed apps wake', async () => {
+  status = 2;
+  saved = { always: 'apps:tiktok,instagram' };
+  pick(st.beginListEdit('always'), 'instagram');
+  st.finishListEdit('always', BEDTIME);
+
+  assert.deepEqual(st.settleListChanges(new Date(BEDTIME.getTime() - 1)), []);
+  assert.deepEqual(shields(), []);
+
+  await st.settleLimitChanges(BEDTIME);
+  // The old list is unshielded (tiktok wakes), then the new one goes back up.
+  assert.deepEqual(shields(), ['-always', '+always']);
+  assert.equal(ids().always, 'apps:instagram');
+  assert.equal(ids()['always-next'], undefined);
+  assert.equal(st.listChangeStarts('always'), null);
+});
+
+test('emptying a list waits for bedtime too, then forgets the picks', () => {
+  saved = { night: 'apps:tiktok' };
+  pick(st.beginListEdit('night'));
+  assert.equal(st.finishListEdit('night', BEDTIME), 'bedtime');
+  assert.equal(ids().night, 'apps:tiktok');
+  assert.deepEqual(st.settleListChanges(BEDTIME), ['night']);
+  assert.equal(ids().night, undefined);
+});
+
+test("a limit's removed apps leave it at bedtime, and iOS gets the new picks", async () => {
+  status = 2;
+  saved = { 'limit-0': 'apps:tiktok,instagram' };
+  store['locturne.limits'] = [{ id: 'limit-0', minutes: 30 }];
+  pick(st.beginListEdit('limit-0'), 'instagram');
+  st.finishListEdit('limit-0', BEDTIME);
+  calls.length = 0;
+  await st.settleLimitChanges(BEDTIME);
+  const evts = calls.find(([n, name]) => n === 'startMonitoring' && name === 'limit-0')![3] as { familyActivitySelection: string }[];
+  assert.equal(evts[0].familyActivitySelection, 'apps:instagram');
+});
+
+test('removing a limit also drops its waiting edit', () => {
+  saved = { 'limit-0': 'apps:tiktok,instagram' };
+  pick(st.beginListEdit('limit-0'), 'instagram');
+  st.finishListEdit('limit-0', BEDTIME);
+  st.removeLimit('limit-0');
+  assert.equal(st.listChangeStarts('limit-0'), null);
+  assert.equal(ids()['limit-0-next'], undefined);
+});
+
+/* Protection: is anything actually being blocked? */
+
+test('protection follows the access answer', () => {
+  status = 0;
+  assert.equal(st.getProtection(), 'notSetUp');
+  status = 1;
+  assert.equal(st.getProtection(), 'off');
+  status = 2;
+  assert.equal(st.getProtection(), 'on');
+});
+
+test('protection is off when iOS dropped the armed schedule, even if access still says approved', async () => {
+  status = 2;
+  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  assert.equal(st.getProtection(), 'on');
+  activities = []; // what a revoke does to the monitored schedules
+  assert.equal(st.getProtection(), 'off');
+});
+
+test('protection is off when a list should be asleep but no shield is up', () => {
+  status = 2;
+  saved = { always: 'apps:tiktok' };
+  assert.equal(st.getProtection(), 'off');
+  st.reapplyStandingBlocks();
+  assert.equal(st.getProtection(), 'on');
+});
+
+test('watchAccess hears status changes and stops when asked', () => {
+  let heard = 0;
+  const stop = st.watchAccess(() => heard++);
+  authListener?.();
+  stop();
+  assert.equal(heard, 1);
+  assert.equal(authListener, null);
 });
