@@ -1,7 +1,9 @@
+import { useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlockedAppsView, isBlockedAppsViewAvailable } from 'blocked-apps';
 
 import {
   AppTile,
@@ -12,19 +14,148 @@ import {
 } from '@/components/app-icons';
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { useTabBarInset } from '@/components/app-tabs';
+import { ScreenTimePicker } from '@/components/screen-time-picker';
 import * as haptic from '@/lib/haptics';
+import {
+  getAccess,
+  isScreenTimeAvailable,
+  requestAccess,
+  selectionSize,
+  type SelectionId,
+} from '@/lib/screen-time';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
 import { APPS, type AppEntry } from './catalog';
 
 /**
  * The Apps tab: the picked apps in Settings-style rows, one group per Screen Time
- * selection. Each group ends in an edit row that opens the picker for that group, the
- * way the live app will reopen Apple's FamilyActivityPicker (which has its own search).
+ * selection. Each group ends in an edit row that reopens Apple's FamilyActivityPicker.
+ *
+ * On an iPhone the rows are the real picks, drawn natively by `BlockedAppsView`. Off iOS
+ * (the web preview) there is no Screen Time, so a stand-in list from `catalog.ts` shows
+ * the same layout.
  */
 
 const ICON = 30;
 const ROW_PAD = 16;
+const ROW_HEIGHT = 52;
+
+export function AppsList() {
+  return isScreenTimeAvailable() ? <LiveAppsList /> : <PreviewAppsList />;
+}
+
+const LIVE_GROUPS: { key: SelectionId; label: string }[] = [
+  { key: 'night', label: 'Sleep at bedtime' },
+  { key: 'always', label: 'Always asleep' },
+];
+
+/** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
+const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
+
+function LiveAppsList() {
+  const insets = useSafeAreaInsets();
+  const bottom = useTabBarInset();
+
+  const [access, setAccess] = useState(getAccess);
+  const [editing, setEditing] = useState<SelectionId | null>(null);
+  // Bumped whenever the picks may have changed, so counts and native rows re-read them.
+  const [revision, setRevision] = useState(0);
+  const refresh = useCallback(() => {
+    setAccess(getAccess());
+    setRevision((r) => r + 1);
+  }, []);
+
+  // Onboarding or the Screen Time lab can change the picks while this tab is hidden.
+  useFocusEffect(refresh);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
+    return () => sub.remove();
+  }, [refresh]);
+
+  const sizes = useMemo(
+    () => ({ night: selectionSize('night'), always: selectionSize('always') }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read on every revision
+    [revision],
+  );
+
+  const allow = async () => {
+    haptic.tap();
+    setAccess(await requestAccess());
+  };
+
+  return (
+    <>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+            Apps
+          </Text>
+          <Text style={styles.summary}>
+            {access === 'approved'
+              ? `${countPicks(sizes.night)} sleep at bedtime, ${countPicks(sizes.always)} stay asleep all day.`
+              : 'Locturne needs Screen Time access to put apps to sleep.'}
+          </Text>
+        </View>
+
+        {access !== 'approved' ? (
+          <View style={styles.group}>
+            <EditRow label="Allow Screen Time access" onPress={allow} />
+          </View>
+        ) : (
+          LIVE_GROUPS.map((group) => (
+            <View key={group.key} style={styles.section}>
+              <Text style={styles.sectionLabel}>{group.label}</Text>
+              <View style={styles.group}>
+                {sizes[group.key] > 0 && !isBlockedAppsViewAvailable && (
+                  // A build from before modules/blocked-apps existed can't draw the rows.
+                  <View style={[styles.rowBody, styles.separator, styles.note]}>
+                    <Text style={styles.noteText}>
+                      {countPicks(sizes[group.key])}. Install the latest build to see them.
+                    </Text>
+                  </View>
+                )}
+                {sizes[group.key] > 0 && isBlockedAppsViewAvailable && (
+                  <BlockedAppsView
+                    selectionId={group.key}
+                    revision={revision}
+                    rowHeight={ROW_HEIGHT}
+                    textColor={Nocturne.text}
+                    separatorColor={Nocturne.edge}
+                    style={{ height: sizes[group.key] * ROW_HEIGHT }}
+                  />
+                )}
+                <EditRow
+                  label={sizes[group.key] ? 'Add or remove apps' : 'Add apps'}
+                  onPress={() => {
+                    haptic.tap();
+                    setEditing(group.key);
+                  }}
+                />
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+
+      {editing && (
+        <ScreenTimePicker
+          list={editing}
+          // The library saves the new picks 0.1s after Done (a debounce), so refreshing on
+          // close alone reads the old list. It reports once the save lands; refresh then.
+          onPicked={refresh}
+          onClose={() => {
+            setEditing(null);
+            refresh();
+            // In case the picker unmounts before its report arrives.
+            setTimeout(refresh, 500);
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 type Group = 'bedtime' | 'always';
 
@@ -50,7 +181,7 @@ const initial = (group: Group) =>
 /** "1 app sleeps", "3 apps sleep". */
 const countApps = (n: number, verb: string) => (n === 1 ? `1 app ${verb}s` : `${n} apps ${verb}`);
 
-export function AppsList() {
+function PreviewAppsList() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
 
@@ -192,7 +323,7 @@ const styles = StyleSheet.create({
   // The separator starts at the label, not the icon, as in Settings.
   rowBody: {
     flex: 1,
-    minHeight: 52,
+    minHeight: ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s,
@@ -201,6 +332,8 @@ const styles = StyleSheet.create({
   separator: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Nocturne.edge },
   rowLabel: { flex: 1, color: Nocturne.text, fontSize: 17 },
   editLabel: { fontWeight: '600' },
+  note: { paddingLeft: ROW_PAD },
+  noteText: { flex: 1, color: Nocturne.text2, ...Type.body },
   symbolTile: {
     width: ICON,
     height: ICON,

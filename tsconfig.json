@@ -9,6 +9,9 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      "blocked-apps": [
+        "./modules/blocked-apps"
       ]
     }
   },

@@ -28,6 +28,11 @@ mock.module('react-native-device-activity', {
     },
     pollAuthorizationStatus: async () => status,
     getFamilyActivitySelectionId: (id: string) => saved[id],
+    // The real Swift spells it `webdomainCount`, unlike the library's own types.
+    activitySelectionMetadata: ({ activitySelectionId }: { activitySelectionId: string }) =>
+      saved[activitySelectionId]
+        ? { applicationCount: 3, categoryCount: 1, webdomainCount: 2, includeEntireCategory: false }
+        : { applicationCount: 0, categoryCount: 0, webdomainCount: 0, includeEntireCategory: false },
     blockSelection: (...args: unknown[]) => calls.push(['blockSelection', ...args]),
     unblockSelection: (...args: unknown[]) => calls.push(['unblockSelection', ...args]),
     isShieldActive: () => calls.some(([name]) => name === 'blockSelection'),
@@ -182,4 +187,10 @@ test('windowStarts lists night window starts, newest first', () => {
     { window: 'night-1', at: new Date(3000) },
     { window: 'night-0', at: new Date(1000) },
   ]);
+});
+
+test('selectionSize counts apps, categories and sites as rows', () => {
+  saved = { night: 'token' };
+  assert.equal(st.selectionSize('night'), 6);
+  assert.equal(st.selectionSize('always'), 0);
 });

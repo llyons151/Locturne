@@ -11,6 +11,7 @@
  * false there.
  */
 import {
+  activitySelectionMetadata,
   AuthorizationStatus,
   blockSelection,
   cleanUpAfterActivity,
@@ -72,6 +73,19 @@ export async function requestAccess(): Promise<ScreenTimeAccess> {
 /** True once the person has picked apps for this list. */
 export function hasSelection(id: SelectionId): boolean {
   return !!getFamilyActivitySelectionId(id);
+}
+
+/**
+ * How many rows the list holds: apps, whole categories and websites. The names stay
+ * hidden; `BlockedAppsView` draws them natively.
+ */
+export function selectionSize(id: SelectionId): number {
+  if (!isAvailable()) return 0;
+  const meta = activitySelectionMetadata({ activitySelectionId: id });
+  if (!meta) return 0;
+  // The library's Swift sends `webdomainCount`, although its types say `webDomainCount`.
+  const sites = meta.webDomainCount ?? (meta as { webdomainCount?: number }).webdomainCount ?? 0;
+  return meta.applicationCount + meta.categoryCount + sites;
 }
 
 /** Shield every app in the list. Stays up with the app closed, until `wakeApps`. */

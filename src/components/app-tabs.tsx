@@ -79,17 +79,25 @@ export function useTabBarInset() {
 
 const barBottom = (safeBottom: number) => Math.max(safeBottom - BAR_DROP, Space.l);
 
+const isCurrentTab = (state: { index: number; routes: { key: string }[] } | undefined, key: string) =>
+  !state || state.routes[state.index]?.key === key;
+
 export default function AppTabs() {
   return (
     <Tabs
-      screenOptions={({ navigation }) => ({
+      screenOptions={({ navigation, route }) => ({
         headerShown: false,
         animation: 'fade',
         transitionSpec: { animation: 'timing', config: FADE },
         sceneStyle: {
           backgroundColor: 'transparent',
           // Web keeps visited tabs mounted; hide their content behind the shared backdrop.
-          display: navigation.isFocused() ? 'flex' : 'none',
+          // Native detaches inactive tabs by itself. Compare against this navigator's own
+          // state, not `isFocused()`: that is also false while a screen sits on top of the
+          // tabs, and those stale options left a tab blank when you came back to it.
+          ...(Platform.OS === 'web' && {
+            display: isCurrentTab(navigation.getState(), route.key) ? 'flex' : 'none',
+          }),
         },
       })}
       tabBar={(props) => <TabBar {...props} />}

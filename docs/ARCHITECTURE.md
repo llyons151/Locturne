@@ -82,6 +82,15 @@ automatic copy is off (`copyToTargetFolder: false` in `app.json`) so each target
 bundle ID registered with Apple. When upgrading the library, diff its `targets/` and
 `ios/Shared.swift` against ours by hand. How it all fits: [DEVICE_SPIKE.md](DEVICE_SPIKE.md).
 
+`modules/blocked-apps/` is a local Expo module (autolinked, imported as `blocked-apps`) for
+the Apps tab. iOS never tells an app which apps were picked: the picker returns opaque
+tokens, and only SwiftUI's `Label(token)` can draw one as an icon and name. `BlockedAppsView`
+reads a selection the library saved in the App Group (`familyActivitySelectionIds[id]`,
+base64 JSON) and draws one row per app, category and site. React sets its height from
+`selectionSize(id)` × the row height, and bumps `revision` after the picker closes so the
+rows re-read. It reads the library's storage format directly, so recheck it on upgrades.
+Changing anything in `modules/` needs a new development build.
+
 ## How onboarding fits together
 
 Onboarding is the biggest feature, so it has its own layers:
