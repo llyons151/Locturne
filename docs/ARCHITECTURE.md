@@ -49,7 +49,8 @@ src/
     haptics.ts                  tap / tick / thud / done (no-ops on web)
     text.ts                     noOrphan: keeps the last word off its own line
     lock-state.ts               the lock's rules: phase (night/morning/day/off) and which apps sleep. Pure; tests in lock-state.test.ts (`npm test`)
-    screen-time.ts              the only file that calls react-native-device-activity (access, shield, unshield)
+    night-plan.ts               splits a night into the <45-minute windows iOS monitors. Pure; tests in night-plan.test.ts
+    screen-time.ts              the only file that calls react-native-device-activity (access, shield, arm/disarm the night)
 
   hooks/
     use-compact.ts              true on short phones (iPhone SE), so layouts tighten

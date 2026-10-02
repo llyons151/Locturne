@@ -65,6 +65,46 @@ On the **You** tab, tap **Screen Time lab**:
 
 Write down anything that fails, with the log lines, under "Results".
 
+## The bedtime schedule (built 2026-10-02)
+
+- `lib/night-plan.ts` splits bedtime → morning start into equal windows of 15–45
+  minutes (23:30–07:00 is ten 45-minute windows). At most 16, because iOS allows about 20
+  monitored activities per app.
+- `armNight()` registers each window as a daily repeating DeviceActivity schedule. When a
+  window starts, the monitor extension shields the `night` list, with Locturne closed.
+  Because every window re-applies the block, one missed start is covered by the next one
+  within 45 minutes. That's GAME_PLAN's chaining.
+- Nothing unshields at morning start. The **morning check** (`getLockState` + pedometer)
+  wakes the apps once the steps reach 200.
+- Arming during the night also shields straight away, rather than relying on iOS to fire
+  a window that has already started.
+- The lab shows **Last window start**, read from the extension's own log. That's proof iOS
+  ran the block while the app was closed.
+
+**Known gaps, on purpose for the spike:**
+- Every night is on. Weekday nights-off need weekday-specific schedules, and 7 nights ×
+  windows would exceed iOS's activity limit. To design after the spike.
+- A Wake or emergency unlock during the night gets re-blocked at the next window start
+  (bedtime wins). The real emergency unlock will need to pause the windows.
+- Settings changes aren't deferred to the next night yet (the lab re-arms immediately).
+
+**To verify on the phone:**
+- Windows that cross midnight (23:30–00:15) fire. The test night won't cover this unless
+  run near midnight. The first real night will.
+
+### Test steps
+
+1. Reload the app (no new build needed). Open the lab.
+2. **Arm test night**. It starts in 2 minutes and lasts 30, in two 15-minute windows.
+3. Wake the apps first if they're asleep. Then fully close Locturne and wait 2–3 minutes.
+   The picked app should be blocked without you touching anything.
+4. Reopen the lab. **Last window start** should show `night-0` at the start time. After
+   15 minutes, `night-1`.
+5. After the 30 minutes: walk 200 steps, then tap **Morning check**. It should say "apps
+   woken".
+6. Then **arm the real schedule** (5) with your actual bedtime, and leave it for the
+   3-night test.
+
 ## Still to prove (TODO §3)
 
 - Scheduled shields at bedtime with the app closed, chained in windows under 45 min.

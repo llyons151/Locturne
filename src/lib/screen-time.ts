@@ -13,15 +13,26 @@
 import {
   AuthorizationStatus,
   blockSelection,
+  cleanUpAfterActivity,
+  configureActions,
+  getActivities,
   getAuthorizationStatus,
+  getEvents,
   getFamilyActivitySelectionId,
   isAvailable,
   isShieldActive,
   pollAuthorizationStatus,
   requestAuthorization,
+  startMonitoring,
+  stopMonitoring,
   unblockSelection,
   updateShield,
+  userDefaultsGet,
+  userDefaultsRemove,
+  userDefaultsSet,
 } from 'react-native-device-activity';
+
+import { WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 
 /** The two lists from GAME_PLAN: apps that sleep at night, and apps that always sleep. */
 export type SelectionId = 'night' | 'always';
@@ -98,4 +109,79 @@ export function setShieldText({ title, subtitle, button }: { title: string; subt
     { primary: { behavior: 'close' } },
     TRIGGER,
   );
+}
+
+/** What's armed, kept in the App Group so it survives the app being closed. */
+export type ArmedNight = {
+  bedtime: number;
+  morningStart: number;
+  windows: number;
+  armedAt: string;
+};
+
+const ARMED_KEY = 'locturne.armedNight';
+
+function hourMinute(minutes: number) {
+  return { hour: Math.floor(minutes / 60), minute: minutes % 60 };
+}
+
+/**
+ * Hands the night to iOS. Each window repeats daily and, when it starts, the monitor
+ * extension shields `list`, even with the app closed. Nothing unshields at morning start:
+ * the morning walk does that. Replaces whatever was armed before. If iOS refuses any
+ * window, everything is disarmed and the error is thrown, so it never half-arms.
+ */
+export async function armNight(
+  windows: NightWindow[],
+  list: SelectionId,
+  times: { bedtime: number; morningStart: number },
+): Promise<void> {
+  disarmNight();
+  try {
+    for (const w of windows) {
+      configureActions({
+        activityName: w.name,
+        callbackName: 'intervalDidStart',
+        actions: [{ type: 'blockSelection', familyActivitySelectionId: list }],
+      });
+      await startMonitoring(
+        w.name,
+        { intervalStart: hourMinute(w.start), intervalEnd: hourMinute(w.end), repeats: true },
+        [],
+      );
+    }
+  } catch (error) {
+    disarmNight();
+    throw error;
+  }
+  const armed: ArmedNight = { ...times, windows: windows.length, armedAt: new Date().toISOString() };
+  userDefaultsSet(ARMED_KEY, armed);
+}
+
+/** Stops every night window. Doesn't unshield anything already asleep. */
+export function disarmNight(): void {
+  const names = armedWindowNames();
+  if (names.length > 0) stopMonitoring(names);
+  for (const name of names) cleanUpAfterActivity(name);
+  userDefaultsRemove(ARMED_KEY);
+}
+
+/** The night windows iOS is monitoring right now. */
+export function armedWindowNames(): string[] {
+  return getActivities().filter((name) => name.startsWith(WINDOW_PREFIX));
+}
+
+export function getArmedNight(): ArmedNight | null {
+  return userDefaultsGet<ArmedNight>(ARMED_KEY) ?? null;
+}
+
+/**
+ * When the monitor extension last ran each window's start, newest first. This is the proof
+ * the block was applied by iOS while the app was closed.
+ */
+export function windowStarts(): { window: string; at: Date }[] {
+  return getEvents()
+    .filter((e) => e.callbackName === 'intervalDidStart' && e.activityName.startsWith(WINDOW_PREFIX))
+    .map((e) => ({ window: e.activityName, at: e.lastCalledAt }))
+    .sort((a, b) => +b.at - +a.at);
 }
