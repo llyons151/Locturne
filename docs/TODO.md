@@ -27,6 +27,11 @@ Tick items off here as they're done.
 - [ ] **Passes:** how many a month, and how long each one lasts.
 - [ ] **Accessible alternative:** a non-walking way to wake him (not designed yet).
 - [ ] **Step target:** is 200 right? It's a default to test, not a validated number.
+- [x] **Wake-up methods:** *Decided 2026-10-01: "Go downstairs" (barometer, ≥2.5 m
+  change in a live session) is the hero method, chosen in onboarding by "Are there
+  stairs between your bed and your coffee?" right after `wake`. Steps and Scan are
+  the alternatives.* Plan in [DOWNSTAIRS_METHOD.md](DOWNSTAIRS_METHOD.md) and
+  [LAUNCH_PLAN.md](LAUNCH_PLAN.md) §2.
 
 ## 2. Step 0: accounts and IDs (blocking everything native)
 
@@ -143,6 +148,14 @@ Needs the real app:
 - [ ] Streak widget and a bedtime Live Activity.
 - [ ] Buddy/couples mode (a message to a partner, no money).
 - [ ] Naps, and "put him to bed early".
+- [ ] *Idea (Oct 1):* **"Loc naps while you work"**, i.e. block apps while you're at
+  your laptop. Real distance sensing doesn't work well: Bluetooth signal strength is
+  unreliable, Macs have no UWB, and background BLE needs a Mac app plus location
+  permission. The clean route is a **Focus filter**: turning on a "Work" Focus on
+  the Mac syncs to the iPhone (Share Across Devices), which runs Locturne's Focus
+  filter intent in the background and starts a nap. A Mac Focus can switch on
+  automatically when an app like VS Code opens. It's off the morning wedge, so
+  after launch only, as a nap trigger.
 - [ ] An opt-in "went to bed earlier" dataset.
 - [ ] Viral ideas to test: his voice as real audio, roasts when the anti-shake check
   catches cheating, "excuse court" for passes, and a falling-asleep goodnight.
