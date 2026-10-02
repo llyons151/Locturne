@@ -65,6 +65,15 @@ final class BlockedAppsModel: ObservableObject {
   @Published var rowHeight: Double = 52
   @Published var textColor: Color = .white
   @Published var separatorColor: Color = .white.opacity(0.16)
+  /// Changing it rebuilds every row, so each `Label(token)` asks iOS for its icon again.
+  @Published var generation = 0
+
+  /// Re-read the selection and redraw from scratch. Same tokens would otherwise keep the
+  /// same (possibly blank) rows.
+  func redraw() {
+    reload()
+    generation += 1
+  }
 
   func reload() {
     guard let selection = savedSelection(id: selectionId) else {
@@ -98,6 +107,7 @@ struct BlockedAppsList: View {
           }
       }
     }
+    .id(model.generation)
     .font(.system(size: 17))
     .foregroundStyle(model.textColor)
     .labelStyle(.titleAndIcon)
@@ -141,6 +151,33 @@ class BlockedAppsView: ExpoView {
 
   deinit {
     if let foreground { NotificationCenter.default.removeObserver(foreground) }
+  }
+
+  // `Label(token)` is drawn by iOS from outside the app, and only while the view is on
+  // screen. A fast tab switch can mount this view before its screen joins the window; the
+  // labels then come up blank and nothing asks again. So: hang the hosting controller off
+  // the real view controller, and redraw each time we land in a window.
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    guard window != nil else {
+      host.willMove(toParent: nil)
+      host.removeFromParent()
+      return
+    }
+    if host.parent == nil, let parent = owningViewController {
+      parent.addChild(host)
+      host.didMove(toParent: parent)
+    }
+    model.redraw()
+  }
+
+  private var owningViewController: UIViewController? {
+    var responder: UIResponder? = next
+    while let current = responder {
+      if let controller = current as? UIViewController { return controller }
+      responder = current.next
+    }
+    return nil
   }
 
   override func layoutSubviews() {
