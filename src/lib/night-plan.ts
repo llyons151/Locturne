@@ -18,8 +18,8 @@ export const MIN_WINDOW = 15;
 /** GAME_PLAN's ceiling for one window. */
 export const MAX_WINDOW = 45;
 /**
- * iOS allows about 20 monitored activities per app. 16 leaves room for other uses, and
- * covers a 12-hour night at 45 minutes.
+ * iOS allows about 20 monitored activities per app. 16 covers a 12-hour night at 45 minutes
+ * and leaves one for a nap and three for daily limits (`MAX_LIMITS` in daily-limits.ts).
  */
 export const MAX_WINDOWS = 16;
 

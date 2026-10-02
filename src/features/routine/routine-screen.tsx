@@ -1,21 +1,35 @@
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
-import { Section, sym } from '@/components/grouped-list';
+import { ChoiceRow, Section, sym } from '@/components/grouped-list';
 import { formatPreset } from '@/features/onboarding/time-wheel';
 import * as haptic from '@/lib/haptics';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
 import { noOrphan } from '@/lib/text';
-import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
+import {
+  DISPLAY_MAX_SCALE,
+  DisplayFont,
+  Gap,
+  italicOverhang,
+  Nocturne,
+  Radius,
+  Space,
+  Type,
+  VoiceSize,
+} from '@/theme';
 
 import type { MenuOption } from './control-types';
 import { MenuRow, NightsRow, TimeRow } from './controls';
 
 /**
- * The Routine tab: bedtime, morning start, which nights, and how he gets woken up.
+ * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
+ *
+ * The wake-up method leads the screen (DOWNSTAIRS_METHOD.md): it's the part of the routine
+ * nobody else has, so it gets his line and a full list of choices, not a menu row.
  *
  * Every change waits for the next bedtime (GAME_PLAN, decided 2026-10-01), so nothing can
  * be loosened from bed. The screen shows what's set, and says plainly when it starts.
@@ -49,10 +63,26 @@ const MORNING_PRESETS = [6 * 60 + 30, 7 * 60, 7 * 60 + 30, 8 * 60];
 
 const STEP_GOALS: MenuOption<number>[] = [100, 200, 300, 500].map((n) => ({ value: n, label: `${n} steps` }));
 
-const methods = (goal: number): MenuOption<Method>[] => [
-  { value: 'downstairs', label: 'Go downstairs' },
-  { value: 'steps', label: `Walk ${goal} steps` },
-  { value: 'scan', label: 'Scan your code' },
+/** Downstairs first: it's the hero method, and the default for anyone with stairs. */
+const methods = (goal: number): { value: Method; title: string; detail: string; line: string }[] => [
+  {
+    value: 'downstairs',
+    title: 'Go downstairs',
+    detail: 'About one floor down. Takes 20 seconds and can’t be faked from bed.',
+    line: 'Downstairs. Every morning. I’ll be at the bottom, judging.',
+  },
+  {
+    value: 'steps',
+    title: `Walk ${goal} steps`,
+    detail: 'Counts from your morning start, even before you open the app.',
+    line: `${goal} steps. I’ll count every one. Reluctantly.`,
+  },
+  {
+    value: 'scan',
+    title: 'Scan your code',
+    detail: 'A code you keep in another room, like on the coffee machine.',
+    line: 'Hide the code somewhere far. I’ll wait by it.',
+  },
 ];
 
 const same = (a: Routine, b: Routine) => JSON.stringify(a) === JSON.stringify(b);
@@ -84,6 +114,9 @@ export function RoutineScreen() {
   /** What the user has set. Becomes `active` at the next bedtime. */
   const [saved, setSaved] = useState(START);
   const set = (patch: Partial<Routine>) => setSaved((r) => ({ ...r, ...patch }));
+
+  const options = methods(saved.stepGoal);
+  const chosen = options.find((o) => o.value === saved.method) ?? options[0];
 
   const pending = !same(active, saved);
   const now = new Date();
@@ -131,6 +164,39 @@ export function RoutineScreen() {
         </View>
       ) : null}
 
+      {/* His line fades when the method changes, not every time the tab opens. */}
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View key={saved.method} entering={FadeIn.duration(400)} style={styles.wake}>
+          <Text style={styles.voice} maxFontSizeMultiplier={1.3}>
+            {noOrphan(chosen.line)}
+          </Text>
+        </Animated.View>
+      </LayoutAnimationConfig>
+
+      <Section label="Wake-up" footer={wakeFooter(saved)}>
+        {options.map((o, i) => (
+          <ChoiceRow
+            key={o.value}
+            title={o.title}
+            detail={o.detail}
+            selected={o.value === saved.method}
+            onPress={() => set({ method: o.value })}
+            last={i === options.length - 1}
+          />
+        ))}
+      </Section>
+
+      <Section>
+        <MenuRow
+          icon={sym('figure.walk', 'directions_walk')}
+          title="Step target"
+          value={saved.stepGoal}
+          options={STEP_GOALS}
+          onChange={(stepGoal) => set({ stepGoal })}
+          last
+        />
+      </Section>
+
       <Section label="Night" footer="Changes start from the next bedtime, so nothing gets loosened from bed.">
         <TimeRow
           icon={sym('moon.fill', 'bedtime')}
@@ -151,24 +217,6 @@ export function RoutineScreen() {
         <NightsRow icon={sym('calendar', 'calendar_month')} value={saved.nights} onChange={(nights) => set({ nights })} last />
       </Section>
 
-      <Section label="Wake-up" footer={wakeFooter(saved)}>
-        <MenuRow
-          icon={sym('figure.stairs', 'stairs')}
-          title="Method"
-          value={saved.method}
-          options={methods(saved.stepGoal)}
-          onChange={(method) => set({ method })}
-        />
-        <MenuRow
-          icon={sym('figure.walk', 'directions_walk')}
-          title="Step target"
-          value={saved.stepGoal}
-          options={STEP_GOALS}
-          onChange={(stepGoal) => set({ stepGoal })}
-          last
-        />
-      </Section>
-
       {/* Preview only, so it never implies protection is on (GAME_PLAN, "Reliability"). */}
       <Text style={styles.preview}>Preview. These settings aren&apos;t saved or armed yet.</Text>
     </ScrollView>
@@ -181,13 +229,11 @@ function wakeVerb(r: Routine) {
   return `walk ${r.stepGoal} steps`;
 }
 
-/** What the chosen method asks of you, and the steps fallback. Menus can't hold this detail. */
+/** The steps fallback for the chosen method. */
 function wakeFooter(r: Routine) {
-  if (r.method === 'downstairs')
-    return `Go about one floor down. No stairs that morning? Walk ${r.stepGoal} steps instead.`;
-  if (r.method === 'scan')
-    return `Scan a code you keep in another room, like on the coffee machine. Lost it? Walk ${r.stepGoal} steps instead.`;
-  return 'Steps count from your morning start, including any you take before opening the app.';
+  if (r.method === 'downstairs') return `No stairs that morning, like in a hotel? Walk ${r.stepGoal} steps instead.`;
+  if (r.method === 'scan') return `Lost the code? Walk ${r.stepGoal} steps instead.`;
+  return 'Have stairs? Going down one floor is quicker, and harder to fake.';
 }
 
 const styles = StyleSheet.create({
@@ -195,6 +241,15 @@ const styles = StyleSheet.create({
   header: { gap: Gap.headline, marginBottom: Gap.block },
   title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
   summary: { color: Nocturne.text2, ...Type.body },
+
+  wake: { marginBottom: Gap.block },
+  voice: {
+    ...DisplayFont,
+    ...italicOverhang(VoiceSize.aside + 6),
+    color: Nocturne.text,
+    fontSize: VoiceSize.aside + 6,
+    lineHeight: (VoiceSize.aside + 6) * 1.1,
+  },
 
   pending: {
     flexDirection: 'row',

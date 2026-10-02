@@ -194,3 +194,119 @@ test('selectionSize counts apps, categories and sites as rows', () => {
   assert.equal(st.selectionSize('night'), 6);
   assert.equal(st.selectionSize('always'), 0);
 });
+
+const shields = () =>
+  calls
+    .filter(([n]) => n === 'blockSelection' || n === 'unblockSelection')
+    .map(([n, sel]) => `${n === 'blockSelection' ? '+' : '-'}${(sel as { activitySelectionId: string }).activitySelectionId}`);
+
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+test('reapply shields every rule still in force, and only picked lists', () => {
+  status = 2;
+  saved = { always: 't', night: 't', block: 't', 'limit-0': 't', 'limit-1': 't' };
+  store['locturne.nightHeld'] = true;
+  store['locturne.nap'] = { start: Date.now(), end: Date.now() + 60_000, list: 'block' };
+  store['locturne.limits'] = [
+    { id: 'limit-0', minutes: 30 },
+    { id: 'limit-1', minutes: 30 },
+    { id: 'limit-2', minutes: 30 },
+  ];
+  store['locturne.limitReached.limit-0'] = today();
+  store['locturne.limitReached.limit-1'] = '2000-01-01';
+  store['locturne.limitReached.limit-2'] = today(); // used up, but never picked
+  st.reapplyStandingBlocks();
+  assert.deepEqual(shields(), ['+always', '+night', '+block', '+limit-0']);
+});
+
+test('reapply does nothing without Screen Time access', () => {
+  status = 1;
+  saved = { always: 't' };
+  st.reapplyStandingBlocks();
+  assert.deepEqual(shields(), []);
+});
+
+test('waking the bedtime apps keeps the always list asleep', () => {
+  status = 2;
+  saved = { always: 't', night: 't' };
+  st.sleepApps('night');
+  assert.equal(st.isNightHeld(), true);
+  calls.length = 0;
+  st.wakeApps('night');
+  assert.equal(st.isNightHeld(), false);
+  assert.deepEqual(shields(), ['-night', '+always']);
+});
+
+test('ending Block now early re-shields the night lock it overlapped', async () => {
+  status = 2;
+  saved = { always: 't', night: 't' };
+  st.sleepApps('night');
+  await st.startNap('night', 30);
+  calls.length = 0;
+  st.endNap();
+  assert.deepEqual(shields(), ['-night', '+always', '+night']);
+  assert.equal(st.getNap(), null);
+});
+
+test('armLimit: a daily window that shields once the minutes are used, and wakes at midnight', async () => {
+  saved = { 'limit-0': 'opaque' };
+  await st.armLimit({ id: 'limit-0', minutes: 90 });
+  const configured = calls.filter(([n]) => n === 'configureActions').map(([, c]) => c);
+  assert.deepEqual(configured, [
+    {
+      activityName: 'limit-0',
+      callbackName: 'intervalDidStart',
+      actions: [{ type: 'unblockSelection', familyActivitySelectionId: 'limit-0' }],
+    },
+    {
+      activityName: 'limit-0',
+      callbackName: 'eventDidReachThreshold',
+      eventName: 'used-up',
+      actions: [{ type: 'blockSelection', familyActivitySelectionId: 'limit-0' }],
+    },
+  ]);
+  const [, name, schedule, evts] = calls.find(([n]) => n === 'startMonitoring')!;
+  assert.equal(name, 'limit-0');
+  assert.deepEqual(schedule, {
+    intervalStart: { hour: 0, minute: 0 },
+    intervalEnd: { hour: 23, minute: 59 },
+    repeats: true,
+  });
+  assert.deepEqual(evts, [
+    { familyActivitySelection: 'opaque', threshold: { hour: 1, minute: 30 }, eventName: 'used-up', includesPastActivity: true },
+  ]);
+  assert.deepEqual(shields(), []);
+});
+
+test('armLimit does nothing for a limit with no apps picked', async () => {
+  await st.armLimit({ id: 'limit-0', minutes: 30 });
+  assert.deepEqual(calls, []);
+});
+
+test('a looser limit at bedtime re-arms fresh, and a removed one stops and forgets its picks', async () => {
+  status = 2;
+  saved = { 'limit-0': 'a', 'limit-1': 'b' };
+  store.familyActivitySelectionIds = { 'limit-1': 'b', night: 'n' };
+  store['locturne.limitReached.limit-0'] = today();
+  store['locturne.limits'] = [
+    { id: 'limit-0', minutes: 30, pending: { minutes: 60, from: 0 } },
+    { id: 'limit-1', minutes: 30, pending: { minutes: null, from: 0 } },
+  ];
+  await st.settleLimitChanges();
+  assert.deepEqual(st.getLimits(), [{ id: 'limit-0', minutes: 60 }]);
+  assert.equal(store['locturne.limitReached.limit-0'], undefined);
+  assert.ok(calls.some(([n, names]) => n === 'stopMonitoring' && (names as string[]).includes('limit-1')));
+  assert.deepEqual(store.familyActivitySelectionIds, { night: 'n' });
+  const evts = calls.find(([n]) => n === 'startMonitoring')![3] as { threshold: unknown }[];
+  assert.deepEqual(evts[0].threshold, { hour: 1, minute: 0 });
+});
+
+test('nothing settles before bedtime', async () => {
+  const later = Date.now() + 60_000;
+  store['locturne.limits'] = [{ id: 'limit-0', minutes: 30, pending: { minutes: 60, from: later } }];
+  await st.settleLimitChanges();
+  assert.deepEqual(calls, []);
+});

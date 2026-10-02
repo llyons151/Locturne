@@ -123,8 +123,11 @@ Store the answer as `method: 'downstairs' | 'steps' | 'scan'` in onboarding
 
 ### 3.3 Settings: the Routine tab
 
-- A **Wake-up method** row in Routine (currently a placeholder: "Bedtime, morning
-  start, daily naps, and the step target").
+- **Built Oct 1:** the wake-up method leads the Routine tab, above the night
+  schedule. His line for the chosen method sits in the serif, then all three methods
+  as a checkmark list with one line each on what they ask (downstairs first), then the
+  step target, which is also the fallback. It replaced a pull-down menu row the user
+  felt buried the method.
 - Changes apply from the next bedtime, like every other setting.
 - When travelling, the method can be changed for the next night. For this
   morning, the "steps instead" link covers it.

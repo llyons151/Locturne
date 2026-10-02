@@ -36,3 +36,11 @@ export function nightsLabel(nights: number[]) {
   if (nights.length === 0) return 'Off';
   return `${nights.length} ${nights.length === 1 ? 'night' : 'nights'}`;
 }
+
+export type SwitchRowProps = {
+  icon: Symbol;
+  title: string;
+  value: boolean;
+  onChange: (on: boolean) => void;
+  last?: boolean;
+};

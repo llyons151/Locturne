@@ -44,10 +44,28 @@ export type MorningFacts = {
   unlockedMorning: string | null;
 };
 
+/**
+ * The daytime controls (GAME_PLAN, "Daytime controls"). They only ever add apps to
+ * `blocked` and never change the phase, so walking 200 steps can't lift them.
+ */
+export type DaytimeFacts = {
+  /** A Block now session ("tuck him in now"), or null when none is running. */
+  blockNow: { apps: string[]; end: Date } | null;
+  /** Each daily limit's apps, and the calendar day (YYYY-MM-DD) it was last used up. */
+  limits: { apps: string[]; reachedOn: string | null }[];
+};
+
+const NO_DAYTIME: DaytimeFacts = { blockNow: null, limits: [] };
+
 export type LockState = {
   phase: Phase;
-  /** De-duplicated app ids that should be shielded right now. */
+  /**
+   * De-duplicated app ids that should be shielded right now, strongest rule first:
+   * always-blocked, the night or morning lock, Block now, then used-up daily limits.
+   */
   blocked: string[];
+  /** When the running Block now session ends, or null. */
+  blockNowUntil: Date | null;
   /** Steps left before the apps wake. 0 outside `morning`. */
   stepsRemaining: number;
   /** The morning `now` belongs to, as YYYY-MM-DD. */
@@ -67,7 +85,8 @@ function atMinute(date: Date, minutes: number, offsetDays = 0): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offsetDays, 0, minutes);
 }
 
-function dateKey(date: Date): string {
+/** A calendar day as YYYY-MM-DD, in local time. Daily limits reset when this changes. */
+export function dateKey(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${date.getFullYear()}-${m}-${d}`;
@@ -121,7 +140,12 @@ export function settingsTakeEffectAt(editedAt: Date, settings: LockSettings): Da
   return nightBefore(editedAt, settings, locate(editedAt, settings).offset + 1).start;
 }
 
-export function getLockState(now: Date, settings: LockSettings, facts: MorningFacts): LockState {
+export function getLockState(
+  now: Date,
+  settings: LockSettings,
+  facts: MorningFacts,
+  daytime: DaytimeFacts = NO_DAYTIME,
+): LockState {
   const { offset, night: window } = locate(now, settings);
   const night = now < window.end;
   const morning = { key: dateKey(window.end), start: window.end };
@@ -139,11 +163,23 @@ export function getLockState(now: Date, settings: LockSettings, facts: MorningFa
   else phase = 'morning';
 
   const asleep = phase === 'night' || phase === 'morning';
-  const blocked = [...new Set([...settings.alwaysApps, ...(asleep ? settings.nightApps : [])])];
+  const session = daytime.blockNow && now < daytime.blockNow.end ? daytime.blockNow : null;
+  // Limits count calendar days, like Screen Time, not mornings.
+  const today = dateKey(now);
+  const usedUp = daytime.limits.filter((limit) => limit.reachedOn === today);
+  const blocked = [
+    ...new Set([
+      ...settings.alwaysApps,
+      ...(asleep ? settings.nightApps : []),
+      ...(session ? session.apps : []),
+      ...usedUp.flatMap((limit) => limit.apps),
+    ]),
+  ];
 
   return {
     phase,
     blocked,
+    blockNowUntil: session ? session.end : null,
     stepsRemaining: phase === 'morning' ? Math.max(0, settings.stepGoal - facts.steps) : 0,
     morningKey: morning.key,
     nextChange: night ? window.end : nightBefore(now, settings, offset + 1).start,

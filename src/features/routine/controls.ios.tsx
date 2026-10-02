@@ -12,6 +12,7 @@ import {
   Section,
   Spacer,
   Text,
+  Toggle,
   Toolbar,
   ToolbarItem,
 } from '@expo/ui/swift-ui';
@@ -32,7 +33,13 @@ import { ControlRow, ValueRow } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
 import { Nocturne } from '@/theme';
 
-import { nightsLabel, type MenuRowProps, type NightsRowProps, type TimeRowProps } from './control-types';
+import {
+  nightsLabel,
+  type MenuRowProps,
+  type NightsRowProps,
+  type SwitchRowProps,
+  type TimeRowProps,
+} from './control-types';
 
 /**
  * The Routine tab's editable rows on iPhone, built from Apple's own controls (HIG: Pickers,
@@ -132,5 +139,16 @@ export function NightsRow({ icon, value, onChange, last }: NightsRowProps) {
         </BottomSheet>
       </Host>
     </>
+  );
+}
+
+/** An on/off setting: the system switch, sitting in the row. */
+export function SwitchRow({ icon, title, value, onChange, last }: SwitchRowProps) {
+  return (
+    <ControlRow icon={icon} title={title} last={last}>
+      <Host matchContents colorScheme="dark">
+        <Toggle isOn={value} onIsOnChange={onChange} modifiers={[labelsHidden()]} />
+      </Host>
+    </ControlRow>
   );
 }

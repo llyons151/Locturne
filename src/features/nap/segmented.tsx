@@ -3,30 +3,30 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as haptic from '@/lib/haptics';
 import { Nocturne, Radius } from '@/theme';
 
-import { lengthLabel, type LengthPickerProps } from './length-label';
+import type { SegmentedProps } from './segmented-types';
 
 /**
- * Nap length. On iPhone (`length-picker.ios.tsx`) it's the system segmented control; this
- * is the web preview's look-alike.
+ * A few mutually exclusive choices. On iPhone (`segmented.ios.tsx`) it's the system
+ * segmented control; this is the web preview's look-alike.
  */
 
-export function LengthPicker({ value, options, onChange }: LengthPickerProps) {
+export function Segmented<T extends string | number>({ value, options, onChange, label }: SegmentedProps<T>) {
   return (
-    <View style={styles.track} accessibilityRole="radiogroup" accessibilityLabel="Nap length">
-      {options.map((minutes) => {
-        const on = minutes === value;
+    <View style={styles.track} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      {options.map((o) => {
+        const on = o.value === value;
         return (
           <Pressable
-            key={minutes}
+            key={o.value}
             onPress={() => {
               haptic.tap();
-              onChange(minutes);
+              onChange(o.value);
             }}
             accessibilityRole="radio"
             accessibilityState={{ checked: on }}
             style={[styles.segment, on && styles.segmentOn]}
           >
-            <Text style={[styles.label, on && styles.labelOn]}>{lengthLabel(minutes)}</Text>
+            <Text style={[styles.label, on && styles.labelOn]}>{o.label}</Text>
           </Pressable>
         );
       })}

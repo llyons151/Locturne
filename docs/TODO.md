@@ -117,6 +117,13 @@ Needs the real app:
   time on day 1.
 - [ ] Custom shield text (small icon plus his line as the title).
 - [ ] Always-blocked list (wins over the bedtime list).
+- [x] Block now: pick apps and a duration, then go; built with naps (GAME_PLAN "Daytime controls"). Needs a device test.
+- [x] Daily time limits per app (usage-threshold events), blocked until the next day once hit. Needs a device test.
+- [x] Add Block now and daily limits to `lock-state.ts` with the precedence order, plus tests.
+- [x] Budget DeviceActivity monitors (16 night + 1 nap + 3 limits) and tell the user when iOS refuses a limit.
+- [ ] Device-test the overlap re-apply: a nap or limit ending mid-night must leave bedtime and always apps shielded.
+- [ ] Per-rule shield text ("Daily limit used up") — iOS has one shield config for the app today.
+- [ ] Removing apps from a limit (or the bedtime/always lists) applies at once; make it wait for bedtime like other loosening.
 - [ ] Passes, the emergency unlock, and the accessible alternative.
 - [ ] *Idea:* **a short delay and a "go back to sleep" button in front of every
   exit** (passes and the emergency unlock), one sec style. In the one sec trial the
@@ -147,7 +154,7 @@ Needs the real app:
 - [ ] A real alarm (AlarmKit) to lead with the morning.
 - [ ] Streak widget and a bedtime Live Activity.
 - [ ] Buddy/couples mode (a message to a partner, no money).
-- [ ] Naps, and "put him to bed early".
+- [ ] Scheduled naps, and "put him to bed early" ("tuck him in now" moved to v1 as Block now).
 - [ ] *Idea (Oct 1):* **"Loc naps while you work"**, i.e. block apps while you're at
   your laptop. Real distance sensing doesn't work well: Bluetooth signal strength is
   unreliable, Macs have no UWB, and background BLE needs a Mac app plus location

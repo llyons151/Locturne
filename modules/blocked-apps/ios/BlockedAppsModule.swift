@@ -61,29 +61,36 @@ enum PickedItem: Hashable {
 
 final class BlockedAppsModel: ObservableObject {
   var selectionId = ""
-  @Published var items: [PickedItem] = []
+  /// True while the view is in a window. Rows are only made then: a `Label(token)` made
+  /// off screen can come up blank and never ask iOS again.
+  var isLive = false
+  @Published private(set) var items: [PickedItem] = []
   @Published var rowHeight: Double = 52
   @Published var textColor: Color = .white
   @Published var separatorColor: Color = .white.opacity(0.16)
-  /// Changing it rebuilds every row, so each `Label(token)` asks iOS for its icon again.
-  @Published var generation = 0
 
-  /// Re-read the selection and redraw from scratch. Same tokens would otherwise keep the
-  /// same (possibly blank) rows.
-  func redraw() {
-    reload()
-    generation += 1
+  /// Re-read the selection. Rows that are already drawn stay put; only added or removed
+  /// ones change, fading while the rest slide, so iOS never redraws icons it already has.
+  func reload() {
+    guard isLive else { return }
+    let next = savedSelection(id: selectionId).map(Self.rows) ?? []
+    guard next != items else { return }
+    if UIAccessibility.isReduceMotionEnabled {
+      items = next
+    } else {
+      withAnimation(.timingCurve(0.2, 0.9, 0.3, 1, duration: 0.35)) { items = next }
+    }
   }
 
-  func reload() {
-    guard let selection = savedSelection(id: selectionId) else {
-      items = []
-      return
-    }
-    // Tokens are opaque, so there's no name to sort by. Keep Apple's grouping instead:
-    // apps, then whole categories, then websites.
-    items =
-      selection.applicationTokens.map(PickedItem.app)
+  /// Drop every row without animating, so the next `reload` draws them all fresh.
+  func forget() {
+    items = []
+  }
+
+  // Tokens are opaque, so there's no name to sort by. Keep Apple's grouping instead:
+  // apps, then whole categories, then websites.
+  private static func rows(_ selection: FamilyActivitySelection) -> [PickedItem] {
+    selection.applicationTokens.map(PickedItem.app)
       + selection.categoryTokens.map(PickedItem.category)
       + selection.webDomainTokens.map(PickedItem.site)
   }
@@ -105,9 +112,9 @@ struct BlockedAppsList: View {
               .frame(height: 1 / UIScreen.main.scale)
               .padding(.leading, 60)
           }
+          .transition(.opacity)
       }
     }
-    .id(model.generation)
     .font(.system(size: 17))
     .foregroundStyle(model.textColor)
     .labelStyle(.titleAndIcon)
@@ -154,21 +161,30 @@ class BlockedAppsView: ExpoView {
   }
 
   // `Label(token)` is drawn by iOS from outside the app, and only while the view is on
-  // screen. A fast tab switch can mount this view before its screen joins the window; the
-  // labels then come up blank and nothing asks again. So: hang the hosting controller off
-  // the real view controller, and redraw each time we land in a window.
+  // screen. A fast tab switch can mount this view before its screen joins the window, and
+  // labels made then come up blank and nothing asks again. So: hang the hosting controller
+  // off the real view controller, and only make rows once we're in a window.
+  private var liveSince: Date?
+
   override func didMoveToWindow() {
     super.didMoveToWindow()
     guard window != nil else {
       host.willMove(toParent: nil)
       host.removeFromParent()
+      // Gone again before iOS had time to draw the rows: they may be blank, so make them
+      // fresh next time. Rows that were on screen longer keep their icons and stay.
+      if let liveSince, Date().timeIntervalSince(liveSince) < 1 { model.forget() }
+      liveSince = nil
+      model.isLive = false
       return
     }
     if host.parent == nil, let parent = owningViewController {
       parent.addChild(host)
       host.didMove(toParent: parent)
     }
-    model.redraw()
+    liveSince = Date()
+    model.isLive = true
+    model.reload()
   }
 
   private var owningViewController: UIViewController? {

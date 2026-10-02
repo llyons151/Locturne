@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Switch, Text } from 'react-native';
 
-import { ChoiceRow, EditSheet, Section, ValueRow } from '@/components/grouped-list';
+import { ChoiceRow, ControlRow, EditSheet, Section, ValueRow } from '@/components/grouped-list';
 import { DayPicker } from '@/features/onboarding/day-picker';
 import { formatPreset, TimeWheel } from '@/features/onboarding/time-wheel';
 import { Nocturne, Type } from '@/theme';
 
-import { nightsLabel, type MenuRowProps, type NightsRowProps, type TimeRowProps } from './control-types';
+import {
+  nightsLabel,
+  type MenuRowProps,
+  type NightsRowProps,
+  type SwitchRowProps,
+  type TimeRowProps,
+} from './control-types';
 
 /**
  * The Routine tab's editable rows. On iPhone (`controls.ios.tsx`) they're Apple's own
@@ -84,6 +90,21 @@ export function NightsRow({ icon, value, onChange, last }: NightsRowProps) {
         <Text style={styles.note}>A night that&apos;s off has no morning lock either.</Text>
       </EditSheet>
     </>
+  );
+}
+
+export function SwitchRow({ icon, title, value, onChange, last }: SwitchRowProps) {
+  return (
+    <ControlRow icon={icon} title={title} last={last}>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        accessibilityLabel={title}
+        // A neutral track; the iPhone build uses the system switch instead.
+        trackColor={{ false: Nocturne.raised, true: Nocturne.text2 }}
+        thumbColor={Nocturne.text}
+      />
+    </ControlRow>
   );
 }
 

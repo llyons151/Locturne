@@ -152,3 +152,57 @@ describe('settings take effect next night', () => {
     assert.deepEqual(settingsTakeEffectAt(at(2), settings), at(23, 30));
   });
 });
+
+describe('daytime controls', () => {
+  const walked: MorningFacts = { steps: 200, unlockedMorning: null };
+  const session = (end: Date) => ({ blockNow: { apps: ['youtube'], end }, limits: [] });
+
+  test('Block now sleeps its apps until it ends', () => {
+    const state = getLockState(at(14), settings, walked, session(at(15)));
+    assert.equal(state.phase, 'day');
+    assert.deepEqual(state.blocked, ['reddit', 'youtube']);
+    assert.deepEqual(state.blockNowUntil, at(15));
+  });
+
+  test('a finished Block now session blocks nothing', () => {
+    const state = getLockState(at(15), settings, walked, session(at(15)));
+    assert.deepEqual(state.blocked, ['reddit']);
+    assert.equal(state.blockNowUntil, null);
+  });
+
+  test('walking never lifts Block now', () => {
+    const state = getLockState(at(8), settings, { steps: 5000, unlockedMorning: '2026-10-01' }, session(at(9)));
+    assert.equal(state.phase, 'day');
+    assert.ok(state.blocked.includes('youtube'));
+  });
+
+  test('a used-up limit blocks its apps for the rest of the calendar day', () => {
+    const limits = { blockNow: null, limits: [{ apps: ['instagram'], reachedOn: '2026-10-01' }] };
+    assert.deepEqual(getLockState(at(16), settings, walked, limits).blocked, ['reddit', 'instagram']);
+    // Midnight starts a new day for the limit, even though the night lock keeps it asleep.
+    const after = getLockState(at(0, 10, 2), settings, noSteps, limits);
+    assert.equal(after.phase, 'night');
+    assert.deepEqual(after.blocked, ['reddit', 'tiktok', 'instagram']);
+    const nextDay = getLockState(at(12, 0, 2), settings, walked, limits);
+    assert.deepEqual(nextDay.blocked, ['reddit']);
+  });
+
+  test('a limit not yet used up blocks nothing', () => {
+    const limits = { blockNow: null, limits: [{ apps: ['instagram'], reachedOn: '2026-09-30' }] };
+    assert.deepEqual(getLockState(at(16), settings, walked, limits).blocked, ['reddit']);
+  });
+
+  test('strongest rule first, with no duplicates', () => {
+    const everything = {
+      blockNow: { apps: ['reddit', 'youtube'], end: at(12) },
+      limits: [{ apps: ['youtube', 'x'], reachedOn: '2026-10-01' }],
+    };
+    assert.deepEqual(getLockState(at(9), settings, noSteps, everything).blocked, [
+      'reddit',
+      'tiktok',
+      'instagram',
+      'youtube',
+      'x',
+    ]);
+  });
+});

@@ -17,6 +17,10 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.intervalDidStart(for: activity)
     logger.log("intervalDidStart")
 
+    if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) {
+      userDefaults?.set(true, forKey: LOCTURNE_NIGHT_HELD_KEY)
+    }
+
     self.executeActionsForEvent(
       activityName: activity.rawValue,
       callbackName: "intervalDidStart",
@@ -28,12 +32,20 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       callbackName: "intervalDidStart"
     )
 
+    reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_intervalDidStart")
+
     notifyAppWithName(name: "intervalDidStart")
   }
 
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
     logger.log("intervalDidEnd")
+
+    // The nap is over: forget it first, so the re-apply below doesn't shield it again if
+    // iOS calls this a few seconds early.
+    if activity.rawValue == LOCTURNE_NAP_ACTIVITY {
+      userDefaults?.removeObject(forKey: LOCTURNE_NAP_KEY)
+    }
 
     self.executeActionsForEvent(
       activityName: activity.rawValue,
@@ -45,6 +57,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       activityName: activity.rawValue,
       callbackName: "intervalDidEnd"
     )
+
+    reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_intervalDidEnd")
 
     notifyAppWithName(name: "intervalDidEnd")
   }
@@ -126,6 +140,12 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.eventDidReachThreshold(event, activity: activity)
     logger.log("eventDidReachThreshold: \(event.rawValue, privacy: .public)")
 
+    // A daily limit is used up: remember the day, so it stays shielded until midnight.
+    if activity.rawValue.hasPrefix(LOCTURNE_LIMIT_PREFIX) {
+      userDefaults?.set(
+        locturneDayKey(), forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(activity.rawValue)")
+    }
+
     self.executeActionsForEvent(
       activityName: activity.rawValue,
       callbackName: "eventDidReachThreshold",
@@ -137,6 +157,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       callbackName: "eventDidReachThreshold",
       eventName: event.rawValue
     )
+
+    reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_eventDidReachThreshold")
 
     notifyAppWithName(name: "eventDidReachThreshold")
   }
@@ -198,4 +220,62 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     notifyAppWithName(name: "eventWillReachThresholdWarning")
   }
 
+}
+
+// MARK: - Locturne
+
+// iOS keeps one blocklist for the whole app, so an action that unshields one list (a nap
+// ending, a limit resetting at midnight) also unshields any of its apps another rule still
+// holds. After every event, put back each rule still in force. Keep this in step with
+// `reapplyStandingBlocks` in src/lib/screen-time.ts, which does the same from the app.
+
+let LOCTURNE_NIGHT_PREFIX = "night-"
+let LOCTURNE_LIMIT_PREFIX = "limit-"
+let LOCTURNE_NAP_ACTIVITY = "locturne-nap"
+let LOCTURNE_NAP_KEY = "locturne.nap"
+let LOCTURNE_NIGHT_HELD_KEY = "locturne.nightHeld"
+let LOCTURNE_LIMITS_KEY = "locturne.limits"
+let LOCTURNE_LIMIT_REACHED_PREFIX = "locturne.limitReached."
+
+/// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts.
+func locturneDayKey(_ date: Date = Date()) -> String {
+  let day = Calendar.current.dateComponents([.year, .month, .day], from: date)
+  return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
+}
+
+/// Shields always-blocked, the night lock, a running nap and limits used up today. Only adds.
+@available(iOS 15.0, *)
+func reapplyLocturneBlocks(triggeredBy: String) {
+  var held = ["always"]
+
+  if userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true {
+    held.append("night")
+  }
+
+  if let nap = userDefaults?.dictionary(forKey: LOCTURNE_NAP_KEY),
+    let end = nap["end"] as? Double,
+    let list = nap["list"] as? String,
+    Date().timeIntervalSince1970 * 1000 < end
+  {
+    held.append(list)
+  }
+
+  let today = locturneDayKey()
+  if let limits = userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]] {
+    for limit in limits {
+      if let id = limit["id"] as? String,
+        userDefaults?.string(forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(id)") == today
+      {
+        held.append(id)
+      }
+    }
+  }
+
+  var selection = FamilyActivitySelection()
+  for id in held {
+    if let picked = getFamilyActivitySelectionById(id: id) {
+      selection = union(selection, picked)
+    }
+  }
+  blockSelectedApps(blockSelection: selection, triggeredBy: triggeredBy)
 }

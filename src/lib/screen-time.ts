@@ -33,10 +33,15 @@ import {
   userDefaultsSet,
 } from 'react-native-device-activity';
 
+import { settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
+import { dateKey } from './lock-state.ts';
 import { WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 
-/** The two lists from GAME_PLAN: apps that sleep at night, and apps that always sleep. */
-export type SelectionId = 'night' | 'always';
+/**
+ * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
+ * Block now session picks, and one list per daily limit.
+ */
+export type SelectionId = 'night' | 'always' | 'block' | LimitId;
 
 export type ScreenTimeAccess = 'approved' | 'denied' | 'notDetermined';
 
@@ -88,13 +93,49 @@ export function selectionSize(id: SelectionId): number {
   return meta.applicationCount + meta.categoryCount + sites;
 }
 
+/*
+ * iOS keeps one blocklist for the whole app, so unshielding a list also unshields any of its
+ * apps another rule still holds (an app in both a limit and the bedtime list, say). After
+ * anything unshields, `reapplyStandingBlocks` puts back every rule still in force. The monitor
+ * extension does the same after each event it handles (`reapplyLocturneBlocks` in
+ * targets/ActivityMonitorExtension/DeviceActivityMonitorExtension.swift): keep the two in step.
+ */
+
+/** Set while the night lock holds the bedtime apps, from bedtime until the morning wake. */
+const NIGHT_HELD_KEY = 'locturne.nightHeld';
+
+const shield = (id: SelectionId) => blockSelection({ activitySelectionId: id }, TRIGGER);
+const unshield = (id: SelectionId) => unblockSelection({ activitySelectionId: id }, TRIGGER);
+
 /** Shield every app in the list. Stays up with the app closed, until `wakeApps`. */
 export function sleepApps(id: SelectionId): void {
-  blockSelection({ activitySelectionId: id }, TRIGGER);
+  shield(id);
+  if (id === 'night') userDefaultsSet(NIGHT_HELD_KEY, true);
 }
 
+/** Unshields the list, then re-shields whatever other rules still hold. */
 export function wakeApps(id: SelectionId): void {
-  unblockSelection({ activitySelectionId: id }, TRIGGER);
+  unshield(id);
+  if (id === 'night') userDefaultsSet(NIGHT_HELD_KEY, false);
+  reapplyStandingBlocks();
+}
+
+export function isNightHeld(): boolean {
+  return userDefaultsGet<boolean>(NIGHT_HELD_KEY) === true;
+}
+
+/**
+ * Shields every list a rule still holds: always-blocked, the night lock, a running Block
+ * now session, and limits used up today. Only ever adds shields. Safe to call any time.
+ */
+export function reapplyStandingBlocks(): void {
+  if (!isAvailable() || getAccess() !== 'approved') return;
+  const held: SelectionId[] = ['always'];
+  if (isNightHeld()) held.push('night');
+  const nap = readNap();
+  if (nap && Date.now() < nap.end) held.push(nap.list);
+  for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
+  for (const id of new Set(held)) if (hasSelection(id)) shield(id);
 }
 
 export function isAnyShieldUp(): boolean {
@@ -200,8 +241,11 @@ export function windowStarts(): { window: string; at: Date }[] {
     .sort((a, b) => +b.at - +a.at);
 }
 
-/** A nap in progress, kept in the App Group so it survives the app being closed. */
-export type ActiveNap = { start: number; end: number; list: SelectionId };
+/**
+ * A nap (GAME_PLAN's "Block now") in progress, kept in the App Group so it survives the app
+ * being closed. `list` is the bedtime apps or the session's own picks.
+ */
+export type ActiveNap = { start: number; end: number; list: 'night' | 'block' };
 
 const NAP_KEY = 'locturne.nap';
 const NAP_ACTIVITY = 'locturne-nap';
@@ -216,7 +260,7 @@ function clockOf(ms: number) {
  * whose `intervalDidEnd` unshields the list in the monitor extension, even with the app
  * closed. iOS refuses windows under 15 minutes, which the shortest nap already meets.
  */
-export async function startNap(list: SelectionId, minutes: number): Promise<ActiveNap> {
+export async function startNap(list: ActiveNap['list'], minutes: number): Promise<ActiveNap> {
   const start = Date.now();
   const nap: ActiveNap = { start, end: start + minutes * 60_000, list };
   configureActions({
@@ -229,18 +273,28 @@ export async function startNap(list: SelectionId, minutes: number): Promise<Acti
     { intervalStart: clockOf(nap.start), intervalEnd: clockOf(nap.end), repeats: false },
     [],
   );
-  sleepApps(list);
+  shield(list);
   userDefaultsSet(NAP_KEY, nap);
   return nap;
 }
 
-/** Wakes the nap's apps and forgets the nap. Safe to call when no nap is running. */
+/**
+ * Wakes the nap's apps (except those another rule still holds) and forgets the nap. Safe
+ * to call when no nap is running.
+ */
 export function endNap(): void {
   const nap = getNap();
   stopMonitoring([NAP_ACTIVITY]);
   cleanUpAfterActivity(NAP_ACTIVITY);
   userDefaultsRemove(NAP_KEY);
-  if (nap) wakeApps(nap.list);
+  if (nap) {
+    unshield(nap.list);
+    reapplyStandingBlocks();
+  }
+}
+
+function readNap(): ActiveNap | null {
+  return userDefaultsGet<ActiveNap>(NAP_KEY) ?? null;
 }
 
 /**
@@ -248,13 +302,107 @@ export function endNap(): void {
  * calling the extension.
  */
 export function getNap(): ActiveNap | null {
-  const nap = userDefaultsGet<ActiveNap>(NAP_KEY) ?? null;
+  const nap = readNap();
   if (nap && Date.now() >= nap.end) {
     userDefaultsRemove(NAP_KEY);
     stopMonitoring([NAP_ACTIVITY]);
     cleanUpAfterActivity(NAP_ACTIVITY);
-    wakeApps(nap.list);
+    unshield(nap.list);
+    reapplyStandingBlocks();
     return null;
   }
   return nap;
+}
+
+/** Forgets a list's picks, so a reused limit slot opens Apple's picker empty. */
+export function clearSelection(id: SelectionId): void {
+  const ids = userDefaultsGet<Record<string, string>>(SELECTION_IDS_KEY) ?? {};
+  if (!(id in ids)) return;
+  const rest = { ...ids };
+  delete rest[id];
+  userDefaultsSet(SELECTION_IDS_KEY, rest);
+}
+
+/** Where the library keeps every list's picks. */
+const SELECTION_IDS_KEY = 'familyActivitySelectionIds';
+
+/* Daily limits. The rules for editing them live in daily-limits.ts. */
+
+const LIMITS_KEY = 'locturne.limits';
+const LIMIT_EVENT = 'used-up';
+/** Written by the monitor extension when a limit is used up: the day, as YYYY-MM-DD. */
+const usedUpKey = (id: LimitId) => `locturne.limitReached.${id}`;
+
+export function getLimits(): DailyLimit[] {
+  return userDefaultsGet<DailyLimit[]>(LIMITS_KEY) ?? [];
+}
+
+export function saveLimits(limits: DailyLimit[]): void {
+  userDefaultsSet(LIMITS_KEY, limits);
+}
+
+export function limitUsedUpToday(id: LimitId): boolean {
+  return userDefaultsGet<string>(usedUpKey(id)) === dateKey(new Date());
+}
+
+/**
+ * Hands one limit to iOS: a daily window from midnight to 23:59 whose event fires once the
+ * list's apps have been used for `minutes` that day, and shields them, even with the app
+ * closed. The window's start each midnight unshields them again. Usage from earlier today
+ * counts, so a limit set at 4pm on an app already used for an hour shields it right away.
+ * Re-arm whenever the list or the minutes change: iOS keeps a copy of the picks.
+ */
+export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promise<void> {
+  const selection = getFamilyActivitySelectionId(limit.id);
+  if (!selection) return;
+  // A looser limit starts again from what's been used today, so forget today's used-up mark.
+  if (fresh) userDefaultsRemove(usedUpKey(limit.id));
+  configureActions({
+    activityName: limit.id,
+    callbackName: 'intervalDidStart',
+    actions: [{ type: 'unblockSelection', familyActivitySelectionId: limit.id }],
+  });
+  configureActions({
+    activityName: limit.id,
+    callbackName: 'eventDidReachThreshold',
+    eventName: LIMIT_EVENT,
+    actions: [{ type: 'blockSelection', familyActivitySelectionId: limit.id }],
+  });
+  await startMonitoring(
+    limit.id,
+    { intervalStart: { hour: 0, minute: 0 }, intervalEnd: { hour: 23, minute: 59 }, repeats: true },
+    [
+      {
+        familyActivitySelection: selection,
+        threshold: hourMinute(limit.minutes),
+        eventName: LIMIT_EVENT,
+        includesPastActivity: true,
+      },
+    ],
+  );
+  // If it was used up under the old number, wake it; the event fires again if it's still over.
+  if (fresh) unshield(limit.id);
+}
+
+/** Stops a limit, wakes its apps (unless another rule holds them) and forgets its picks. */
+export function removeLimit(id: LimitId): void {
+  stopMonitoring([id]);
+  cleanUpAfterActivity(id);
+  userDefaultsRemove(usedUpKey(id));
+  unshield(id);
+  clearSelection(id);
+  reapplyStandingBlocks();
+}
+
+/**
+ * Applies any looser limit edits whose bedtime has passed. Run when the app opens; until
+ * then the stricter limit simply stays, which is the safe side.
+ */
+export async function settleLimitChanges(now = new Date()): Promise<void> {
+  const settled = settleLimits(getLimits(), now);
+  if (settled.rearm.length === 0 && settled.removed.length === 0) return;
+  saveLimits(settled.limits);
+  for (const id of settled.removed) removeLimit(id);
+  for (const limit of settled.rearm) await armLimit(limit, { fresh: true });
+  reapplyStandingBlocks();
 }

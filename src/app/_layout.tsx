@@ -5,8 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { useStandingBlocks } from '@/hooks/use-standing-blocks';
+
 // Locturne is dark in both system appearances: the night sky never turns light.
 export default function RootLayout() {
+  useStandingBlocks();
   return (
     <GestureHandlerRootView style={styles.root}>
       <ThemeProvider value={DarkTheme}>

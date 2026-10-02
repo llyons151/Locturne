@@ -48,12 +48,14 @@ src/
   lib/
     haptics.ts                  tap / tick / thud / done (no-ops on web)
     text.ts                     noOrphan: keeps the last word off its own line
-    lock-state.ts               the lock's rules: phase (night/morning/day/off) and which apps sleep. Pure; tests in lock-state.test.ts (`npm test`)
+    lock-state.ts               the lock's rules: phase (night/morning/day/off) and which apps sleep, including Block now and used-up limits. Pure; tests in lock-state.test.ts (`npm test`)
+    daily-limits.ts             daily time limits: slots, stricter-now / looser-at-bedtime edits. Pure; tests in daily-limits.test.ts
     night-plan.ts               splits a night into the <45-minute windows iOS monitors. Pure; tests in night-plan.test.ts
-    screen-time.ts              the only file that calls react-native-device-activity (access, shield, arm/disarm the night)
+    screen-time.ts              the only file that calls react-native-device-activity (access, shield, arm/disarm the night, naps, limits, re-applying standing blocks)
 
   hooks/
     use-compact.ts              true on short phones (iPhone SE), so layouts tighten
+    use-standing-blocks.ts      on every app open: settles looser limits whose bedtime passed, re-shields every rule in force
 
   components/                   shared UI
     app-background.tsx          the night sky behind every tab
@@ -70,12 +72,13 @@ src/
 
   features/
     home/       home-screen.tsx, moon-lock.tsx
-    apps/       apps-list.tsx, catalog.ts
+    apps/       apps-list.tsx (bedtime, always and daily-limit groups), catalog.ts
+                limit-menu.ios.tsx = a limit's time as a system pull-down menu; limit-menu.tsx = web stand-in
     routine/    routine-screen.tsx (preview: local state; edits show when they start, from the next bedtime)
                 controls.ios.tsx = Apple's controls via @expo/ui (compact time picker, menus, system sheet);
                 controls.tsx = the web preview's stand-ins; control-types.ts is shared by both
-    nap/        nap-screen.tsx (tuck-in: shields the bedtime list, iOS wakes it at the end)
-                length-picker.ios.tsx = system segmented control; length-picker.tsx = web stand-in
+    nap/        nap-screen.tsx (GAME_PLAN's Block now: the bedtime apps or its own picks, 15 min to 4 hr; iOS wakes them at the end)
+                segmented.ios.tsx = system segmented control; segmented.tsx = web stand-in
     dev/        preset-lab/, text-lab/, screen-time-lab/
     onboarding/ (below)
 ```
@@ -94,8 +97,29 @@ tokens, and only SwiftUI's `Label(token)` can draw one as an icon and name. `Blo
 reads a selection the library saved in the App Group (`familyActivitySelectionIds[id]`,
 base64 JSON) and draws one row per app, category and site. React sets its height from
 `selectionSize(id)` × the row height, and bumps `revision` after the picker closes so the
-rows re-read. It reads the library's storage format directly, so recheck it on upgrades.
+rows re-read. Rows are only made once the view is in a window, and a re-read changes just
+the rows that were added or removed (they fade while React animates the group's height),
+because every rebuilt `Label(token)` waits on iOS for its icon again. It reads the library's storage format directly, so recheck it on upgrades.
 Changing anything in `modules/` needs a new development build.
+
+### Overlapping rules (always, night, Block now, daily limits)
+
+iOS keeps **one** blocklist per app, and unshielding a list removes its apps from it, even
+apps another rule still holds. So nothing relies on unshielding being precise. After any
+unshield, the standing rules are put back:
+
+- `reapplyStandingBlocks()` in `lib/screen-time.ts` (from the app, and on every app open via
+  `useStandingBlocks`), and
+- `reapplyLocturneBlocks()` at the bottom of `targets/ActivityMonitorExtension/DeviceActivityMonitorExtension.swift`
+  (after every Screen Time event, with the app closed).
+
+Both read the same App Group keys and **must stay in step**: `locturne.nightHeld` (set by a
+night window's start, cleared by the morning wake), `locturne.nap`, `locturne.limits` and
+`locturne.limitReached.<id>` (the day a limit was used up, written by the extension).
+
+Monitored activities, against iOS's cap of about 20: up to 16 `night-*` windows, one
+`locturne-nap`, and up to three `limit-*` (each a midnight-to-23:59 daily window with a usage
+threshold event). Each list is its own selection id: `night`, `always`, `block`, `limit-0..2`.
 
 ## How onboarding fits together
 

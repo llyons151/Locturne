@@ -23,6 +23,10 @@ export function ScreenTimePicker({
   return (
     <DeviceActivitySelectionSheetViewPersisted
       familyActivitySelectionId={list}
+      // Required in practice: the library only loads the saved picks into the sheet once
+      // this is set. Without it the sheet opens empty and saves that, wiping the list.
+      // false is the FamilyActivitySelection default every existing list was made with.
+      includeEntireCategory={false}
       style={styles.anchor}
       onDismissRequest={onClose}
       onSelectionChange={(event) => {

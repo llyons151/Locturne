@@ -32,7 +32,9 @@ He's strict about the situation and never shames the user.
   paywall makes paid creators profitable.
 
 **What we compete on:** the morning hook, the voice, and never failing silently.
-**Not:** blocking features, stats, or sleep tracking.
+**Not:** blocking features, stats, or sleep tracking. v1 still ships the basic
+daytime controls a paying user expects (see "Daytime controls"), but only as table
+stakes, not as a feature race with Opal.
 
 ## Core loop
 
@@ -57,6 +59,35 @@ Rules carried over from the previous plan:
 - Nights can be switched off per weekday. A night that's off has no morning lock
   either (decided 2026-10-01). The always-blocked list still applies.
 - The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
+
+## Daytime controls (v1, decided 2026-10-01)
+
+People paying for a blocker will be upset if they can't block an app at 2pm, so v1
+gives them three plain controls on top of the night and morning loop:
+
+1. **Always-blocked list.** Blocked in every state (already in the core loop).
+2. **Block now.** Pick apps and a duration, then tap go. Loc "naps" for the session.
+   It starts right away, because it only tightens things. Only an emergency unlock
+   or a pass can end it early. Built on the same code as naps, which move up from
+   v1.1 to v1.
+3. **Daily time limits.** For example, Instagram for 30 minutes a day, using the
+   Screen Time usage-threshold events. When the limit is hit, the app is blocked
+   until the next day. Like every other settings change, a looser limit takes
+   effect from the next bedtime.
+
+Precedence, strongest first: always-blocked, then bedtime or morning lock, then
+Block now, then a reached daily limit. Walking 200 steps never lifts Block now or a
+daily limit. All of this lives in `src/lib/lock-state.ts`.
+
+Guardrails:
+- iOS caps how many activities one app can monitor at once (about 20). Budget the
+  bedtime chain first. Limits and sessions get whatever is left, and the app says
+  so plainly if a new limit doesn't fit.
+- The nightly self-check and the revocation warnings also cover these controls.
+- **Out of scope:** multiple custom daytime schedules, website-only rules and usage
+  stats.
+- The App Store listing and paywall still sell a sleep app that also blocks, not a
+  general blocker.
 
 ## Humane exits (required for v1)
 
@@ -163,6 +194,7 @@ If any of these fail, stop and redesign.
 - Morning walk screen with a live count and his lines.
 - Custom shield text.
 - Always-blocked list.
+- Block now (with naps) and daily time limits.
 - Passes, emergency unlock and the accessible alternative.
 - Reliability checks and honest status.
 - Morning share card ("Bed 11:41. Up 7:02. 213 steps. Still disappointed.").
@@ -172,7 +204,7 @@ If any of these fail, stop and redesign.
 - A real alarm (AlarmKit) to lead with the morning.
 - Streak widget and a bedtime Live Activity.
 - Buddy/couples mode: a partner gets a message if bedtime breaks; no money moves.
-- Naps, both scheduled and "tuck him in now".
+- Scheduled naps ("tuck him in now" ships in v1 as Block now).
 - Put him to bed early.
 - An opt-in "went to bed earlier" dataset for a published result later.
 
