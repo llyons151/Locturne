@@ -108,4 +108,6 @@ and the pedometer.
 
 ## Results on the iPhone
 
-Nothing yet.
+- **2026-10-02: first development build finished on EAS** (build `c26d2c10`). The app
+  and all three Swift extensions compile and sign with the Family Controls entitlement, which
+  settles the `objectVersion` worry above. Install and lab results still to come.
