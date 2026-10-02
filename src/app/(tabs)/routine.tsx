@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { RoutineScreen } from '@/features/routine/routine-screen';
 
-export default function RoutineScreen() {
-  return <PlaceholderScreen title="Routine" description="Bedtime, morning start, daily naps, and the step target." />;
+export default function RoutineTab() {
+  return <RoutineScreen />;
 }

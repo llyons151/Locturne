@@ -64,12 +64,18 @@ src/
     glass-card.tsx              frosted card used on Home
     app-icons.tsx, ios-glyphs.tsx  drawn app icons (TikTok, Instagram, Safari…)
     app-picker.tsx              stand-in for Apple's app picker (sheet + card)
-    placeholder-screen.tsx      unbuilt tabs
+    grouped-list.tsx            Settings-style Section, ValueRow, ControlRow, ChoiceRow, and EditSheet (web preview only)
+    placeholder-screen.tsx      unbuilt tabs (You)
     screen-time-picker.tsx      Apple's real app picker (the UI half of lib/screen-time.ts)
 
   features/
     home/       home-screen.tsx, moon-lock.tsx
     apps/       apps-list.tsx, catalog.ts
+    routine/    routine-screen.tsx (preview: local state; edits show when they start, from the next bedtime)
+                controls.ios.tsx = Apple's controls via @expo/ui (compact time picker, menus, system sheet);
+                controls.tsx = the web preview's stand-ins; control-types.ts is shared by both
+    nap/        nap-screen.tsx (tuck-in: shields the bedtime list, iOS wakes it at the end)
+                length-picker.ios.tsx = system segmented control; length-picker.tsx = web stand-in
     dev/        preset-lab/, text-lab/, screen-time-lab/
     onboarding/ (below)
 ```

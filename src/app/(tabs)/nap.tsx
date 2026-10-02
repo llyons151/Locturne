@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { NapScreen } from '@/features/nap/nap-screen';
 
-export default function NapScreen() {
-  return <PlaceholderScreen title="Nap" description="Tuck Loc in for a 15, 30, or 60 minute nap." />;
+export default function NapTab() {
+  return <NapScreen />;
 }

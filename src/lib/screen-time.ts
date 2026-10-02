@@ -199,3 +199,62 @@ export function windowStarts(): { window: string; at: Date }[] {
     .map((e) => ({ window: e.activityName, at: e.lastCalledAt }))
     .sort((a, b) => +b.at - +a.at);
 }
+
+/** A nap in progress, kept in the App Group so it survives the app being closed. */
+export type ActiveNap = { start: number; end: number; list: SelectionId };
+
+const NAP_KEY = 'locturne.nap';
+const NAP_ACTIVITY = 'locturne-nap';
+
+function clockOf(ms: number) {
+  const d = new Date(ms);
+  return { hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() };
+}
+
+/**
+ * Shields `list` now and hands the wake-up to iOS: a one-off window from now to the end,
+ * whose `intervalDidEnd` unshields the list in the monitor extension, even with the app
+ * closed. iOS refuses windows under 15 minutes, which the shortest nap already meets.
+ */
+export async function startNap(list: SelectionId, minutes: number): Promise<ActiveNap> {
+  const start = Date.now();
+  const nap: ActiveNap = { start, end: start + minutes * 60_000, list };
+  configureActions({
+    activityName: NAP_ACTIVITY,
+    callbackName: 'intervalDidEnd',
+    actions: [{ type: 'unblockSelection', familyActivitySelectionId: list }],
+  });
+  await startMonitoring(
+    NAP_ACTIVITY,
+    { intervalStart: clockOf(nap.start), intervalEnd: clockOf(nap.end), repeats: false },
+    [],
+  );
+  sleepApps(list);
+  userDefaultsSet(NAP_KEY, nap);
+  return nap;
+}
+
+/** Wakes the nap's apps and forgets the nap. Safe to call when no nap is running. */
+export function endNap(): void {
+  const nap = getNap();
+  stopMonitoring([NAP_ACTIVITY]);
+  cleanUpAfterActivity(NAP_ACTIVITY);
+  userDefaultsRemove(NAP_KEY);
+  if (nap) wakeApps(nap.list);
+}
+
+/**
+ * The running nap, or null. A nap past its end is tidied up here, in case iOS was late
+ * calling the extension.
+ */
+export function getNap(): ActiveNap | null {
+  const nap = userDefaultsGet<ActiveNap>(NAP_KEY) ?? null;
+  if (nap && Date.now() >= nap.end) {
+    userDefaultsRemove(NAP_KEY);
+    stopMonitoring([NAP_ACTIVITY]);
+    cleanUpAfterActivity(NAP_ACTIVITY);
+    wakeApps(nap.list);
+    return null;
+  }
+  return nap;
+}
