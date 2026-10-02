@@ -110,4 +110,18 @@ and the pedometer.
 
 - **2026-10-02: first development build finished on EAS** (build `c26d2c10`). The app
   and all three Swift extensions compile and sign with the Family Controls entitlement, which
-  settles the `objectVersion` worry above. Install and lab results still to come.
+  settles the `objectVersion` worry above.
+- **2026-10-02: manual blocking works on the iPhone.** Through the lab: Screen Time access,
+  Apple's picker, and shielding the picked apps all work. Shielded icons on the home
+  screen are greyed out by iOS; apps can't change that look (see below).
+- Still to check from the lab: that the shield stays up with Locturne fully closed, the
+  shield's text and moon icon, Wake, and the step reading.
+
+### Home-screen icons can't be customised
+
+Asked 2026-10-02: could blocked apps show a little moon instead of being greyed out? No.
+iOS draws the dimmed icon itself, and no API lets an app badge or restyle another app's
+icon. What Locturne controls is the shield that appears when a blocked app is opened: the
+icon (currently SF Symbol `moon.zzz.fill`), title, subtitle, colours and buttons. That's
+where his moon and voice go. ManagedSettings can also hide apps from the home screen
+entirely, which is a different product decision.
