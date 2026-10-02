@@ -10,7 +10,10 @@
     "ios": {
       "bundleIdentifier": "com.lukelyons.locturne",
       "icon": "./assets/expo.icon",
-      "appleTeamId": "9N5WZT8LV3"
+      "appleTeamId": "9N5WZT8LV3",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -57,7 +60,45 @@
     },
     "extra": {
       "eas": {
-        "projectId": "f2cf242c-0db6-467f-9e18-1f8a6ccec61a"
+        "projectId": "f2cf242c-0db6-467f-9e18-1f8a6ccec61a",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.lukelyons.locturne.ShieldConfiguration",
+                  "targetName": "ShieldConfiguration",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.com.lukelyons.locturne"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.lukelyons.locturne.ShieldAction",
+                  "targetName": "ShieldAction",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.com.lukelyons.locturne"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.lukelyons.locturne.DeviceActivityMonitor",
+                  "targetName": "ActivityMonitorExtension",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.com.lukelyons.locturne"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "llyons151"
