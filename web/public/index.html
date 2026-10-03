@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Locturne</title>
+    <meta
+      name="description"
+      content="Your apps go to sleep at bedtime and stay asleep until you get out of bed. An iPhone app, coming early 2027. Join the waitlist."
+    />
+    <meta name="theme-color" content="#16254F" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="https://locturne.com/" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://locturne.com/" />
+    <meta property="og:title" content="Locturne" />
+    <meta property="og:description" content="Your apps sleep until you get out of bed." />
+    <meta property="og:image" content="https://locturne.com/assets/og.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" as="image" href="/assets/moon.webp" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="night">
+    <main class="landing">
+      <header class="topbar">
+        <a class="wordmark" href="/">Locturne</a>
+        <span class="topbar-note">iPhone · early 2027</span>
+      </header>
+
+      <img class="moon" src="/assets/moon.webp" width="280" height="280" alt="" />
+
+      <h1 class="hero voice">Your apps sleep until you get out of bed.</h1>
+      <p class="lede">
+        At bedtime, TikTok, Instagram and whatever else you pick go to sleep. In the morning they
+        stay asleep until you go downstairs or walk 200 steps. Not until a clock says so. Until
+        you’re up.
+      </p>
+
+      <ul class="beats" aria-label="How it works">
+        <li><span class="beat-label">Bedtime</span><span class="beat-text">Your apps go to sleep. So do I.</span></li>
+        <li><span class="beat-label">Morning</span><span class="beat-text">They stay asleep until you’re up. Same as me.</span></li>
+        <li><span class="beat-label">Up means up</span><span class="beat-text">Downstairs or a short walk. They wake up. I do too, unfortunately.</span></li>
+      </ul>
+
+      <section class="join" id="join" aria-labelledby="join-line">
+        <form id="waitlist" action="/api/waitlist" method="post" novalidate>
+          <p class="join-line voice" id="join-line">I’m Loc. Raccoon. I’d like to sleep.</p>
+          <label class="visually-hidden" for="email">Email address</label>
+          <input
+            class="field"
+            id="email"
+            name="email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="you@example.com"
+            maxlength="254"
+            required
+          />
+          <div class="trap" aria-hidden="true">
+            <label for="company">Leave this empty</label>
+            <input id="company" name="company" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+          <input type="hidden" name="src" />
+          <input type="hidden" name="utm_source" />
+          <input type="hidden" name="utm_medium" />
+          <input type="hidden" name="utm_campaign" />
+          <input type="hidden" name="utm_content" />
+          <input type="hidden" name="utm_term" />
+          <input type="hidden" name="ref" />
+          <input type="hidden" name="t" />
+          <button class="cta" type="submit">Join the waitlist</button>
+          <p class="status" id="status" role="status" aria-live="polite"></p>
+          <p class="fine">
+            An email for the beta and one at launch. That’s it.
+            <a href="/privacy">Privacy</a>
+          </p>
+        </form>
+
+        <div class="done" id="done" hidden tabindex="-1">
+          <p class="voice">You’re on the list. Go to sleep.</p>
+          <p>We’ll email you when the beta opens and when Locturne is on the App Store.</p>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="mailto:hello@locturne.com">Contact</a>
+        <span class="copy">© 2026 Locturne</span>
+      </footer>
+    </main>
+    <script src="/waitlist.js" defer></script>
+  </body>
+</html>

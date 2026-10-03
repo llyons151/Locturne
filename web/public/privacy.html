@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Privacy Policy · Locturne</title>
+    <meta name="description" content="How Locturne handles your data. The apps you block, your steps and your stairs stay on your iPhone." />
+    <meta name="theme-color" content="#ECE8F5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16254F" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href="https://locturne.com/privacy" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="paper">
+    <!--
+      Written from the app's code on 2026-10-03 (see docs/WEBSITE.md for the facts it rests on).
+      Update it whenever the app starts collecting something new, and before adding any SDK.
+      TODO(owner): fill every <span class="todo"> before publishing; grep for "todo".
+    -->
+    <div class="doc">
+      <header class="doc-top">
+        <a class="wordmark" href="/">Locturne</a>
+        <nav aria-label="Legal">
+          <a href="/privacy" aria-current="page">Privacy</a>
+          <a href="/terms">Terms</a>
+        </nav>
+      </header>
+
+      <div class="doc-head">
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last updated October 3, 2026</p>
+      </div>
+
+      <section class="pane summary" aria-labelledby="short">
+        <h2 id="short">The short version</h2>
+        <ul>
+          <li>
+            <strong>We never see which apps you block.</strong> Apple gives Locturne sealed tokens instead of app
+            names, and they stay on your iPhone.
+          </li>
+          <li><strong>Your steps, stairs and scans are checked on your phone.</strong> They are never sent to us.</li>
+          <li>No account, no ads, no selling your data, and no tracking you across other companies’ apps or websites.</li>
+          <li>
+            The app sends us two things: your subscription status (through RevenueCat) and how the app is being used,
+            in counts and events (through PostHog). Neither includes the apps you block.
+          </li>
+          <li>If you join the waitlist, we keep your email to tell you about the beta and the launch. Nothing else.</li>
+        </ul>
+      </section>
+
+      <section class="pane toc-pane" aria-label="Contents">
+        <ol class="toc">
+          <li><a href="#who">Who we are</a></li>
+          <li><a href="#device">What stays on your iPhone</a></li>
+          <li><a href="#screen-time">Screen Time</a></li>
+          <li><a href="#services">What leaves your iPhone</a></li>
+          <li><a href="#website">The website and waitlist</a></li>
+          <li><a href="#never">What we never do</a></li>
+          <li><a href="#retention">How long we keep data</a></li>
+          <li><a href="#choices">Your choices and rights</a></li>
+          <li><a href="#children">Children and teens</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#changes">Changes</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ol>
+      </section>
+
+      <article class="pane prose">
+        <h2 id="who">1. Who we are</h2>
+        <p>
+          Locturne is an iPhone app that puts the apps you choose to sleep at bedtime and keeps them asleep in the
+          morning until you get out of bed. This policy covers the Locturne app (including its Screen Time extensions)
+          and the website locturne.com. “Locturne”, “we” and “us” mean
+          <span class="todo">[TODO: legal name of the business or sole proprietor]</span>, the developer of Locturne.
+          You can reach us at <a href="mailto:hello@locturne.com">hello@locturne.com</a>.
+        </p>
+
+        <h2 id="device">2. What stays on your iPhone</h2>
+        <p>
+          Locturne has no account and no server of its own for the app. Almost everything it handles is stored in the
+          app’s private storage on your iPhone, and in an
+          <em>App Group</em>: a storage area on your phone that only Locturne and its own extensions can read, so a
+          block can start at bedtime while the app is closed. None of the following is sent to us.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">What</th>
+              <th scope="col">Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Your app selections (as Apple’s sealed tokens)</td>
+              <td>To block the apps, categories and websites you picked. See <a href="#screen-time">Screen Time</a>.</td>
+            </tr>
+            <tr>
+              <td>Your routine: bedtime, morning start, which nights are on, wake-up method, step target, daily limits</td>
+              <td>To know when to block and what wakes your apps.</td>
+            </tr>
+            <tr>
+              <td>
+                Step counts from Apple’s motion sensors (Core Motion), counted from your morning start time
+              </td>
+              <td>For the “walk it off” wake-up. Locturne doesn’t use Apple Health.</td>
+            </tr>
+            <tr>
+              <td>Height changes from the barometer, during a short session of a few minutes that you start</td>
+              <td>For the “go downstairs” wake-up. Only the change in height is used, not your location.</td>
+            </tr>
+            <tr>
+              <td>Which way the phone is facing (accelerometer)</td>
+              <td>To turn the nap clock when you hold the phone sideways.</td>
+            </tr>
+            <tr>
+              <td>The camera, while you scan your code</td>
+              <td>
+                For the “scan your code” wake-up. The camera only reads the code. No photo or video is recorded or
+                saved. The text of the code you register is stored so the morning scan can be matched to it.
+              </td>
+            </tr>
+            <tr>
+              <td>Your mornings: when you proved you were up, and how (steps, stairs, scan, a pass or the emergency unlock)</td>
+              <td>To wake your apps, count your monthly passes, and show Loc’s lines for firsts.</td>
+            </tr>
+            <tr>
+              <td>
+                A short technical log of when iOS ran Locturne’s blocking (times, schedule names, whether a block was up)
+              </td>
+              <td>
+                So Locturne can tell you honestly whether last night’s block started. It keeps about four nights and
+                overwrites older entries.
+              </td>
+            </tr>
+            <tr>
+              <td>Your answers in the setup questions</td>
+              <td>To set up your routine and show your estimate. Some answers are also sent as analytics, see below.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          <strong>Notifications</strong> (the bedtime heads-up, the morning nudge, the trial reminder and warnings) are
+          scheduled on your iPhone. Locturne doesn’t send push notifications from a server.
+        </p>
+        <p>
+          <strong>Sharing is always your choice.</strong> When you tap a share button (for example on your morning card,
+          your estimate or a beta diagnostics report), iOS’s share sheet opens and you choose where it goes. The
+          diagnostics report contains technical details about schedules and blocks, not the apps you picked.
+        </p>
+        <p>
+          <strong>Ratings.</strong> Locturne may ask iOS to show Apple’s rating prompt. Apple handles it and decides
+          whether it appears.
+        </p>
+
+        <h2 id="screen-time">3. Screen Time</h2>
+        <p>
+          Locturne uses Apple’s Screen Time frameworks (Family Controls, Managed Settings and Device Activity) with
+          your permission. When you pick apps in Apple’s app picker, iOS gives Locturne opaque tokens. Locturne cannot
+          turn a token into an app name or icon; only iOS can, and it draws them on screen for you. We never learn
+          which apps, categories or websites you chose.
+        </p>
+        <p>
+          For daily time limits, iOS tells Locturne’s extension when a limit you set has been reached, so the app can
+          be put to sleep. Locturne doesn’t read your usage history or how long you spend in any app.
+        </p>
+        <p>
+          <strong>No Screen Time data ever leaves your iPhone.</strong> It isn’t sent to us or to any service provider,
+          isn’t used for advertising or analytics, and is never sold or shared. Locturne’s Screen Time extensions
+          contain no analytics and make no network requests.
+        </p>
+        <p>
+          You can turn off Locturne’s Screen Time access at any time in iOS Settings, under Screen Time. Locturne will
+          tell you plainly that it can no longer block anything.
+        </p>
+
+        <h2 id="services">4. What leaves your iPhone</h2>
+        <p class="note">
+          RevenueCat and PostHog are being added to Locturne before its public release. This section describes how
+          they work in the released app. Early test builds may not include them.
+        </p>
+
+        <h3>Purchases: Apple and RevenueCat</h3>
+        <p>
+          Subscriptions are sold and billed by Apple through the App Store. We never see your payment card or Apple ID
+          details. We use <a href="https://www.revenuecat.com/privacy" rel="noopener">RevenueCat</a> to check whether
+          your subscription is active, restore purchases and choose which introductory offer you see. RevenueCat
+          receives your App Store purchase and subscription history (products, dates, prices, trial status), an
+          anonymous ID it creates for this app install, your country and currency from the App Store, and basic device
+          and app details (model, iOS version, app version).
+        </p>
+
+        <h3>Product analytics: PostHog</h3>
+        <p>
+          We use <a href="https://posthog.com/privacy" rel="noopener">PostHog</a> to learn whether Locturne actually
+          works for people: where setup gets confusing, and whether blocks start and mornings unlock. Analytics run
+          in the main app only, never in the Screen Time extensions. PostHog receives:
+        </p>
+        <ul>
+          <li>events such as which setup screens you saw, whether you allowed Screen Time access, which wake-up method you chose, whether a trial started, whether a block started, when a morning unlocked, and passes or emergency unlocks used;</li>
+          <li>some of your setup answers, such as how you heard about Locturne;</li>
+          <li>the <em>number</em> of apps you picked, never which ones;</li>
+          <li>error reports;</li>
+          <li>a random ID for this install, your device model, iOS version, app version and language, and an approximate location (country or region) that PostHog works out from your IP address.</li>
+        </ul>
+        <p>
+          PostHog doesn’t receive your name, email, contacts, location from GPS, Health data, or anything about the apps
+          you block. It isn’t used for advertising.
+          <span class="todo">[TODO: confirm PostHog region (US or EU) and whether IP capture is disabled, then update this paragraph.]</span>
+        </p>
+
+        <h3>Legal bases (EEA and UK)</h3>
+        <p>
+          We process data to provide the app and your subscription (performance of a contract), to understand and
+          fix how the app works (our legitimate interest in a working product, balanced against your privacy by
+          keeping analytics free of app selections and personal details), and to email the waitlist (your consent,
+          which you can withdraw at any time). Our service providers are based in the United States, so your data
+          may be processed there under the safeguards those providers offer, such as Standard Contractual Clauses.
+        </p>
+
+        <h2 id="website">5. The website and waitlist</h2>
+        <p>
+          locturne.com is hosted by <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare</a>.
+          Like any web host, Cloudflare processes your IP address and browser details to deliver the site and protect
+          it from abuse. The site sets no cookies and loads no ads or trackers.
+        </p>
+        <p>If you join the waitlist, we store:</p>
+        <ul>
+          <li>your email address;</li>
+          <li>the tag on the link you followed, if there was one (for example which video you came from: <code>?src=</code> and <code>utm_</code> tags);</li>
+          <li>the name of the site that sent you, such as tiktok.com (not the full address);</li>
+          <li>your country, as Cloudflare reports it; and</li>
+          <li>the date you signed up.</li>
+        </ul>
+        <p>
+          We don’t store your IP address with your sign-up. The page remembers the link tag in your browser’s session
+          storage until you close the tab, so it isn’t lost if you open another page first.
+        </p>
+        <p>
+          We use your email only to tell you about the Locturne beta and launch, and the link tags only to count which
+          videos bring sign-ups. We don’t sell the list or share it for anyone else’s marketing.
+          <span class="todo">[TODO: if an email service (e.g. Resend, Buttondown) sends these emails, name it here.]</span>
+          You can unsubscribe from any email, or ask us to delete your sign-up.
+        </p>
+
+        <h2 id="never">6. What we never do</h2>
+        <ul>
+          <li>Sell your personal information, or share it for cross-context behavioral advertising.</li>
+          <li>Show ads, or use any advertising SDK.</li>
+          <li>Track you across other companies’ apps or websites, or use Apple’s advertising identifier.</li>
+          <li>Send any Screen Time data off your iPhone, or use it for anything except blocking the apps you chose.</li>
+          <li>Use Apple Health, your contacts, your photos or your precise location.</li>
+        </ul>
+
+        <h2 id="retention">7. How long we keep data</h2>
+        <ul>
+          <li><strong>On your iPhone:</strong> until you delete Locturne. Deleting the app removes its data, including the App Group.</li>
+          <li><strong>RevenueCat:</strong> purchase records are kept while you subscribe and afterwards as needed for tax, accounting and fraud prevention.</li>
+          <li><strong>PostHog:</strong> analytics events are kept for up to <span class="todo">[TODO: e.g. 12]</span> months, then deleted.</li>
+          <li><strong>Waitlist:</strong> until you unsubscribe or ask us to delete it, or until we stop using the list.</li>
+        </ul>
+
+        <h2 id="choices">8. Your choices and rights</h2>
+        <ul>
+          <li><strong>Screen Time, Motion &amp; Fitness, Camera and Notifications</strong> can each be turned off in iOS Settings. Locturne keeps working as far as it can and tells you what it can no longer do.</li>
+          <li><strong>Delete the app</strong> to erase everything Locturne stored on your iPhone. A reinstall starts with a new random analytics ID. Deleting the app doesn’t cancel a subscription; see the <a href="/terms#subscriptions">Terms</a>.</li>
+          <li><strong>Ask us</strong> to access, correct, delete or export data we or our providers hold about you, or to object to its use. Email <a href="mailto:hello@locturne.com">hello@locturne.com</a>. We’ll reply within 30 days and won’t treat you differently for asking.</li>
+        </ul>
+        <p>
+          Depending on where you live (for example the EEA, the UK, California or other US states), you may have
+          these rights by law, and you can complain to your local data protection authority. Because we don’t sell or
+          share personal information for advertising, there is nothing to opt out of; if that ever changed, we would
+          update this policy and give you a way to opt out first.
+        </p>
+
+        <h2 id="children">9. Children and teens</h2>
+        <p>
+          Locturne is not directed to children under 13, and our <a href="/terms#eligibility">Terms</a> require users
+          to be at least 13. We don’t knowingly collect personal information from children under 13. If you believe a
+          child under 13 has given us personal information (for example by joining the waitlist), email us and we
+          will delete it.
+        </p>
+        <p>
+          Teens aged 13 to 17 need a parent or guardian’s permission to use Locturne. On a child account, Apple’s Ask
+          to Buy sends purchases to a parent to approve. If iOS gives Locturne an age range, it’s used on your iPhone
+          to apply the rules for that age and isn’t sent to us.
+        </p>
+
+        <h2 id="security">10. Security</h2>
+        <p>
+          Data on your iPhone is protected by iOS, in storage only Locturne and its extensions can read. Data sent to
+          RevenueCat, PostHog and the website is encrypted in transit (HTTPS). Access to the waitlist is limited to the
+          people who run Locturne. No system is perfectly secure; if a breach affected your data, we would tell you as
+          the law requires.
+        </p>
+
+        <h2 id="changes">11. Changes to this policy</h2>
+        <p>
+          If Locturne starts collecting something new, we’ll update this page before the app does, change the date at
+          the top, and for significant changes tell you in the app or by email.
+        </p>
+
+        <h2 id="contact">12. Contact</h2>
+        <p>
+          Questions or requests: <a href="mailto:hello@locturne.com">hello@locturne.com</a><br />
+          <span class="todo">[TODO: postal address, if you want one listed; required for some EU/UK requests]</span>
+        </p>
+      </article>
+
+      <footer class="doc-foot">
+        <a href="/">Locturne</a>
+        <a href="/terms">Terms of Use</a>
+        <span>© 2026 Locturne</span>
+      </footer>
+    </div>
+  </body>
+</html>
