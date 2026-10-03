@@ -115,6 +115,27 @@ export async function requestAccess(): Promise<ScreenTimeAccess> {
   return toAccess(await pollAuthorizationStatus());
 }
 
+/*
+ * Locturne's own records in the App Group (routine, morning proofs, heartbeats), so the
+ * extensions can read them with the app closed. Off iOS they live in memory, which keeps the
+ * web preview and the tests working.
+ */
+const memory = new Map<string, unknown>();
+
+export function sharedGet<T>(key: string): T | undefined {
+  return isAvailable() ? userDefaultsGet<T>(key) : (memory.get(key) as T | undefined);
+}
+
+export function sharedSet(key: string, value: unknown): void {
+  if (isAvailable()) userDefaultsSet(key, value);
+  else memory.set(key, value);
+}
+
+export function sharedRemove(key: string): void {
+  if (isAvailable()) userDefaultsRemove(key);
+  else memory.delete(key);
+}
+
 /** True once the person has picked apps for this list. */
 export function hasSelection(id: SelectionId): boolean {
   return !!getFamilyActivitySelectionId(id);
