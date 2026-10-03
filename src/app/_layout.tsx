@@ -20,6 +20,7 @@ export default function RootLayout() {
             name="onboarding"
             options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
           />
+          <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>
