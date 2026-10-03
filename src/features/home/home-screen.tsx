@@ -1,55 +1,66 @@
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, router, useFocusEffect, type Href } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppTile } from '@/components/app-icons';
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
 import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/components/night-sky';
+import { useProtection } from '@/hooks/use-protection';
+import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
 import { tap } from '@/lib/haptics';
+import type { Routine, WakeMethod } from '@/lib/routine';
+import { isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
+import { clockLabel } from '@/lib/shield-copy';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import { MoonLock } from './moon-lock';
+import { useReviewPrompt } from './review-prompt';
+import { useHomeState } from './use-home-state';
 
 /**
  * Home is a status screen, not a dashboard (docs/HOME_SPEC.md): Loc's line, one line of
  * honest status, the one thing to do next, and the apps and schedule one tap from editing.
  *
- * Design preview: placeholder data, starting at night. Tapping the state label cycles
- * the states for review until real schedules exist.
+ * The state is real (`useHomeState`): the lock's phase from `readLock`, this morning's
+ * proof, and the routine. On his firsts (first night, first morning, first time up) his
+ * script from `first-run.ts` takes the line. In development builds, tapping the state label
+ * still cycles the looks for review.
  */
-type HomeState = 'night' | 'morning' | 'day' | 'off';
-const STATES: HomeState[] = ['night', 'morning', 'day', 'off'];
-
-const PREVIEW = {
-  bedtime: '11:00 PM',
-  wake: '7:00 AM',
-  goal: 200,
-  steps: 84,
-  apps: ['TikTok', 'Instagram', 'YouTube', 'X'],
-  appCount: 7,
-};
+type HomeView = 'night' | 'morning' | 'day' | 'off' | 'unprotected';
+const VIEWS: HomeView[] = ['night', 'morning', 'day', 'off', 'unprotected'];
 
 /** Loc's lines, from the VOICE.md line bank. */
-const LINES: Record<HomeState, string> = {
+const LINES: Record<Exclude<HomeView, 'unprotected'>, string> = {
   night: "Shh. I'm sleeping.\nSo are they.",
-  morning: "I can hear you walking. I'm ignoring it.",
+  // VOICE.md, "Morning, 0 steps". The live count and its lines live on the wake-up screen.
+  morning: 'No.',
   day: "I'm awake. Technically.",
-  // Serious: the problem first, stated plainly (VOICE.md, "Clear when it matters").
-  off: 'Screen Time access is off.',
+  off: "Night off. I'm sleeping anyway.",
 };
 
-const LABELS: Record<HomeState, string> = {
+const LABELS: Record<HomeView, string> = {
   night: 'Tonight',
   morning: 'This morning',
   day: 'Today',
-  off: 'Not protected',
+  off: 'Night off',
+  unprotected: 'Not protected',
 };
+
+/** The morning's one action, by method. All of them open the wake-up screen. */
+const MORNING_ACTION: Record<WakeMethod, string> = {
+  downstairs: 'Go downstairs',
+  steps: 'Start walking',
+  scan: 'Scan my code',
+};
+
+/** Built by the wake-up and exits work; typed loosely until those routes are merged. */
+const WAKE_ROUTE = '/wake' as Href;
+const EXITS_ROUTE = '/exits' as Href;
 
 /** The lock closes once the moon has nearly settled. */
 const LOCK_DELAY_MS = HOME_RISE_MS * 0.7;
@@ -63,38 +74,80 @@ type Symbol = SymbolViewProps['name'];
 const sym = (ios: string, android: string): Symbol =>
   ({ ios, android, web: android }) as Symbol;
 
+/**
+ * Is the night that starts at `start` switched on? A night belongs to its evening, which is
+ * the day before its morning: the same day as `start` unless bedtime is after midnight.
+ */
+function nightIsOn(start: Date, routine: Routine) {
+  const evening = new Date(start);
+  if (routine.bedtime < routine.morningStart) evening.setDate(evening.getDate() - 1);
+  return routine.activeNights.includes(evening.getDay());
+}
+
 export function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
-  const [state, setState] = useState<HomeState>('night');
+  const [{ lock, routine, proof }] = useHomeState();
 
-  // Bumped each time Home opens (or the preview state changes): replays the entrance
-  // in step with the moon rising.
+  // HEALTH SLOT: the honest "protection is off" state comes from here.
+  // TODO(useHealth): once `useHealth()` is merged, read its status instead. It should also
+  // catch armed nights that iOS dropped and a monitor extension that stopped reporting.
+  const [protection] = useProtection();
+  const unprotected = protection === 'off' || protection === 'notSetUp';
+
+  // Development only: tap the label to see each look without waiting for the clock.
+  const [preview, setPreview] = useState<HomeView | null>(null);
+  const actual: HomeView = unprotected ? 'unprotected' : lock.phase;
+  const view = preview ?? actual;
+
+  // Bumped each time Home opens: replays the entrance in step with the moon rising. The
+  // keys below also include the look, so a new phase (say, the morning unlocking) fades in.
   const [visit, setVisit] = useState(0);
   useFocusEffect(useCallback(() => setVisit((v) => v + 1), []));
+
+  // His firsts: shown on the real state only, and remembered by the morning they belong to.
+  const moment = unprotected || preview ? null : firstMoment(lock, proof, getFirstRunSeen());
+  useEffect(() => {
+    if (moment) markFirstSeen(moment, lock.morningKey);
+  }, [moment, lock.morningKey]);
+
+  useReviewPrompt(lock, proof);
+
+  const bedtime = clockLabel(routine.bedtime);
+  const wake = clockLabel(routine.morningStart);
+  const first = moment ? firstLine(moment, routine) : null;
 
   const moon = homeMoonDisc(width, height, insets.top);
   const cycle = () => {
     tap();
-    setState((s) => STATES[(STATES.indexOf(s) + 1) % STATES.length]);
-    setVisit((v) => v + 1);
+    setPreview((p) => VIEWS[(VIEWS.indexOf(p ?? actual) + 1) % VIEWS.length]);
   };
+
+  const apps = isScreenTimeAvailable() ? selectionSize('night') : 0;
+  const asleep = view === 'night' || view === 'morning';
+  const line = view === 'unprotected' ? unprotectedTitle(protection) : (first?.line ?? LINES[view]);
 
   return (
     <View style={styles.container}>
       <View style={[styles.header, { marginTop: insets.top }]}>
         <Text style={styles.wordmark} maxFontSizeMultiplier={1.2}>Locturne</Text>
-        <Pressable
-          onPress={cycle}
-          hitSlop={8}
-          style={styles.day}
-          accessibilityRole="button"
-          accessibilityLabel={`${LABELS[state]}. Preview the next home state.`}
-        >
-          <Text style={[styles.dayLabel, state === 'off' && { color: WARNING }]}>{LABELS[state]}</Text>
-          <SymbolView name={sym('chevron.down', 'expand_more')} size={13} weight="semibold" tintColor={Nocturne.text2} />
-        </Pressable>
+        {__DEV__ ? (
+          <Pressable
+            onPress={cycle}
+            hitSlop={8}
+            style={styles.day}
+            accessibilityRole="button"
+            accessibilityLabel={`${LABELS[view]}. Preview the next home state.`}
+          >
+            <Text style={[styles.dayLabel, view === 'unprotected' && { color: WARNING }]}>{LABELS[view]}</Text>
+            <SymbolView name={sym('chevron.down', 'expand_more')} size={13} weight="semibold" tintColor={Nocturne.text2} />
+          </Pressable>
+        ) : (
+          <View style={styles.day}>
+            <Text style={[styles.dayLabel, view === 'unprotected' && { color: WARNING }]}>{LABELS[view]}</Text>
+          </View>
+        )}
         <View style={styles.flex} />
         {/* No settings screen yet: this opens the onboarding preview. */}
         <Link href="/onboarding" asChild>
@@ -112,38 +165,44 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View key={`top-${visit}`} entering={FadeIn.delay(CONTENT_DELAY_MS).duration(450)} style={styles.top}>
+        <Animated.View key={`top-${visit}-${view}`} entering={FadeIn.delay(CONTENT_DELAY_MS).duration(450)} style={styles.top}>
           <Text style={styles.voice} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
-            {noOrphan(LINES[state])}
+            {noOrphan(line)}
           </Text>
-          <Status state={state} />
+          <Status view={view} routine={routine} nextChange={lock.nextChange} protection={protection} />
+          {first && view !== 'unprotected' ? <FirstNote first={first} /> : null}
         </Animated.View>
 
         <View style={styles.flex} />
 
         <Animated.View
-          key={`bottom-${visit}`}
+          key={`bottom-${visit}-${view}`}
           entering={FadeIn.delay(CONTENT_DELAY_MS + 150).duration(450)}
           style={styles.bottom}
         >
-          {state === 'morning' ? <PrimaryButton label="Start walking" onPress={() => {}} /> : null}
-          {state === 'off' ? <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+          {view === 'morning' ? (
+            <PrimaryButton label={MORNING_ACTION[routine.method]} onPress={() => router.push(WAKE_ROUTE)} />
+          ) : null}
+          {view === 'unprotected' ? (
+            protection === 'notSetUp' ? (
+              <PrimaryButton label="Allow Screen Time" onPress={() => router.push('/apps')} />
+            ) : (
+              <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} />
+            )
+          ) : null}
 
           <GlassCard>
             <Link href="/apps" asChild>
               <Row
-                icon={state === 'night' || state === 'morning' ? sym('moon.zzz.fill', 'bedtime') : sym('moon.fill', 'bedtime')}
+                icon={asleep ? sym('moon.zzz.fill', 'bedtime') : sym('moon.fill', 'bedtime')}
                 title="Apps"
-                accessibilityLabel={`${PREVIEW.appCount} apps. Edit which apps sleep.`}
+                accessibilityLabel={
+                  apps > 0
+                    ? `${apps} ${apps === 1 ? 'app sleeps' : 'apps sleep'} at night. Edit which apps sleep.`
+                    : 'No apps picked yet. Pick which apps sleep.'
+                }
               >
-                <View style={styles.icons}>
-                  {PREVIEW.apps.map((name) => (
-                    <View key={name} style={state === 'night' || state === 'morning' ? styles.asleep : undefined}>
-                      <AppTile name={name} size={24} />
-                    </View>
-                  ))}
-                  <Text style={styles.rowValue}>+{PREVIEW.appCount - PREVIEW.apps.length}</Text>
-                </View>
+                <Text style={styles.rowValue}>{apps > 0 ? `${apps} at night` : 'Pick apps'}</Text>
               </Row>
             </Link>
             <View style={styles.divider} />
@@ -151,64 +210,108 @@ export function HomeScreen() {
               <Row
                 icon={sym('alarm.fill', 'alarm')}
                 title="Schedule"
-                accessibilityLabel={`Bedtime ${PREVIEW.bedtime}, wake-up ${PREVIEW.wake}. Edit the schedule.`}
+                accessibilityLabel={`Bedtime ${bedtime}, morning start ${wake}. Edit the schedule.`}
               >
                 <Text style={styles.rowValue}>
-                  {PREVIEW.bedtime.replace(':00', '')} – {PREVIEW.wake.replace(':00', '')}
+                  {bedtime} – {wake}
                 </Text>
               </Row>
             </Link>
           </GlassCard>
 
-          {/* Passes are required for v1 but stay quiet: findable, not tempting. No screen yet. */}
-          {state === 'night' || state === 'morning' ? <TextButton label="Use a pass" onPress={() => tap()} /> : null}
+          {/* The ways out stay quiet: findable, not tempting (HOME_SPEC, "Ways out"). */}
+          {asleep ? (
+            <View style={styles.exits}>
+              <TextButton label="Use a pass" onPress={() => router.push(EXITS_ROUTE)} />
+              <TextButton label="Emergency unlock" onPress={() => router.push(EXITS_ROUTE)} />
+            </View>
+          ) : null}
         </Animated.View>
       </ScrollView>
     </View>
   );
 }
 
+function unprotectedTitle(protection: string) {
+  // Serious: the problem first, stated plainly (VOICE.md, "Clear when it matters").
+  return protection === 'notSetUp' ? 'Screen Time access isn’t on yet.' : 'Screen Time access is off.';
+}
+
+/** What the morning asks for, in one plain line. */
+function morningTask(routine: Routine, wake: string) {
+  if (routine.method === 'downstairs') return 'Go down one floor and your apps wake up. About 20 seconds.';
+  if (routine.method === 'scan') return 'Scan your code in the other room and your apps wake up.';
+  return `Walk ${routine.stepGoal} steps and your apps wake up. Steps since ${wake} count.`;
+}
+
 /** The one line of honest status under Loc. */
-function Status({ state }: { state: HomeState }) {
-  if (state === 'morning') {
-    const left = PREVIEW.goal - PREVIEW.steps;
-    return (
-      <View
-        style={styles.progress}
-        accessible
-        accessibilityLabel={`${PREVIEW.steps} of ${PREVIEW.goal} steps. ${left} more wakes your apps.`}
-      >
-        <Text style={styles.status}>
-          <Text style={styles.steps}>{PREVIEW.steps}</Text> of {PREVIEW.goal} steps
-        </Text>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${(PREVIEW.steps / PREVIEW.goal) * 100}%` }]} />
-        </View>
-        <Text style={styles.statusSmall}>{left} more and your apps wake up.</Text>
-      </View>
-    );
-  }
-  if (state === 'off') {
+function Status({
+  view,
+  routine,
+  nextChange,
+  protection,
+}: {
+  view: HomeView;
+  routine: Routine;
+  nextChange: Date;
+  protection: string;
+}) {
+  const bedtime = clockLabel(routine.bedtime);
+  const wake = clockLabel(routine.morningStart);
+
+  if (view === 'unprotected') {
     return (
       <View style={[styles.statusRow, styles.statusTop]}>
         <SymbolView name={sym('exclamationmark.triangle.fill', 'warning')} size={16} tintColor={WARNING} style={styles.warningIcon} />
         <Text style={[styles.status, styles.flex]}>
-          So I can&apos;t block anything. Turn it back on in Settings. Until then I&apos;m just a raccoon.
+          {protection === 'notSetUp'
+            ? 'So I can’t block anything yet. Allow it and your apps sleep on schedule.'
+            : 'So I can’t block anything. Turn it back on in Settings. Until then I’m just a raccoon.'}
         </Text>
       </View>
     );
   }
+  if (view === 'morning') {
+    return (
+      <View style={[styles.statusRow, styles.statusTop]}>
+        <SymbolView name={sym('lock.fill', 'lock')} size={15} tintColor={Nocturne.text2} style={styles.warningIcon} />
+        <Text style={[styles.status, styles.flex]}>{morningTask(routine, wake)}</Text>
+      </View>
+    );
+  }
+  if (view === 'night') {
+    return (
+      <View style={styles.statusRow} accessible accessibilityLabel={`Apps asleep until you're up, after ${wake}.`}>
+        <MoonLock size={14} delay={LOCK_DELAY_MS} />
+        <Text style={[styles.status, styles.flex]}>Apps asleep until you’re up, after {wake}</Text>
+      </View>
+    );
+  }
+  if (view === 'off') {
+    return (
+      <View style={styles.statusRow}>
+        <SymbolView name={sym('moon', 'bedtime')} size={15} tintColor={Nocturne.text2} />
+        <Text style={[styles.status, styles.flex]}>No lock tonight. Always-asleep apps still sleep.</Text>
+      </View>
+    );
+  }
+  const tonightOn = nightIsOn(nextChange, routine);
   return (
     <View style={styles.statusRow}>
-      {state === 'night' ? (
-        <MoonLock size={14} delay={LOCK_DELAY_MS} />
-      ) : (
-        <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
-      )}
-      <Text style={styles.status}>
-        {state === 'night' ? `Apps asleep until ${PREVIEW.wake}` : `Apps awake until ${PREVIEW.bedtime}`}
+      <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
+      <Text style={[styles.status, styles.flex]}>
+        {tonightOn ? `Apps awake until ${bedtime}` : 'Apps awake. Tonight is off.'}
       </Text>
     </View>
+  );
+}
+
+/** His first-time explanation: one plain sentence, quieter than the status. */
+function FirstNote({ first }: { first: FirstLine }) {
+  return (
+    <Text style={styles.statusSmall} accessibilityLiveRegion="polite">
+      {noOrphan(first.note)}
+    </Text>
   );
 }
 
@@ -270,10 +373,6 @@ const styles = StyleSheet.create({
   warningIcon: { marginTop: 4 },
   status: { ...Type.body, color: Nocturne.text2 },
   statusSmall: { ...Type.secondary, color: Nocturne.text3 },
-  progress: { gap: Space.s },
-  steps: { color: Nocturne.text, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  track: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
   bottom: { gap: Space.l, paddingTop: Space.xxl, paddingBottom: Space.s },
   row: {
     minHeight: 60,
@@ -286,7 +385,5 @@ const styles = StyleSheet.create({
   rowTitle: { color: Nocturne.text, fontSize: 17, fontWeight: '600' },
   rowValue: { color: Nocturne.text2, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255, 255, 255, 0.12)', marginLeft: Space.l + 18 + Space.m },
-  icons: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  // The apps are asleep: dimmed, not greyed out.
-  asleep: { opacity: 0.45 },
+  exits: { flexDirection: 'row', justifyContent: 'center', gap: Space.xl },
 });
