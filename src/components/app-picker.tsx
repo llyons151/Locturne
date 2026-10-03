@@ -3,7 +3,10 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BlockedAppsView, isBlockedAppsViewAvailable } from 'blocked-apps';
+
 import * as haptic from '@/lib/haptics';
+import type { SelectionId } from '@/lib/screen-time';
 import { Nocturne, Radius, Space, Type } from '@/theme';
 
 import { AppTile } from './app-icons';
@@ -31,9 +34,19 @@ const CATEGORIES: { name: string; symbol: string; apps: string[] }[] = [
 const ALL = CATEGORIES.flatMap((c) => (c.apps.length ? c.apps : [c.name]));
 const isCategory = (entry: string) => CATEGORIES.some((c) => c.name === entry && c.apps.length === 0);
 
-/** Must match the text passed to the real picker's headerText and footerText. */
-const HEADER = 'Pick the apps that keep you up. They sleep at bedtime and wake after your walk.';
+/** Passed to the real picker as its headerText, so the stand-in and Apple's sheet match. */
+export const PICKER_HEADER = 'Pick the apps that keep you up. They sleep at bedtime and wake once you’re up.';
+const HEADER = PICKER_HEADER;
 const FOOTER = 'Preview. The real app shows Apple’s picker, with the apps actually on your phone.';
+
+/**
+ * The real picks on an iPhone. Names never reach JS (tokens are opaque), so the rows are
+ * drawn natively by `BlockedAppsView` with `Label(token)`.
+ */
+export type LivePicks = { selectionId: SelectionId; count: number; revision: number };
+
+/** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
+export const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
 /** "5 apps, 1 category", the way the real card will count tokens. */
 export function pickedSummary(apps: string[]): string {
@@ -46,6 +59,8 @@ export function pickedSummary(apps: string[]): string {
 }
 
 const ROW_ICON = 32;
+/** Native rows match `listRow`'s height, so real and preview cards line up. */
+const LIVE_ROW = 52;
 
 /** A white "+" tile: the card's tap-me cue, sized like the app icons beside it. */
 export function AddTile({ size }: { size: number }) {
@@ -80,18 +95,72 @@ export function AppsCard({
   onOpen,
   maxRows = 6,
   onIconRef,
+  live,
 }: {
   apps: string[];
   onOpen: () => void;
   maxRows?: number;
   /** Receives each icon's view, so the sleep animation can start from where the icons are. */
   onIconRef?: (app: string, view: View | null) => void;
+  /** On an iPhone: the real picks, drawn natively. `apps` is ignored then. */
+  live?: LivePicks;
 }) {
-  const picked = apps.length > 0;
+  const picked = live ? live.count > 0 : apps.length > 0;
   const press = () => {
     haptic.tap();
     onOpen();
   };
+  const editRow = (
+    <Pressable
+      onPress={press}
+      accessibilityRole="button"
+      accessibilityLabel="Add or remove apps"
+      style={({ pressed }) => [styles.listRow, styles.lastRow, pressed && styles.rowPressed]}
+    >
+      <AddTile size={ROW_ICON} />
+      <Text style={[styles.listLabel, styles.addLabel]}>Add or remove apps</Text>
+      <Chevron />
+    </Pressable>
+  );
+
+  if (live && picked) {
+    const shown = live.count > maxRows ? maxRows - 1 : live.count;
+    const hidden = live.count - shown;
+    return (
+      <Reveal>
+        <Text style={styles.listHeader}>{countPicks(live.count).toUpperCase()}</Text>
+        <View style={styles.list}>
+          {isBlockedAppsViewAvailable ? (
+            // Drawn at full height and clipped, so extra picks fold into the "more" row.
+            <View style={[styles.liveClip, { height: shown * LIVE_ROW }]}>
+              <BlockedAppsView
+                selectionId={live.selectionId}
+                revision={live.revision}
+                rowHeight={LIVE_ROW}
+                textColor={Nocturne.text}
+                separatorColor={Nocturne.edge}
+                style={{ height: live.count * LIVE_ROW }}
+              />
+            </View>
+          ) : (
+            // A build from before modules/blocked-apps existed can't draw the rows.
+            <View style={styles.listRow}>
+              <Text style={styles.listLabel}>{countPicks(live.count)}. Install the latest build to see them.</Text>
+            </View>
+          )}
+          {isBlockedAppsViewAvailable && hidden > 0 ? (
+            <View style={styles.listRow}>
+              <View style={[styles.more, { width: ROW_ICON, height: ROW_ICON, borderRadius: ROW_ICON * 0.225 }]}>
+                <Text style={styles.moreText}>+{hidden}</Text>
+              </View>
+              <Text style={styles.listLabel}>{hidden} more</Text>
+            </View>
+          ) : null}
+          {editRow}
+        </View>
+      </Reveal>
+    );
+  }
 
   if (!picked) {
     return (
@@ -144,16 +213,7 @@ export function AppsCard({
             <Text style={styles.listLabel}>{hidden} more</Text>
           </View>
         ) : null}
-        <Pressable
-          onPress={press}
-          accessibilityRole="button"
-          accessibilityLabel="Add or remove apps"
-          style={({ pressed }) => [styles.listRow, styles.lastRow, pressed && styles.rowPressed]}
-        >
-          <AddTile size={ROW_ICON} />
-          <Text style={[styles.listLabel, styles.addLabel]}>Add or remove apps</Text>
-          <Chevron />
-        </Pressable>
+        {editRow}
       </View>
     </Reveal>
   );
@@ -370,6 +430,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Nocturne.edge,
   },
   lastRow: { borderBottomWidth: 0 },
+  // The native rows draw their own separators.
+  liveClip: { overflow: 'hidden' },
   rowPressed: { backgroundColor: Nocturne.edge },
   listLabel: { flex: 1, color: Nocturne.text, fontSize: 17 },
   listNote: { color: Nocturne.text2, fontSize: 15 },

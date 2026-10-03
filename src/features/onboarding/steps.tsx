@@ -1,15 +1,18 @@
 import type { ReactNode } from 'react';
-import { Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppsCard } from '@/components/app-picker';
+import { AppsCard, type LivePicks } from '@/components/app-picker';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Reveal } from '@/components/motion';
 import { quizContentTop } from '@/components/night-sky';
+import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
+import type { WakeMethod } from '@/lib/routine';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
 import { AppleAlertPicture } from './apple-alert';
+import type { ArmFailure, ArmResult } from './arm';
 import {
   AGE_DEFAULT,
   AGE_MAX,
@@ -19,14 +22,15 @@ import {
   FOUND,
   initialAnswers,
   LIGHT_OFFER_HEADLINE,
+  METHOD_CHOICES,
+  METHOD_COPY,
+  MORE_METHODS,
   MORNING_ECHO,
   MORNING_MINUTES,
-  money,
   NIGHT_MINUTES,
   NIGHTS,
   NIGHTS_ECHO,
   OFFER_HEADLINES,
-  PRICES,
   TIME_BACK,
   TRIED,
   TRIED_ECHO,
@@ -34,6 +38,7 @@ import {
   type ExitOffer,
   type StepId,
 } from './content';
+import type { MotionAccess } from './motion';
 import { DayPicker } from './day-picker';
 import {
   dateFromToday,
@@ -45,7 +50,7 @@ import {
 } from './estimate';
 import { ScheduleCard } from './schedule-card';
 import { MathScreen } from './screens/math-screen';
-import { declinedStep, plansStep } from './screens/paywall';
+import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { RevealScreen } from './screens/reveal-screen';
 import { TomorrowDemo } from './screens/tomorrow-demo';
 import { AgeWheel, TimeWheel } from './time-wheel';
@@ -62,20 +67,50 @@ export type StepContext = {
   go: (to: StepId) => void;
   edit: (to: StepId) => void;
   exit: () => void;
+  /** Web preview only: stands in for what only an iPhone can do. */
   simulate: (message: string, then: () => void) => void;
-  purchased: () => void;
   /** Short phone: layouts tighten so nothing scrolls. */
   compact: boolean;
+  /** The stairs question's "Other ways" link was tapped. */
+  showMoreMethods: boolean;
+  showMethods: () => void;
   /** Onboarding is happening inside the bedtime window, e.g. at 12:40 AM. */
   lateNight: boolean;
   /** Which exit offer `declined` shows. Never `none` there: that arm skips the screen. */
   exitArm: ExitOffer;
   editing: boolean;
-  /** Opens the stand-in for Apple's app picker. */
+
+  /** The store's plans and trials (`getOffers`). Null while loading or after a failure. */
+  offers: Offers | null;
+  offersFailed: boolean;
+  retryOffers: () => void;
+  /** Buys a plan or the exit offer. On success the setup is saved and tonight arms. */
+  buy: (target: PurchaseTarget) => void;
+  /** A purchase or restore is in flight. */
+  busy: boolean;
+  restorePurchases: () => void;
+  /** Already subscribed (restored): setup skips the paywall and arms. */
+  entitled: boolean;
+  /** Saves the setup and arms tonight, for someone already entitled. */
+  finishSetup: () => void;
+
+  /** Screen Time access on this step: asked, and if refused, said plainly. */
+  screenTime: 'idle' | 'asking' | 'refused';
+  askScreenTime: () => void;
+  /** On an iPhone, the real night list, drawn natively; null in the web preview. */
+  live: LivePicks | null;
+  /** Opens Apple's picker on iOS, or the stand-in in the preview. */
   openPicker: () => void;
-  /** Plays the apps falling asleep into the moon, then moves on. */
+  /** Plays the apps falling asleep into the moon, then moves on. Preview only. */
   putToSleep: () => void;
   onIconRef: (app: string, view: View | null) => void;
+
+  /** Handing tonight to iOS after purchase. `working` until iOS answers. */
+  arm: ArmResult | { status: 'working' };
+  retryArm: () => void;
+  /** Motion & Fitness, asked after purchase. Null until asked. */
+  motion: MotionAccess | null;
+  askMotion: () => void;
 };
 
 // Four presets: one row under the time wheel.
@@ -98,13 +133,15 @@ export type StepView = {
 
 /** What each step shows. One case per step, in the order of STEPS in content.ts. */
 export function renderStep(ctx: StepContext): StepView {
-  const { step, answers, numbers, set, choose, next, go, edit, exit, simulate, lateNight, compact, editing, openPicker, putToSleep, onIconRef } = ctx;
+  const { step, answers, numbers, set, choose, next, go, edit, exit, simulate, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
   // "This morning" when it's already the small hours; "Later today" for afternoon wake-ups.
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
   const wakeDay = lateNight && answers.wake > nowMinutes ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
-  const apps = appSummary(answers.apps);
+  const method = METHOD_COPY[answers.method ?? 'downstairs'];
+  // How many picks: the real count on an iPhone, the stand-in names in the preview.
+  const pickCount = live ? live.count : answers.apps.length;
 
   switch (step) {
     case 'hello': {
@@ -118,10 +155,7 @@ export function renderStep(ctx: StepContext): StepView {
         ),
         footer: <PrimaryButton label="Go on" onPress={next} />,
         secondary: (
-          <TextButton
-            label="Already subscribed? Restore"
-            onPress={() => simulate('Restore Purchases runs here and skips straight to your setup.', () => {})}
-          />
+          <TextButton label="Already subscribed? Restore" onPress={ctx.restorePurchases} />
         ),
       };
     }
@@ -216,7 +250,7 @@ export function renderStep(ctx: StepContext): StepView {
         body: (
           <View style={page.top}>
             <Title>When does your alarm go off?</Title>
-            <Body style={styles.sub}>The first one. Steps start counting from here.</Body>
+            <Body style={styles.sub}>The first one. Your apps stay asleep from here until you’re up.</Body>
             <View style={styles.timeWrap}>
               <TimeWheel
                 value={answers.wake}
@@ -229,6 +263,38 @@ export function renderStep(ctx: StepContext): StepView {
         ),
         footer: <PrimaryButton label={editing ? 'Save' : 'Continue'} onPress={next} />,
       };
+
+    case 'method': {
+      // One question, not a menu (GAME_PLAN). The third way stays behind a link until asked for.
+      const showAll = answers.method === 'scan' || ctx.showMoreMethods;
+      return {
+        body: (
+          <View style={page.top}>
+            <Title>Are there stairs between your bed and your coffee?</Title>
+            <Body style={styles.sub}>That’s how you’ll show me you’re up.</Body>
+            <View style={styles.methodOptions}>
+              <Options
+                options={showAll ? [...METHOD_CHOICES, ...MORE_METHODS] : METHOD_CHOICES}
+                value={answers.method}
+                // No auto-advance: his reaction is worth a beat, then Continue.
+                onChoose={(value) => set('method', value)}
+              />
+            </View>
+            {answers.method ? (
+              <Voice key={answers.method} text={METHOD_COPY[answers.method].echo} size={VoiceSize.aside} sub />
+            ) : null}
+          </View>
+        ),
+        footer: (
+          <PrimaryButton
+            label={answers.method ? (editing ? 'Save' : 'Continue') : 'Pick one'}
+            disabled={!answers.method}
+            onPress={next}
+          />
+        ),
+        secondary: showAll ? undefined : <TextButton label="Other ways to wake them" onPress={ctx.showMethods} />,
+      };
+    }
 
     case 'morning-minutes':
       return moonQuestion('In the morning, how long are you on your phone before you get up?', 'Counting from the first alarm.', (
@@ -346,6 +412,25 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'screen-time':
+      if (ctx.screenTime === 'refused') {
+        // Clear when it matters (VOICE.md): the problem and the fix, then one small aside.
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text="No access, no sleeping apps." size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>
+                Without Screen Time access I can’t put anything to sleep. Tap Try again and choose Continue. If a parent
+                manages Screen Time on this iPhone, they have to approve it.
+              </Body>
+              <View style={page.gapAside} />
+              <Voice text="I’ll wait. I’m good at lying down." size={VoiceSize.aside} delay={600} sub />
+            </View>
+          ),
+          footer: <PrimaryButton label="Try again" onPress={ctx.askScreenTime} />,
+          secondary: <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />,
+        };
+      }
       return {
         body: (
           <View style={page.top}>
@@ -361,33 +446,35 @@ export function renderStep(ctx: StepContext): StepView {
             {compact ? null : <Voice text="Apple’s box is boring. So am I." size={VoiceSize.aside} delay={600} sub />}
           </View>
         ),
-        footer: (
-          <PrimaryButton
-            label="Continue"
-            onPress={() =>
-              simulate('iOS asks for Screen Time access here. The real prompt needs Apple’s Family Controls approval.', next)
-            }
-          />
-        ),
+        // iOS asks for Face ID or the passcode after Apple's Continue.
+        footer: <PrimaryButton label="Continue" disabled={ctx.screenTime === 'asking'} onPress={ctx.askScreenTime} />,
       };
 
     case 'apps': {
-      const picked = answers.apps.length > 0;
+      const picked = pickCount > 0;
+      // Native rows can't fly into the moon, so on an iPhone the page simply moves on.
+      const sleep = live ? next : putToSleep;
       return {
         body: (
           <View style={page.top}>
             <Title>Which apps keep you up?</Title>
-            <Body style={styles.sub}>They sleep at bedtime and wake after your walk. Calls and texts aren’t touched.</Body>
+            <Body style={styles.sub}>They sleep at bedtime and wake once you’re up. Calls and texts aren’t touched.</Body>
             <View style={styles.appsCard}>
-              <AppsCard apps={answers.apps} onOpen={openPicker} maxRows={compact ? 4 : 6} onIconRef={onIconRef} />
+              <AppsCard
+                apps={answers.apps}
+                live={live ?? undefined}
+                onOpen={openPicker}
+                maxRows={compact ? 4 : 6}
+                onIconRef={onIconRef}
+              />
             </View>
           </View>
         ),
         footer: (
           <PrimaryButton
-            label={!picked ? 'Add apps' : editing ? 'Save' : `Put ${answers.apps.length} to sleep`}
+            label={!picked ? 'Add apps' : editing ? 'Save' : live ? 'Put them to sleep' : `Put ${pickCount} to sleep`}
             // Editing from the summary just saves; the first time, they watch them fall asleep.
-            onPress={!picked ? openPicker : editing ? next : putToSleep}
+            onPress={!picked ? openPicker : editing ? next : sleep}
           />
         ),
       };
@@ -401,7 +488,9 @@ export function renderStep(ctx: StepContext): StepView {
             <ScheduleCard
               bedtime={answers.bedtime}
               wake={answers.wake}
+              method={answers.method ?? 'downstairs'}
               apps={answers.apps}
+              liveCount={live?.count}
               compact={compact}
               onChange={edit}
             />
@@ -418,35 +507,39 @@ export function renderStep(ctx: StepContext): StepView {
         body: (
           <View style={page.top}>
             <Eyebrow>The deal</Eyebrow>
-            <Title>{`Phone down at ${bed}. Up for 200\u00A0steps.`}</Title>
+            <Title>{`Phone down at ${bed}. ${method.commit}`}</Title>
             <View style={page.gapHeadline} />
-            <Body>
-              {apps} sleep until you’ve walked. Passes cover sick days and travel. Change anything later.
-            </Body>
+            <Body>Your apps sleep until you’re up. Passes cover sick days and travel. Change anything later.</Body>
           </View>
         ),
-        footer: <HoldButton label="Hold to agree" doneLabel="Fine. Deal." onComplete={next} />,
+        // Already subscribed (restored on the first screen): no paywall, straight to arming.
+        footer: <HoldButton label="Hold to agree" doneLabel="Fine. Deal." onComplete={ctx.entitled ? ctx.finishSetup : next} />,
       };
 
     case 'offer': {
+      if (!offers) return storeStep(ctx);
       const headline = numbers.lightUser
         ? LIGHT_OFFER_HEADLINE
         : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else);
+      const trialDays = offers.annual.trialDays;
       return {
         body: (
           <View style={page.top}>
             <Voice text={headline} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
             <Body>{ALARM_ECHO[answers.alarm ?? ''] ?? 'I guard them at night. You do the walking.'}</Body>
-            {PRICES.trialEligible ? (
+            {trialDays ? (
               // The trial timeline (Blinkist pattern): the most replicated paywall win in
-              // docs/sub-club/themes/02-paywall-design-and-copy.md. Day 5 matches the reminder toggle.
+              // docs/sub-club/themes/02-paywall-design-and-copy.md. The reminder day matches the
+              // paywall's toggle. "Morning" puts the first wake-up in the timeline (TODO §4).
               <View style={styles.plan}>
-                <PlanRow when="Tonight" what={`${apps} sleep at ${bed}. $0 today.`} />
-                <PlanRow when="Day 5" what="I remind you. Grudgingly." />
+                <PlanRow when="Tonight" what={`Your apps sleep at ${bed}. $0 today.`} />
+                {/* Short phones keep the original three rows so nothing scrolls. */}
+                {compact ? null : <PlanRow when="Morning" what={`${wake}: they stay asleep until ${method.until}.`} />}
+                <PlanRow when={`Day ${reminderDay(trialDays)}`} what="I remind you. Grudgingly." />
                 <PlanRow
-                  when={`Day ${PRICES.trialDays}`}
-                  what={`${dateFromToday(PRICES.trialDays)}: ${money(PRICES.annual)} for the year, unless you cancel before then.`}
+                  when={`Day ${trialDays}`}
+                  what={`${dateFromToday(trialDays)}: ${offers.annual.priceString} for the year, unless you cancel before then.`}
                 />
               </View>
             ) : (
@@ -454,7 +547,7 @@ export function renderStep(ctx: StepContext): StepView {
                 {!numbers.lightUser ? (
                   <PlanRow when="Now" what={`About ${weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed.`} />
                 ) : null}
-                <PlanRow when="With me" what={`${apps} can’t open from ${bed} until you’ve walked 200 steps.`} />
+                <PlanRow when="With me" what={`Your apps can’t open from ${bed} until ${method.until}.`} />
               </View>
             )}
             <Reveal>
@@ -462,7 +555,12 @@ export function renderStep(ctx: StepContext): StepView {
             </Reveal>
           </View>
         ),
-        footer: <PrimaryButton label={PRICES.trialEligible ? 'See the free week' : 'See plans'} onPress={next} />,
+        footer: (
+          <PrimaryButton
+            label={!trialDays ? 'See plans' : trialDays === 7 ? 'See the free week' : `See the ${trialDays} free days`}
+            onPress={next}
+          />
+        ),
       };
     }
 
@@ -472,48 +570,82 @@ export function renderStep(ctx: StepContext): StepView {
     case 'declined':
       return declinedStep(ctx);
 
-    case 'armed':
+    case 'armed': {
+      const { arm } = ctx;
+      if (arm.status === 'working') {
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text="Setting tonight." size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>Handing your schedule to iOS. A second.</Body>
+            </View>
+          ),
+        };
+      }
+      if (arm.status === 'failed') {
+        // Never imply protection that isn't there (GAME_PLAN, "Reliability"). Plain first.
+        const fail = ARM_FAILURES[arm.reason];
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text="Tonight isn’t set." size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>{fail.body}</Body>
+              <View style={page.gapAside} />
+              <Body>You’re subscribed either way. Nothing is asleep until this works.</Body>
+            </View>
+          ),
+          footer: <PrimaryButton label={fail.button} onPress={arm.reason === 'no-apps' ? openPicker : ctx.retryArm} />,
+          secondary: arm.reason === 'no-access' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
+        };
+      }
+      const startsNow = arm.status === 'armed' ? arm.now : lateNight;
       return {
         body: (
           <View style={page.top}>
-            <Voice text={lateNight ? 'Armed. Starting now. Put it down.' : `Armed. See you at ${bed}.`} size={VoiceSize.headline} header />
+            <Voice text={startsNow ? 'Armed. Starting now. Put it down.' : `Armed. See you at ${bed}.`} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
             <Body>
-              {answers.plan === 'annual' && PRICES.trialEligible && answers.remindTrial
-                ? 'A heads-up before bedtime. And a warning two days before your trial bills, if you let me send notifications.'
-                : 'A heads-up before bedtime. That’s it. I’m not chatty.'}
+              {startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. Your apps sleep at ${bed}.`}{' '}
+              {MOTION_WHY[answers.method ?? 'downstairs']}
             </Body>
-            <View style={page.gapBlock} />
-            <PreviewNote>
-              In the real app, “Armed” only shows once tonight’s schedule is confirmed. If it can’t be set, it says so.
-            </PreviewNote>
+            {arm.status === 'preview' ? (
+              <>
+                <View style={page.gapBlock} />
+                <PreviewNote>No Screen Time here, so nothing was handed to iOS. On an iPhone this only shows once iOS confirms tonight.</PreviewNote>
+              </>
+            ) : null}
           </View>
         ),
-        footer: (
-          <PrimaryButton
-            label="Continue"
-            onPress={() => simulate('iOS asks for notification permission here. “Don’t Allow” is always an option.', next)}
-          />
-        ),
+        // Motion & Fitness is asked here, after purchase (TODO §4). Notifications come after the first night.
+        footer: <PrimaryButton label="Continue" onPress={ctx.askMotion} />,
       };
+    }
 
     case 'first-morning':
-      // The last screen: what tomorrow looks like, then bed.
+      // The last screen ends on tomorrow morning (TODO §4), then bed.
       return {
         body: (
           <View style={page.top}>
-            <Title>{`${wakeDay}, ${wake}.`}</Title>
+            <Title>{`${wakeDay} ${wake.replace(/ [AP]M$/, '')}. Your apps stay asleep until you’re up.`}</Title>
             <View style={styles.plan}>
-              <PlanRow when="Steps" what={`Count from ${wake}. Bathroom, kitchen, it all counts.`} />
-              <PlanRow when="At 200" what="Open a sleeping app and tap Check steps. Or just open me." />
+              {method.morning.map((row) => (
+                <PlanRow key={row.when} when={row.when} what={row.what} />
+              ))}
               <PlanRow when="Bad day" what="Use a pass. No walking." />
+              {ctx.motion === 'denied' ? (
+                <PlanRow when="Motion" what="It’s off, so I can’t feel stairs or count steps. Turn on Motion & Fitness for Locturne in Settings." />
+              ) : null}
             </View>
             <Voice text={lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`} size={VoiceSize.aside} delay={700} sub />
             <View style={styles.gap8} />
             <Voice text="I’ll be asleep. Don’t wake me." size={VoiceSize.aside} delay={1300} sub />
           </View>
         ),
-        footer: <PrimaryButton label="Finish preview" onPress={exit} />,
+        footer: <PrimaryButton label={lateNight ? 'Good night' : 'Done'} onPress={exit} />,
+        secondary:
+          ctx.motion === 'denied' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
       };
   }
 }
@@ -569,11 +701,26 @@ function ScheduleWarning({ minutes }: { minutes: number }) {
   return <Body style={styles.warning}>That’s {formatHoursFromMinutes(minutes)} hours in bed. Check AM and PM.</Body>;
 }
 
-function appSummary(apps: string[]): string {
-  if (apps.length === 0) return 'Your apps';
-  if (apps.length <= 2) return apps.join(' and ');
-  return `${apps[0]}, ${apps[1]} and ${apps.length - 2} more`;
-}
+/** Why Motion & Fitness, on `armed`, right before iOS asks. */
+const MOTION_WHY: Record<WakeMethod, string> = {
+  downstairs: 'Next, iOS asks about Motion & Fitness. It’s how I feel the stairs, and count steps on days without them.',
+  steps: 'Next, iOS asks about Motion & Fitness. It’s how I count your steps. Nothing else.',
+  scan: 'Next, iOS asks about Motion & Fitness, so 200 steps can stand in for your code.',
+};
+
+/** What went wrong handing tonight to iOS, and the one thing that fixes it. */
+const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
+  'no-access': {
+    body: 'Screen Time access is off, so iOS won’t let me put anything to sleep. Allow it and I’ll try again.',
+    button: 'Allow and try again',
+  },
+  'no-apps': { body: 'No apps are picked, so there’s nothing to put to sleep.', button: 'Pick apps' },
+  'too-short': {
+    body: 'Bedtime and your alarm are less than 15 minutes apart, and iOS won’t schedule a night that short. Change either in Routine.',
+    button: 'Try again',
+  },
+  refused: { body: 'iOS didn’t accept tonight’s schedule. That’s usually brief.', button: 'Try again' },
+};
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center' },
@@ -596,6 +743,7 @@ const styles = StyleSheet.create({
   statNumber: { ...NUMBER_FONT, color: Nocturne.accent ?? Nocturne.text, fontSize: 108, lineHeight: 112, letterSpacing: -1, textAlign: 'center' },
   statText: { color: Nocturne.text, ...Type.body, marginTop: Gap.headline, textAlign: 'center' },
   appsCard: { marginTop: Gap.block },
+  methodOptions: { marginTop: Gap.block, marginBottom: Space.l },
   plan: { marginVertical: Gap.block, gap: Space.m },
   planRow: { flexDirection: 'row', gap: Space.m, alignItems: 'baseline' },
   planWhen: { width: 78, ...Type.rowKey, fontVariant: ['tabular-nums'] },

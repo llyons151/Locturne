@@ -4,6 +4,8 @@
  * Flow and evidence: docs/ONBOARDING_CONVERSION.md.
  */
 
+import type { WakeMethod } from '@/lib/routine';
+
 export type Choice<T> = { label: string; value: T };
 
 export type Answers = {
@@ -26,7 +28,13 @@ export type Answers = {
    * exception to "every answer feeds the number or a setting" (docs/sub-club/APPLIED_TO_LOCTURNE.md, O1).
    */
   found?: string;
+  /**
+   * Stand-in app names for the web preview. On iOS the picks never reach JS: Apple's picker
+   * saves opaque tokens in the App Group, so no copy may name an app.
+   */
   apps: string[];
+  /** How they prove they're up, from the stairs question after `wake`. */
+  method?: WakeMethod;
   plan: 'annual' | 'monthly';
   /** Works nights: the schedule is a block window, not a sleep window. */
   shift?: boolean;
@@ -62,6 +70,7 @@ export const STEPS = [
   'reveal',
   'bedtime',
   'wake',
+  'method',
   'tomorrow',
   'screen-time',
   'apps',
@@ -95,6 +104,7 @@ export const PROGRESS_STEPS: StepId[] = [
   'reveal',
   'bedtime',
   'wake',
+  'method',
   'tomorrow',
   'screen-time',
   'apps',
@@ -234,44 +244,102 @@ export const MORNING_ECHO: Record<number, string> = {
   75: 'You said an hour. I said nothing. Loudly.',
 };
 
-/**
- * Preview prices. In the real app these come from StoreKit (localized display prices),
- * and every trial string is gated on intro-offer eligibility.
+/*
+ * Prices, trials and the exit-offer arm all come from the store (`getOffers` in
+ * src/lib/purchases.ts), never from here: StoreKit localizes each price, and a trial only
+ * exists when this Apple ID is eligible for the intro offer.
+ *
+ * The exit offer is an A/B test, not a decision: discounts have lost at other apps once
+ * refunds were counted, and an extension beat a discount at Coconote
+ * (docs/sub-club/APPLIED_TO_LOCTURNE.md, test 3). Judge the arms on net revenue after
+ * refunds per install at day 35. `half-price` also shows up as a downgrade in iOS Settings.
+ * The arm comes from remote config; preview one with `?exit=<arm>`.
  */
-export const PRICES = {
-  annual: 59.99,
-  monthly: 9.99,
-  /**
-   * The one-time offer on `declined`, for people who closed the paywall: annual at half
-   * price, same trial. A separate product in the same subscription group, so it renews at
-   * this price too. Half off follows Opal's retention offer (docs/PRICING_RESEARCH.md).
-   */
-  annualOffer: 29.99,
-  trialDays: 7,
-  /** The `longer-trial` exit offer: full-price annual with two free weeks instead of one. */
-  extendedTrialDays: 14,
-  trialEligible: true,
+export {
+  DEFAULT_EXIT_ARM as DEFAULT_EXIT_OFFER,
+  EXIT_ARMS as EXIT_OFFERS,
+  type ExitArm as ExitOffer,
+} from '@/lib/purchases';
+
+/** His line under "Try Locturne free", from the trial length the store reports. */
+export function trialVoice(days: number): string {
+  return `${days === 7 ? 'Seven' : days} nights free. I’ll sleep through most of them.`;
+}
+
+/** The `longer-trial` exit offer's headline. "Two free weeks" reads better than "14 days". */
+export function longerTrialVoice(days: number): string {
+  return days === 14 ? 'Fair. Two free weeks, then.' : `Fair. ${days} free days, then.`;
+}
+
+/**
+ * The fine-print links. PLACEHOLDERS: no live pages exist yet. Apple requires working Terms
+ * (EULA) and Privacy links on the paywall and in App Store Connect before review.
+ */
+export const LEGAL_URLS = {
+  terms: 'https://locturne.app/terms',
+  privacy: 'https://locturne.app/privacy',
 } as const;
 
-export const money = (value: number) => `$${value.toFixed(2)}`;
-
-/** "Save 49%": the annual plan against twelve months of the monthly plan. */
-export const annualSavings = () => Math.floor((1 - PRICES.annual / (PRICES.monthly * 12)) * 100);
-
 /**
- * What someone who closes the paywall is offered, once. An A/B test, not a decision:
- * discounts have lost at other apps once refunds were counted, and an extension beat a
- * discount at Coconote (docs/sub-club/APPLIED_TO_LOCTURNE.md, test 3). Judge the arms on
- * net revenue after refunds per install at day 35.
- * - `none`: closing the paywall exits.
- * - `half-price`: annual at `PRICES.annualOffer`. Being in the same subscription group,
- *   it also shows up as a downgrade in iOS Settings for every subscriber.
- * - `longer-trial`: full-price annual with `PRICES.extendedTrialDays` free. Trial-eligible
- *   users only; everyone else gets `none`.
- * In the real app the arm comes from remote config. Preview with `?exit=<arm>`.
+ * "Are there stairs between your bed and your coffee?" (GAME_PLAN, "Wake-up methods"),
+ * right after `wake`. Yes picks the hero method, no picks steps, and a link shows the rest.
  */
-export const EXIT_OFFERS = ['none', 'half-price', 'longer-trial'] as const;
-export type ExitOffer = (typeof EXIT_OFFERS)[number];
-// The longer trial leads until the test says otherwise: a half-price offer behind the close
-// button is easy to spread ("just hit X"), and shows as a downgrade in iOS Settings.
-export const DEFAULT_EXIT_OFFER: ExitOffer = 'longer-trial';
+export const METHOD_CHOICES: Choice<WakeMethod>[] = [
+  { label: 'Yes, there are stairs', value: 'downstairs' },
+  { label: 'No, it’s all one floor', value: 'steps' },
+];
+export const MORE_METHODS: Choice<WakeMethod>[] = [{ label: 'Scan a code in another room', value: 'scan' }];
+
+/** Every line after the method question that says how they prove they're up. */
+export const METHOD_COPY: Record<
+  WakeMethod,
+  {
+    /** His reaction on the method screen once one is picked. */
+    echo: string;
+    /** On the schedule card, between bedtime and the alarm. */
+    short: string;
+    /** The paywall checklist. */
+    check: string;
+    /** "Your apps can't open from {bed} until …" */
+    until: string;
+    /** The `commit` title, after "Phone down at {bed}." */
+    commit: string;
+    /** `first-morning`: what to do and what counts. */
+    morning: { when: string; what: string }[];
+  }
+> = {
+  downstairs: {
+    echo: 'I hate stairs. That’s the point.',
+    short: 'Downstairs',
+    check: 'Awake again after one trip downstairs',
+    until: 'you’ve been downstairs',
+    commit: 'Downstairs to wake them.',
+    morning: [
+      { when: 'Start', what: 'Open me and tap Start. Then go downstairs.' },
+      { when: 'Bottom', what: 'They wake up. Up or down both count.' },
+      { when: 'No stairs', what: 'Away from home? Walk 200 steps instead.' },
+    ],
+  },
+  steps: {
+    echo: 'About two minutes of walking. I timed it.',
+    short: '200 steps',
+    check: 'Awake again after 200 morning steps',
+    until: 'you’ve walked 200 steps',
+    commit: 'Up for 200 steps.',
+    morning: [
+      { when: 'Steps', what: 'They count from your alarm. Bathroom, kitchen, it all counts.' },
+      { when: 'At 200', what: 'Open a sleeping app and tap Check steps. Or just open me.' },
+    ],
+  },
+  scan: {
+    echo: 'Another room. Choose it wisely.',
+    short: 'Scan',
+    check: 'Awake again once you scan your code',
+    until: 'you’ve scanned your code',
+    commit: 'Up to scan your code.',
+    morning: [
+      { when: 'Today', what: 'Set up your code in Routine and leave it in another room.' },
+      { when: 'Morning', what: 'Walk to it and scan it. Until it’s set up, 200 steps works.' },
+    ],
+  },
+};

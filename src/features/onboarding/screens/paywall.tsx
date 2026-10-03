@@ -1,20 +1,46 @@
 import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { TextButton } from '@/components/buttons';
+import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Reveal } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
+import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
-import { annualSavings, money, PRICES } from '../content';
+import { LEGAL_URLS, longerTrialVoice, METHOD_COPY, trialVoice } from '../content';
 import { dateFromToday, formatWhen } from '../estimate';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';
 
 /*
  * The two money screens: the plan picker, and the one-time offer for people who close it.
- * Each returns a StepView like the cases in steps.tsx.
+ * Each returns a StepView like the cases in steps.tsx. Every price and trial string comes
+ * from the store's offers (`getOffers` in src/lib/purchases.ts), never a constant.
  */
+
+const RENEWAL = 'Auto-renews unless cancelled at least 24 hours before renewal.';
+
+/** While the App Store's prices load, or if they can't: never a made-up price. */
+export function storeStep({ offersFailed, retryOffers }: StepContext): StepView {
+  return {
+    body: (
+      <View style={page.top}>
+        <Voice
+          text={offersFailed ? 'The App Store isn’t answering.' : 'Asking the App Store for prices.'}
+          size={VoiceSize.headline}
+          header
+        />
+        {offersFailed ? (
+          <>
+            <View style={page.gapHeadline} />
+            <Body>Check your connection and try again. Your setup is saved either way.</Body>
+          </>
+        ) : null}
+      </View>
+    ),
+    footer: offersFailed ? <PrimaryButton label="Try again" onPress={retryOffers} /> : undefined,
+  };
+}
 
 /**
  * The paywall, after the user's two references: a dark card paywall (title, checklist,
@@ -23,45 +49,45 @@ import { Body, page, Voice } from '../ui';
  * billed amount stays the biggest price on each card, and per-month sits under it.
  * No struck-through "was" prices: there was never a higher price to strike.
  */
-export function plansStep({ answers, set, purchased, simulate, compact }: StepContext): StepView {
+export function plansStep(ctx: StepContext): StepView {
+  const { answers, set, buy, busy, restorePurchases, compact, offers } = ctx;
+  if (!offers) return storeStep(ctx);
   const bed = formatWhen(answers.bedtime);
-  // One line in the checklist: the first app by name, the rest as a count.
-  const [first, ...rest] = answers.apps;
-  const apps = !first ? 'Your apps' : rest.length ? `${first} and ${rest.length} more` : first;
-  const trial = PRICES.trialEligible;
-  const annual = money(PRICES.annual);
-  const monthly = money(PRICES.monthly);
+  const method = METHOD_COPY[answers.method ?? 'downstairs'];
+  const trialDays = offers.annual.trialDays;
+  const annual = offers.annual.priceString;
+  const monthly = offers.monthly.priceString;
   const plan = answers.plan;
-  const trialPlan = plan === 'annual' && trial;
-  const link = (label: string, message: string) => <FineLink label={label} message={message} simulate={simulate} />;
+  const trialPlan = plan === 'annual' && trialDays !== null;
+  const remindBefore = trialDays !== null ? trialDays - reminderDay(trialDays) : 2;
   const cta = {
-    annual: trial
-      ? { title: `Start ${PRICES.trialDays}-day free trial`, sub: 'No payment due now · cancel anytime' }
+    annual: trialDays
+      ? { title: `Start ${trialDays}-day free trial`, sub: 'No payment due now · cancel anytime' }
       : { title: `Subscribe for ${annual}/year`, sub: 'Cancel anytime in Settings' },
     monthly: { title: `Subscribe for ${monthly}/month`, sub: 'Billed today · cancel anytime' },
   }[plan];
   const summary = {
-    annual: trial
-      ? `Free until ${dateFromToday(PRICES.trialDays)}, then ${annual}/year.`
+    annual: trialDays
+      ? `Free until ${dateFromToday(trialDays)}, then ${annual}/year.`
       : `${annual}/year. Cancel anytime.`,
     monthly: `${monthly} today, then monthly. Cancel anytime.`,
   }[plan];
   const terms = {
-    annual: `${trial ? `${PRICES.trialDays} days free, then ${annual}/year from ${dateFromToday(PRICES.trialDays)}` : `${annual}/year`}. Auto-renews unless cancelled at least 24 hours before renewal.`,
-    monthly: `${monthly}/month. Auto-renews unless cancelled at least 24 hours before renewal.`,
+    annual: `${trialDays ? `${trialDays} days free, then ${annual}/year from ${dateFromToday(trialDays)}` : `${annual}/year`}. ${RENEWAL}`,
+    monthly: `${monthly}/month. ${RENEWAL}`,
   }[plan];
   return {
     body: (
       <View style={[styles.paywall, compact && styles.paywallCompact]}>
         <Reveal>
           <Text style={[styles.paywallTitle, compact && styles.paywallTitleCompact]} accessibilityRole="header">
-            {trial ? 'Try Locturne free' : 'Pick a plan'}
+            {trialDays ? 'Try Locturne free' : 'Pick a plan'}
           </Text>
         </Reveal>
         {compact ? null : (
           <View style={styles.paywallVoice}>
             <Voice
-              text={trial ? 'Seven nights free. I’ll sleep through most of them.' : 'Fine. I’ll get up for this.'}
+              text={trialDays ? trialVoice(trialDays) : 'Fine. I’ll get up for this.'}
               size={VoiceSize.aside}
               delay={500}
               sub
@@ -70,8 +96,9 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
           </View>
         )}
         <View style={[styles.checks, compact && styles.checksCompact]}>
-          <Check text={`${apps} sleep at ${bed}`} />
-          <Check text="Awake again after 200 morning steps" />
+          {/* Never an app's name: Apple's picker only hands back opaque tokens. */}
+          <Check text={`Your apps sleep at ${bed}`} />
+          <Check text={method.check} />
           <Check text="Passes for sick days and travel" />
         </View>
         <View accessibilityRole="radiogroup" style={styles.planCards}>
@@ -81,8 +108,8 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
             title="Annual"
             // The billed amount is the big number (App Review 3.1.2); the monthly equivalent is the detail.
             price={`${annual}/year`}
-            detail={`${money(PRICES.annual / 12)}/month${trial ? ` · ${PRICES.trialDays} days free` : ''}`}
-            badge={`Save ${annualSavings()}%`}
+            detail={`${perMonth(offers.annual)}/month${trialDays ? ` · ${trialDays} days free` : ''}`}
+            badge={`Save ${annualSavingsPercent(offers)}%`}
             compact={compact}
           />
           <PlanCard
@@ -90,7 +117,7 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
             onPress={() => set('plan', 'monthly')}
             title="Monthly"
             price={`${monthly}/month`}
-            detail="No free trial"
+            detail={offers.monthly.trialDays ? `${offers.monthly.trialDays} days free` : 'No free trial'}
             compact={compact}
           />
         </View>
@@ -98,7 +125,7 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
         <Text style={styles.planSummary}>{summary}</Text>
         {/* Only the trial has an end to be reminded about. Keeps its height so the page doesn't jump. */}
         <View style={[styles.remindRow, !trialPlan && styles.hiddenBlock, { pointerEvents: trialPlan ? 'auto' : 'none' }]}>
-          <Text style={styles.remindLabel}>Remind me 2 days before it ends</Text>
+          <Text style={styles.remindLabel}>{`Remind me ${remindBefore} days before it ends`}</Text>
           <Switch
             value={answers.remindTrial}
             onValueChange={(on) => {
@@ -110,7 +137,7 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
             ios_backgroundColor={Nocturne.track}
             // react-native-web colors the "on" thumb teal unless told otherwise.
             {...(Platform.OS === 'web' ? ({ activeThumbColor: Nocturne.onCta } as object) : {})}
-            accessibilityLabel="Remind me 2 days before the trial ends"
+            accessibilityLabel={`Remind me ${remindBefore} days before the trial ends`}
           />
         </View>
       </View>
@@ -119,11 +146,11 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
     footer: (
       <>
         <Text style={styles.paywallFine}>
-          {terms} Preview: nothing is charged.{' '}
-          {link('Restore', 'Restore Purchases runs here, for anyone who already subscribed.')} ·{' '}
-          {link('Terms', 'Your Terms of Use open here.')} · {link('Privacy', 'Your Privacy Policy opens here.')}
+          {terms} {isStubbed() ? 'Preview: nothing is charged. ' : ''}
+          <FineLink label="Restore" onPress={restorePurchases} /> · <FineLink label="Terms" url={LEGAL_URLS.terms} /> ·{' '}
+          <FineLink label="Privacy" url={LEGAL_URLS.privacy} />
         </Text>
-        <TwoLineCta title={cta.title} sub={cta.sub} onPress={purchased} />
+        <TwoLineCta title={cta.title} sub={cta.sub} busy={busy} onPress={() => buy(plan)} />
       </>
     ),
   };
@@ -132,27 +159,31 @@ export function plansStep({ answers, set, purchased, simulate, compact }: StepCo
 /**
  * One real offer for people who closed the paywall, picked by the exit-offer test
  * (`EXIT_OFFERS` in content.ts): half-price annual, or full-price annual with a longer
- * trial. Shown once (a second exit really exits), and no timer. The full price is named
- * as a plain comparison, never struck through. The real app must remember it was shown,
- * so the offer can't be farmed by reinstalling onboarding.
+ * trial. Shown once per install (`markExitOfferShown`; a second exit really exits), and no
+ * timer. The full price is named as a plain comparison, never struck through.
  */
-export function declinedStep({ exitArm, purchased, simulate, exit }: StepContext): StepView {
+export function declinedStep(ctx: StepContext): StepView {
+  const { exitArm, buy, busy, exit, offers } = ctx;
+  if (!offers || exitArm === 'none') return storeStep(ctx);
   const longer = exitArm === 'longer-trial';
-  // `longer-trial` only reaches this screen for trial-eligible users.
-  const trial = PRICES.trialEligible;
-  const days = longer ? PRICES.extendedTrialDays : PRICES.trialDays;
-  const full = money(PRICES.annual);
-  const price = longer ? full : money(PRICES.annualOffer);
-  const link = (label: string, message: string) => <FineLink label={label} message={message} simulate={simulate} />;
+  const offer: Offer = offers.exitOffers[exitArm];
+  const days = offer.trialDays;
+  const full = offers.annual.priceString;
+  const price = offer.priceString;
+  const usual = offers.annual.trialDays;
   return {
     body: (
       <View style={page.top}>
-        <Voice text={longer ? 'Fair. Two free weeks, then.' : 'Fair. Half price, then.'} size={VoiceSize.headline} header />
+        <Voice
+          text={longer && days ? longerTrialVoice(days) : 'Fair. Half price, then.'}
+          size={VoiceSize.headline}
+          header
+        />
         <View style={page.gapHeadline} />
         <Body>
           {longer
-            ? `${days} days free instead of ${PRICES.trialDays}, then ${full} a year. This only shows up here, once.`
-            : `Annual for ${price} a year instead of ${full}${trial ? `, still with ${days} days free` : ''}. This price only shows up here, once.`}
+            ? `${days} days free${usual ? ` instead of ${usual}` : ''}, then ${full} a year. This only shows up here, once.`
+            : `Annual for ${price} a year instead of ${full}${days ? `, still with ${days} days free` : ''}. This price only shows up here, once.`}
         </Body>
         <View style={page.gapAside} />
         <Voice text="Don’t tell the others." size={VoiceSize.aside} delay={600} sub />
@@ -163,14 +194,15 @@ export function declinedStep({ exitArm, purchased, simulate, exit }: StepContext
     footer: (
       <>
         <Text style={styles.paywallFine}>
-          {`${trial ? `${days} days free, then ${price}/year from ${dateFromToday(days)}` : `${price}/year`}. Auto-renews at ${price}/year unless cancelled at least 24 hours before renewal.`}{' '}
-          Preview: nothing is charged. {link('Terms', 'Your Terms of Use open here.')} ·{' '}
-          {link('Privacy', 'Your Privacy Policy opens here.')}
+          {`${days ? `${days} days free, then ${price}/year from ${dateFromToday(days)}` : `${price}/year`}. Auto-renews at ${price}/year unless cancelled at least 24 hours before renewal.`}{' '}
+          {isStubbed() ? 'Preview: nothing is charged. ' : ''}
+          <FineLink label="Terms" url={LEGAL_URLS.terms} /> · <FineLink label="Privacy" url={LEGAL_URLS.privacy} />
         </Text>
         <TwoLineCta
-          title={trial ? `Start ${days}-day free trial` : `Subscribe for ${price}/year`}
-          sub={trial ? `Then ${price}/year · cancel anytime` : 'Cancel anytime in Settings'}
-          onPress={purchased}
+          title={days ? `Start ${days}-day free trial` : `Subscribe for ${price}/year`}
+          sub={days ? `Then ${price}/year · cancel anytime` : 'Cancel anytime in Settings'}
+          busy={busy}
+          onPress={() => buy(exitArm)}
         />
       </>
     ),
@@ -178,10 +210,17 @@ export function declinedStep({ exitArm, purchased, simulate, exit }: StepContext
   };
 }
 
-/** An underlined link in the fine print. Opens the preview stand-in for now. */
-function FineLink({ label, message, simulate }: { label: string; message: string; simulate: StepContext['simulate'] }) {
+/** An underlined link in the fine print: a web page, or an action like Restore. */
+function FineLink({ label, url, onPress }: { label: string; url?: string; onPress?: () => void }) {
   return (
-    <Text accessibilityRole="link" style={styles.link} onPress={() => simulate(message, () => {})}>
+    <Text
+      accessibilityRole="link"
+      style={styles.link}
+      onPress={() => {
+        if (onPress) onPress();
+        else if (url) Linking.openURL(url).catch(() => {});
+      }}
+    >
       {label}
     </Text>
   );
@@ -198,17 +237,21 @@ function Check({ text }: { text: string }) {
   );
 }
 
+
 /** Blinkist's pinned button: the action on top, the reassurance underneath, in one pill. */
-function TwoLineCta({ title, sub, onPress }: { title: string; sub: string; onPress: () => void }) {
+function TwoLineCta({ title, sub, busy, onPress }: { title: string; sub: string; busy?: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={() => {
         haptic.tap();
         onPress();
       }}
+      // While Apple's purchase sheet is up, a second tap would start a second purchase.
+      disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${sub}`}
-      style={({ pressed }) => [styles.twoLineCta, pressed && styles.pressedCta]}
+      accessibilityState={{ busy: !!busy, disabled: !!busy }}
+      style={({ pressed }) => [styles.twoLineCta, (pressed || busy) && styles.pressedCta]}
     >
       <Text style={styles.twoLineTitle}>{title}</Text>
       <Text style={styles.twoLineSub}>{sub}</Text>
