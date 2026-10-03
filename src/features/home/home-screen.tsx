@@ -1,4 +1,4 @@
-import { Link, router, useFocusEffect, type Href } from 'expo-router';
+import { Link, router, useFocusEffect } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -9,11 +9,13 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
 import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/components/night-sky';
-import { useProtection } from '@/hooks/use-protection';
+import { useHealth } from '@/hooks/use-health';
+import { getNightPause } from '@/lib/emergency';
 import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
 import { tap } from '@/lib/haptics';
 import type { Routine, WakeMethod } from '@/lib/routine';
-import { isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
+import { getScanCode } from '@/lib/scan';
+import { isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
@@ -31,8 +33,8 @@ import { useHomeState } from './use-home-state';
  * script from `first-run.ts` takes the line. In development builds, tapping the state label
  * still cycles the looks for review.
  */
-type HomeView = 'night' | 'morning' | 'day' | 'off' | 'unprotected';
-const VIEWS: HomeView[] = ['night', 'morning', 'day', 'off', 'unprotected'];
+type HomeView = 'night' | 'morning' | 'day' | 'off' | 'paused' | 'unprotected';
+const VIEWS: HomeView[] = ['night', 'morning', 'day', 'off', 'paused', 'unprotected'];
 
 /** Loc's lines, from the VOICE.md line bank. */
 const LINES: Record<Exclude<HomeView, 'unprotected'>, string> = {
@@ -41,6 +43,8 @@ const LINES: Record<Exclude<HomeView, 'unprotected'>, string> = {
   morning: 'No.',
   day: "I'm awake. Technically.",
   off: "Night off. I'm sleeping anyway.",
+  // VOICE.md, "Emergency unlock": tonight's lock is paused until the next bedtime.
+  paused: "I'll allow it. This once. Maybe.",
 };
 
 const LABELS: Record<HomeView, string> = {
@@ -48,6 +52,7 @@ const LABELS: Record<HomeView, string> = {
   morning: 'This morning',
   day: 'Today',
   off: 'Night off',
+  paused: 'Tonight',
   unprotected: 'Not protected',
 };
 
@@ -57,10 +62,6 @@ const MORNING_ACTION: Record<WakeMethod, string> = {
   steps: 'Start walking',
   scan: 'Scan my code',
 };
-
-/** Built by the wake-up and exits work; typed loosely until those routes are merged. */
-const WAKE_ROUTE = '/wake' as Href;
-const EXITS_ROUTE = '/exits' as Href;
 
 /** The lock closes once the moon has nearly settled. */
 const LOCK_DELAY_MS = HOME_RISE_MS * 0.7;
@@ -88,17 +89,19 @@ export function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
-  const [{ lock, routine, proof }] = useHomeState();
+  const { lock, routine, proof } = useHomeState();
 
-  // HEALTH SLOT: the honest "protection is off" state comes from here.
-  // TODO(useHealth): once `useHealth()` is merged, read its status instead. It should also
-  // catch armed nights that iOS dropped and a monitor extension that stopped reporting.
-  const [protection] = useProtection();
+  // Honest status (health.ts): access off or never given replaces everything; a dropped
+  // schedule or a missed night shows as a note under the status.
+  const [health] = useHealth();
+  const { protection } = health;
   const unprotected = protection === 'off' || protection === 'notSetUp';
+  // An emergency unlock paused tonight: the windows still run, so the phase says night.
+  const pause = lock.phase === 'night' ? getNightPause() : null;
 
   // Development only: tap the label to see each look without waiting for the clock.
   const [preview, setPreview] = useState<HomeView | null>(null);
-  const actual: HomeView = unprotected ? 'unprotected' : lock.phase;
+  const actual: HomeView = unprotected ? 'unprotected' : pause ? 'paused' : lock.phase;
   const view = preview ?? actual;
 
   // Bumped each time Home opens: replays the entrance in step with the moon rising. The
@@ -124,9 +127,11 @@ export function HomeScreen() {
     setPreview((p) => VIEWS[(VIEWS.indexOf(p ?? actual) + 1) % VIEWS.length]);
   };
 
-  const apps = isScreenTimeAvailable() ? selectionSize('night') : 0;
+  const apps = isScreenTimeAvailable() ? shownSelection('night').size : 0;
+  // A scan morning with no code set up yet falls back to steps until there is one.
+  const method = routine.method === 'scan' && !getScanCode() ? 'steps' : routine.method;
   const asleep = view === 'night' || view === 'morning';
-  const line = view === 'unprotected' ? unprotectedTitle(protection) : (first?.line ?? LINES[view]);
+  const line = view === 'unprotected' ? health.title : (first?.line ?? LINES[view]);
 
   return (
     <View style={styles.container}>
@@ -169,8 +174,17 @@ export function HomeScreen() {
           <Text style={styles.voice} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
             {noOrphan(line)}
           </Text>
-          <Status view={view} routine={routine} nextChange={lock.nextChange} protection={protection} />
+          <Status
+            view={view}
+            routine={{ ...routine, method }}
+            nextChange={lock.nextChange}
+            detail={health.detail}
+            pausedUntil={pause}
+          />
           {first && view !== 'unprotected' ? <FirstNote first={first} /> : null}
+          {health.level === 'attention' && view !== 'unprotected' && !preview ? (
+            <HealthNote title={health.title} detail={health.detail} />
+          ) : null}
         </Animated.View>
 
         <View style={styles.flex} />
@@ -181,7 +195,16 @@ export function HomeScreen() {
           style={styles.bottom}
         >
           {view === 'morning' ? (
-            <PrimaryButton label={MORNING_ACTION[routine.method]} onPress={() => router.push(WAKE_ROUTE)} />
+            <PrimaryButton
+              label={MORNING_ACTION[method]}
+              onPress={() => router.push({ pathname: '/wake', params: { method } })}
+            />
+          ) : null}
+          {view === 'morning' && routine.method === 'scan' && method !== 'scan' ? (
+            <TextButton
+              label="Set up your code"
+              onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
+            />
           ) : null}
           {view === 'unprotected' ? (
             protection === 'notSetUp' ? (
@@ -222,19 +245,14 @@ export function HomeScreen() {
           {/* The ways out stay quiet: findable, not tempting (HOME_SPEC, "Ways out"). */}
           {asleep ? (
             <View style={styles.exits}>
-              <TextButton label="Use a pass" onPress={() => router.push(EXITS_ROUTE)} />
-              <TextButton label="Emergency unlock" onPress={() => router.push(EXITS_ROUTE)} />
+              <TextButton label="Use a pass" onPress={() => router.push('/exits')} />
+              <TextButton label="Emergency unlock" onPress={() => router.push('/exits')} />
             </View>
           ) : null}
         </Animated.View>
       </ScrollView>
     </View>
   );
-}
-
-function unprotectedTitle(protection: string) {
-  // Serious: the problem first, stated plainly (VOICE.md, "Clear when it matters").
-  return protection === 'notSetUp' ? 'Screen Time access isn’t on yet.' : 'Screen Time access is off.';
 }
 
 /** What the morning asks for, in one plain line. */
@@ -249,12 +267,15 @@ function Status({
   view,
   routine,
   nextChange,
-  protection,
+  detail,
+  pausedUntil,
 }: {
   view: HomeView;
   routine: Routine;
   nextChange: Date;
-  protection: string;
+  /** health.ts's plain explanation, shown as is when protection is off. */
+  detail: string;
+  pausedUntil: Date | null;
 }) {
   const bedtime = clockLabel(routine.bedtime);
   const wake = clockLabel(routine.morningStart);
@@ -263,11 +284,7 @@ function Status({
     return (
       <View style={[styles.statusRow, styles.statusTop]}>
         <SymbolView name={sym('exclamationmark.triangle.fill', 'warning')} size={16} tintColor={WARNING} style={styles.warningIcon} />
-        <Text style={[styles.status, styles.flex]}>
-          {protection === 'notSetUp'
-            ? 'So I can’t block anything yet. Allow it and your apps sleep on schedule.'
-            : 'So I can’t block anything. Turn it back on in Settings. Until then I’m just a raccoon.'}
-        </Text>
+        <Text style={[styles.status, styles.flex]}>{detail}</Text>
       </View>
     );
   }
@@ -287,6 +304,17 @@ function Status({
       </View>
     );
   }
+  if (view === 'paused') {
+    const until = pausedUntil ? clockLabel(pausedUntil.getHours() * 60 + pausedUntil.getMinutes()) : bedtime;
+    return (
+      <View style={[styles.statusRow, styles.statusTop]}>
+        <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} style={styles.warningIcon} />
+        <Text style={[styles.status, styles.flex]}>
+          Emergency unlock: your bedtime apps are awake tonight and tomorrow morning. They sleep again at {until}.
+        </Text>
+      </View>
+    );
+  }
   if (view === 'off') {
     return (
       <View style={styles.statusRow}>
@@ -301,6 +329,19 @@ function Status({
       <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
       <Text style={[styles.status, styles.flex]}>
         {tonightOn ? `Apps awake until ${bedtime}` : 'Apps awake. Tonight is off.'}
+      </Text>
+    </View>
+  );
+}
+
+/** A night that didn't hold, or a schedule iOS dropped: plain words, not a scare. */
+function HealthNote({ title, detail }: { title: string; detail: string }) {
+  return (
+    <View style={[styles.statusRow, styles.statusTop]} accessible accessibilityLabel={`${title} ${detail}`}>
+      <SymbolView name={sym('exclamationmark.triangle.fill', 'warning')} size={15} tintColor={WARNING} style={styles.warningIcon} />
+      <Text style={[styles.statusSmall, styles.flex]}>
+        <Text style={styles.noteTitle}>{title} </Text>
+        {detail}
       </Text>
     </View>
   );
@@ -373,6 +414,7 @@ const styles = StyleSheet.create({
   warningIcon: { marginTop: 4 },
   status: { ...Type.body, color: Nocturne.text2 },
   statusSmall: { ...Type.secondary, color: Nocturne.text3 },
+  noteTitle: { color: Nocturne.text2, fontWeight: '600' },
   bottom: { gap: Space.l, paddingTop: Space.xxl, paddingBottom: Space.s },
   row: {
     minHeight: 60,

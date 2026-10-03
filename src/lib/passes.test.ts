@@ -25,6 +25,7 @@ const { PASSES_PER_MONTH, passesLeft, passRefusal, withSpent, spendPass, getPass
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
 beforeEach(() => {
+  fake.arm();
   sharedRemove('locturne.passes');
   sharedRemove('locturne.morningProofs');
 });

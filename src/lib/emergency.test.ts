@@ -23,6 +23,7 @@ const BEDTIME = at(10, 6, 23);
 
 beforeEach(() => {
   fake.reset();
+  fake.arm();
   fake.ids().night = 'night-picks';
   fake.ids().always = 'always-picks';
 });

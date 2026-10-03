@@ -10,6 +10,7 @@ import { PrimaryButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { SwitchRow } from '@/features/routine/controls';
 import { useProtection } from '@/hooks/use-protection';
+import { getPassesLeft } from '@/lib/passes';
 import { type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
@@ -22,8 +23,8 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } fr
  * Order (GAME_PLAN): honest status first, then the humane exits, then account things. No
  * stats or charts; history lives on the morning share card.
  *
- * Design preview: passes, the plan and the toggles are placeholders. Screen Time access is
- * real on iPhone.
+ * Passes, the emergency unlock and the scan code are real (they open the exits and scan
+ * screens). The plan and the notification toggles are still placeholders.
  */
 
 const STATUS: Record<Protection, { icon: string; android: string; line: string }> = {
@@ -41,9 +42,6 @@ const STATUS: Record<Protection, { icon: string; android: string; line: string }
   },
   unavailable: { icon: 'iphone', android: 'smartphone', line: 'Blocking needs Screen Time, which only iPhone has.' },
 };
-
-/** Placeholders until passes exist (TODO.md: count and length still to decide). */
-const PASSES_LEFT = 3;
 
 function refillDate(now: Date) {
   return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString(undefined, {
@@ -65,17 +63,8 @@ export function YouScreen() {
   const [alerts, setAlerts] = useState({ bedtime: true, morning: true, trial: true });
   const toggle = (key: keyof typeof alerts) => (on: boolean) => setAlerts((a) => ({ ...a, [key]: on }));
 
-  const usePass = () =>
-    Alert.alert('Use a pass?', `It wakes your apps this morning without the walk. ${PASSES_LEFT - 1} left after this.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Use pass', onPress: () => notLive('Passes') },
-    ]);
-
-  const emergency = () =>
-    Alert.alert('Emergency unlock', 'I’ll allow it. This once. Maybe.\n\nYour always-asleep apps stay asleep.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Unlock', style: 'destructive', onPress: () => notLive('Emergency unlock') },
-    ]);
+  // Re-read on every render; the tab re-renders when it's focused again.
+  const passesLeft = getPassesLeft();
 
   const s = STATUS[status];
   const version = Constants.expoConfig?.version;
@@ -97,13 +86,18 @@ export function YouScreen() {
       </View>
 
       <Section label="Ways out" footer={`Passes refill on ${refillDate(new Date())}. For sick days, travel, or a baby asleep in the room.`}>
-        <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${PASSES_LEFT} left`} onPress={usePass} />
-        <ValueRow icon={sym('lock.open.fill', 'lock_open')} title="Emergency unlock" value="" onPress={emergency} />
+        <ValueRow
+          icon={sym('ticket.fill', 'confirmation_number')}
+          title="Passes"
+          value={`${passesLeft} left`}
+          onPress={() => router.push('/exits')}
+        />
+        <ValueRow icon={sym('lock.open.fill', 'lock_open')} title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
         <ValueRow
           icon={sym('figure.roll', 'accessible')}
           title="Can’t walk or use stairs"
           value=""
-          onPress={() => notLive('Another way to wake him')}
+          onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
           last
         />
       </Section>
@@ -129,7 +123,9 @@ export function YouScreen() {
         <ValueRow icon={sym('envelope.fill', 'mail')} title="Send feedback" value="" onPress={() => notLive('Feedback')} />
         <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={() => notLive('Ratings')} />
         <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => notLive('Privacy Policy')} />
-        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => notLive('Terms of Use')} last />
+        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => notLive('Terms of Use')} />
+        {/* For beta testers: what iOS ran overnight, to paste into a bug report. */}
+        <ValueRow icon={sym('stethoscope', 'troubleshoot')} title="Beta diagnostics" value="" onPress={() => router.push('/diagnostics')} last />
       </Section>
 
       {__DEV__ ? (
@@ -146,7 +142,7 @@ export function YouScreen() {
 
       <Text style={styles.footer}>
         {/* Preview only, so it never implies passes or a plan exist (GAME_PLAN, "Reliability"). */}
-        Locturne{version ? ` ${version}` : ''} · Preview. Passes and the plan are placeholders.
+        Locturne{version ? ` ${version}` : ''} · Preview. The plan is a placeholder.
       </Text>
     </ScrollView>
   );

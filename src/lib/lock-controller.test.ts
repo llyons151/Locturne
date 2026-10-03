@@ -15,6 +15,7 @@ let nightHeld = false;
 let armed: ArmedNight | null = null;
 let live = 0;
 let nightPicks = 3;
+let shieldTexts: { title: string; tap: boolean }[] = [];
 
 mock.module(new URL('./screen-time.ts', import.meta.url).href, {
   namedExports: {
@@ -38,8 +39,15 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     armNight: async (windows: unknown[], list: string, times: { bedtime: number; morningStart: number }) => {
       calls.push(`arm:${list}:${windows.length}`);
       live = windows.length;
-      armed = { ...times, windows: windows.length, armedAt: new Date(clock).toISOString() };
+      const armedAt = new Date(clock).toISOString();
+      armed = { ...times, windows: windows.length, armedAt, since: armed ? (armed.since ?? armed.armedAt) : armedAt };
     },
+    armedSince: (a: ArmedNight) => new Date(a.since ?? a.armedAt),
+    peekNap: () => null,
+    getLimits: () => [],
+    limitUsedUpToday: () => false,
+    setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),
+    setNightShieldText: () => {},
     disarmNight: () => {
       calls.push('disarm');
       live = 0;
@@ -61,6 +69,7 @@ const at = (hh: number, mm = 0, day = 1) => new Date(2026, 9, day, hh, mm);
 beforeEach(() => {
   store.clear();
   calls = [];
+  shieldTexts = [];
   nightHeld = false;
   armed = null;
   live = 0;
@@ -129,6 +138,45 @@ describe('the morning gate', () => {
     proveMorning('steps', at(7, 30));
     nightHeld = true; // tonight's windows
     assert.equal(syncLock(at(7, 30, 2)).phase, 'morning');
+  });
+});
+
+describe('install day and mornings nobody armed', () => {
+  test('finishing onboarding in the afternoon: today reads as day, not morning', async () => {
+    clock = at(15, 0).getTime();
+    await armRoutine(at(15, 0));
+    assert.equal(readLock(at(15, 30)).phase, 'day');
+    // Tonight is armed in time, so tomorrow morning is locked.
+    assert.equal(readLock(at(7, 30, 2)).phase, 'morning');
+  });
+
+  test('nothing armed (before purchase): the morning reads as day', () => {
+    assert.equal(readLock(at(8, 0)).phase, 'day');
+  });
+
+  test('armed after bedtime: the coming morning is locked', async () => {
+    clock = at(23, 30).getTime();
+    await armRoutine(at(23, 30));
+    assert.equal(readLock(at(7, 30, 2)).phase, 'morning');
+  });
+
+  test('a re-arm in the morning (a routine edit) does not free that morning', async () => {
+    await armYesterday();
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60 }, at(7, 20));
+    clock = at(7, 20).getTime();
+    await armRoutine(at(7, 20));
+    assert.equal(readLock(at(7, 30)).phase, 'morning');
+  });
+});
+
+describe('the shield', () => {
+  test('the morning shield sends the open-Locturne notification when tapped; the night one stays quiet', async () => {
+    await armYesterday();
+    nightHeld = true;
+    syncLock(at(7, 30));
+    assert.deepEqual(shieldTexts.at(-1), { title: 'No.', tap: true });
+    syncLock(at(23, 30));
+    assert.deepEqual(shieldTexts.at(-1), { title: 'Shh. I’m sleeping. So are they.', tap: false });
   });
 });
 

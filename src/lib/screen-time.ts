@@ -32,6 +32,7 @@ import {
   unblockSelection,
   union,
   updateShield,
+  updateShieldWithId,
   userDefaultsGet,
   userDefaultsRemove,
   userDefaultsSet,
@@ -208,28 +209,74 @@ export function isAnyShieldUp(): boolean {
   return isShieldActive();
 }
 
+/** The block screen's words: his line is the title, plus one button. */
+export type ShieldText = { title: string; subtitle: string; button: string };
+
+/** What tapping the shield's button sends: a notification that opens Locturne, or nothing. */
+export type ShieldTap = { title: string; body: string; identifier?: string; userInfo?: Record<string, unknown> } | null;
+
+/*
+ * Where the shield extension looks for its words (the library's Shared.swift): first a
+ * config for the list holding the app, then the app-wide one. The monitor extension writes
+ * the list's config when a window's `blockSelection` names a shield (`NIGHT_SHIELD`), so the
+ * app writes both too, or the bedtime words would outlast the night.
+ */
+const CONFIG_FOR_LIST = 'shieldConfigurationForSelection_';
+const ACTIONS_FOR_LIST = 'shieldActionsForSelection_';
+
+/** The bedtime shield, copied in by the monitor extension at each night window's start. */
+export const NIGHT_SHIELD = 'locturne-night';
+
+function shieldConfig({ title, subtitle, button }: ShieldText) {
+  return {
+    title,
+    subtitle,
+    primaryButtonLabel: button,
+    // Monochrome, matching the app's Nocturne look: near-black, white text, white pill.
+    backgroundColor: { red: 11, green: 11, blue: 12 },
+    iconSystemName: 'moon.zzz.fill',
+    iconTint: { red: 255, green: 255, blue: 255 },
+    titleColor: { red: 255, green: 255, blue: 255 },
+    subtitleColor: { red: 161, green: 161, blue: 166 },
+    primaryButtonLabelColor: { red: 11, green: 11, blue: 12 },
+    primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255 },
+  };
+}
+
+/**
+ * A shield button can't open the app, but it can send a notification that does
+ * (`shieldTapNotification` in notifications.ts).
+ */
+function shieldActions(tap: ShieldTap) {
+  return {
+    primary: {
+      behavior: 'close' as const,
+      ...(tap ? { actions: [{ type: 'sendNotification' as const, payload: tap }] } : {}),
+    },
+  };
+}
+
 /**
  * The block screen's words. iOS draws the shield itself: a small icon, a title, a subtitle
- * and one button, so his line goes in the title.
+ * and one button, so his line goes in the title. Written app-wide and for the bedtime list,
+ * which the monitor extension may have given the bedtime words at the last window.
  */
-export function setShieldText({ title, subtitle, button }: { title: string; subtitle: string; button: string }) {
-  updateShield(
-    {
-      title,
-      subtitle,
-      primaryButtonLabel: button,
-      // Monochrome, matching the app's Nocturne look: near-black, white text, white pill.
-      backgroundColor: { red: 11, green: 11, blue: 12 },
-      iconSystemName: 'moon.zzz.fill',
-      iconTint: { red: 255, green: 255, blue: 255 },
-      titleColor: { red: 255, green: 255, blue: 255 },
-      subtitleColor: { red: 161, green: 161, blue: 166 },
-      primaryButtonLabelColor: { red: 11, green: 11, blue: 12 },
-      primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255 },
-    },
-    { primary: { behavior: 'close' } },
-    TRIGGER,
-  );
+export function setShieldText(text: ShieldText, tap: ShieldTap = null) {
+  const config = shieldConfig(text);
+  const actions = shieldActions(tap);
+  updateShield(config, actions, TRIGGER);
+  if (!isAvailable()) return;
+  userDefaultsSet(`${CONFIG_FOR_LIST}night`, config);
+  userDefaultsSet(`${ACTIONS_FOR_LIST}night`, actions);
+}
+
+/**
+ * The words the monitor extension puts up at bedtime with Locturne closed (`armNight` names
+ * this shield). Without it, the bedtime apps would show whatever the app last wrote.
+ */
+export function setNightShieldText(text: ShieldText) {
+  if (!isAvailable()) return;
+  updateShieldWithId(shieldConfig(text), shieldActions(null), NIGHT_SHIELD);
 }
 
 /** What's armed, kept in the App Group so it survives the app being closed. */
@@ -238,7 +285,15 @@ export type ArmedNight = {
   morningStart: number;
   windows: number;
   armedAt: string;
+  /**
+   * When a night was first armed, kept across re-arms (a routine edit re-arms the windows).
+   * Says whether a night was armed in time to lock its morning. Older records lack it.
+   */
+  since?: string;
 };
+
+/** When protection was first armed: `since`, or `armedAt` for records from before it. */
+export const armedSince = (armed: ArmedNight): Date => new Date(armed.since ?? armed.armedAt);
 
 const ARMED_KEY = 'locturne.armedNight';
 
@@ -257,13 +312,14 @@ export async function armNight(
   list: SelectionId,
   times: { bedtime: number; morningStart: number },
 ): Promise<void> {
+  const before = getArmedNight();
   disarmNight();
   try {
     for (const w of windows) {
       configureActions({
         activityName: w.name,
         callbackName: 'intervalDidStart',
-        actions: [{ type: 'blockSelection', familyActivitySelectionId: list }],
+        actions: [{ type: 'blockSelection', familyActivitySelectionId: list, shieldId: NIGHT_SHIELD }],
       });
       await startMonitoring(
         w.name,
@@ -275,7 +331,8 @@ export async function armNight(
     disarmNight();
     throw error;
   }
-  const armed: ArmedNight = { ...times, windows: windows.length, armedAt: new Date().toISOString() };
+  const armedAt = new Date().toISOString();
+  const armed: ArmedNight = { ...times, windows: windows.length, armedAt, since: before ? armedSince(before).toISOString() : armedAt };
   userDefaultsSet(ARMED_KEY, armed);
 }
 
@@ -363,6 +420,12 @@ function readNap(): ActiveNap | null {
   return userDefaultsGet<ActiveNap>(NAP_KEY) ?? null;
 }
 
+/** The running nap, or null, without tidying anything up: safe to call while rendering. */
+export function peekNap(now = new Date()): ActiveNap | null {
+  const nap = isAvailable() ? readNap() : null;
+  return nap && now.getTime() < nap.end ? nap : null;
+}
+
 /**
  * The running nap, or null. A nap past its end is tidied up here, in case iOS was late
  * calling the extension.
@@ -416,6 +479,17 @@ function copySelection(from: SelectionId, to: SelectionId): void {
   const token = getFamilyActivitySelectionId(from);
   if (token) setFamilyActivitySelectionId({ id: to, familyActivitySelection: token });
   else clearSelection(to);
+}
+
+/**
+ * The picks to show for a standing list: the list itself, or its draft while the live list
+ * is empty and a change waits. An emergency unlock parks the bedtime picks there until the
+ * next bedtime (`pauseNightUntil`), and they're still the person's bedtime apps.
+ */
+export function shownSelection(list: StandingList): { id: SelectionId; size: number } {
+  const size = selectionSize(list);
+  if (size === 0 && getPendingLists()[list]) return { id: draftId(list), size: selectionSize(draftId(list)) };
+  return { id: list, size };
 }
 
 /**

@@ -8,11 +8,11 @@
  * rule the person is most likely to run into: the night or morning lock (it holds the most
  * apps), then Block now, then a used-up daily limit, then the always-asleep list.
  *
- * `shieldCopy` is pure, so it runs in tests. `applyShieldText` hands the words to iOS.
+ * Everything here is pure, so it runs in tests. `syncLock` (lock-controller.ts) hands the words
+ * to iOS on every sync.
  */
 import type { LockState, Phase } from './lock-state.ts';
-import { getRoutine, type Routine, type WakeMethod } from './routine.ts';
-import { getLimits, getNap, isScreenTimeAvailable, limitUsedUpToday, setShieldText } from './screen-time.ts';
+import type { Routine, WakeMethod } from './routine.ts';
 
 export type ShieldText = { title: string; subtitle: string; button: string };
 
@@ -131,18 +131,17 @@ export function shieldTextFor(
 }
 
 /**
- * Hands the right words to iOS for `state`. Safe to call on every sync, and does nothing off
- * iOS. It always writes, because other screens (the Nap tab) set their own words too.
- *
- * `readLock` doesn't pass the daytime facts yet, so a running nap and used-up limits are
- * read here too.
+ * What tapping the shield's button sends, in the shape react-native-device-activity takes
+ * for a `sendNotification` action. A shield button can't open the app, but tapping this
+ * notification does, straight onto the wake-up screen. Morning only: at night the answer is
+ * "go to sleep", and a notification would only keep them up.
  */
-export function applyShieldText(state: LockState, now = new Date(), routine: Routine = getRoutine(now)): ShieldText | null {
-  if (!isScreenTimeAvailable()) return null;
-  const nap = getNap();
-  const blockNowUntil = state.blockNowUntil ?? (nap ? new Date(nap.end) : null);
-  const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
-  const text = shieldTextFor({ phase: state.phase, blockNowUntil }, routine, now, limitReached);
-  setShieldText(text);
-  return text;
+export function shieldTap(phase: Phase) {
+  if (phase !== 'morning') return null;
+  return {
+    title: 'Up already?',
+    body: 'Tap here and prove it. Then they wake.',
+    identifier: 'locturne.shieldTap',
+    userInfo: { url: 'locturne://wake' },
+  };
 }

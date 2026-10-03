@@ -45,6 +45,7 @@ export function fakeDeviceActivity({ available = true } = {}) {
     unblockSelection: record('unblockSelection'),
     isShieldActive: () => state.calls.some(([name]) => name === 'blockSelection'),
     updateShield: record('updateShield'),
+    updateShieldWithId: record('updateShieldWithId'),
     configureActions: record('configureActions'),
     startMonitoring: async (name: string) => {
       state.calls.push(['startMonitoring', name]);
@@ -73,11 +74,25 @@ export function fakeDeviceActivity({ available = true } = {}) {
     state.activities = [];
   };
 
+  /**
+   * A bedtime schedule armed long ago, so mornings are locked until proven (`armedInTime` in
+   * lock-state.ts). Without it every morning reads as free, as on the day of install.
+   */
+  const arm = (since = new Date(2026, 0, 1)) => {
+    state.store['locturne.armedNight'] = {
+      bedtime: 23 * 60,
+      morningStart: 7 * 60,
+      windows: 16,
+      armedAt: since.toISOString(),
+      since: since.toISOString(),
+    };
+  };
+
   /** Which selection ids a shield call named, in order. */
   const shielded = (name: 'blockSelection' | 'unblockSelection') =>
     state.calls
       .filter(([call]) => call === name)
       .map(([, input]) => (input as { activitySelectionId: string }).activitySelectionId);
 
-  return { state, exports, reset, ids, shielded };
+  return { state, exports, reset, ids, shielded, arm };
 }

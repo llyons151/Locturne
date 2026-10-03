@@ -3,6 +3,7 @@
  * keep the setup saved and arm nothing). Saving never blocks anything: only `armTonight`
  * does, and only after purchase.
  */
+import { rescheduleNotifications } from '@/lib/notifications';
 import { DEFAULT_ROUTINE, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
@@ -16,9 +17,10 @@ export const ATTRIBUTION_KEY = 'locturne.attribution';
 const EXIT_OFFER_SHOWN_KEY = 'locturne.exitOfferShown';
 
 /**
- * Saves the schedule and wake-up method. The first save (a first run) applies at once; on a
- * repeat run it waits for the next bedtime, like every other settings change. Called once,
- * when the setup is final: on purchase, or when leaving after the paywall.
+ * Saves the schedule and wake-up method. With nothing armed (a first run, or after declining)
+ * it applies at once; with a night armed it waits for the next bedtime, like every other
+ * settings change. Called once, when the setup is final: on purchase, or when leaving after
+ * the paywall.
  */
 export function saveSetup(answers: Answers): void {
   saveRoutine({
@@ -27,6 +29,7 @@ export function saveSetup(answers: Answers): void {
     morningStart: answers.wake,
     method: answers.method ?? DEFAULT_ROUTINE.method,
   });
+  rescheduleNotifications().catch(() => {});
   if (answers.found) sharedSet(ATTRIBUTION_KEY, { found: answers.found, at: Date.now() });
 }
 

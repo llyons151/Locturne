@@ -63,8 +63,6 @@ export const COPY = {
     title: 'Your free trial ends in 2 days.',
     body: `It ends ${ends.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, go to Settings › Apple ID › Subscriptions. No hard feelings. Some feelings.`,
   }),
-  /** The shield-tap follow-up, morning only: tapping it opens the app, which a shield can't. */
-  shieldTap: { title: 'Up already?', body: 'Tap here and prove it. Then they wake.' },
 };
 
 /** Local midnight `days` after `date`, plus `minutes`, like lock-state.ts. */
@@ -162,16 +160,32 @@ export function isGoodMomentToAsk(
   return permission === 'undetermined' && (facts.proofs.length > 0 || hadSuccessfulNight(facts.nights));
 }
 
+/** The shield-tap follow-up lives with the shield's other words. */
+export { shieldTap as shieldTapNotification } from './shield-copy.ts';
+
 /**
- * The follow-up for a tap on the shield's button, in the shape react-native-device-activity
- * takes for a `sendNotification` shield action (its `NotificationPayload`). A shield button
- * can't open the app, but tapping this notification does. Morning only: at night the
- * answer is "go to sleep", and a notification would only keep him up. See
- * docs/v1-build/status-and-notifications.md for wiring it into `setShieldText`.
+ * Does tapping this notification open the wake-up screen? The shield-tap follow-up and the
+ * morning-start one do: both are about getting up. The rest just open the app.
  */
-export function shieldTapNotification(phase: 'night' | 'morning' | 'day' | 'off') {
-  if (phase !== 'morning') return null;
-  return { ...COPY.shieldTap, identifier: `${ID_PREFIX}shieldTap`, userInfo: { url: 'locturne://' } };
+export function opensWakeScreen(identifier: string): boolean {
+  return identifier === `${ID_PREFIX}shieldTap` || identifier.startsWith(`${ID_PREFIX}morning.`);
+}
+
+/**
+ * Calls `open` with each notification the person taps, including the one that launched the
+ * app. Returns the unsubscribe. A no-op off iPhone.
+ */
+export function onNotificationTap(open: (identifier: string) => void): () => void {
+  if (!isIOS()) return () => {};
+  const launched = Notifications.getLastNotificationResponse();
+  if (launched) {
+    Notifications.clearLastNotificationResponse();
+    open(launched.notification.request.identifier);
+  }
+  const sub = Notifications.addNotificationResponseReceivedListener((response) =>
+    open(response.notification.request.identifier),
+  );
+  return () => sub.remove();
 }
 
 /* Talking to iOS. Everything below is a no-op off iPhone. */

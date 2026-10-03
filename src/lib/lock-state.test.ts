@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import {
+  armedInTime,
   currentMorning,
   getLockState,
   nightsAround,
@@ -219,5 +220,23 @@ describe('nightsAround', () => {
     const { latest, next } = nightsAround(at(14), settings);
     assert.deepEqual(latest, { start: at(23, 30, 0), end: at(7) });
     assert.deepEqual(next, { start: at(23, 30), end: at(7, 0, 2) });
+  });
+});
+
+describe('armedInTime', () => {
+  test('armed before the morning started: that morning is locked', () => {
+    assert.equal(armedInTime(at(8), settings, at(14, 0, 0)), true);
+    // Armed at 23:45 (after bedtime): still before 07:00, so the coming morning is locked.
+    assert.equal(armedInTime(at(8, 0, 2), settings, at(23, 45)), true);
+  });
+
+  test('armed after the morning started: that morning is free, the next one is not', () => {
+    assert.equal(armedInTime(at(8), settings, at(7, 30)), false);
+    assert.equal(armedInTime(at(15), settings, at(15)), false);
+    assert.equal(armedInTime(at(8, 0, 2), settings, at(15)), true);
+  });
+
+  test('nothing armed: nothing is locked', () => {
+    assert.equal(armedInTime(at(8), settings, null), false);
   });
 });

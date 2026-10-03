@@ -32,6 +32,7 @@ mock.module('react-native-device-activity', {
     unblockSelection: noop,
     union: noop,
     updateShield: noop,
+    updateShieldWithId: noop,
     userDefaultsGet: () => undefined,
     userDefaultsSet: noop,
     userDefaultsRemove: noop,

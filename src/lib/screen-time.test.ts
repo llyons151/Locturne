@@ -68,6 +68,7 @@ mock.module('react-native-device-activity', {
     unblockSelection: (...args: unknown[]) => calls.push(['unblockSelection', ...args]),
     isShieldActive: () => calls.some(([name]) => name === 'blockSelection'),
     updateShield: (...args: unknown[]) => calls.push(['updateShield', ...args]),
+    updateShieldWithId: (...args: unknown[]) => calls.push(['updateShieldWithId', ...args]),
     configureActions: (config: unknown) => calls.push(['configureActions', config]),
     startMonitoring: async (name: string, schedule: unknown, evts: unknown) => {
       if (name === failOnStart) throw new Error('intervalTooShort');
@@ -165,7 +166,7 @@ test('armNight: each window blocks the list at its start, repeating daily', asyn
   assert.deepEqual(configured[0], {
     activityName: 'night-0',
     callbackName: 'intervalDidStart',
-    actions: [{ type: 'blockSelection', familyActivitySelectionId: 'night' }],
+    actions: [{ type: 'blockSelection', familyActivitySelectionId: 'night', shieldId: 'locturne-night' }],
   });
 
   const started = calls.filter(([n]) => n === 'startMonitoring');

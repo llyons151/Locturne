@@ -34,6 +34,7 @@ import {
   type DailyLimit,
   type LimitId,
 } from '@/lib/daily-limits';
+import { getNightPause } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import {
   armLimit,
@@ -50,6 +51,7 @@ import {
   requestAccess,
   saveLimits,
   selectionSize,
+  shownSelection,
   type SelectionId,
   type StandingList,
 } from '@/lib/screen-time';
@@ -93,6 +95,10 @@ const clock = (date: Date) => date.toLocaleTimeString(undefined, { hour: 'numeri
 function PendingNote({ list }: { list: StandingList }) {
   const starts = listChangeStarts(list);
   if (!starts) return null;
+  if (list === 'night') {
+    const paused = getNightPause();
+    if (paused) return <Text style={styles.footer}>Awake tonight after an emergency unlock. They sleep again at {clock(paused)}.</Text>;
+  }
   return <Text style={styles.footer}>Apps you removed stay asleep until {clock(starts)}, when your change starts.</Text>;
 }
 
@@ -120,7 +126,8 @@ function LiveAppsList() {
   }, [refresh]);
 
   const sizes = useMemo(
-    () => ({ night: selectionSize('night'), always: selectionSize('always') }),
+    // The bedtime list reads from its draft during an emergency pause (`shownSelection`).
+    () => ({ night: shownSelection('night'), always: shownSelection('always') }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read on every revision
     [revision],
   );
@@ -202,7 +209,7 @@ function LiveAppsList() {
           </Text>
           <Text style={styles.summary}>
             {access === 'approved'
-              ? `${countPicks(sizes.night)} sleep at bedtime, ${countPicks(sizes.always)} stay asleep all day.`
+              ? `${countPicks(sizes.night.size)} sleep at bedtime, ${countPicks(sizes.always.size)} stay asleep all day.`
               : protection === 'off'
                 ? "Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again."
                 : 'Locturne needs Screen Time access to put apps to sleep.'}
@@ -222,19 +229,19 @@ function LiveAppsList() {
               <View key={group.key} style={styles.section}>
                 <Text style={styles.sectionLabel}>{group.label}</Text>
                 <View style={styles.group}>
-                  {sizes[group.key] > 0 && !isBlockedAppsViewAvailable && (
+                  {sizes[group.key].size > 0 && !isBlockedAppsViewAvailable && (
                     // A build from before modules/blocked-apps existed can't draw the rows.
                     <View style={[styles.rowBody, styles.separator, styles.note]}>
                       <Text style={styles.noteText}>
-                        {countPicks(sizes[group.key])}. Install the latest build to see them.
+                        {countPicks(sizes[group.key].size)}. Install the latest build to see them.
                       </Text>
                     </View>
                   )}
                   {isBlockedAppsViewAvailable && (
-                    <PickedRows selectionId={group.key} count={sizes[group.key]} revision={revision} />
+                    <PickedRows selectionId={sizes[group.key].id} count={sizes[group.key].size} revision={revision} />
                   )}
                   <EditRow
-                    label={sizes[group.key] ? 'Add or remove apps' : 'Add apps'}
+                    label={sizes[group.key].size ? 'Add or remove apps' : 'Add apps'}
                     onPress={() => edit(group.key)}
                   />
                 </View>

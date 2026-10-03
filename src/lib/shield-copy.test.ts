@@ -35,6 +35,7 @@ mock.module('react-native-device-activity', {
     unblockSelection: noop,
     union: noop,
     updateShield: (config: { title: string; subtitle: string; primaryButtonLabel: string }) => shields.push(config),
+    updateShieldWithId: noop,
     userDefaultsGet: (key: string) => store[key],
     userDefaultsSet: (key: string, value: unknown) => {
       store[key] = value;
@@ -45,9 +46,8 @@ mock.module('react-native-device-activity', {
   },
 });
 
-const { applyShieldText, clockLabel, shieldCopy, shieldRule, shieldTextFor } = await import('./shield-copy.ts');
+const { clockLabel, shieldCopy, shieldRule, shieldTap, shieldTextFor } = await import('./shield-copy.ts');
 const { DEFAULT_ROUTINE } = await import('./routine.ts');
-const { dateKey } = await import('./lock-state.ts');
 
 type Rule = ReturnType<typeof shieldRule>;
 const RULES: Rule[] = ['night', 'lateNight', 'morning', 'blockNow', 'limit', 'always'];
@@ -127,38 +127,11 @@ describe('the words', () => {
   });
 });
 
-describe('applyShieldText', () => {
-  const state = {
-    phase: 'day' as const,
-    blocked: [],
-    blockNowUntil: null,
-    stepsRemaining: 0,
-    morningKey: '2026-10-03',
-    nextChange: new Date(2026, 9, 3, 23),
-  };
-
-  test('does nothing off iOS', () => {
-    available = false;
-    assert.equal(applyShieldText(state, new Date(2026, 9, 3, 14)), null);
-    assert.equal(shields.length, 0);
-  });
-
-  test('writes the words for the state', () => {
-    applyShieldText({ ...state, phase: 'morning' }, new Date(2026, 9, 3, 8), DEFAULT_ROUTINE);
-    assert.equal(shields.at(-1)?.title, 'No.');
-    assert.equal(shields.at(-1)?.primaryButtonLabel, 'Fine');
-  });
-
-  test('picks up a running nap and a used-up limit that readLock leaves out', () => {
-    const now = new Date();
-    store['locturne.nap'] = { start: now.getTime(), end: now.getTime() + 30 * 60_000, list: 'block' };
-    applyShieldText(state, now, DEFAULT_ROUTINE);
-    assert.equal(shields.at(-1)?.title, 'Tucked in. Do not perceive me.');
-
-    delete store['locturne.nap'];
-    store['locturne.limits'] = [{ id: 'limit-0', minutes: 30 }];
-    store['locturne.limitReached.limit-0'] = dateKey(new Date());
-    applyShieldText(state, now, DEFAULT_ROUTINE);
-    assert.equal(shields.at(-1)?.title, 'That’s today’s lot.');
+describe('shieldTap', () => {
+  test('only in the morning, and it opens the wake-up screen', () => {
+    assert.equal(shieldTap('night'), null);
+    assert.equal(shieldTap('day'), null);
+    assert.equal(shieldTap('off'), null);
+    assert.equal(shieldTap('morning')?.userInfo.url, 'locturne://wake');
   });
 });

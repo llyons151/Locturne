@@ -1,5 +1,5 @@
 import { useKeepAwake } from 'expo-keep-awake';
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -22,9 +22,6 @@ import { Body, TopBar, Voice } from './parts';
 import { StepsView } from './steps-view';
 
 export type WakeMethodShown = 'downstairs' | 'steps';
-
-/** The scan method's screen, owned by the scan feature. */
-const SCAN: Href = '/scan' as Href;
 
 const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinutes());
 
@@ -72,7 +69,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
     const scan =
       routine.method === 'scan' ? (
-        <TextButton label="Scan your code instead" onPress={() => router.replace(SCAN)} />
+        <TextButton label="Scan your code instead" onPress={() => router.replace('/scan')} />
       ) : null;
     content =
       shown === 'downstairs' ? (

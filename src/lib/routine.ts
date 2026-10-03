@@ -2,11 +2,12 @@
  * The person's routine: bedtime, morning start, which nights, how they prove they're up, and
  * the step goal. Saved in the App Group so the extensions can read it with the app closed.
  *
- * Every edit waits for the next bedtime (GAME_PLAN, decided 2026-10-01): `saveRoutine` keeps
- * the edit as `pending` until then, and `getRoutine` promotes it once that bedtime passes.
+ * While a night is armed, every edit waits for the next bedtime (GAME_PLAN, decided
+ * 2026-10-01): `saveRoutine` keeps the edit as `pending` until then, and `getRoutine` promotes
+ * it once that bedtime passes. With nothing armed there's no lock to loosen, so it applies now.
  */
 import { settingsTakeEffectAt, type LockSettings } from './lock-state.ts';
-import { sharedGet, sharedSet } from './screen-time.ts';
+import { getArmedNight, sharedGet, sharedSet } from './screen-time.ts';
 
 /** The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. */
 export type WakeMethod = 'downstairs' | 'steps' | 'scan';
@@ -54,9 +55,13 @@ export function settleRoutine(stored: StoredRoutine, now: Date): StoredRoutine {
   return stored;
 }
 
-/** Pure: records an edit. The first save (onboarding) applies at once; later ones wait. */
-export function applyEdit(stored: StoredRoutine | undefined, next: Routine, now: Date): StoredRoutine {
-  if (!stored) return { active: next };
+/**
+ * Pure: records an edit. It waits for the next bedtime only while a night is armed: the
+ * first save (onboarding), and any save while nothing is armed (they declined the paywall,
+ * or every night was off), applies at once, since there's no lock to loosen.
+ */
+export function applyEdit(stored: StoredRoutine | undefined, next: Routine, now: Date, armed = true): StoredRoutine {
+  if (!stored || !armed) return { active: next };
   const settled = settleRoutine(stored, now);
   const from = settingsTakeEffectAt(now, toLockSettings(settled.active)).getTime();
   return { active: settled.active, pending: { routine: next, from } };
@@ -87,7 +92,7 @@ export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | 
 
 /** Saves an edit and returns when it takes effect. */
 export function saveRoutine(next: Routine, now = new Date()): Date {
-  const stored = applyEdit(read(now), next, now);
+  const stored = applyEdit(read(now), next, now, getArmedNight() !== null);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;
 }

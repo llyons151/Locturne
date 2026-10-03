@@ -9,6 +9,8 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { ChoiceRow, Section, sym } from '@/components/grouped-list';
 import { formatPreset } from '@/features/onboarding/time-wheel';
 import * as haptic from '@/lib/haptics';
+import { armRoutine } from '@/lib/lock-controller';
+import { rescheduleNotifications } from '@/lib/notifications';
 import {
   getPendingRoutine,
   getRoutine,
@@ -154,8 +156,10 @@ export function RoutineScreen() {
   const commit = (next: Routine) => {
     saveRoutine(toStored(next));
     setLoaded(load());
-    // TODO(armRoutine): re-arm the night windows for the new routine here, once
-    // `armRoutine()` is merged. This is the one call site: every edit goes through `commit`.
+    // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
+    // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
+    armRoutine().catch(() => {});
+    rescheduleNotifications().catch(() => {});
   };
   const set = (patch: Partial<Routine>) => commit({ ...saved, ...patch });
 

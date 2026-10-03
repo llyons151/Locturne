@@ -51,7 +51,7 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "Locturne counts your steps each morning to wake your apps. That’s all it uses motion for."
+          "motionPermission": "Locturne checks your steps and stairs each morning to wake your apps. That’s all it uses motion for."
         }
       ],
       [

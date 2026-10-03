@@ -19,6 +19,7 @@ const { sharedRemove } = await import('./screen-time.ts');
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
 beforeEach(() => {
+  fake.arm();
   sharedRemove('locturne.scanCode');
   sharedRemove('locturne.morningProofs');
 });

@@ -39,6 +39,7 @@ mock.module('react-native-device-activity', {
       'unblockSelection',
       'union',
       'updateShield',
+      'updateShieldWithId',
       'userDefaultsGet',
       'userDefaultsRemove',
       'userDefaultsSet',
@@ -51,7 +52,7 @@ mock.module('react-native-device-activity', {
   ),
 });
 
-const { BEDTIME_WARNING, isGoodMomentToAsk, planNotifications, planTrialReminder, shieldTapNotification } =
+const { BEDTIME_WARNING, isGoodMomentToAsk, opensWakeScreen, planNotifications, planTrialReminder, shieldTapNotification } =
   await import('./notifications.ts');
 const { DEFAULT_ROUTINE } = await import('./routine.ts');
 
@@ -145,4 +146,12 @@ test('the shield-tap follow-up is morning only', () => {
   assert.equal(shieldTapNotification('night'), null);
   assert.equal(shieldTapNotification('day'), null);
   assert.ok(shieldTapNotification('morning')?.title);
+});
+
+test('the shield-tap and morning notifications open the wake-up screen; the rest don’t', () => {
+  assert.equal(opensWakeScreen(shieldTapNotification('morning')!.identifier), true);
+  assert.equal(opensWakeScreen('locturne.morning.2026-10-04'), true);
+  assert.equal(opensWakeScreen('locturne.bedtime.2026-10-04'), false);
+  assert.equal(opensWakeScreen('locturne.trial'), false);
+  assert.equal(opensWakeScreen('someone-else'), false);
 });

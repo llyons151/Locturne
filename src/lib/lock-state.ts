@@ -134,6 +134,16 @@ export function nightsAround(now: Date, settings: LockSettings): { latest: Night
 }
 
 /**
+ * Was the lock armed in time to hold the morning `now` belongs to? Only a night armed before
+ * its morning started can lock that morning. Finishing onboarding at 3 pm or 7:30 am arms
+ * tonight, not the morning already under way, so that morning is simply free; arming at
+ * 23:30 shields straight away, so tomorrow morning is locked. Nothing armed: nothing locked.
+ */
+export function armedInTime(now: Date, settings: LockSettings, armedSince: Date | null): boolean {
+  return armedSince !== null && armedSince < nightsAround(now, settings).latest.end;
+}
+
+/**
  * The morning that `now` belongs to. 23:45 belongs to tomorrow's morning (tonight leads into
  * it), 03:00 to today's, and with a 01:00 bedtime, 00:30 still belongs to yesterday's.
  */

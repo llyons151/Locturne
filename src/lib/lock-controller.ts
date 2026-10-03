@@ -12,32 +12,60 @@
  *    the phase is now `day` and wakes the apps. Block now, used-up limits and the always
  *    list are re-shielded straight after (`wakeApps`), so a proof never lifts them.
  */
-import { currentMorning, getLockState, nightsAround, type LockState } from './lock-state.ts';
+import { armedInTime, currentMorning, dateKey, getLockState, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { getProof, recordProof, type ProofKind } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, toLockSettings } from './routine.ts';
 import {
+  armedSince,
   armedWindowNames,
   armNight,
   disarmNight,
   getAccess,
   getArmedNight,
+  getLimits,
   isNightHeld,
   isScreenTimeAvailable,
+  limitUsedUpToday,
+  peekNap,
   reapplyStandingBlocks,
   selectionSize,
+  setNightShieldText,
+  setShieldText,
   sleepApps,
   wakeApps,
 } from './screen-time.ts';
+import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
 
-/** The state right now, without touching any shields. */
+/** Block now and used-up daily limits, as `getLockState` takes them. Selection ids are the apps. */
+function readDaytime(now: Date): DaytimeFacts {
+  const nap = peekNap(now);
+  const today = dateKey(now);
+  return {
+    blockNow: nap ? { apps: [nap.list], end: new Date(nap.end) } : null,
+    limits: getLimits().map((limit) => ({ apps: [limit.id], reachedOn: limitUsedUpToday(limit.id) ? today : null })),
+  };
+}
+
+/**
+ * The state right now, without touching any shields. A morning whose night wasn't armed in
+ * time (`armedInTime`: the install day, or before purchase) reads as unlocked, because
+ * nothing is asleep and nothing should pretend to be.
+ */
 export function readLock(now = new Date()): LockState {
   const settings = toLockSettings(getRoutine(now));
   const morning = currentMorning(now, settings);
   // Only a proof that counts for this morning (one made after morning start, or a pass).
   const proof = getProof(morning.key, morning);
+  const armed = getArmedNight();
+  const free = !armedInTime(now, settings, armed ? armedSince(armed) : null);
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
-  return getLockState(now, settings, { steps: 0, unlockedMorning: proof ? proof.morningKey : null });
+  return getLockState(
+    now,
+    settings,
+    { steps: 0, unlockedMorning: proof || free ? morning.key : null },
+    readDaytime(now),
+  );
 }
 
 const listeners = new Set<(state: LockState) => void>();
@@ -46,19 +74,6 @@ const listeners = new Set<(state: LockState) => void>();
 export function onLockChange(listener: (state: LockState) => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
-}
-
-/**
- * Should the bedtime apps be asleep although no window has shielded them? Only when this
- * night was armed before it began: then a window should have fired and iOS missed it (or
- * shields were lost), and the lock still holds. A night armed after it began, such as
- * onboarding finishing at 7:30, never had a lock, so its morning doesn't start one.
- */
-function nightWasArmed(now: Date): boolean {
-  const armed = getArmedNight();
-  if (!armed) return false;
-  const { latest } = nightsAround(now, toLockSettings(getRoutine(now)));
-  return new Date(armed.armedAt) <= latest.start;
 }
 
 /**
@@ -76,7 +91,9 @@ export function syncLock(now = new Date()): LockState {
   if (isScreenTimeAvailable()) {
     const asleep = state.phase === 'night' || state.phase === 'morning';
     if (!asleep && isNightHeld()) wakeApps('night');
-    else if (asleep && !isNightHeld() && selectionSize('night') > 0 && nightWasArmed(now)) {
+    // `readLock` only reports night or morning for a night armed in time, so a missed
+    // window or lost shields are put back, but a night armed after it began isn't.
+    else if (asleep && !isNightHeld() && selectionSize('night') > 0 && getArmedNight()) {
       sleepApps('night');
       reapplyStandingBlocks();
     } else reapplyStandingBlocks();
@@ -86,6 +103,7 @@ export function syncLock(now = new Date()): LockState {
         // iOS refused. The old windows stay armed, and the next sync tries again.
       });
     }
+    applyShieldText(state, now);
   }
   for (const listener of listeners) listener(state);
   return state;
@@ -149,4 +167,16 @@ async function arm(now: Date): Promise<ArmResult> {
   if (readLock(now).phase === 'night' && selectionSize('night') > 0) sleepApps('night');
   syncLock(now);
   return 'armed';
+}
+
+/**
+ * Puts the right words on the block screen for `state` (shield-copy.ts), with a tap that
+ * sends the open-Locturne notification in the morning, and refreshes the bedtime words the
+ * monitor extension shows at the next window with the app closed.
+ */
+function applyShieldText(state: LockState, now: Date): void {
+  const routine = getRoutine(now);
+  const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
+  setShieldText(shieldTextFor(state, routine, now, limitReached), shieldTap(state.phase));
+  setNightShieldText(shieldCopy('night', getPendingRoutine(now)?.routine ?? routine));
 }
