@@ -57,12 +57,12 @@ Tick items off here as they're done.
 
 On a real iPhone, prove:
 - [ ] Blocks apply at bedtime and hold for 3+ nights with the app closed.
-  DeviceActivity schedules are chained in intervals under about 45 minutes.
+  DeviceActivity schedules are chained in intervals under about 45 minutes. *Built 2026-10-03; the device run is still to do ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)).*
 - [ ] The morning count (CMPedometer, not HealthKit) unlocks at 200 steps, from the
-  shield tap or from opening the app.
-- [ ] Revoked Screen Time access is detected and shown plainly.
-- [ ] A nightly self-check confirms the shields actually applied.
-- [ ] Light anti-shake checks.
+  shield tap or from opening the app. *Built 2026-10-03; the device run is still to do ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)).*
+- [ ] Revoked Screen Time access is detected and shown plainly. *Built 2026-10-03; the device run is still to do ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)).*
+- [ ] A nightly self-check confirms the shields actually applied. *Built 2026-10-03; the device run is still to do ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)).*
+- [ ] Light anti-shake checks. *Built 2026-10-03; the device run is still to do ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)).*
 
 If any of these fail, stop and redesign.
 
@@ -74,8 +74,8 @@ Fixes that are still open from the rating:
 - [ ] **A live 20-step walk before the paywall,** with the Motion permission request
   framed around it, and showing that shaking the phone doesn't count. It replaces
   or follows the animated `tomorrow` demo.
-- [ ] **End onboarding on tomorrow morning:** "Tomorrow 7:00, TikTok stays asleep
-  until you're up."
+- [x] **End onboarding on tomorrow morning:** "Tomorrow 7:00, TikTok stays asleep
+  until you're up." *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] **Make the reveal hit harder.** The 394-square grid is dense. Consider a
   separate morning number ("N minutes before your feet touch the floor").
 - [ ] **Morning-first paywall timeline:** Tonight / Tomorrow 7:00 first walk /
@@ -94,47 +94,47 @@ Fixes that are still open from the rating:
   or accept that.
 
 Needs the real app:
-- [ ] StoreKit prices and intro-offer eligibility (all trial strings depend on it).
-- [ ] Real Restore, and live Terms and Privacy URLs.
-- [ ] Real FamilyControls, CMPedometer and notification prompts.
-- [ ] Apple's `FamilyActivityPicker` in place of the preview chips.
-- [ ] Rewrite the copy that names picked apps (`commit`, `offer` timeline, paywall
+- [ ] StoreKit prices and intro-offer eligibility (all trial strings depend on it). *Paywall reads every price and trial string from `src/lib/purchases.ts`; a dev stub stands in until RevenueCat.*
+- [ ] Real Restore, and live Terms and Privacy URLs. *Restore is wired to the purchases stub; `LEGAL_URLS` are placeholders.*
+- [x] Real FamilyControls, CMPedometer and notification prompts. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] Apple's `FamilyActivityPicker` in place of the preview chips. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] Rewrite the copy that names picked apps (`commit`, `offer` timeline, paywall
   checklist, Share text). Tokens are opaque, so use a `Label(token)` icon row or
-  "Your apps" / "N apps". ([ONBOARDING_CONVERSION.md](ONBOARDING_CONVERSION.md), Sept 26 review)
-- [ ] Show "Armed" only once tonight's schedule is confirmed. If it can't be set,
-  say so.
-- [ ] Real day-5 trial reminders, plus an in-app fallback when notifications are off.
+  "Your apps" / "N apps". ([ONBOARDING_CONVERSION.md](ONBOARDING_CONVERSION.md), Sept 26 review) *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] Show "Armed" only once tonight's schedule is confirmed. If it can't be set,
+  say so. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [ ] Real day-5 trial reminders, plus an in-app fallback when notifications are off. *Reminder scheduling built (`scheduleTrialReminder`); the in-app fallback isn't.*
 - [ ] Teen child accounts, which need a parent to authorize Screen Time.
 - [ ] The declined path: save the setup, arm nothing, and make at most one
   follow-up offer. The exit offer is now a 3-arm test (`EXIT_OFFERS`: none /
   half-price $29.99 / 14 days free at full price). The real app needs remote config to
   assign the arm, the $29.99 StoreKit product and a 14-day intro offer, and has to
-  remember that the offer was shown.
+  remember that the offer was shown. *Built: saves, arms nothing, one exit offer, remembered. Remote-config arm assignment waits for RevenueCat.*
 - [ ] Send the `found` answer ("How'd you find me?") to analytics with the purchase event.
-- [ ] Ask for Motion & Fitness after purchase (the pre-paywall step test was removed).
+- [x] Ask for Motion & Fitness after purchase (the pre-paywall step test was removed). *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] A VoiceOver pass on a real device.
 
 ## 5. Step 2: v1 app
 
-- [ ] Home states for night, morning and day.
-- [ ] Morning walk screen: live count with his lines.
-- [ ] **A first-morning script for him,** plus a notification at the morning start
-  time on day 1.
-- [ ] Custom shield text (small icon plus his line as the title).
-- [ ] Always-blocked list (wins over the bedtime list).
+- [x] Home states for night, morning and day. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] Morning walk screen: live count with his lines. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] **A first-morning script for him,** plus a notification at the morning start
+  time on day 1. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] Custom shield text (small icon plus his line as the title). *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] Always-blocked list (wins over the bedtime list). *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [x] Block now: pick apps and a duration, then go; built with naps (GAME_PLAN "Daytime controls"). Needs a device test.
 - [x] Daily time limits per app (usage-threshold events), blocked until the next day once hit. Needs a device test.
 - [x] Add Block now and daily limits to `lock-state.ts` with the precedence order, plus tests.
 - [x] Budget DeviceActivity monitors (16 night + 1 nap + 3 limits) and tell the user when iOS refuses a limit.
 - [ ] Device-test the overlap re-apply: a nap or limit ending mid-night must leave bedtime and always apps shielded.
-- [ ] Per-rule shield text ("Daily limit used up") — iOS has one shield config for the app today.
+- [ ] Per-rule shield text ("Daily limit used up") — iOS has one shield config for the app today. *Partly built: the app sets words per state, and the night windows carry a named bedtime shield. Limit and nap words with the app closed still use the last words written ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)).*
 - [x] Removing apps from a limit (or the bedtime/always lists) waits for bedtime (2026-10-01). Apple's picker edits a draft; additions apply now, removals at the next bedtime, settled by the monitor extension or on app open. It also fixes removed apps staying shielded forever (iOS keeps one merged blocklist). Needs a device test.
 - [x] Revoked Screen Time access is detected while the app runs (2026-10-01): besides the cached status, `getProtection` checks that an armed night still has its windows and that held lists have a shield up. Shown on the You and Apps tabs. Needs a device test.
-- [ ] Passes, the emergency unlock, and the accessible alternative.
-- [ ] *Idea:* **a short delay and a "go back to sleep" button in front of every
+- [x] Passes, the emergency unlock, and the accessible alternative. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] *Idea:* **a short delay and a "go back to sleep" button in front of every
   exit** (passes and the emergency unlock), one sec style. In the one sec trial the
   dismiss button did the work; the message alone did nothing (Grüning 2023).
-  ([NIGHT_PHONE_SCIENCE.md](NIGHT_PHONE_SCIENCE.md) Principle 10)
+  ([NIGHT_PHONE_SCIENCE.md](NIGHT_PHONE_SCIENCE.md) Principle 10) *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] *Idea:* **a "can't sleep" path** on the shield or in the app, separate from
   passes, that never unlocks feeds. He gives the insomnia-therapy rule in his voice:
   get up, go to another room, do something quiet, come back when sleepy. Allowed
@@ -146,11 +146,11 @@ Needs the real app:
   ("he gets sleepy before you do"). The best restriction studies used 30 min (He
   2020) and 60 min (Bartel 2019). Ship as an A/B test (see section 8).
   ([NIGHT_PHONE_SCIENCE.md](NIGHT_PHONE_SCIENCE.md) Principle 1)
-- [ ] Reliability checks and honest status ("Until then I'm just a raccoon").
+- [x] Reliability checks and honest status ("Until then I'm just a raccoon"). *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] Morning share card ("Bed 11:41. Up 7:02. 213 steps. Still disappointed.").
-- [ ] Settings: schedule, both app lists, step target.
-- [ ] A rating prompt after the first successful 200-step unlock (never in
-  onboarding).
+- [x] Settings: schedule, both app lists, step target. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
+- [x] A rating prompt after the first successful 200-step unlock (never in
+  onboarding). *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] Analytics: D1, D7 and D30 walk completion, **the share of trial starters who
   complete a first walk** (the key activation metric), missed-block nights, and
   back-to-bed rate.

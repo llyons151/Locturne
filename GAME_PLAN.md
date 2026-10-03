@@ -242,6 +242,23 @@ the Nap tab with Block now and the sideways moon clock, daily limits and the
 always-blocked list on the Apps tab, and the lock rules in `lock-state.ts` and
 `daily-limits.ts` with timezone sweep tests.
 
+**Built October 3, needs device tests** ([docs/v1-build/INTEGRATION.md](docs/v1-build/INTEGRATION.md)):
+most of Step 2 and Step 4's screens, all on one lock controller (`syncLock`):
+- The method-agnostic morning gate.
+- Steps (history plus live, a cadence cap) and downstairs (barometer).
+- Scan your code.
+- Passes (3 a month, open decision 4) and the emergency unlock (pauses tonight only).
+- Off nights skipped by the monitor extension.
+- Heartbeat log, nightly self-check, honest status and the diagnostics screen.
+- Local notifications.
+- Real onboarding (Screen Time prompt, Apple's picker, the stairs question, arming after
+  purchase).
+- Home, Routine and You on real state, shield words per state, firsts and the rating prompt.
+
+Still to build: RevenueCat behind `src/lib/purchases.ts` (a dev stub today), PostHog, the
+share card, the icon and splash, and the background unlock. None of it has passed the
+Step 1 device gates yet.
+
 **Step 2: the engine (Oct 15 – Nov 15).** Works on the phone with the app closed,
 ugly UI is fine.
 - Weekday-specific schedules (nights off), inside iOS's ~20-activity budget.

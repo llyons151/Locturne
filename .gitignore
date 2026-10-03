@@ -45,3 +45,6 @@ yarn-error.*
 
 # Written by the Screen Time targets plugin during prebuild
 targets/*/generated.entitlements
+
+# Agent worktrees (Claude Code)
+.claude/worktrees/
