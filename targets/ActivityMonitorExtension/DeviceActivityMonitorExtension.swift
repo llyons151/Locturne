@@ -370,12 +370,16 @@ func settleLocturneLists(triggeredBy: String) {
   guard var pending = userDefaults?.dictionary(forKey: LOCTURNE_PENDING_LISTS_KEY) else {
     return
   }
-  let now = Date().timeIntervalSince1970 * 1000
+  // The same two minutes' slack as `locturneNightIsOn`: an edit (or an emergency unlock's
+  // parked bedtime list) is due at bedtime, and iOS can run the bedtime window a little
+  // early. Without it, that window would shield the still-empty list after an emergency
+  // unlock, and nothing would sleep until the next window, up to 45 minutes later.
+  let now = Date().timeIntervalSince1970 * 1000 + 120_000
   var changed = false
 
   for (list, value) in pending {
     guard let entry = value as? [String: Any],
-      let from = entry["from"] as? Double,
+      let from = (entry["from"] as? NSNumber)?.doubleValue,
       from <= now
     else { continue }
 
