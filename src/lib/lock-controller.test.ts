@@ -123,6 +123,20 @@ describe('the morning gate', () => {
     assert.equal(getProofs()[0].kind, 'downstairs');
   });
 
+  test('a proof that stopped counting never blocks the next one, so the morning can still open', async () => {
+    await armYesterday();
+    nightHeld = true;
+    // A walk logged for this morning before its start as the clock now reads it (the phone
+    // crossed timezones westward after proving, say). It no longer counts...
+    const key = readLock(at(7, 30, 2)).morningKey;
+    store.set('locturne.morningProofs', [{ morningKey: key, kind: 'steps', at: at(6, 0, 2).getTime() }]);
+    assert.equal(syncLock(at(7, 30, 2)).phase, 'morning');
+    // ...and must not stop the emergency unlock, a pass or a fresh walk from opening it.
+    assert.ok(recordProof({ morningKey: key, kind: 'emergency', at: at(7, 40, 2).getTime() }));
+    assert.equal(syncLock(at(7, 40, 2)).phase, 'day');
+    assert.equal(nightHeld, false);
+  });
+
   test('a pass covers the morning even if used the night before', async () => {
     await armYesterday();
     nightHeld = true;

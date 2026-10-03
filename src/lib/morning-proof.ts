@@ -57,7 +57,10 @@ export function recordProof(proof: MorningProof): boolean {
   const morning = currentMorning(at, toLockSettings(getRoutine(at)));
   if (!proofCounts(proof, morning)) return false;
   const all = getProofs();
-  if (all.some((p) => p.morningKey === proof.morningKey)) return false;
+  // Only a proof that still counts blocks another. One that stopped counting (made before a
+  // timezone change or a routine edit moved this morning's start later) must not leave the
+  // morning locked with no way out, not even the emergency unlock.
+  if (all.some((p) => p.morningKey === proof.morningKey && proofCounts(p, morning))) return false;
   sharedSet(KEY, [proof, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();
   return true;
