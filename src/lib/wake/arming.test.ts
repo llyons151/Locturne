@@ -50,6 +50,26 @@ describe('planArming', () => {
     assert.equal(planArming(at(14), routine(7 * H - 10, 7 * H), null, armedFor(usual)).action, 'disarm');
   });
 
+  test('turning every night off waits for bedtime: the night and morning under way stay locked', () => {
+    const none = routine(23 * H, 7 * H, []);
+    // Saved at 07:30, before the walk, and at 01:00 in bed.
+    for (const [now, from] of [
+      [at(7, 30), at(23)],
+      [at(1, 0, 2), at(23, 0, 2)],
+    ]) {
+      const plan = planArming(now, usual, { routine: none, from: from.getTime() }, armedFor(usual));
+      assert.equal(plan.action, 'defer');
+      if (plan.action === 'defer') assert.deepEqual(plan.until, from);
+    }
+    // Once that bedtime has come, the windows go.
+    assert.equal(planArming(at(23, 1), usual, { routine: none, from: at(23).getTime() }, armedFor(usual)).action, 'disarm');
+  });
+
+  test('a night made too short waits for bedtime too', () => {
+    const short = routine(7 * H - 10, 7 * H);
+    assert.equal(planArming(at(7, 30), usual, { routine: short, from: at(23).getTime() }, armedFor(usual)).action, 'defer');
+  });
+
   test('a pending edit is armed during the day, ahead of its bedtime', () => {
     const next = routine(22 * H, 6 * H);
     const pending = { routine: next, from: at(23).getTime() };

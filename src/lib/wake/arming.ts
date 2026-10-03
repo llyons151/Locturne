@@ -30,7 +30,7 @@ export type ArmedNow = { bedtime: number; morningStart: number; windows: number;
 export type ArmPlan =
   /** Already monitoring the right windows. */
   | { action: 'keep' }
-  /** No night is on, or the night is too short to monitor: stop every window. */
+  /** No night is on, or the night is too short to monitor, from now on: stop every window. */
   | { action: 'disarm' }
   /** Arming now would re-shield a phantom night. Try again at or after `until`. */
   | { action: 'defer'; until: Date }
@@ -82,7 +82,14 @@ export function planArming(
   const target = pending?.routine ?? active;
   const windows = target.activeNights.length > 0 ? planNightWindows(target.bedtime, target.morningStart) : [];
 
-  if (windows.length === 0) return armed ? { action: 'disarm' } : { action: 'keep' };
+  if (windows.length === 0) {
+    if (!armed) return { action: 'keep' };
+    // Stopping the windows now would free the night or morning under way (an unarmed morning
+    // reads as unlocked), so turning every night off waits for its bedtime like any edit.
+    // The monitor extension skips that bedtime's windows on its own.
+    if (pending && now.getTime() < pending.from) return { action: 'defer', until: new Date(pending.from) };
+    return { action: 'disarm' };
+  }
 
   const current =
     armed &&

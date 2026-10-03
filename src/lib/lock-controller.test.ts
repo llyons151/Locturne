@@ -269,10 +269,26 @@ describe('armRoutine', () => {
     assert.equal(armed?.morningStart, 8 * 60);
   });
 
-  test('no nights left: disarms', async () => {
+  test('no nights left: disarms from the next bedtime', async () => {
     await armYesterday();
     saveRoutine({ ...DEFAULT_ROUTINE, activeNights: [] }, at(14));
-    assert.equal(await armRoutine(at(14)), 'disarmed');
+    assert.equal(await armRoutine(at(14)), 'deferred');
+    assert.ok(armed);
+    assert.equal(await armRoutine(at(23, 5)), 'disarmed');
     assert.equal(armed, null);
+  });
+
+  test('switching every night off from bed frees neither the night nor the morning', async () => {
+    await armYesterday();
+    nightHeld = true;
+    saveRoutine({ ...DEFAULT_ROUTINE, activeNights: [] }, at(1, 0, 2));
+    assert.equal(await armRoutine(at(1, 0, 2)), 'deferred');
+    assert.equal(syncLock(at(1, 0, 2)).phase, 'night');
+    assert.equal(syncLock(at(7, 30, 2)).phase, 'morning');
+    assert.ok(!calls.includes('wake:night'));
+    assert.ok(!calls.includes('disarm'));
+    // The edit applies at that evening's bedtime: the night is off and the hold ends.
+    assert.equal(syncLock(at(23, 30, 2)).phase, 'off');
+    assert.ok(calls.includes('wake:night'));
   });
 });
