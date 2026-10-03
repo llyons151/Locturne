@@ -20,6 +20,8 @@ export default function RootLayout() {
             name="onboarding"
             options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
           />
+          <Stack.Screen name="exits" options={{ presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
+          <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>
