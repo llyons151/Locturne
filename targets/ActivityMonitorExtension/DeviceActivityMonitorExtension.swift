@@ -20,6 +20,12 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     // First, so a bedtime window shields the edited list, not the old one.
     settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
 
+    // The night windows repeat every day; a night that's switched off skips its shield.
+    if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) && !locturneNightIsOn() {
+      skipLocturneNight(activity: activity.rawValue)
+      return
+    }
+
     if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) {
       userDefaults?.set(true, forKey: LOCTURNE_NIGHT_HELD_KEY)
     }
@@ -38,6 +44,28 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_intervalDidStart")
 
     recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidStart")
+
+    notifyAppWithName(name: "intervalDidStart")
+  }
+
+  /// A night window started on a night that's switched off: nothing extra sleeps (the `off`
+  /// phase in src/lib/lock-state.ts), so its `blockSelection` action doesn't run, and a hold
+  /// left from a morning that was never proven ends, as `syncLock` does in the app.
+  func skipLocturneNight(activity: String) {
+    let triggeredBy = "locturne_\(activity)_nightOff"
+    userDefaults?.set(false, forKey: LOCTURNE_NIGHT_HELD_KEY)
+    if let night = getFamilyActivitySelectionById(id: "night") {
+      unblockSelection(removeSelection: night, triggeredBy: triggeredBy)
+    }
+
+    persistToUserDefaults(
+      activityName: activity,
+      callbackName: "intervalDidStart"
+    )
+
+    reapplyLocturneBlocks(triggeredBy: triggeredBy)
+
+    recordLocturneHeartbeat(activity: activity, callback: "intervalDidStart")
 
     notifyAppWithName(name: "intervalDidStart")
   }
@@ -253,12 +281,46 @@ let LOCTURNE_LIMITS_KEY = "locturne.limits"
 let LOCTURNE_LIMIT_REACHED_PREFIX = "locturne.limitReached."
 let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
 let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
+let LOCTURNE_ROUTINE_KEY = "locturne.routine"
 let LOCTURNE_HEARTBEAT_KEEP = 100
 
 /// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts.
 func locturneDayKey(_ date: Date = Date()) -> String {
   let day = Calendar.current.dateComponents([.year, .month, .day], from: date)
   return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
+}
+
+/// Is the night this bedtime window belongs to switched on? Mirrors `getLockState` in
+/// src/lib/lock-state.ts: a night belongs to the evening before its morning, so a window
+/// after midnight (before morning start) belongs to yesterday evening. Reads the routine the
+/// app saved (`locturne.routine` in src/lib/routine.ts), using an edit waiting for this
+/// bedtime once it's due. If anything can't be read the answer is yes: a missing or
+/// unreadable routine must never skip a lock.
+func locturneNightIsOn(_ now: Date = Date()) -> Bool {
+  guard let stored = userDefaults?.dictionary(forKey: LOCTURNE_ROUTINE_KEY),
+    var routine = stored["active"] as? [String: Any]
+  else { return true }
+
+  // iOS can start a window a little early, so allow two minutes for an edit due at bedtime.
+  if let pending = stored["pending"] as? [String: Any],
+    let from = (pending["from"] as? NSNumber)?.doubleValue,
+    from <= now.timeIntervalSince1970 * 1000 + 120_000,
+    let next = pending["routine"] as? [String: Any]
+  {
+    routine = next
+  }
+
+  guard let morningStart = (routine["morningStart"] as? NSNumber)?.intValue,
+    let nights = routine["activeNights"] as? [NSNumber]
+  else { return true }
+
+  let calendar = Calendar.current
+  let time = calendar.dateComponents([.hour, .minute], from: now)
+  let minute = (time.hour ?? 0) * 60 + (time.minute ?? 0)
+  let evening = minute < morningStart ? calendar.date(byAdding: .day, value: -1, to: now) ?? now : now
+  // Calendar weekdays run 1 (Sunday) to 7; `Date.getDay()` runs 0 (Sunday) to 6.
+  let weekday = calendar.component(.weekday, from: evening) - 1
+  return nights.contains { $0.intValue == weekday }
 }
 
 /// Shields always-blocked, the night lock, a running nap and limits used up today. Only adds.
