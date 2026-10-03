@@ -168,7 +168,7 @@ export function renderStep(ctx: StepContext): StepView {
             <View style={styles.beats}>
               <Beat label="Bedtime" text="Your apps go to sleep. So do I." />
               <Beat label="Morning" text="They stay asleep until you’re up. Same as me." />
-              <Beat label="200 steps" text="About two minutes of walking. They wake up. I do too, unfortunately." />
+              <Beat label="Up means up" text="Downstairs or a short walk. They wake up. I do too, unfortunately." />
             </View>
             {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner. */}
             <View style={page.gapSection} />

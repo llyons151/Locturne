@@ -178,27 +178,29 @@ export const TRIED: Choice<string>[] = [
 /**
  * His reply to "what have you tried?": the objection, then how Locturne differs. The
  * body stays literal, and never claims there's no way out (emergency unlock exists).
+ * Temporary copy (2026-10-03): method-neutral because the stairs question comes later.
+ * The founder will rewrite these in his voice.
  */
 export const TRIED_ECHO: Record<string, { line: string; body: string }> = {
   'screen-time': {
     line: 'Screen Time has an Ignore button. I don’t.',
-    body: 'Its limits end with one tap. Mine end after 200 steps. There’s an emergency unlock, but it takes more than a tap.',
+    body: 'Its limits end with one tap. Mine end when you’re out of bed. There’s an emergency unlock, but it takes more than a tap.',
   },
   blocker: {
     line: 'Clocks don’t check if you’re up. I do.',
-    body: 'Most blockers switch off at a set time, even if you’re still in bed. Your apps stay asleep until you’ve walked 200 steps.',
+    body: 'Most blockers switch off at a set time, even if you’re still in bed. Your apps stay asleep until you’ve actually got up.',
   },
   willpower: {
     line: 'Willpower goes to bed before you do.',
-    body: 'So I don’t ask for any. The apps are asleep until you’ve walked 200 steps.',
+    body: 'So I don’t ask for any. The apps stay asleep until you’ve got out of bed and proved it.',
   },
   'other-room': {
     line: 'And the alarm’s in there with it.',
-    body: 'Keep the phone by the bed. The apps stay asleep either way, until you’ve walked 200 steps.',
+    body: 'Keep the phone by the bed. The apps stay asleep either way, until you’re up and moving.',
   },
   nothing: {
     line: 'I’m your first, then. Be gentle.',
-    body: 'The apps you pick sleep at bedtime. 200 steps in the morning wakes them up.',
+    body: 'The apps you pick sleep at bedtime. Getting out of bed wakes them up.',
   },
 };
 
@@ -227,7 +229,7 @@ export const FOUND: Choice<string>[] = [
 export const OFFER_HEADLINES: Record<string, string> = {
   sleep: 'Earlier nights. For both of us.',
   read: 'Reading, then. Books don’t autoplay.',
-  workout: 'Workouts, then. I’ll count the first 200.',
+  workout: 'Workouts, then. I’ll supervise from the couch.',
   mornings: 'Slow mornings. My favorite kind.',
   else: 'Your nights back. Mine too.',
 };
@@ -276,8 +278,8 @@ export function longerTrialVoice(days: number): string {
  * (EULA) and Privacy links on the paywall and in App Store Connect before review.
  */
 export const LEGAL_URLS = {
-  terms: 'https://locturne.app/terms',
-  privacy: 'https://locturne.app/privacy',
+  terms: 'https://locturne.com/terms',
+  privacy: 'https://locturne.com/privacy',
 } as const;
 
 /**
