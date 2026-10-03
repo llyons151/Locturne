@@ -298,7 +298,9 @@ of trial starters who complete a first morning unlock.
 
 **Step 6: v1.1, only after real users (February onward)**
 - A real alarm (AlarmKit) to lead with the morning.
-- A morning Live Activity and a streak widget.
+- Loc's moon in the Dynamic Island while apps are asleep (night and morning Live
+  Activities, push-started; [docs/LIVE_ACTIVITY_IDEA.md](docs/LIVE_ACTIVITY_IDEA.md)) and a
+  streak widget.
 - The next wake-up method, chosen by which video series converted best.
 - Buddy/couples mode: a partner gets a message if bedtime breaks; no money moves.
 - Scheduled naps and "put him to bed early" (Block now already ships in v1).

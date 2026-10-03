@@ -158,7 +158,8 @@ Needs the real app:
 ## 6. v1.1 (only after real users)
 
 - [ ] A real alarm (AlarmKit) to lead with the morning.
-- [ ] Streak widget and a bedtime Live Activity.
+- [ ] Streak widget, and Loc's moon in the Dynamic Island while apps sleep
+  ([LIVE_ACTIVITY_IDEA.md](LIVE_ACTIVITY_IDEA.md)).
 - [ ] Buddy/couples mode (a message to a partner, no money).
 - [ ] Scheduled naps, and "put him to bed early" ("tuck him in now" moved to v1 as Block now).
 - [ ] *Idea (Oct 1):* **"Loc naps while you work"**, i.e. block apps while you're at
