@@ -34,6 +34,9 @@ import {
   TIME_BACK,
   TRIED,
   TRIED_ECHO,
+  WALK_COPY,
+  WALK_GOAL,
+  walkLine,
   type Answers,
   type ExitOffer,
   type StepId,
@@ -52,6 +55,7 @@ import { ScheduleCard } from './schedule-card';
 import { MathScreen } from './screens/math-screen';
 import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { RevealScreen } from './screens/reveal-screen';
+import { WalkMeter } from './screens/walk-meter';
 import { TomorrowDemo } from './screens/tomorrow-demo';
 import { AgeWheel, TimeWheel } from './time-wheel';
 import { Body, Chip, Eyebrow, HoldButton, Options, page, PreviewNote, Title, Voice } from './ui';
@@ -111,6 +115,15 @@ export type StepContext = {
   /** Motion & Fitness, asked after purchase. Null until asked. */
   motion: MotionAccess | null;
   askMotion: () => void;
+  /** The 20-step walk before the paywall: live on an iPhone, faked in the web preview. */
+  walk: WalkState;
+  /** Starts counting; iOS asks for Motion & Fitness at this moment. */
+  startWalk: () => void;
+};
+
+export type WalkState = {
+  phase: 'idle' | 'counting' | 'done' | 'denied' | 'unavailable';
+  steps: number;
 };
 
 // Four presets: one row under the time wheel.
@@ -404,6 +417,69 @@ export function renderStep(ctx: StepContext): StepView {
           />
         ),
       };
+
+    case 'walk': {
+      const copy = WALK_COPY[answers.method ?? 'downstairs'];
+      const { phase, steps } = ctx.walk;
+      if (phase === 'denied' || phase === 'unavailable') {
+        // Never a dead end: say what it means for tomorrow, then carry on to the price.
+        const noCounter = phase === 'unavailable';
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text={noCounter ? 'I can’t count steps on this.' : 'No motion, no counting.'} size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>
+                {noCounter
+                  ? answers.method === 'steps'
+                    ? 'This device has no step counter, so steps can’t wake your apps here. Stairs or a scan code can.'
+                    : 'This device has no step counter. Stairs and a scan code still work.'
+                  : 'Motion & Fitness is off, so I can’t count steps or feel stairs. Turn it on in Settings before tomorrow morning.'}
+              </Body>
+            </View>
+          ),
+          footer: <PrimaryButton label="Continue" onPress={next} />,
+          secondary: noCounter ? (
+            answers.method === 'steps' ? <TextButton label="Pick another way" onPress={() => edit('method')} /> : undefined
+          ) : (
+            <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
+          ),
+        };
+      }
+      if (phase === 'idle') {
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text="Wake me up a bit." size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>{copy.intro}</Body>
+              <View style={page.gapBlock} />
+              <Body>iOS will ask for Motion &amp; Fitness. That’s how I count steps, and it stays on your phone.</Body>
+            </View>
+          ),
+          footer: <PrimaryButton label="Start walking" onPress={ctx.startWalk} />,
+          secondary: <TextButton label="Not now" onPress={next} />,
+        };
+      }
+      const done = phase === 'done';
+      return {
+        body: (
+          <View style={page.top}>
+            <Voice text={walkLine(steps)} size={VoiceSize.headline} header />
+            <View style={page.gapHeadline} />
+            {done ? <Body>{copy.done}</Body> : null}
+            <View style={styles.walkSpacer} />
+            <WalkMeter steps={steps} goal={WALK_GOAL} />
+          </View>
+        ),
+        footer: done ? (
+          <PrimaryButton label="Continue" onPress={next} />
+        ) : (
+          <PrimaryButton label={`${WALK_GOAL - steps} to go`} disabled onPress={() => {}} />
+        ),
+        secondary: done ? undefined : <TextButton label="Skip" onPress={next} />,
+      };
+    }
 
     case 'tomorrow':
       return {
@@ -728,6 +804,7 @@ const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center' },
+  walkSpacer: { flex: 1, minHeight: Space.xl },
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
   bottomStack: { flex: 1, justifyContent: 'flex-end', paddingBottom: Space.xl },

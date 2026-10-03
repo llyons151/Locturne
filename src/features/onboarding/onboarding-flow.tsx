@@ -8,7 +8,9 @@ import { AppPickerSheet, PICKER_HEADER } from '@/components/app-picker';
 import type { TextMotion } from '@/components/motion';
 import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
+import { useStepCount } from '@/features/wake/use-step-count';
 import { useCompact } from '@/hooks/use-compact';
+import * as haptic from '@/lib/haptics';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
 import { markPurchasePending } from '@/lib/pending-purchase';
 import {
@@ -38,14 +40,17 @@ import {
 import { Nocturne } from '@/theme';
 
 import { armTonight, type ArmResult } from './arm';
-import { initialAnswers, PROGRESS_STEPS, STEPS, type Answers, type ExitOffer, type StepId } from './content';
+import { initialAnswers, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { requestMotion, type MotionAccess } from './motion';
 import { markExitOfferShown, saveSetup, saveTrialReminder, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
-import { renderStep } from './steps';
+import { renderStep, type WalkState } from './steps';
 import { FooterEnter, MoonSurface, Shell, StepEnter } from './ui';
+
+/** Any fixed date: the walk's count is off until it starts. */
+const WALK_EPOCH = new Date(0);
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
 /** Steps that can be edited from the "Tonight's lock is ready" summary. */
@@ -383,11 +388,59 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
   const [motion, setMotion] = useState<MotionAccess | null>(null);
   const askMotion = async () => {
     if (!screenTimeHere) {
+      // The walk already showed the stand-in prompt.
+      if (motion) return next();
       simulate('iOS asks for Motion & Fitness here. “Don’t Allow” is always an option.', next);
       return;
     }
+    // Already answered on the walk, this returns at once without a prompt.
     setMotion(await requestMotion());
     next();
+  };
+
+  /*
+   * The 20-step walk before the paywall. Counting starts on "Start walking", which is also
+   * when iOS asks for Motion & Fitness (useStepCount asks). Steps from that moment only, and
+   * only while the page is open. The web preview fakes a steady walk.
+   */
+  const [walkStart, setWalkStart] = useState<Date | null>(null);
+  const [walkDone, setWalkDone] = useState(false);
+  const counting = walkStart !== null && !walkDone && step === 'walk';
+  const realWalk = useStepCount(Platform.OS === 'ios' && counting, walkStart ?? WALK_EPOCH, WALK_GOAL);
+  const [fakeSteps, setFakeSteps] = useState(0);
+  useEffect(() => {
+    if (Platform.OS === 'ios' || !counting) return;
+    const tick = setInterval(() => setFakeSteps((n) => Math.min(WALK_GOAL, n + 1)), 450);
+    return () => clearInterval(tick);
+  }, [counting]);
+  const walkSteps = Platform.OS === 'ios' ? realWalk.steps : fakeSteps;
+  const walkStatus = Platform.OS === 'ios' ? realWalk.status : 'counting';
+  useEffect(() => {
+    if (!walkStart || walkDone) return;
+    if (walkStatus === 'counting' && walkSteps >= WALK_GOAL) {
+      setWalkDone(true);
+      haptic.done();
+    }
+  }, [walkStart, walkDone, walkStatus, walkSteps]);
+  // The walk's answer is the Motion & Fitness answer, for the pages after it.
+  useEffect(() => {
+    if (!walkStart || Platform.OS !== 'ios') return;
+    if (walkStatus === 'counting') setMotion('granted');
+    else if (walkStatus === 'denied' || walkStatus === 'unavailable') setMotion(walkStatus);
+  }, [walkStart, walkStatus]);
+  const walk: WalkState = !walkStart
+    ? { phase: 'idle', steps: 0 }
+    : walkDone
+      ? { phase: 'done', steps: WALK_GOAL }
+      : walkStatus === 'denied' || walkStatus === 'unavailable'
+        ? { phase: walkStatus, steps: 0 }
+        : { phase: 'counting', steps: Math.min(walkSteps, WALK_GOAL) };
+  const startWalk = () => {
+    if (Platform.OS === 'ios') return setWalkStart(new Date());
+    simulate('iOS asks for Motion & Fitness here. “Don’t Allow” is always an option.', () => {
+      setMotion('granted');
+      setWalkStart(new Date());
+    });
   };
 
   // While the moon moves (to or from the opener, or into and out of the quiz), the page
@@ -446,6 +499,8 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
     retryArm,
     motion,
     askMotion,
+    walk,
+    startWalk,
   });
 
   return (

@@ -126,9 +126,14 @@ If any of these fail, stop and redesign.
 Fixes that are still open from the rating:
 - [ ] **Open the quiz with a morning question,** e.g. "When your alarm goes off,
   what do you grab first?" Present bedtime as the reason the morning works.
-- [ ] **A live 20-step walk before the paywall,** with the Motion permission request
+- [x] **A live 20-step walk before the paywall,** with the Motion permission request
   framed around it, and showing that shaking the phone doesn't count. It replaces
-  or follows the animated `tomorrow` demo.
+  or follows the animated `tomorrow` demo. *Built 2026-10-03 as the `walk` step, between
+  `method` and `tomorrow`: "Wake me up a bit", Start walking (iOS asks for Motion & Fitness
+  then), a live count of 20 with Loc's lines, "Not now" and "Skip" always there. Denied or
+  no step counter says what it means for tomorrow and carries on. The answer feeds the later
+  pages, so the post-purchase Motion ask no longer prompts twice. Needs a device test; the
+  web preview fakes the walk. Watch the funnel: drop-off on `walk` vs conversion.*
 - [x] **End onboarding on tomorrow morning:** "Tomorrow 7:00, TikTok stays asleep
   until you're up." *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] **Make the reveal hit harder.** The 394-square grid is dense. Consider a
