@@ -73,6 +73,13 @@ function atMinute(date: Date, minutes: number, days = 0): Date {
 const dayKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
+/**
+ * The You tab's switches. The revoked-access warning has no switch: it's the honest status
+ * (GAME_PLAN, "Reliability"), and it only ever replaces a bedtime warning.
+ */
+export type NotificationPrefs = { bedtime: boolean; morning: boolean; trial: boolean };
+export const DEFAULT_PREFS: NotificationPrefs = { bedtime: true, morning: true, trial: true };
+
 export type PlanFacts = {
   /** The routine in force now. */
   routine: Routine;
@@ -83,6 +90,8 @@ export type PlanFacts = {
   armed: boolean;
   /** When the trial started, if one did and a reminder was asked for. */
   trialStart?: Date | null;
+  /** Which kinds the person wants. All of them when left out. */
+  prefs?: NotificationPrefs;
   now: Date;
   days?: number;
 };
@@ -97,6 +106,7 @@ export type PlanFacts = {
  */
 export function planNotifications(facts: PlanFacts): PlannedNotification[] {
   const { routine, pending, protection, now } = facts;
+  const prefs = facts.prefs ?? DEFAULT_PREFS;
   const plan: PlannedNotification[] = [];
   const nightly = facts.armed && (protection === 'on' || protection === 'off');
 
@@ -118,16 +128,16 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
 
     const key = dayKey(end);
     const warnAt = new Date(start.getTime() - BEDTIME_WARNING * MINUTE);
-    if (warnAt > now) {
+    if (warnAt > now && (protection === 'off' || prefs.bedtime)) {
       const kind = protection === 'off' ? 'revoked' : 'bedtime';
       plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
     }
-    if (protection === 'on' && end > now) {
+    if (protection === 'on' && prefs.morning && end > now) {
       plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });
     }
   }
 
-  const trial = facts.trialStart ? planTrialReminder(facts.trialStart, now) : null;
+  const trial = facts.trialStart && prefs.trial ? planTrialReminder(facts.trialStart, now) : null;
   if (trial) plan.push(trial);
   return plan.sort((a, b) => +a.at - +b.at);
 }
@@ -192,6 +202,7 @@ export function onNotificationTap(open: (identifier: string) => void): () => voi
 
 const isIOS = () => Platform.OS === 'ios';
 const TRIAL_KEY = 'locturne.trialStart';
+const PREFS_KEY = 'locturne.notificationPrefs';
 let configured = false;
 
 /**
@@ -257,6 +268,17 @@ export async function scheduleTrialReminder(trialStart: Date): Promise<void> {
   await rescheduleNotifications();
 }
 
+/** The You tab's switches, as last saved. */
+export function getNotificationPrefs(): NotificationPrefs {
+  return { ...DEFAULT_PREFS, ...sharedGet<Partial<NotificationPrefs>>(PREFS_KEY) };
+}
+
+/** Saves the switches and redoes the plan. Unlike routine edits, these apply at once: they only change what he says. */
+export async function setNotificationPrefs(prefs: NotificationPrefs): Promise<void> {
+  sharedSet(PREFS_KEY, prefs);
+  await rescheduleNotifications();
+}
+
 /** For a cancelled trial, a switch to monthly, or "Remind me" turned off. */
 export async function cancelTrialReminder(): Promise<void> {
   sharedRemove(TRIAL_KEY);
@@ -304,6 +326,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       protection: getProtection(),
       armed: getArmedNight() !== null,
       trialStart: getTrialStart(),
+      prefs: getNotificationPrefs(),
       now: new Date(),
     });
     for (const n of plan) {

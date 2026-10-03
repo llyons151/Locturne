@@ -13,6 +13,20 @@
       "appleTeamId": "9N5WZT8LV3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1",
+              "1C8F.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -39,6 +53,7 @@
         }
       ],
       "expo-video",
+      "./plugins/with-local-notifications-only",
       "expo-notifications",
       [
         "expo-camera",

@@ -1,17 +1,26 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
+import * as StoreReview from 'expo-store-review';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
-import { LEGAL_URLS } from '@/features/onboarding/content';
+import { LEGAL_URLS, SUPPORT_EMAIL } from '@/features/onboarding/content';
 import { SwitchRow } from '@/features/routine/controls';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
+import {
+  getNotificationPermission,
+  getNotificationPrefs,
+  getTrialStart,
+  setNotificationPrefs,
+  type NotificationPermission,
+  type NotificationPrefs,
+} from '@/lib/notifications';
 import { getPassesLeft } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { type Protection } from '@/lib/screen-time';
@@ -26,9 +35,10 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } fr
  * Order (GAME_PLAN): honest status first, then the humane exits, then account things. No
  * stats or charts; history lives on the morning share card.
  *
- * Passes, the emergency unlock and the scan code are real (they open the exits and scan
- * screens), and so are the plan and Restore (src/lib/purchases.ts). The notification
- * toggles are still placeholders.
+ * Passes, the emergency unlock and the scan code open the exits and scan screens; the plan
+ * and Restore are src/lib/purchases.ts; the notification switches are saved and redo the
+ * plan in src/lib/notifications.ts. Beta diagnostics hide behind a long press on the version
+ * line, so App Review never sees a "beta" row.
  */
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
@@ -56,7 +66,25 @@ function refillDate(now: Date) {
   });
 }
 
-const notLive = (what: string) => Alert.alert(what, 'This isn’t live yet. It arrives before launch.');
+const open = (url: string) => Linking.openURL(url).catch(() => {});
+
+function sendFeedback() {
+  const version = Constants.expoConfig?.version;
+  const subject = encodeURIComponent(`Locturne${version ? ` ${version}` : ''} feedback`);
+  Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`).catch(() =>
+    Alert.alert('No mail app', `Write to ${SUPPORT_EMAIL}. I read everything. Slowly.`),
+  );
+}
+
+/**
+ * The App Store's write-a-review page once `ios.appStoreUrl` is in app.json (it needs the
+ * app's Apple ID); until then Apple's in-app prompt, which iOS may decline to show.
+ */
+function rate() {
+  const store = StoreReview.storeUrl();
+  if (store) open(`${store}${store.includes('?') ? '&' : '?'}action=write-review`);
+  else StoreReview.requestReview().catch(() => {});
+}
 
 export function YouScreen() {
   const insets = useSafeAreaInsets();
@@ -66,8 +94,18 @@ export function YouScreen() {
   // it's revoked, until the app restarts.
   const [status] = useProtection();
 
-  const [alerts, setAlerts] = useState({ bedtime: true, morning: true, trial: true });
-  const toggle = (key: keyof typeof alerts) => (on: boolean) => setAlerts((a) => ({ ...a, [key]: on }));
+  const [alerts, setAlerts] = useState<NotificationPrefs>(getNotificationPrefs);
+  const toggle = (key: keyof NotificationPrefs) => (on: boolean) => {
+    const next = { ...alerts, [key]: on };
+    setAlerts(next);
+    setNotificationPrefs(next).catch(() => {});
+  };
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  useEffect(() => {
+    getNotificationPermission().then(setPermission, () => {});
+  }, []);
+  // Only someone in a trial has a reminder to switch off.
+  const inTrial = getTrialStart() !== null;
 
   // Re-read on every render; the tab re-renders when it's focused again.
   const passesLeft = getPassesLeft();
@@ -141,10 +179,25 @@ export function YouScreen() {
         />
       </Section>
 
-      <Section label="Notifications" footer="He keeps it short. No streaks, no guilt.">
+      <Section
+        label="Notifications"
+        footer={
+          permission === 'denied'
+            ? 'Notifications are off for Locturne in Settings, so these stay quiet until you turn them on there.'
+            : 'He keeps it short. No streaks, no guilt.'
+        }
+      >
         <SwitchRow icon={sym('moon.fill', 'bedtime')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
-        <SwitchRow icon={sym('sunrise.fill', 'wb_twilight')} title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} />
-        <SwitchRow icon={sym('calendar', 'calendar_month')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last />
+        <SwitchRow
+          icon={sym('sunrise.fill', 'wb_twilight')}
+          title="Morning nudge"
+          value={alerts.morning}
+          onChange={toggle('morning')}
+          last={!inTrial}
+        />
+        {inTrial ? (
+          <SwitchRow icon={sym('calendar', 'calendar_month')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last />
+        ) : null}
       </Section>
 
       <Section label="Subscription">
@@ -164,13 +217,11 @@ export function YouScreen() {
       </Section>
 
       <Section label="Help">
-        <ValueRow icon={sym('questionmark.circle.fill', 'help')} title="Help" value="" onPress={() => notLive('Help')} />
-        <ValueRow icon={sym('envelope.fill', 'mail')} title="Send feedback" value="" onPress={() => notLive('Feedback')} />
-        <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={() => notLive('Ratings')} />
-        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => Linking.openURL(LEGAL_URLS.privacy)} />
-        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => Linking.openURL(LEGAL_URLS.terms)} />
-        {/* For beta testers: what iOS ran overnight, to paste into a bug report. */}
-        <ValueRow icon={sym('stethoscope', 'troubleshoot')} title="Beta diagnostics" value="" onPress={() => router.push('/diagnostics')} last />
+        <ValueRow icon={sym('questionmark.circle.fill', 'help')} title="Help" value="" onPress={() => open(LEGAL_URLS.support)} />
+        <ValueRow icon={sym('envelope.fill', 'mail')} title="Send feedback" value="" onPress={sendFeedback} />
+        <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={rate} />
+        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
+        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
       </Section>
 
       {__DEV__ ? (
@@ -185,10 +236,10 @@ export function YouScreen() {
         </Section>
       ) : null}
 
-      <Text style={styles.footer}>
-        {/* Preview only, so it never implies passes or a plan exist (GAME_PLAN, "Reliability"). */}
-        Locturne{version ? ` ${version}` : ''} · Preview. The plan is a placeholder.
-      </Text>
+      {/* Long press for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
+      <Pressable onLongPress={() => router.push('/diagnostics')} delayLongPress={800} accessibilityRole="text">
+        <Text style={styles.footer}>Locturne{version ? ` ${version}` : ''}</Text>
+      </Pressable>
     </ScrollView>
   );
 }

@@ -126,6 +126,16 @@ test('the trial reminder is at noon, at least 2 days before the trial ends', () 
   );
 });
 
+test('switched-off kinds are left out, but the revoked warning always stays', () => {
+  const off = { bedtime: false, morning: false, trial: false };
+  assert.deepEqual(plan({ prefs: off, trialStart: at(3, 9) }), []);
+  assert.deepEqual(summary(plan({ prefs: { ...off, morning: true } })), ['morning 4 7:0', 'morning 5 7:0']);
+  assert.deepEqual(
+    plan({ prefs: off, protection: 'off' }).map((n) => n.kind),
+    ['revoked', 'revoked'],
+  );
+});
+
 test('copy stays in his voice: no exclamation marks', () => {
   const all = [...plan(), ...plan({ protection: 'off' }), planTrialReminder(at(3, 9), at(3, 9))!];
   for (const n of all) assert.ok(!/!/.test(n.title + n.body), n.title);
