@@ -1,0 +1,10 @@
+# Cloudflare Pages project for locturne.com. Deploy steps: web/README.md.
+name = "locturne-web"
+pages_build_output_dir = "./public"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "locturne-waitlist"
+# Paste the database_id printed by `npx wrangler d1 create locturne-waitlist`.
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
