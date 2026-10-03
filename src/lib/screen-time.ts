@@ -564,3 +564,35 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
   }
   reapplyStandingBlocks();
 }
+
+/*
+ * The emergency unlock's night pause (src/lib/emergency.ts). The night windows re-shield the
+ * bedtime list every 45 minutes, and the monitor extension marks the night held at each
+ * start, so unshielding alone would only last until the next window. Instead the bedtime
+ * picks are parked in the list's draft, exactly like an edit that removes apps: the live
+ * list is empty for the rest of tonight, so each window start shields nothing, and at the
+ * next bedtime the extension's `settleLocturneLists` (or `settleListChanges` here, if the
+ * app opens first) puts the picks back before the window shields them. The windows stay
+ * armed throughout, so nothing has to re-arm and the user does nothing.
+ */
+
+/**
+ * Wakes the bedtime apps for the rest of tonight; they sleep again from `until` (the next
+ * bedtime). If an edit to the list is already waiting, its draft is the list as it will be,
+ * so it stays and only its start moves no later than `until`. Re-shields every other rule.
+ */
+export function pauseNightUntil(until: Date, now = new Date()): void {
+  if (!isAvailable()) return;
+  settleListChanges(now);
+  const waiting = getPendingLists().night;
+  if (hasSelection('night')) {
+    if (!waiting) copySelection('night', draftId('night'));
+    unshield('night');
+    clearSelection('night');
+  }
+  if (hasSelection(draftId('night'))) {
+    setPending('night', { from: Math.min(waiting?.from ?? Infinity, until.getTime()) });
+  }
+  userDefaultsSet(NIGHT_HELD_KEY, false);
+  reapplyStandingBlocks();
+}
