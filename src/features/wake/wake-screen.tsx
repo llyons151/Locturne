@@ -12,6 +12,7 @@ import { formatPreset } from '@/features/onboarding/time-wheel';
 import { useLock } from '@/hooks/use-lock';
 import * as haptic from '@/lib/haptics';
 import { proveMorning, readLock } from '@/lib/lock-controller';
+import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, toLockSettings } from '@/lib/routine';
 import { PHASE_LINES } from '@/lib/wake/lines';
@@ -51,6 +52,10 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       if (state.phase !== 'day') return; // bedtime came round, or the night was off
       haptic.done();
       setUnlocked(state);
+      // The first proven morning is the moment to ask (GAME_PLAN); iOS shows its own prompt once.
+      shouldAskForNotifications()
+        .then((ask) => (ask ? askForNotifications() : false))
+        .catch(() => {});
     },
     [],
   );

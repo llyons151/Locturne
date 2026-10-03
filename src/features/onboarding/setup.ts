@@ -3,7 +3,8 @@
  * keep the setup saved and arm nothing). Saving never blocks anything: only `armTonight`
  * does, and only after purchase.
  */
-import { rescheduleNotifications } from '@/lib/notifications';
+import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder } from '@/lib/notifications';
+import { trialStartedAt } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
@@ -33,8 +34,13 @@ export function saveSetup(answers: Answers): void {
   if (answers.found) sharedSet(ATTRIBUTION_KEY, { found: answers.found, at: Date.now() });
 }
 
+/** Called after purchase. Schedules the day-5 reminder (it lands once notifications are allowed). */
 export function saveTrialReminder(on: boolean): void {
   sharedSet(TRIAL_REMINDER_KEY, on);
+  const scheduled = on
+    ? trialStartedAt().then((start) => (start ? scheduleTrialReminder(start) : undefined))
+    : cancelTrialReminder();
+  scheduled.catch(() => {});
 }
 
 export function wasExitOfferShown(): boolean {
