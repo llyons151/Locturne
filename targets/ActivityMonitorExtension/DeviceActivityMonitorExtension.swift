@@ -37,6 +37,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_intervalDidStart")
 
+    recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidStart")
+
     notifyAppWithName(name: "intervalDidStart")
   }
 
@@ -62,6 +64,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     )
 
     reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_intervalDidEnd")
+
+    recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidEnd")
 
     notifyAppWithName(name: "intervalDidEnd")
   }
@@ -163,6 +167,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     reapplyLocturneBlocks(triggeredBy: "locturne_\(activity.rawValue)_eventDidReachThreshold")
 
+    recordLocturneHeartbeat(activity: activity.rawValue, callback: "eventDidReachThreshold")
+
     notifyAppWithName(name: "eventDidReachThreshold")
   }
 
@@ -181,6 +187,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       callbackName: "intervalWillStartWarning"
     )
 
+    recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalWillStartWarning")
+
     notifyAppWithName(name: "intervalWillStartWarning")
   }
 
@@ -198,6 +206,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       activityName: activity.rawValue,
       callbackName: "intervalWillEndWarning"
     )
+
+    recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalWillEndWarning")
 
     notifyAppWithName(name: "intervalWillEndWarning")
   }
@@ -220,6 +230,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       eventName: event.rawValue
     )
 
+    recordLocturneHeartbeat(activity: activity.rawValue, callback: "eventWillReachThresholdWarning")
+
     notifyAppWithName(name: "eventWillReachThresholdWarning")
   }
 
@@ -240,6 +252,8 @@ let LOCTURNE_NIGHT_HELD_KEY = "locturne.nightHeld"
 let LOCTURNE_LIMITS_KEY = "locturne.limits"
 let LOCTURNE_LIMIT_REACHED_PREFIX = "locturne.limitReached."
 let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
+let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
+let LOCTURNE_HEARTBEAT_KEEP = 100
 
 /// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts.
 func locturneDayKey(_ date: Date = Date()) -> String {
@@ -319,4 +333,24 @@ func settleLocturneLists(triggeredBy: String) {
   if changed {
     userDefaults?.set(pending, forKey: LOCTURNE_PENDING_LISTS_KEY)
   }
+}
+
+/// Notes that iOS ran this callback, newest first, keeping the last `LOCTURNE_HEARTBEAT_KEEP`.
+/// The app's nightly self-check reads it to tell whether bedtime really shielded the apps
+/// while Locturne was closed. Runs last, so `shielded` says whether any shield is up once the
+/// callback has done its work. Kept tiny for the extension's ~6 MB memory limit. Keep in step
+/// with src/lib/heartbeat.ts.
+@available(iOS 15.0, *)
+func recordLocturneHeartbeat(activity: String, callback: String) {
+  let entry: [String: Any] = [
+    "activity": activity,
+    "callback": callback,
+    "at": (Date().timeIntervalSince1970 * 1000).rounded(),
+    "shielded": isShieldActive(),
+  ]
+  var log: [Any] = [entry]
+  if let earlier = userDefaults?.array(forKey: LOCTURNE_HEARTBEAT_KEY) {
+    log.append(contentsOf: earlier.prefix(LOCTURNE_HEARTBEAT_KEEP - 1))
+  }
+  userDefaults?.set(log, forKey: LOCTURNE_HEARTBEAT_KEY)
 }

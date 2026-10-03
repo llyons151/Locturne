@@ -1,0 +1,306 @@
+/**
+ * Locturne's local notifications (GAME_PLAN, Build order Step 2): morning start, the bedtime
+ * warning, revoked access, the day-5 trial reminder, and the shield-tap follow-up. Nothing
+ * is pushed from a server.
+ *
+ * Every scheduled notification is a one-off for a real date, planned for the next
+ * `DAYS_AHEAD` days by `planNotifications` (pure, tested in notifications.test.ts). Weekly
+ * repeats can't follow a routine edit that waits for bedtime, a night switched off, or a
+ * clock change, and a one-off can. The plan is redone on every app open and every routine
+ * change (`rescheduleNotifications`), which also keeps it well under iOS's 64 pending.
+ *
+ * Permission is asked after the first night that held (GAME_PLAN), not in onboarding:
+ * `isGoodMomentToAsk` says when, `askForNotifications` asks.
+ *
+ * Copy is Loc's (docs/VOICE.md): no shaming, no fake urgency, and plain when it's serious.
+ */
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+import { hadSuccessfulNight, type NightCheck } from './health.ts';
+import { readNightChecks } from './heartbeat.ts';
+import { getProofs, type MorningProof } from './morning-proof.ts';
+import { getPendingRoutine, getRoutine, hasRoutine, type Routine, type StoredRoutine } from './routine.ts';
+import { getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
+
+const MINUTE = 60_000;
+const DAY_MS = 24 * 60 * MINUTE;
+
+/** Every identifier we schedule starts with this, so we never cancel anyone else's. */
+export const ID_PREFIX = 'locturne.';
+/** Minutes before bedtime for the warning. */
+export const BEDTIME_WARNING = 15;
+/** How far ahead to schedule. Each night is two notifications at most. */
+export const DAYS_AHEAD = 8;
+/** The annual plan's trial (GAME_PLAN, Money). */
+export const TRIAL_DAYS = 7;
+/** The paywall promises a reminder 2 days before the trial ends. */
+export const TRIAL_REMINDER_DAYS_BEFORE = 2;
+
+export type NotificationKind = 'morning' | 'bedtime' | 'revoked' | 'trial';
+
+export type PlannedNotification = {
+  id: string;
+  kind: NotificationKind;
+  at: Date;
+  title: string;
+  body: string;
+};
+
+/* The words. One place, so the voice stays consistent. */
+
+export const COPY = {
+  morning: { title: 'Morning.', body: 'Your apps stay asleep until you’re up. I’m not getting up first.' },
+  bedtime: {
+    title: `Bedtime in ${BEDTIME_WARNING} minutes.`,
+    body: 'Then your apps sleep. Then I sleep.',
+  },
+  revoked: {
+    title: 'Screen Time access is off.',
+    body: 'So I can’t block anything tonight. Turn it back on in Settings. Until then I’m just a raccoon.',
+  },
+  trial: (ends: Date) => ({
+    title: 'Your free trial ends in 2 days.',
+    body: `It ends ${ends.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, go to Settings › Apple ID › Subscriptions. No hard feelings. Some feelings.`,
+  }),
+  /** The shield-tap follow-up, morning only: tapping it opens the app, which a shield can't. */
+  shieldTap: { title: 'Up already?', body: 'Tap here and prove it. Then they wake.' },
+};
+
+/** Local midnight `days` after `date`, plus `minutes`, like lock-state.ts. */
+function atMinute(date: Date, minutes: number, days = 0): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 0, minutes);
+}
+
+const dayKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+export type PlanFacts = {
+  /** The routine in force now. */
+  routine: Routine;
+  /** An edit waiting for bedtime: nights starting from `from` use it. */
+  pending?: StoredRoutine['pending'] | null;
+  protection: Protection;
+  /** Whether a night is armed with iOS. Unarmed (before purchase, say), nothing will sleep. */
+  armed: boolean;
+  /** When the trial started, if one did and a reminder was asked for. */
+  trialStart?: Date | null;
+  now: Date;
+  days?: number;
+};
+
+/**
+ * Everything to schedule, soonest first. For each night that's switched on:
+ * - a bedtime warning `BEDTIME_WARNING` minutes before bedtime, or, while access is off,
+ *   the revoked-access warning in its place;
+ * - a morning-start note, unless access is off (the apps aren't asleep, so it would lie).
+ * Before access is set up or a night is armed, nothing about nights is sent at all. Each night follows the
+ * routine in force when it starts, so a pending edit shows up from its first bedtime.
+ */
+export function planNotifications(facts: PlanFacts): PlannedNotification[] {
+  const { routine, pending, protection, now } = facts;
+  const plan: PlannedNotification[] = [];
+  const nightly = facts.armed && (protection === 'on' || protection === 'off');
+
+  for (let offset = 0; nightly && offset <= (facts.days ?? DAYS_AHEAD); offset++) {
+    // The night into the morning `offset` days from today, under whichever routine it starts in.
+    const pick = (r: Routine) => ({
+      start: atMinute(now, r.bedtime, r.bedtime < r.morningStart ? offset : offset - 1),
+      end: atMinute(now, r.morningStart, offset),
+    });
+    let r = routine;
+    let { start, end } = pick(r);
+    if (pending && start.getTime() >= pending.from) {
+      r = pending.routine;
+      ({ start, end } = pick(r));
+    }
+    if (start >= end) continue;
+    // The evening before the morning starts the night, even when bedtime is after midnight.
+    if (!r.activeNights.includes(atMinute(end, 0, -1).getDay())) continue;
+
+    const key = dayKey(end);
+    const warnAt = new Date(start.getTime() - BEDTIME_WARNING * MINUTE);
+    if (warnAt > now) {
+      const kind = protection === 'off' ? 'revoked' : 'bedtime';
+      plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
+    }
+    if (protection === 'on' && end > now) {
+      plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });
+    }
+  }
+
+  const trial = facts.trialStart ? planTrialReminder(facts.trialStart, now) : null;
+  if (trial) plan.push(trial);
+  return plan.sort((a, b) => +a.at - +b.at);
+}
+
+/**
+ * The day-5 reminder: local noon, at least `TRIAL_REMINDER_DAYS_BEFORE` days before the
+ * trial ends, so the paywall's promise holds whatever time the trial started. Null once
+ * that moment has passed.
+ */
+export function planTrialReminder(trialStart: Date, now: Date): PlannedNotification | null {
+  const ends = new Date(trialStart.getTime() + TRIAL_DAYS * DAY_MS);
+  const latest = new Date(ends.getTime() - TRIAL_REMINDER_DAYS_BEFORE * DAY_MS);
+  let at = atMinute(latest, 12 * 60);
+  if (at > latest) at = atMinute(latest, 12 * 60, -1);
+  if (at <= now) return null;
+  return { id: `${ID_PREFIX}trial`, kind: 'trial', at, ...COPY.trial(ends) };
+}
+
+export type NotificationPermission = 'granted' | 'denied' | 'undetermined';
+
+/**
+ * Whether now is the moment to ask (GAME_PLAN: after the first successful night). Only
+ * while iOS would still show its prompt, and only once a night really held or a morning
+ * was unlocked.
+ */
+export function isGoodMomentToAsk(
+  permission: NotificationPermission,
+  facts: { proofs: MorningProof[]; nights: NightCheck[] },
+): boolean {
+  return permission === 'undetermined' && (facts.proofs.length > 0 || hadSuccessfulNight(facts.nights));
+}
+
+/**
+ * The follow-up for a tap on the shield's button, in the shape react-native-device-activity
+ * takes for a `sendNotification` shield action (its `NotificationPayload`). A shield button
+ * can't open the app, but tapping this notification does. Morning only: at night the
+ * answer is "go to sleep", and a notification would only keep him up. See
+ * docs/v1-build/status-and-notifications.md for wiring it into `setShieldText`.
+ */
+export function shieldTapNotification(phase: 'night' | 'morning' | 'day' | 'off') {
+  if (phase !== 'morning') return null;
+  return { ...COPY.shieldTap, identifier: `${ID_PREFIX}shieldTap`, userInfo: { url: 'locturne://' } };
+}
+
+/* Talking to iOS. Everything below is a no-op off iPhone. */
+
+const isIOS = () => Platform.OS === 'ios';
+const TRIAL_KEY = 'locturne.trialStart';
+let configured = false;
+
+/**
+ * Shows our notifications as banners even while Locturne is open. Safe to call more than
+ * once; the functions below call it themselves.
+ */
+export function configureNotifications(): void {
+  if (configured || !isIOS()) return;
+  configured = true;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  });
+}
+
+/** iOS's answer so far. Provisional and ephemeral count as granted. */
+export async function getNotificationPermission(): Promise<NotificationPermission> {
+  if (!isIOS()) return 'denied';
+  const settings = await Notifications.getPermissionsAsync();
+  const ios = settings.ios?.status;
+  if (ios === undefined) return settings.granted ? 'granted' : settings.status === 'undetermined' ? 'undetermined' : 'denied';
+  if (ios === Notifications.IosAuthorizationStatus.NOT_DETERMINED) return 'undetermined';
+  return ios === Notifications.IosAuthorizationStatus.DENIED ? 'denied' : 'granted';
+}
+
+/**
+ * True when it's the moment to show iOS's notification prompt: it hasn't been shown, and
+ * the first night has held. Callers (the morning unlock, Home) check this, then explain in
+ * one line and call `askForNotifications`.
+ */
+export async function shouldAskForNotifications(now = new Date()): Promise<boolean> {
+  if (!isIOS()) return false;
+  return isGoodMomentToAsk(await getNotificationPermission(), { proofs: getProofs(), nights: readNightChecks(now) });
+}
+
+/** Shows iOS's prompt, then schedules everything if allowed. Returns whether it was. */
+export async function askForNotifications(): Promise<boolean> {
+  if (!isIOS()) return false;
+  configureNotifications();
+  await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: false } });
+  const granted = (await getNotificationPermission()) === 'granted';
+  if (granted) await rescheduleNotifications();
+  return granted;
+}
+
+/** The stored trial start, if a reminder is wanted. */
+export function getTrialStart(): Date | null {
+  const ms = sharedGet<number>(TRIAL_KEY);
+  return typeof ms === 'number' ? new Date(ms) : null;
+}
+
+/**
+ * Remembers the trial start and schedules the reminder 2 days before it ends. Purchases
+ * call this when a trial starts with "Remind me" on. Kept in the App Group, so every
+ * reschedule keeps it, including the one after permission is granted later.
+ */
+export async function scheduleTrialReminder(trialStart: Date): Promise<void> {
+  sharedSet(TRIAL_KEY, trialStart.getTime());
+  await rescheduleNotifications();
+}
+
+/** For a cancelled trial, a switch to monthly, or "Remind me" turned off. */
+export async function cancelTrialReminder(): Promise<void> {
+  sharedRemove(TRIAL_KEY);
+  await rescheduleNotifications();
+}
+
+/** Our pending notifications as iOS has them, soonest first. For diagnostics. */
+export async function getScheduledNotifications(): Promise<{ id: string; title: string; at: Date | null }[]> {
+  if (!isIOS()) return [];
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  return all
+    .filter((n) => n.identifier.startsWith(ID_PREFIX))
+    .map((n) => {
+      // iOS reports a date trigger as calendar parts or a relative interval, so read back the
+      // time we stored with it instead.
+      const at = (n.content.data as { at?: unknown } | null)?.at;
+      return { id: n.identifier, title: n.content.title ?? '', at: typeof at === 'number' ? new Date(at) : null };
+    })
+    .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0));
+}
+
+let queue: Promise<void> = Promise.resolve();
+
+/**
+ * Replaces our scheduled notifications with a fresh plan. Call it after `saveRoutine`. It
+ * plans from the stored routine and any edit waiting for bedtime, so tonight keeps the old
+ * times even if the edited routine is passed in: `routine` is only used before onboarding
+ * has stored one. Also runs on every app open and whenever protection changes
+ * (`useHealth`). Calls are queued, so overlapping ones can't double-schedule.
+ */
+export function rescheduleNotifications(routine?: Routine): Promise<void> {
+  const run = async () => {
+    if (!isIOS()) return;
+    configureNotifications();
+    const ours = (await Notifications.getAllScheduledNotificationsAsync()).filter((n) =>
+      n.identifier.startsWith(ID_PREFIX),
+    );
+    await Promise.all(ours.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)));
+    if ((await getNotificationPermission()) !== 'granted') return;
+
+    const stored = hasRoutine();
+    const plan = planNotifications({
+      routine: stored || !routine ? getRoutine() : routine,
+      pending: stored ? getPendingRoutine() : null,
+      protection: getProtection(),
+      armed: getArmedNight() !== null,
+      trialStart: getTrialStart(),
+      now: new Date(),
+    });
+    for (const n of plan) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: n.id,
+        content: { title: n.title, body: n.body, data: { kind: n.kind, at: n.at.getTime() } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at },
+      });
+    }
+  };
+  const next = queue.then(run, run);
+  queue = next.catch(() => {});
+  return next;
+}
