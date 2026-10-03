@@ -6,6 +6,7 @@ import { describe, test } from 'node:test';
 import {
   currentMorning,
   getLockState,
+  nightsAround,
   settingsTakeEffectAt,
   type LockSettings,
   type MorningFacts,
@@ -204,5 +205,19 @@ describe('daytime controls', () => {
       'youtube',
       'x',
     ]);
+  });
+});
+
+describe('nightsAround', () => {
+  test('inside a night: latest is tonight, next is tomorrow night', () => {
+    const { latest, next } = nightsAround(at(2, 0, 2), settings);
+    assert.deepEqual(latest, { start: at(23, 30, 1), end: at(7, 0, 2) });
+    assert.deepEqual(next, { start: at(23, 30, 2), end: at(7, 0, 3) });
+  });
+
+  test('in the day: latest is last night, next is tonight', () => {
+    const { latest, next } = nightsAround(at(14), settings);
+    assert.deepEqual(latest, { start: at(23, 30, 0), end: at(7) });
+    assert.deepEqual(next, { start: at(23, 30), end: at(7, 0, 2) });
   });
 });
