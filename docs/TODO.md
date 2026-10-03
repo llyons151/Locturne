@@ -9,6 +9,53 @@ marked *idea* isn't adopted until it's copied into GAME_PLAN.
 
 Tick items off here as they're done.
 
+## 0. Your next steps (logged 2026-10-03)
+
+Owner-only tasks from the October 3 agent runs, in order. The linked docs have the
+exact steps.
+
+**This week (Oct 5–11)**
+- [ ] Decide the seller's legal name (sole proprietor or LLC), your US state for the
+  Terms, and EU trader status. These feed the website, App Store Connect and the Terms.
+- [ ] App Store Connect → Business: sign the Paid Apps Agreement, add banking and tax,
+  enrol in the Small Business Program (15%). [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md) §1
+- [ ] Create the app record to reserve "Locturne: Morning App Blocker".
+  [app-store/OWNER_TODO.md](app-store/OWNER_TODO.md)
+- [ ] Make sandbox testers (including a child account for Ask to Buy).
+- [ ] Device spike: EAS build first (the edited Swift has never compiled), then follow
+  [v1-build/DEVICE_TEST_SCRIPT.md](v1-build/DEVICE_TEST_SCRIPT.md): one day session,
+  then 3 nights. Watch the items listed in
+  [v1-build/PRE_DEVICE_REVIEW.md](v1-build/PRE_DEVICE_REVIEW.md).
+
+**RevenueCat (Oct 12–18)** — [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md)
+- [ ] Subscription group `Locturne` with `locturne.annual`, `locturne.monthly`,
+  `locturne.annual.halfprice`, `locturne.annual.longtrial`, intro offers and levels.
+- [ ] In-App Purchase key (.p8 + Issuer ID), RevenueCat project, `pro` entitlement,
+  offerings `default`, `exit-half-price`, `exit-longer-trial`.
+- [ ] Paste the `appl_` key into `app.json` (`expo.extra.revenueCat.appleApiKey`), new
+  dev build, run the purchase device checklist.
+
+**Website (by Oct 25)** — [WEBSITE.md](WEBSITE.md), [web/README.md](../web/README.md)
+- [ ] Fill the yellow TODOs (contact email, legal name, state, PostHog choices), set up
+  hello@locturne.com, deploy to Cloudflare Pages with D1. A `/support` page is still to
+  build.
+
+**Decisions waiting on you**
+- [ ] Cancelled subscribers: should expiry disarm their nights (at bedtime)?
+  ([v1-build/purchases.md](v1-build/purchases.md))
+- [ ] The five behaviour questions in [v1-build/PRE_DEVICE_REVIEW.md](v1-build/PRE_DEVICE_REVIEW.md).
+- [ ] Privacy vs analytics: keep step counts, exact age and the heartbeat log on the
+  device, or change the policy. ([app-store/PRIVACY_LABELS.md](app-store/PRIVACY_LABELS.md))
+
+**Code still blocking App Review** (Claude can do these)
+- [ ] Dead You-tab rows (Help, Send feedback, Rate) and the "Preview" footer; hide
+  Beta diagnostics in release builds.
+- [ ] Privacy manifests for the app and the three extensions (App Group UserDefaults).
+- [ ] App icon and splash (needs your art direction).
+
+Then November: TestFlight, screenshots, privacy answers, review video, early
+submission Mon Nov 16 ([app-store/OWNER_TODO.md](app-store/OWNER_TODO.md)).
+
 ## 1. Decisions only you can make
 
 - [x] **Moving the goalposts:** *Decided 2026-10-01: all settings changes, loosening
