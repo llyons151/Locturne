@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,8 +10,10 @@ import { PrimaryButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { LEGAL_URLS } from '@/features/onboarding/content';
 import { SwitchRow } from '@/features/routine/controls';
+import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
 import { getPassesLeft } from '@/lib/passes';
+import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
@@ -25,8 +27,11 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } fr
  * stats or charts; history lives on the morning share card.
  *
  * Passes, the emergency unlock and the scan code are real (they open the exits and scan
- * screens). The plan and the notification toggles are still placeholders.
+ * screens), and so are the plan and Restore (src/lib/purchases.ts). The notification
+ * toggles are still placeholders.
  */
+
+const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
 
 const STATUS: Record<Protection, { icon: string; android: string; line: string }> = {
   on: { icon: 'lock.fill', android: 'lock', line: 'Screen Time access is on. Your apps sleep on schedule.' },
@@ -66,6 +71,39 @@ export function YouScreen() {
 
   // Re-read on every render; the tab re-renders when it's focused again.
   const passesLeft = getPassesLeft();
+
+  const [plan, setPlan] = useState<PlanId | null>(null);
+  useEffect(() => {
+    currentPlan().then(setPlan, () => {});
+  }, []);
+  // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
+  const manage = () => {
+    const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
+    manageSubscriptions()
+      .then((shown) => (shown ? null : page()))
+      .catch(page)
+      .finally(() => currentPlan().then(setPlan, () => {}));
+  };
+  const [restoring, setRestoring] = useState(false);
+  const restorePurchases = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const { entitled } = await restore();
+      if (entitled) {
+        currentPlan().then(setPlan, () => {});
+        // A routine saved but never armed (declined, or bought on another phone) arms now.
+        armIfPaid();
+        Alert.alert('You’re subscribed', 'Your subscription is restored.');
+      } else {
+        Alert.alert('Nothing to restore', 'There’s no Locturne subscription on this Apple ID.');
+      }
+    } catch {
+      Alert.alert('The App Store isn’t answering', 'Check your connection and try again.');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const s = STATUS[status];
   const version = Constants.expoConfig?.version;
@@ -113,10 +151,16 @@ export function YouScreen() {
         <ValueRow
           icon={sym('creditcard.fill', 'credit_card')}
           title="Manage subscription"
-          value="Annual"
-          onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
+          value={plan ? PLAN_LABEL[plan] : ''}
+          onPress={manage}
         />
-        <ValueRow icon={sym('arrow.clockwise', 'refresh')} title="Restore purchases" value="" onPress={() => notLive('Restore purchases')} last />
+        <ValueRow
+          icon={sym('arrow.clockwise', 'refresh')}
+          title="Restore purchases"
+          value={restoring ? 'Checking…' : ''}
+          onPress={restorePurchases}
+          last
+        />
       </Section>
 
       <Section label="Help">

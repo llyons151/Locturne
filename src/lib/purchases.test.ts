@@ -13,6 +13,9 @@ import {
   isExitArm,
   memoryKeyValue,
   perMonth,
+  pickExitArm,
+  planOf,
+  PRODUCT_IDS,
   purchase,
   reminderDay,
   resolveExitArm,
@@ -29,15 +32,15 @@ test('the stub offers the decided plans, with trials only on annual', async () =
   assert.equal(offers.annual.trialDays, 7);
   assert.equal(offers.monthly.priceString, '$9.99');
   assert.equal(offers.monthly.trialDays, null);
-  assert.equal(offers.exitOffers['half-price'].priceString, '$29.99');
-  assert.equal(offers.exitOffers['longer-trial'].trialDays, 14);
+  assert.equal(offers.exitOffers['half-price']?.priceString, '$29.99');
+  assert.equal(offers.exitOffers['longer-trial']?.trialDays, 14);
   assert.equal(offers.exitArm, 'longer-trial');
 });
 
 test('no intro-offer eligibility: no trial anywhere, and no longer-trial arm', async () => {
   const offers = await createDevPurchases({ trialEligible: false }).getOffers();
   assert.equal(offers.annual.trialDays, null);
-  assert.equal(offers.exitOffers['half-price'].trialDays, null);
+  assert.equal(offers.exitOffers['half-price']?.trialDays, null);
   assert.equal(offers.exitArm, 'none');
   // Half price still makes sense without a trial.
   const half = await createDevPurchases({ trialEligible: false, exitArm: 'half-price' }).getOffers();
@@ -110,4 +113,36 @@ test('trial dates', () => {
   assert.ok(isExitArm('half-price'));
   assert.ok(!isExitArm('lifetime'));
   assert.ok(!isExitArm(undefined));
+});
+
+test('a missing exit offering resolves to no offer', () => {
+  assert.equal(resolveExitArm('half-price', { exitOffers: {} }), 'none');
+  assert.equal(resolveExitArm('longer-trial', { exitOffers: {} }), 'none');
+});
+
+test('pickExitArm splits evenly into three and never runs off the end', () => {
+  assert.equal(pickExitArm(0), 'none');
+  assert.equal(pickExitArm(0.34), 'half-price');
+  assert.equal(pickExitArm(0.67), 'longer-trial');
+  assert.equal(pickExitArm(1), 'longer-trial');
+  const counts = { none: 0, 'half-price': 0, 'longer-trial': 0 };
+  for (let i = 0; i < 300; i++) counts[pickExitArm(i / 300)] += 1;
+  assert.deepEqual(counts, { none: 100, 'half-price': 100, 'longer-trial': 100 });
+});
+
+test('every product ID maps to its plan, and each target has its own product', () => {
+  assert.equal(planOf(PRODUCT_IDS.monthly), 'monthly');
+  assert.equal(planOf(PRODUCT_IDS.annual), 'annual');
+  assert.equal(planOf(PRODUCT_IDS['half-price']), 'annual');
+  assert.equal(planOf(PRODUCT_IDS['longer-trial']), 'annual');
+  assert.equal(new Set(Object.values(PRODUCT_IDS)).size, 4);
+});
+
+test('the stub reports the plan bought and keeps attributes', async () => {
+  const stub = createDevPurchases();
+  assert.equal(await stub.currentPlan(), null);
+  await stub.purchase('longer-trial');
+  assert.equal(await stub.currentPlan(), 'annual');
+  stub.setAttributes({ found: 'tiktok' });
+  assert.deepEqual(stub.attributes, { found: 'tiktok' });
 });

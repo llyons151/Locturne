@@ -164,9 +164,9 @@ export function plansStep(ctx: StepContext): StepView {
  */
 export function declinedStep(ctx: StepContext): StepView {
   const { exitArm, buy, busy, exit, offers } = ctx;
-  if (!offers || exitArm === 'none') return storeStep(ctx);
+  const offer: Offer | undefined = offers && exitArm !== 'none' ? offers.exitOffers[exitArm] : undefined;
+  if (!offers || exitArm === 'none' || !offer) return storeStep(ctx);
   const longer = exitArm === 'longer-trial';
-  const offer: Offer = offers.exitOffers[exitArm];
   const days = offer.trialDays;
   const full = offers.annual.priceString;
   const price = offer.priceString;
