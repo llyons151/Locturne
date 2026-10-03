@@ -39,6 +39,7 @@
         }
       ],
       "expo-video",
+      "expo-notifications",
       [
         "expo-sensors",
         {
