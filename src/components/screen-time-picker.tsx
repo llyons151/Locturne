@@ -15,10 +15,16 @@ export function ScreenTimePicker({
   list,
   onClose,
   onPicked,
+  header,
+  footer,
 }: {
   list: SelectionId;
   onClose: () => void;
   onPicked?: (counts: { apps: number; categories: number }) => void;
+  /** Apple's `headerText`: one line above the list. */
+  header?: string;
+  /** Apple's `footerText`: one line under it. */
+  footer?: string;
 }) {
   return (
     <DeviceActivitySelectionSheetViewPersisted
@@ -27,6 +33,8 @@ export function ScreenTimePicker({
       // this is set. Without it the sheet opens empty and saves that, wiping the list.
       // false is the FamilyActivitySelection default every existing list was made with.
       includeEntireCategory={false}
+      headerText={header ?? null}
+      footerText={footer ?? null}
       style={styles.anchor}
       onDismissRequest={onClose}
       onSelectionChange={(event) => {

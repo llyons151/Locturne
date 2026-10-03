@@ -1,0 +1,113 @@
+/// <reference types="node" />
+
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import {
+  annualSavingsPercent,
+  createDevPurchases,
+  DEV_CATALOG,
+  formatPrice,
+  getOffers,
+  isEntitled,
+  isExitArm,
+  memoryKeyValue,
+  perMonth,
+  purchase,
+  reminderDay,
+  resolveExitArm,
+  restore,
+  setPurchasesProvider,
+  trialEndsAt,
+  trialStartedAt,
+} from './purchases.ts';
+
+test('the stub offers the decided plans, with trials only on annual', async () => {
+  const offers = await createDevPurchases().getOffers();
+  assert.equal(offers.annual.price, DEV_CATALOG.annual);
+  assert.equal(offers.annual.priceString, '$59.99');
+  assert.equal(offers.annual.trialDays, 7);
+  assert.equal(offers.monthly.priceString, '$9.99');
+  assert.equal(offers.monthly.trialDays, null);
+  assert.equal(offers.exitOffers['half-price'].priceString, '$29.99');
+  assert.equal(offers.exitOffers['longer-trial'].trialDays, 14);
+  assert.equal(offers.exitArm, 'longer-trial');
+});
+
+test('no intro-offer eligibility: no trial anywhere, and no longer-trial arm', async () => {
+  const offers = await createDevPurchases({ trialEligible: false }).getOffers();
+  assert.equal(offers.annual.trialDays, null);
+  assert.equal(offers.exitOffers['half-price'].trialDays, null);
+  assert.equal(offers.exitArm, 'none');
+  // Half price still makes sense without a trial.
+  const half = await createDevPurchases({ trialEligible: false, exitArm: 'half-price' }).getOffers();
+  assert.equal(half.exitArm, 'half-price');
+});
+
+test('resolveExitArm keeps none and half-price as they are', async () => {
+  const offers = await createDevPurchases().getOffers();
+  assert.equal(resolveExitArm('none', offers), 'none');
+  assert.equal(resolveExitArm('half-price', offers), 'half-price');
+  assert.equal(resolveExitArm('longer-trial', offers), 'longer-trial');
+});
+
+test('savings and per-month come from the offer prices', async () => {
+  const offers = await createDevPurchases().getOffers();
+  assert.equal(annualSavingsPercent(offers), 49);
+  assert.equal(perMonth(offers.annual, 'en-US'), '$5.00');
+  assert.equal(perMonth(offers.monthly, 'en-US'), '$9.99');
+  assert.equal(formatPrice(59.99, 'EUR', 'de-DE'), '59,99 €');
+});
+
+test('a purchase entitles, remembers when the trial began, and restores', async () => {
+  const store = memoryKeyValue();
+  const at = new Date(2026, 9, 3, 21, 0);
+  const stub = createDevPurchases({ store, now: () => at });
+  assert.equal(await stub.isEntitled(), false);
+  assert.deepEqual(await stub.restore(), { entitled: false });
+
+  assert.deepEqual(await stub.purchase('annual'), { status: 'purchased' });
+  assert.equal(await stub.isEntitled(), true);
+  assert.equal((await stub.trialStartedAt())?.getTime(), at.getTime());
+
+  // A fresh install on the same Apple ID: Restore finds it.
+  const again = createDevPurchases({ store });
+  assert.deepEqual(await again.restore(), { entitled: true });
+});
+
+test('monthly has no trial to remember', async () => {
+  const stub = createDevPurchases();
+  await stub.purchase('monthly');
+  assert.equal(await stub.trialStartedAt(), null);
+});
+
+test('cancelled, pending and failed purchases entitle nothing', async () => {
+  for (const outcome of ['cancelled', 'pending', 'failed'] as const) {
+    const stub = createDevPurchases({ outcome });
+    const result = await stub.purchase('annual');
+    assert.equal(result.status, outcome);
+    assert.equal(await stub.isEntitled(), false);
+  }
+});
+
+test('the module-level functions use the provider that was set', async () => {
+  setPurchasesProvider(createDevPurchases({ exitArm: 'none' }));
+  assert.equal((await getOffers()).exitArm, 'none');
+  assert.equal(await isEntitled(), false);
+  await purchase('half-price');
+  assert.equal(await isEntitled(), true);
+  assert.deepEqual(await restore(), { entitled: true });
+  assert.ok(await trialStartedAt());
+});
+
+test('trial dates', () => {
+  const start = new Date(2026, 9, 3);
+  assert.equal(trialEndsAt(7, start).getDate(), 10);
+  assert.equal(trialEndsAt(14, start).getMonth(), 9);
+  assert.equal(reminderDay(7), 5);
+  assert.equal(reminderDay(14), 12);
+  assert.equal(reminderDay(2), 1);
+  assert.ok(isExitArm('half-price'));
+  assert.ok(!isExitArm('lifetime'));
+  assert.ok(!isExitArm(undefined));
+});
