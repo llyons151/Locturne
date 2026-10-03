@@ -37,8 +37,8 @@ exact steps.
 
 **Website (by Oct 25)** — [WEBSITE.md](WEBSITE.md), [web/README.md](../web/README.md)
 - [ ] Fill the yellow TODOs (contact email, legal name, state, PostHog choices), set up
-  hello@locturne.com, deploy to Cloudflare Pages with D1. A `/support` page is still to
-  build.
+  hello@locturne.com, deploy to Cloudflare Pages with D1. *`/support` built 2026-10-03;
+  the app's Help and Send feedback rows depend on it and the mailbox.*
 
 **Decisions waiting on you**
 - [ ] Cancelled subscribers: should expiry disarm their nights (at bedtime)?
@@ -48,9 +48,13 @@ exact steps.
   device, or change the policy. ([app-store/PRIVACY_LABELS.md](app-store/PRIVACY_LABELS.md))
 
 **Code still blocking App Review** (Claude can do these)
-- [ ] Dead You-tab rows (Help, Send feedback, Rate) and the "Preview" footer; hide
-  Beta diagnostics in release builds.
-- [ ] Privacy manifests for the app and the three extensions (App Group UserDefaults).
+- [x] Dead You-tab rows (Help, Send feedback, Rate) and the "Preview" footer; hide
+  Beta diagnostics in release builds. *Done 2026-10-03; diagnostics is a long press on the
+  version line. The notification switches work too.*
+- [x] Privacy manifests for the app and the three extensions (App Group UserDefaults).
+  *Done 2026-10-03.*
+- [ ] After the App Store record exists: add `ios.appStoreUrl` to `app.json` so Rate
+  opens the write-review page.
 - [ ] App icon and splash (needs your art direction).
 
 Then November: TestFlight, screenshots, privacy answers, review video, early

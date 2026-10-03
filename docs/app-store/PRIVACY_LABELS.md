@@ -105,8 +105,10 @@ PostHog ships. The label can be edited at any time, without a new build.
 
 These are separate from the label, but they have to agree with it.
 
-- **Missing today.** `app.json` has no `ios.privacyManifests`, and the three extension
-  targets in `targets/` ship no `PrivacyInfo.xcprivacy`.
+- **Added 2026-10-03.** `app.json` → `ios.privacyManifests` (UserDefaults, `CA92.1` and
+  `1C8F.1`) and a `PrivacyInfo.xcprivacy` in each `targets/` folder (`1C8F.1`). The
+  extension folders are synced groups, so the file is bundled without project edits. Still
+  check the archive's privacy report after the first TestFlight upload.
 - **The app and every extension call `UserDefaults(suiteName:)`** (`targets/*/Shared.swift`,
   `modules/blocked-apps/ios/BlockedAppsModule.swift`). That's a "required reason" API.
   Declare `NSPrivacyAccessedAPICategoryUserDefaults` with reason `1C8F.1` (App Group shared
@@ -121,8 +123,6 @@ These are separate from the label, but they have to agree with it.
   manifests; check they're in the build's privacy report (Xcode → Archive → Generate Privacy
   Report, or ask EAS for the archive).
 
-This is a code change. It's not made here, because another agent is editing the app
-concurrently.
 
 ---
 
@@ -136,7 +136,7 @@ concurrently.
 | 4 | **PostHog location.** The policy says PostHog derives country or region from the IP, and has a TODO about turning IP capture off. | privacy.html §4 TODO | Pick one before submitting. Either disable GeoIP and IP capture, so there's no Coarse Location and the sentence comes out of the policy, or keep it and declare Coarse Location. |
 | 5 | **Heartbeat upload.** LAUNCH_PLAN §4.3 says the app "reads it and uploads it". The policy says the diagnostics report only leaves through the share sheet. | LAUNCH_PLAN vs privacy.html §2 | If heartbeat entries go to PostHog, they are Other Diagnostic Data (already in table B) and the policy should say "technical events about whether blocks started", which §4 mostly does. Never upload the selection tokens or activity names that contain list IDs. |
 | 6 | **The motion permission string says** "That's all it uses motion for", but the accelerometer also turns the nap clock (`use-sideways.ts`). | app.json `motionPermission` | The accelerometer needs no permission, so this isn't a review issue. To be exact, reword it as: "Locturne checks your steps and stairs each morning to wake your apps." |
-| 7 | **Privacy manifest** missing (section C). | app.json, targets/ | Add before the first App Store build. |
+| 7 | ~~**Privacy manifest** missing (section C).~~ Added 2026-10-03. | app.json, targets/ | Check the privacy report on the first upload. |
 | 8 | **Placeholders** in the policy: legal name, PostHog region and retention, postal address. | privacy.html | Fill them before the URL goes into ASC. A policy with `[TODO]` in it is a 2.1 and 5.1.1(i) risk. |
 | 9 | **The share card (planned) will be an image.** The iOS share sheet's "Save Image" needs `NSPhotoLibraryAddUsageDescription`, or the app crashes. Today's shares are a PDF and text, so they don't need it. | future share card | Add the usage string in the same change that adds the card. |
 

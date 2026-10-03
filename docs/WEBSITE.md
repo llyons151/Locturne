@@ -9,6 +9,9 @@ Built October 3, 2026. Not deployed yet. Code and deploy steps: [web/README.md](
   reused from onboarding's deal screen, Loc's approved opener ("I'm Loc. Raccoon. I'd like
   to sleep.") and an email field. Success says "You're on the list. Go to sleep."
 - **`/privacy`** and **`/terms`**: the documents the paywall's `LEGAL_URLS` already point to.
+- **`/support`**: contact and FAQs (added 2026-10-03). The App Store Support URL and the
+  app's You → Help row. Its answers restate app behaviour (passes, emergency unlock, the
+  next-bedtime rule, methods), so update it when those change.
 - **`/api/waitlist`**: a Cloudflare Pages Function writing to D1.
 
 ## Decisions

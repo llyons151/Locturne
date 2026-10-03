@@ -113,11 +113,11 @@ small.
 | Check | Status | Where / fix |
 |---|---|---|
 | Real purchases (no stub) | ❌ | `src/app/_layout.tsx` sets `createDevPurchases`. The paywall then shows "Preview: nothing is charged." Ship only with the RevenueCat provider (in progress in another worktree). |
-| You → Restore purchases works | ❌ | `you-screen.tsx` calls `notLive('Restore purchases')`, which shows "This isn't live yet." Wire it to `restore()`. |
-| You → Help, Send feedback, Rate | ❌ | All three are `notLive` alerts. Point Help at `locturne.com/support`, Feedback at a `mailto:hello@locturne.com`, and Rate at `StoreReview.requestReview()` or the write-review URL. Otherwise remove the rows. |
-| You footer "Preview. The plan is a placeholder." | ❌ | Remove it. Show the real plan from the entitlement; "Manage subscription" hardcodes `value="Annual"`. |
-| Notification toggles do something | ❌ | `alerts` is local `useState`. Wire the toggles to the scheduler, or hide them for 1.0. |
-| "Beta diagnostics" row in the release build | ⚠️ | Rename it "Diagnostics" (2.2), or show it only in TestFlight builds. |
+| You → Restore purchases works | ✅ | Calls `restore()` (2026-10-03). |
+| You → Help, Send feedback, Rate | ✅ | Help opens `locturne.com/support` (`web/public/support.html`), Feedback a `mailto:hello@locturne.com`, Rate the write-review URL once `ios.appStoreUrl` is in `app.json`, Apple's prompt until then (2026-10-03). The site and the mailbox must be live before review. |
+| You footer "Preview. The plan is a placeholder." | ✅ | Removed; the footer is just the version. Manage subscription shows the real plan (2026-10-03). |
+| Notification toggles do something | ✅ | Saved in the App Group and fed to `planNotifications` (2026-10-03). The revoked-access warning has no switch. Trial reminder only shows during a trial. |
+| "Beta diagnostics" row in the release build | ✅ | The row is gone. Testers open diagnostics by long-pressing the version line on the You tab (2026-10-03). Tell TestFlight testers. |
 | App icon and splash | ❌ | `assets/expo.icon` is still the Expo template (the expo-symbol layer), and the splash is `#208AEF`. A template icon is an easy 2.1/4.0 rejection. |
 | Dev screens unreachable | ✅ | The Screen Time lab and the home preview toggles are behind `__DEV__`. |
 | "Calls and texts aren't touched" is accurate | ⚠️ | Only true if the user doesn't pick Messages. Reword it. |
