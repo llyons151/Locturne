@@ -26,6 +26,10 @@ exact steps.
   [v1-build/DEVICE_TEST_SCRIPT.md](v1-build/DEVICE_TEST_SCRIPT.md): one day session,
   then 3 nights. Watch the items listed in
   [v1-build/PRE_DEVICE_REVIEW.md](v1-build/PRE_DEVICE_REVIEW.md).
+  *The build is done: dev build `f6849d3b` (commit 207cc2b, 2026-10-03) compiled all the
+  Swift and is ready to install from expo.dev. The first attempt failed on signing because
+  expo-notifications adds the push entitlement; `plugins/with-local-notifications-only.js`
+  strips it.*
 
 **RevenueCat (Oct 12–18)** — [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md)
 - [ ] Subscription group `Locturne` with `locturne.annual`, `locturne.monthly`,
