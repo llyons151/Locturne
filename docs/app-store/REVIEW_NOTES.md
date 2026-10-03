@@ -120,10 +120,10 @@ small.
 | "Beta diagnostics" row in the release build | ✅ | The row is gone. Testers open diagnostics by long-pressing the version line on the You tab (2026-10-03). Tell TestFlight testers. |
 | App icon and splash | ❌ | `assets/expo.icon` is still the Expo template (the expo-symbol layer), and the splash is `#208AEF`. A template icon is an easy 2.1/4.0 rejection. |
 | Dev screens unreachable | ✅ | The Screen Time lab and the home preview toggles are behind `__DEV__`. |
-| "Calls and texts aren't touched" is accurate | ⚠️ | Only true if the user doesn't pick Messages. Reword it. |
-| iPad in compatibility mode | ⚠️ | `supportsTablet` isn't set, so it runs as an iPhone app on iPad, and reviewers sometimes test there. iPads have no pedometer, so check that the steps screen and the onboarding motion prompt degrade cleanly there. Untick Mac (Apple silicon) and Vision Pro availability in ASC. |
-| No crash on first launch, permission denials and offline paywall | ⚠️ | `storeStep` handles offers that fail to load. Test airplane mode on the paywall. |
-| Privacy manifests | ❌ | See PRIVACY_LABELS.md §C. |
+| "Calls and texts aren't touched" is accurate | ✅ | Reworded everywhere (onboarding, the picker footer, the schedule card, Nap) to "Phone calls always get through", matching the listing (2026-10-03). |
+| iPad in compatibility mode | ✅ ⚠️ | `supportsTablet` isn't set, so it runs as an iPhone app on iPad. Fixed 2026-10-03: when steps can't be counted (no pedometer, or Motion & Fitness denied) the morning screen offers "Other ways to wake them" (passes, scan, emergency), so nobody is stuck; the downstairs denied state no longer loops to steps and back; onboarding's last page warns a steps user on a device with no step counter. iPads have a barometer, so stairs still work. Still to do: untick Mac (Apple silicon) and Vision Pro in ASC, and try one run on an iPad if you can borrow one. |
+| No crash on first launch, permission denials and offline paywall | ✅ ⚠️ | Checked in code 2026-10-03: offers that fail to load show "The App Store isn't answering" with Try again; a failed purchase or restore says so; Screen Time refused offers Try again and Settings; camera denied offers Allow or Settings; motion denied shows Settings plus a way out. Still test airplane mode on the paywall on the device. |
+| Privacy manifests | ✅ | Added 2026-10-03 and confirmed inside the built IPA (app and all three extensions). PRIVACY_LABELS.md §C. |
 
 ### Subscriptions (3.1.1, 3.1.2)
 
@@ -136,7 +136,7 @@ small.
 | Terms and Privacy links on the paywall | ✅ | Plans and exit-offer steps → `LEGAL_URLS`. |
 | Terms (EULA) and Privacy links in the metadata | ✅ | LISTING.md description, plus the ASC Privacy Policy URL. |
 | No trial toggle | ✅ | The "Remind me" switch is a reminder, not a trial toggle. But a switch next to plans can be misread as one: keep its label explicit about the reminder. |
-| Pending (Ask to Buy) shows "waiting", never "armed" | ⚠️ | `PurchaseResult` has `pending`. Check the UI with a sandbox Ask to Buy. |
+| Pending (Ask to Buy) shows "waiting", never "armed" | ✅ ⚠️ | RevenueCat's payment-pending error maps to `pending`; the paywall says "Waiting for approval" and arms nothing; Home now says "Waiting for approval" too (`src/lib/pending-purchase.ts`, 48 hours) instead of a bare "Bedtime isn't scheduled"; approval arms tonight via `onEntitled`/`armIfPaid`. Still test with a sandbox Ask to Buy. |
 | IAP products submitted with the version | ⚠️ | ASC: attach both subscriptions (and the exit-offer product) to version 1.0 under "In-App Purchases and Subscriptions". |
 | Exit offer can actually be built in ASC | ⚠️ | A 14-day free trial on `locturne.annual` **can't coexist** with its 7-day introductory offer: one intro offer per product per territory. Use a separate product, a promotional offer through RevenueCat, or an offer code. **[UNVERIFIED for the best option; settle it in REVENUECAT_SETUP.md]** |
 | Lock arms only after purchase | ✅ | `armTonight` runs after the paywall; `commit` skips the paywall only for people already entitled. |
@@ -146,7 +146,7 @@ small.
 | Check | Status | Where |
 |---|---|---|
 | Family Controls (Distribution) on all four App IDs | ✅ | Done 2026-10-01 (ENTITLEMENT_SETUP.md). |
-| Shields, not `blockedApplications` | ✅ ⚠️ | `blockSelection` from react-native-device-activity. Grep the library's Swift before submitting to confirm it writes `shield.applications`, not `application.blockedApplications`. |
+| Shields, not `blockedApplications` | ✅ | Checked 2026-10-03: the library and the three extensions only write `store.shield.applications` / `applicationCategories` / `webDomains`. Nothing uses `blockedApplications`, `denyAppRemoval` or `denyAppInstallation`. Re-check after upgrading the library. |
 | `.individual` authorization | ✅ | Per WEBSITE.md facts and TEEN_ACCOUNTS. |
 | Camera purpose string | ✅ | app.json: "...scan your wake-up code... Nothing is recorded or saved." |
 | Motion purpose string (`NSMotionUsageDescription`) | ✅ | app.json. It covers both the pedometer and the barometer (`CMAltimeter`). |
@@ -164,7 +164,7 @@ small.
 | No "unbreakable", "guaranteed" or "can't cheat" | ✅ (LISTING.md). Keep it out of screenshot captions too. |
 | Screenshots show the real app; no third-party app logos | ⚠️ Pick **categories** (Social, Entertainment) in the picker for screenshots, so no TikTok or Instagram icons appear (SCREENSHOTS.md). |
 | Privacy policy and Terms live, with no `[TODO]` | ❌ Fill in the legal name, US state, PostHog region and retention. Deploy the site. |
-| Support URL live | ❌ `/support` doesn't exist yet. |
+| Support URL live | ⚠️ Built 2026-10-03 (`web/public/support.html`); live once the site is deployed. |
 | Age rating 13+ override matches the Terms | ⚠️ Owner, in ASC (LISTING.md §6). |
 | Texas age signals (Declared Age Range) | ⚠️ TEEN_ACCOUNTS says it ships before launch. It isn't needed for approval, but it's a legal exposure. |
 | Built with the iOS 26 SDK (required since April 28, 2026) | ✅ Expo SDK 57 on EAS uses Xcode 26. Check the build log. |

@@ -76,6 +76,8 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       routine.method === 'scan' ? (
         <TextButton label="Scan your code instead" onPress={() => router.replace('/scan')} />
       ) : null;
+    // Steps can't be counted here at all: passes, the scan code and the emergency unlock.
+    const stuck = <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />;
     content =
       shown === 'downstairs' ? (
         <DownstairsView goal={routine.stepGoal} onMet={onDownstairs} onSteps={() => switchTo('steps')} footer={scan} />
@@ -84,6 +86,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
           goal={routine.stepGoal}
           morningStart={morningStart}
           onMet={onSteps}
+          stuck={stuck}
           footer={
             <>
               {routine.method === 'downstairs' && (

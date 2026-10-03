@@ -120,9 +120,9 @@ Locturne isn't medical advice. Use a wake-up method that's safe for you.
 
 Notes:
 - **Phone calls, not texts.** "Phone calls always get through" is safe because iOS never lets
-  a Screen Time app shield the Phone app. The onboarding line "Calls and texts aren't
-  touched" (`steps.tsx`, `apps` step) is only true if the user doesn't pick Messages. Reword
-  it in the app to "Phone calls always get through", or keep Messages out of the picker.
+  a Screen Time app shield the Phone app. The app said "Calls and texts aren't touched",
+  which was only true if the user didn't pick Messages; it now says "Phone calls always get
+  through" everywhere (2026-10-03).
 - **Drop a line if its feature isn't in the submitted build.** Scan is the first cut if
   time runs short (GAME_PLAN), so remove the Scan bullet if it doesn't ship.
 - **Keep the subscription block** in every localization you add. A forum report found

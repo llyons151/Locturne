@@ -179,12 +179,14 @@ export type HealthFacts = {
   armed: ArmedNight | null;
   routine: Pick<Routine, 'activeNights'>;
   nights: NightCheck[];
+  /** A purchase is waiting for approval (Ask to Buy), so nothing is armed yet on purpose. */
+  purchasePending?: boolean;
   now: Date;
 };
 
 const JUST_A_RACCOON = 'Until then I’m just a raccoon.';
 
-export function rollUpHealth({ protection, access, armed, routine, nights, now }: HealthFacts): Health {
+export function rollUpHealth({ protection, access, armed, routine, nights, purchasePending, now }: HealthFacts): Health {
   const lastNight = nights.find((n) => n.verdict !== 'unknown') ?? null;
   const base = { protection, lastNight, nights };
 
@@ -228,6 +230,14 @@ export function rollUpHealth({ protection, access, armed, routine, nights, now }
       level: 'idle',
       title: 'Every night is off.',
       detail: 'Nothing sleeps at bedtime until you turn a night back on.',
+    };
+  }
+  if (!armed && purchasePending) {
+    return {
+      ...base,
+      level: 'attention',
+      title: 'Waiting for approval.',
+      detail: 'Once the purchase is approved, I’ll schedule bedtime. Nothing sleeps until then.',
     };
   }
   if (!armed) {

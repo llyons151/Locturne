@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 
 import { rollUpHealth, type Health } from '@/lib/health';
 import { readNightChecks } from '@/lib/heartbeat';
+import { isPurchasePending } from '@/lib/pending-purchase';
 import { rescheduleNotifications } from '@/lib/notifications';
 import { getRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, getProtection, watchAccess } from '@/lib/screen-time';
@@ -16,6 +17,7 @@ export function readHealth(now = new Date()): Health {
     armed: getArmedNight(),
     routine: getRoutine(now),
     nights: readNightChecks(now),
+    purchasePending: isPurchasePending(now.getTime()),
     now,
   });
 }

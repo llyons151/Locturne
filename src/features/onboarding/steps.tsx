@@ -458,7 +458,7 @@ export function renderStep(ctx: StepContext): StepView {
         body: (
           <View style={page.top}>
             <Title>Which apps keep you up?</Title>
-            <Body style={styles.sub}>They sleep at bedtime and wake once you’re up. Calls and texts aren’t touched.</Body>
+            <Body style={styles.sub}>They sleep at bedtime and wake once you’re up. Phone calls always get through.</Body>
             <View style={styles.appsCard}>
               <AppsCard
                 apps={answers.apps}
@@ -636,6 +636,10 @@ export function renderStep(ctx: StepContext): StepView {
               <PlanRow when="Bad day" what="Use a pass. No walking." />
               {ctx.motion === 'denied' ? (
                 <PlanRow when="Motion" what="It’s off, so I can’t feel stairs or count steps. Turn on Motion & Fitness for Locturne in Settings." />
+              ) : null}
+              {/* No step counter (an iPad, which still has a barometer for stairs): say so now, not at 7am. */}
+              {ctx.motion === 'unavailable' && answers.method === 'steps' ? (
+                <PlanRow when="This device" what="It can’t count steps. Set up a scan code from the You tab, or use a pass." />
               ) : null}
             </View>
             <Voice text={lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`} size={VoiceSize.aside} delay={700} sub />

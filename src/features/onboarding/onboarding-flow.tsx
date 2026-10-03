@@ -10,6 +10,7 @@ import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useCompact } from '@/hooks/use-compact';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
+import { markPurchasePending } from '@/lib/pending-purchase';
 import {
   getOffers,
   isEntitled,
@@ -346,6 +347,7 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
     if (result.status === 'purchased') finishSetup();
     else if (result.status === 'pending') {
       saveSetup(answers);
+      markPurchasePending();
       say('Waiting for approval', 'Once the purchase is approved, open Locturne and I’ll set tonight. Nothing is asleep until then.');
     } else if (result.status === 'failed') {
       say('That didn’t go through', `${result.message} Nothing is set up yet. Try again in a moment.`);
@@ -476,7 +478,7 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
         <ScreenTimePicker
           list={pickerList}
           header={PICKER_HEADER}
-          footer="Calls and texts aren’t touched."
+          footer="Phone calls always get through. Leave out anything you need at night."
           onPicked={() => {
             // A draft only joins the night list on close (`finishListEdit`).
             if (pickerList !== 'night') return;

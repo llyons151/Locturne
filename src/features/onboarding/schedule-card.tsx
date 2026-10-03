@@ -112,7 +112,7 @@ export function ScheduleCard({
           : count === 1
             ? '1 app sleeps.'
             : `${count} apps sleep.`}{' '}
-        Calls and texts don’t.
+        Phone calls always get through.
       </Text>
     </Reveal>
   );

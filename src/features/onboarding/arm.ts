@@ -6,6 +6,7 @@
  */
 import { armRoutine, readLock } from '@/lib/lock-controller';
 import { planNightWindows } from '@/lib/night-plan';
+import { clearPurchasePending } from '@/lib/pending-purchase';
 import { getRoutine } from '@/lib/routine';
 import { armedWindowNames, getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
 
@@ -37,5 +38,7 @@ export async function armTonight(): Promise<ArmResult> {
   // Trust what iOS reports, not that the calls returned.
   const armed = getArmedNight();
   if (!armed || armedWindowNames().length !== armed.windows) return { status: 'failed', reason: 'refused' };
+  // Only ever reached once paid, so an approval that was waiting has come through.
+  clearPurchasePending();
   return { status: 'armed', now: readLock().phase === 'night' };
 }

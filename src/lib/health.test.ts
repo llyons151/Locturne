@@ -152,6 +152,15 @@ test('rollUpHealth never says ok unless protection is on and tonight is armed', 
   assert.equal(roll({ routine: { activeNights: [] } }).level, 'idle');
 });
 
+test('rollUpHealth explains a purchase waiting for approval, and never says ok for it', () => {
+  const waiting = roll({ armed: null, purchasePending: true });
+  assert.equal(waiting.title, 'Waiting for approval.');
+  assert.notEqual(waiting.level, 'ok');
+  assert.equal(roll({ armed: null }).title, 'Bedtime isn’t scheduled.');
+  // Once armed, the note is gone even if the flag lingers.
+  assert.notEqual(roll({ purchasePending: true }).title, 'Waiting for approval.');
+});
+
 test('rollUpHealth flags the newest judged night, skipping unknown ones', () => {
   assert.equal(roll({ nights: [night('missed')] }).level, 'attention');
   assert.equal(roll({ nights: [night('noShield')] }).level, 'attention');

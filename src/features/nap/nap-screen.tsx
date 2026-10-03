@@ -42,7 +42,7 @@ import { useSideways } from './use-sideways';
 
 /**
  * The Nap tab, GAME_PLAN's "Block now": tuck him in for a while, and the bedtime apps (or
- * apps picked just for naps) sleep with him. Calls and texts are untouched. It starts at
+ * apps picked just for naps) sleep with him. Phone calls always get through. It starts at
  * once because it only tightens things; waking him early takes a deliberate confirmation.
  *
  * The nap lives in the App Group (`startNap`), and iOS wakes the apps at the end even if
@@ -202,8 +202,8 @@ export function NapScreen() {
         <Voice text={LINES[line]} />
         <Text style={styles.body}>
           {nap
-            ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Calls and texts still work.`
-            : `${list === 'night' ? 'Your bedtime apps sleep' : 'The apps you pick sleep'} with him. Calls and texts still work.`}
+            ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`
+            : `${list === 'night' ? 'Your bedtime apps sleep' : 'The apps you pick sleep'} with him. Phone calls still get through.`}
         </Text>
       </Animated.View>
 

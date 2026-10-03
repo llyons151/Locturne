@@ -54,8 +54,11 @@ export function DownstairsView({
       <View style={styles.page}>
         <Voice text="I can't feel the stairs." />
         <View style={styles.flex} />
-        <MotionOff what="tell when you change floors" />
-        <TextButton label={instead} onPress={onSteps} />
+        <View style={styles.bottom}>
+          <MotionOff what="tell when you change floors" />
+          <TextButton label={instead} onPress={onSteps} />
+          {footer}
+        </View>
       </View>
     );
   }
