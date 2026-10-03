@@ -1,0 +1,573 @@
+/*
+ * locturne.com. Two looks from the brand docs, no others:
+ * - The landing page sits under the app's "Moonrise" sky (src/theme/colors.ts): navy
+ *   #16254F fading to #050A17, moon-white text, a white pill for the one action, and the
+ *   real NASA moon, crisp, with nothing around it.
+ * - The legal pages are plain documents on pale lavender with frosted white panes
+ *   (docs/design-references/lavender-glass-health-ring.png), switching to the night
+ *   colours in dark mode.
+ * Never any glow: shadows, where used, are neutral and only for elevation (CLAUDE.md).
+ */
+
+:root {
+  /* Moonrise, from src/theme/colors.ts */
+  --sky-top: #16254f;
+  --sky: #050a17;
+  --night-text: #f2f8fc;
+  --night-text2: #a8bad3;
+  --night-text3: #8699b8;
+  --night-edge: rgba(221, 240, 248, 0.16);
+  --night-frost: rgba(221, 240, 248, 0.08);
+  --night-cta: #f2f8fc;
+  --night-on-cta: #0b1428;
+
+  /* Lavender paper, from the lavender glass reference */
+  --paper: #ece8f5;
+  --pane: rgba(255, 255, 255, 0.62);
+  --pane-edge: rgba(255, 255, 255, 0.9);
+  --ink: #17151f;
+  --ink2: #4f4b63;
+  --ink3: #6e6987;
+  --rule: rgba(23, 21, 31, 0.1);
+  --link: #4a3a9c;
+
+  --sans: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  /* Loc's voice: a heavy italic serif (New York on Apple devices, like the app). */
+  --serif: ui-serif, 'New York', Georgia, 'Times New Roman', serif;
+
+  --gutter: 24px;
+  --radius-card: 20px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Italic serif always means Loc is talking (src/theme/fonts.ts). */
+.voice {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------ */
+/* Landing                                                             */
+/* ------------------------------------------------------------------ */
+
+.night {
+  min-height: 100vh;
+  min-height: 100svh;
+  color: var(--night-text);
+  background-color: var(--sky);
+  background-image: linear-gradient(180deg, var(--sky-top) 0%, var(--sky) 62%);
+  background-repeat: no-repeat;
+}
+
+.landing {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px var(--gutter) 32px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.2px;
+  text-decoration: none;
+}
+
+.topbar-note {
+  font-size: 13px;
+  color: var(--night-text2);
+}
+
+.moon {
+  width: min(52vw, 220px);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 28px auto 28px;
+}
+
+.hero {
+  font-size: clamp(34px, 9.6vw, 46px);
+  line-height: 1.06;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 14px 0 0;
+  color: var(--night-text2);
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.beats {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--night-edge);
+}
+
+.beats li {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--night-edge);
+}
+
+.beat-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--night-text2);
+  padding-top: 3px;
+}
+
+.beat-text {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.join {
+  margin-top: 32px;
+}
+
+.join-line {
+  font-size: 24px;
+  line-height: 1.15;
+  margin: 0 0 14px;
+}
+
+.field {
+  display: block;
+  width: 100%;
+  height: 56px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid var(--night-edge);
+  background: var(--night-frost);
+  color: var(--night-text);
+  font: inherit;
+  font-size: 17px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field::placeholder {
+  color: var(--night-text3);
+}
+
+.field:focus {
+  outline: 2px solid var(--night-text);
+  outline-offset: 2px;
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 12px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--night-cta);
+  color: var(--night-on-cta);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cta:active {
+  opacity: 0.75;
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--night-text);
+  outline-offset: 3px;
+}
+
+.cta[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Bots fill every field; people never see this one. */
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.fine {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--night-text2);
+  text-align: center;
+}
+
+.status {
+  min-height: 20px;
+  margin: 12px 0 0;
+  font-size: 15px;
+  text-align: center;
+  color: var(--night-text);
+}
+
+.done {
+  margin-top: 32px;
+  padding: 24px 0 8px;
+  border-top: 1px solid var(--night-edge);
+}
+
+.done .voice {
+  font-size: 30px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.done p:not(.voice) {
+  margin: 10px 0 0;
+  color: var(--night-text2);
+  font-size: 15px;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--night-text3);
+}
+
+.footer a {
+  color: var(--night-text2);
+  text-decoration: none;
+}
+
+.footer a:hover,
+.footer a:focus-visible {
+  text-decoration: underline;
+}
+
+.footer .copy {
+  margin-left: auto;
+}
+
+@media (min-width: 720px) {
+  .landing {
+    padding-top: 28px;
+  }
+  .moon {
+    margin: 40px auto 36px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Legal documents                                                     */
+/* ------------------------------------------------------------------ */
+
+.paper {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.doc {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px 56px;
+}
+
+.doc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  min-height: 32px;
+}
+
+.doc-top a {
+  text-decoration: none;
+}
+
+.doc-top nav {
+  display: flex;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.doc-top nav a {
+  color: var(--ink2);
+}
+
+.doc-top nav a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.doc-head {
+  padding: 28px 8px 20px;
+}
+
+.doc-head h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
+.doc-head .updated {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--ink3);
+}
+
+.pane {
+  background: var(--pane);
+  border: 1px solid var(--pane-edge);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px rgba(20, 18, 30, 0.04), 0 8px 24px rgba(20, 18, 30, 0.05);
+  padding: 24px 20px;
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  backdrop-filter: saturate(140%) blur(12px);
+}
+
+.pane + .pane {
+  margin-top: 16px;
+}
+
+.summary h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+
+.summary ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.summary li + li {
+  margin-top: 6px;
+}
+
+.prose {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.prose h2 {
+  margin: 36px 0 8px;
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+  scroll-margin-top: 16px;
+}
+
+.prose h2:first-child {
+  margin-top: 0;
+}
+
+.prose h3 {
+  margin: 24px 0 6px;
+  font-size: 17px;
+}
+
+.prose p,
+.prose ul,
+.prose ol {
+  margin: 0 0 12px;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 22px;
+}
+
+.prose li + li {
+  margin-top: 6px;
+}
+
+.prose a {
+  color: var(--link);
+  text-underline-offset: 2px;
+}
+
+.prose .caps {
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 16px;
+  font-size: 15px;
+}
+
+.prose th,
+.prose td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 8px 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.prose th {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+
+.note {
+  border-left: 3px solid var(--rule);
+  padding-left: 12px;
+  color: var(--ink2);
+}
+
+/* Placeholders the owner must fill before publishing. Search for "todo". */
+.todo {
+  background: #fff3b0;
+  color: #3d3200;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.toc {
+  columns: 2 220px;
+  column-gap: 24px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 15px;
+}
+
+.toc a {
+  color: var(--ink2);
+}
+
+.doc-foot {
+  padding: 24px 8px 0;
+  font-size: 13px;
+  color: var(--ink3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.doc-foot a {
+  color: var(--ink2);
+}
+
+@media (min-width: 720px) {
+  .doc {
+    padding-top: 28px;
+  }
+  .pane {
+    padding: 32px 36px;
+  }
+  .doc-head h1 {
+    font-size: 40px;
+  }
+}
+
+/* The legal pages follow the system. Dark mode uses the app's night colours. */
+@media (prefers-color-scheme: dark) {
+  .paper {
+    --paper: #050a17;
+    --pane: rgba(221, 240, 248, 0.05);
+    --pane-edge: rgba(221, 240, 248, 0.12);
+    --ink: #f2f8fc;
+    --ink2: #c3d0e2;
+    --ink3: #a8bad3;
+    --rule: rgba(221, 240, 248, 0.12);
+    --link: #cfe6f7;
+    background-image: linear-gradient(180deg, #16254f 0, #050a17 520px);
+    background-repeat: no-repeat;
+  }
+  .paper .pane {
+    box-shadow: none;
+  }
+  .paper .todo {
+    background: #4a3f00;
+    color: #fff3b0;
+  }
+}
+
+@media print {
+  .paper {
+    background: #fff;
+  }
+  .pane {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    background: none;
+  }
+  .doc-top nav,
+  .toc-pane {
+    display: none;
+  }
+}

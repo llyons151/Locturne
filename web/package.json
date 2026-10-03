@@ -1,0 +1,18 @@
+{
+  "name": "locturne-web",
+  "private": true,
+  "description": "locturne.com: waitlist landing page, privacy policy and terms (Cloudflare Pages + D1).",
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "db:create": "wrangler d1 create locturne-waitlist",
+    "db:schema": "wrangler d1 execute locturne-waitlist --remote --file=./schema.sql",
+    "db:schema:local": "wrangler d1 execute locturne-waitlist --local --file=./schema.sql",
+    "deploy": "wrangler pages deploy",
+    "signups:count": "wrangler d1 execute locturne-waitlist --remote --command \"SELECT COUNT(*) AS signups FROM signups\"",
+    "signups:by-source": "wrangler d1 execute locturne-waitlist --remote --command \"SELECT COALESCE(src, utm_campaign, ref, '(none)') AS source, COUNT(*) AS signups FROM signups GROUP BY source ORDER BY signups DESC\"",
+    "signups:export": "wrangler d1 execute locturne-waitlist --remote --json --command \"SELECT email, src, utm_source, utm_medium, utm_campaign, utm_content, ref, country, created_at FROM signups WHERE unsubscribed_at IS NULL ORDER BY created_at\""
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
+import { LEGAL_URLS } from '@/features/onboarding/content';
 import { SwitchRow } from '@/features/routine/controls';
 import { useProtection } from '@/hooks/use-protection';
 import { getPassesLeft } from '@/lib/passes';
@@ -122,8 +123,8 @@ export function YouScreen() {
         <ValueRow icon={sym('questionmark.circle.fill', 'help')} title="Help" value="" onPress={() => notLive('Help')} />
         <ValueRow icon={sym('envelope.fill', 'mail')} title="Send feedback" value="" onPress={() => notLive('Feedback')} />
         <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={() => notLive('Ratings')} />
-        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => notLive('Privacy Policy')} />
-        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => notLive('Terms of Use')} />
+        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => Linking.openURL(LEGAL_URLS.privacy)} />
+        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => Linking.openURL(LEGAL_URLS.terms)} />
         {/* For beta testers: what iOS ran overnight, to paste into a bug report. */}
         <ValueRow icon={sym('stethoscope', 'troubleshoot')} title="Beta diagnostics" value="" onPress={() => router.push('/diagnostics')} last />
       </Section>
