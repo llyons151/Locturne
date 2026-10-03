@@ -1,0 +1,83 @@
+/**
+ * A small fake of react-native-device-activity for the exits and scan tests, which only need
+ * the App Group and a record of shield calls. Use it before importing anything that imports
+ * screen-time.ts:
+ *
+ *   const fake = fakeDeviceActivity();
+ *   mock.module('react-native-device-activity', { namedExports: fake.exports });
+ *
+ * `available: false` makes screen-time.ts keep its records in memory, as on web.
+ */
+export function fakeDeviceActivity({ available = true } = {}) {
+  const state = {
+    available,
+    store: {} as Record<string, unknown>,
+    calls: [] as [string, ...unknown[]][],
+    activities: [] as string[],
+  };
+  const ids = () => (state.store.familyActivitySelectionIds ??= {}) as Record<string, string>;
+  const record =
+    (name: string) =>
+    (...args: unknown[]) => {
+      state.calls.push([name, ...args]);
+    };
+
+  const exports = {
+    AuthorizationStatus: { notDetermined: 0, denied: 1, approved: 2 },
+    isAvailable: () => state.available,
+    getAuthorizationStatus: () => 2,
+    requestAuthorization: async () => {},
+    pollAuthorizationStatus: async () => 2,
+    onAuthorizationStatusChange: () => ({ remove: () => {} }),
+    getFamilyActivitySelectionId: (id: string) => ids()[id],
+    setFamilyActivitySelectionId: ({ id, familyActivitySelection }: { id: string; familyActivitySelection: string }) => {
+      ids()[id] = familyActivitySelection;
+    },
+    activitySelectionMetadata: ({ activitySelectionId }: { activitySelectionId: string }) => ({
+      applicationCount: ids()[activitySelectionId] ? 2 : 0,
+      categoryCount: 0,
+      webdomainCount: 0,
+      includeEntireCategory: false,
+    }),
+    isSubsetOf: () => false,
+    union: record('union'),
+    blockSelection: record('blockSelection'),
+    unblockSelection: record('unblockSelection'),
+    isShieldActive: () => state.calls.some(([name]) => name === 'blockSelection'),
+    updateShield: record('updateShield'),
+    configureActions: record('configureActions'),
+    startMonitoring: async (name: string) => {
+      state.calls.push(['startMonitoring', name]);
+      state.activities.push(name);
+    },
+    stopMonitoring: (names: string[]) => {
+      state.calls.push(['stopMonitoring', names]);
+      state.activities = state.activities.filter((a) => !names.includes(a));
+    },
+    cleanUpAfterActivity: record('cleanUpAfterActivity'),
+    getActivities: () => [...state.activities],
+    getEvents: () => [],
+    userDefaultsGet: (key: string) => state.store[key],
+    userDefaultsSet: (key: string, value: unknown) => {
+      state.store[key] = value;
+    },
+    userDefaultsRemove: (key: string) => {
+      delete state.store[key];
+    },
+  };
+
+  /** Clears the App Group and the call log between tests. */
+  const reset = () => {
+    state.store = {};
+    state.calls.length = 0;
+    state.activities = [];
+  };
+
+  /** Which selection ids a shield call named, in order. */
+  const shielded = (name: 'blockSelection' | 'unblockSelection') =>
+    state.calls
+      .filter(([call]) => call === name)
+      .map(([, input]) => (input as { activitySelectionId: string }).activitySelectionId);
+
+  return { state, exports, reset, ids, shielded };
+}

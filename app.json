@@ -41,6 +41,14 @@
       "expo-video",
       "expo-notifications",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Locturne uses the camera to scan your wake-up code in the morning. Nothing is recorded or saved.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-sensors",
         {
           "motionPermission": "Locturne counts your steps each morning to wake your apps. That’s all it uses motion for."
