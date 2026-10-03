@@ -22,6 +22,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="exits" options={{ presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>

@@ -92,7 +92,7 @@ export function dateKey(date: Date): string {
   return `${date.getFullYear()}-${m}-${d}`;
 }
 
-type Night = { start: Date; end: Date };
+export type Night = { start: Date; end: Date };
 
 /**
  * The night leading into the morning `offsetDays` from `now`'s date. It usually starts the
@@ -121,6 +121,16 @@ function locate(now: Date, s: LockSettings) {
   }
   // Unreachable: yesterday's night always started before now.
   return { offset: -1, night: nightBefore(now, s, -1) };
+}
+
+/**
+ * The nights either side of `now`, as real instants: `latest` is the last one to have started
+ * (`now` may still be inside it), `next` the one after. A night of zero length (bedtime equal
+ * to morning start, or skipped by the clocks) has `start` equal to `end`.
+ */
+export function nightsAround(now: Date, settings: LockSettings): { latest: Night; next: Night } {
+  const { offset, night } = locate(now, settings);
+  return { latest: night, next: nightBefore(now, settings, offset + 1) };
 }
 
 /**
