@@ -1,5 +1,6 @@
+import { useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +9,14 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { ChoiceRow, Section, sym } from '@/components/grouped-list';
 import { formatPreset } from '@/features/onboarding/time-wheel';
 import * as haptic from '@/lib/haptics';
-import { settingsTakeEffectAt } from '@/lib/lock-state';
+import {
+  getPendingRoutine,
+  getRoutine,
+  saveRoutine,
+  type Routine as StoredRoutine,
+  type WakeMethod,
+} from '@/lib/routine';
+import { isScreenTimeAvailable } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
@@ -24,6 +32,7 @@ import {
 
 import type { MenuOption } from './control-types';
 import { MenuRow, NightsRow, TimeRow } from './controls';
+import { nightsToWeekdays, weekdaysToNights } from './nights';
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
@@ -35,11 +44,14 @@ import { MenuRow, NightsRow, TimeRow } from './controls';
  * be loosened from bed. The screen shows what's set, and says plainly when it starts.
  * Because of that, edits apply as you make them, like Settings; there's no Save step.
  *
- * Design preview: placeholder values in local state, like Home. Nothing is saved or armed.
+ * The routine is the shared one (`src/lib/routine.ts`). The screen edits what the person has
+ * set: the pending edit if there is one, otherwise the routine in force. Each change is
+ * saved at once, and `saveRoutine` holds it until the next bedtime.
  */
 
-type Method = 'downstairs' | 'steps' | 'scan';
+type Method = WakeMethod;
 
+/** The screen's shape. Nights are Monday first, like onboarding's day picker (`nights.ts`). */
 type Routine = {
   bedtime: number;
   morningStart: number;
@@ -49,13 +61,33 @@ type Routine = {
   stepGoal: number;
 };
 
-const START: Routine = {
-  bedtime: 23 * 60,
-  morningStart: 7 * 60,
-  nights: [0, 1, 2, 3, 4, 5, 6],
-  method: 'downstairs',
-  stepGoal: 200,
+const fromStored = ({ activeNights, ...rest }: StoredRoutine): Routine => ({
+  ...rest,
+  nights: weekdaysToNights(activeNights),
+});
+
+const toStored = ({ nights, ...rest }: Routine): StoredRoutine => ({
+  ...rest,
+  activeNights: nightsToWeekdays(nights),
+});
+
+type Loaded = {
+  /** What tonight runs on. */
+  active: Routine;
+  /** What the person has set. Becomes `active` at `from`. */
+  saved: Routine;
+  /** When `saved` takes over, or null when nothing is waiting. */
+  from: Date | null;
 };
+
+function load(): Loaded {
+  const now = new Date();
+  const active = fromStored(getRoutine(now));
+  const pending = getPendingRoutine(now);
+  // An edit undone by hand leaves a pending copy of what's already running: nothing to say.
+  if (!pending || same(fromStored(pending.routine), active)) return { active, saved: active, from: null };
+  return { active, saved: fromStored(pending.routine), from: new Date(pending.from) };
+}
 
 /** Presets for the web preview's time wheel. On iPhone the system picker needs none. */
 const BEDTIME_PRESETS = [22 * 60, 22 * 60 + 30, 23 * 60, 23 * 60 + 30];
@@ -85,11 +117,16 @@ const methods = (goal: number): { value: Method; title: string; detail: string; 
   },
 ];
 
-const same = (a: Routine, b: Routine) => JSON.stringify(a) === JSON.stringify(b);
+const same = (a: Routine, b: Routine) =>
+  a.bedtime === b.bedtime &&
+  a.morningStart === b.morningStart &&
+  a.method === b.method &&
+  a.stepGoal === b.stepGoal &&
+  a.nights.join() === b.nights.join();
 
 const SAME_TIME = "Bedtime and morning start can't be the same time.";
 
-/** "tonight at 11 pm", "tomorrow night at 11 pm". */
+/** "from tonight's bedtime, 11 pm", "from tomorrow night at 11 pm", "from Friday at 11 pm". */
 function startsWhen(at: Date, now: Date) {
   const days = Math.round(
     (new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime() -
@@ -100,34 +137,32 @@ function startsWhen(at: Date, now: Date) {
   const time = formatPreset(at.getHours() * 60 + at.getMinutes()).replace(' ', ' ');
   // A bedtime after midnight belongs to the evening before it.
   const night = at.getHours() < 12 ? days - 1 : days;
-  if (night <= 0) return `tonight at ${time}`;
-  if (night === 1) return `tomorrow night at ${time}`;
-  return `${at.toLocaleDateString(undefined, { weekday: 'long' })} at ${time}`;
+  if (night <= 0) return `from tonight’s bedtime, ${time}`;
+  if (night === 1) return `from tomorrow night at ${time}`;
+  if (night < 7) return `from ${at.toLocaleDateString(undefined, { weekday: 'long' })} at ${time}`;
+  return `from ${at.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at ${time}`;
 }
 
 export function RoutineScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
 
-  /** What tonight runs on. Fixed in the preview; the real app swaps in `saved` at bedtime. */
-  const active = START;
-  /** What the user has set. Becomes `active` at the next bedtime. */
-  const [saved, setSaved] = useState(START);
-  const set = (patch: Partial<Routine>) => setSaved((r) => ({ ...r, ...patch }));
+  const [{ active, saved, from }, setLoaded] = useState<Loaded>(load);
+  // Onboarding, or a bedtime passing, can change it while the tab is away.
+  useFocusEffect(useCallback(() => setLoaded(load()), []));
+
+  const commit = (next: Routine) => {
+    saveRoutine(toStored(next));
+    setLoaded(load());
+    // TODO(armRoutine): re-arm the night windows for the new routine here, once
+    // `armRoutine()` is merged. This is the one call site: every edit goes through `commit`.
+  };
+  const set = (patch: Partial<Routine>) => commit({ ...saved, ...patch });
 
   const options = methods(saved.stepGoal);
   const chosen = options.find((o) => o.value === saved.method) ?? options[0];
 
-  const pending = !same(active, saved);
   const now = new Date();
-  const effective = settingsTakeEffectAt(now, {
-    bedtime: active.bedtime,
-    morningStart: active.morningStart,
-    stepGoal: active.stepGoal,
-    activeNights: active.nights.map((d) => (d + 1) % 7),
-    nightApps: [],
-    alwaysApps: [],
-  });
 
   return (
     <ScrollView
@@ -144,16 +179,16 @@ export function RoutineScreen() {
         </Text>
       </View>
 
-      {pending ? (
+      {from ? (
         <View style={styles.pending} accessibilityLiveRegion="polite">
           <SymbolView name={sym('clock', 'schedule')} size={17} tintColor={Nocturne.text} style={styles.pendingIcon} />
           <Text style={styles.pendingText}>
-            {noOrphan(`Your changes start ${startsWhen(effective, now)}. Until then, tonight runs as it was.`)}
+            {noOrphan(`Your changes apply ${startsWhen(from, now)}. Until then, the old routine stays.`)}
           </Text>
           <Pressable
             onPress={() => {
               haptic.tap();
-              setSaved(active);
+              commit(active);
             }}
             hitSlop={8}
             accessibilityRole="button"
@@ -217,8 +252,10 @@ export function RoutineScreen() {
         <NightsRow icon={sym('calendar', 'calendar_month')} value={saved.nights} onChange={(nights) => set({ nights })} last />
       </Section>
 
-      {/* Preview only, so it never implies protection is on (GAME_PLAN, "Reliability"). */}
-      <Text style={styles.preview}>Preview. These settings aren&apos;t saved or armed yet.</Text>
+      {/* Off iPhone nothing can be armed, so never imply protection is on (GAME_PLAN, "Reliability"). */}
+      {isScreenTimeAvailable() ? null : (
+        <Text style={styles.preview}>Preview. Blocking needs Screen Time, which only iPhone has.</Text>
+      )}
     </ScrollView>
   );
 }
