@@ -40,7 +40,7 @@ import {
 
 import { settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey } from './lock-state.ts';
-import { WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
+import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 
 /**
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
@@ -123,13 +123,32 @@ export async function requestAccess(): Promise<ScreenTimeAccess> {
  */
 const memory = new Map<string, unknown>();
 
+/**
+ * UserDefaults only stores property lists. A JS `null` crosses the bridge as NSNull, which
+ * isn't one, and iOS throws on the write, crashing the app. So null fields are dropped here
+ * and come back missing: readers treat a missing field as null. Only plain objects and
+ * arrays are walked.
+ */
+export function toPlist(value: unknown): unknown {
+  if (Array.isArray(value)) return value.filter((v) => v != null).map(toPlist);
+  if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => [k, toPlist(v)]),
+    );
+  }
+  return value;
+}
+
 export function sharedGet<T>(key: string): T | undefined {
   return isAvailable() ? userDefaultsGet<T>(key) : (memory.get(key) as T | undefined);
 }
 
 export function sharedSet(key: string, value: unknown): void {
-  if (isAvailable()) userDefaultsSet(key, value);
-  else memory.set(key, value);
+  if (value == null) return sharedRemove(key);
+  if (isAvailable()) userDefaultsSet(key, toPlist(value));
+  else memory.set(key, toPlist(value));
 }
 
 export function sharedRemove(key: string): void {
@@ -305,7 +324,8 @@ function hourMinute(minutes: number) {
  * Hands the night to iOS. Each window repeats daily and, when it starts, the monitor
  * extension shields `list`, even with the app closed. Nothing unshields at morning start:
  * the morning walk does that. Replaces whatever was armed before. If iOS refuses any
- * window, everything is disarmed and the error is thrown, so it never half-arms.
+ * window, the new ones are stopped, the night that was armed before is handed back (so a
+ * refused edit never leaves nothing armed) and the error is thrown, so it never half-arms.
  */
 export async function armNight(
   windows: NightWindow[],
@@ -315,25 +335,35 @@ export async function armNight(
   const before = getArmedNight();
   disarmNight();
   try {
-    for (const w of windows) {
-      configureActions({
-        activityName: w.name,
-        callbackName: 'intervalDidStart',
-        actions: [{ type: 'blockSelection', familyActivitySelectionId: list, shieldId: NIGHT_SHIELD }],
-      });
-      await startMonitoring(
-        w.name,
-        { intervalStart: hourMinute(w.start), intervalEnd: hourMinute(w.end), repeats: true },
-        [],
-      );
-    }
+    await monitorNight(windows, list);
   } catch (error) {
     disarmNight();
+    if (before) {
+      // Keep the record even if iOS refuses these too: the morning stays locked, Home says
+      // protection is off (`getProtection`), and the next sync tries again.
+      userDefaultsSet(ARMED_KEY, before);
+      await monitorNight(planNightWindows(before.bedtime, before.morningStart), list).catch(() => {});
+    }
     throw error;
   }
   const armedAt = new Date().toISOString();
   const armed: ArmedNight = { ...times, windows: windows.length, armedAt, since: before ? armedSince(before).toISOString() : armedAt };
   userDefaultsSet(ARMED_KEY, armed);
+}
+
+async function monitorNight(windows: NightWindow[], list: SelectionId): Promise<void> {
+  for (const w of windows) {
+    configureActions({
+      activityName: w.name,
+      callbackName: 'intervalDidStart',
+      actions: [{ type: 'blockSelection', familyActivitySelectionId: list, shieldId: NIGHT_SHIELD }],
+    });
+    await startMonitoring(
+      w.name,
+      { intervalStart: hourMinute(w.start), intervalEnd: hourMinute(w.end), repeats: true },
+      [],
+    );
+  }
 }
 
 /** Stops every night window. Doesn't unshield anything already asleep. */
@@ -558,11 +588,13 @@ const LIMIT_EVENT = 'used-up';
 const usedUpKey = (id: LimitId) => `locturne.limitReached.${id}`;
 
 export function getLimits(): DailyLimit[] {
-  return userDefaultsGet<DailyLimit[]>(LIMITS_KEY) ?? [];
+  const limits = userDefaultsGet<DailyLimit[]>(LIMITS_KEY) ?? [];
+  // A removal waiting for bedtime is `minutes: null`, which is stored without the field.
+  return limits.map((l) => (l.pending ? { ...l, pending: { ...l.pending, minutes: l.pending.minutes ?? null } } : l));
 }
 
 export function saveLimits(limits: DailyLimit[]): void {
-  userDefaultsSet(LIMITS_KEY, limits);
+  userDefaultsSet(LIMITS_KEY, toPlist(limits));
 }
 
 export function limitUsedUpToday(id: LimitId): boolean {

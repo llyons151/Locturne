@@ -7,6 +7,8 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 
+import { assertPlist } from './fake-device-activity.ts';
+
 type Call = [string, ...unknown[]];
 const calls: Call[] = [];
 let status = 0;
@@ -84,6 +86,7 @@ mock.module('react-native-device-activity', {
     getEvents: () => events,
     userDefaultsGet: (key: string) => (key === 'familyActivitySelectionIds' ? ids() : store[key]),
     userDefaultsSet: (key: string, value: unknown) => {
+      assertPlist(value, key); // iOS throws on NSNull, as the real UserDefaults does
       store[key] = value;
     },
     userDefaultsRemove: (key: string) => {
@@ -199,6 +202,29 @@ test('if iOS refuses a window, nothing stays half-armed', async () => {
   await assert.rejects(st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES), /intervalTooShort/);
   assert.deepEqual(st.armedWindowNames(), []);
   assert.equal(st.getArmedNight(), null);
+});
+
+test('if iOS refuses a re-arm, the night armed before is handed back, not left unarmed', async () => {
+  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  const before = st.getArmedNight();
+  failOnStart = 'night-12'; // the new night has 14 windows, the old one 10
+  await assert.rejects(st.armNight(planNightWindows(22 * 60, 8 * 60), 'night', { bedtime: 22 * 60, morningStart: 8 * 60 }));
+  // The edit was refused, but tonight still locks on the old times and the morning stays locked.
+  assert.deepEqual(st.getArmedNight(), before);
+  assert.equal(st.armedWindowNames().length, before!.windows);
+  const restarted = calls.filter(([n, name]) => n === 'startMonitoring' && name === 'night-0').at(-1)!;
+  assert.deepEqual((restarted[2] as { intervalStart: unknown }).intervalStart, { hour: 23, minute: 30 });
+});
+
+test('if iOS refuses the old windows too, the record stays so the next sync retries', async () => {
+  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  const before = st.getArmedNight();
+  failOnStart = 'night-0';
+  await assert.rejects(st.armNight(planNightWindows(22 * 60, 8 * 60), 'night', { bedtime: 22 * 60, morningStart: 8 * 60 }));
+  assert.deepEqual(st.getArmedNight(), before);
+  // Nothing is monitored, which `getProtection` reports honestly.
+  status = 2;
+  assert.equal(st.getProtection(), 'off');
 });
 
 test('disarm stops only night windows and leaves other activities alone', async () => {
@@ -334,6 +360,25 @@ test('a looser limit at bedtime re-arms fresh, and a removed one stops and forge
   assert.deepEqual(store.familyActivitySelectionIds, { 'limit-0': 'a', night: 'n' });
   const evts = calls.find(([n]) => n === 'startMonitoring')![3] as { threshold: unknown }[];
   assert.deepEqual(evts[0].threshold, { hour: 1, minute: 0 });
+});
+
+test('a limit removal waiting for bedtime survives the App Group, which has no null', async () => {
+  status = 2;
+  store.familyActivitySelectionIds = { 'limit-0': 'a' };
+  // Saved by the Apps tab: on iOS a null here would crash the app.
+  st.saveLimits([{ id: 'limit-0', minutes: 30, pending: { minutes: null, from: 0 } }]);
+  assert.deepEqual(st.getLimits(), [{ id: 'limit-0', minutes: 30, pending: { minutes: null, from: 0 } }]);
+  await st.settleLimitChanges();
+  assert.deepEqual(st.getLimits(), []);
+  assert.ok(calls.some(([n, names]) => n === 'stopMonitoring' && (names as string[]).includes('limit-0')));
+  assert.ok(!calls.some(([n]) => n === 'startMonitoring'));
+});
+
+test('shared records drop null fields instead of crashing iOS', () => {
+  st.sharedSet('locturne.test', [{ a: 1, b: null, c: { d: null, e: [null, 2] } }]);
+  assert.deepEqual(st.sharedGet('locturne.test'), [{ a: 1, c: { e: [2] } }]);
+  st.sharedSet('locturne.test', null);
+  assert.equal(st.sharedGet('locturne.test'), undefined);
 });
 
 test('nothing settles before bedtime', async () => {

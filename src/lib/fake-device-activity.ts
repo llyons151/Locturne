@@ -1,4 +1,17 @@
 /**
+ * Throws like iOS does when UserDefaults is handed something that isn't a property list. A JS
+ * `null` crosses the bridge as NSNull, and `-[NSUserDefaults setObject:forKey:]` raises on it,
+ * which crashes the app.
+ */
+export function assertPlist(value: unknown, path = 'value'): void {
+  if (value === null) throw new Error(`Attempt to insert non-property list object (NSNull) at ${path}`);
+  if (Array.isArray(value)) value.forEach((v, i) => assertPlist(v, `${path}[${i}]`));
+  else if (typeof value === 'object' && value !== undefined) {
+    for (const [k, v] of Object.entries(value)) if (v !== undefined) assertPlist(v, `${path}.${k}`);
+  }
+}
+
+/**
  * A small fake of react-native-device-activity for the exits and scan tests, which only need
  * the App Group and a record of shield calls. Use it before importing anything that imports
  * screen-time.ts:
@@ -60,6 +73,7 @@ export function fakeDeviceActivity({ available = true } = {}) {
     getEvents: () => [],
     userDefaultsGet: (key: string) => state.store[key],
     userDefaultsSet: (key: string, value: unknown) => {
+      assertPlist(value, key);
       state.store[key] = value;
     },
     userDefaultsRemove: (key: string) => {

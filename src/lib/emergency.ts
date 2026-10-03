@@ -74,7 +74,8 @@ export function pausedUntil(log: EmergencyUse[], now: Date): Date | null {
 
 /** Every use, newest first. */
 export function getEmergencyLog(): EmergencyUse[] {
-  return sharedGet<EmergencyUse[]>(KEY) ?? [];
+  // A null `resumesAt` is stored without the field (`toPlist` in screen-time.ts).
+  return (sharedGet<EmergencyUse[]>(KEY) ?? []).map((use) => ({ ...use, resumesAt: use.resumesAt ?? null }));
 }
 
 /** When tonight's paused bedtime lock comes back, or null if tonight isn't paused. */
