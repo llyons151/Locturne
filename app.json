@@ -69,7 +69,8 @@
     },
     "extra": {
       "revenueCat": {
-        "appleApiKey": "REPLACE_WITH_REVENUECAT_PUBLIC_APPLE_KEY"
+        "appleApiKey": "REPLACE_WITH_REVENUECAT_PUBLIC_APPLE_KEY",
+        "simulateAskToBuy": false
       },
       "eas": {
         "projectId": "f2cf242c-0db6-467f-9e18-1f8a6ccec61a",

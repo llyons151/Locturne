@@ -94,8 +94,9 @@ Fixes that are still open from the rating:
   or accept that.
 
 Needs the real app:
-- [ ] StoreKit prices and intro-offer eligibility (all trial strings depend on it). *Paywall reads every price and trial string from `src/lib/purchases.ts`; a dev stub stands in until RevenueCat.*
-- [ ] Real Restore, and live Terms and Privacy URLs. *Restore is wired to the purchases stub; `LEGAL_URLS` are placeholders.*
+- [x] StoreKit prices and intro-offer eligibility (all trial strings depend on it). *Built 2026-10-03 on RevenueCat ([v1-build/purchases.md](v1-build/purchases.md)); needs the App Store Connect and RevenueCat setup in [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md), then a device test.*
+- [ ] Real Restore, and live Terms and Privacy URLs. *Restore is real (onboarding and the You tab, 2026-10-03); `LEGAL_URLS` are still placeholders.*
+- [ ] **Owner:** do [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md) (Paid Apps agreement, the four products and intro offers, RevenueCat project, `pro` entitlement, three offerings, API key into `app.json`), then its device checklist.
 - [x] Real FamilyControls, CMPedometer and notification prompts. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [x] Apple's `FamilyActivityPicker` in place of the preview chips. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [x] Rewrite the copy that names picked apps (`commit`, `offer` timeline, paywall
@@ -109,8 +110,8 @@ Needs the real app:
   follow-up offer. The exit offer is now a 3-arm test (`EXIT_OFFERS`: none /
   half-price $29.99 / 14 days free at full price). The real app needs remote config to
   assign the arm, the $29.99 StoreKit product and a 14-day intro offer, and has to
-  remember that the offer was shown. *Built: saves, arms nothing, one exit offer, remembered. Remote-config arm assignment waits for RevenueCat.*
-- [ ] Send the `found` answer ("How'd you find me?") to analytics with the purchase event.
+  remember that the offer was shown. *Built: saves, arms nothing, one exit offer, remembered. Arm assignment built 2026-10-03: random per install, sent to RevenueCat as `exit_arm`, overridable from offering metadata; separate products `locturne.annual.halfprice` and `locturne.annual.longtrial` ([v1-build/purchases.md](v1-build/purchases.md)).* Needs a device test.
+- [ ] Send the `found` answer ("How'd you find me?") to analytics with the purchase event. *Sent to RevenueCat as the `found` attribute (2026-10-03); PostHog still to do.*
 - [x] Ask for Motion & Fitness after purchase (the pre-paywall step test was removed). *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [ ] A VoiceOver pass on a real device.
 

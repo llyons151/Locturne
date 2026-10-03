@@ -18,7 +18,9 @@ import { sharedGet, sharedSet } from './screen-time';
 const appGroup = { get: sharedGet, set: sharedSet };
 
 export function startPurchases(): void {
-  const extra = Constants.expoConfig?.extra as { revenueCat?: { appleApiKey?: unknown } } | undefined;
+  const extra = Constants.expoConfig?.extra as
+    | { revenueCat?: { appleApiKey?: unknown; simulateAskToBuy?: unknown } }
+    | undefined;
   const apiKey = revenueCatKey(extra?.revenueCat?.appleApiKey);
   const expoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
   if (!apiKey || Platform.OS !== 'ios' || expoGo) {
@@ -27,5 +29,9 @@ export function startPurchases(): void {
   }
   if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG).catch(() => {});
   Purchases.configure({ apiKey });
+  // Sandbox only, dev builds only: every purchase comes back pending, like a teen's Ask to Buy.
+  if (__DEV__ && extra?.revenueCat?.simulateAskToBuy === true) {
+    Purchases.setSimulatesAskToBuyInSandbox(true).catch(() => {});
+  }
   setPurchasesProvider(createRevenueCatPurchases(Purchases, { store: appGroup }));
 }
