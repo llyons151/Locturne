@@ -37,7 +37,10 @@ both exit-offer arms and Restore all render.
 
 ## Stubs
 
-- **`src/lib/purchases.ts` uses `createDevPurchases()`, which charges nothing.** Purchases
+- *Replaced 2026-10-03: RevenueCat is in ([purchases.md](purchases.md)); the stub below now
+  runs only without a key, in Expo Go and on the web. Product IDs changed to
+  `locturne.annual`, `locturne.monthly`, `locturne.annual.halfprice`, `locturne.annual.longtrial`.*
+  **`src/lib/purchases.ts` uses `createDevPurchases()`, which charges nothing.** Purchases
   always succeed, are remembered in memory and found by Restore. `isStubbed()` adds
   "Preview: nothing is charged." to the fine print. Its catalog (`DEV_CATALOG`) holds the
   decided prices. To go live, write a RevenueCat `PurchasesProvider` (offerings → `Offers`,
@@ -68,6 +71,8 @@ both exit-offer arms and Restore all render.
    schedule card and paywall can show the real icons in a row instead of a count.
 5. **Startup check for pending purchases:** after an Ask to Buy approval, the app should
    see `isEntitled()` and arm. Today that only happens through Restore or onboarding.
+   *Done: `useAppStart` arms at launch, and `onEntitled` arms when an approval lands while
+   the app runs ([purchases.md](purchases.md)).*
 6. **Entry routing:** whoever owns `_layout`/home should open onboarding when
    `hasRoutine()` is false, and offer the paywall again (no exit offer) to someone with a
    saved routine and no entitlement.
@@ -114,7 +119,9 @@ both exit-offer arms and Restore all render.
 4. **Should the stairs question pre-select downstairs?** It doesn't today (it's a question,
    per GAME_PLAN). Pre-selecting would nudge more people to the hero method.
 5. **The exit-offer arm source:** RevenueCat offering metadata vs a separate remote-config
-   SDK (APPLIED P6). The interface takes either.
+   SDK (APPLIED P6). The interface takes either. *Settled 2026-10-03: a random arm per
+   install, sent as the `exit_arm` attribute, with offering metadata as an override
+   ([purchases.md](purchases.md)).*
 
 ## On-device test checklist
 

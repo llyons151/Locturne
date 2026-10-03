@@ -109,8 +109,9 @@ shields: fail closed.
 
 ## What remains before launch (code)
 
-RevenueCat behind `src/lib/purchases.ts` (and the exit-offer arm by remote config), PostHog,
-live Terms and Privacy URLs, the morning share card, the icon and splash (asset list in
+~~RevenueCat behind `src/lib/purchases.ts` (and the exit-offer arm by remote config)~~
+built 2026-10-03 ([purchases.md](purchases.md)); it goes live once the owner finishes
+[../REVENUECAT_SETUP.md](../REVENUECAT_SETUP.md). Still to do: PostHog, live Terms and Privacy URLs, the morning share card, the icon and splash (asset list in
 v1-screens.md), the background unlock spike, an in-app trial-reminder fallback, and a
 VoiceOver pass.
 

@@ -255,7 +255,9 @@ most of Step 2 and Step 4's screens, all on one lock controller (`syncLock`):
   purchase).
 - Home, Routine and You on real state, shield words per state, firsts and the rating prompt.
 
-Still to build: RevenueCat behind `src/lib/purchases.ts` (a dev stub today), PostHog, the
+RevenueCat is built behind `src/lib/purchases.ts` (2026-10-03,
+[docs/v1-build/purchases.md](docs/v1-build/purchases.md)); it goes live once the store setup in
+[docs/REVENUECAT_SETUP.md](docs/REVENUECAT_SETUP.md) is done. Still to build: PostHog, the
 share card, the icon and splash, and the background unlock. None of it has passed the
 Step 1 device gates yet.
 

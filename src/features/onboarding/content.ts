@@ -255,7 +255,9 @@ export const MORNING_ECHO: Record<number, string> = {
  * refunds were counted, and an extension beat a discount at Coconote
  * (docs/sub-club/APPLIED_TO_LOCTURNE.md, test 3). Judge the arms on net revenue after
  * refunds per install at day 35. `half-price` also shows up as a downgrade in iOS Settings.
- * The arm comes from remote config; preview one with `?exit=<arm>`.
+ * Each install gets an arm at random, kept and sent to RevenueCat as the `exit_arm`
+ * attribute; `exit_arm` in the current offering's metadata overrides it for everyone
+ * (src/lib/revenuecat.ts). Preview one with `?exit=<arm>`.
  */
 export {
   DEFAULT_EXIT_ARM as DEFAULT_EXIT_OFFER,

@@ -1,15 +1,16 @@
 /**
  * Locturne's only door to the App Store's subscriptions. Screens call these functions and
- * never a store SDK, so RevenueCat drops in later as one `PurchasesProvider`
- * (`setPurchasesProvider`) without touching the paywall.
+ * never a store SDK. The real store is RevenueCat (`createRevenueCatPurchases` in
+ * revenuecat.ts), set at startup by `startPurchases` (purchases-start.ts).
  *
  * GAME_PLAN, "Money": a hard paywall with Annual (7-day trial, the default) and Monthly
  * (no trial), and one exit offer picked by an A/B test. Every price and every trial string
  * on screen comes from `getOffers()`: StoreKit's localized prices, and a trial only when
  * this Apple ID is eligible for the intro offer.
  *
- * **Until RevenueCat is integrated, the provider is `createDevPurchases()`, a stub that
- * charges nothing.** `isStubbed()` says so, and the paywall shows a preview note while it's true.
+ * Without a RevenueCat key (the placeholder in app.json), in Expo Go and on the web the
+ * provider is `createDevPurchases()`, a stub that charges nothing. `isStubbed()` says so, and
+ * the paywall shows a preview note while it's true. docs/REVENUECAT_SETUP.md has the setup.
  *
  * Pure TypeScript with no React Native imports, so it runs under `npm test`.
  */
@@ -18,11 +19,12 @@
 export type PlanId = 'annual' | 'monthly';
 
 /**
- * The exit-offer test (docs/sub-club/APPLIED_TO_LOCTURNE.md, test 3), assigned by remote
- * config in the real app:
+ * The exit-offer test (docs/sub-club/APPLIED_TO_LOCTURNE.md, test 3). Each install gets an
+ * arm at random, once (`pickExitArm`), unless the store overrides it (revenuecat.ts):
  * - `none`: closing the paywall exits.
  * - `half-price`: a separate annual product in the same subscription group, same trial.
- * - `longer-trial`: the full-price annual with a longer intro offer. Trial-eligible only.
+ * - `longer-trial`: another full-price annual product whose intro offer is 14 days, since a
+ *   product has only one intro offer at a time. Trial-eligible only.
  */
 export const EXIT_ARMS = ['none', 'half-price', 'longer-trial'] as const;
 export type ExitArm = (typeof EXIT_ARMS)[number];
@@ -30,6 +32,46 @@ export type ExitOfferArm = Exclude<ExitArm, 'none'>;
 
 /** What can be bought: a paywall plan, or the exit offer of one arm. */
 export type PurchaseTarget = PlanId | ExitOfferArm;
+
+/*
+ * The store's names for everything. App Store Connect and the RevenueCat dashboard must use
+ * exactly these (docs/REVENUECAT_SETUP.md). A product ID can never be reused, even deleted.
+ */
+
+/** App Store Connect product IDs, all in one subscription group. */
+export const PRODUCT_IDS = {
+  /** $59.99 a year, 7-day free intro offer. */
+  annual: 'locturne.annual',
+  /** $9.99 a month, no intro offer. */
+  monthly: 'locturne.monthly',
+  /** The `half-price` exit offer: $29.99 a year, 7-day free intro offer. */
+  'half-price': 'locturne.annual.halfprice',
+  /** The `longer-trial` exit offer: $59.99 a year, 14-day free intro offer. */
+  'longer-trial': 'locturne.annual.longtrial',
+} as const satisfies Record<PurchaseTarget, string>;
+
+/**
+ * RevenueCat offerings. `default` (the current offering) holds the paywall's Annual and
+ * Monthly packages; each exit arm has its own offering with one Annual package.
+ */
+export const OFFERING_IDS = {
+  default: 'default',
+  'half-price': 'exit-half-price',
+  'longer-trial': 'exit-longer-trial',
+} as const satisfies Record<'default' | ExitOfferArm, string>;
+
+/** The one RevenueCat entitlement every product unlocks. The lock arms only while it's active. */
+export const ENTITLEMENT_ID = 'pro';
+
+/** Custom attributes on the RevenueCat customer, for the funnel and the exit-offer test. */
+export const ATTRIBUTES = {
+  /** "How'd you find me?" from onboarding. */
+  found: 'found',
+  /** The exit-offer arm this install was assigned, whether it was shown or not. */
+  exitArm: 'exit_arm',
+  /** "true" once the exit offer has been shown. */
+  exitOfferShown: 'exit_offer_shown',
+} as const;
 
 /** One product as the store describes it to this person. */
 export type Offer = {
@@ -50,7 +92,8 @@ export type Offers = {
   monthly: Offer;
   /** This person's exit-offer arm. Already `none` where the arm can't apply (see `resolveExitArm`). */
   exitArm: ExitArm;
-  exitOffers: Record<ExitOfferArm, Offer>;
+  /** An arm is missing when the store didn't return its offering: that arm then offers nothing. */
+  exitOffers: Partial<Record<ExitOfferArm, Offer>>;
 };
 
 export type PurchaseResult =
@@ -72,6 +115,21 @@ export interface PurchasesProvider {
   isEntitled(): Promise<boolean>;
   /** When the current free trial began, or null outside a trial. For the day-5 reminder. */
   trialStartedAt(): Promise<Date | null>;
+  /** The plan behind the active subscription, or null without one. For the You tab. */
+  currentPlan(): Promise<PlanId | null>;
+  /**
+   * Apple's manage-subscriptions sheet, inside the app. Resolves to false where there's no
+   * sheet (the stub), so the caller opens Apple's subscriptions page instead.
+   */
+  manageSubscriptions(): Promise<boolean>;
+  /** Custom attributes on the store's customer record (`ATTRIBUTES`). Never throws. */
+  setAttributes(attributes: Record<string, string>): void;
+  /**
+   * Calls `listener` when a subscription becomes active outside `purchase` and `restore`
+   * (which report their own): an Ask to Buy approval arriving while the app runs, say.
+   * Returns the unsubscribe.
+   */
+  onEntitled(listener: () => void): () => void;
 }
 
 /* Pure helpers, shared by every provider and the paywall. */
@@ -95,9 +153,26 @@ export function perMonth(offer: Offer, locale?: string): string {
   return formatPrice(offer.period === 'year' ? offer.price / 12 : offer.price, offer.currencyCode, locale);
 }
 
-/** An extra free week means nothing to someone with no trial left, so they get no offer. */
+/**
+ * An extra free week means nothing to someone with no trial left, so they get no offer.
+ * Neither does an arm whose product the store didn't return.
+ */
 export function resolveExitArm(arm: ExitArm, offers: Pick<Offers, 'exitOffers'>): ExitArm {
-  return arm === 'longer-trial' && offers.exitOffers['longer-trial'].trialDays === null ? 'none' : arm;
+  if (arm === 'none') return arm;
+  const offer = offers.exitOffers[arm];
+  if (!offer) return 'none';
+  return arm === 'longer-trial' && offer.trialDays === null ? 'none' : arm;
+}
+
+/** An equal three-way split. `random` is in [0, 1), as from `Math.random()`. */
+export function pickExitArm(random: number): ExitArm {
+  const index = Math.floor(random * EXIT_ARMS.length);
+  return EXIT_ARMS[Math.min(Math.max(index, 0), EXIT_ARMS.length - 1)];
+}
+
+/** The plan a product belongs to. Every annual product (the exit offers too) is `annual`. */
+export function planOf(productId: string): PlanId {
+  return productId === PRODUCT_IDS.monthly ? 'monthly' : 'annual';
 }
 
 /** When a trial that starts at `from` first charges. */
@@ -118,7 +193,7 @@ export function isExitArm(value: string | undefined): value is ExitArm {
 
 /* The dev stub. */
 
-/** Where the stub keeps its fake entitlement. Off-device it lives in memory. */
+/** Where a provider keeps what it must remember. On iOS it's the App Group; off-device, memory. */
 export type KeyValue = { get<T>(key: string): T | undefined; set(key: string, value: unknown): void };
 
 export function memoryKeyValue(): KeyValue {
@@ -138,7 +213,7 @@ export const DEV_CATALOG = {
   extendedTrialDays: 14,
 } as const;
 
-/** The default arm until remote config assigns one (GAME_PLAN: 14 days free leads). */
+/** The stub's arm, and the one to ship if the test is stopped (GAME_PLAN: 14 days free leads). */
 export const DEFAULT_EXIT_ARM: ExitArm = 'longer-trial';
 
 type DevEntitlement = { target: PurchaseTarget; at: number; trialStartedAt: number | null };
@@ -156,12 +231,15 @@ export type DevPurchasesOptions = {
   now?: () => Date;
 };
 
+/** The stub, plus the attributes it was given (for tests). */
+export type DevPurchases = PurchasesProvider & { readonly attributes: Record<string, string> };
+
 /**
  * A stand-in store that charges nothing. Purchases always "succeed" (unless `outcome` says
- * otherwise) and are remembered in `store`, so Restore finds them.
- * DEV ONLY: replace with the RevenueCat provider before TestFlight.
+ * otherwise) and are remembered in `store`, so Restore finds them. `startPurchases` uses it
+ * only where there's no RevenueCat key or no native store, never in a build with a real key.
  */
-export function createDevPurchases(options: DevPurchasesOptions = {}): PurchasesProvider {
+export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurchases {
   const {
     trialEligible = true,
     exitArm = DEFAULT_EXIT_ARM,
@@ -181,15 +259,16 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): Purchases
     trialDays: trialEligible ? trialDays : null,
   });
   const entitlement = () => store.get<DevEntitlement>(DEV_KEY) ?? null;
+  const attributes: Record<string, string> = {};
 
   const offers = (): Offers => {
     const built: Offers = {
-      annual: product('locturne.annual', 'year', DEV_CATALOG.annual, DEV_CATALOG.trialDays),
-      monthly: product('locturne.monthly', 'month', DEV_CATALOG.monthly, null),
+      annual: product(PRODUCT_IDS.annual, 'year', DEV_CATALOG.annual, DEV_CATALOG.trialDays),
+      monthly: product(PRODUCT_IDS.monthly, 'month', DEV_CATALOG.monthly, null),
       exitArm,
       exitOffers: {
-        'half-price': product('locturne.annual.offer', 'year', DEV_CATALOG.annualOffer, DEV_CATALOG.trialDays),
-        'longer-trial': product('locturne.annual', 'year', DEV_CATALOG.annual, DEV_CATALOG.extendedTrialDays),
+        'half-price': product(PRODUCT_IDS['half-price'], 'year', DEV_CATALOG.annualOffer, DEV_CATALOG.trialDays),
+        'longer-trial': product(PRODUCT_IDS['longer-trial'], 'year', DEV_CATALOG.annual, DEV_CATALOG.extendedTrialDays),
       },
     };
     return { ...built, exitArm: resolveExitArm(exitArm, built) };
@@ -197,6 +276,7 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): Purchases
 
   return {
     stubbed: true,
+    attributes,
     async getOffers() {
       await wait();
       return offers();
@@ -208,7 +288,7 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): Purchases
       const all = offers();
       const offer = target === 'annual' || target === 'monthly' ? all[target] : all.exitOffers[target];
       const at = now().getTime();
-      store.set(DEV_KEY, { target, at, trialStartedAt: offer.trialDays ? at : null } satisfies DevEntitlement);
+      store.set(DEV_KEY, { target, at, trialStartedAt: offer?.trialDays ? at : null } satisfies DevEntitlement);
       return { status: 'purchased' };
     },
     async restore() {
@@ -221,6 +301,20 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): Purchases
     async trialStartedAt() {
       const started = entitlement()?.trialStartedAt;
       return started ? new Date(started) : null;
+    },
+    async currentPlan() {
+      const target = entitlement()?.target;
+      return target ? planOf(PRODUCT_IDS[target]) : null;
+    },
+    async manageSubscriptions() {
+      return false;
+    },
+    setAttributes(next) {
+      Object.assign(attributes, next);
+    },
+    onEntitled() {
+      // Nothing is ever approved later here.
+      return () => {};
     },
   };
 }
@@ -240,3 +334,7 @@ export const purchase = (target: PurchaseTarget) => provider.purchase(target);
 export const restore = () => provider.restore();
 export const isEntitled = () => provider.isEntitled();
 export const trialStartedAt = () => provider.trialStartedAt();
+export const currentPlan = () => provider.currentPlan();
+export const manageSubscriptions = () => provider.manageSubscriptions();
+export const setAttributes =(attributes: Record<string, string>) => provider.setAttributes(attributes);
+export const onEntitled = (listener: () => void) => provider.onEntitled(listener);

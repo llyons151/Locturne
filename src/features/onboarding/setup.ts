@@ -4,7 +4,7 @@
  * does, and only after purchase.
  */
 import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder } from '@/lib/notifications';
-import { trialStartedAt } from '@/lib/purchases';
+import { ATTRIBUTES, setAttributes, trialStartedAt } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
@@ -12,7 +12,10 @@ import type { Answers } from './content';
 
 /** Read by the notifications work: whether to send the day-5 trial reminder. */
 export const TRIAL_REMINDER_KEY = 'locturne.trialReminder';
-/** "How'd you find me?", kept for the analytics purchase event (TODO §4). Never shown back. */
+/**
+ * "How'd you find me?", kept here for the analytics purchase event (TODO §4) and sent to
+ * RevenueCat as the `found` attribute. Never shown back.
+ */
 export const ATTRIBUTION_KEY = 'locturne.attribution';
 /** The exit offer is shown once per Apple ID's install, so it can't be farmed by rerunning onboarding. */
 const EXIT_OFFER_SHOWN_KEY = 'locturne.exitOfferShown';
@@ -31,7 +34,10 @@ export function saveSetup(answers: Answers): void {
     method: answers.method ?? DEFAULT_ROUTINE.method,
   });
   rescheduleNotifications().catch(() => {});
-  if (answers.found) sharedSet(ATTRIBUTION_KEY, { found: answers.found, at: Date.now() });
+  if (answers.found) {
+    sharedSet(ATTRIBUTION_KEY, { found: answers.found, at: Date.now() });
+    setAttributes({ [ATTRIBUTES.found]: answers.found });
+  }
 }
 
 /** Called after purchase. Schedules the day-5 reminder (it lands once notifications are allowed). */
@@ -49,4 +55,5 @@ export function wasExitOfferShown(): boolean {
 
 export function markExitOfferShown(): void {
   sharedSet(EXIT_OFFER_SHOWN_KEY, true);
+  setAttributes({ [ATTRIBUTES.exitOfferShown]: 'true' });
 }

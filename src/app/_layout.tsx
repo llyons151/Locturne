@@ -6,13 +6,10 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
-import { createDevPurchases, setPurchasesProvider } from '@/lib/purchases';
-import { sharedGet, sharedSet } from '@/lib/screen-time';
+import { startPurchases } from '@/lib/purchases-start';
 
-// The dev purchases stub keeps its fake entitlement in the App Group, not memory: one that
-// forgot the purchase on restart would stop `useAppStart` re-arming a night that was lost.
-// Replace with the RevenueCat provider before TestFlight.
-setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: { get: sharedGet, set: sharedSet } }));
+// RevenueCat, or the dev stub without a key. Before any screen asks about the subscription.
+startPurchases();
 
 // Locturne is dark in both system appearances: the night sky never turns light.
 export default function RootLayout() {
