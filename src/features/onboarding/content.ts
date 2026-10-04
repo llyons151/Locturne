@@ -22,7 +22,6 @@ export type Answers = {
   morningMinutes?: number;
   /** Years. */
   age?: number;
-  alarm?: string;
   /** What they've tried before. Only feeds his reply on the next screen. */
   tried?: string;
   timeBack?: string;
@@ -65,10 +64,8 @@ export const PROGRESS_STEPS: StepId[] = [
   'night-minutes',
   'nights-per-week',
   'morning-minutes',
-  'stat',
   'found',
   'age',
-  'alarm',
   'tried',
   'tried-echo',
   'time-back',
@@ -81,7 +78,7 @@ export const PROGRESS_STEPS: StepId[] = [
   'walk',
   'screen-time',
   'apps',
-  'ready',
+  'commit',
 ];
 
 // Values are deliberately at or below each bucket's midpoint, so the number never overstates.
@@ -123,21 +120,6 @@ export const MORNING_MINUTES: Choice<number>[] = [
 export const AGE_MIN = 10;
 export const AGE_MAX = 99;
 export const AGE_DEFAULT = 22;
-
-export const ALARM: Choice<string>[] = [
-  { label: 'Wrecked', value: 'wrecked' },
-  { label: 'Groggy', value: 'groggy' },
-  { label: "Fine (I'm lying)", value: 'lying' },
-  { label: 'Fine (really)', value: 'fine' },
-];
-
-/** His reply to the alarm answer, on the page before the paywall. Deadpan, never a health claim. */
-export const ALARM_ECHO: Record<string, string> = {
-  wrecked: 'Wrecked, you said. Same. We get up anyway.',
-  groggy: 'Groggy, you said. So am I. We get up anyway.',
-  lying: '“Fine,” you said. Sure. We get up anyway.',
-  fine: 'Fine mornings, you said. Let’s keep them.',
-};
 
 // Single choice, so the question asks for the one that lasted longest.
 export const TRIED: Choice<string>[] = [
@@ -210,9 +192,11 @@ export const OFFER_HEADLINES: Record<string, string> = {
 /** For people who barely use their phone in bed: the pitch is mornings, not a cost. */
 export const LIGHT_OFFER_HEADLINE = 'Mornings, then. Mine too.';
 
-/** His reaction on the statistic screen, echoing "how long are you on your phone before you get up?" */
+/**
+ * His aside on `math` as the mornings line ticks, echoing "how long are you on your phone
+ * before you get up?". Under ten minutes gets none: there's nothing to say nothing about.
+ */
 export const MORNING_ECHO: Record<number, string> = {
-  3: 'Under five? We’ll see tomorrow.',
   10: 'You said ten minutes. I said nothing.',
   20: 'You said twenty minutes. I said nothing.',
   45: 'You said forty-five minutes. I said nothing.',
@@ -271,6 +255,8 @@ export const METHOD_COPY: Record<
     until: string;
     /** The `commit` title, after "Phone down at {bed}." */
     commit: string;
+    /** His line on `offer`, under the headline. */
+    offer: string;
     /** `first-morning`: what to do and what counts. */
     morning: { when: string; what: string }[];
   }
@@ -281,6 +267,7 @@ export const METHOD_COPY: Record<
     check: 'Awake again after one trip downstairs',
     until: 'you’ve been downstairs',
     commit: 'Downstairs to wake them.',
+    offer: 'One trip downstairs. I’ll complain the whole way.',
     morning: [
       { when: 'Start', what: 'Open me and tap Start. Then go downstairs.' },
       { when: 'Bottom', what: 'They wake up. Up or down both count.' },
@@ -293,6 +280,7 @@ export const METHOD_COPY: Record<
     check: 'Awake again after 200 morning steps',
     until: 'you’ve walked 200 steps',
     commit: 'Up for 200 steps.',
+    offer: '200 steps. I’ll complain about every one.',
     morning: [
       { when: 'Steps', what: 'They count from your alarm. Bathroom, kitchen, it all counts.' },
       { when: 'At 200', what: 'Open me. They wake up.' },
@@ -304,6 +292,7 @@ export const METHOD_COPY: Record<
     check: 'Awake again once you scan your code',
     until: 'you’ve scanned your code',
     commit: 'Up to scan your code.',
+    offer: 'One walk to your code. I’ll complain the whole way.',
     morning: [
       { when: 'Today', what: 'Set up your code in Routine and leave it in another room.' },
       { when: 'Morning', what: 'Walk to it and scan it. Until it’s set up, 200 steps works.' },
@@ -367,3 +356,23 @@ export function methodCopy(method: WakeMethod): MethodCopy {
   };
   return swap(copy);
 }
+
+/**
+ * New Year week, January 1–9 (D8 in docs/ONBOARDING_OPTIMIZATION.md): date-gated copy, never
+ * a discount. Commitment devices sell best at a fresh start (stickK sign-ups jump 145% at New
+ * Year, Dai, Milkman & Riis 2014), and January cohorts refund more, so a sale would cost
+ * twice. Copy from docs/onboarding-optimization/05-audience-reviews.md §12. Preview with
+ * `?newyear=1`.
+ */
+export function isNewYearWeek(now = new Date()): boolean {
+  return now.getMonth() === 0 && now.getDate() <= 9;
+}
+
+export const NEW_YEAR = {
+  hello: { head: 'New year. Same bed.', sub: 'I’m Loc. I don’t do resolutions. I do locks.' },
+  /** Ends `deal`'s body: beats "I'll start Monday". */
+  deal: 'Starts tonight. Not Monday.',
+  commit: 'The deal for',
+  plans: 'No sale. I’m too tired for a sale.',
+  armed: 'Armed. First night of the year. Don’t make it weird.',
+};

@@ -14,12 +14,10 @@ export const STEPS = [
   'night-minutes',
   'nights-per-week',
   'morning-minutes',
-  'stat',
-  // Attribution sits mid-quiz, at the break after the statistic, so it doesn't stall the
-  // build-up to the reveal.
+  // Attribution sits mid-quiz, between the minutes and the objections, so it doesn't stall
+  // the build-up to the reveal.
   'found',
   'age',
-  'alarm',
   'tried',
   'tried-echo',
   'time-back',
@@ -34,7 +32,7 @@ export const STEPS = [
   'walk',
   'screen-time',
   'apps',
-  'ready',
+  // The summary and the deal in one: the editable schedule, then hold to agree.
   'commit',
   'offer',
   'plans',
@@ -45,8 +43,8 @@ export const STEPS = [
 export type StepId = (typeof STEPS)[number] | 'declined' | 'under-13';
 
 /**
- * Steps that can be edited and then return: `bedtime`, `wake` and `apps` from the "Tonight's
- * lock is ready" summary, and `method` from the walk ("Pick another way" when there's no
+ * Steps that can be edited and then return: `bedtime`, `wake`, `method` and `apps` from the
+ * schedule card on `commit`, and `method` from the walk ("Pick another way" when there's no
  * step counter).
  */
 export const EDITABLE: StepId[] = ['bedtime', 'wake', 'method', 'apps'];
@@ -85,7 +83,7 @@ export function isStep(value: string | undefined): value is StepId {
 
 export function nextStep(step: StepId, skip: StepId[] = []): StepId {
   if (step === 'declined') return 'plans';
-  if (step === 'under-13') return 'alarm';
+  if (step === 'under-13') return nextStep('age');
   let index = STEPS.indexOf(step) + 1;
   while (index < STEPS.length - 1 && skip.includes(STEPS[index])) index += 1;
   return STEPS[Math.min(index, STEPS.length - 1)];

@@ -57,7 +57,7 @@ import {
 } from '@/lib/screen-time';
 import { Nocturne } from '@/theme';
 
-import { initialAnswers, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
+import { initialAnswers, isNewYearWeek, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
@@ -102,7 +102,6 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   nightsPerWeek: 7,
   scrollDays: [0, 1, 2, 3, 4, 5, 6],
   age: 22,
-  alarm: 'groggy',
   tried: 'screen-time',
   timeBack: 'mornings',
   found: 'tiktok',
@@ -140,9 +139,12 @@ export function OnboardingFlow({
   initialStep,
   exitOffer,
   resumeAtPaywall = false,
+  newYear: previewNewYear = false,
 }: {
   initialStep?: string;
   exitOffer?: string;
+  /** Review only: the New Year week copy on any date. */
+  newYear?: boolean;
   /** Open on the offer with the saved setup's times and method, skipping the quiz. */
   resumeAtPaywall?: boolean;
 }) {
@@ -185,6 +187,8 @@ export function OnboardingFlow({
 
   // Onboarding inside their own bedtime window, e.g. at 12:40 AM: they're in bed, so the walk is skipped.
   const lateNight = isInsideBedtime(answers.bedtime, answers.wake);
+  // Fixed for the visit, so the copy can't change mid-flow at midnight on January 9.
+  const [newYear] = useState(() => previewNewYear || isNewYearWeek());
 
   const simulate = (message: string, then: () => void) => setSimulated({ message, then });
   /** A native alert on iOS; the preview's stand-in on the web, where `Alert` does nothing. */
@@ -678,6 +682,7 @@ export function OnboardingFlow({
     exit,
     simulate,
     lateNight,
+    newYear,
     compact,
     exitArm,
     editing: returnTo !== null,

@@ -8,7 +8,7 @@ import { LEGAL_URLS } from '@/lib/links';
 import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
-import { methodCopy, trialVoice } from '../content';
+import { methodCopy, NEW_YEAR, trialVoice } from '../content';
 import { dateFromToday, formatWhen } from '../estimate';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';
@@ -90,7 +90,8 @@ export function plansStep(ctx: StepContext): StepView {
         {compact ? null : (
           <View style={styles.paywallVoice}>
             <Voice
-              text={trialDays ? trialVoice(trialDays) : 'Fine. I’ll get up for this.'}
+              // New Year week: no sale, and he says so (D8). The trial is on the cards and the button.
+              text={ctx.newYear ? NEW_YEAR.plans : trialDays ? trialVoice(trialDays) : 'Fine. I’ll get up for this.'}
               size={VoiceSize.aside}
               delay={500}
               sub

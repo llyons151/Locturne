@@ -9,9 +9,15 @@ import { page, Voice } from '../ui';
 
 // Only what the number is made of: bedtime and wake come after it, in setup.
 const LINES = ['Nights in bed with your phone', 'Mornings before you get up', 'Nights a week'];
+const tickAt = (i: number) => 500 + i * 650;
+/** When "Mornings before you get up" ticks. */
+const MORNING_TICK_MS = tickAt(1);
 
-/** "Doing the math": ticks off what the estimate is made of, then moves on by itself. */
-export function MathScreen({ line, onDone }: { line: string; onDone: () => void }) {
+/**
+ * "Doing the math": ticks off what the estimate is made of, then moves on by itself.
+ * `morningLine` is his aside about their mornings, shown as that line ticks.
+ */
+export function MathScreen({ line, morningLine, onDone }: { line: string; morningLine?: string; onDone: () => void }) {
   const [shown, setShown] = useState(0);
 
   useEffect(() => {
@@ -19,9 +25,9 @@ export function MathScreen({ line, onDone }: { line: string; onDone: () => void 
       setTimeout(() => {
         haptic.tick();
         setShown(i + 1);
-      }, 500 + i * 650),
+      }, tickAt(i)),
     );
-    timers.push(setTimeout(onDone, 500 + LINES.length * 650 + 300));
+    timers.push(setTimeout(onDone, tickAt(LINES.length) + 300));
     return () => timers.forEach(clearTimeout);
     // Runs once per visit to this step.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,6 +44,12 @@ export function MathScreen({ line, onDone }: { line: string; onDone: () => void 
           </Reveal>
         ))}
       </View>
+      {morningLine ? (
+        <>
+          <View style={page.gapBlock} />
+          <Voice text={morningLine} size={VoiceSize.aside} delay={MORNING_TICK_MS} sub />
+        </>
+      ) : null}
     </View>
   );
 }

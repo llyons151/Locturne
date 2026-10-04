@@ -28,7 +28,6 @@ const QUIZ_FIELDS = [
   'nightsPerWeek',
   'scrollDays',
   'morningMinutes',
-  'alarm',
   'timeBack',
   'shift',
 ] as const satisfies readonly (keyof Answers)[];

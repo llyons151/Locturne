@@ -52,8 +52,8 @@ unhandled rejections) is on, as the policy lists "error reports".
 
 Every event also carries `app_env`, `store_stubbed`, `onboarding_version`, PostHog's
 device and app properties, and, once answered, the super properties
-`onboarding_found`, `onboarding_method`, `onboarding_age_bracket`, `onboarding_timeBack`
-and `onboarding_alarm`. That means any event can be split by how they found the app or
+`onboarding_found`, `onboarding_method`, `onboarding_age_bracket` and
+`onboarding_timeBack`. That means any event can be split by how they found the app or
 which wake-up method they picked. All quiz answers are also set on the person.
 
 ### Onboarding

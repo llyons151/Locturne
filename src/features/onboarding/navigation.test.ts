@@ -2,7 +2,7 @@
 
 /**
  * Moving through onboarding (navigation.ts): next, back, and the two edit paths, from the
- * "Tonight's lock is ready" summary and from the walk's "Pick another way".
+ * schedule card on `commit` and from the walk's "Pick another way".
  */
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
@@ -57,7 +57,7 @@ describe('forward', () => {
   });
 
   test('the side steps rejoin the main path', () => {
-    assert.equal(nextStep('under-13'), 'alarm');
+    assert.equal(nextStep('under-13'), 'tried');
     assert.equal(nextStep('declined'), 'plans');
   });
 
@@ -124,13 +124,13 @@ describe('back', () => {
   });
 });
 
-describe('editing from the summary', () => {
-  const summary = () => reach('ready', run(startNav('hello', initialAnswers), set({ method: 'downstairs' })));
+describe('editing from the schedule card on commit', () => {
+  const summary = () => reach('commit', run(startNav('hello', initialAnswers), set({ method: 'downstairs' })));
 
   test('Save returns to the summary without stacking a second copy', () => {
     const before = summary();
     const nav = run(before, edit('bedtime'), set({ bedtime: 22 * 60 }), next);
-    assert.equal(currentStep(nav), 'ready');
+    assert.equal(currentStep(nav), 'commit');
     assert.deepEqual(nav.history, before.history);
     assert.equal(nav.answers.bedtime, 22 * 60);
     assert.equal(nav.returnTo, null);
@@ -140,14 +140,14 @@ describe('editing from the summary', () => {
   test('while editing, the step knows it (its button says Save)', () => {
     const nav = run(summary(), edit('wake'));
     assert.equal(isEditing(nav), true);
-    assert.equal(nav.returnTo, 'ready');
+    assert.equal(nav.returnTo, 'commit');
     assert.equal(isEditing(run(nav, next)), false);
   });
 
   test('Back cancels the edit: the answer goes back to what it was', () => {
     const before = summary();
     const nav = run(before, edit('wake'), set({ wake: 5 * 60 }), back);
-    assert.equal(currentStep(nav), 'ready');
+    assert.equal(currentStep(nav), 'commit');
     assert.equal(nav.answers.wake, before.answers.wake);
     assert.equal(nav.returnTo, null);
   });
@@ -166,9 +166,9 @@ describe('editing from the summary', () => {
     assert.deepEqual(nav.answers.apps, ['TikTok']);
   });
 
-  test('Continue on the summary after an edit carries on to the commit', () => {
+  test('agreeing on commit after an edit carries on to the offer', () => {
     const nav = run(summary(), edit('bedtime'), next, next);
-    assert.equal(currentStep(nav), 'commit');
+    assert.equal(currentStep(nav), 'offer');
   });
 
   test('Back from the summary after a saved edit goes to the step before it, not the edit', () => {
@@ -208,13 +208,13 @@ test('the first pass through an editable step is not an edit', () => {
 });
 
 test('only the edited step saves and returns; a step reached from it moves on as usual', () => {
-  const nav = run(reach('ready'), edit('apps'), { type: 'go', to: 'commit' });
+  const nav = run(reach('commit'), edit('apps'), { type: 'go', to: 'offer' });
   assert.equal(isEditing(nav), false);
-  assert.equal(currentStep(navigate(nav, next)), 'offer');
+  assert.equal(currentStep(navigate(nav, next)), 'plans');
 });
 
 test('starting again after purchase drops any edit in progress', () => {
-  const nav = run(reach('ready'), edit('bedtime'), { type: 'reset', to: 'armed' });
+  const nav = run(reach('commit'), edit('bedtime'), { type: 'reset', to: 'armed' });
   assert.equal(nav.returnTo, null);
   assert.equal(nav.beforeEdit, null);
 });

@@ -13,14 +13,12 @@ import { BEDTIME_WARNING, type NotificationPermission } from '@/lib/notification
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
 import type { WakeMethod } from '@/lib/routine';
 import { noOrphan } from '@/lib/text';
-import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
+import { DisplayFont, Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import {
   AGE_DEFAULT,
   AGE_MAX,
   AGE_MIN,
-  ALARM,
-  ALARM_ECHO,
   FOUND,
   initialAnswers,
   LIGHT_OFFER_HEADLINE,
@@ -33,6 +31,7 @@ import {
   NIGHT_MINUTES,
   NIGHTS,
   NIGHTS_ECHO,
+  NEW_YEAR,
   OFFER_HEADLINES,
   TIME_BACK,
   TRIED,
@@ -81,6 +80,8 @@ export type StepContext = {
   showMethods: () => void;
   /** Onboarding is happening inside the bedtime window, e.g. at 12:40 AM. */
   lateNight: boolean;
+  /** January 1–9: the New Year copy (`isNewYearWeek`), or `?newyear=1` in review. */
+  newYear: boolean;
   /** Which exit offer `declined` shows. Never `none` there: that arm skips the screen. */
   exitArm: ExitOffer;
   editing: boolean;
@@ -144,7 +145,7 @@ const WAKE_PRESETS = [6 * 60, 7 * 60, 7 * 60 + 30, 8 * 60];
 const SHIFT_BEDTIME_PRESETS = [7 * 60, 8 * 60, 9 * 60, 10 * 60];
 const SHIFT_WAKE_PRESETS = [14 * 60, 15 * 60, 16 * 60, 17 * 60];
 
-/** The cold open. Same line at every hour. */
+/** The cold open. Same line at every hour; New Year week has its own (`NEW_YEAR`). */
 const HELLO = { head: 'No apps until you’re out of bed.', sub: 'I’m Loc. Raccoon. I don’t do mornings well either.' };
 
 /** What one step puts on screen. The flow places these in the page frame (ui.tsx Shell). */
@@ -169,12 +170,13 @@ export function renderStep(ctx: StepContext): StepView {
 
   switch (step) {
     case 'hello': {
+      const hello = ctx.newYear ? NEW_YEAR.hello : HELLO;
       return {
         body: (
           <View style={styles.bottomStack}>
-            <Voice text={HELLO.head} size={VoiceSize.hero} />
+            <Voice text={hello.head} size={VoiceSize.hero} />
             <View style={page.gapHeadline} />
-            <Voice text={HELLO.sub} size={24} delay={800} sub />
+            <Voice text={hello.sub} size={24} delay={800} sub />
           </View>
         ),
         footer: <PrimaryButton label="Go on" onPress={next} />,
@@ -197,7 +199,7 @@ export function renderStep(ctx: StepContext): StepView {
             {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner. */}
             <View style={page.gapSection} />
             {/* Quiz answers go to analytics (docs/ANALYTICS.md), so no "stays on your phone" here. What's true: no account, and the picked apps never leave the phone. */}
-            <Body>First, a few questions. Then I do math on your nights. About two minutes. No name, no email, and the apps you pick never leave your phone.</Body>
+            <Body>{`First, a few questions. Then I do math on your nights. About two minutes. No name, no email, and the apps you pick never leave your phone.${ctx.newYear ? ` ${NEW_YEAR.deal}` : ''}`}</Body>
           </View>
         ),
         footer: <PrimaryButton label="Ask away" onPress={next} />,
@@ -326,23 +328,6 @@ export function renderStep(ctx: StepContext): StepView {
         <Options options={MORNING_MINUTES} value={answers.morningMinutes} onChoose={choose('morningMinutes')} tone="moon" />
       ));
 
-    case 'stat':
-      return {
-        body: (
-          <View style={styles.moonTop}>
-            <Reveal>
-              <Text style={styles.statNumber} maxFontSizeMultiplier={1.3}>
-                85%
-              </Text>
-            </Reveal>
-            <Body style={styles.statText}>of U.S. adults check their phone within 10 minutes of waking.</Body>
-            <View style={page.gapBlock} />
-            <Voice text={MORNING_ECHO[answers.morningMinutes ?? -1] ?? 'Not just you, then.'} size={VoiceSize.aside} delay={600} sub />
-          </View>
-        ),
-        footer: <PrimaryButton label="Continue" onPress={next} />,
-      };
-
     case 'age':
       return {
         ...moonQuestion(
@@ -378,11 +363,6 @@ export function renderStep(ctx: StepContext): StepView {
         footer: <PrimaryButton label="Exit" onPress={exit} />,
       };
 
-    case 'alarm':
-      return moonQuestion('How do you feel when your alarm goes off?', undefined, (
-        <Options options={ALARM} value={answers.alarm} onChoose={choose('alarm')} tone="moon" />
-      ));
-
     case 'tried':
       return moonQuestion('What have you tried?', 'Pick the one that lasted longest.', (
         <Options options={TRIED} value={answers.tried} onChoose={choose('tried')} tone="moon" />
@@ -413,7 +393,15 @@ export function renderStep(ctx: StepContext): StepView {
       ));
 
     case 'math':
-      return { body: <MathScreen line={NIGHTS_ECHO[answers.nights ?? ''] ?? 'Counting. Don’t watch me.'} onDone={next} /> };
+      return {
+        body: (
+          <MathScreen
+            line={NIGHTS_ECHO[answers.nights ?? ''] ?? 'Counting. Don’t watch me.'}
+            morningLine={MORNING_ECHO[answers.morningMinutes ?? -1]}
+            onDone={next}
+          />
+        ),
+      };
 
     case 'reveal':
       return {
@@ -582,11 +570,16 @@ export function renderStep(ctx: StepContext): StepView {
       };
     }
 
-    case 'ready':
+    case 'commit':
+      // The summary and the deal on one page (D4): the schedule stays editable right up to the hold.
       return {
         body: (
           <View style={page.top}>
-            <Title>Tonight’s lock is ready.</Title>
+            {/* Short phones: the card and the title are the deal, so the eyebrow and the passes line go. */}
+            {compact ? null : (
+              <Eyebrow>{ctx.newYear ? `${NEW_YEAR.commit} ${new Date().getFullYear()}` : 'The deal'}</Eyebrow>
+            )}
+            <Title>{`Phone down at ${bed}. ${method.commit}`}</Title>
             <ScheduleCard
               bedtime={answers.bedtime}
               wake={answers.wake}
@@ -596,22 +589,17 @@ export function renderStep(ctx: StepContext): StepView {
               compact={compact}
               onChange={edit}
             />
-            <Body>{lateNight ? `It’s already past ${bed}. I start the second you’re in.` : 'It isn’t on yet.'}</Body>
-            <View style={page.gapAside} />
-            <Voice text="I’m ready. Emotionally, less so." size={VoiceSize.aside} delay={700} sub />
-          </View>
-        ),
-        footer: <PrimaryButton label="Looks right" onPress={next} />,
-      };
-
-    case 'commit':
-      return {
-        body: (
-          <View style={page.top}>
-            <Eyebrow>The deal</Eyebrow>
-            <Title>{`Phone down at ${bed}. ${method.commit}`}</Title>
-            <View style={page.gapHeadline} />
-            <Body>Your apps sleep until you’re up. Passes cover sick days and travel. Change anything later.</Body>
+            {lateNight ? (
+              <Body>{compact ? 'I start the second you’re in.' : `It’s already past ${bed}. I start the second you’re in.`}</Body>
+            ) : compact ? null : (
+              <Body>Passes cover sick days and travel. Tap anything to change it.</Body>
+            )}
+            {compact ? null : (
+              <>
+                <View style={page.gapAside} />
+                <Voice text="I’m ready. Emotionally, less so." size={VoiceSize.aside} delay={700} sub />
+              </>
+            )}
           </View>
         ),
         // Already subscribed (restored on the first screen): no paywall, straight to arming.
@@ -629,7 +617,7 @@ export function renderStep(ctx: StepContext): StepView {
           <View style={page.top}>
             <Voice text={headline} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
-            <Body>{ALARM_ECHO[answers.alarm ?? ''] ?? 'I guard them at night. You do the getting up.'}</Body>
+            <Body>{noOrphan(method.offer)}</Body>
             {trialDays ? (
               // The trial timeline (Blinkist pattern): the most replicated paywall win in
               // docs/sub-club/themes/02-paywall-design-and-copy.md. The reminder day matches the
@@ -711,7 +699,11 @@ export function renderStep(ctx: StepContext): StepView {
       return {
         body: (
           <View style={page.top}>
-            <Voice text={startsNow ? 'Armed. Starting now. Put it down.' : `Armed. See you at ${bed}.`} size={VoiceSize.headline} header />
+            <Voice
+              text={startsNow ? 'Armed. Starting now. Put it down.' : ctx.newYear ? NEW_YEAR.armed : `Armed. See you at ${bed}.`}
+              size={VoiceSize.headline}
+              header
+            />
             <View style={page.gapHeadline} />
             <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. Your apps sleep at ${bed}.`}</Body>
             {asksNotifications ? (
@@ -891,10 +883,6 @@ const styles = StyleSheet.create({
   beat: { gap: Space.s },
   beatLabel: Type.label,
   beatText: { ...DisplayFont, color: Nocturne.text, fontSize: 26, lineHeight: 30 },
-  // Numbers use the serif upright. Italic serif always means Loc is talking.
-  // The stat sits on the quiz moon, centred like the rest of the moon pages.
-  statNumber: { ...NUMBER_FONT, color: Nocturne.accent ?? Nocturne.text, fontSize: 108, lineHeight: 112, letterSpacing: -1, textAlign: 'center' },
-  statText: { color: Nocturne.text, ...Type.body, marginTop: Gap.headline, textAlign: 'center' },
   appsCard: { marginTop: Gap.block },
   methodOptions: { marginTop: Gap.block, marginBottom: Space.l },
   plan: { marginVertical: Gap.block, gap: Space.m },

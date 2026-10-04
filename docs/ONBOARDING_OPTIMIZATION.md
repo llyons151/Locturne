@@ -369,6 +369,20 @@ Nothing here has been changed.
   the bedtime window.
 - D6, transaction-abandon trigger: **yes. Built.** Cancelling Apple's purchase sheet on
   `offer`/`plans` shows the one exit offer, under the same once-per-install rule.
+
+**October 4, 2026:**
+- D4: **yes. Built.** `stat` and `alarm` are gone. The morning echo ("You said twenty
+  minutes. I said nothing.") is an aside on `math` as its mornings line ticks, at 10+ minutes
+  only. `offer`'s grey line is method-aware (`METHOD_COPY[m].offer`, e.g. "One trip
+  downstairs. I'll complain the whole way."); Loc's lines are placeholders for the founder's
+  voice pass. `commit` carries the editable schedule card, and "It isn't on yet" is gone. Short
+  phones drop the eyebrow, the passes line and the card's "Phone calls always get through" so
+  nothing hides behind the hold button. `ONBOARDING_VERSION` is now `2026-10-04`.
+- D8: **yes. Built** as `isNewYearWeek` (January 1–9, every year; preview with `?newyear=1`):
+  `hello` "New year. Same bed.", `deal` ends "Starts tonight. Not Monday.", `commit`'s eyebrow
+  "The deal for 2027", `plans` "No sale. I'm too tired for a sale." and `armed` "Armed. First
+  night of the year. Don't make it weird." The `reveal` annualised line was left out: the reveal
+  already shows a year.
 - The rest are still open. The goal is people paying, so any cut has to remove friction without
   removing investment (see "Length and investment" below).
 
