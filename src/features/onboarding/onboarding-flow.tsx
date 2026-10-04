@@ -8,8 +8,8 @@ import { AppPickerSheet, PICKER_HEADER } from '@/components/app-picker';
 import type { TextMotion } from '@/components/motion';
 import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
-import { useStepCount } from '@/features/wake/use-step-count';
 import { useCompact } from '@/hooks/use-compact';
+import { useStepCount } from '@/hooks/use-step-count';
 import {
   answerFor,
   registerProperties,

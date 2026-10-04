@@ -2,11 +2,11 @@ import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { formatPreset } from '@/features/onboarding/time-wheel';
+import { useStepCount } from '@/hooks/use-step-count';
 import { stepsLine } from '@/lib/wake/lines';
 import { Space } from '@/theme';
 
 import { BigNumber, Body, MotionOff, Track, Voice } from './parts';
-import { useStepCount } from './use-step-count';
 
 /**
  * "Walk it off": steps since morning start, counted live while he complains. Steps walked
