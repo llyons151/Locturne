@@ -1,6 +1,6 @@
 import { Host } from '@expo/ui';
 import { Button, Divider, Menu } from '@expo/ui/swift-ui';
-import { tint } from '@expo/ui/swift-ui/modifiers';
+import { accessibilityLabel, tint } from '@expo/ui/swift-ui/modifiers';
 
 import { limitLabel } from '@/lib/daily-limits';
 import { Nocturne } from '@/theme';
@@ -14,7 +14,7 @@ import type { LimitMenuProps } from './limit-menu-types';
 export function LimitMenu({ minutes, chosen, choices, onChange, onRemove }: LimitMenuProps) {
   return (
     <Host matchContents colorScheme="dark">
-      <Menu label={limitLabel(minutes)} systemImage="chevron.up.chevron.down" modifiers={[tint(Nocturne.text2)]}>
+      <Menu label={limitLabel(minutes)} systemImage="chevron.up.chevron.down" modifiers={[tint(Nocturne.text2), accessibilityLabel(`Daily limit, ${limitLabel(minutes)}`)]}>
         {choices.map((m) => (
           <Button
             key={m}

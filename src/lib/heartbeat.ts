@@ -23,6 +23,8 @@ export type Heartbeat = {
    * from the library's own event log, which doesn't record it.
    */
   shielded: boolean | null;
+  /** Whether the bedtime list had any apps. Missing from entries written before it existed. */
+  nightPicked?: boolean | null;
 };
 
 export const HEARTBEAT_KEY = 'locturne.heartbeat';
@@ -47,7 +49,7 @@ export function getHeartbeats(): Heartbeat[] {
   return raw
     .filter(isHeartbeat)
     // A Swift Bool can cross the bridge as 0 or 1.
-    .map((h) => ({ ...h, shielded: toBool(h.shielded as unknown) }))
+    .map((h) => ({ ...h, shielded: toBool(h.shielded as unknown), nightPicked: toBool(h.nightPicked as unknown) }))
     .sort((a, b) => b.at - a.at);
 }
 

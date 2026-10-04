@@ -21,7 +21,7 @@ import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
 import { getProofs, type MorningProof } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, hasRoutine, type Routine, type StoredRoutine } from './routine.ts';
-import { getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
+import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
 const DAY_MS = 24 * 60 * MINUTE;
@@ -86,6 +86,10 @@ export type PlanFacts = {
   protection: Protection;
   /** Whether a night is armed with iOS. Unarmed (before purchase, say), nothing will sleep. */
   armed: boolean;
+  /** When the armed night was first armed: a morning whose night ended before then is free. */
+  armedSince?: Date | null;
+  /** Mornings already unlocked (a proof, a pass, an emergency unlock), by morning key. */
+  unlockedMornings?: string[];
   /** When the trial first charges, if one is running and a reminder was asked for. */
   trialEnd?: Date | null;
   /** Which kinds the person wants. All of them when left out. */
@@ -98,7 +102,8 @@ export type PlanFacts = {
  * Everything to schedule, soonest first. For each night that's switched on:
  * - a bedtime warning `BEDTIME_WARNING` minutes before bedtime, or, while access is off,
  *   the revoked-access warning in its place;
- * - a morning-start note, unless access is off (the apps aren't asleep, so it would lie).
+ * - a morning-start note, unless access is off or the morning is already unlocked or wasn't
+ *   armed in time (the apps aren't asleep, so it would lie).
  * Before access is set up or a night is armed, nothing about nights is sent at all. Each night follows the
  * routine in force when it starts, so a pending edit shows up from its first bedtime.
  */
@@ -130,7 +135,9 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
       const kind = protection === 'off' ? 'revoked' : 'bedtime';
       plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
     }
-    if (protection === 'on' && prefs.morning && end > now) {
+    // Not for a morning that's already free: it would say the apps are asleep when they aren't.
+    const free = facts.unlockedMornings?.includes(key) || (facts.armedSince && facts.armedSince >= end);
+    if (protection === 'on' && prefs.morning && end > now && !free) {
       plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });
     }
   }
@@ -319,11 +326,14 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
     if ((await getNotificationPermission()) !== 'granted') return;
 
     const stored = hasRoutine();
+    const armed = getArmedNight();
     const plan = planNotifications({
       routine: stored || !routine ? getRoutine() : routine,
       pending: stored ? getPendingRoutine() : null,
       protection: getProtection(),
-      armed: getArmedNight() !== null,
+      armed: armed !== null,
+      armedSince: armed ? armedSince(armed) : null,
+      unlockedMornings: getProofs().map((p) => p.morningKey),
       trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),
       now: new Date(),

@@ -3,8 +3,15 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { armTonight } from '@/features/onboarding/arm';
-import { askForNotifications, onNotificationTap, opensWakeScreen, shouldAskForNotifications } from '@/lib/notifications';
-import { settleSubscription } from '@/lib/lock-controller';
+import { onLockChange, settleSubscription } from '@/lib/lock-controller';
+import { getProofs } from '@/lib/morning-proof';
+import {
+  askForNotifications,
+  onNotificationTap,
+  opensWakeScreen,
+  rescheduleNotifications,
+  shouldAskForNotifications,
+} from '@/lib/notifications';
 import { isEntitled, onEntitled } from '@/lib/purchases';
 import { hasRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
@@ -64,10 +71,22 @@ export function useAppStart(): void {
     return () => sub.remove();
   }, []);
 
+  // A morning just unlocked (wake-up, pass, emergency unlock): its "apps stay asleep"
+  // notification must not fire.
+  useEffect(() => {
+    let proofs = getProofs().length;
+    return onLockChange(() => {
+      if (getProofs().length === proofs) return;
+      proofs = getProofs().length;
+      rescheduleNotifications().catch(() => {});
+    });
+  }, []);
+
   useEffect(
     () =>
       onNotificationTap((identifier) => {
-        if (opensWakeScreen(identifier) && hasRoutine()) router.push('/wake');
+        // navigate, not push: a second tap while the wake screen is open doesn't stack another.
+        if (opensWakeScreen(identifier) && hasRoutine()) router.navigate('/wake');
       }),
     [],
   );

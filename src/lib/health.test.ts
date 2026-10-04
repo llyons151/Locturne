@@ -59,6 +59,13 @@ test('windows that ran with no shield up are flagged', () => {
   assert.equal(nights[0].verdict, 'noShield');
 });
 
+test('an empty bedtime list is flagged even while the always list keeps a shield up', () => {
+  const empty = (when: Date): Heartbeat => ({ ...start(when, true), nightPicked: false });
+  assert.equal(check([empty(at(3, 23))], at(4, 8))[0].verdict, 'noShield');
+  const picked = (when: Date): Heartbeat => ({ ...start(when, true), nightPicked: true });
+  assert.equal(check([picked(at(3, 23))], at(4, 8))[0].verdict, 'onTime');
+});
+
 test('entries from the library log (shield unknown) still count as ran', () => {
   assert.equal(check([start(at(3, 23), null)], at(4, 8))[0].verdict, 'onTime');
 });

@@ -28,8 +28,9 @@ export function useLock(): LockState {
     };
   }, []);
 
-  // Wake up at the next boundary. setTimeout can't wait longer than about 24.8 days.
-  const nextChange = state.nextChange.getTime();
+  // Wake up at the next boundary, or when a Block now ends. setTimeout can't wait longer
+  // than about 24.8 days.
+  const nextChange = Math.min(state.nextChange.getTime(), state.blockNowUntil?.getTime() ?? Infinity);
   useEffect(() => {
     const ms = Math.min(Math.max(0, nextChange - Date.now()) + 500, 2 ** 31 - 1);
     const id = setTimeout(() => syncLock(), ms);

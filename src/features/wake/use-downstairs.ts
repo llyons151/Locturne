@@ -1,4 +1,4 @@
-import { Barometer } from 'expo-sensors';
+import { Barometer, Pedometer } from 'expo-sensors';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
@@ -33,7 +33,9 @@ export function useDownstairs() {
     (async () => {
       try {
         if (Platform.OS !== 'ios' || !(await Barometer.isAvailableAsync())) return setAccess('unavailable');
-        const permission = await Barometer.getPermissionsAsync();
+        // Barometer has no permission calls of its own (expo-sensors answers "granted"); the
+        // altimeter needs Motion & Fitness, which Pedometer's calls really ask iOS about.
+        const permission = await Pedometer.getPermissionsAsync();
         if (!cancelled) setAccess(permission.granted || permission.canAskAgain ? 'ready' : 'denied');
       } catch {
         if (!cancelled) setAccess('unavailable');
@@ -45,10 +47,24 @@ export function useDownstairs() {
   }, []);
 
   const stop = useCallback(() => stopRef.current(), []);
+  // Start waits on iOS's permission answer: a second tap, or leaving the screen meanwhile,
+  // must not leave a listener running.
+  const starting = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const start = useCallback(async () => {
+    if (starting.current) return;
+    starting.current = true;
     stop();
-    const permission = await Barometer.requestPermissionsAsync().catch(() => null);
+    const permission = await Pedometer.requestPermissionsAsync().catch(() => null);
+    starting.current = false;
+    if (!mounted.current) return;
     if (!permission?.granted) {
       setAccess('denied');
       return;

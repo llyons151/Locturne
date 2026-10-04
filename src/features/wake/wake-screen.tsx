@@ -15,6 +15,7 @@ import { proveMorning, readLock } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, toLockSettings } from '@/lib/routine';
+import { getScanCode } from '@/lib/scan';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
@@ -35,12 +36,17 @@ const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinu
  * Outside the morning it says why there's nothing to do: bedtime wins at night, and a
  * morning already proved stays proved.
  */
-export function WakeScreen({ method }: { method?: WakeMethodShown }) {
-  // The phone is in hand the whole time; don't let it lock mid-staircase.
+/** The phone is in hand the whole time; don't let it lock mid-staircase. Only while a method is up. */
+function StayAwake() {
   useKeepAwake();
+  return null;
+}
+
+export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   const insets = useSafeAreaInsets();
   const lock = useLock();
-  const [routine] = useState(() => getRoutine());
+  // Read each render: left open across a bedtime, the next morning uses the routine then in force.
+  const routine = getRoutine();
   const [shown, setShown] = useState<WakeMethodShown>(method ?? (routine.method === 'steps' ? 'steps' : 'downstairs'));
   const [unlocked, setUnlocked] = useState<LockState | null>(null);
 
@@ -72,9 +78,10 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   else if (lock.phase !== 'morning') content = <NotMorning state={lock} onClose={close} />;
   else {
     const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
+    // Only with a code to scan; pushed, so Back returns here.
     const scan =
-      routine.method === 'scan' ? (
-        <TextButton label="Scan your code instead" onPress={() => router.replace('/scan')} />
+      routine.method === 'scan' && getScanCode() ? (
+        <TextButton label="Scan your code instead" onPress={() => router.push('/scan?mode=morning')} />
       ) : null;
     // Steps can't be counted here at all: passes, the scan code and the emergency unlock.
     const stuck = <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />;
@@ -105,6 +112,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + Space.l }]}
       showsVerticalScrollIndicator={false}
     >
+      {!unlocked && lock.phase === 'morning' ? <StayAwake /> : null}
       <TopBar label={unlocked || lock.phase === 'day' ? 'Today' : 'This morning'} onClose={close} />
       {content}
     </ScrollView>

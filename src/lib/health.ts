@@ -32,7 +32,8 @@ const EARLY_SLACK = 2 * MINUTE;
  * - `onTime`: a bedtime window started within `ON_TIME_GRACE` minutes of bedtime.
  * - `late`: the first window to run was a later one, so the apps slept late.
  * - `missed`: no window ran at all that night.
- * - `noShield`: windows ran, but nothing was shielded afterwards.
+ * - `noShield`: windows ran, but the bedtime list was empty (or, in older entries, nothing was
+ *   shielded afterwards).
  * - `unknown`: the log doesn't reach back that far, so there's no telling.
  */
 export type NightVerdict = 'onTime' | 'late' | 'missed' | 'noShield' | 'unknown';
@@ -132,7 +133,8 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     const first = ran[0];
     let verdict: NightVerdict;
     if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
-    else if (ran.every((h) => h.shielded === false)) verdict = 'noShield';
+    // An empty bedtime list puts nothing to sleep, even with another list's shield up.
+    else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) verdict = 'noShield';
     else verdict = first.at <= start.getTime() + ON_TIME_GRACE * MINUTE ? 'onTime' : 'late';
 
     checks.push({

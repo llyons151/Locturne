@@ -246,6 +246,8 @@ const ACTIONS_FOR_LIST = 'shieldActionsForSelection_';
 
 /** The bedtime shield, copied in by the monitor extension at each night window's start. */
 export const NIGHT_SHIELD = 'locturne-night';
+/** The morning shield, copied onto the bedtime list by the extension when the last window ends. */
+export const MORNING_SHIELD = 'locturne-morning';
 
 function shieldConfig({ title, subtitle, button }: ShieldText) {
   return {
@@ -297,6 +299,15 @@ export function setShieldText(text: ShieldText, tap: ShieldTap = null) {
 export function setNightShieldText(text: ShieldText) {
   if (!isAvailable()) return;
   updateShieldWithId(shieldConfig(text), shieldActions(null), NIGHT_SHIELD);
+}
+
+/**
+ * The words, and the tap that sends the open-Locturne notification, that the monitor
+ * extension puts on the bedtime apps at morning start with Locturne closed.
+ */
+export function setMorningShieldText(text: ShieldText, tap: ShieldTap) {
+  if (!isAvailable()) return;
+  updateShieldWithId(shieldConfig(text), shieldActions(tap), MORNING_SHIELD);
 }
 
 /** What's armed, kept in the App Group so it survives the app being closed. */
@@ -544,11 +555,18 @@ const PENDING_LISTS_KEY = 'locturne.pendingLists';
 
 export const draftId = (list: StandingList): DraftId => `${list}-next`;
 
-function getPendingLists(): Partial<Record<StandingList, { from: number }>> {
-  return sharedGet<Partial<Record<StandingList, { from: number }>>>(PENDING_LISTS_KEY) ?? {};
+/**
+ * `empty`: the edit removes every app. Only this flag means "empty the list" at bedtime; a
+ * missing draft alone means another settle (the extension's, at the same moment) got there
+ * first, and the list is left as it is.
+ */
+type PendingList = { from: number; empty?: boolean };
+
+function getPendingLists(): Partial<Record<StandingList, PendingList>> {
+  return sharedGet<Partial<Record<StandingList, PendingList>>>(PENDING_LISTS_KEY) ?? {};
 }
 
-function setPending(list: StandingList, pending: { from: number } | null): void {
+function setPending(list: StandingList, pending: PendingList | null): void {
   const all = { ...getPendingLists() };
   if (pending) all[list] = pending;
   else delete all[list];
@@ -597,6 +615,14 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
   const draft = draftId(list);
   const live = { activitySelectionId: list };
   const next = { activitySelectionId: draft };
+  const waiting = getPendingLists()[list];
+  // The live list is empty because an emergency unlock parked its picks in the draft for the
+  // rest of tonight (`pauseNightUntil`). Copying the draft live now would put the bedtime
+  // apps back to sleep in a paused night; it stays the list from the next bedtime instead.
+  if (selectionSize(list) === 0 && waiting) {
+    setPending(list, { from: Math.min(waiting.from, takeEffectAt.getTime()), empty: selectionSize(draft) === 0 });
+    return 'bedtime';
+  }
   if (selectionSize(list) === 0 || (selectionSize(draft) > 0 && isSubsetOf(live, next))) {
     copySelection(draft, list);
     clearSelection(draft);
@@ -604,7 +630,7 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
     return 'now';
   }
   if (selectionSize(draft) > 0) union(live, next, { persistAsActivitySelectionId: list, stripToken: true });
-  setPending(list, { from: takeEffectAt.getTime() });
+  setPending(list, { from: takeEffectAt.getTime(), empty: selectionSize(draft) === 0 });
   return 'bedtime';
 }
 
@@ -614,11 +640,15 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
  */
 export function settleListChanges(now = new Date()): StandingList[] {
   const settled: StandingList[] = [];
-  for (const [list, pending] of Object.entries(getPendingLists()) as [StandingList, { from: number }][]) {
-    if (pending.from > now.getTime()) continue;
-    if (hasSelection(list)) unshield(list);
-    copySelection(draftId(list), list);
-    clearSelection(draftId(list));
+  for (const list of Object.keys(getPendingLists()) as StandingList[]) {
+    // Read again for each list: the monitor extension may have settled it a moment ago.
+    const pending = getPendingLists()[list];
+    if (!pending || pending.from > now.getTime()) continue;
+    if (hasSelection(draftId(list)) || pending.empty) {
+      if (hasSelection(list)) unshield(list);
+      copySelection(draftId(list), list);
+      clearSelection(draftId(list));
+    }
     setPending(list, null);
     settled.push(list);
   }
@@ -711,17 +741,41 @@ export function removeLimit(id: LimitId): void {
 }
 
 /**
+ * A limit used up on an earlier day is lifted by its window's midnight start in the monitor
+ * extension. If iOS skipped that (the phone was off at midnight), its apps would stay asleep
+ * all day while the app says the limit isn't used up. Backstop: lift it here.
+ */
+function liftYesterdaysLimits(now: Date): void {
+  if (!isAvailable()) return;
+  let lifted = false;
+  for (const limit of getLimits()) {
+    const day = sharedGet<string>(usedUpKey(limit.id));
+    if (day === undefined || day === dateKey(now)) continue;
+    userDefaultsRemove(usedUpKey(limit.id));
+    unshield(limit.id);
+    lifted = true;
+  }
+  if (lifted) reapplyStandingBlocks();
+}
+
+/**
  * Applies everything loosened that was waiting for a bedtime that has now passed: list
  * removals, then looser or removed limits. Run when the app opens; until then the stricter
  * setting simply stays, which is the safe side.
  */
 export async function settleLimitChanges(now = new Date()): Promise<void> {
+  liftYesterdaysLimits(now);
   const lists = settleListChanges(now);
   const settled = settleLimits(getLimits(), now);
   if (!lists.length && !settled.rearm.length && !settled.removed.length) return;
-  saveLimits(settled.limits);
   for (const id of settled.removed) removeLimit(id);
-  for (const limit of settled.rearm) await armLimit(limit, { fresh: true });
+  saveLimits(getLimits().filter((l) => !settled.removed.includes(l.id)));
+  // Each looser limit is saved only once iOS has it. If iOS refuses, it stays pending, the
+  // stricter one keeps being enforced (the safe side), and the next open tries again.
+  for (const limit of settled.rearm) {
+    await armLimit(limit, { fresh: true });
+    saveLimits(getLimits().map((l) => (l.id === limit.id ? limit : l)));
+  }
   // A limit whose apps changed at bedtime: hand iOS the new picks.
   for (const limit of settled.limits) {
     if (lists.includes(limit.id) && !settled.rearm.includes(limit)) await armLimit(limit);

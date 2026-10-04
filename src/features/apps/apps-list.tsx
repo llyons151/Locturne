@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -45,6 +45,7 @@ import {
   getArmedNight,
   getLimits,
   isScreenTimeAvailable,
+  isStoodDown,
   limitUsedUpToday,
   listChangeStarts,
   reapplyStandingBlocks,
@@ -135,16 +136,19 @@ function LiveAppsList() {
   const [limitError, setLimitError] = useState<string | null>(null);
 
   const saveAndArm = async (next: DailyLimit[], arm?: DailyLimit) => {
+    setLimitError(null);
+    if (arm) {
+      try {
+        await armLimit(arm);
+      } catch {
+        // Never imply a limit is on when iOS refused it (GAME_PLAN, "Reliability"): the old
+        // limits stay saved, since they're what iOS is still enforcing.
+        setLimitError("iOS wouldn't start that limit. Try again in a moment.");
+        return;
+      }
+    }
     saveLimits(next);
     setLimits(next);
-    setLimitError(null);
-    if (!arm) return;
-    try {
-      await armLimit(arm);
-    } catch {
-      // Never imply a limit is on when iOS refused it (GAME_PLAN, "Reliability").
-      setLimitError("iOS wouldn't start that limit. Try again in a moment.");
-    }
   };
 
   /** Stricter edits start now; looser ones wait for bedtime (`editLimit`). */
@@ -197,6 +201,8 @@ function LiveAppsList() {
   };
 
   const access = protection === 'on' ? 'approved' : 'off';
+  // No subscription: picks and limits are kept, but nothing sleeps (standDown).
+  const unpaid = access === 'approved' && isStoodDown();
 
   return (
     <>
@@ -208,11 +214,13 @@ function LiveAppsList() {
             Apps
           </Text>
           <Text style={styles.summary}>
-            {access === 'approved'
-              ? `${countPicks(sizes.night.size)} sleep at bedtime, ${countPicks(sizes.always.size)} stay asleep all day.`
-              : protection === 'off'
-                ? "Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again."
-                : 'Locturne needs Screen Time access to put apps to sleep.'}
+            {unpaid
+              ? 'No subscription, so nothing here sleeps. Your picks and limits are kept for when you’re back.'
+              : access === 'approved'
+                ? `${countPicks(sizes.night.size)} sleep at bedtime, ${countPicks(sizes.always.size)} stay asleep all day.`
+                : protection === 'off'
+                  ? "Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again."
+                  : 'Locturne needs Screen Time access to put apps to sleep.'}
           </Text>
         </View>
 
@@ -225,6 +233,11 @@ function LiveAppsList() {
           </View>
         ) : (
           <>
+            {unpaid ? (
+              <View style={styles.group}>
+                <EditRow label="See plans" onPress={() => router.push('/onboarding?resume=paywall')} />
+              </View>
+            ) : null}
             {LIVE_GROUPS.map((group) => (
               <View key={group.key} style={styles.section}>
                 <Text style={styles.sectionLabel}>{group.label}</Text>

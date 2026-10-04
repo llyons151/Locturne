@@ -40,7 +40,8 @@
   KEYS.concat('ref').forEach(function (k) {
     if (tags[k] && form.elements[k]) form.elements[k].value = tags[k];
   });
-  form.elements.t.value = String(Date.now());
+  // How long the form was open, by this page's own clock (the device's time of day can be off).
+  var opened = performance.now();
 
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -60,6 +61,7 @@
       body[key] = typeof value === 'string' ? value : '';
     });
     body.email = email;
+    body.t = String(Math.round(performance.now() - opened));
 
     fetch(form.action, {
       method: 'POST',

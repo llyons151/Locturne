@@ -66,6 +66,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     limitUsedUpToday: () => false,
     setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),
     setNightShieldText: () => {},
+    setMorningShieldText: () => {},
     disarmNight: () => {
       calls.push('disarm');
       live = 0;

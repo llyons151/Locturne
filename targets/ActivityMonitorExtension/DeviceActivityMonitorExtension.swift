@@ -86,6 +86,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       eventName: nil
     )
 
+    showLocturneMorningShield(activity: activity.rawValue)
+
     persistToUserDefaults(
       activityName: activity.rawValue,
       callbackName: "intervalDidEnd"
@@ -283,6 +285,9 @@ let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
 let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
 let LOCTURNE_ROUTINE_KEY = "locturne.routine"
 let LOCTURNE_STOOD_DOWN_KEY = "locturne.stoodDown"
+let LOCTURNE_ARMED_KEY = "locturne.armedNight"
+/// The morning words and their tap, kept fresh by the app (`MORNING_SHIELD` in screen-time.ts).
+let LOCTURNE_MORNING_SHIELD = "locturne-morning"
 let LOCTURNE_HEARTBEAT_KEEP = 100
 
 /// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts. Always the
@@ -327,6 +332,29 @@ func locturneNightIsOn(_ now: Date = Date()) -> Bool {
   // Calendar weekdays run 1 (Sunday) to 7; `Date.getDay()` runs 0 (Sunday) to 6.
   let weekday = calendar.component(.weekday, from: evening) - 1
   return nights.contains { $0.intValue == weekday }
+}
+
+/// The last night window ends at morning start. With the night still held, the bedtime apps
+/// now show the morning's words, whose button sends the notification that opens the wake-up
+/// screen, even if Locturne stayed closed all night. Only the words change: nothing is
+/// shielded here, so a night that was off or already unlocked is untouched.
+@available(iOS 15.0, *)
+func showLocturneMorningShield(activity: String, now: Date = Date()) {
+  guard activity.hasPrefix(LOCTURNE_NIGHT_PREFIX),
+    userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true,
+    let armed = userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY),
+    let morningStart = (armed["morningStart"] as? NSNumber)?.intValue
+  else { return }
+  let time = Calendar.current.dateComponents([.hour, .minute], from: now)
+  let minute = (time.hour ?? 0) * 60 + (time.minute ?? 0)
+  // iOS may call a little early or late; earlier windows end at least 15 minutes before.
+  let sinceMorning = (minute - morningStart + 1440) % 1440
+  guard sinceMorning <= 30 || sinceMorning >= 1440 - 5 else { return }
+  updateShield(
+    shieldId: LOCTURNE_MORNING_SHIELD,
+    triggeredBy: "locturne_\(activity)_morning",
+    activitySelectionId: "night"
+  )
 }
 
 /// Shields always-blocked, the night lock, a running nap and limits used up today. Only adds.
@@ -391,15 +419,20 @@ func settleLocturneLists(triggeredBy: String) {
       from <= now
     else { continue }
 
-    if let old = getFamilyActivitySelectionById(id: list) {
-      unblockSelection(removeSelection: old, triggeredBy: triggeredBy)
+    // Only an explicit `empty` empties the list. A missing draft alone means the app settled
+    // it a moment ago, and the list is already right (`settleListChanges` in screen-time.ts).
+    let next = getFamilyActivitySelectionById(id: "\(list)-next")
+    if next != nil || (entry["empty"] as? Bool) == true {
+      if let old = getFamilyActivitySelectionById(id: list) {
+        unblockSelection(removeSelection: old, triggeredBy: triggeredBy)
+      }
+      if let next = next {
+        setFamilyActivitySelectionById(id: list, activitySelection: next)
+      } else {
+        removeFamilyActivitySelectionById(id: list)
+      }
+      removeFamilyActivitySelectionById(id: "\(list)-next")
     }
-    if let next = getFamilyActivitySelectionById(id: "\(list)-next") {
-      setFamilyActivitySelectionById(id: list, activitySelection: next)
-    } else {
-      removeFamilyActivitySelectionById(id: list)
-    }
-    removeFamilyActivitySelectionById(id: "\(list)-next")
     pending.removeValue(forKey: list)
     changed = true
   }
@@ -416,11 +449,18 @@ func settleLocturneLists(triggeredBy: String) {
 /// with src/lib/heartbeat.ts.
 @available(iOS 15.0, *)
 func recordLocturneHeartbeat(activity: String, callback: String) {
+  // Whether the bedtime list has anything to put to sleep. `shielded` alone can't tell: the
+  // always list keeps a shield up even when the bedtime list is empty.
+  let night = getFamilyActivitySelectionById(id: "night")
+  let nightPicks =
+    (night?.applicationTokens.count ?? 0) + (night?.categoryTokens.count ?? 0)
+    + (night?.webDomainTokens.count ?? 0)
   let entry: [String: Any] = [
     "activity": activity,
     "callback": callback,
     "at": (Date().timeIntervalSince1970 * 1000).rounded(),
     "shielded": isShieldActive(),
+    "nightPicked": nightPicks > 0,
   ]
   var log: [Any] = [entry]
   if let earlier = userDefaults?.array(forKey: LOCTURNE_HEARTBEAT_KEY) {

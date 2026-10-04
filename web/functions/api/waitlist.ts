@@ -7,7 +7,8 @@
  *
  * Spam protection, kept light on purpose:
  * - a honeypot field (`company`) that people never see; bots that fill it get a fake success
- * - a time trap: a form sent under 1.5 s after the page loaded is treated the same way
+ * - a time trap: a form sent under 1.5 s after the page loaded is treated the same way. The
+ *   page measures that itself (`t`, in ms), so a phone whose clock is off can't trip it
  * - same-origin only: a browser POST from another site is refused
  * - size limits on the body and on every field
  * For heavier abuse, add a Cloudflare rate-limiting rule on /api/waitlist (see README).
@@ -47,6 +48,8 @@ export function normalizeEmail(raw: unknown): string | null {
   const email = raw.trim().toLowerCase();
   if (email.length < 6 || email.length > 254) return null;
   if (!EMAIL.test(email)) return null;
+  // A cell starting with one of these is a formula when the export is opened in a spreadsheet.
+  if (/^[=+\-@]/.test(email)) return null;
   const [local] = email.split('@');
   if (local.length > 64) return null;
   return email;
@@ -66,6 +69,8 @@ function cleanHost(raw: unknown): string | null {
 }
 
 async function readFields(request: Request): Promise<Record<string, unknown> | null> {
+  // Refuse a big body before reading it; the check after reading covers a missing header.
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY) return null;
   const text = await request.text();
   if (text.length > MAX_BODY) return null;
   const type = request.headers.get('content-type') ?? '';
@@ -122,8 +127,10 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
 
   // Bots: pretend it worked, store nothing.
   if (typeof fields.company === 'string' && fields.company.trim() !== '') return reply(request, 200);
-  const loadedAt = Number(fields.t);
-  if (Number.isFinite(loadedAt) && loadedAt > 0 && Date.now() - loadedAt < MIN_FILL_MS) return reply(request, 200);
+  // Milliseconds from page load to submit, measured by the page. A page cached from before
+  // sends a clock time instead, which is never this small, so it passes.
+  const elapsed = Number(fields.t);
+  if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < MIN_FILL_MS) return reply(request, 200);
 
   const email = normalizeEmail(fields.email);
   if (!email) return reply(request, 400, 'invalid_email');

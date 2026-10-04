@@ -93,6 +93,24 @@ test('an edit waiting for bedtime applies from its first night', () => {
   assert.deepEqual(summary(plan({ pending })), ['bedtime 3 22:45', 'morning 4 7:0', 'bedtime 4 21:45', 'morning 5 6:0']);
 });
 
+test('no morning promise for a morning already unlocked, or one whose night was armed too late', () => {
+  // An emergency unlock at 2am on the 4th records that morning as unlocked.
+  assert.deepEqual(summary(plan({ now: at(4, 2), days: 1, unlockedMornings: ['2026-10-04'] })), [
+    'bedtime 4 22:45',
+    'morning 5 7:0',
+  ]);
+  // Onboarded at 7:30 on the 4th, after that morning began: it's free, the next isn't.
+  assert.deepEqual(summary(plan({ now: at(4, 2), days: 1, armedSince: at(4, 7, 30) })), [
+    'bedtime 4 22:45',
+    'morning 5 7:0',
+  ]);
+  assert.deepEqual(summary(plan({ now: at(4, 2), days: 1, armedSince: at(3, 20) })), [
+    'morning 4 7:0',
+    'bedtime 4 22:45',
+    'morning 5 7:0',
+  ]);
+});
+
 test('access off: the warning becomes the revoked one, and no morning promise', () => {
   const off = plan({ protection: 'off' });
   assert.deepEqual(

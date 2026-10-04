@@ -31,6 +31,7 @@ import {
   peekNap,
   reapplyStandingBlocks,
   selectionSize,
+  setMorningShieldText,
   setNightShieldText,
   setShieldText,
   sharedGet,
@@ -223,5 +224,7 @@ function applyShieldText(state: LockState, now: Date): void {
   const routine = getRoutine(now);
   const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
   setShieldText(shieldTextFor(state, routine, now, limitReached), shieldTap(state.phase));
-  setNightShieldText(shieldCopy('night', getPendingRoutine(now)?.routine ?? routine));
+  const next = getPendingRoutine(now)?.routine ?? routine;
+  setNightShieldText(shieldCopy('night', next));
+  setMorningShieldText(shieldCopy('morning', next), shieldTap('morning'));
 }

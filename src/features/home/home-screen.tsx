@@ -13,7 +13,7 @@ import { useHealth } from '@/hooks/use-health';
 import { getNightPause } from '@/lib/emergency';
 import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
 import { tap } from '@/lib/haptics';
-import type { Routine, WakeMethod } from '@/lib/routine';
+import { getPendingRoutine, type Routine, type WakeMethod } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
 import { isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
@@ -183,6 +183,7 @@ export function HomeScreen() {
             nextChange={lock.nextChange}
             detail={health.detail}
             pausedUntil={pause}
+            blockNowUntil={lock.blockNowUntil}
           />
           {first && view !== 'unprotected' ? <FirstNote first={first} /> : null}
           {health.level === 'attention' && view !== 'unprotected' && !preview ? (
@@ -275,6 +276,7 @@ function Status({
   nextChange,
   detail,
   pausedUntil,
+  blockNowUntil,
 }: {
   view: HomeView;
   routine: Routine;
@@ -282,6 +284,8 @@ function Status({
   /** health.ts's plain explanation, shown as is when protection is off. */
   detail: string;
   pausedUntil: Date | null;
+  /** A Block now running: during the day it's what's asleep, so it's what the status says. */
+  blockNowUntil: Date | null;
 }) {
   const bedtime = clockLabel(routine.bedtime);
   const wake = clockLabel(routine.morningStart);
@@ -329,12 +333,24 @@ function Status({
       </View>
     );
   }
-  const tonightOn = nightIsOn(nextChange, routine);
+  if (blockNowUntil) {
+    const until = clockLabel(blockNowUntil.getHours() * 60 + blockNowUntil.getMinutes());
+    return (
+      <View style={styles.statusRow}>
+        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={15} tintColor={Nocturne.text2} />
+        <Text style={[styles.status, styles.flex]}>Block now: apps asleep until {until}</Text>
+      </View>
+    );
+  }
+  // An edit waiting for bedtime governs tonight from its first night.
+  const pending = getPendingRoutine();
+  const tonight = pending && pending.from <= nextChange.getTime() ? pending.routine : routine;
+  const tonightOn = nightIsOn(nextChange, tonight);
   return (
     <View style={styles.statusRow}>
       <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
       <Text style={[styles.status, styles.flex]}>
-        {tonightOn ? `Apps awake until ${bedtime}` : 'Apps awake. Tonight is off.'}
+        {tonightOn ? `Apps awake until ${clockLabel(tonight.bedtime)}` : 'Apps awake. Tonight is off.'}
       </Text>
     </View>
   );
