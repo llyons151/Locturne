@@ -91,9 +91,14 @@ export const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 const UNIT_DAYS: Record<string, number> = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 };
 
-/** A RevenueCat public Apple key, or null for the placeholder (then the dev stub runs). */
-export function revenueCatKey(raw: unknown): string | null {
-  return typeof raw === 'string' && /^(appl|test)_[A-Za-z0-9]+$/.test(raw.trim()) ? raw.trim() : null;
+/**
+ * A RevenueCat public Apple key, or null for the placeholder (then the dev stub runs).
+ * `allowTestStore: false` (release builds) also refuses `test_` keys: the Test Store never
+ * charges, and Apple rejects it.
+ */
+export function revenueCatKey(raw: unknown, { allowTestStore = true } = {}): string | null {
+  const pattern = allowTestStore ? /^(appl|test)_[A-Za-z0-9]+$/ : /^appl_[A-Za-z0-9]+$/;
+  return typeof raw === 'string' && pattern.test(raw.trim()) ? raw.trim() : null;
 }
 
 /** Free days in an intro offer, or null when it's not free (a paid intro isn't a trial). */
@@ -289,9 +294,10 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     async isEntitled() {
       return (await latest()).active;
     },
-    async trialStartedAt() {
+    async currentTrialEnd() {
+      // In a trial, the entitlement expires when the trial first charges.
       const record = await latest().catch(() => undefined);
-      return record?.active && record.trialStartedAt ? new Date(record.trialStartedAt) : null;
+      return record?.active && record.trialStartedAt && record.expiresAt ? new Date(record.expiresAt) : null;
     },
     async currentPlan() {
       const record = await latest().catch(() => undefined);

@@ -4,8 +4,8 @@
  * does, and only after purchase.
  */
 import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder } from '@/lib/notifications';
-import { ATTRIBUTES, setAttributes, trialStartedAt } from '@/lib/purchases';
-import { DEFAULT_ROUTINE, saveRoutine } from '@/lib/routine';
+import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
+import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import type { Answers } from './content';
@@ -27,8 +27,11 @@ const EXIT_OFFER_SHOWN_KEY = 'locturne.exitOfferShown';
  * the paywall.
  */
 export function saveSetup(answers: Answers): void {
+  // Onboarding only asks for these three, so a rerun (or the paywall reopened from You) keeps
+  // the nights off and step goal set on the Routine tab.
+  const current = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : DEFAULT_ROUTINE;
   saveRoutine({
-    ...DEFAULT_ROUTINE,
+    ...current,
     bedtime: answers.bedtime,
     morningStart: answers.wake,
     method: answers.method ?? DEFAULT_ROUTINE.method,
@@ -44,7 +47,7 @@ export function saveSetup(answers: Answers): void {
 export function saveTrialReminder(on: boolean): void {
   sharedSet(TRIAL_REMINDER_KEY, on);
   const scheduled = on
-    ? trialStartedAt().then((start) => (start ? scheduleTrialReminder(start) : undefined))
+    ? currentTrialEnd().then((end) => (end ? scheduleTrialReminder(end) : undefined))
     : cancelTrialReminder();
   scheduled.catch(() => {});
 }

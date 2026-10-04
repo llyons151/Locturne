@@ -11,6 +11,7 @@ import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { formatPreset } from '@/features/onboarding/time-wheel';
 import * as haptic from '@/lib/haptics';
+import { syncLock } from '@/lib/lock-controller';
 import {
   endNap,
   getAccess,
@@ -18,8 +19,9 @@ import {
   hasSelection,
   isNightHeld,
   isScreenTimeAvailable,
+  isStoodDown,
+  NapClockChangeError,
   selectionSize,
-  setShieldText,
   startNap,
   type ActiveNap,
 } from '@/lib/screen-time';
@@ -76,6 +78,7 @@ type Nap = ActiveNap;
 function blocker(list: List): string | null {
   if (!isScreenTimeAvailable()) return 'Naps need Screen Time, which only iPhone has.';
   if (getAccess() !== 'approved') return 'Turn on Screen Time access first.';
+  if (isStoodDown()) return 'Block now needs a subscription. Subscribe from the You tab.';
   if (list === 'night' && !hasSelection('night')) return 'Pick your bedtime apps on the Apps tab first.';
   if (list === 'block' && !hasSelection('block')) return 'Pick the apps for this nap first.';
   if (list === 'night' && isNightHeld()) return 'Your bedtime apps are already asleep.';
@@ -134,7 +137,8 @@ export function NapScreen() {
       setNow(t);
       if (nap && t >= nap.end) {
         haptic.done();
-        if (isScreenTimeAvailable()) getNap(); // tidies up if iOS hasn't yet
+        // Tidies up if iOS hasn't yet, and puts the shields' words back.
+        if (isScreenTimeAvailable()) syncLock();
         setNap(null);
         setLine('ended');
       }
@@ -156,18 +160,15 @@ export function NapScreen() {
     if (why) return;
     setStarting(true);
     try {
-      // Without this iOS shows its own "restricted" screen instead of Loc's.
-      setShieldText({
-        title: LINES.napping.replaceAll('*', ''),
-        subtitle: `Napping until ${timeOf(Date.now() + length * 60_000)}`,
-        button: 'Fine',
-      });
       const started = await startNap(list, length);
+      // Loc's Block now words on the shield (shield-copy.ts), unless the night or morning
+      // lock holds these apps too, whose words and morning tap matter more.
+      syncLock();
       setNow(Date.now());
       setNap(started);
       setLine('napping');
-    } catch {
-      setNotice("iOS wouldn't start the nap. Try again in a moment.");
+    } catch (error) {
+      setNotice(error instanceof NapClockChangeError ? error.message : "iOS wouldn't start the nap. Try again in a moment.");
     } finally {
       setStarting(false);
     }
@@ -175,6 +176,7 @@ export function NapScreen() {
   const wakeNow = () => {
     haptic.tap();
     endNap();
+    syncLock();
     setNap(null);
     setLine('woken');
   };

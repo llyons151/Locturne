@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,12 +11,14 @@ import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useStepCount } from '@/features/wake/use-step-count';
 import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
+import { settleSubscription } from '@/lib/lock-controller';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
 import { markPurchasePending } from '@/lib/pending-purchase';
 import {
   getOffers,
   isEntitled,
   isExitArm,
+  onEntitled,
   purchase,
   resolveExitArm,
   restore,
@@ -135,16 +137,30 @@ function progressFor(step: StepId): number | null {
  * arming tonight and Motion & Fitness. Off iOS (the web preview) Screen Time doesn't exist,
  * so those stand-ins remain (`simulate`), and the store is the dev stub in purchases.ts.
  */
-export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: string; exitOffer?: string }) {
+export function OnboardingFlow({
+  initialStep,
+  exitOffer,
+  resumeAtPaywall = false,
+}: {
+  initialStep?: string;
+  exitOffer?: string;
+  /** Open on the offer with the saved setup's times and method, skipping the quiz. */
+  resumeAtPaywall?: boolean;
+}) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const screenTimeHere = isScreenTimeAvailable();
-  const [history, setHistory] = useState<StepId[]>([isStep(initialStep) ? initialStep : 'hello']);
-  const [answers, setAnswers] = useState<Answers>(() => ({
-    ...initialAnswers,
-    ...(isStep(initialStep) && initialStep !== 'hello' ? PREVIEW_ANSWERS : {}),
-  }));
+  const [history, setHistory] = useState<StepId[]>([
+    resumeAtPaywall ? 'offer' : isStep(initialStep) ? initialStep : 'hello',
+  ]);
+  const [answers, setAnswers] = useState<Answers>(() => {
+    if (resumeAtPaywall) {
+      const saved = getRoutine();
+      return { ...initialAnswers, bedtime: saved.bedtime, wake: saved.morningStart, method: saved.method };
+    }
+    return { ...initialAnswers, ...(isStep(initialStep) && initialStep !== 'hello' ? PREVIEW_ANSWERS : {}) };
+  });
   const [simulated, setSimulated] = useState<Simulated | null>(null);
   // Set while editing a choice from the summary, so Continue returns there.
   const [returnTo, setReturnTo] = useState<StepId | null>(null);
@@ -337,8 +353,11 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
   };
   /** Saves the setup and arms. Only ever after a purchase or a restored subscription. */
   const finishSetup = () => {
+    // Bought or restored: anything stood down (an earlier subscription ended) comes back.
+    settleSubscription(true);
     saveSetup(answers);
-    saveTrialReminder(answers.plan === 'annual' && answers.remindTrial);
+    // Whatever was bought: a plan with no trial (monthly) just has no end to remind about.
+    saveTrialReminder(answers.remindTrial);
     setEntitled(true);
     setHistory(['armed']);
     runArm();
@@ -389,6 +408,12 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
       if (step === 'hello') go('bedtime');
     });
   };
+  // A purchase waiting for Ask to Buy can be approved while the paywall is still open: move
+  // on as if it had just gone through.
+  const approvedLater = useEffectEvent(() => {
+    if (PAYWALL.includes(step) || step === 'declined') finishSetup();
+  });
+  useEffect(() => onEntitled(approvedLater), []);
   const [motion, setMotion] = useState<MotionAccess | null>(null);
   const askMotion = async () => {
     if (!screenTimeHere) {

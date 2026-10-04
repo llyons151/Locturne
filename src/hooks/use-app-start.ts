@@ -1,32 +1,40 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import { armTonight } from '@/features/onboarding/arm';
 import { askForNotifications, onNotificationTap, opensWakeScreen, shouldAskForNotifications } from '@/lib/notifications';
+import { settleSubscription } from '@/lib/lock-controller';
 import { isEntitled, onEntitled } from '@/lib/purchases';
 import { hasRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
 
 /**
- * Arms tonight for someone with a saved routine, nothing armed, and a subscription: the
- * purchase was waiting (Ask to Buy, a bank check) and has gone through since, a restore
- * found one, or the night was lost. Nothing arms before purchase. `isEntitled` falls back
- * to the cached answer offline, so a paid user is re-armed without a network.
+ * Asks whether there's a subscription and acts on it (`settleSubscription`): without one,
+ * everything stands down from the next bedtime; with one, anything stood down comes back,
+ * and tonight is armed if nothing is: the purchase was waiting (Ask to Buy, a bank check)
+ * and has gone through since, a restore found one, or the night was lost. Nothing arms
+ * before purchase. `isEntitled` falls back to the cached answer offline, so a paid user
+ * keeps (and gets back) their lock without a network.
  */
 export function armIfPaid(): void {
-  if (!hasRoutine() || !isScreenTimeAvailable() || getArmedNight() || getAccess() !== 'approved') return;
-  if (selectionSize('night') === 0) return;
+  if (!hasRoutine() || !isScreenTimeAvailable()) return;
   isEntitled()
-    .then((paid) => (paid ? armTonight() : null))
+    .then((paid) => {
+      settleSubscription(paid);
+      if (!paid || getArmedNight() || getAccess() !== 'approved' || selectionSize('night') === 0) return;
+      return armTonight();
+    })
     .catch(() => {
-      // The App Store didn't answer and nothing is cached. The next launch asks again.
+      // The App Store didn't answer and nothing is cached. The next open asks again.
     });
 }
 
 /**
  * Once per launch, from the tabs (the root navigator is mounted by then):
  * - No saved routine yet: this is a first launch, so open onboarding.
- * - Otherwise `armIfPaid`.
+ * - Otherwise `armIfPaid`, and again each time the app comes back to the front, so a
+ *   subscription that ended is noticed (and one renewed or restored elsewhere too).
  *
  * - The first night has held or a morning was proven, and iOS hasn't asked yet: show iOS's
  *   notification prompt (GAME_PLAN: "Asked for after the first successful night").
@@ -50,6 +58,11 @@ export function useAppStart(): void {
   }, []);
 
   useEffect(() => onEntitled(armIfPaid), []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && armIfPaid());
+    return () => sub.remove();
+  }, []);
 
   useEffect(
     () =>

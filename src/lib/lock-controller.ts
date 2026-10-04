@@ -26,13 +26,19 @@ import {
   getNap,
   isNightHeld,
   isScreenTimeAvailable,
+  isStoodDown,
   limitUsedUpToday,
   peekNap,
   reapplyStandingBlocks,
   selectionSize,
   setNightShieldText,
   setShieldText,
+  sharedGet,
+  sharedRemove,
+  sharedSet,
   sleepApps,
+  standDown,
+  standUp,
   wakeApps,
 } from './screen-time.ts';
 import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
@@ -90,7 +96,15 @@ export function onLockChange(listener: (state: LockState) => void): () => void {
  * asleep while the app shows it as over).
  */
 export function syncLock(now = new Date()): LockState {
-  if (isScreenTimeAvailable()) getNap();
+  if (isScreenTimeAvailable()) {
+    getNap();
+    if (subscriptionEnded() && !isStoodDown()) {
+      const { phase } = readLock(now);
+      // An armed night or morning under way finishes as promised; the next sync after it
+      // (the morning's proof, or any open in the day) stands everything down.
+      if (!getArmedNight() || (phase !== 'night' && phase !== 'morning')) standDown();
+    }
+  }
   const state = readLock(now);
   if (isScreenTimeAvailable()) {
     const asleep = state.phase === 'night' || state.phase === 'morning';
@@ -111,6 +125,33 @@ export function syncLock(now = new Date()): LockState {
   }
   for (const listener of listeners) listener(state);
   return state;
+}
+
+const SUBSCRIPTION_ENDED_KEY = 'locturne.subscriptionEnded';
+
+/** No active subscription was found at the last check (never bought, or it ended). */
+export function subscriptionEnded(): boolean {
+  return sharedGet<number>(SUBSCRIPTION_ENDED_KEY) !== undefined;
+}
+
+/**
+ * The answer to "is there a subscription?", checked at every app open (`useAppStart`).
+ * Nothing blocks without one (GAME_PLAN). Without one, everything stands down from the next
+ * bedtime: a night or morning already under way finishes first, and nothing ever unlocks
+ * mid-night. With one again (renewed, restored, re-bought), the limits and the always list
+ * come back; the night is re-armed by `armIfPaid`.
+ */
+export function settleSubscription(paid: boolean, now = new Date()): void {
+  if (!isScreenTimeAvailable()) return;
+  if (paid) {
+    sharedRemove(SUBSCRIPTION_ENDED_KEY);
+    standUp().catch(() => {
+      // iOS refused a limit. It's saved, and the next open with a subscription tries again.
+    });
+    return;
+  }
+  if (!subscriptionEnded()) sharedSet(SUBSCRIPTION_ENDED_KEY, now.getTime());
+  syncLock(now);
 }
 
 /**

@@ -4,7 +4,7 @@ import { readHealth } from '@/hooks/use-health';
 import { getAllHeartbeats } from '@/lib/heartbeat';
 import { getProofs } from '@/lib/morning-proof';
 import { formatMinutes } from '@/lib/night-plan';
-import { getNotificationPermission, getScheduledNotifications, getTrialStart } from '@/lib/notifications';
+import { getNotificationPermission, getScheduledNotifications, getTrialEnd } from '@/lib/notifications';
 import { getPendingRoutine, getRoutine, hasRoutine, type Routine } from '@/lib/routine';
 import {
   armedWindowNames,
@@ -127,12 +127,12 @@ export async function readDiagnostics(now = new Date()): Promise<DiagnosticsSect
 
   const permission = await getNotificationPermission().catch(() => 'error');
   const scheduled = await getScheduledNotifications().catch(() => []);
-  const trial = getTrialStart();
+  const trial = getTrialEnd();
   sections.push({
     title: 'Notifications',
     rows: [
       ['Permission', permission],
-      ['Trial start', trial ? when(trial) : 'none'],
+      ['Trial ends', trial ? when(trial) : 'none'],
       ...(scheduled.length
         ? scheduled.map((n): [string, string] => [when(n.at), `${n.title} (${n.id.replace('locturne.', '')})`])
         : [['Scheduled', 'none'] as [string, string]]),

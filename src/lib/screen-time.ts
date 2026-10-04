@@ -214,8 +214,9 @@ export function reapplyStandingBlocks(): void {
   for (const id of heldLists()) shield(id);
 }
 
-/** Every list some rule holds asleep right now, that has apps in it. */
+/** Every list some rule holds asleep right now, that has apps in it. None without a subscription. */
 function heldLists(): SelectionId[] {
+  if (isStoodDown()) return [];
   const held: SelectionId[] = ['always'];
   if (isNightHeld()) held.push('night');
   const nap = readNap();
@@ -366,6 +367,47 @@ async function monitorNight(windows: NightWindow[], list: SelectionId): Promise<
   }
 }
 
+/*
+ * No subscription, nothing blocks (GAME_PLAN): never paid, or the subscription ended.
+ * `standDown` keeps every setting and pick, so `standUp` brings it all back on purchase or
+ * restore. The flag is in the App Group: the monitor extension's `reapplyLocturneBlocks`
+ * checks it too, so nothing is re-shielded with the app closed.
+ */
+const STOOD_DOWN_KEY = 'locturne.stoodDown';
+
+export function isStoodDown(): boolean {
+  return sharedGet<boolean>(STOOD_DOWN_KEY) === true;
+}
+
+/** Stops every window, Block now and limit, and wakes every list. Settings are kept. */
+export function standDown(): void {
+  if (!isAvailable()) return;
+  // First, so nothing below re-shields on its way out.
+  sharedSet(STOOD_DOWN_KEY, true);
+  disarmNight();
+  endNap();
+  for (const limit of getLimits()) {
+    stopMonitoring([limit.id]);
+    cleanUpAfterActivity(limit.id);
+    userDefaultsRemove(usedUpKey(limit.id));
+    unshield(limit.id);
+  }
+  unshield('always');
+  wakeApps('night');
+}
+
+/**
+ * Subscribed again: re-arms the daily limits and re-shields the always list. The night is
+ * armed by `armTonight` / `armIfPaid`, which arm only with a subscription.
+ */
+export async function standUp(): Promise<void> {
+  if (!isStoodDown()) return;
+  sharedRemove(STOOD_DOWN_KEY);
+  if (!isAvailable()) return;
+  for (const limit of getLimits()) await armLimit(limit);
+  reapplyStandingBlocks();
+}
+
 /** Stops every night window. Doesn't unshield anything already asleep. */
 export function disarmNight(): void {
   const names = armedWindowNames();
@@ -403,6 +445,13 @@ export type ActiveNap = { start: number; end: number; list: 'night' | 'block' };
 const NAP_KEY = 'locturne.nap';
 const NAP_ACTIVITY = 'locturne-nap';
 
+/** A Block now that would run across the clock going back an hour. */
+export class NapClockChangeError extends Error {
+  constructor() {
+    super('The clocks go back during that nap. Try a time that ends before 1 AM or starts after 2 AM.');
+  }
+}
+
 function clockOf(ms: number) {
   const d = new Date(ms);
   return { hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() };
@@ -414,8 +463,16 @@ function clockOf(ms: number) {
  * closed. iOS refuses windows under 15 minutes, which the shortest nap already meets.
  */
 export async function startNap(list: ActiveNap['list'], minutes: number): Promise<ActiveNap> {
+  if (isStoodDown()) throw new Error('Block now needs a subscription.');
   const start = Date.now();
   const nap: ActiveNap = { start, end: start + minutes * 60_000, list };
+  // iOS reads the window as clock times. Across the autumn clock change the end's clock time
+  // can come before the start's (01:50 + 15 min = 01:05), which iOS takes as tomorrow: the
+  // apps would sleep for about a day. Or it lands in the repeated hour, which iOS may read
+  // as the first one, ending early. (In spring the clock span is an hour longer, which is fine.)
+  const wall = (c: { hour: number; minute: number }) => c.hour * 60 + c.minute;
+  const span = (wall(clockOf(nap.end)) - wall(clockOf(start)) + 1440) % 1440;
+  if (span < minutes || span > minutes + 60) throw new NapClockChangeError();
   configureActions({
     activityName: NAP_ACTIVITY,
     callbackName: 'intervalDidEnd',
@@ -610,7 +667,8 @@ export function limitUsedUpToday(id: LimitId): boolean {
  */
 export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promise<void> {
   const selection = getFamilyActivitySelectionId(limit.id);
-  if (!selection) return;
+  // Without a subscription the limit is only saved; `standUp` arms it.
+  if (!selection || isStoodDown()) return;
   // A looser limit starts again from what's been used today, so forget today's used-up mark.
   if (fresh) userDefaultsRemove(usedUpKey(limit.id));
   configureActions({

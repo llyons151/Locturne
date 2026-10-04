@@ -110,25 +110,27 @@ test('before access is set up or a night is armed, nothing about nights', () => 
 
 test('the trial reminder is at noon, at least 2 days before the trial ends', () => {
   const DAY = 24 * 60 * 60_000;
-  for (const hour of [0, 8, 12, 13, 23]) {
-    const start = at(3, hour, 30);
-    const reminder = planTrialReminder(start, start)!;
-    const ends = start.getTime() + 7 * DAY;
-    assert.equal(reminder.at.getHours(), 12);
-    assert.ok(ends - reminder.at.getTime() >= 2 * DAY, `started ${hour}:30`);
-    assert.ok(ends - reminder.at.getTime() < 3 * DAY, `started ${hour}:30`);
+  for (const days of [7, 14]) {
+    for (const hour of [0, 8, 12, 13, 23]) {
+      const start = at(3, hour, 30);
+      const ends = new Date(start.getTime() + days * DAY);
+      const reminder = planTrialReminder(ends, start)!;
+      assert.equal(reminder.at.getHours(), 12);
+      assert.ok(+ends - +reminder.at >= 2 * DAY, `${days} days, started ${hour}:30`);
+      assert.ok(+ends - +reminder.at < 3 * DAY, `${days} days, started ${hour}:30`);
+    }
   }
-  assert.equal(planTrialReminder(at(3, 9), at(9, 9)), null);
+  assert.equal(planTrialReminder(at(10, 9), at(9, 9)), null);
   // It joins the plan, even with nothing armed.
   assert.deepEqual(
-    plan({ armed: false, trialStart: at(3, 9) }).map((n) => n.kind),
+    plan({ armed: false, trialEnd: at(10, 9) }).map((n) => n.kind),
     ['trial'],
   );
 });
 
 test('switched-off kinds are left out, but the revoked warning always stays', () => {
   const off = { bedtime: false, morning: false, trial: false };
-  assert.deepEqual(plan({ prefs: off, trialStart: at(3, 9) }), []);
+  assert.deepEqual(plan({ prefs: off, trialEnd: at(10, 9) }), []);
   assert.deepEqual(summary(plan({ prefs: { ...off, morning: true } })), ['morning 4 7:0', 'morning 5 7:0']);
   assert.deepEqual(
     plan({ prefs: off, protection: 'off' }).map((n) => n.kind),
@@ -137,7 +139,7 @@ test('switched-off kinds are left out, but the revoked warning always stays', ()
 });
 
 test('copy stays in his voice: no exclamation marks', () => {
-  const all = [...plan(), ...plan({ protection: 'off' }), planTrialReminder(at(3, 9), at(3, 9))!];
+  const all = [...plan(), ...plan({ protection: 'off' }), planTrialReminder(at(10, 9), at(3, 9))!];
   for (const n of all) assert.ok(!/!/.test(n.title + n.body), n.title);
 });
 

@@ -32,8 +32,6 @@ export const ID_PREFIX = 'locturne.';
 export const BEDTIME_WARNING = 15;
 /** How far ahead to schedule. Each night is two notifications at most. */
 export const DAYS_AHEAD = 8;
-/** The annual plan's trial (GAME_PLAN, Money). */
-export const TRIAL_DAYS = 7;
 /** The paywall promises a reminder 2 days before the trial ends. */
 export const TRIAL_REMINDER_DAYS_BEFORE = 2;
 
@@ -88,8 +86,8 @@ export type PlanFacts = {
   protection: Protection;
   /** Whether a night is armed with iOS. Unarmed (before purchase, say), nothing will sleep. */
   armed: boolean;
-  /** When the trial started, if one did and a reminder was asked for. */
-  trialStart?: Date | null;
+  /** When the trial first charges, if one is running and a reminder was asked for. */
+  trialEnd?: Date | null;
   /** Which kinds the person wants. All of them when left out. */
   prefs?: NotificationPrefs;
   now: Date;
@@ -137,18 +135,17 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     }
   }
 
-  const trial = facts.trialStart && prefs.trial ? planTrialReminder(facts.trialStart, now) : null;
+  const trial = facts.trialEnd && prefs.trial ? planTrialReminder(facts.trialEnd, now) : null;
   if (trial) plan.push(trial);
   return plan.sort((a, b) => +a.at - +b.at);
 }
 
 /**
- * The day-5 reminder: local noon, at least `TRIAL_REMINDER_DAYS_BEFORE` days before the
- * trial ends, so the paywall's promise holds whatever time the trial started. Null once
- * that moment has passed.
+ * The trial reminder: local noon, at least `TRIAL_REMINDER_DAYS_BEFORE` days before the
+ * trial ends (`ends`, from the store: 7 days, or 14 on the exit offer), so the paywall's
+ * promise holds whatever time the trial started. Null once that moment has passed.
  */
-export function planTrialReminder(trialStart: Date, now: Date): PlannedNotification | null {
-  const ends = new Date(trialStart.getTime() + TRIAL_DAYS * DAY_MS);
+export function planTrialReminder(ends: Date, now: Date): PlannedNotification | null {
   const latest = new Date(ends.getTime() - TRIAL_REMINDER_DAYS_BEFORE * DAY_MS);
   let at = atMinute(latest, 12 * 60);
   if (at > latest) at = atMinute(latest, 12 * 60, -1);
@@ -201,7 +198,7 @@ export function onNotificationTap(open: (identifier: string) => void): () => voi
 /* Talking to iOS. Everything below is a no-op off iPhone. */
 
 const isIOS = () => Platform.OS === 'ios';
-const TRIAL_KEY = 'locturne.trialStart';
+const TRIAL_KEY = 'locturne.trialEnd';
 const PREFS_KEY = 'locturne.notificationPrefs';
 let configured = false;
 
@@ -252,20 +249,22 @@ export async function askForNotifications(): Promise<boolean> {
   return granted;
 }
 
-/** The stored trial start, if a reminder is wanted. */
-export function getTrialStart(): Date | null {
+/** The stored trial end, if a reminder is wanted. */
+export function getTrialEnd(): Date | null {
   const ms = sharedGet<number>(TRIAL_KEY);
   return typeof ms === 'number' ? new Date(ms) : null;
 }
 
 /**
- * Remembers the trial start and schedules the reminder 2 days before it ends. Purchases
- * call this when a trial starts with "Remind me" on. Kept in the App Group, so every
- * reschedule keeps it, including the one after permission is granted later.
+ * Remembers the trial end and schedules the reminder 2 days before it. Purchases call this
+ * when a trial starts with "Remind me" on. Kept in the App Group, so every reschedule keeps
+ * it. "Remind me" is asking for a notification, so iOS's prompt shows here if it hasn't yet;
+ * without that the paywall's promise could silently not happen.
  */
-export async function scheduleTrialReminder(trialStart: Date): Promise<void> {
-  sharedSet(TRIAL_KEY, trialStart.getTime());
-  await rescheduleNotifications();
+export async function scheduleTrialReminder(trialEnd: Date): Promise<void> {
+  sharedSet(TRIAL_KEY, trialEnd.getTime());
+  if ((await getNotificationPermission()) === 'undetermined') await askForNotifications();
+  else await rescheduleNotifications();
 }
 
 /** The You tab's switches, as last saved. */
@@ -325,7 +324,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       pending: stored ? getPendingRoutine() : null,
       protection: getProtection(),
       armed: getArmedNight() !== null,
-      trialStart: getTrialStart(),
+      trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),
       now: new Date(),
     });

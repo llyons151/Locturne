@@ -282,6 +282,7 @@ let LOCTURNE_LIMIT_REACHED_PREFIX = "locturne.limitReached."
 let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
 let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
 let LOCTURNE_ROUTINE_KEY = "locturne.routine"
+let LOCTURNE_STOOD_DOWN_KEY = "locturne.stoodDown"
 let LOCTURNE_HEARTBEAT_KEEP = 100
 
 /// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts. Always the
@@ -329,8 +330,10 @@ func locturneNightIsOn(_ now: Date = Date()) -> Bool {
 }
 
 /// Shields always-blocked, the night lock, a running nap and limits used up today. Only adds.
+/// Nothing at all without a subscription (`standDown` in src/lib/screen-time.ts).
 @available(iOS 15.0, *)
 func reapplyLocturneBlocks(triggeredBy: String) {
+  if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true { return }
   var held = ["always"]
 
   if userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true {

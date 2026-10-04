@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { rollUpHealth, type Health } from '@/lib/health';
+import { subscriptionEnded } from '@/lib/lock-controller';
 import { readNightChecks } from '@/lib/heartbeat';
 import { isPurchasePending } from '@/lib/pending-purchase';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -18,6 +19,7 @@ export function readHealth(now = new Date()): Health {
     routine: getRoutine(now),
     nights: readNightChecks(now),
     purchasePending: isPurchasePending(now.getTime()),
+    unsubscribed: subscriptionEnded(),
     now,
   });
 }

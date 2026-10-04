@@ -17,11 +17,24 @@ let live = 0;
 let nightPicks = 3;
 let shieldTexts: { title: string; tap: boolean }[] = [];
 let napTidies = 0;
+let stoodDown = false;
 
 mock.module(new URL('./screen-time.ts', import.meta.url).href, {
   namedExports: {
     sharedGet: (key: string) => store.get(key),
     sharedSet: (key: string, value: unknown) => store.set(key, value),
+    sharedRemove: (key: string) => store.delete(key),
+    isStoodDown: () => stoodDown,
+    standDown: () => {
+      calls.push('standDown');
+      stoodDown = true;
+      armed = null;
+      live = 0;
+    },
+    standUp: async () => {
+      calls.push('standUp');
+      stoodDown = false;
+    },
     isScreenTimeAvailable: () => true,
     getAccess: () => 'approved',
     isNightHeld: () => nightHeld,
@@ -64,7 +77,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
 /** The controller reads the clock only through `now`, except `armedAt` in the fake. */
 let clock = 0;
 
-const { syncLock, readLock, proveMorning, armRoutine } = await import('./lock-controller.ts');
+const { syncLock, readLock, proveMorning, armRoutine, settleSubscription, subscriptionEnded } = await import('./lock-controller.ts');
 const { saveRoutine, DEFAULT_ROUTINE } = await import('./routine.ts');
 const { recordProof, getProofs } = await import('./morning-proof.ts');
 
@@ -75,6 +88,7 @@ beforeEach(() => {
   store.clear();
   calls = [];
   shieldTexts = [];
+  stoodDown = false;
   nightHeld = false;
   armed = null;
   live = 0;
@@ -315,5 +329,37 @@ describe('armRoutine', () => {
     // The edit applies at that evening's bedtime: the night is off and the hold ends.
     assert.equal(syncLock(at(23, 30, 2)).phase, 'off');
     assert.ok(calls.includes('wake:night'));
+  });
+});
+
+describe('a subscription that ends', () => {
+  test('in the day: everything stands down at once (nothing was asleep until bedtime anyway)', async () => {
+    await armYesterday();
+    settleSubscription(false, at(16, 0, 0)); // the afternoon it was armed: before any bedtime
+    assert.ok(calls.includes('standDown'));
+    assert.ok(subscriptionEnded());
+  });
+
+  test('at night: tonight and its morning still hold, then it stands down after the proof', async () => {
+    await armYesterday();
+    nightHeld = true;
+    settleSubscription(false, at(2, 0, 2));
+    assert.ok(!calls.includes('standDown'));
+    syncLock(at(7, 30, 2));
+    assert.ok(!calls.includes('standDown'), 'the morning still asks for its wake-up');
+    proveMorning('steps', at(7, 40, 2));
+    assert.ok(calls.includes('standDown'));
+  });
+
+  test('never bought: stands down even at night, since nothing was armed', () => {
+    settleSubscription(false, at(2));
+    assert.ok(calls.includes('standDown'));
+  });
+
+  test('subscribed again: stands back up and forgets the end', async () => {
+    settleSubscription(false, at(15));
+    settleSubscription(true, at(16));
+    assert.ok(calls.includes('standUp'));
+    assert.equal(subscriptionEnded(), false);
   });
 });

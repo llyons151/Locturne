@@ -1,8 +1,8 @@
 import Constants from 'expo-constants';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,7 +16,7 @@ import { useProtection } from '@/hooks/use-protection';
 import {
   getNotificationPermission,
   getNotificationPrefs,
-  getTrialStart,
+  getTrialEnd,
   setNotificationPrefs,
   type NotificationPermission,
   type NotificationPrefs,
@@ -104,16 +104,24 @@ export function YouScreen() {
   useEffect(() => {
     getNotificationPermission().then(setPermission, () => {});
   }, []);
-  // Only someone in a trial has a reminder to switch off.
-  const inTrial = getTrialStart() !== null;
+  // Read again whenever the tab comes back into view: a pass spent on the exits screen or a
+  // trial that ended since must show here.
+  const read = () => ({
+    // Only someone in a trial has a reminder to switch off.
+    inTrial: (getTrialEnd()?.getTime() ?? 0) > Date.now(),
+    passesLeft: getPassesLeft(),
+  });
+  const [{ inTrial, passesLeft }, setFacts] = useState(read);
+  useFocusEffect(useCallback(() => setFacts(read()), []));
 
-  // Re-read on every render; the tab re-renders when it's focused again.
-  const passesLeft = getPassesLeft();
-
-  const [plan, setPlan] = useState<PlanId | null>(null);
-  useEffect(() => {
-    currentPlan().then(setPlan, () => {});
-  }, []);
+  // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
+  // Asked again on focus: the paywall may have just sold one.
+  const [plan, setPlan] = useState<PlanId | null | undefined>(undefined);
+  useFocusEffect(
+    useCallback(() => {
+      currentPlan().then(setPlan, () => {});
+    }, []),
+  );
   // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
   const manage = () => {
     const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
@@ -201,12 +209,22 @@ export function YouScreen() {
       </Section>
 
       <Section label="Subscription">
-        <ValueRow
-          icon={sym('creditcard.fill', 'credit_card')}
-          title="Manage subscription"
-          value={plan ? PLAN_LABEL[plan] : ''}
-          onPress={manage}
-        />
+        {plan === null ? (
+          // Left at the paywall, or the subscription ended: the plans, with the saved setup.
+          <ValueRow
+            icon={sym('creditcard.fill', 'credit_card')}
+            title="Subscribe"
+            value=""
+            onPress={() => router.push('/onboarding?resume=paywall')}
+          />
+        ) : (
+          <ValueRow
+            icon={sym('creditcard.fill', 'credit_card')}
+            title="Manage subscription"
+            value={plan ? PLAN_LABEL[plan] : ''}
+            onPress={manage}
+          />
+        )}
         <ValueRow
           icon={sym('arrow.clockwise', 'refresh')}
           title="Restore purchases"

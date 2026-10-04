@@ -161,6 +161,15 @@ test('rollUpHealth explains a purchase waiting for approval, and never says ok f
   assert.notEqual(roll({ purchasePending: true }).title, 'Waiting for approval.');
 });
 
+test('rollUpHealth says when nothing sleeps for want of a subscription, and offers the plans', () => {
+  const lapsed = roll({ armed: null, unsubscribed: true });
+  assert.equal(lapsed.title, 'No subscription, so nothing sleeps.');
+  assert.equal(lapsed.needsSubscription, true);
+  assert.notEqual(lapsed.level, 'ok');
+  // Tonight still armed (it ends after the coming morning): the normal status until then.
+  assert.equal(roll({ unsubscribed: true }).needsSubscription, undefined);
+});
+
 test('rollUpHealth flags the newest judged night, skipping unknown ones', () => {
   assert.equal(roll({ nights: [night('missed')] }).level, 'attention');
   assert.equal(roll({ nights: [night('noShield')] }).level, 'attention');

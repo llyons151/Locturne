@@ -188,6 +188,9 @@ export function HomeScreen() {
           {health.level === 'attention' && view !== 'unprotected' && !preview ? (
             <HealthNote title={health.title} detail={health.detail} />
           ) : null}
+          {health.needsSubscription && !preview ? (
+            <TextButton label="See plans" onPress={() => router.push('/onboarding?resume=paywall')} />
+          ) : null}
         </Animated.View>
 
         <View style={styles.flex} />

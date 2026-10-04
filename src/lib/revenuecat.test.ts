@@ -140,6 +140,8 @@ test('the key: only a real public Apple (or Test Store) key turns RevenueCat on'
   assert.equal(revenueCatKey('goog_abc123'), null);
   assert.equal(revenueCatKey(' appl_AbC123 '), 'appl_AbC123');
   assert.equal(revenueCatKey('test_AbC123'), 'test_AbC123');
+  assert.equal(revenueCatKey('test_AbC123', { allowTestStore: false }), null);
+  assert.equal(revenueCatKey('appl_AbC123', { allowTestStore: false }), 'appl_AbC123');
 });
 
 test('intro offers: free weeks and days count, paid intros are not trials', () => {
@@ -221,7 +223,7 @@ test('each target buys its own product, and a purchase entitles and caches', asy
   await rc.purchase('annual');
   assert.deepEqual(sdk.bought, [PRODUCT_IDS['longer-trial'], PRODUCT_IDS['half-price'], PRODUCT_IDS.monthly, PRODUCT_IDS.annual]);
   assert.equal(await rc.isEntitled(), true);
-  assert.equal((await rc.trialStartedAt())?.getTime(), 1000);
+  assert.equal((await rc.currentTrialEnd())?.getTime(), 1000 + 7 * DAY);
   assert.equal(await rc.currentPlan(), 'annual');
   assert.equal(store.get<EntitlementRecord>(ENTITLEMENT_KEY)?.active, true);
 });
@@ -245,7 +247,7 @@ test('Restore reports the subscription the store finds', async () => {
   sdk.info = customer({ productId: PRODUCT_IDS.monthly });
   assert.deepEqual(await rc.restore(), { entitled: true });
   assert.equal(await rc.currentPlan(), 'monthly');
-  assert.equal(await rc.trialStartedAt(), null);
+  assert.equal(await rc.currentTrialEnd(), null);
 });
 
 test('offline, the cached answer decides, with grace past the end date', async () => {

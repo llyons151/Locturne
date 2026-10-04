@@ -113,8 +113,11 @@ export interface PurchasesProvider {
   restore(): Promise<{ entitled: boolean }>;
   /** An active subscription, including a running trial. The lock arms only when true. */
   isEntitled(): Promise<boolean>;
-  /** When the current free trial began, or null outside a trial. For the day-5 reminder. */
-  trialStartedAt(): Promise<Date | null>;
+  /**
+   * When the current free trial first charges, or null outside a trial. The reminder is
+   * planned back from it, so a 14-day exit-offer trial gets its own date.
+   */
+  currentTrialEnd(): Promise<Date | null>;
   /** The plan behind the active subscription, or null without one. For the You tab. */
   currentPlan(): Promise<PlanId | null>;
   /**
@@ -216,7 +219,7 @@ export const DEV_CATALOG = {
 /** The stub's arm, and the one to ship if the test is stopped (GAME_PLAN: 14 days free leads). */
 export const DEFAULT_EXIT_ARM: ExitArm = 'longer-trial';
 
-type DevEntitlement = { target: PurchaseTarget; at: number; trialStartedAt: number | null };
+type DevEntitlement = { target: PurchaseTarget; at: number; trialEndsAt: number | null };
 const DEV_KEY = 'locturne.devEntitlement';
 
 export type DevPurchasesOptions = {
@@ -287,8 +290,9 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
       if (outcome !== 'purchased') return { status: outcome };
       const all = offers();
       const offer = target === 'annual' || target === 'monthly' ? all[target] : all.exitOffers[target];
-      const at = now().getTime();
-      store.set(DEV_KEY, { target, at, trialStartedAt: offer?.trialDays ? at : null } satisfies DevEntitlement);
+      const at = now();
+      const trialEnd = offer?.trialDays ? trialEndsAt(offer.trialDays, at).getTime() : null;
+      store.set(DEV_KEY, { target, at: at.getTime(), trialEndsAt: trialEnd } satisfies DevEntitlement);
       return { status: 'purchased' };
     },
     async restore() {
@@ -298,9 +302,9 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
     async isEntitled() {
       return entitlement() !== null;
     },
-    async trialStartedAt() {
-      const started = entitlement()?.trialStartedAt;
-      return started ? new Date(started) : null;
+    async currentTrialEnd() {
+      const ends = entitlement()?.trialEndsAt;
+      return ends ? new Date(ends) : null;
     },
     async currentPlan() {
       const target = entitlement()?.target;
@@ -330,10 +334,24 @@ export function setPurchasesProvider(next: PurchasesProvider): void {
 
 export const isStubbed = () => provider.stubbed;
 export const getOffers = () => provider.getOffers();
-export const purchase = (target: PurchaseTarget) => provider.purchase(target);
+let buying = false;
+/**
+ * Buys `target`. A second call while one is still with the App Store (a double tap lands in
+ * the same frame, before any busy state renders) resolves as `cancelled`, so it says nothing
+ * and starts no second purchase.
+ */
+export const purchase = async (target: PurchaseTarget): Promise<PurchaseResult> => {
+  if (buying) return { status: 'cancelled' };
+  buying = true;
+  try {
+    return await provider.purchase(target);
+  } finally {
+    buying = false;
+  }
+};
 export const restore = () => provider.restore();
 export const isEntitled = () => provider.isEntitled();
-export const trialStartedAt = () => provider.trialStartedAt();
+export const currentTrialEnd = () => provider.currentTrialEnd();
 export const currentPlan = () => provider.currentPlan();
 export const manageSubscriptions = () => provider.manageSubscriptions();
 export const setAttributes =(attributes: Record<string, string>) => provider.setAttributes(attributes);

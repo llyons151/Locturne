@@ -170,6 +170,8 @@ export type Health = {
   protection: Protection;
   /** The newest night the self-check could judge, or null. */
   lastNight: NightCheck | null;
+  /** The fix is subscribing: Home offers the plans. */
+  needsSubscription?: boolean;
   nights: NightCheck[];
 };
 
@@ -181,12 +183,14 @@ export type HealthFacts = {
   nights: NightCheck[];
   /** A purchase is waiting for approval (Ask to Buy), so nothing is armed yet on purpose. */
   purchasePending?: boolean;
+  /** The last check found no subscription (never bought, or it ended). */
+  unsubscribed?: boolean;
   now: Date;
 };
 
 const JUST_A_RACCOON = 'Until then I’m just a raccoon.';
 
-export function rollUpHealth({ protection, access, armed, routine, nights, purchasePending, now }: HealthFacts): Health {
+export function rollUpHealth({ protection, access, armed, routine, nights, purchasePending, unsubscribed, now }: HealthFacts): Health {
   const lastNight = nights.find((n) => n.verdict !== 'unknown') ?? null;
   const base = { protection, lastNight, nights };
 
@@ -238,6 +242,15 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       level: 'attention',
       title: 'Waiting for approval.',
       detail: 'Once the purchase is approved, I’ll schedule bedtime. Nothing sleeps until then.',
+    };
+  }
+  if (!armed && unsubscribed) {
+    return {
+      ...base,
+      level: 'attention',
+      title: 'No subscription, so nothing sleeps.',
+      detail: 'Your setup is saved. Subscribe and I’ll pick up where we left off.',
+      needsSubscription: true,
     };
   }
   if (!armed) {
