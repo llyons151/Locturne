@@ -1,0 +1,149 @@
+[
+ {
+  "step": "hello",
+  "ready_ms": 941
+ },
+ {
+  "step": "deal",
+  "ready_ms": 2699
+ },
+ {
+  "step": "nights",
+  "ready_ms": 1313
+ },
+ {
+  "step": "night-minutes",
+  "ready_ms": 329
+ },
+ {
+  "step": "nights-per-week(days)",
+  "ready_ms": 450
+ },
+ {
+  "step": "nights-per-week",
+  "ready_ms": 912
+ },
+ {
+  "step": "morning-minutes",
+  "ready_ms": 40
+ },
+ {
+  "step": "stat",
+  "ready_ms": 1197
+ },
+ {
+  "step": "found",
+  "ready_ms": 29
+ },
+ {
+  "step": "age",
+  "ready_ms": 1215
+ },
+ {
+  "step": "alarm",
+  "ready_ms": 28
+ },
+ {
+  "step": "tried",
+  "ready_ms": 315
+ },
+ {
+  "step": "tried-echo",
+  "ready_ms": 1197
+ },
+ {
+  "step": "time-back",
+  "ready_ms": 27
+ },
+ {
+  "step": "math(auto)+reveal mount",
+  "ready_ms": 4306
+ },
+ {
+  "step": "reveal payoff visible",
+  "ready_ms": 2
+ },
+ {
+  "step": "reveal",
+  "ready_ms": 924
+ },
+ {
+  "step": "bedtime",
+  "ready_ms": 926
+ },
+ {
+  "step": "wake",
+  "ready_ms": 916
+ },
+ {
+  "step": "method-pick",
+  "ready_ms": 30
+ },
+ {
+  "step": "method",
+  "ready_ms": 912
+ },
+ {
+  "step": "walk",
+  "ready_ms": 915
+ },
+ {
+  "step": "walk(fake 20 steps)",
+  "ready_ms": 9008
+ },
+ {
+  "step": "walk-done",
+  "ready_ms": 36
+ },
+ {
+  "step": "tomorrow",
+  "ready_ms": 926
+ },
+ {
+  "step": "screen-time",
+  "ready_ms": 923
+ },
+ {
+  "step": "apps",
+  "ready_ms": 910
+ },
+ {
+  "err": "pick TikTok"
+ },
+ {
+  "err": "pick YouTube"
+ },
+ {
+  "step": "picker",
+  "ready_ms": 28
+ },
+ {
+  "step": "apps-picked",
+  "ready_ms": 44
+ },
+ {
+  "step": "ready",
+  "ready_ms": 2700
+ },
+ {
+  "step": "commit(hold)",
+  "ready_ms": 3881
+ },
+ {
+  "total_to_commit_ms": 124737
+ },
+ {
+  "note": "hold not automatable on web; jumped to ?step=offer"
+ },
+ {
+  "step": "offer",
+  "ready_ms": 934
+ },
+ {
+  "step": "plans visible",
+  "ready_ms": 3
+ },
+ {
+  "total_ms": 128302
+ }
+]
