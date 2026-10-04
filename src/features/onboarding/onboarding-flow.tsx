@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,6 +53,7 @@ import { armTonight, type ArmResult } from './arm';
 import { initialAnswers, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { requestMotion, type MotionAccess } from './motion';
+import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
 import { markExitOfferShown, saveSetup, saveTrialReminder, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
@@ -63,16 +64,6 @@ import { FooterEnter, MoonSurface, Shell, StepEnter } from './ui';
 const WALK_EPOCH = new Date(0);
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
-/**
- * Steps that can be edited and then return: `bedtime`, `wake` and `apps` from the "Tonight's
- * lock is ready" summary, and `method` from the walk ("Pick another way" when there's no
- * step counter).
- */
-const EDITABLE: StepId[] = ['bedtime', 'wake', 'method', 'apps'];
-
-/** Screens that move on by themselves. Back steps over them. */
-const AUTO_ADVANCE: StepId[] = ['math'];
-
 /** The two paywall pages. Exit from either goes to `declined` instead of closing. */
 const PAYWALL: StepId[] = ['offer', 'plans'];
 
@@ -112,17 +103,6 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   apps: ['TikTok', 'Instagram', 'YouTube'],
 };
 
-function isStep(value: string | undefined): value is StepId {
-  return value === 'declined' || (STEPS as readonly string[]).includes(value ?? '');
-}
-
-function nextStep(step: StepId): StepId {
-  if (step === 'declined') return 'plans';
-  if (step === 'under-13') return 'alarm';
-  const index = STEPS.indexOf(step);
-  return STEPS[Math.min(index + 1, STEPS.length - 1)];
-}
-
 /** Head start so the bar never opens empty (endowed progress). */
 const PROGRESS_START = 0.08;
 /** Above 1, early steps fill more than late ones: fast-to-slow, which cuts drop-off. */
@@ -137,9 +117,9 @@ function progressFor(step: StepId): number | null {
 }
 
 /**
- * The onboarding as a stack of steps. This file owns where you are and how you move
- * (next, back, edit and return, the paywall exit) and every call out to iOS and the store;
- * steps.tsx owns what each step shows.
+ * The onboarding as a stack of steps. navigation.ts has the rules for moving (next, back,
+ * edit and return); this file runs them, owns the paywall exit and every call out to iOS
+ * and the store; steps.tsx owns what each step shows.
  *
  * On an iPhone the prompts are real: Screen Time access, Apple's app picker, the purchase,
  * arming tonight and Motion & Fitness. Off iOS (the web preview) Screen Time doesn't exist,
@@ -159,23 +139,18 @@ export function OnboardingFlow({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const screenTimeHere = isScreenTimeAvailable();
-  const [history, setHistory] = useState<StepId[]>([
-    resumeAtPaywall ? 'offer' : isStep(initialStep) ? initialStep : 'hello',
-  ]);
-  const [answers, setAnswers] = useState<Answers>(() => {
+  const [nav, dispatch] = useReducer(navigate, null, () => {
     if (resumeAtPaywall) {
       const saved = getRoutine();
-      return { ...initialAnswers, bedtime: saved.bedtime, wake: saved.morningStart, method: saved.method };
+      return startNav('offer', { ...initialAnswers, bedtime: saved.bedtime, wake: saved.morningStart, method: saved.method });
     }
-    return { ...initialAnswers, ...(isStep(initialStep) && initialStep !== 'hello' ? PREVIEW_ANSWERS : {}) };
+    const jump = isStep(initialStep) ? initialStep : 'hello';
+    return startNav(jump, { ...initialAnswers, ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}) });
   });
+  const { history, answers, returnTo } = nav;
   const [simulated, setSimulated] = useState<Simulated | null>(null);
-  // Set while editing a choice from the summary, so Continue returns there.
-  const [returnTo, setReturnTo] = useState<StepId | null>(null);
-  // The answers before that edit, so Back cancels it instead of keeping half a change.
-  const [beforeEdit, setBeforeEdit] = useState<Answers | null>(null);
 
-  const step = history[history.length - 1];
+  const step = currentStep(nav);
   const numbers = useMemo(
     () =>
       estimate({
@@ -270,41 +245,18 @@ export function OnboardingFlow({
     stepShown();
   }, [step, history.length]);
 
+  // navigation.ts has the rules; this adds the side effects.
   const go = (to: StepId) => {
     if (to === 'declined') markExitOfferShown();
-    setHistory((stack) => [...stack, to]);
+    dispatch({ type: 'go', to });
   };
-  const next = () => {
-    if (returnTo && EDITABLE.includes(step)) {
-      // Pop back to the summary instead of stacking another copy of it.
-      setHistory((stack) => stack.slice(0, stack.lastIndexOf(returnTo) + 1));
-      setReturnTo(null);
-      setBeforeEdit(null);
-      return;
-    }
-    go(nextStep(step));
-  };
-  const edit = (to: StepId) => {
-    setReturnTo(step);
-    setBeforeEdit(answers);
-    go(to);
-  };
-  // The age gate can't be re-answered with Back, and there's no way back to the paywall after purchase.
-  const back = history.length > 1 && step !== 'under-13'
+  const next = () => dispatch({ type: 'next' });
+  const edit = (to: StepId) => dispatch({ type: 'edit', to });
+  const back = canGoBack(nav)
     ? () => {
         cancelAdvance();
         wentBack.current = true;
-        if (returnTo && EDITABLE.includes(step)) {
-          if (beforeEdit) setAnswers(beforeEdit);
-          setReturnTo(null);
-          setBeforeEdit(null);
-        }
-        // Skip screens that advance on their own, or Back would bounce straight forward again.
-        setHistory((stack) => {
-          let to = stack.length - 1;
-          while (to > 1 && AUTO_ADVANCE.includes(stack[to - 1])) to -= 1;
-          return stack.slice(0, to);
-        });
+        dispatch({ type: 'back' });
       }
     : undefined;
   const exit = () => {
@@ -324,7 +276,7 @@ export function OnboardingFlow({
   // no offer). A second exit really exits.
   const leave = PAYWALL.includes(step) && exitArm !== 'none' && !history.includes('declined') ? () => go('declined') : exit;
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
-    setAnswers((current) => ({ ...current, [key]: value }));
+    dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelAdvance = () => {
@@ -436,7 +388,7 @@ export function OnboardingFlow({
     saveTrialReminder(answers.remindTrial);
     track('onboarding_completed', { via, depth: history.length });
     setEntitled(true);
-    setHistory(['armed']);
+    dispatch({ type: 'reset', to: 'armed' });
     runArm();
   };
   const buy = async (target: PurchaseTarget) => {

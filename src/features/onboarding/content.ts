@@ -6,6 +6,8 @@
 
 import type { WakeMethod } from '@/lib/routine';
 
+import type { StepId } from './navigation';
+
 export type Choice<T> = { label: string; value: T };
 
 export type Answers = {
@@ -50,40 +52,8 @@ export const initialAnswers: Answers = {
   remindTrial: true,
 };
 
-export const STEPS = [
-  'hello',
-  'deal',
-  'nights',
-  'night-minutes',
-  'nights-per-week',
-  'morning-minutes',
-  'stat',
-  // Attribution sits mid-quiz, at the break after the statistic, so it doesn't stall the
-  // build-up to the reveal.
-  'found',
-  'age',
-  'alarm',
-  'tried',
-  'tried-echo',
-  'time-back',
-  'math',
-  'reveal',
-  'bedtime',
-  'wake',
-  'method',
-  'walk',
-  'tomorrow',
-  'screen-time',
-  'apps',
-  'ready',
-  'commit',
-  'offer',
-  'plans',
-  'armed',
-  'first-morning',
-] as const;
-
-export type StepId = (typeof STEPS)[number] | 'declined' | 'under-13';
+/** The step order lives with the rules for moving through it. */
+export { STEPS, type StepId } from './navigation';
 
 /**
  * Steps that show the progress bar: the quiz and setup only. Welcome, offer and
