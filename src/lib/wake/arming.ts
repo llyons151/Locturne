@@ -42,11 +42,34 @@ function asSettings(t: ArmTimes): LockSettings {
 }
 
 /**
+ * The monitor extension reads the edit waiting for bedtime only from this long before it
+ * applies (`locturneNightIsOn` in DeviceActivityMonitorExtension.swift); before that, the
+ * routine in force decides whether a window's night is on.
+ */
+const EXTENSION_SLACK_MS = 2 * 60_000;
+
+/**
+ * Would the monitor extension shield at a window start at `t`, rather than skip it as a night
+ * that's off? It mirrors `locturneNightIsOn`: a window before morning start belongs to the
+ * evening before. A skipped window *unshields* the bedtime apps.
+ */
+function extensionShields(t: Date, routine: ArmTimes): boolean {
+  const minute = t.getHours() * 60 + t.getMinutes();
+  const evening = minute < routine.morningStart ? new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1) : t;
+  return routine.activeNights.includes(evening.getDay());
+}
+
+/**
  * Every moment between now and the edit at which the new windows would shield: each window
  * start, plus now itself if now falls inside one (iOS may run a window's start as soon as it
  * is registered). A moment is fine if the routine in force calls it night anyway, or if it
  * belongs to the new routine's night that runs past the edit (firing early there only
  * tightens). Otherwise it's a phantom night, and the answer is when the last one ends.
+ *
+ * Firing early only tightens if the extension shields. Until just before the edit applies it
+ * judges with the routine in force, so a window on an evening that routine has off is
+ * skipped, which wakes the bedtime apps: a morning not yet proven would unlock early, from
+ * bed (found by lock-controller.sim.test.ts). Those wait until the edit applies.
  */
 function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTimes, windows: NightWindow[]) {
   const moments = [now];
@@ -60,7 +83,12 @@ function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTime
   for (const t of moments) {
     const theirs = nightsAround(t, asSettings(target)).latest;
     if (t >= theirs.end) continue; // not inside a new night (only possible for `now`)
-    if (theirs.end.getTime() > from) continue; // the night the edit applies to
+    if (theirs.end.getTime() > from) {
+      // The night the edit applies to, unless the extension would skip this window.
+      const skipped = t.getTime() < from - EXTENSION_SLACK_MS && !extensionShields(t, active);
+      if (skipped && (!until || until.getTime() < from)) until = new Date(from);
+      continue;
+    }
     const ours = nightsAround(t, asSettings(active)).latest;
     if (t < ours.end) continue; // night under the routine in force anyway
     if (!until || theirs.end > until) until = theirs.end;

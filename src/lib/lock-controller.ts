@@ -102,7 +102,9 @@ export function syncLock(now = new Date()): LockState {
     if (subscriptionEnded() && !isStoodDown()) {
       const { phase } = readLock(now);
       // An armed night or morning under way finishes as promised; the next sync after it
-      // (the morning's proof, or any open in the day) stands everything down.
+      // (the morning's proof, or any open in the day) stands everything down. A later night
+      // or morning is ended by `settleSubscription`, which asks the store first, so an open
+      // after a renewal never stands down on a stale answer.
       if (!getArmedNight() || (phase !== 'night' && phase !== 'morning')) standDown();
     }
   }
@@ -130,6 +132,20 @@ export function syncLock(now = new Date()): LockState {
 
 const SUBSCRIPTION_ENDED_KEY = 'locturne.subscriptionEnded';
 
+/**
+ * The morning (`LockState.morningKey`) under way when the subscription was found ended. Only
+ * it, and the night leading into it, finish without one. Kept as the morning rather than a
+ * time, so a flight west (the same night starting later by the clock) never ends it early.
+ */
+const ENDED_MORNING_KEY = 'locturne.subscriptionEndedMorning';
+
+/** Is `morningKey` the morning that was under way when the subscription was found ended? */
+function underWayWhenEnded(morningKey: string): boolean {
+  const ended = sharedGet<string>(ENDED_MORNING_KEY);
+  // Recorded before this key existed: keep the old rule (finish whatever is under way).
+  return ended === undefined || ended === morningKey;
+}
+
 /** No active subscription was found at the last check (never bought, or it ended). */
 export function subscriptionEnded(): boolean {
   return sharedGet<number>(SUBSCRIPTION_ENDED_KEY) !== undefined;
@@ -146,12 +162,21 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
   if (!isScreenTimeAvailable()) return;
   if (paid) {
     sharedRemove(SUBSCRIPTION_ENDED_KEY);
+    sharedRemove(ENDED_MORNING_KEY);
     standUp().catch(() => {
       // iOS refused a limit. It's saved, and the next open with a subscription tries again.
     });
     return;
   }
-  if (!subscriptionEnded()) sharedSet(SUBSCRIPTION_ENDED_KEY, now.getTime());
+  const { morningKey } = readLock(now);
+  if (!subscriptionEnded()) {
+    sharedSet(SUBSCRIPTION_ENDED_KEY, now.getTime());
+    sharedSet(ENDED_MORNING_KEY, morningKey);
+  }
+  // Only the night or morning under way when the end was found finishes. A morning nobody
+  // proves lasts until the next bedtime, so without this every night after it would lock
+  // too, with no subscription.
+  if (!isStoodDown() && !underWayWhenEnded(morningKey)) standDown();
   syncLock(now);
 }
 
@@ -210,6 +235,12 @@ async function arm(now: Date): Promise<ArmResult> {
   }
   const { bedtime, morningStart } = plan.times;
   await armNight(plan.windows, 'night', { bedtime, morningStart });
+  // The subscription was found ended while iOS registered the windows, and everything stood
+  // down: nothing stays armed without one.
+  if (isStoodDown()) {
+    disarmNight();
+    return 'disarmed';
+  }
   if (readLock(now).phase === 'night' && selectionSize('night') > 0) sleepApps('night');
   syncLock(now);
   return 'armed';

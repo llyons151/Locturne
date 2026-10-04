@@ -14,7 +14,7 @@ import {
 } from '@/lib/notifications';
 import { isEntitled, onEntitled } from '@/lib/purchases';
 import { hasRoutine } from '@/lib/routine';
-import { getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
+import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
 
 /**
  * Asks whether there's a subscription and acts on it (`settleSubscription`): without one,
@@ -29,7 +29,7 @@ export function armIfPaid(): void {
   isEntitled()
     .then((paid) => {
       settleSubscription(paid);
-      if (!paid || getArmedNight() || getAccess() !== 'approved' || selectionSize('night') === 0) return;
+      if (!paid || getArmedNight() || getAccess() !== 'approved' || shownSelection('night').size === 0) return;
       return armTonight();
     })
     .catch(() => {

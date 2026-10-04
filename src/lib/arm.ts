@@ -8,7 +8,7 @@ import { armRoutine, readLock } from './lock-controller.ts';
 import { planNightWindows } from './night-plan.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
 import { getRoutine } from './routine.ts';
-import { armedWindowNames, getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from './screen-time.ts';
+import { armedWindowNames, getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from './screen-time.ts';
 
 export type ArmFailure = 'no-access' | 'no-apps' | 'too-short' | 'refused';
 
@@ -22,7 +22,9 @@ export type ArmResult =
 export async function armTonight(): Promise<ArmResult> {
   if (!isScreenTimeAvailable()) return { status: 'preview' };
   if (getAccess() !== 'approved') return { status: 'failed', reason: 'no-access' };
-  if (selectionSize('night') === 0) return { status: 'failed', reason: 'no-apps' };
+  // The picks as the Apps tab shows them: an emergency unlock parks them in the list's draft
+  // until the next bedtime (`pauseNightUntil`), and they're still the bedtime apps.
+  if (shownSelection('night').size === 0) return { status: 'failed', reason: 'no-apps' };
 
   // The routine in force. On a repeat run of onboarding, new times wait for bedtime.
   const routine = getRoutine();

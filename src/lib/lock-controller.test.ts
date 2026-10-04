@@ -18,6 +18,8 @@ let nightPicks = 3;
 let shieldTexts: { title: string; tap: boolean }[] = [];
 let napTidies = 0;
 let stoodDown = false;
+/** While set, `armNight` waits on it, like iOS registering windows over the bridge. */
+let armGate: Promise<void> | null = null;
 
 mock.module(new URL('./screen-time.ts', import.meta.url).href, {
   namedExports: {
@@ -52,6 +54,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     armedWindowNames: () => Array.from({ length: live }, (_, i) => `night-${i}`),
     armNight: async (windows: unknown[], list: string, times: { bedtime: number; morningStart: number }) => {
       calls.push(`arm:${list}:${windows.length}`);
+      if (armGate) await armGate;
       live = windows.length;
       const armedAt = new Date(clock).toISOString();
       armed = { ...times, windows: windows.length, armedAt, since: armed ? (armed.since ?? armed.armedAt) : armedAt };
@@ -90,6 +93,7 @@ beforeEach(() => {
   calls = [];
   shieldTexts = [];
   stoodDown = false;
+  armGate = null;
   nightHeld = false;
   armed = null;
   live = 0;
@@ -350,6 +354,72 @@ describe('a subscription that ends', () => {
     assert.ok(!calls.includes('standDown'), 'the morning still asks for its wake-up');
     proveMorning('steps', at(7, 40, 2));
     assert.ok(calls.includes('standDown'));
+  });
+
+  test('a morning nobody proves still ends at the next bedtime: the next night never starts', async () => {
+    // Found by the simulation (lock-controller.sim.test.ts, seed 24): with no proof the
+    // morning lasts until bedtime, and the next night is a night too, so it never stood down.
+    await armYesterday();
+    nightHeld = true;
+    settleSubscription(false, at(2, 0, 2));
+    settleSubscription(false, at(15, 0, 2)); // every open asks the store again
+    assert.ok(!calls.includes('standDown'), 'the unproven morning still holds through the day');
+    settleSubscription(false, at(23, 30, 2));
+    assert.ok(calls.includes('standDown'), 'the next night is not locked without a subscription');
+  });
+
+  test('found ended in the morning: that morning finishes, the one after does not', async () => {
+    await armYesterday();
+    nightHeld = true;
+    settleSubscription(false, at(9, 0, 2));
+    assert.ok(!calls.includes('standDown'));
+    settleSubscription(false, at(7, 30, 3));
+    assert.ok(calls.includes('standDown'));
+  });
+
+  test('renewed before the next open: a sync on the way in never stands down on the old answer', async () => {
+    // Found by the simulation (seed 165): on opening, `useLock` syncs before the store answers.
+    await armYesterday();
+    nightHeld = true;
+    settleSubscription(false, at(2, 0, 2));
+    syncLock(at(7, 30, 3)); // a later morning, but the store hasn't been asked yet
+    assert.ok(!calls.includes('standDown'));
+    settleSubscription(true, at(7, 30, 3));
+    assert.equal(readLock(at(7, 31, 3)).phase, 'morning', 'the renewed morning still asks for its wake-up');
+  });
+
+  test('a flight west mid-night never ends the night under way early', async () => {
+    // Found by the simulation (seed 156). Read in a zone further west, the same night starts
+    // later than the moment the end was found; it's still the night under way.
+    const zone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      await armYesterday();
+      nightHeld = true;
+      settleSubscription(false, new Date('2026-10-02T05:30:00Z')); // 01:30 in New York
+      process.env.TZ = 'America/Los_Angeles';
+      // 02:30 in Los Angeles: the same night (it began at 23:00 there, after the end was found).
+      settleSubscription(false, new Date('2026-10-02T09:30:00Z'));
+      assert.ok(!calls.includes('standDown'));
+      // The next night there is a new one, and never starts.
+      settleSubscription(false, new Date('2026-10-03T06:30:00Z')); // 23:30 in Los Angeles
+      assert.ok(calls.includes('standDown'));
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
+  });
+
+  test('found ended while iOS registers the windows: the arm backs out', async () => {
+    // Found by the simulation (seed 543): standing down under an arm left it armed anyway.
+    let release = () => {};
+    armGate = new Promise((resolve) => (release = resolve));
+    const arming = armRoutine(at(14, 0, 0));
+    settleSubscription(false, at(14, 0, 0));
+    assert.ok(calls.includes('standDown'));
+    release();
+    assert.equal(await arming, 'disarmed');
+    assert.equal(armed, null);
   });
 
   test('never bought: stands down even at night, since nothing was armed', () => {

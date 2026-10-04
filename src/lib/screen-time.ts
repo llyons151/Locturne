@@ -338,6 +338,11 @@ function hourMinute(minutes: number) {
  * the morning walk does that. Replaces whatever was armed before. If iOS refuses any
  * window, the new ones are stopped, the night that was armed before is handed back (so a
  * refused edit never leaves nothing armed) and the error is thrown, so it never half-arms.
+ *
+ * The record of the night armed before stays while iOS registers the new windows (one
+ * bridge call each). A sync in that gap must still see a night armed: without one, a morning
+ * not yet proven reads as free and wakes, and with no subscription everything stands down
+ * under the arm, which then finishes and arms anyway (found by lock-controller.sim.test.ts).
  */
 export async function armNight(
   windows: NightWindow[],
@@ -345,12 +350,13 @@ export async function armNight(
   times: { bedtime: number; morningStart: number },
 ): Promise<void> {
   const before = getArmedNight();
-  disarmNight();
+  stopNightWindows();
   try {
     await monitorNight(windows, list);
   } catch (error) {
-    disarmNight();
-    if (before) {
+    stopNightWindows();
+    // Unless something disarmed it meanwhile (standing down): then nothing comes back.
+    if (before && getArmedNight()) {
       // Keep the record even if iOS refuses these too: the morning stays locked, Home says
       // protection is off (`getProtection`), and the next sync tries again.
       userDefaultsSet(ARMED_KEY, before);
@@ -421,10 +427,15 @@ export async function standUp(): Promise<void> {
 
 /** Stops every night window. Doesn't unshield anything already asleep. */
 export function disarmNight(): void {
+  stopNightWindows();
+  userDefaultsRemove(ARMED_KEY);
+}
+
+/** Stops the night windows but keeps the record of what's armed, for a re-arm. */
+function stopNightWindows(): void {
   const names = armedWindowNames();
   if (names.length > 0) stopMonitoring(names);
   for (const name of names) cleanUpAfterActivity(name);
-  userDefaultsRemove(ARMED_KEY);
 }
 
 /** The night windows iOS is monitoring right now. */
@@ -618,9 +629,10 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
   const waiting = getPendingLists()[list];
   // The live list is empty because an emergency unlock parked its picks in the draft for the
   // rest of tonight (`pauseNightUntil`). Copying the draft live now would put the bedtime
-  // apps back to sleep in a paused night; it stays the list from the next bedtime instead.
+  // apps back to sleep in a paused night; it stays the list from the end of the pause
+  // instead, never earlier (an edit made with nothing armed would start at midnight).
   if (selectionSize(list) === 0 && waiting) {
-    setPending(list, { from: Math.min(waiting.from, takeEffectAt.getTime()), empty: selectionSize(draft) === 0 });
+    setPending(list, { from: waiting.from, empty: selectionSize(draft) === 0 });
     return 'bedtime';
   }
   if (selectionSize(list) === 0 || (selectionSize(draft) > 0 && isSubsetOf(live, next))) {
@@ -797,7 +809,9 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
 /**
  * Wakes the bedtime apps for the rest of tonight; they sleep again from `until` (the next
  * bedtime). If an edit to the list is already waiting, its draft is the list as it will be,
- * so it stays and only its start moves no later than `until`. Re-shields every other rule.
+ * so it stays and starts at `until` too: never later, since the live list is empty until
+ * then, and never earlier, which would end the pause in the middle of tonight (an edit made
+ * with nothing armed starts at midnight). Re-shields every other rule.
  */
 export function pauseNightUntil(until: Date, now = new Date()): void {
   if (!isAvailable()) return;
@@ -809,7 +823,7 @@ export function pauseNightUntil(until: Date, now = new Date()): void {
     clearSelection('night');
   }
   if (hasSelection(draftId('night'))) {
-    setPending('night', { from: Math.min(waiting?.from ?? Infinity, until.getTime()) });
+    setPending('night', { from: until.getTime() });
   }
   userDefaultsSet(NIGHT_HELD_KEY, false);
   reapplyStandingBlocks();

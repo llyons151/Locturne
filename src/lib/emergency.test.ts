@@ -114,6 +114,24 @@ test('a waiting edit to the bedtime list keeps its draft', () => {
   assert.equal(st.listChangeStarts('night')?.getTime(), BEDTIME.getTime());
 });
 
+test('a waiting edit due inside the paused night never ends the pause early', () => {
+  // Found by the simulation (lock-controller.sim.test.ts, seed 714): an edit made with nothing
+  // armed starts at midnight, and a pause from 23:30 took that start, re-shielding at 00:00.
+  fake.ids().night = 'old-and-new';
+  fake.ids()['night-next'] = 'new-picks';
+  const midnight = at(10, 7, 0);
+  fake.state.store['locturne.pendingLists'] = { night: { from: midnight.getTime() } };
+  asleep();
+  emergencyUnlock(at(10, 6, 23, 30));
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(10, 7, 23).getTime(), 'back at the next bedtime');
+  assert.deepEqual(st.settleListChanges(at(10, 7, 0, 30)), [], 'nothing comes back in the paused night');
+  assert.equal(fake.ids().night, undefined);
+  // Nor does a picker edit made in the paused night with an earlier start.
+  st.beginListEdit('night');
+  st.finishListEdit('night', at(10, 7, 1));
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(10, 7, 23).getTime());
+});
+
 test('in the morning: records the proof and wakes the bedtime apps', () => {
   asleep();
   const use = emergencyUnlock(at(10, 6, 8));

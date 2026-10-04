@@ -197,6 +197,27 @@ test('arming again replaces the old night instead of stacking', async () => {
   assert.deepEqual(st.armedWindowNames(), ['night-0', 'night-1']);
 });
 
+test('re-arming keeps the record of the night armed while iOS registers the new windows', async () => {
+  // Found by the simulation (lock-controller.sim.test.ts, seed 543): a sync in that gap read
+  // the morning as free, or stood everything down under the arm.
+  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  const before = st.getArmedNight();
+  const rearming = st.armNight(planNightWindows(22 * 60, 6 * 60), 'night', { bedtime: 22 * 60, morningStart: 6 * 60 });
+  assert.deepEqual(st.getArmedNight(), before, 'still armed while the bridge calls run');
+  await rearming;
+  assert.equal(st.getArmedNight()?.bedtime, 22 * 60);
+});
+
+test('a refused re-arm after everything stood down hands nothing back', async () => {
+  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  failOnStart = 'night-3';
+  const rearming = st.armNight(planNightWindows(22 * 60, 8 * 60), 'night', { bedtime: 22 * 60, morningStart: 8 * 60 });
+  st.disarmNight(); // standing down, while iOS was still registering
+  await assert.rejects(rearming);
+  assert.equal(st.getArmedNight(), null);
+  assert.deepEqual(st.armedWindowNames(), []);
+});
+
 test('if iOS refuses a window, nothing stays half-armed', async () => {
   failOnStart = 'night-3';
   await assert.rejects(st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES), /intervalTooShort/);

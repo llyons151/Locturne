@@ -112,4 +112,24 @@ describe('planArming', () => {
     // Even inside the new night already (22:00), since that night runs past the edit.
     assert.equal(planArming(at(22), usual, pending, armedFor(usual)).action, 'arm');
   });
+
+  test('an earlier bedtime on an evening that is off waits: the extension would skip it and wake the apps', () => {
+    // Found by the simulation (lock-controller.sim.test.ts, seed 193). Thursday evening is off,
+    // and this morning was never proven, so it stays locked until the old bedtime, 00:00.
+    // Windows from 22:30 would fire before the edit applies; the extension, still reading the
+    // routine in force, sees Thursday evening off and unshields the bedtime apps at 22:30.
+    const weekdays = [1, 3, 5];
+    const active = routine(0, 7 * H, weekdays);
+    const next = routine(22 * H + 30, 7 * H, weekdays);
+    const from = at(0, 0, 2); // Friday 00:00, the next bedtime under the routine in force
+    const pending = { routine: next, from: from.getTime() };
+    const plan = planArming(at(11), active, pending, armedFor(active));
+    assert.equal(plan.action, 'defer');
+    if (plan.action === 'defer') assert.deepEqual(plan.until, from);
+    // The same edit with Thursday evening on is armed: the early window only tightens.
+    const on = routine(0, 7 * H, [1, 3, 4, 5]);
+    assert.equal(planArming(at(11), on, { routine: { ...next, activeNights: [1, 3, 4, 5] }, from: from.getTime() }, armedFor(on)).action, 'arm');
+    // Once the edit applies, it's armed.
+    assert.equal(planArming(at(0, 1, 2), next, null, armedFor(active)).action, 'arm');
+  });
 });
