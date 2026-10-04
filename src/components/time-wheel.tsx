@@ -12,28 +12,18 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { useOnMoon } from '@/components/moon-surface';
 import { Reveal } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
+import { formatPreset } from '@/lib/text';
 import { Nocturne, Radius, Space, Type } from '@/theme';
 
-import { useOnMoon } from './ui';
-
-const DAY = 24 * 60;
 const HOURS = ['12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 const PERIODS = ['am', 'pm'];
 const SETTLE = { damping: 28, stiffness: 220, mass: 0.8 };
 /** How far a flick carries, in seconds of release velocity. */
 const FLICK_S = 0.22;
-
-/** 1410 → "11:30 pm", 540 → "9 am". */
-export function formatPreset(minutes: number) {
-  const m = ((minutes % DAY) + DAY) % DAY;
-  const h = Math.floor(m / 60);
-  const mins = m % 60;
-  const hour = HOURS[h % 12];
-  return `${mins ? `${hour}:${mins.toString().padStart(2, '0')}` : hour} ${h < 12 ? 'am' : 'pm'}`;
-}
 
 /** Scroll-wheel time picker (hour : minute am/pm) with a row of presets underneath. */
 export function TimeWheel({

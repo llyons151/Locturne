@@ -6,7 +6,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { PrimaryButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { noOrphan } from '@/lib/text';
-import { DisplayFont, italicOverhang, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
+import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 /**
  * The wake-up screens' shared pieces: his line, the body under it, the big number and the
@@ -32,27 +32,6 @@ export function Voice({ text }: { text: string }) {
 
 export function Body({ children }: { children: ReactNode }) {
   return <Text style={styles.body}>{children}</Text>;
-}
-
-/** The big upright number and its unit: "84" over "of 200 steps". */
-export function BigNumber({ value, caption }: { value: string; caption: string }) {
-  return (
-    <View>
-      <Text style={styles.number} maxFontSizeMultiplier={1.2}>
-        {value}
-      </Text>
-      <Text style={styles.caption}>{caption}</Text>
-    </View>
-  );
-}
-
-/** A horizontal progress track, 0–1. */
-export function Track({ progress }: { progress: number }) {
-  return (
-    <View style={styles.track}>
-      <View style={[styles.fill, { width: `${Math.min(1, Math.max(0, progress)) * 100}%` }]} />
-    </View>
-  );
 }
 
 /** The top bar: what this is, and the way out. */
@@ -90,10 +69,6 @@ const styles = StyleSheet.create({
   },
   emphasis: { fontStyle: 'normal' },
   body: { ...Type.body, color: Nocturne.text2 },
-  number: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 72, lineHeight: 80, fontVariant: ['tabular-nums'] },
-  caption: { ...Type.body, color: Nocturne.text2 },
-  track: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
   serious: { gap: Space.l },
 });

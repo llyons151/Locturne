@@ -4,15 +4,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppsCard, type LivePicks } from '@/components/app-picker';
 import { PrimaryButton, TextButton } from '@/components/buttons';
+import { DayPicker } from '@/components/day-picker';
 import { Reveal } from '@/components/motion';
 import { quizContentTop } from '@/components/night-sky';
+import { AgeWheel, TimeWheel } from '@/components/time-wheel';
+import type { ArmFailure, ArmResult } from '@/lib/arm';
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
 import type { WakeMethod } from '@/lib/routine';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
 import { AppleAlertPicture } from './apple-alert';
-import type { ArmFailure, ArmResult } from './arm';
 import {
   AGE_DEFAULT,
   AGE_MAX,
@@ -42,7 +44,6 @@ import {
   type StepId,
 } from './content';
 import type { MotionAccess } from './motion';
-import { DayPicker } from './day-picker';
 import {
   dateFromToday,
   formatClock,
@@ -57,7 +58,6 @@ import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { RevealScreen } from './screens/reveal-screen';
 import { WalkMeter } from './screens/walk-meter';
 import { TomorrowDemo } from './screens/tomorrow-demo';
-import { AgeWheel, TimeWheel } from './time-wheel';
 import { Body, Chip, Eyebrow, HoldButton, Options, page, PreviewNote, Title, Voice } from './ui';
 
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */

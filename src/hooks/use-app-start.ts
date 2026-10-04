@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
-import { armTonight } from '@/features/onboarding/arm';
+import { armTonight } from '@/lib/arm';
 import { onLockChange, settleSubscription } from '@/lib/lock-controller';
 import { getProofs } from '@/lib/morning-proof';
 import {

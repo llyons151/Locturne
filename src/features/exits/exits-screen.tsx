@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
-import { formatPreset } from '@/features/onboarding/time-wheel';
 import { track } from '@/lib/analytics';
 import { EMERGENCY_WAIT_SECONDS, emergencyUnlock, previewEmergency, type EmergencyPlan } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
@@ -14,6 +13,7 @@ import { readLock } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, spendPass, type PassRefusal } from '@/lib/passes';
 import { getScanCode } from '@/lib/scan';
+import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { Confirm } from './confirm';

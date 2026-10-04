@@ -5,6 +5,7 @@ import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppPickerSheet, PICKER_HEADER } from '@/components/app-picker';
+import { MoonSurface } from '@/components/moon-surface';
 import type { TextMotion } from '@/components/motion';
 import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
@@ -18,6 +19,7 @@ import {
   SUPER_QUESTIONS,
   track,
 } from '@/lib/analytics';
+import { armTonight, type ArmResult } from '@/lib/arm';
 import * as haptic from '@/lib/haptics';
 import { settleSubscription } from '@/lib/lock-controller';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
@@ -49,7 +51,6 @@ import {
 } from '@/lib/screen-time';
 import { Nocturne } from '@/theme';
 
-import { armTonight, type ArmResult } from './arm';
 import { initialAnswers, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { requestMotion, type MotionAccess } from './motion';
@@ -58,7 +59,7 @@ import { markExitOfferShown, saveSetup, saveTrialReminder, wasExitOfferShown } f
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { renderStep, type WalkState } from './steps';
-import { FooterEnter, MoonSurface, Shell, StepEnter } from './ui';
+import { FooterEnter, Shell, StepEnter } from './ui';
 
 /** Any fixed date: the walk's count is off until it starts. */
 const WALK_EPOCH = new Date(0);

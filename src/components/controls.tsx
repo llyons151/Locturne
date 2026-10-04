@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { StyleSheet, Switch, Text } from 'react-native';
 
+import { DayPicker } from '@/components/day-picker';
 import { ChoiceRow, ControlRow, EditSheet, Section, ValueRow } from '@/components/grouped-list';
-import { DayPicker } from '@/features/onboarding/day-picker';
-import { formatPreset, TimeWheel } from '@/features/onboarding/time-wheel';
+import { TimeWheel } from '@/components/time-wheel';
+import { formatPreset } from '@/lib/text';
 import { Nocturne, Type } from '@/theme';
 
 import {

@@ -8,11 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
+import { SwitchRow } from '@/components/controls';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
-import { LEGAL_URLS, SUPPORT_EMAIL } from '@/features/onboarding/content';
-import { SwitchRow } from '@/features/routine/controls';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
+import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
 import {
   getNotificationPermission,
   getNotificationPrefs,

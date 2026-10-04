@@ -4,11 +4,11 @@
  * arms. "Armed" is shown only when this resolves to `armed`, which means iOS accepted every
  * night window and reports them as monitored.
  */
-import { armRoutine, readLock } from '@/lib/lock-controller';
-import { planNightWindows } from '@/lib/night-plan';
-import { clearPurchasePending } from '@/lib/pending-purchase';
-import { getRoutine } from '@/lib/routine';
-import { armedWindowNames, getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from '@/lib/screen-time';
+import { armRoutine, readLock } from './lock-controller.ts';
+import { planNightWindows } from './night-plan.ts';
+import { clearPurchasePending } from './pending-purchase.ts';
+import { getRoutine } from './routine.ts';
+import { armedWindowNames, getAccess, getArmedNight, isScreenTimeAvailable, selectionSize } from './screen-time.ts';
 
 export type ArmFailure = 'no-access' | 'no-apps' | 'too-short' | 'refused';
 

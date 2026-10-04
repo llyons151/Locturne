@@ -2,12 +2,13 @@ import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
+import { Track } from '@/components/meter';
 import * as haptic from '@/lib/haptics';
 import { DOWNSTAIRS, heightProgress, holdProgress, type DownstairsSession } from '@/lib/wake/downstairs';
 import { downstairsLine } from '@/lib/wake/lines';
 import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
-import { Body, MotionOff, Track, Voice } from './parts';
+import { Body, MotionOff, Voice } from './parts';
 import { useDownstairs } from './use-downstairs';
 
 /**

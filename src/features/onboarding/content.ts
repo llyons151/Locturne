@@ -248,20 +248,6 @@ export function longerTrialVoice(days: number): string {
 }
 
 /**
- * The fine-print links, on locturne.com (web/, not deployed yet). Apple requires working Terms
- * (EULA) and Privacy links on the paywall and in App Store Connect before review, and the
- * support page is the listing's Support URL.
- */
-export const LEGAL_URLS = {
-  terms: 'https://locturne.com/terms',
-  privacy: 'https://locturne.com/privacy',
-  support: 'https://locturne.com/support',
-} as const;
-
-/** Where "Send feedback" goes. Set up the mailbox before review (docs/TODO.md, Website). */
-export const SUPPORT_EMAIL = 'hello@locturne.com';
-
-/**
  * "Are there stairs between your bed and your coffee?" (GAME_PLAN, "Wake-up methods"),
  * right after `wake`. Yes picks the hero method, no picks steps, and a link shows the rest.
  */

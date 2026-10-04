@@ -5,8 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
-import { Segmented } from '@/features/nap/segmented';
-import { formatPreset } from '@/features/onboarding/time-wheel';
+import { Segmented } from '@/components/segmented';
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
 import { getRoutine } from '@/lib/routine';
@@ -19,6 +18,7 @@ import {
   submitScan,
   type ScanCode,
 } from '@/lib/scan';
+import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';

@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
-import { formatPreset } from '@/features/onboarding/time-wheel';
 import { useLock } from '@/hooks/use-lock';
 import * as haptic from '@/lib/haptics';
 import { proveMorning, readLock } from '@/lib/lock-controller';
@@ -16,6 +15,7 @@ import { askForNotifications, shouldAskForNotifications } from '@/lib/notificati
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
+import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 

@@ -9,7 +9,7 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
-import { formatPreset } from '@/features/onboarding/time-wheel';
+import { Segmented } from '@/components/segmented';
 import * as haptic from '@/lib/haptics';
 import { syncLock } from '@/lib/lock-controller';
 import {
@@ -25,7 +25,7 @@ import {
   startNap,
   type ActiveNap,
 } from '@/lib/screen-time';
-import { noOrphan } from '@/lib/text';
+import { formatPreset, noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
   DisplayFont,
@@ -39,7 +39,6 @@ import {
 } from '@/theme';
 
 import { NapClock } from './nap-clock';
-import { Segmented } from './segmented';
 import { useSideways } from './use-sideways';
 
 /**

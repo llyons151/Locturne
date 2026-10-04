@@ -47,7 +47,11 @@ src/
 
   lib/
     haptics.ts                  tap / tick / thud / done (no-ops on web)
-    text.ts                     noOrphan: keeps the last word off its own line
+    text.ts                     noOrphan: keeps the last word off its own line; formatPreset: 1410 → "11:30 pm"
+    links.ts                    LEGAL_URLS (Terms, Privacy, Support) and SUPPORT_EMAIL
+    arm.ts                      armTonight: hands tonight to iOS after purchase, and says whether iOS took it
+    wake/                       the morning's rules (steps.ts, downstairs.ts, pure) and their sensor wiring
+                                (step-watch.ts, downstairs-watch.ts: sensors passed in, so they're tested without a phone)
     lock-state.ts               the lock's rules: phase (night/morning/day/off) and which apps sleep, including Block now and used-up limits. Pure; tests in lock-state.test.ts (`npm test`)
     daily-limits.ts             daily time limits: slots, stricter-now / looser-at-bedtime edits. Pure; tests in daily-limits.test.ts
     night-plan.ts               splits a night into the <45-minute windows iOS monitors. Pure; tests in night-plan.test.ts
@@ -55,6 +59,7 @@ src/
 
   hooks/
     use-compact.ts              true on short phones (iPhone SE), so layouts tighten
+    use-step-count.ts           live steps since a time (wake-up screen and onboarding's practice walk)
     use-standing-blocks.ts      on every app open: settles looser limits whose bedtime passed, re-shields every rule in force
 
   components/                   shared UI
@@ -67,6 +72,12 @@ src/
     app-icons.tsx, ios-glyphs.tsx  drawn app icons (TikTok, Instagram, Safari…)
     app-picker.tsx              stand-in for Apple's app picker (sheet + card)
     grouped-list.tsx            Settings-style Section, ValueRow, ControlRow, ChoiceRow, and EditSheet (web preview only)
+    controls.ios.tsx            Settings rows with Apple's controls via @expo/ui (TimeRow, MenuRow, NightsRow, SwitchRow);
+                                controls.tsx = the web preview's stand-ins; control-types.ts is shared by both
+    segmented.ios.tsx           system segmented control; segmented.tsx = web stand-in
+    time-wheel.tsx, day-picker.tsx  onboarding's time and day pickers, also the Routine tab's web stand-ins
+    moon-surface.ts             MoonSurface / useOnMoon: whether a page sits on the risen quiz moon
+    meter.tsx                   BigNumber and Track: the morning count (wake-up screen, onboarding's walk)
     placeholder-screen.tsx      unbuilt tabs (You)
     screen-time-picker.tsx      Apple's real app picker (the UI half of lib/screen-time.ts)
 
@@ -75,10 +86,7 @@ src/
     apps/       apps-list.tsx (bedtime, always and daily-limit groups), catalog.ts
                 limit-menu.ios.tsx = a limit's time as a system pull-down menu; limit-menu.tsx = web stand-in
     routine/    routine-screen.tsx (preview: local state; edits show when they start, from the next bedtime)
-                controls.ios.tsx = Apple's controls via @expo/ui (compact time picker, menus, system sheet);
-                controls.tsx = the web preview's stand-ins; control-types.ts is shared by both
     nap/        nap-screen.tsx (GAME_PLAN's Block now: the bedtime apps or its own picks, 15 min to 4 hr; iOS wakes them at the end)
-                segmented.ios.tsx = system segmented control; segmented.tsx = web stand-in
     dev/        preset-lab/, text-lab/, screen-time-lab/
     onboarding/ (below)
 ```
@@ -127,21 +135,22 @@ Onboarding is the biggest feature, so it has its own layers:
 
 | File | Job |
 | --- | --- |
-| `content.ts` | **Data.** The step order (`STEPS`), every question's choices and copy, prices. Change wording here. |
+| `content.ts` | **Data.** Every question's choices and copy, prices. Change wording here. |
 | `estimate.ts` | **Math.** Turns answers into hours, days and lifetime numbers, plus formatting. No UI. |
-| `onboarding-flow.tsx` | **Navigation.** Which step you're on, Next/Back, editing from the summary and returning, the paywall exit, the moon moving between steps. |
+| `navigation.ts` | **Navigation rules.** The step order (`STEPS`) and a pure reducer for Next, Back, editing from the summary (or the walk) and returning. Tests in `navigation.test.ts`. |
+| `onboarding-flow.tsx` | **Runs it.** Holds the reducer, the paywall exit, every call out to iOS and the store, the moon moving between steps. |
 | `steps.tsx` | **What each step shows.** `renderStep` is one `case` per step returning `{ body, footer, secondary }`. |
 | `screens/` | Steps big enough for their own file: `paywall.tsx` (plans + exit offer), `reveal-screen.tsx`, `math-screen.tsx`, `tomorrow-demo.tsx`, `walk-meter.tsx` (the `walk` page's live count). |
 | `ui.tsx` | Onboarding's page kit: `Shell` (top bar, progress, footer), `Title`, `Body`, `Voice`, `Options`, `HoldButton`, and `page` (shared spacing). |
-| the rest | Single widgets: `time-wheel`, `day-picker`, `schedule-card`, `apple-alert`, `reveal-grid`, `rolling-number`, `sleep-drop` (+ `useSleepDrop`), `simulated-prompt`. |
+| the rest | Single widgets: `schedule-card`, `apple-alert`, `reveal-grid`, `rolling-number`, `sleep-drop` (+ `useSleepDrop`), `simulated-prompt`. |
 
-To **add a step**: add its id to `STEPS` in `content.ts`, add a `case` in `steps.tsx`, and
+To **add a step**: add its id to `STEPS` in `navigation.ts`, add a `case` in `steps.tsx`, and
 TypeScript will flag anything else that needs it.
 
 To **change how a step looks**: find its `case` in `steps.tsx` (or its file in `screens/`).
 
-To **change navigation rules** (what Back skips, which steps are editable): the constants
-at the top of `onboarding-flow.tsx`.
+To **change navigation rules** (what Back skips, which steps are editable): `EDITABLE`,
+`AUTO_ADVANCE` and the reducer in `navigation.ts`, then `npm test`.
 
 ## What the 2026-09-30 reorganization changed
 

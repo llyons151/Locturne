@@ -4,10 +4,11 @@ import { Linking, Platform, Pressable, StyleSheet, Switch, Text, View } from 're
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Reveal } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
+import { LEGAL_URLS } from '@/lib/links';
 import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
-import { LEGAL_URLS, longerTrialVoice, METHOD_COPY, trialVoice } from '../content';
+import { longerTrialVoice, METHOD_COPY, trialVoice } from '../content';
 import { dateFromToday, formatWhen } from '../estimate';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';

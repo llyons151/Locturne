@@ -1,10 +1,10 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BigNumber, Track } from '@/features/wake/parts';
+import { BigNumber, Track } from '@/components/meter';
 import { Nocturne, Space, Type } from '@/theme';
 
 /**
- * The `walk` page's live count: the morning screen's number and track (wake/parts.tsx), so
+ * The `walk` page's live count: the morning screen's number and track (components/meter.tsx), so
  * the demo looks like tomorrow does. VoiceOver hears the count as one line, updated politely.
  */
 export function WalkMeter({ steps, goal }: { steps: number; goal: number }) {

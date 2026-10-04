@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   Platform,
@@ -19,6 +19,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/buttons';
+import { useOnMoon } from '@/components/moon-surface';
 import { MotionPage, Reveal, WordsIn, type TextMotion } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
 import { noOrphan } from '@/lib/text';
@@ -96,14 +97,6 @@ export function Eyebrow({ children }: PropsWithChildren) {
     </Reveal>
   );
 }
-
-/**
- * True while a page sits on the risen quiz moon. Text centres there, like the moon's
- * list questions, and gray text turns white so it reads on the moon's blue.
- */
-const OnMoon = createContext(false);
-export const MoonSurface = OnMoon.Provider;
-export const useOnMoon = () => useContext(OnMoon);
 
 export function Title({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
   const moon = useOnMoon();

@@ -23,7 +23,7 @@ decision.
 | Notifications | Simulated on `armed` | Not asked in onboarding (the first-night work owns it). `armed` no longer promises a reminder. |
 | Last screen | "Tomorrow, 7:00 AM." plus steps rows, then "Finish preview" | "Tomorrow 7:00. Your apps stay asleep until you're up." (TODO §4), the method's own rows, the pass row and a Done button. |
 | Smaller copy | | `wake`'s subtitle no longer says "Steps start counting". The picker header says "wake once you're up" rather than "after your walk". The trial timeline gains a "Morning" row on normal-height phones (TODO §4, morning-first timeline); short phones keep three rows so nothing scrolls. |
-| Terms / Privacy | Simulated | Open `LEGAL_URLS` in `content.ts`. **These are placeholders** (`https://locturne.app/terms`, `/privacy`) and need live pages before review. |
+| Terms / Privacy | Simulated | Open `LEGAL_URLS` in `src/lib/links.ts`. **These are placeholders** (`https://locturne.app/terms`, `/privacy`) and need live pages before review. |
 
 Files: `onboarding-flow.tsx` (all calls to iOS and the store), `steps.tsx`, `content.ts`,
 `schedule-card.tsx`, `screens/paywall.tsx`, new `arm.ts`, `setup.ts` and `motion.ts`, plus
