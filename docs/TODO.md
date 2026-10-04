@@ -45,8 +45,10 @@ exact steps.
   the app's Help and Send feedback rows depend on it and the mailbox.*
 
 **Decisions waiting on you**
-- [ ] Cancelled subscribers: should expiry disarm their nights (at bedtime)?
-  ([v1-build/purchases.md](v1-build/purchases.md))
+- [x] Cancelled subscribers: should expiry disarm their nights (at bedtime)?
+  ([v1-build/purchases.md](v1-build/purchases.md)) Decided 2026-10-03: yes, from the next
+  bedtime, and nothing blocks without a subscription (Block now, always list, limits too).
+  Built: `settleSubscription` / `standDown` ([BUG_SWEEP_2026-10-03.md](BUG_SWEEP_2026-10-03.md)).
 - [ ] The five behaviour questions in [v1-build/PRE_DEVICE_REVIEW.md](v1-build/PRE_DEVICE_REVIEW.md).
 - [ ] Privacy vs analytics: keep step counts, exact age and the heartbeat log on the
   device, or change the policy. ([app-store/PRIVACY_LABELS.md](app-store/PRIVACY_LABELS.md))
