@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { formatPreset } from '@/features/onboarding/time-wheel';
+import { track } from '@/lib/analytics';
 import { EMERGENCY_WAIT_SECONDS, emergencyUnlock, previewEmergency, type EmergencyPlan } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
@@ -115,8 +116,16 @@ export function ExitsScreen() {
     if (exit === 'pass') {
       const refusal = spendPass();
       if (refusal) return setStage({ kind: 'menu', notice: PASS_REFUSALS[refusal] });
-    } else if (!emergencyUnlock()) {
-      return setStage({ kind: 'menu', notice: 'Nothing was asleep, so nothing changed.' });
+      track('pass_used', { passes_left: getPassesLeft() });
+    } else {
+      const use = emergencyUnlock();
+      if (!use) return setStage({ kind: 'menu', notice: 'Nothing was asleep, so nothing changed.' });
+      track('emergency_unlock', {
+        phase: use.phase,
+        paused_night: use.pauseNight,
+        ended_block_now: use.endBlockNow,
+        unlocked_morning: use.unlockMorning,
+      });
     }
     haptic.done();
     setStage({ kind: 'done', exit });

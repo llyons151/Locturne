@@ -6,14 +6,18 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
+import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { startPurchases } from '@/lib/purchases-start';
 
 // RevenueCat, or the dev stub without a key. Before any screen asks about the subscription.
 startPurchases();
+// PostHog, or nothing without a key. After purchases: it links the two (analytics-start.ts).
+startAnalytics();
 
 // Locturne is dark in both system appearances: the night sky never turns light.
 export default function RootLayout() {
   useStandingBlocks();
+  useScreenViews();
   return (
     <GestureHandlerRootView style={styles.root}>
       <ThemeProvider value={DarkTheme}>

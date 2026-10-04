@@ -57,7 +57,7 @@ Checked in the code on October 3, 2026 (commit 387fbdd). If any of these change,
    permission string says so).
 7. **Notifications** are local (`expo-notifications`); no push token is requested.
 8. **Sharing** goes through the iOS share sheet only (reveal, morning card, diagnostics report).
-9. **Planned, described as such in the policy:** RevenueCat (`src/lib/purchases.ts` is still
+9. **PostHog is in the code (2026-10-03, [ANALYTICS.md](ANALYTICS.md))** but sends nothing until a key is set in app.json. **Planned, described as such in the policy:** RevenueCat (`src/lib/purchases.ts` is still
    a stub) and PostHog (in the app only, never in extensions; app counts, never which apps).
 10. **Age:** Terms minimum age 13, under-18s need a parent or guardian's permission, as
     recommended in [TEEN_ACCOUNTS.md](TEEN_ACCOUNTS.md).

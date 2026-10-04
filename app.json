@@ -87,6 +87,11 @@
         "appleApiKey": "REPLACE_WITH_REVENUECAT_PUBLIC_APPLE_KEY",
         "simulateAskToBuy": false
       },
+      "posthog": {
+        "apiKey": "REPLACE_WITH_POSTHOG_PROJECT_API_KEY",
+        "host": "https://us.i.posthog.com",
+        "disableGeoip": false
+      },
       "eas": {
         "projectId": "f2cf242c-0db6-467f-9e18-1f8a6ccec61a",
         "build": {

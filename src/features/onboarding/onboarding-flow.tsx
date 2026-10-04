@@ -10,6 +10,14 @@ import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useStepCount } from '@/features/wake/use-step-count';
 import { useCompact } from '@/hooks/use-compact';
+import {
+  answerFor,
+  registerProperties,
+  setPersonProperties,
+  stopForChild,
+  SUPER_QUESTIONS,
+  track,
+} from '@/lib/analytics';
 import * as haptic from '@/lib/haptics';
 import { settleSubscription } from '@/lib/lock-controller';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
@@ -26,7 +34,7 @@ import {
   type PurchaseResult,
   type PurchaseTarget,
 } from '@/lib/purchases';
-import { getRoutine, toLockSettings } from '@/lib/routine';
+import { getRoutine, hasRoutine, toLockSettings } from '@/lib/routine';
 import {
   beginListEdit,
   finishListEdit,
@@ -192,7 +200,10 @@ export function OnboardingFlow({
   const [offers, setOffers] = useState<Offers | null>(null);
   const [offersFailed, setOffersFailed] = useState(false);
   const fetchOffers = useCallback(() => {
-    getOffers().then(setOffers, () => setOffersFailed(true));
+    getOffers().then(setOffers, () => {
+      setOffersFailed(true);
+      track('offers_failed', {});
+    });
   }, []);
   useEffect(fetchOffers, [fetchOffers]);
   const retryOffers = () => {
@@ -210,6 +221,54 @@ export function OnboardingFlow({
   const requestedArm = isExitArm(exitOffer) ? exitOffer : undefined;
   const exitArm: ExitOffer =
     !offers || offerShownBefore ? 'none' : resolveExitArm(requestedArm ?? offers.exitArm, offers);
+
+  /*
+   * Analytics (docs/ANALYTICS.md): a view per step, how long the previous one stayed open,
+   * and the answer it collected. Going Back answers nothing.
+   */
+  const [rerun] = useState(hasRoutine);
+  const lastView = useRef<{ step: StepId; at: number } | null>(null);
+  const wentBack = useRef(false);
+  const stepShown = useEffectEvent(() => {
+    const before = lastView.current;
+    const now = Date.now();
+    if (!before) track('onboarding_started', { rerun, entry_step: step });
+    else if (!wentBack.current) {
+      const given = answerFor(before.step, answers);
+      if (given) {
+        track('onboarding_answered', given);
+        const property = { [`onboarding_${given.question}`]: given.answer };
+        setPersonProperties(property);
+        if (SUPER_QUESTIONS.has(given.question)) registerProperties(property);
+      }
+    }
+    wentBack.current = false;
+    lastView.current = { step, at: now };
+    // Under 13: nothing more leaves the phone, not even this screen (docs/TEEN_ACCOUNTS.md).
+    if (step === 'under-13') {
+      stopForChild();
+      return;
+    }
+    track('onboarding_step_viewed', {
+      step,
+      step_index: (STEPS as readonly string[]).indexOf(step),
+      depth: history.length,
+      editing: returnTo !== null,
+      previous_step: before?.step ?? null,
+      ms_on_previous: before ? now - before.at : null,
+    });
+    if (PAYWALL.includes(step) || step === 'declined') {
+      track('paywall_viewed', {
+        page: step,
+        exit_arm: exitArm,
+        prices_loaded: offers !== null,
+        trial_days: offers?.annual.trialDays ?? null,
+      });
+    }
+  });
+  useEffect(() => {
+    stepShown();
+  }, [step, history.length]);
 
   const go = (to: StepId) => {
     if (to === 'declined') markExitOfferShown();
@@ -234,6 +293,7 @@ export function OnboardingFlow({
   const back = history.length > 1 && step !== 'under-13'
     ? () => {
         cancelAdvance();
+        wentBack.current = true;
         if (returnTo && EDITABLE.includes(step)) {
           if (beforeEdit) setAnswers(beforeEdit);
           setReturnTo(null);
@@ -249,7 +309,14 @@ export function OnboardingFlow({
     : undefined;
   const exit = () => {
     // The declined path (ONBOARDING_CONVERSION): keep the setup, arm nothing.
-    if (history.some((s) => SETUP_DONE.includes(s))) saveSetup(answers);
+    const setupDone = history.some((s) => SETUP_DONE.includes(s));
+    if (setupDone) saveSetup(answers);
+    track('onboarding_exited', {
+      step,
+      depth: history.length,
+      setup_saved: setupDone,
+      saw_paywall: history.some((s) => PAYWALL.includes(s)),
+    });
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
@@ -295,10 +362,12 @@ export function OnboardingFlow({
         access = getAccess();
       }
       if (access !== 'approved') {
+        track('screen_time_access', { result: 'denied' });
         setScreenTime('refused');
         return;
       }
     }
+    track('screen_time_access', { result: 'granted' });
     setScreenTime('idle');
     next();
   };
@@ -326,6 +395,7 @@ export function OnboardingFlow({
       }
       setPicks(selectionSize('night'));
       setPickRevision((r) => r + 1);
+      track('apps_picked', { count: selectionSize('night') });
       // Arming failed for want of apps: try again now there are some.
       if (step === 'armed') runArm();
     }, PICKER_SETTLE_MS);
@@ -339,7 +409,13 @@ export function OnboardingFlow({
   const [arm, setArm] = useState<ArmResult | { status: 'working' }>({ status: screenTimeHere ? 'working' : 'preview' });
   const runArm = async () => {
     setArm({ status: 'working' });
-    setArm(await armTonight());
+    const result = await armTonight();
+    setArm(result);
+    track('night_armed', {
+      status: result.status,
+      reason: result.status === 'failed' ? result.reason : null,
+      now: result.status === 'armed' && result.now,
+    });
   };
   const retryArm = async () => {
     if (arm.status === 'failed' && arm.reason === 'no-access') {
@@ -352,12 +428,13 @@ export function OnboardingFlow({
     runArm();
   };
   /** Saves the setup and arms. Only ever after a purchase or a restored subscription. */
-  const finishSetup = () => {
+  const finishSetup = (via: 'purchase' | 'restore' = 'restore') => {
     // Bought or restored: anything stood down (an earlier subscription ended) comes back.
     settleSubscription(true);
     saveSetup(answers);
     // Whatever was bought: a plan with no trial (monthly) just has no end to remind about.
     saveTrialReminder(answers.remindTrial);
+    track('onboarding_completed', { via, depth: history.length });
     setEntitled(true);
     setHistory(['armed']);
     runArm();
@@ -365,6 +442,7 @@ export function OnboardingFlow({
   const buy = async (target: PurchaseTarget) => {
     if (busy) return;
     setBusy(true);
+    track('purchase_started', { target, page: step });
     let result: PurchaseResult;
     try {
       result = await purchase(target);
@@ -372,7 +450,8 @@ export function OnboardingFlow({
       result = { status: 'failed', message: 'The App Store didn’t answer.' };
     }
     setBusy(false);
-    if (result.status === 'purchased') finishSetup();
+    track('purchase_result', { target, page: step, status: result.status });
+    if (result.status === 'purchased') finishSetup('purchase');
     else if (result.status === 'pending') {
       saveSetup(answers);
       markPurchasePending();
@@ -395,6 +474,7 @@ export function OnboardingFlow({
     }
     setBusy(false);
     setEntitled(found);
+    track('restore_result', { found, step });
     if (!found) {
       say('Nothing to restore', 'There’s no Locturne subscription on this Apple ID.');
       return;
@@ -411,7 +491,7 @@ export function OnboardingFlow({
   // A purchase waiting for Ask to Buy can be approved while the paywall is still open: move
   // on as if it had just gone through.
   const approvedLater = useEffectEvent(() => {
-    if (PAYWALL.includes(step) || step === 'declined') finishSetup();
+    if (PAYWALL.includes(step) || step === 'declined') finishSetup('purchase');
   });
   useEffect(() => onEntitled(approvedLater), []);
   const [motion, setMotion] = useState<MotionAccess | null>(null);
@@ -423,7 +503,9 @@ export function OnboardingFlow({
       return;
     }
     // Already answered on the walk, this returns at once without a prompt.
-    setMotion(await requestMotion());
+    const access = await requestMotion();
+    setMotion(access);
+    track('motion_access', { result: access });
     next();
   };
 
@@ -464,7 +546,16 @@ export function OnboardingFlow({
       : walkStatus === 'denied' || walkStatus === 'unavailable'
         ? { phase: walkStatus, steps: 0 }
         : { phase: 'counting', steps: Math.min(walkSteps, WALK_GOAL) };
+  // How the walk ended, never the count (docs/ANALYTICS.md, "Privacy").
+  const walkEnded = useEffectEvent((result: 'done' | 'denied' | 'unavailable') => {
+    const seconds = walkStart ? Math.round((Date.now() - walkStart.getTime()) / 1000) : 0;
+    track('walk_finished', { result, seconds });
+  });
+  useEffect(() => {
+    if (walk.phase === 'done' || walk.phase === 'denied' || walk.phase === 'unavailable') walkEnded(walk.phase);
+  }, [walk.phase]);
   const startWalk = () => {
+    track('walk_started', {});
     if (Platform.OS === 'ios') return setWalkStart(new Date());
     simulate('iOS asks for Motion & Fitness here. “Don’t Allow” is always an option.', () => {
       setMotion('granted');
@@ -517,7 +608,7 @@ export function OnboardingFlow({
     busy,
     restorePurchases,
     entitled,
-    finishSetup,
+    finishSetup: () => finishSetup(),
     screenTime,
     askScreenTime,
     live: screenTimeHere ? { selectionId: 'night', count: picks, revision: pickRevision } : null,
@@ -579,6 +670,7 @@ export function OnboardingFlow({
         onDone={(picked) => {
           set('apps', picked);
           setPreviewPickerOpen(false);
+          track('apps_picked', { count: picked.length });
         }}
       />
       <SimulatedPrompt
