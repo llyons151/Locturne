@@ -50,6 +50,9 @@ const LIMIT_REACHED_PREFIX = 'locturne.limitReached.';
 const PENDING_LISTS_KEY = 'locturne.pendingLists';
 const ROUTINE_KEY = 'locturne.routine';
 const STOOD_DOWN_KEY = 'locturne.stoodDown';
+const ARMED_KEY = 'locturne.armedNight';
+const SUBSCRIPTION_ENDED_KEY = 'locturne.subscriptionEnded';
+const ENDED_MORNING_KEY = 'locturne.subscriptionEndedMorning';
 const IDS_KEY = 'familyActivitySelectionIds';
 
 /** YYYY-MM-DD in local time, like `dateKey` in lock-state.ts and `locturneDayKey` in Swift. */
@@ -247,33 +250,102 @@ export function simDevice() {
     if (changed) set(PENDING_LISTS_KEY, pending);
   }
 
-  /** `locturneNightIsOn`: is the night this bedtime window belongs to switched on? */
-  function nightIsOn(): boolean {
-    type R = { morningStart?: number; activeNights?: number[] };
-    const stored = get<{ active?: R; pending?: { from?: number; routine?: R } }>(ROUTINE_KEY);
-    if (!stored?.active) return true;
-    let routine = stored.active;
-    const t = now();
-    if (stored.pending?.from !== undefined && stored.pending.from <= t + 120_000 && stored.pending.routine) {
-      routine = stored.pending.routine;
-    }
-    if (routine.morningStart === undefined || !routine.activeNights) return true;
-    const d = new Date(t);
-    const minute = d.getHours() * 60 + d.getMinutes();
-    const evening = minute < routine.morningStart ? new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1, d.getHours(), d.getMinutes()) : d;
-    return routine.activeNights.includes(evening.getDay());
+  type Times = { bedtime?: number; morningStart?: number };
+  const timesOf = (t: Times | undefined) =>
+    t?.bedtime !== undefined && t.morningStart !== undefined ? { bedtime: t.bedtime, morningStart: t.morningStart } : null;
+  const minuteOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
+  const inside = (minute: number, t: { bedtime: number; morningStart: number }) => {
+    const length = (t.morningStart - t.bedtime + 1440) % 1440;
+    const since = (minute - t.bedtime + 1440) % 1440;
+    return since < length || since >= 1440 - 2;
+  };
+
+  /** `locturneNightTimes`: the armed times the windows were laid out from, else the routine's. */
+  function nightTimes() {
+    return timesOf(get<Times>(ARMED_KEY)) ?? timesOf(get<{ active?: Times }>(ROUTINE_KEY)?.active);
   }
+
+  /** `locturneRoutineInForce`: a waiting edit once due (two minutes early), else the active one. */
+  function routineInForce(): (Times & { activeNights?: number[] }) | undefined {
+    type R = Times & { activeNights?: number[] };
+    const stored = get<{ active?: R; pending?: { from?: number; routine?: R } }>(ROUTINE_KEY);
+    if (stored?.pending?.from !== undefined && stored.pending.from <= now() + 120_000 && stored.pending.routine) {
+      return stored.pending.routine;
+    }
+    return stored?.active;
+  }
+
+  /** `locturneInsideNightInForce`. */
+  function insideNightInForce(): boolean {
+    const t = timesOf(routineInForce());
+    return t ? inside(minuteOf(new Date(now())), t) : true;
+  }
+
+  /** `locturneWindowNight`: the evening a window starting now belongs to, by the armed times. */
+  function windowNight(): { evening: Date; outside: boolean; bedtime: number } {
+    const t = now();
+    const d = new Date(t);
+    const minute = minuteOf(d);
+    const day = (offset: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset, d.getHours(), d.getMinutes());
+    const times = nightTimes();
+    if (!times) return { evening: d, outside: false, bedtime: t };
+    const length = (times.morningStart - times.bedtime + 1440) % 1440;
+    const since = (minute - times.bedtime + 1440) % 1440;
+    const early = since >= 1440 - 2;
+    if (since < length || early) {
+      const afterMidnight = minute < times.morningStart && !early;
+      return { evening: afterMidnight ? day(-1) : d, outside: false, bedtime: t - (early ? 0 : since * 60_000) };
+    }
+    const sinceMorning = (minute - times.morningStart + 1440) % 1440;
+    return {
+      evening: minute >= times.morningStart ? day(-1) : day(-2),
+      outside: true,
+      bedtime: t - (sinceMorning + length + 60) * 60_000,
+    };
+  }
+
+  /** `locturneNightIsOn`: is the night of `evening` switched on? */
+  function nightIsOn(evening: Date): boolean {
+    const nights = routineInForce()?.activeNights;
+    return nights ? nights.includes(evening.getDay()) : true;
+  }
+
+  /** `locturneSubscriptionLapsed`: did the subscription end before the night of `evening`? */
+  function subscriptionLapsed(evening: Date): boolean {
+    const ended = get<string>(ENDED_MORNING_KEY);
+    if (get(SUBSCRIPTION_ENDED_KEY) === undefined || ended === undefined) return false;
+    return dayKey(new Date(evening.getFullYear(), evening.getMonth(), evening.getDate() + 1)) > ended;
+  }
+
+  /** When each night window started, for `locturneNightWindowRan` (the heartbeat log). */
+  const nightStarts: number[] = [];
 
   function intervalDidStart(activity: string) {
     settleLists();
-    if (activity.startsWith(NIGHT_PREFIX) && !nightIsOn()) {
-      // `skipLocturneNight`
-      set(NIGHT_HELD_KEY, false);
-      unblock('night');
-      reapply();
-      return;
+    if (activity.startsWith(NIGHT_PREFIX)) {
+      if (get(STOOD_DOWN_KEY) === true) {
+        reapply();
+        return;
+      }
+      const window = windowNight();
+      const ran = nightStarts.some((at) => at >= window.bedtime);
+      nightStarts.push(now());
+      // `ignoreLocturneWindow`: changes nothing.
+      if (window.outside && ran) {
+        reapply();
+        return;
+      }
+      if (!nightIsOn(window.evening) || subscriptionLapsed(window.evening)) {
+        if (insideNightInForce()) {
+          // `skipLocturneNight`
+          set(NIGHT_HELD_KEY, false);
+          unblock('night');
+        }
+        reapply();
+        return;
+      }
+      set(NIGHT_HELD_KEY, true);
     }
-    if (activity.startsWith(NIGHT_PREFIX)) set(NIGHT_HELD_KEY, true);
     execActions(activity, 'intervalDidStart');
     reapply();
   }
@@ -345,6 +417,7 @@ export function simDevice() {
     s.queue.length = 0;
     s.usage.clear();
     s.trace.length = 0;
+    nightStarts.length = 0;
   }
 
   return { state: s, exports, ids, appsOfId, fire, dueEvents, use, reset, get };

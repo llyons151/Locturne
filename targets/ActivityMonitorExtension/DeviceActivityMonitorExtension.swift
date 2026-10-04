@@ -20,13 +20,33 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     // First, so a bedtime window shields the edited list, not the old one.
     settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
 
-    // The night windows repeat every day; a night that's switched off skips its shield.
-    if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) && !locturneNightIsOn() {
-      skipLocturneNight(activity: activity.rawValue)
-      return
-    }
-
     if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) {
+      // No subscription: nothing locks (`standDown` in src/lib/screen-time.ts stops the windows;
+      // this covers a callback iOS was already making), and nothing is held for `standUp`.
+      if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true {
+        ignoreLocturneWindow(activity: activity.rawValue)
+        return
+      }
+      let window = locturneWindowNight()
+      // A window the spring clock change pushed past morning start, in a night whose other
+      // windows already ran: it changes nothing, so it can't shield a free morning or
+      // re-shield after a proof.
+      if window.outside && locturneNightWindowRan(since: window.bedtime) {
+        ignoreLocturneWindow(activity: activity.rawValue)
+        return
+      }
+      // The night windows repeat every day; a night that's switched off skips its shield,
+      // and so does every night after the one under way when the subscription ended. A
+      // skip releases the night only once the routine in force says the morning under way
+      // is over: windows still armed for an older routine run at the old times.
+      if !locturneNightIsOn(evening: window.evening) || locturneSubscriptionLapsed(before: window.evening) {
+        if locturneInsideNightInForce() {
+          skipLocturneNight(activity: activity.rawValue)
+        } else {
+          ignoreLocturneWindow(activity: activity.rawValue)
+        }
+        return
+      }
       userDefaults?.set(true, forKey: LOCTURNE_NIGHT_HELD_KEY)
     }
 
@@ -64,6 +84,21 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     )
 
     reapplyLocturneBlocks(triggeredBy: triggeredBy)
+
+    recordLocturneHeartbeat(activity: activity, callback: "intervalDidStart")
+
+    notifyAppWithName(name: "intervalDidStart")
+  }
+
+  /// A window that changes nothing (see `intervalDidStart`): no actions, no change to the
+  /// hold. Still noted, so the self-check sees iOS ran it.
+  func ignoreLocturneWindow(activity: String) {
+    persistToUserDefaults(
+      activityName: activity,
+      callbackName: "intervalDidStart"
+    )
+
+    reapplyLocturneBlocks(triggeredBy: "locturne_\(activity)_outsideNight")
 
     recordLocturneHeartbeat(activity: activity, callback: "intervalDidStart")
 
@@ -286,6 +321,8 @@ let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
 let LOCTURNE_ROUTINE_KEY = "locturne.routine"
 let LOCTURNE_STOOD_DOWN_KEY = "locturne.stoodDown"
 let LOCTURNE_ARMED_KEY = "locturne.armedNight"
+let LOCTURNE_SUBSCRIPTION_ENDED_KEY = "locturne.subscriptionEnded"
+let LOCTURNE_ENDED_MORNING_KEY = "locturne.subscriptionEndedMorning"
 /// The morning words and their tap, kept fresh by the app (`MORNING_SHIELD` in screen-time.ts).
 let LOCTURNE_MORNING_SHIELD = "locturne-morning"
 let LOCTURNE_HEARTBEAT_KEEP = 100
@@ -301,37 +338,118 @@ func locturneDayKey(_ date: Date = Date()) -> String {
   return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
 }
 
-/// Is the night this bedtime window belongs to switched on? Mirrors `getLockState` in
-/// src/lib/lock-state.ts: a night belongs to the evening before its morning, so a window
-/// after midnight (before morning start) belongs to yesterday evening. Reads the routine the
-/// app saved (`locturne.routine` in src/lib/routine.ts), using an edit waiting for this
-/// bedtime once it's due. If anything can't be read the answer is yes: a missing or
-/// unreadable routine must never skip a lock.
-func locturneNightIsOn(_ now: Date = Date()) -> Bool {
-  guard let stored = userDefaults?.dictionary(forKey: LOCTURNE_ROUTINE_KEY),
-    var routine = stored["active"] as? [String: Any]
-  else { return true }
+/// The night's times the windows were laid out from: the armed record (`armNight` in
+/// src/lib/screen-time.ts), else the saved routine. The armed times, not the routine's, say
+/// where a window sits: after a routine edit the old windows run until the app re-arms them.
+func locturneNightTimes() -> (bedtime: Int, morningStart: Int)? {
+  let routine = userDefaults?.dictionary(forKey: LOCTURNE_ROUTINE_KEY)?["active"] as? [String: Any]
+  return locturneTimes(userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY)) ?? locturneTimes(routine)
+}
 
-  // iOS can start a window a little early, so allow two minutes for an edit due at bedtime.
+func locturneTimes(_ dict: [String: Any]?) -> (bedtime: Int, morningStart: Int)? {
+  guard let bedtime = (dict?["bedtime"] as? NSNumber)?.intValue,
+    let morningStart = (dict?["morningStart"] as? NSNumber)?.intValue
+  else { return nil }
+  return (bedtime, morningStart)
+}
+
+/// The saved routine in force now: an edit waiting for bedtime once it's due (two minutes
+/// early, since iOS can start a window a little early), else the active one.
+func locturneRoutineInForce(_ now: Date = Date()) -> [String: Any]? {
+  guard let stored = userDefaults?.dictionary(forKey: LOCTURNE_ROUTINE_KEY) else { return nil }
   if let pending = stored["pending"] as? [String: Any],
     let from = (pending["from"] as? NSNumber)?.doubleValue,
     from <= now.timeIntervalSince1970 * 1000 + 120_000,
     let next = pending["routine"] as? [String: Any]
   {
-    routine = next
+    return next
   }
+  return stored["active"] as? [String: Any]
+}
 
-  guard let morningStart = (routine["morningStart"] as? NSNumber)?.intValue,
-    let nights = routine["activeNights"] as? [NSNumber]
-  else { return true }
+func locturneMinute(_ date: Date) -> Int {
+  let time = Calendar.current.dateComponents([.hour, .minute], from: date)
+  return (time.hour ?? 0) * 60 + (time.minute ?? 0)
+}
 
+/// Is `minute` inside the night from `bedtime` to `morningStart`? Up to 2 minutes before
+/// bedtime counts, since iOS can start a window a little early (as for a pending edit).
+func locturneInside(_ minute: Int, bedtime: Int, morningStart: Int) -> Bool {
+  let length = (morningStart - bedtime + 1440) % 1440
+  let sinceBedtime = (minute - bedtime + 1440) % 1440
+  return sinceBedtime < length || sinceBedtime >= 1440 - 2
+}
+
+/// Is now inside the night of the routine in force? Yes when it can't be read.
+func locturneInsideNightInForce(_ now: Date = Date()) -> Bool {
+  guard let times = locturneTimes(locturneRoutineInForce(now)) else { return true }
+  return locturneInside(locturneMinute(now), bedtime: times.bedtime, morningStart: times.morningStart)
+}
+
+/// Where a bedtime window starting `now` sits, by the armed times. `evening`: the evening its
+/// night belongs to. A night belongs to the evening before its morning, so a window after
+/// midnight belongs to yesterday evening, as in `getLockState` (src/lib/lock-state.ts).
+/// `outside`: it started outside its night, which only a clock change does. When the spring
+/// change skips a window's start (02:15 when 02:00 jumps to 03:00), iOS starts it later, at or
+/// after morning start; it belongs to the night that just ended. `bedtime`: when that night
+/// started, give or take the clock change.
+func locturneWindowNight(_ now: Date = Date()) -> (evening: Date, outside: Bool, bedtime: Date) {
   let calendar = Calendar.current
-  let time = calendar.dateComponents([.hour, .minute], from: now)
-  let minute = (time.hour ?? 0) * 60 + (time.minute ?? 0)
-  let evening = minute < morningStart ? calendar.date(byAdding: .day, value: -1, to: now) ?? now : now
+  let minute = locturneMinute(now)
+  let day = { (offset: Int) in calendar.date(byAdding: .day, value: offset, to: now) ?? now }
+  guard let (bedtime, morningStart) = locturneNightTimes() else { return (now, false, now) }
+
+  let length = (morningStart - bedtime + 1440) % 1440
+  let sinceBedtime = (minute - bedtime + 1440) % 1440
+  let early = sinceBedtime >= 1440 - 2
+  if sinceBedtime < length || early {
+    let afterMidnight = minute < morningStart && !early
+    let started = now.addingTimeInterval(early ? 0 : -Double(sinceBedtime) * 60)
+    return (afterMidnight ? day(-1) : now, false, started)
+  }
+  // Outside: the night whose morning start was the last one before now.
+  let sinceMorning = (minute - morningStart + 1440) % 1440
+  let evening = minute >= morningStart ? day(-1) : day(-2)
+  // An hour more, for the clock change itself.
+  let started = now.addingTimeInterval(-Double(sinceMorning + length + 60) * 60)
+  return (evening, true, started)
+}
+
+/// Did any night window start since `since`? From the heartbeat log.
+func locturneNightWindowRan(since: Date) -> Bool {
+  let after = since.timeIntervalSince1970 * 1000
+  let log = userDefaults?.array(forKey: LOCTURNE_HEARTBEAT_KEY) ?? []
+  return log.contains { entry in
+    guard let entry = entry as? [String: Any],
+      let activity = entry["activity"] as? String,
+      let at = (entry["at"] as? NSNumber)?.doubleValue
+    else { return false }
+    return activity.hasPrefix(LOCTURNE_NIGHT_PREFIX) && entry["callback"] as? String == "intervalDidStart"
+      && at >= after
+  }
+}
+
+/// Is the night of `evening` switched on? Reads the routine in force (`locturne.routine` in
+/// src/lib/routine.ts). If anything can't be read the answer is yes: a missing or unreadable
+/// routine must never skip a lock.
+func locturneNightIsOn(evening: Date, now: Date = Date()) -> Bool {
+  guard let nights = locturneRoutineInForce(now)?["activeNights"] as? [NSNumber] else { return true }
   // Calendar weekdays run 1 (Sunday) to 7; `Date.getDay()` runs 0 (Sunday) to 6.
-  let weekday = calendar.component(.weekday, from: evening) - 1
+  let weekday = Calendar.current.component(.weekday, from: evening) - 1
   return nights.contains { $0.intValue == weekday }
+}
+
+/// Did the subscription end before the night of `evening`? The app records the morning under
+/// way when it found no subscription (`settleSubscription` in src/lib/lock-controller.ts); that
+/// morning, and the night leading into it, finish. Every later night must not lock, even if
+/// Locturne stays closed until then. Without the morning recorded, nothing is skipped.
+func locturneSubscriptionLapsed(before evening: Date) -> Bool {
+  guard userDefaults?.object(forKey: LOCTURNE_SUBSCRIPTION_ENDED_KEY) != nil,
+    let ended = userDefaults?.string(forKey: LOCTURNE_ENDED_MORNING_KEY),
+    let morning = Calendar.current.date(byAdding: .day, value: 1, to: evening)
+  else { return false }
+  // Both are YYYY-MM-DD, so they compare as dates.
+  return locturneDayKey(morning) > ended
 }
 
 /// The last night window ends at morning start. With the night still held, the bedtime apps

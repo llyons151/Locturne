@@ -104,6 +104,116 @@ func registerTests() {
     expectEqual(shielded(), ["tiktok"], "Tuesday 08:00 belongs to Monday evening")
   }
 
+  // MARK: Windows outside their night, stale windows, a lapse with the app closed
+
+  test("a window the spring clock change pushes past morning start changes nothing") {
+    // Bed 00:00, morning 03:00; Saturday evening off. On the spring change the 02:15 window
+    // starts at 03:15. It belongs to Saturday's night (off), not Sunday's (on).
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 0, morningStart: 180, nights: [0, 1, 2, 3]))
+    armNight(windows: 4, bedtime: 0, morningStart: 180)
+    at("2026-10-11 03:15")  // a Sunday
+    start("night-3")
+    expectEqual(shielded(), [], "an off night's free morning stays free")
+    expect(!nightHeld(), "no hold")
+    // On a night that's on, a proof at 03:05 is not undone by the late window.
+    resetWorld()
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 0, morningStart: 180))
+    armNight(windows: 4, bedtime: 0, morningStart: 180)
+    at("2026-10-11 00:00")
+    start("night-0")
+    at("2026-10-11 03:05")
+    appUnshields("night")
+    set(LOCTURNE_NIGHT_HELD_KEY, false)
+    at("2026-10-11 03:15")
+    start("night-3")
+    expectEqual(shielded(), [], "no re-shield after the proof")
+    expect(!nightHeld(), "still released")
+  }
+
+  test("a night whose only window the spring change pushed past morning start still locks") {
+    // Bed 02:30, morning 03:00, one window. On the spring change 02:30 doesn't exist and the
+    // window starts at 03:30. No other window of that night ran, so it is that night's lock.
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 150, morningStart: 180))
+    armNight(windows: 1, bedtime: 150, morningStart: 180)
+    at("2026-10-11 03:30")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"])
+    expect(nightHeld(), "held")
+  }
+
+  test("an old window at the old bedtime doesn't end a morning the new routine still holds") {
+    // Armed 22:30 to 06:00. The routine in force since tonight is 01:30 to 07:00 with Friday
+    // evening off. Friday's unproven morning lasts until 01:30, so the old 22:30 window must
+    // not release it; the first window inside the new night does.
+    pick("night", ["tiktok"])
+    saveRoutine(
+      routine(bedtime: 22 * 60 + 30, morningStart: 6 * 60, nights: [0, 1, 4]),
+      pending: (routine(bedtime: 90, morningStart: 7 * 60, nights: [0, 1, 4]), local("2026-10-09 22:30")))
+    armNight(windows: 10, bedtime: 22 * 60 + 30, morningStart: 6 * 60)
+    set(LOCTURNE_NIGHT_HELD_KEY, true)
+    appShields("night")
+    at("2026-10-09 22:30")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "still Friday's morning")
+    expect(nightHeld(), "still held")
+    at("2026-10-10 01:30")
+    start("night-4")
+    expectEqual(shielded(), [], "Friday evening is off: released inside the new night")
+    expect(!nightHeld(), "released")
+  }
+
+  test("a window iOS starts a minute before bedtime still counts as tonight's") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(nights: [1]))  // Monday only
+    armNight()
+    at("2026-10-05 22:59")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"])
+  }
+
+  test("old windows still armed after an edit are judged by the times they were laid out for") {
+    // Armed 23:00 to 07:00. The routine is now 22:00 to 06:00 with Tuesday evening off, and
+    // the app hasn't re-armed. The old 06:15 window on Tuesday belongs to Monday's night (on):
+    // it must not skip and wake an unproven morning.
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 22 * 60, morningStart: 6 * 60, nights: [0, 1, 3, 4, 5, 6]))
+    armNight(windows: 11)
+    at("2026-10-05 23:00")
+    start("night-0")
+    at("2026-10-06 06:15")
+    start("night-10")
+    expectEqual(shielded(), ["tiktok"])
+    expect(nightHeld(), "still held")
+  }
+
+  test("after the subscription ends, only the night under way locks, even with the app closed") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.subscriptionEnded", ms(local("2026-10-05 12:00")))
+    set("locturne.subscriptionEndedMorning", "2026-10-06")  // found ended on the day before this night's morning
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "the night leading into the recorded morning finishes")
+    at("2026-10-06 23:00")
+    start("night-0")
+    expectEqual(shielded(), [], "the next night doesn't lock")
+    expect(!nightHeld(), "and the unproven morning's hold ends")
+  }
+
+  test("an ended subscription recorded without its morning skips nothing") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.subscriptionEnded", ms(local("2026-10-01 12:00")))
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"])
+  }
+
   // MARK: Morning
 
   test("the last window's end puts the morning words and tap on the held bedtime apps") {
@@ -353,6 +463,17 @@ func registerTests() {
     at("2026-10-05 14:15")
     end(LOCTURNE_NAP_ACTIVITY)
     expectEqual(shielded(), [])
+  }
+
+  test("stood down: a stray bedtime window holds nothing for when the subscription comes back") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set(LOCTURNE_STOOD_DOWN_KEY, true)
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(shielded(), [])
+    expect(!nightHeld(), "no hold")
   }
 
   // MARK: Heartbeat

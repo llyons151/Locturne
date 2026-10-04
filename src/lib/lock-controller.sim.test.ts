@@ -225,7 +225,7 @@ async function flush() {
 }
 
 /** Runs one scenario (or a subset of its actions) and returns the first failed check, or null. */
-async function run(sc: Scenario, actions: Timed[] = sc.actions, { strict = false } = {}): Promise<SimFailure | null> {
+async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFailure | null> {
   device.reset();
   device.state.startsOnRegister = sc.startsOnRegister;
   if (sc.zone) process.env.TZ = sc.zone;
@@ -701,9 +701,12 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions, { strict = false
       // Windows still armed for an older routine (re-arming waits for a phantom night to pass,
       // then for the next sync) shield at the old times: stricter than the rules, the safe
       // side, until the app opens and re-arms. Windows armed for the right routine get no slack.
-      // KNOWN LIMITATION (Swift side): the extension judges those old windows with the new
-      // routine's nights, so one may be skipped and end a morning nobody proved before its
-      // bedtime. Only with the app closed since the edit, so the lock isn't required there.
+      // The extension places each window by the armed times and releases only inside the
+      // night in force (`locturneWindowNight`, `locturneInsideNightInForce`), so an old window
+      // no longer ends a morning nobody proved (native-tests covers it). The lock still isn't
+      // required here: after an edit, lock-state re-reads a morning already proven under the
+      // old times and may call it locked again (open product question, seed 368), which the
+      // extension can't know.
       const armed = st.getArmedNight();
       const target = latestRoutine();
       const stale = !!armed && (armed.bedtime !== target.bedtime || armed.morningStart !== target.morningStart);
@@ -719,20 +722,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions, { strict = false
         tolerated.push('night');
         count('travel-phantom');
       }
-      // KNOWN SWIFT BUG (not fixed here: targets/ is off limits for this change). A window
-      // whose start the spring clock change skips (02:15 when 02:00 jumps to 03:00) fires at
-      // or after morning start, and `locturneNightIsOn` (minute < morningStart) then counts it
-      // as the *next* evening's night: it shields an off night's morning, or re-shields after
-      // a proof, until the app opens or the next window runs. Tolerated until the next sync;
-      // the skipped test at the bottom replays it strictly.
-      const start = device.state.monitored.get(activity)?.schedule.intervalStart;
-      const d = new Date(t);
-      const shifted = !!start && (d.getHours() !== start.hour || d.getMinutes() !== start.minute);
-      if (!strict && shifted) {
-        tolerated.push('night');
-        count('dst-shifted-window');
-      }
-      if (stale || shifted || travelPhantom) spec.established = null;
+      if (stale || travelPhantom) spec.established = null;
       else if (standing() && locked(t) && spec.pausedKey !== phaseAt(t).morningKey && !pausedAbs(t)) spec.established = period(t);
       count('window-start');
     }
@@ -886,16 +876,11 @@ test(`lock simulation: ${ONLY ? `seed ${ONLY}` : `${SEEDS} seeded runs`} of 7–
   }
 });
 
-// KNOWN SWIFT BUG, not fixed here (targets/ is off limits for this change). Unskip once
-// `locturneNightIsOn` in DeviceActivityMonitorExtension.swift stops deciding a window's evening
-// with `minute < morningStart`: on the spring clock change a window whose start the clocks skip
-// (here 02:15, when 02:00 jumps to 03:00) fires at or after morning start (03:00 or 03:15), is
-// counted as Sunday evening's night (on) instead of Saturday's (off), and shields the bedtime
-// apps on a morning that should be free, until the app opens or the next window runs. On a
-// night that's on, the same window re-shields after a proof. A fix: pass the evening in the
-// window (or compare against the night's start, not the clock), or skip a window that fires
-// at or after morning start. Found as seed 177.
-test.skip('spring clock change: a window the clocks skip never shields an off night (Swift fix needed)', async () => {
+// Seed 177: on the spring clock change a window whose start the clocks skip (here 02:15, when
+// 02:00 jumps to 03:00) fires at or after morning start. The extension used to count it as
+// Sunday evening's night (on) instead of Saturday's (off) and shield a free morning; now a
+// window outside its night changes nothing (`locturneWindowEvening` in the monitor extension).
+test('spring clock change: a window the clocks skip never shields an off night', async () => {
   mock.timers.enable({ apis: ['Date'], now: 0 });
   const zone = process.env.TZ;
   process.env.TZ = 'America/New_York';
@@ -916,7 +901,7 @@ test.skip('spring clock change: a window the clocks skip never shields an off ni
       dst: true,
       actions: [],
     };
-    const failure = await run(sc, sc.actions, { strict: true });
+    const failure = await run(sc, sc.actions);
     assert.equal(failure, null, failure?.message ?? '');
   } finally {
     if (zone === undefined) delete process.env.TZ;
