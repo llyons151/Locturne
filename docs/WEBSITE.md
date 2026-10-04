@@ -1,6 +1,13 @@
 # Website: locturne.com
 
-Built October 3, 2026. Not deployed yet. Code and deploy steps: [web/README.md](../web/README.md).
+**Superseded (2026-10-04):** the live site is the separate `locturne_landing` Astro repo
+(`~/Documents/Projects/locturne_landing`), deployed on Cloudflare. Edit Terms, Privacy and
+Support there. The plain-HTML `web/` folder below is the October 3 first draft and is not
+deployed; the "Facts the Privacy Policy rests on" list still applies to the live policy.
+The input TODOs below are resolved: seller Luke Lyons (sole proprietor), Texas law,
+hello@locturne.com via Namecheap forwarding, PostHog US with 12-month retention.
+
+Built October 3, 2026. Code and deploy steps: [web/README.md](../web/README.md).
 
 ## What it is
 
@@ -36,7 +43,7 @@ Built October 3, 2026. Not deployed yet. Code and deploy steps: [web/README.md](
 ## Facts the Privacy Policy rests on
 
 Checked in the code on October 3, 2026 (commit 387fbdd). If any of these change, update
-`web/public/privacy.html` first.
+`src/pages/privacy.astro` in `locturne_landing` first.
 
 1. **Screen Time:** selections are Apple's opaque `FamilyActivitySelection` tokens, stored
    by react-native-device-activity in the App Group `group.com.lukelyons.locturne`

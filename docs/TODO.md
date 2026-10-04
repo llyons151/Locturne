@@ -39,10 +39,10 @@ exact steps.
 - [ ] Paste the `appl_` key into `app.json` (`expo.extra.revenueCat.appleApiKey`), new
   dev build, run the purchase device checklist.
 
-**Website (by Oct 25)** — [WEBSITE.md](WEBSITE.md), [web/README.md](../web/README.md)
-- [ ] Fill the yellow TODOs (contact email, legal name, state, PostHog choices), set up
-  hello@locturne.com, deploy to Cloudflare Pages with D1. *`/support` built 2026-10-03;
-  the app's Help and Send feedback rows depend on it and the mailbox.*
+**Website** — [WEBSITE.md](WEBSITE.md)
+- [x] Terms, Privacy, Support and the waitlist are live on locturne.com (the
+  `locturne_landing` Astro repo, 2026-10-04). Seller Luke Lyons (sole proprietor), Texas
+  law; hello@locturne.com forwards via Namecheap (MX checked 2026-10-04).
 
 **Decisions waiting on you**
 - [x] Cancelled subscribers: should expiry disarm their nights (at bedtime)?
@@ -158,7 +158,7 @@ Fixes that are still open from the rating:
 
 Needs the real app:
 - [x] StoreKit prices and intro-offer eligibility (all trial strings depend on it). *Built 2026-10-03 on RevenueCat ([v1-build/purchases.md](v1-build/purchases.md)); needs the App Store Connect and RevenueCat setup in [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md), then a device test.*
-- [ ] Real Restore, and live Terms and Privacy URLs. *Restore is real (onboarding and the You tab, 2026-10-03); `LEGAL_URLS` are still placeholders.*
+- [x] Real Restore, and live Terms and Privacy URLs. *Restore is real (onboarding and the You tab, 2026-10-03); `LEGAL_URLS` resolve on locturne.com (checked 2026-10-04).*
 - [ ] **Owner:** do [REVENUECAT_SETUP.md](REVENUECAT_SETUP.md) (Paid Apps agreement, the four products and intro offers, RevenueCat project, `pro` entitlement, three offerings, API key into `app.json`), then its device checklist.
 - [x] Real FamilyControls, CMPedometer and notification prompts. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [x] Apple's `FamilyActivityPicker` in place of the preview chips. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
