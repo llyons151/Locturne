@@ -16,6 +16,7 @@ let armed: ArmedNight | null = null;
 let live = 0;
 let nightPicks = 3;
 let shieldTexts: { title: string; tap: boolean }[] = [];
+let morningSubtitles: string[] = [];
 let napTidies = 0;
 let stoodDown = false;
 /** While set, `armNight` waits on it, like iOS registering windows over the bridge. */
@@ -69,7 +70,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     limitUsedUpToday: () => false,
     setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),
     setNightShieldText: () => {},
-    setMorningShieldText: () => {},
+    setMorningShieldText: (text: { subtitle: string }) => morningSubtitles.push(text.subtitle),
     disarmNight: () => {
       calls.push('disarm');
       live = 0;
@@ -92,6 +93,7 @@ beforeEach(() => {
   store.clear();
   calls = [];
   shieldTexts = [];
+  morningSubtitles = [];
   stoodDown = false;
   armGate = null;
   nightHeld = false;
@@ -215,6 +217,33 @@ describe('the shield', () => {
     assert.deepEqual(shieldTexts.at(-1), { title: 'No.', tap: true });
     syncLock(at(23, 30));
     assert.deepEqual(shieldTexts.at(-1), { title: 'Shh. I’m sleeping. So are they.', tap: false });
+  });
+
+  test('a scan morning with no code yet asks for steps, like the wake screen; a saved code switches it', async () => {
+    const { registerScanCode } = await import('./scan.ts');
+    saveRoutine({ ...DEFAULT_ROUTINE, method: 'scan' }, at(12, 0, 0));
+    syncLock(at(15));
+    assert.match(morningSubtitles.at(-1) ?? '', /steps/);
+    assert.equal(registerScanCode({ kind: 'qr', data: 'LOCTURNE-abcd', type: 'qr' }, at(15)), null);
+    assert.match(morningSubtitles.at(-1) ?? '', /scan your code/);
+  });
+});
+
+describe('arming one at a time', () => {
+  test('an edit made while iOS is still arming the last one is armed too', async () => {
+    await armYesterday();
+    calls = [];
+    let release = () => {};
+    armGate = new Promise((r) => (release = r));
+    // The Routine tab commits on every wheel change: the hour, then the minutes.
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60 }, at(12));
+    const first = armRoutine(at(12));
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60 + 30 }, at(12));
+    const second = armRoutine(at(12));
+    release();
+    armGate = null;
+    await Promise.all([first, second]);
+    assert.equal(armed?.bedtime, 22 * 60 + 30);
   });
 });
 

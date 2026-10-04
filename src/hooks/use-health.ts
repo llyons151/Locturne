@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { rollUpHealth, type Health } from '@/lib/health';
-import { subscriptionEnded } from '@/lib/lock-controller';
+import { onLockChange, subscriptionEnded } from '@/lib/lock-controller';
 import { readNightChecks } from '@/lib/heartbeat';
 import { isPurchasePending } from '@/lib/pending-purchase';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -42,7 +42,11 @@ export function useHealth(): [Health, () => void] {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => state === 'active' && recheck());
     const stopWatching = watchAccess(recheck);
+    // Every sync too: the store's answer lands after the foreground read (a lapse found then
+    // stands down), and a bedtime or morning passes while the screen stays open.
+    const stopSyncing = onLockChange(recheck);
     return () => {
+      stopSyncing();
       sub.remove();
       stopWatching();
     };

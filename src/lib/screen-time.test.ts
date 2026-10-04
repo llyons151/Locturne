@@ -28,6 +28,12 @@ const ids = (): Record<string, string> => (store.familyActivitySelectionIds ??= 
 const appsOf = (token: string | undefined) =>
   token?.startsWith('apps:') ? token.slice(5).split(',').filter(Boolean) : token ? ['?'] : [];
 const named = (input: { activitySelectionId: string }) => ids()[input.activitySelectionId];
+const metaOf = (picks: string[]) => ({
+  applicationCount: picks.filter((p) => !p.includes('.')).length,
+  categoryCount: 0,
+  webdomainCount: picks.filter((p) => p.includes('.')).length,
+  includeEntireCategory: false,
+});
 let authListener: (() => void) | null = null;
 
 mock.module('react-native-device-activity', {
@@ -44,18 +50,19 @@ mock.module('react-native-device-activity', {
     setFamilyActivitySelectionId: ({ id, familyActivitySelection }: { id: string; familyActivitySelection: string }) => {
       ids()[id] = familyActivitySelection;
     },
-    // The real Swift spells it `webdomainCount`, unlike the library's own types.
+    // The real Swift spells it `webdomainCount`, unlike the library's own types. A pick
+    // with a dot (`reddit.com`) is a website.
     activitySelectionMetadata: ({ activitySelectionId }: { activitySelectionId: string }) => {
       const token = ids()[activitySelectionId];
-      if (token?.startsWith('apps:'))
-        return { applicationCount: appsOf(token).length, categoryCount: 0, webdomainCount: 0, includeEntireCategory: false };
+      if (token?.startsWith('apps:')) return metaOf(appsOf(token));
       return token
         ? { applicationCount: 3, categoryCount: 1, webdomainCount: 2, includeEntireCategory: false }
         : { applicationCount: 0, categoryCount: 0, webdomainCount: 0, includeEntireCategory: false };
     },
-    isSubsetOf: (a: { activitySelectionId: string }, b: { activitySelectionId: string }) => {
-      const superset = appsOf(named(b));
-      return appsOf(named(a)).every((app) => superset.includes(app));
+    // Like the real one: metadata of the picks both share, sites under `webdomainCount`.
+    intersection: (a: { activitySelectionId: string }, b: { activitySelectionId: string }) => {
+      const other = appsOf(named(b));
+      return metaOf(appsOf(named(a)).filter((pick) => other.includes(pick)));
     },
     union: (a: { activitySelectionId: string }, b: { activitySelectionId: string }, options: { persistAsActivitySelectionId?: string }) => {
       const token = `apps:${[...new Set([...appsOf(named(a)), ...appsOf(named(b))])].join(',')}`;
@@ -84,7 +91,7 @@ mock.module('react-native-device-activity', {
     cleanUpAfterActivity: (name: string) => calls.push(['cleanUpAfterActivity', name]),
     getActivities: () => [...activities],
     getEvents: () => events,
-    userDefaultsGet: (key: string) => (key === 'familyActivitySelectionIds' ? ids() : store[key]),
+    userDefaultsGet: (key: string) => (key === 'familyActivitySelectionIds' ? ids() : (store[key] ?? null)),
     userDefaultsSet: (key: string, value: unknown) => {
       assertPlist(value, key); // iOS throws on NSNull, as the real UserDefaults does
       store[key] = value;
@@ -431,6 +438,13 @@ test('a first pick applies at once', () => {
   pick(st.beginListEdit('night'), 'tiktok');
   assert.equal(st.finishListEdit('night', BEDTIME), 'now');
   assert.equal(ids().night, 'apps:tiktok');
+});
+
+test('removing only a website waits for bedtime too (the library’s isSubsetOf ignores sites)', () => {
+  saved = { always: 'apps:tiktok,reddit.com' };
+  pick(st.beginListEdit('always'), 'tiktok');
+  assert.equal(st.finishListEdit('always', BEDTIME), 'bedtime');
+  assert.deepEqual(st.listChangeStarts('always'), BEDTIME);
 });
 
 test('removing an app keeps it asleep until bedtime, while additions join now', () => {

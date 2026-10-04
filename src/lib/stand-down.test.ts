@@ -11,6 +11,13 @@ import { beforeEach, mock, test } from 'node:test';
 import { fakeDeviceActivity } from './fake-device-activity.ts';
 
 const fake = fakeDeviceActivity();
+/** While set, iOS refuses to start monitoring (access turned off, say). */
+let refuse = false;
+const start = fake.exports.startMonitoring;
+fake.exports.startMonitoring = async (...args: Parameters<typeof start>) => {
+  if (refuse) throw new Error('unauthorized');
+  return start(...args);
+};
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
 const st = await import('./screen-time.ts');
@@ -58,6 +65,18 @@ test('standing up re-arms the limits and re-shields the always list', async () =
   assert.equal(st.isStoodDown(), false);
   assert.ok(fake.state.activities.includes('limit-0'));
   assert.ok(fake.shielded('blockSelection').includes('always'));
+});
+
+test('a stand-up whose limits iOS refused is retried by the next one, though no longer stood down', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  st.standDown();
+  refuse = true;
+  await assert.rejects(st.standUp());
+  refuse = false;
+  assert.equal(st.isStoodDown(), false);
+  assert.ok(!fake.state.activities.includes('limit-0'));
+  await st.standUp(); // the next paid settle
+  assert.ok(fake.state.activities.includes('limit-0'));
 });
 
 test('a Block now across the autumn clock change is refused, not handed to iOS as a day', { skip: process.env.TZ !== 'America/New_York' }, async () => {

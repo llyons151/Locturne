@@ -3,20 +3,37 @@
  * keep the setup saved and arm nothing). Saving never blocks anything: only `armTonight`
  * does, and only after purchase.
  */
-import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder } from '@/lib/notifications';
+import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder, TRIAL_REMINDER_KEY } from '@/lib/notifications';
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import type { Answers } from './content';
 
-/** Read by the notifications work: whether to send the day-5 trial reminder. */
-export const TRIAL_REMINDER_KEY = 'locturne.trialReminder';
+/** Read by the notifications work: whether to send the trial reminder (noon, at least two days before the end). */
 /**
  * "How'd you find me?", kept here for the analytics purchase event (TODO §4) and sent to
  * RevenueCat as the `found` attribute. Never shown back.
  */
 export const ATTRIBUTION_KEY = 'locturne.attribution';
+/**
+ * The quiz answers the paywall's words are built from, kept on the phone (never sent) so
+ * someone who comes back through "See plans" gets their own headline, not the light-user one
+ * (B5 in docs/ONBOARDING_OPTIMIZATION.md).
+ */
+const QUIZ_KEY = 'locturne.quizAnswers';
+const QUIZ_FIELDS = [
+  'nights',
+  'nightMinutes',
+  'nightsPerWeek',
+  'scrollDays',
+  'morningMinutes',
+  'alarm',
+  'timeBack',
+  'shift',
+] as const satisfies readonly (keyof Answers)[];
+type QuizAnswers = Pick<Answers, (typeof QUIZ_FIELDS)[number]>;
+
 /** The exit offer is shown once per Apple ID's install, so it can't be farmed by rerunning onboarding. */
 const EXIT_OFFER_SHOWN_KEY = 'locturne.exitOfferShown';
 
@@ -37,13 +54,26 @@ export function saveSetup(answers: Answers): void {
     method: answers.method ?? DEFAULT_ROUTINE.method,
   });
   rescheduleNotifications().catch(() => {});
+  sharedSet(QUIZ_KEY, pickQuiz(answers));
   if (answers.found) {
     sharedSet(ATTRIBUTION_KEY, { found: answers.found, at: Date.now() });
     setAttributes({ [ATTRIBUTES.found]: answers.found });
   }
 }
 
-/** Called after purchase. Schedules the day-5 reminder (it lands once notifications are allowed). */
+/** Pure: the quiz answers worth keeping, without the ones they skipped. */
+export function pickQuiz(answers: Partial<Answers>): QuizAnswers {
+  const out: Partial<Record<keyof QuizAnswers, unknown>> = {};
+  for (const field of QUIZ_FIELDS) if (answers[field] !== undefined) out[field] = answers[field];
+  return out as QuizAnswers;
+}
+
+/** The quiz answers from the last finished setup, for reopening the paywall. Empty before one. */
+export function savedQuizAnswers(): QuizAnswers {
+  return pickQuiz(sharedGet<Partial<Answers>>(QUIZ_KEY) ?? {});
+}
+
+/** Called after purchase. Schedules the trial reminder (it lands once notifications are allowed). */
 export function saveTrialReminder(on: boolean): void {
   sharedSet(TRIAL_REMINDER_KEY, on);
   const scheduled = on

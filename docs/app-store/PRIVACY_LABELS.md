@@ -61,7 +61,7 @@ Answer **Yes, we collect data from this app**, then select these data types.
 | Camera, scan code text | On the device only. |
 | Precise location, contacts, photos, health, contact info | Not used. |
 | Emails sent to hello@locturne.com from a future "Send feedback" | Not declared, if it opens Mail with an empty draft the user sends themselves. That meets Apple's optional-disclosure criteria: the user provides it, it's infrequent and optional, and they choose to send it each time. |
-| Device ID | No IDFA and no IDFV. Re-check that PostHog's React Native SDK doesn't read `identifierForVendor`; if it does, add **Identifiers → Device ID**. |
+| Device ID | No IDFA and no IDFV. Checked 2026-10-03 in posthog-react-native 4.78.4: it sends `$device_name` from `expo-device`'s `modelName` ("iPhone 15", not the user's device name), and no vendor ID. Re-check on SDK upgrades. |
 
 ### Why "Linked to user: Yes" when there's no account
 
@@ -118,8 +118,9 @@ These are separate from the label, but they have to agree with it.
 - **What happens without them.** App Store Connect sends ITMS-91053 "Missing API
   declaration" warnings after upload, and since May 2024 it can refuse the build. Check the
   email after the first TestFlight upload.
-- **Set `NSPrivacyTracking` to `false`.** Once the SDKs ship, list the same collected data
-  types as the label in `NSPrivacyCollectedDataTypes`. RevenueCat and PostHog ship their own
+- **Set `NSPrivacyTracking` to `false`.** `NSPrivacyCollectedDataTypes` in `app.json` lists
+  table B's seven types (filled 2026-10-03), all linked, none tracking. If GeoIP is turned off,
+  remove Coarse Location there and in the label. RevenueCat and PostHog ship their own
   manifests; check they're in the build's privacy report (Xcode → Archive → Generate Privacy
   Report, or ask EAS for the archive).
 
@@ -133,7 +134,7 @@ These are separate from the label, but they have to agree with it.
 | 1 | The policy's short version says the app "sends us two things" (RevenueCat, PostHog) as if they were already live. Today it sends nothing. Section 4 does say early builds may not include them. | privacy.html, "The short version" | Fine for the released app. Don't submit a label that claims collection the build doesn't do, or the reverse. Match the label to the build (table in B). |
 | 2 | **Steps.** The policy says steps, stairs and scans "are never sent to us". LAUNCH_PLAN §5's event list includes "steps/scan progress" and `unlock_completed` with minutes from the morning start. | LAUNCH_PLAN §5 vs privacy.html §2 | Send only the method and the outcome ("unlocked by steps"), never step counts or altitude. If counts are ever sent, declare **Health & Fitness → Fitness** and rewrite the policy first. **Done 2026-10-03** ([ANALYTICS.md](../ANALYTICS.md)): events carry the method and how the walk ended, never counts. |
 | 3 | **Age.** Onboarding asks for an exact age (`age` step). The policy's analytics list doesn't mention age. | steps.tsx `age`; privacy.html §4 | Keep age on the device. If it goes to PostHog, send a bracket (13–17 / 18+) and name it in the policy. An exact age of a 13-year-old in analytics is avoidable risk under COPPA and the state laws. **Done 2026-10-03:** `age_bracket` only, nothing after "under 13", and privacy.html names it. |
-| 4 | **PostHog location.** The policy says PostHog derives country or region from the IP, and has a TODO about turning IP capture off. | privacy.html §4 TODO | Pick one before submitting. Either disable GeoIP and IP capture, so there's no Coarse Location and the sentence comes out of the policy, or keep it and declare Coarse Location. |
+| 4 | **PostHog location.** The policy says PostHog derives country or region from the IP, and has a TODO about turning IP capture off. | privacy.html §4 | **Decided 2026-10-03: keep GeoIP** (country splits for TikTok traffic), declare Coarse Location, and turn on PostHog's project setting **"Discard client IP data"**, which the policy now promises. Otherwise: pick one before submitting. Either disable GeoIP and IP capture, so there's no Coarse Location and the sentence comes out of the policy, or keep it and declare Coarse Location. |
 | 5 | **Heartbeat upload.** LAUNCH_PLAN §4.3 says the app "reads it and uploads it". The policy says the diagnostics report only leaves through the share sheet. | LAUNCH_PLAN vs privacy.html §2 | If heartbeat entries go to PostHog, they are Other Diagnostic Data (already in table B) and the policy should say "technical events about whether blocks started", which §4 mostly does. Never upload the selection tokens or activity names that contain list IDs. |
 | 6 | **The motion permission string says** "That's all it uses motion for", but the accelerometer also turns the nap clock (`use-sideways.ts`). | app.json `motionPermission` | The accelerometer needs no permission, so this isn't a review issue. To be exact, reword it as: "Locturne checks your steps and stairs each morning to wake your apps." |
 | 7 | ~~**Privacy manifest** missing (section C).~~ Added 2026-10-03. | app.json, targets/ | Check the privacy report on the first upload. |

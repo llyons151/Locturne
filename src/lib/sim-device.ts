@@ -146,9 +146,14 @@ export function simDevice() {
       webdomainCount: 0,
       includeEntireCategory: false,
     }),
-    isSubsetOf: (sub: { activitySelectionId: string }, sup: { activitySelectionId: string }) => {
-      const big = new Set(appsOfId(sup.activitySelectionId));
-      return appsOfId(sub.activitySelectionId).every((a) => big.has(a));
+    intersection: (a: { activitySelectionId: string }, b: { activitySelectionId: string }) => {
+      const other = new Set(appsOfId(b.activitySelectionId));
+      return {
+        applicationCount: appsOfId(a.activitySelectionId).filter((app) => other.has(app)).length,
+        categoryCount: 0,
+        webdomainCount: 0,
+        includeEntireCategory: false,
+      };
     },
     union: (
       a: { activitySelectionId: string },
@@ -195,7 +200,8 @@ export function simDevice() {
     },
     getActivities: () => [...s.monitored.keys()],
     getEvents: () => [],
-    userDefaultsGet: (key: string) => get(key),
+    // Like the real bridge: a missing key is null, not undefined.
+    userDefaultsGet: (key: string) => get(key) ?? null,
     userDefaultsSet: (key: string, value: unknown) => set(key, value),
     userDefaultsRemove: (key: string) => {
       delete s.store[key];

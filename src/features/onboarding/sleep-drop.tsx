@@ -67,6 +67,9 @@ export function useSleepDrop(apps: string[], onDone: () => void) {
   // Plain holders rather than refs: they're only read in event handlers, but the step
   // renderer receives the handlers during render, which the React Compiler flags for refs.
   const [views] = useState(() => new Map<string, View>());
+  // Set before measuring: `from` only lands after the awaits, so a second tap could start
+  // another drop (and finish the step twice).
+  const [running] = useState(() => new Set<'drop'>());
   const [from, setFrom] = useState<Record<string, IconOrigin> | null>(null);
   const pageFade = useSharedValue(1);
   const pageStyle = useAnimatedStyle(() => ({ opacity: pageFade.value }));
@@ -78,7 +81,8 @@ export function useSleepDrop(apps: string[], onDone: () => void) {
   const rootRef = (view: View | null) => onIconRef(ROOT, view);
 
   const start = async () => {
-    if (from) return;
+    if (from || running.has('drop')) return;
+    running.add('drop');
     const root = (await measure(views.get(ROOT))) ?? { x: 0, y: 0 };
     const origins: Record<string, IconOrigin> = {};
     for (const app of apps) {
@@ -92,7 +96,10 @@ export function useSleepDrop(apps: string[], onDone: () => void) {
   const finish = () => {
     onDone();
     pageFade.set(withTiming(1, { duration: 450 }));
-    setTimeout(() => setFrom(null), 600);
+    setTimeout(() => {
+      setFrom(null);
+      running.delete('drop');
+    }, 600);
   };
 
   return { from, pageStyle, onIconRef, rootRef, start, finish };

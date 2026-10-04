@@ -29,7 +29,7 @@ mock.module('react-native-device-activity', {
       'getEvents',
       'getFamilyActivitySelectionId',
       'isShieldActive',
-      'isSubsetOf',
+      'intersection',
       'onAuthorizationStatusChange',
       'pollAuthorizationStatus',
       'requestAuthorization',
@@ -74,6 +74,11 @@ test('each night: a bedtime warning 15 minutes before, and a note at morning sta
 
 test('nothing in the past; during the night only the morning note is left', () => {
   assert.deepEqual(summary(plan({ now: at(4, 2), days: 0 })), ['morning 4 7:0']);
+});
+
+test('after a lapse, only the morning still covered gets a note; later nights get nothing', () => {
+  // Found lapsed at 02:00 on the 4th: that morning finishes, nothing after it sleeps.
+  assert.deepEqual(summary(plan({ now: at(4, 2), lastPaidMorning: '2026-10-04' })), ['morning 4 7:0']);
 });
 
 test('nights switched off get nothing, including their morning', () => {
@@ -139,6 +144,9 @@ test('the trial reminder is at noon, at least 2 days before the trial ends', () 
     }
   }
   assert.equal(planTrialReminder(at(10, 9), at(9, 9)), null);
+  // An 8:00 end is reminded nearly 3 days out, so the title names the day instead of counting.
+  const early = planTrialReminder(at(8, 8), at(1, 8))!;
+  assert.equal(early.title, `Your free trial ends ${at(8, 8).toLocaleDateString(undefined, { weekday: 'long' })}.`);
   // It joins the plan, even with nothing armed.
   assert.deepEqual(
     plan({ armed: false, trialEnd: at(10, 9) }).map((n) => n.kind),

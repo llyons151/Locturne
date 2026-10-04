@@ -15,9 +15,9 @@
  * `planEmergency` and the log helpers are pure; `emergencyUnlock` applies the plan.
  */
 import { readLock, syncLock } from './lock-controller.ts';
-import { settingsTakeEffectAt, type Phase } from './lock-state.ts';
+import { dateKey, settingsTakeEffectAt, type Phase } from './lock-state.ts';
 import { recordProof } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, toLockSettings } from './routine.ts';
+import { getPendingRoutine, getRoutine, nextNightOn, toLockSettings } from './routine.ts';
 import { endNap, getNap, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
 
 /** Seconds the exits screen waits before the unlock button works. */
@@ -116,4 +116,23 @@ export function emergencyUnlock(now = new Date()): EmergencyUse | null {
   sharedSet(KEY, withUse(getEmergencyLog(), use));
   syncLock(now);
   return use;
+}
+
+/**
+ * The words for a paused night: which morning it covers (after midnight, it's this one) and
+ * when the bedtime apps really sleep again. `resumesAt` is the next bedtime, and if that night
+ * is off they stay awake until the next night that's on, so its weekday is named.
+ */
+export function pauseWording(
+  resumesAt: Date,
+  now = new Date(),
+): { morning: string; resumes: Date | null; weekday: string | null } {
+  const resumes = nextNightOn(resumesAt, now);
+  const sameDay = resumes?.toDateString() === resumesAt.toDateString();
+  return {
+    // The morning this night leads into: today's once past midnight, or a shift worker's.
+    morning: readLock(now).morningKey === dateKey(now) ? 'this morning' : 'tomorrow morning',
+    resumes,
+    weekday: resumes && !sameDay ? resumes.toLocaleDateString(undefined, { weekday: 'long' }) : null,
+  };
 }

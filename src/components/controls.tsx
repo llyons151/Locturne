@@ -26,7 +26,7 @@ export function TimeRow({ icon, title, value, onChange, presets, invalid, last }
   const problem = draft === null ? null : (invalid?.(draft) ?? null);
   return (
     <>
-      <ValueRow icon={icon} title={title} value={formatPreset(value)} onPress={() => setDraft(value)} last={last} />
+      <ValueRow icon={icon} title={title} value={formatPreset(value)} onPress={() => setDraft(value)} hint="Opens an editor" last={last} />
       <EditSheet
         open={draft !== null}
         title={title}
@@ -52,7 +52,7 @@ export function MenuRow<T extends string | number>({ icon, title, value, options
   const current = options.find((o) => o.value === value)?.label ?? '';
   return (
     <>
-      <ValueRow icon={icon} title={title} value={current} onPress={() => setOpen(true)} last={last} />
+      <ValueRow icon={icon} title={title} value={current} onPress={() => setOpen(true)} hint="Opens an editor" last={last} />
       <EditSheet open={open} title={title} onCancel={() => setOpen(false)} onDone={() => setOpen(false)}>
         <Section>
           {options.map((o, i) => (
@@ -77,7 +77,7 @@ export function NightsRow({ icon, value, onChange, last }: NightsRowProps) {
   const [draft, setDraft] = useState<number[] | null>(null);
   return (
     <>
-      <ValueRow icon={icon} title="Nights" value={nightsLabel(value)} onPress={() => setDraft(value)} last={last} />
+      <ValueRow icon={icon} title="Nights" value={nightsLabel(value)} onPress={() => setDraft(value)} hint="Opens an editor" last={last} />
       <EditSheet
         open={draft !== null}
         title="Nights"

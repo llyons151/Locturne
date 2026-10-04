@@ -2,7 +2,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,7 +13,7 @@ import * as haptic from '@/lib/haptics';
 import { proveMorning, readLock } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
-import { getRoutine, toLockSettings } from '@/lib/routine';
+import { getRoutine, nightAt, toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
@@ -26,6 +26,12 @@ import { StepsView } from './steps-view';
 export type WakeMethodShown = 'downstairs' | 'steps';
 
 const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinutes());
+
+/** "Apps awake until 10:00 PM", from the routine that runs tonight (a waiting edit, a night off). */
+function awakeLine(bedtimeStart: Date): string {
+  const { routine, on } = nightAt(bedtimeStart);
+  return on ? `Apps awake until ${formatPreset(routine.bedtime)}.` : 'Apps awake. Tonight is off.';
+}
 
 /**
  * The morning: prove you're up and the apps wake (GAME_PLAN, "Core loop" and "Wake-up
@@ -58,6 +64,8 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       if (state.phase !== 'day') return; // bedtime came round, or the night was off
       haptic.done();
       setUnlocked(state);
+      // The control VoiceOver was on goes away with the swap; say what happened.
+      AccessibilityInfo.announceForAccessibility(`I'm up. ${awakeLine(state.nextChange)}`);
       // The first proven morning is the moment to ask (GAME_PLAN); iOS shows its own prompt once.
       shouldAskForNotifications()
         .then((ask) => (ask ? askForNotifications() : false))
@@ -130,7 +138,7 @@ function Unlocked({ state, onDone }: { state: LockState; onDone: () => void }) {
         <Voice text="I'm up. Don't talk to me yet." />
         <View style={styles.statusRow}>
           <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
-          <Text style={styles.status}>Apps awake until {clockOf(state.nextChange)}</Text>
+          <Text style={styles.status}>{awakeLine(state.nextChange)}</Text>
         </View>
       </View>
       <View style={styles.flex} />
@@ -146,7 +154,7 @@ function NotMorning({ state, onClose }: { state: LockState; onClose: () => void 
   const phase = state.phase === 'morning' ? 'day' : state.phase;
   const body = {
     night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
-    day: `This morning's done. Your apps are awake until ${clockOf(state.nextChange)}.`,
+    day: `This morning's done. ${awakeLine(state.nextChange)}`,
     off: 'Tonight is switched off, so there is no morning lock to lift.',
   }[phase];
   return (

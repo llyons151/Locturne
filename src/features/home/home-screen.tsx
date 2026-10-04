@@ -10,14 +10,17 @@ import { PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
 import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/components/night-sky';
 import { useHealth } from '@/hooks/use-health';
-import { getNightPause } from '@/lib/emergency';
+import { getNightPause, pauseWording } from '@/lib/emergency';
 import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
 import { tap } from '@/lib/haptics';
-import { getPendingRoutine, type Routine, type WakeMethod } from '@/lib/routine';
-import { getScanCode } from '@/lib/scan';
-import { isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
+import { getTrialEnd } from '@/lib/notifications';
+import { manageSubscriptions } from '@/lib/purchases';
+import { nightAt, type Routine, type WakeMethod } from '@/lib/routine';
+import { methodInUse } from '@/lib/scan-code';
+import { getArmedNight, isScreenTimeAvailable, isStoodDown, shownSelection } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
 import { noOrphan } from '@/lib/text';
+import { trialNotice } from '@/lib/trial-notice';
 import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import { MoonLock } from './moon-lock';
@@ -75,16 +78,6 @@ type Symbol = SymbolViewProps['name'];
 const sym = (ios: string, android: string): Symbol =>
   ({ ios, android, web: android }) as Symbol;
 
-/**
- * Is the night that starts at `start` switched on? A night belongs to its evening, which is
- * the day before its morning: the same day as `start` unless bedtime is after midnight.
- */
-function nightIsOn(start: Date, routine: Routine) {
-  const evening = new Date(start);
-  if (routine.bedtime < routine.morningStart) evening.setDate(evening.getDate() - 1);
-  return routine.activeNights.includes(evening.getDay());
-}
-
 export function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -99,9 +92,14 @@ export function HomeScreen() {
   // An emergency unlock paused tonight: the windows still run, so the phase says night.
   const pause = lock.phase === 'night' ? getNightPause() : null;
 
+  // The phase comes from the clock: after bedtime it says night even with nothing armed (never
+  // bought, stood down, or arming failed). Nothing is asleep then, so don't say it is.
+  const held = !isScreenTimeAvailable() || (getArmedNight() !== null && !isStoodDown());
+  const phase = lock.phase === 'night' && !held ? 'day' : lock.phase;
+
   // Development only: tap the label to see each look without waiting for the clock.
   const [preview, setPreview] = useState<HomeView | null>(null);
-  const actual: HomeView = unprotected ? 'unprotected' : pause ? 'paused' : lock.phase;
+  const actual: HomeView = unprotected ? 'unprotected' : pause ? 'paused' : phase;
   const view = preview ?? actual;
 
   // Bumped each time Home opens: replays the entrance in step with the moon rising. The
@@ -110,7 +108,8 @@ export function HomeScreen() {
   useFocusEffect(useCallback(() => setVisit((v) => v + 1), []));
 
   // His firsts: shown on the real state only, and remembered by the morning they belong to.
-  const moment = unprotected || preview ? null : firstMoment(lock, proof, getFirstRunSeen());
+  // Not on a night that isn't held: "First night. Phone down." would be spent on nothing.
+  const moment = unprotected || preview || pause || phase !== lock.phase ? null : firstMoment(lock, proof, getFirstRunSeen());
   useEffect(() => {
     if (moment) markFirstSeen(moment, lock.morningKey);
   }, [moment, lock.morningKey]);
@@ -119,7 +118,8 @@ export function HomeScreen() {
 
   const bedtime = clockLabel(routine.bedtime);
   const wake = clockLabel(routine.morningStart);
-  const first = moment ? firstLine(moment, routine) : null;
+  // The method the morning will really ask for (`methodInUse`), as everywhere on Home.
+  const first = moment ? firstLine(moment, { ...routine, method: methodInUse(routine.method) }) : null;
 
   const moon = homeMoonDisc(width, height, insets.top);
   const cycle = () => {
@@ -129,9 +129,11 @@ export function HomeScreen() {
 
   const apps = isScreenTimeAvailable() ? shownSelection('night').size : 0;
   // A scan morning with no code set up yet falls back to steps until there is one.
-  const method = routine.method === 'scan' && !getScanCode() ? 'steps' : routine.method;
+  const method = methodInUse(routine.method);
   const asleep = view === 'night' || view === 'morning';
   const line = view === 'unprotected' ? health.title : (first?.line ?? LINES[view]);
+  // The paywall's "I remind you", kept even without notifications (B4). Re-read on each visit.
+  const trial = preview ? null : trialNotice(getTrialEnd(), new Date());
 
   return (
     <View style={styles.container}>
@@ -181,6 +183,7 @@ export function HomeScreen() {
             view={view}
             routine={{ ...routine, method }}
             nextChange={lock.nextChange}
+            unheld={phase !== lock.phase}
             detail={health.detail}
             pausedUntil={pause}
             blockNowUntil={lock.blockNowUntil}
@@ -188,6 +191,12 @@ export function HomeScreen() {
           {first && view !== 'unprotected' ? <FirstNote first={first} /> : null}
           {health.level === 'attention' && view !== 'unprotected' && !preview ? (
             <HealthNote title={health.title} detail={health.detail} />
+          ) : null}
+          {trial ? (
+            <>
+              <TrialNote title={trial.title} detail={trial.detail} />
+              <TextButton label="Manage subscription" onPress={manageTrial} />
+            </>
           ) : null}
           {health.needsSubscription && !preview ? (
             <TextButton label="See plans" onPress={() => router.push('/onboarding?resume=paywall')} />
@@ -207,15 +216,9 @@ export function HomeScreen() {
               onPress={() => router.push({ pathname: '/wake', params: { method } })}
             />
           ) : null}
-          {view === 'morning' && routine.method === 'scan' && method !== 'scan' ? (
-            <TextButton
-              label="Set up your code"
-              onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
-            />
-          ) : null}
           {view === 'unprotected' ? (
             protection === 'notSetUp' ? (
-              <PrimaryButton label="Allow Screen Time" onPress={() => router.push('/apps')} />
+              <PrimaryButton label="Set up Screen Time" onPress={() => router.push('/apps')} />
             ) : (
               <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} />
             )
@@ -242,8 +245,9 @@ export function HomeScreen() {
                 title="Schedule"
                 accessibilityLabel={`Bedtime ${bedtime}, morning start ${wake}. Edit the schedule.`}
               >
+                {/* Each time stays whole ("7 am", not "7" / "am"); a narrow phone wraps at the dash. */}
                 <Text style={styles.rowValue}>
-                  {bedtime} – {wake}
+                  {bedtime.replace(/ /g, ' ')} – {wake.replace(/ /g, ' ')}
                 </Text>
               </Row>
             </Link>
@@ -274,6 +278,7 @@ function Status({
   view,
   routine,
   nextChange,
+  unheld,
   detail,
   pausedUntil,
   blockNowUntil,
@@ -281,6 +286,8 @@ function Status({
   view: HomeView;
   routine: Routine;
   nextChange: Date;
+  /** It's bedtime by the clock, but nothing was armed: the health note says why. */
+  unheld: boolean;
   /** health.ts's plain explanation, shown as is when protection is off. */
   detail: string;
   pausedUntil: Date | null;
@@ -315,12 +322,16 @@ function Status({
     );
   }
   if (view === 'paused') {
-    const until = pausedUntil ? clockLabel(pausedUntil.getHours() * 60 + pausedUntil.getMinutes()) : bedtime;
+    const words = pausedUntil ? pauseWording(pausedUntil) : null;
+    const back = words ? words.resumes : null;
+    const resumes = back ? clockLabel(back.getHours() * 60 + back.getMinutes()) : bedtime;
+    const until = words?.weekday ? `${resumes} on ${words.weekday}` : resumes;
     return (
       <View style={[styles.statusRow, styles.statusTop]}>
         <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} style={styles.warningIcon} />
         <Text style={[styles.status, styles.flex]}>
-          Emergency unlock: your bedtime apps are awake tonight and tomorrow morning. They sleep again at {until}.
+          Emergency unlock: your bedtime apps are awake tonight and {words?.morning ?? 'tomorrow morning'}.{' '}
+          {words && !words.resumes ? 'Every night is switched off, so they stay awake.' : `They sleep again at ${until}.`}
         </Text>
       </View>
     );
@@ -329,7 +340,9 @@ function Status({
     return (
       <View style={styles.statusRow}>
         <SymbolView name={sym('moon', 'bedtime')} size={15} tintColor={Nocturne.text2} />
-        <Text style={[styles.status, styles.flex]}>No lock tonight. Always-asleep apps still sleep.</Text>
+        <Text style={[styles.status, styles.flex]}>
+          {isStoodDown() ? 'No lock tonight.' : 'No lock tonight. Always-asleep apps still sleep.'}
+        </Text>
       </View>
     );
   }
@@ -342,10 +355,18 @@ function Status({
       </View>
     );
   }
+  if (unheld) {
+    return (
+      <View style={styles.statusRow}>
+        <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
+        <Text style={[styles.status, styles.flex]}>
+          {isStoodDown() ? 'Apps awake. Nothing is asleep tonight.' : 'Bedtime apps awake tonight. Always-asleep apps still sleep.'}
+        </Text>
+      </View>
+    );
+  }
   // An edit waiting for bedtime governs tonight from its first night.
-  const pending = getPendingRoutine();
-  const tonight = pending && pending.from <= nextChange.getTime() ? pending.routine : routine;
-  const tonightOn = nightIsOn(nextChange, tonight);
+  const { routine: tonight, on: tonightOn } = nightAt(nextChange);
   return (
     <View style={styles.statusRow}>
       <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
@@ -361,6 +382,27 @@ function HealthNote({ title, detail }: { title: string; detail: string }) {
   return (
     <View style={[styles.statusRow, styles.statusTop]} accessible accessibilityLabel={`${title} ${detail}`}>
       <SymbolView name={sym('exclamationmark.triangle.fill', 'warning')} size={15} tintColor={WARNING} style={styles.warningIcon} />
+      <Text style={[styles.statusSmall, styles.flex]}>
+        <Text style={styles.noteTitle}>{title} </Text>
+        {detail}
+      </Text>
+    </View>
+  );
+}
+
+/** Apple's sheet (cancel, or switch plans); its web page where there's no sheet. Same as the You tab. */
+function manageTrial() {
+  const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
+  manageSubscriptions()
+    .then((shown) => (shown ? null : page()))
+    .catch(page);
+}
+
+/** The trial's last days: plain, with the date, like the notification it backs up. */
+function TrialNote({ title, detail }: { title: string; detail: string }) {
+  return (
+    <View style={[styles.statusRow, styles.statusTop]} accessible accessibilityLabel={`${title} ${detail}`}>
+      <SymbolView name={sym('calendar', 'event')} size={15} tintColor={Nocturne.text2} style={styles.warningIcon} />
       <Text style={[styles.statusSmall, styles.flex]}>
         <Text style={styles.noteTitle}>{title} </Text>
         {detail}
@@ -446,8 +488,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.l,
   },
   rowPressed: { backgroundColor: 'rgba(255, 255, 255, 0.06)' },
-  rowTitle: { color: Nocturne.text, fontSize: 17, fontWeight: '600' },
-  rowValue: { color: Nocturne.text2, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  // The title never gives way ("Sched…"): the value wraps instead.
+  rowTitle: { color: Nocturne.text, fontSize: 17, fontWeight: '600', flexShrink: 0 },
+  rowValue: { color: Nocturne.text2, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'], flexShrink: 1, textAlign: 'right' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255, 255, 255, 0.12)', marginLeft: Space.l + 18 + Space.m },
   exits: { flexDirection: 'row', justifyContent: 'center', gap: Space.xl },
 });

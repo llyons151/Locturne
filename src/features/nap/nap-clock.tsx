@@ -58,9 +58,10 @@ const FADE_MS = 400;
 /** 1453 s → 25 min; in the last minute, a countdown: "0:42". */
 function remaining(seconds: number) {
   const s = Math.max(0, Math.ceil(seconds));
-  return s > 60
-    ? { value: String(Math.ceil(s / 60)), unit: 'min', label: `${Math.ceil(s / 60)} minutes` }
-    : { value: `0:${String(s % 60).padStart(2, '0')}`, unit: '', label: `${s} seconds` };
+  // Exactly 60 s is still "1 min": as a countdown, 60 % 60 would read "0:00".
+  return s >= 60
+    ? { value: String(Math.ceil(s / 60)), unit: 'min', label: `${Math.ceil(s / 60)} ${s > 60 ? 'minutes' : 'minute'}` }
+    : { value: `0:${String(s).padStart(2, '0')}`, unit: '', label: `${s} ${s === 1 ? 'second' : 'seconds'}` };
 }
 
 export function NapClock({

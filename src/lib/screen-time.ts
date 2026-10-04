@@ -12,6 +12,7 @@
  */
 import {
   activitySelectionMetadata,
+  intersection,
   AuthorizationStatus,
   blockSelection,
   cleanUpAfterActivity,
@@ -22,7 +23,6 @@ import {
   getFamilyActivitySelectionId,
   isAvailable,
   isShieldActive,
-  isSubsetOf,
   onAuthorizationStatusChange,
   pollAuthorizationStatus,
   requestAuthorization,
@@ -142,7 +142,10 @@ export function toPlist(value: unknown): unknown {
 }
 
 export function sharedGet<T>(key: string): T | undefined {
-  return isAvailable() ? userDefaultsGet<T>(key) : (memory.get(key) as T | undefined);
+  // A missing key crosses the native bridge as `null` (expo-modules-core turns a nil `Any?`
+  // into null), and readers test `=== undefined`: `hasRoutine()` would be true on a fresh
+  // install and `subscriptionEnded()` for every subscriber. The fakes return null too.
+  return (isAvailable() ? userDefaultsGet<T>(key) : (memory.get(key) as T | undefined)) ?? undefined;
 }
 
 export function sharedSet(key: string, value: unknown): void {
@@ -169,9 +172,30 @@ export function selectionSize(id: SelectionId): number {
   if (!isAvailable()) return 0;
   const meta = activitySelectionMetadata({ activitySelectionId: id });
   if (!meta) return 0;
-  // The library's Swift sends `webdomainCount`, although its types say `webDomainCount`.
+  const { apps, categories, sites } = countsOf(meta);
+  return apps + categories + sites;
+}
+
+type Counts = { applicationCount: number; categoryCount: number; webDomainCount?: number };
+
+/** The library's Swift sends `webdomainCount`, although its types say `webDomainCount`. */
+function countsOf(meta: Counts) {
   const sites = meta.webDomainCount ?? (meta as { webdomainCount?: number }).webdomainCount ?? 0;
-  return meta.applicationCount + meta.categoryCount + sites;
+  return { apps: meta.applicationCount, categories: meta.categoryCount, sites };
+}
+
+/**
+ * Is every pick in `sub` also in `sup`? Not the library's `isSubsetOf`: it compares
+ * `webDomainCount`, which its Swift never sends, so a removed website passed as "nothing
+ * removed" and was swapped out live, where `unblockSelection` never reached it again.
+ */
+function containsAll(sub: SelectionId, sup: SelectionId): boolean {
+  const all = activitySelectionMetadata({ activitySelectionId: sub });
+  const shared = intersection({ activitySelectionId: sub }, { activitySelectionId: sup }, { stripToken: true });
+  if (!all || !shared) return false;
+  const a = countsOf(all);
+  const b = countsOf(shared);
+  return a.apps === b.apps && a.categories === b.categories && a.sites === b.sites;
 }
 
 /*
@@ -418,12 +442,22 @@ export function standDown(): void {
  * armed by `armTonight` / `armIfPaid`, which arm only with a subscription.
  */
 export async function standUp(): Promise<void> {
-  if (!isStoodDown()) return;
+  // A stand-up whose limits iOS refused (access off at the time, say) is retried on every paid
+  // settle: the stand-down flag is already gone by then, so it can't be the trigger.
+  const retry = sharedGet<boolean>(LIMITS_UNARMED_KEY) === true;
+  if (!isStoodDown() && !retry) return;
   sharedRemove(STOOD_DOWN_KEY);
   if (!isAvailable()) return;
-  for (const limit of getLimits()) await armLimit(limit);
-  reapplyStandingBlocks();
+  sharedSet(LIMITS_UNARMED_KEY, true);
+  try {
+    for (const limit of getLimits()) await armLimit(limit);
+    sharedRemove(LIMITS_UNARMED_KEY);
+  } finally {
+    reapplyStandingBlocks();
+  }
 }
+
+const LIMITS_UNARMED_KEY = 'locturne.limitsUnarmed';
 
 /** Stops every night window. Doesn't unshield anything already asleep. */
 export function disarmNight(): void {
@@ -635,7 +669,7 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
     setPending(list, { from: waiting.from, empty: selectionSize(draft) === 0 });
     return 'bedtime';
   }
-  if (selectionSize(list) === 0 || (selectionSize(draft) > 0 && isSubsetOf(live, next))) {
+  if (selectionSize(list) === 0 || (selectionSize(draft) > 0 && containsAll(live.activitySelectionId, next.activitySelectionId))) {
     copySelection(draft, list);
     clearSelection(draft);
     setPending(list, null);

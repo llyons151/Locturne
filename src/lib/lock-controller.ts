@@ -15,6 +15,7 @@
 import { armedInTime, currentMorning, dateKey, getLockState, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { getProof, recordProof, type ProofKind } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, toLockSettings } from './routine.ts';
+import { methodInUse } from './scan-code.ts';
 import {
   armedSince,
   armedWindowNames,
@@ -147,6 +148,26 @@ function underWayWhenEnded(morningKey: string): boolean {
 }
 
 /** No active subscription was found at the last check (never bought, or it ended). */
+let paidSettles = 0;
+
+/**
+ * Bumped by every paid settle (a purchase, a restore, a store answer). A "not paid" answer
+ * asked for before the latest bump is out of date (it can land after a purchase that went
+ * through meanwhile) and must not stand anything down.
+ */
+export function paidSettleCount(): number {
+  return paidSettles;
+}
+
+/**
+ * The last morning a lapsed subscription still covers (the one under way when the end was
+ * found), or null while subscribed. Nights after it never sleep, so nothing should promise they do.
+ */
+export function lastPaidMorning(): string | null {
+  if (!subscriptionEnded()) return null;
+  return sharedGet<string>(ENDED_MORNING_KEY) ?? null;
+}
+
 export function subscriptionEnded(): boolean {
   return sharedGet<number>(SUBSCRIPTION_ENDED_KEY) !== undefined;
 }
@@ -161,6 +182,7 @@ export function subscriptionEnded(): boolean {
 export function settleSubscription(paid: boolean, now = new Date()): void {
   if (!isScreenTimeAvailable()) return;
   if (paid) {
+    paidSettles += 1;
     sharedRemove(SUBSCRIPTION_ENDED_KEY);
     sharedRemove(ENDED_MORNING_KEY);
     standUp().catch(() => {
@@ -205,6 +227,8 @@ function planFor(now: Date): ArmPlan {
 export type ArmResult = 'armed' | 'kept' | 'disarmed' | 'deferred' | 'unavailable';
 
 let arming: Promise<ArmResult> | null = null;
+/** A call that came in while arming: its clock, so the run after this one plans for it. */
+let armAgainAt: Date | null = null;
 
 /**
  * Hands iOS the night windows for the saved routine: the one in force at the next bedtime,
@@ -216,9 +240,31 @@ let arming: Promise<ArmResult> | null = null;
  * for the next window. Throws if iOS refuses a window (nothing is left half-armed).
  */
 export function armRoutine(now = new Date()): Promise<ArmResult> {
-  // One at a time: a second call while iOS is still registering waits for the first.
-  arming ??= arm(now).finally(() => {
+  // One at a time: a second call while iOS is still registering waits for the first, then
+  // plans again (the first planned against the routine before the edit that made the call:
+  // spin the hour, then the minutes, and tonight would lock at the old hour). Capped, since
+  // the sync inside `arm` can ask again while it's still running.
+  if (arming) {
+    // The later clock wins: the sync inside `arm` asks again with the run's own, older one.
+    armAgainAt = armAgainAt && armAgainAt > now ? armAgainAt : now;
+    return arming;
+  }
+  arming = (async () => {
+    let result = await arm(now);
+    for (let rerun = 0; armAgainAt && rerun < 3; rerun++) {
+      const at = armAgainAt;
+      armAgainAt = null;
+      // Only for times that changed: when iOS keeps reporting a different window count for
+      // the same times, arming again doesn't help, and each try re-registers every window.
+      const plan = planFor(at);
+      const armed = getArmedNight();
+      if (plan.action === 'arm' && armed && armed.bedtime === plan.times.bedtime && armed.morningStart === plan.times.morningStart) break;
+      result = await arm(at);
+    }
+    return result;
+  })().finally(() => {
     arming = null;
+    armAgainAt = null;
   });
   return arming;
 }
@@ -252,10 +298,13 @@ async function arm(now: Date): Promise<ArmResult> {
  * monitor extension shows at the next window with the app closed.
  */
 function applyShieldText(state: LockState, now: Date): void {
-  const routine = getRoutine(now);
+  // The shield names the method the wake screen will really ask for.
+  const saved = getRoutine(now);
+  const routine = { ...saved, method: methodInUse(saved.method) };
   const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
   setShieldText(shieldTextFor(state, routine, now, limitReached), shieldTap(state.phase));
-  const next = getPendingRoutine(now)?.routine ?? routine;
+  const pending = getPendingRoutine(now)?.routine;
+  const next = pending ? { ...pending, method: methodInUse(pending.method) } : routine;
   setNightShieldText(shieldCopy('night', next));
   setMorningShieldText(shieldCopy('morning', next), shieldTap('morning'));
 }

@@ -86,7 +86,19 @@ const LIVE_GROUPS: { key: 'night' | 'always'; label: string }[] = [
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
+/**
+ * "at 11:00 PM", or "tomorrow at 11:00 PM" when that's tomorrow evening (a change made after
+ * tonight's bedtime waits for the next night). Midnight, or an after-midnight bedtime, is
+ * tomorrow by the date but tonight to a person, so it reads as plain "at 1:00 AM".
+ */
+function startsLabel(from: Date, now: Date): string {
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const tomorrowEvening = from.toDateString() === tomorrow.toDateString() && from.getHours() >= 12;
+  return tomorrowEvening ? `tomorrow at ${clock(from)}` : `at ${clock(from)}`;
+}
+
 /** When the next bedtime is, for "removed apps wake at 11:30 PM". */
+
 const clock = (date: Date) => date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 /**
@@ -227,7 +239,7 @@ function LiveAppsList() {
         {access !== 'approved' ? (
           <View style={styles.group}>
             <EditRow
-              label={protection === 'off' ? 'Turn Screen Time access back on' : 'Allow Screen Time access'}
+              label={protection === 'off' ? 'Turn Screen Time access back on' : 'Set up Screen Time access'}
               onPress={allow}
             />
           </View>
@@ -286,7 +298,7 @@ function LiveAppsList() {
               )}
               <Text style={styles.footer}>
                 {limitError ??
-                  "Once the time's used up, those apps sleep until midnight. A tighter limit starts now; a looser one waits for bedtime."}
+                  "Once the time's used up, those apps sleep until midnight. A tighter limit starts now; a looser one waits for bedtime (or midnight, with no bedtime scheduled)."}
               </Text>
             </View>
           </>
@@ -366,10 +378,14 @@ function LimitHeader({
   onRemove: () => void;
 }) {
   const { pending } = limit;
-  let status: string | null = null;
-  if (pending?.minutes === null) status = 'Ends at bedtime.';
-  else if (pending) status = `Goes up to ${limitLabel(pending.minutes)} at bedtime.`;
-  else if (usedUp) status = 'Used up today. Back at midnight.';
+  // Used up comes first: it's why the apps are asleep right now, whatever waits for bedtime.
+  const parts: string[] = [];
+  if (usedUp) parts.push('Used up today. Back at midnight.');
+  // `from` is the next bedtime, or midnight with nothing armed (`looserEditsStart`): name it.
+  const when = pending ? startsLabel(new Date(pending.from), new Date()) : '';
+  if (pending?.minutes === null) parts.push(`Ends ${when}.`);
+  else if (pending) parts.push(`Goes up to ${limitLabel(pending.minutes)} ${when}.`);
+  let status: string | null = parts.length ? parts.join(' ') : null;
   if (appsChangeAt) {
     const leave = `Removed apps leave at ${clock(appsChangeAt)}.`;
     status = status ? `${status} ${leave}` : leave;

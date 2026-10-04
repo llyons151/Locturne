@@ -35,6 +35,11 @@ export function useDownstairs() {
 
   const start = useCallback(() => watch.current?.start() ?? Promise.resolve(), []);
   const stop = useCallback(() => watch.current?.stop(), []);
+  /** The Stop button: stops listening and drops the session, so Start shows again. */
+  const cancel = useCallback(() => {
+    watch.current?.stop();
+    setSession(null);
+  }, []);
 
-  return { access, session, start, stop };
+  return { access, session, start, stop, cancel };
 }

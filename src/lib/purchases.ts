@@ -27,6 +27,13 @@ export type PlanId = 'annual' | 'monthly';
  *   product has only one intro offer at a time. Trial-eligible only.
  */
 export const EXIT_ARMS = ['none', 'half-price', 'longer-trial'] as const;
+
+/**
+ * Whether the exit offer can show outside the review tools. Off for 1.0: Apple has rejected
+ * offers shown on closing the paywall under 5.6 (docs/APP_REVIEW_AUDIT.md, R2). Turn it on
+ * only in a build that goes through review with it on, never from the dashboard.
+ */
+export const EXIT_OFFER_LIVE = false;
 export type ExitArm = (typeof EXIT_ARMS)[number];
 export type ExitOfferArm = Exclude<ExitArm, 'none'>;
 
@@ -139,7 +146,8 @@ export interface PurchasesProvider {
 
 /** "Save 49%": the annual price against twelve months of monthly. */
 export function annualSavingsPercent(offers: Pick<Offers, 'annual' | 'monthly'>): number {
-  return Math.floor((1 - offers.annual.price / (offers.monthly.price * 12)) * 100);
+  // The nudge keeps float error (48 against 5 a month is 19.999…%) from dropping a point.
+  return Math.floor((1 - offers.annual.price / (offers.monthly.price * 12)) * 100 + 1e-9);
 }
 
 /** A price in the offer's currency, e.g. the annual plan's per-month line. */
@@ -185,9 +193,13 @@ export function trialEndsAt(trialDays: number, from = new Date()): Date {
   return end;
 }
 
-/** The day the reminder lands: two days before the charge (the paywall's toggle says so). */
-export function reminderDay(trialDays: number): number {
-  return Math.max(1, trialDays - 2);
+/**
+ * The day of the trial the reminder lands on, for a trial starting `now`. It's at noon, at
+ * least two days before the charge (`planTrialReminder`), so a trial started before noon
+ * hears a day earlier.
+ */
+export function reminderDay(trialDays: number, now = new Date()): number {
+  return Math.max(1, trialDays - 2 - (now.getHours() < 12 ? 1 : 0));
 }
 
 export function isExitArm(value: string | undefined): value is ExitArm {
@@ -349,6 +361,8 @@ export const purchase = async (target: PurchaseTarget): Promise<PurchaseResult> 
     buying = false;
   }
 };
+/** True while a `purchase` is with the App Store. Set synchronously, so a same-frame second tap sees it. */
+export const isPurchasing = () => buying;
 export const restore = () => provider.restore();
 export const isEntitled = () => provider.isEntitled();
 export const currentTrialEnd = () => provider.currentTrialEnd();

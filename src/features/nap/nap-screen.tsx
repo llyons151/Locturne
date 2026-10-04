@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +22,7 @@ import {
   isStoodDown,
   NapClockChangeError,
   selectionSize,
+  shownSelection,
   startNap,
   type ActiveNap,
 } from '@/lib/screen-time';
@@ -78,11 +79,20 @@ function blocker(list: List): string | null {
   if (!isScreenTimeAvailable()) return 'Naps need Screen Time, which only iPhone has.';
   if (getAccess() !== 'approved') return 'Turn on Screen Time access first.';
   if (isStoodDown()) return 'Block now needs a subscription. Subscribe from the You tab.';
-  if (list === 'night' && !hasSelection('night')) return 'Pick your bedtime apps on the Apps tab first.';
+  if (list === 'night' && !hasSelection('night')) {
+    // An emergency unlock parks the picks until the next bedtime (`pauseNightUntil`): they're
+    // still chosen, just awake, and a nap on the empty live list would shield nothing.
+    return shownSelection('night').size > 0
+      ? 'Your bedtime apps are awake until bedtime after the emergency unlock. Pick apps for this nap instead.'
+      : 'Pick your bedtime apps on the Apps tab first.';
+  }
   if (list === 'block' && !hasSelection('block')) return 'Pick the apps for this nap first.';
   if (list === 'night' && isNightHeld()) return 'Your bedtime apps are already asleep.';
   return null;
 }
+
+/** "1 minute", "3 minutes". */
+const plural = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
 
 /** 1453 seconds → "24:13". */
 function clock(seconds: number) {
@@ -153,10 +163,16 @@ export function NapScreen() {
   };
   const refreshPicks = () => setPicks(isScreenTimeAvailable() ? selectionSize('block') : 0);
 
+  // The notice sits under the button; iOS has no live regions, so VoiceOver is told directly.
+  const refuse = (why: string) => {
+    setNotice(why);
+    AccessibilityInfo.announceForAccessibility(why);
+  };
+
   const start = async () => {
     const why = blocker(list);
-    setNotice(why);
-    if (why) return;
+    setNotice(null);
+    if (why) return refuse(why);
     setStarting(true);
     try {
       const started = await startNap(list, length);
@@ -167,7 +183,7 @@ export function NapScreen() {
       setNap(started);
       setLine('napping');
     } catch (error) {
-      setNotice(error instanceof NapClockChangeError ? error.message : "iOS wouldn't start the nap. Try again in a moment.");
+      refuse(error instanceof NapClockChangeError ? error.message : "iOS wouldn't start the nap. Try again in a moment.");
     } finally {
       setStarting(false);
     }
@@ -215,7 +231,7 @@ export function NapScreen() {
           <View
             style={styles.timer}
             accessible
-            accessibilityLabel={`${Math.ceil(left / 60)} minutes left. Apps asleep until ${timeOf(nap.end)}.`}
+            accessibilityLabel={`${plural(Math.ceil(left / 60), 'minute')} left. Apps asleep until ${timeOf(nap.end)}.`}
           >
             <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
               {clock(left)}
@@ -241,7 +257,7 @@ export function NapScreen() {
                 title="Apps for naps"
                 value={picks ? countPicks(picks) : 'None yet'}
                 onPress={() =>
-                  isScreenTimeAvailable() ? setPicking(true) : setNotice("Apple's app picker only opens on iPhone.")
+                  isScreenTimeAvailable() ? setPicking(true) : refuse("Apple's app picker only opens on iPhone.")
                 }
                 last
               />

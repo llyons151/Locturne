@@ -31,7 +31,8 @@ export function Scanner({ onScan, active = true }: { onScan: (scan: Scan) => voi
             : 'Camera access is off for Locturne. Turn it on in Settings to scan.'}
         </Text>
         <PrimaryButton
-          label={permission.canAskAgain ? 'Allow the camera' : 'Open Settings'}
+          // HIG: the button before Apple's prompt says Continue, never "Allow" (App Review 5.1.1(iv)).
+          label={permission.canAskAgain ? 'Continue' : 'Open Settings'}
           onPress={() => (permission.canAskAgain ? requestPermission() : Linking.openSettings())}
         />
       </View>

@@ -5,8 +5,16 @@
 export function noOrphan(text: string): string {
   const glued = text.replace(/(^|\s)(I|a|A) /g, '$1$2 ');
   const i = glued.trimEnd().lastIndexOf(' ');
-  return i > 0 ? `${glued.slice(0, i)} ${glued.slice(i + 1)}` : glued;
+  if (i <= 0) return glued;
+  // Two long words glued can be wider than a big headline's line on a small phone, and then
+  // the text breaks inside them ("Technically" / "."). Only glue a pair that fits.
+  const previous = glued.slice(0, i).split(' ').pop() ?? '';
+  if (previous.length + glued.length - i > MAX_GLUED) return glued;
+  return `${glued.slice(0, i)} ${glued.slice(i + 1)}`;
 }
+
+/** The longest last pair `noOrphan` keeps together ("awake. Technically." is 19). */
+const MAX_GLUED = 16;
 
 const DAY = 24 * 60;
 

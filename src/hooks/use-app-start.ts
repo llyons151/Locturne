@@ -3,16 +3,17 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { armTonight } from '@/lib/arm';
-import { onLockChange, settleSubscription } from '@/lib/lock-controller';
-import { getProofs } from '@/lib/morning-proof';
+import { paidSettleCount, settleSubscription } from '@/lib/lock-controller';
+import { onProofChange } from '@/lib/morning-proof';
 import {
   askForNotifications,
   onNotificationTap,
   opensWakeScreen,
   rescheduleNotifications,
   shouldAskForNotifications,
+  syncTrialEnd,
 } from '@/lib/notifications';
-import { isEntitled, onEntitled } from '@/lib/purchases';
+import { currentTrialEnd, isEntitled, isPurchasing, onEntitled } from '@/lib/purchases';
 import { hasRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
 
@@ -25,16 +26,45 @@ import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from 
  * keeps (and gets back) their lock without a network.
  */
 export function armIfPaid(): void {
-  if (!hasRoutine() || !isScreenTimeAvailable()) return;
-  isEntitled()
-    .then((paid) => {
+  if (!isScreenTimeAvailable()) return;
+  // Settled even before a routine exists: the always list, limits and Block now are gated on
+  // the stand-down too, and someone who left onboarding early has Screen Time access.
+  // An unpaid answer is dropped if a purchase or restore settled as paid while it was asked
+  // (Apple's sheets bring the app back to the front mid-purchase), or one is still running.
+  const asked = paidSettleCount();
+  const stale = () => paidSettleCount() !== asked || isPurchasing();
+  isEntitled().then(
+    (paid) => {
+      if (!paid && stale()) return;
       settleSubscription(paid);
-      if (!paid || getArmedNight() || getAccess() !== 'approved' || shownSelection('night').size === 0) return;
-      return armTonight();
-    })
-    .catch(() => {
-      // The App Store didn't answer and nothing is cached. The next open asks again.
-    });
+      // A stand-down took the armed night away, and Health still reads "on": replan, or
+      // "Bedtime in 15 minutes" keeps coming with nothing to block.
+      rescheduleNotifications().catch(() => {});
+      followTrial();
+      if (!paid || !hasRoutine() || getArmedNight() || getAccess() !== 'approved' || shownSelection('night').size === 0) return;
+      // The bedtime and morning notes only plan for an armed night.
+      armTonight()
+        .then(() => rescheduleNotifications())
+        .catch(() => {});
+    },
+    // Only the store's answer lands here (not a failed arm or reschedule): it didn't answer and
+    // nothing is cached, so never bought here (a reinstall has no lock to lose either). Nothing
+    // paid runs until it does; the next open asks again.
+    () => {
+      if (!getArmedNight() && !stale()) settleSubscription(false);
+    },
+  );
+}
+
+/**
+ * The trial reminder and Home's "Then the annual plan starts" follow the store: gone once
+ * the trial is cancelled in Apple's sheet or refunded, back if auto-renew is turned on again.
+ * Runs only after the store or the cache answered, so an offline open doesn't lose it.
+ */
+function followTrial(): void {
+  currentTrialEnd()
+    .then(syncTrialEnd)
+    .catch(() => {});
 }
 
 /**
@@ -56,6 +86,7 @@ export function useAppStart(): void {
   useEffect(() => {
     if (!hasRoutine()) {
       router.push('/onboarding');
+      armIfPaid();
       return;
     }
     shouldAskForNotifications()
@@ -73,14 +104,14 @@ export function useAppStart(): void {
 
   // A morning just unlocked (wake-up, pass, emergency unlock): its "apps stay asleep"
   // notification must not fire.
-  useEffect(() => {
-    let proofs = getProofs().length;
-    return onLockChange(() => {
-      if (getProofs().length === proofs) return;
-      proofs = getProofs().length;
-      rescheduleNotifications().catch(() => {});
-    });
-  }, []);
+  // (By the proof itself: the list is capped, so its length stops changing after a month.)
+  useEffect(
+    () =>
+      onProofChange(() => {
+        rescheduleNotifications().catch(() => {});
+      }),
+    [],
+  );
 
   useEffect(
     () =>

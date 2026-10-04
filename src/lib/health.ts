@@ -263,6 +263,17 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       detail: 'Nothing will sleep tonight until it is.',
     };
   }
+  // The night checked can be tonight's, once bedtime is a few minutes past: name it right. By
+  // then the app has put the apps to sleep itself (`syncLock`), so don't say they're awake.
+  const tonightChecked = lastNight !== null && lastNight.end > now;
+  if (lastNight?.verdict === 'missed' && tonightChecked) {
+    return {
+      ...base,
+      level: 'attention',
+      title: 'iOS was late putting me to bed tonight.',
+      detail: 'I’ve put your apps to sleep myself. Access is still on, so later nights should start on time. If it keeps happening, let us know.',
+    };
+  }
   if (lastNight?.verdict === 'missed') {
     return {
       ...base,
@@ -282,7 +293,9 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
   }
 
   const late =
-    lastNight?.verdict === 'late' ? ` Last night started ${lastNight.lateBy} minutes late; a later window caught it.` : '';
+    lastNight?.verdict === 'late'
+      ? ` ${tonightChecked ? 'Tonight' : 'Last night'} started ${lastNight.lateBy} minutes late; a later window caught it.`
+      : '';
   const tonight = nextNightIsOn(now, armed, routine.activeNights)
     ? `Your apps sleep at ${formatMinutes(armed.bedtime)}.`
     : `Tonight is off. Next time, your apps sleep at ${formatMinutes(armed.bedtime)}.`;

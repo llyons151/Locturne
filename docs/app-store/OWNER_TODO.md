@@ -34,7 +34,10 @@ milestones come from LAUNCH_PLAN:
    - Do it now: creating the record reserves the name while competitors launch weekly.
 5. **Sandbox testers** (Users and Access → Sandbox). Make 2 accounts: one adult, and one set
    up as a child for the Ask to Buy test (TEEN_ACCOUNTS).
-6. **App Store Connect API key** (Users and Access → Integrations → Team Keys, App Manager
+6. **PostHog project settings** (once the project exists): turn on **"Discard client IP
+   data"**. The Privacy Policy promises the IP is used for the approximate location and then
+   discarded, and keep event retention at 12 months or less (the policy says "up to 12").
+7. **App Store Connect API key** (Users and Access → Integrations → Team Keys, App Manager
    role) for `eas submit`. Add `ascAppId` to `eas.json` → `submit.production` after step 4.
 
 ## S − 5 weeks (Oct 12–18)

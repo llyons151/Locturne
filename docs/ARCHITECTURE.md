@@ -142,7 +142,7 @@ Onboarding is the biggest feature, so it has its own layers:
 | `steps.tsx` | **What each step shows.** `renderStep` is one `case` per step returning `{ body, footer, secondary }`. |
 | `screens/` | Steps big enough for their own file: `paywall.tsx` (plans + exit offer), `reveal-screen.tsx`, `math-screen.tsx`, `tomorrow-demo.tsx`, `walk-meter.tsx` (the `walk` page's live count). |
 | `ui.tsx` | Onboarding's page kit: `Shell` (top bar, progress, footer), `Title`, `Body`, `Voice`, `Options`, `HoldButton`, and `page` (shared spacing). |
-| the rest | Single widgets: `schedule-card`, `apple-alert`, `reveal-grid`, `rolling-number`, `sleep-drop` (+ `useSleepDrop`), `simulated-prompt`. |
+| the rest | Single widgets: `schedule-card`, `reveal-grid`, `rolling-number`, `sleep-drop` (+ `useSleepDrop`), `simulated-prompt`. |
 
 To **add a step**: add its id to `STEPS` in `navigation.ts`, add a `case` in `steps.tsx`, and
 TypeScript will flag anything else that needs it.

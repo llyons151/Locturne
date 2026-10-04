@@ -129,7 +129,8 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
   if (typeof fields.company === 'string' && fields.company.trim() !== '') return reply(request, 200);
   // Milliseconds from page load to submit, measured by the page. A page cached from before
   // sends a clock time instead, which is never this small, so it passes.
-  const elapsed = Number(fields.t);
+  // Without JavaScript the hidden field arrives empty, and `Number('')` is 0: no timing then.
+  const elapsed = typeof fields.t === 'string' && fields.t.trim() !== '' ? Number(fields.t) : NaN;
   if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < MIN_FILL_MS) return reply(request, 200);
 
   const email = normalizeEmail(fields.email);

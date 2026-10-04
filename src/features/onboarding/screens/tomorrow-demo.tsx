@@ -28,6 +28,8 @@ import { Glyph } from '@/components/ios-glyphs';
 import { Reveal } from '@/components/motion';
 import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
+import type { WakeMethod } from '@/lib/routine';
+import { DOWNSTAIRS } from '@/lib/wake/downstairs';
 import { DisplayFont, Nocturne, NUMBER_FONT, VoiceSize } from '@/theme';
 
 import { Eyebrow, Title } from '../ui';
@@ -62,6 +64,52 @@ const HOME_APPS: BrandName[] = ['TikTok', 'Instagram', 'YouTube', 'Snapchat', 'X
 const TARGET = HOME_APPS.indexOf('Instagram');
 const DOCK_APPS: SystemName[] = ['Phone', 'Safari', 'Messages', 'Music'];
 
+/**
+ * What the demo shows for the method they just chose (B2 in docs/ONBOARDING_OPTIMIZATION.md):
+ * someone who said "yes, stairs" mustn't watch a step counter at the aha moment. The timeline
+ * is the same for all three; `tick` is how far along it is, 0 to STEP_GOAL.
+ */
+const METHOD_DEMO: Record<
+  WakeMethod,
+  {
+    shield: string;
+    button: string;
+    /** The big number and its unit, at this point of the timeline. */
+    count: (tick: number) => { value: string; unit: string };
+    /** His line halfway there. */
+    midway: string;
+    /** VoiceOver, at the end. */
+    done: string;
+  }
+> = {
+  steps: {
+    shield: `Walk ${STEP_GOAL} steps and it wakes up.`,
+    button: 'Check my steps',
+    count: (tick) => ({ value: String(tick), unit: ` / ${STEP_GOAL} steps` }),
+    midway: 'I can hear you walking. I’m ignoring it.',
+    done: `${STEP_GOAL} of ${STEP_GOAL} steps.`,
+  },
+  downstairs: {
+    shield: 'Go downstairs and it wakes up.',
+    button: 'I’m downstairs',
+    // The same metres meter as the real wake-up screen (downstairs-view.tsx).
+    count: (tick) => ({
+      value: ((tick / STEP_GOAL) * DOWNSTAIRS.threshold).toFixed(1),
+      unit: ` / ${DOWNSTAIRS.threshold} m down`,
+    }),
+    midway: 'I can feel the stairs. I’m ignoring them.',
+    done: 'One floor down.',
+  },
+  scan: {
+    shield: 'Scan your code and it wakes up.',
+    button: 'Scan my code',
+    count: (tick) =>
+      tick >= STEP_GOAL ? { value: 'Scanned', unit: '' } : { value: String(STEP_GOAL - tick), unit: ' steps to your code' },
+    midway: 'You’re going to the code. I’m ignoring it.',
+    done: 'Code scanned.',
+  },
+};
+
 /** How far the phone leans under a finger or cursor, in degrees. */
 const MAX_TILT = 14;
 
@@ -70,9 +118,21 @@ type SharedNumber = ReturnType<typeof useSharedValue<number>>;
 
 /**
  * The product in six seconds, on an iPhone: tap Instagram at 7:00, get Loc's sleep
- * screen, walk 200 steps underneath, and the sleep screen lifts off the feed.
+ * screen, do the chosen wake-up underneath, and the sleep screen lifts off the feed.
  */
-export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
+export function TomorrowDemo({
+  when,
+  clock,
+  method,
+  onPayoff,
+}: {
+  when: string;
+  clock: string;
+  method: WakeMethod;
+  /** Called once the sleep screen has lifted: the onboarding's button waits for it. */
+  onPayoff?: () => void;
+}) {
+  const copy = METHOD_DEMO[method];
   const reduced = useReducedMotion();
   const compact = useCompact();
   const [phase, setPhase] = useState<Phase>('home');
@@ -88,7 +148,7 @@ export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
     const timers: ReturnType<typeof setTimeout>[] = [];
     const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
     const announce = () =>
-      AccessibilityInfo.announceForAccessibility('200 of 200 steps. Your apps are awake. I’m up. Don’t talk to me yet.');
+      AccessibilityInfo.announceForAccessibility(`${copy.done} Your apps are awake. I’m up. Don’t talk to me yet.`);
 
     if (reduced) {
       at(TAP_AT, () => {
@@ -163,6 +223,8 @@ export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
                 width={phoneWidth}
                 clock={clock}
                 phase={phase}
+                shieldLine={copy.shield}
+                buttonLabel={copy.button}
                 press={press}
                 button={button}
                 open={open}
@@ -174,10 +236,14 @@ export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
       ) : null,
     // Shared values are stable refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [phoneWidth, phoneHeight, reduced, clock, phase],
+    [phoneWidth, phoneHeight, reduced, clock, phase, copy],
   );
 
   const awake = phase === 'awake';
+  useEffect(() => {
+    if (awake) onPayoff?.();
+  }, [awake, onPayoff]);
+  const count = copy.count(steps);
   // "Fine. *Fine.*": the whole line is already italic, so the emphasis is an underline.
   const line =
     phase === 'home' ? null : awake ? (
@@ -187,7 +253,7 @@ export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
         Fine. <Text style={styles.emphasis}>Fine.</Text>
       </>
     ) : steps >= 80 ? (
-      'I can hear you walking. I’m ignoring it.'
+      copy.midway
     ) : (
       'No.'
     );
@@ -205,10 +271,10 @@ export function TomorrowDemo({ when, clock }: { when: string; clock: string }) {
         <Text
           style={[styles.walkCount, compact && styles.walkCountCompact]}
           maxFontSizeMultiplier={1.3}
-          accessibilityLabel={`${steps} of 200 steps`}
+          accessibilityLabel={`${count.value}${count.unit}`}
         >
-          {steps}
-          <Text style={styles.walkGoal}> / 200 steps</Text>
+          {count.value}
+          <Text style={styles.walkGoal}>{count.unit}</Text>
         </Text>
         <View style={styles.walkTrack}>
           <View style={[styles.walkFill, { width: `${(steps / STEP_GOAL) * 100}%` }]} />
@@ -283,6 +349,8 @@ function Phone({
   width,
   clock,
   phase,
+  shieldLine,
+  buttonLabel,
   press,
   button,
   open,
@@ -291,6 +359,8 @@ function Phone({
   width: number;
   clock: string;
   phase: Phase;
+  shieldLine: string;
+  buttonLabel: string;
   press: SharedNumber;
   button: SharedNumber;
   open: SharedNumber;
@@ -386,13 +456,13 @@ function Phone({
               Shh. I’m sleeping.{'\n'}So is Instagram.
             </Text>
             <Text style={[styles.shieldSub, { fontSize: pt(17), lineHeight: pt(22) }]} maxFontSizeMultiplier={1}>
-              Walk 200 steps and it wakes up.
+              {shieldLine}
             </Text>
           </View>
           <View style={[styles.shieldButtons, { left: pt(24), right: pt(24), bottom: pt(44), gap: pt(8) }]}>
             <Animated.View style={[styles.shieldPrimary, { height: pt(54), borderRadius: pt(16) }, buttonStyle]}>
               <Text style={[styles.shieldPrimaryText, { fontSize: pt(18) }]} maxFontSizeMultiplier={1}>
-                Check my steps
+                {buttonLabel}
               </Text>
             </Animated.View>
             <View style={{ height: pt(44), justifyContent: 'center' }}>

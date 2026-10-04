@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { track } from '@/lib/analytics';
-import { EMERGENCY_WAIT_SECONDS, emergencyUnlock, previewEmergency, type EmergencyPlan } from '@/lib/emergency';
+import { EMERGENCY_WAIT_SECONDS, emergencyUnlock, pauseWording, previewEmergency, type EmergencyPlan } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
@@ -63,8 +63,15 @@ const PASS_REFUSALS: Record<PassRefusal, string> = {
 /** What an emergency unlock wakes, in plain words. Never vague (VOICE.md, "Clear when it matters"). */
 function describe(plan: EmergencyPlan): string {
   const parts: string[] = [];
-  if (plan.pauseNight && plan.resumesAt)
-    parts.push(`Your bedtime apps wake for the rest of tonight and tomorrow morning. They go back to sleep at ${timeOf(plan.resumesAt)} on their own.`);
+  if (plan.pauseNight && plan.resumesAt) {
+    const { morning, resumes, weekday } = pauseWording(new Date(plan.resumesAt));
+    const when = resumes && (weekday ? `${timeOf(resumes.getTime())} on ${weekday}` : timeOf(resumes.getTime()));
+    parts.push(
+      when
+        ? `Your bedtime apps wake for the rest of tonight and ${morning}. They go back to sleep at ${when} on their own.`
+        : `Your bedtime apps wake for the rest of tonight and ${morning}. Every night is switched off, so they stay awake.`,
+    );
+  }
   else if (plan.unlockMorning) parts.push('Your apps wake until bedtime.');
   if (plan.endBlockNow) parts.push('Your Block now session ends.');
   parts.push('The always-blocked list stays asleep.');
@@ -133,7 +140,25 @@ export function ExitsScreen() {
     setLeft(getPassesLeft());
   };
 
-  const cantWalk = () => router.push(getScanCode() ? '/scan?mode=morning' : '/scan?mode=setup');
+  const cantWalk = () => {
+    if (getScanCode()) return router.push('/scan?mode=morning');
+    // A code can't be set up from bed (any barcode by the pillow would do), so say what can help.
+    if (phase === 'night' || phase === 'morning') {
+      return setStage({
+        kind: 'menu',
+        // Passes only work in the morning (`notMorning`), so at night only the unlock helps.
+        notice:
+          phase === 'night'
+            ? left > 0
+              ? 'No code yet, and it can’t be set up from bed. Passes start in the morning; the emergency unlock is here now.'
+              : 'No code yet, and it can’t be set up from bed. The emergency unlock is here now.'
+            : left > 0
+              ? 'No code yet, and it can’t be set up from bed. Use a pass, or the emergency unlock. Set one up in the day for next time.'
+              : 'No code yet, and it can’t be set up from bed. No passes left this month; the emergency unlock is here.',
+      });
+    }
+    router.push('/scan?mode=setup');
+  };
 
   const words = (() => {
     if (stage.kind === 'wait') {
@@ -145,6 +170,16 @@ export function ExitsScreen() {
       return stage.exit === 'pass'
         ? { line: 'Fine. *Fine.*', body: `Your apps are awake until bedtime. ${passesLabel(left)} left this month.` }
         : { line: "I'll allow it. This once. Maybe.", body: plan ? describe(plan) : '' };
+    }
+    // Only the ways out that exist: no pass with none left, no scan without a code.
+    if (phase === 'morning' && getScanCode() && left === 0) {
+      return { ...OPENERS.morning, body: "Scan your code if walking is hard today, or unlock in an emergency. I won't make it weird." };
+    }
+    if (phase === 'morning' && !getScanCode()) {
+      return {
+        ...OPENERS.morning,
+        body: left > 0 ? "Use a pass, or unlock in an emergency. I won't make it weird." : "No passes left this month. The emergency unlock is still here. I won't make it weird.",
+      };
     }
     return OPENERS[phase];
   })();
@@ -174,7 +209,7 @@ export function ExitsScreen() {
             <ValueRow
               icon={sym('qrcode.viewfinder', 'qr_code_scanner')}
               title="I can't walk this morning"
-              value="Scan"
+              value={getScanCode() ? 'Scan' : 'No code'}
               onPress={cantWalk}
             />
             <ValueRow
@@ -195,7 +230,7 @@ export function ExitsScreen() {
           <Text
             style={styles.count}
             accessibilityLiveRegion="polite"
-            accessibilityLabel={wait > 0 ? `${wait} seconds` : 'Ready'}
+            accessibilityLabel={wait > 0 ? `${wait} ${wait === 1 ? 'second' : 'seconds'}` : 'Ready'}
           >
             {wait > 0 ? `0:${String(wait).padStart(2, '0')}` : '0:00'}
           </Text>

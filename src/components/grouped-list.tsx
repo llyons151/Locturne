@@ -45,7 +45,7 @@ export function ControlRow({
     <View style={styles.row}>
       <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} />
       <View style={[styles.rowBody, !last && styles.separator]}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
         {children}
@@ -60,12 +60,15 @@ export function ValueRow({
   title,
   value,
   onPress,
+  hint,
   last,
 }: {
   icon: Symbol;
   title: string;
   value: string;
   onPress: () => void;
+  /** VoiceOver's hint, only where it's true (an editor sheet). Most rows open a screen or page. */
+  hint?: string;
   last?: boolean;
 }) {
   return (
@@ -76,15 +79,15 @@ export function ValueRow({
       }}
       accessibilityRole="button"
       accessibilityLabel={`${title}, ${value}`}
-      accessibilityHint="Opens an editor"
+      accessibilityHint={hint}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} />
       <View style={[styles.rowBody, !last && styles.separator]}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
-        <Text style={styles.value} numberOfLines={1}>
+        <Text style={styles.value} numberOfLines={2}>
           {value}
         </Text>
         <SymbolView name={sym('chevron.right', 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.text3} />
@@ -198,6 +201,8 @@ const styles = StyleSheet.create({
   rowBody: {
     flex: 1,
     minHeight: ROW_HEIGHT,
+    // A title that wraps at large text sizes stays off the separator.
+    paddingVertical: Space.xs,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s,
@@ -205,7 +210,9 @@ const styles = StyleSheet.create({
   },
   separator: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Nocturne.edge },
   title: { flex: 1, color: Nocturne.text, fontSize: 17 },
-  value: { color: Nocturne.text2, fontSize: 17, fontVariant: ['tabular-nums'] },
+  // Capped so a long value ("Nothing asleep") can't squeeze the title to a few letters; it
+  // wraps instead of cutting a time at large text sizes.
+  value: { color: Nocturne.text2, fontSize: 17, fontVariant: ['tabular-nums'], flexShrink: 1, maxWidth: '45%', textAlign: 'right' },
 
   choice: { paddingLeft: Space.l },
   choiceBody: {

@@ -60,12 +60,13 @@ function catalog(options: { metadata?: Record<string, unknown>; exits?: boolean;
   return { current: main, all } as unknown as PurchasesOfferings;
 }
 
-function customer(active: { productId: string; trial?: boolean; startedAt?: number; expiresAt?: number | null } | null): CustomerInfo {
+function customer(active: { productId: string; trial?: boolean; startedAt?: number; expiresAt?: number | null; willRenew?: boolean } | null): CustomerInfo {
   const entitlement = active && {
     identifier: 'pro',
     isActive: true,
     periodType: active.trial ? 'TRIAL' : 'NORMAL',
     productIdentifier: active.productId,
+    willRenew: active.willRenew ?? true,
     latestPurchaseDateMillis: active.startedAt ?? 0,
     expirationDateMillis: active.expiresAt === undefined ? (active.startedAt ?? 0) + 7 * DAY : active.expiresAt,
   };
@@ -250,6 +251,16 @@ test('Restore reports the subscription the store finds', async () => {
   assert.equal(await rc.currentTrialEnd(), null);
 });
 
+test('a cancelled trial stays paid until its end but has no trial end to remind about', async () => {
+  const sdk = fakeSdk();
+  sdk.info = customer({ productId: PRODUCT_IDS.annual, trial: true, startedAt: 1000 });
+  const rc = provider(sdk);
+  assert.equal((await rc.currentTrialEnd())?.getTime(), 1000 + 7 * DAY);
+  sdk.info = customer({ productId: PRODUCT_IDS.annual, trial: true, startedAt: 1000, willRenew: false });
+  assert.equal(await rc.isEntitled(), true);
+  assert.equal(await rc.currentTrialEnd(), null);
+});
+
 test('offline, the cached answer decides, with grace past the end date', async () => {
   const store = memoryKeyValue();
   const now = new Date(2026, 10, 1);
@@ -273,6 +284,8 @@ test('cachedEntitlement', () => {
   assert.equal(cachedEntitlement({ active: true, checkedAt: 0 }, now), true);
   assert.equal(cachedEntitlement({ active: true, expiresAt: now.getTime() - OFFLINE_GRACE_MS + 1, checkedAt: 0 }, now), true);
   assert.equal(cachedEntitlement({ active: true, expiresAt: now.getTime() - OFFLINE_GRACE_MS, checkedAt: 0 }, now), false);
+  // Cancelled: it won't renew, so there's no offline renewal to wait for.
+  assert.equal(cachedEntitlement({ active: true, willRenew: false, expiresAt: now.getTime() - 1, checkedAt: 0 }, now), false);
 });
 
 test('entitlementRecord keeps only plist-safe fields', () => {

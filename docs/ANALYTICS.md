@@ -66,9 +66,9 @@ which wake-up method they picked. All quiz answers are also set on the person.
 | `walk_started` / `walk_finished` | the 20-step walk | `result` (done, denied, unavailable), `seconds` |
 | `screen_time_access` | after Apple's prompt | `result` |
 | `apps_picked` | Apple's picker closes | `count` |
-| `paywall_viewed` | `offer`, `plans`, `declined` | `page`, `exit_arm`, `prices_loaded`, `trial_days` |
+| `paywall_viewed` | `offer`, `plans`, `declined` | `page`, `exit_arm` (null until prices load), `prices_loaded`, `trial_days` |
 | `offers_failed` | the store didn't return prices | |
-| `purchase_started` / `purchase_result` | a plan is tapped | `target`, `page`, `status` |
+| `purchase_started` / `purchase_result` | a plan is tapped (and an Ask to Buy approval, `target` = `approved`) | `target`, `page`, `status` |
 | `restore_result` | Restore | `found`, `step` |
 | `onboarding_completed` | setup saved after purchase or restore | `via`, `depth` |
 | `night_armed` | after arming tonight | `status`, `reason`, `now` |
@@ -84,7 +84,7 @@ shouldn't be compared with the old one, and split funnels by it.
 |---|---|---|
 | `Application Opened`, `Application Became Active`, `Application Installed`, … | PostHog lifecycle events | |
 | `$screen` | each route (tabs, wake, scan, exits) | `$screen_name` |
-| `morning_unlocked` | any proof: stairs, steps, scan, pass, emergency | `method`, `minutes_after_start`, `morning_number` |
+| `morning_unlocked` | any proof: stairs, steps, scan, pass, emergency | `method`, `after_start` (bucket: before, <5, 5-15, 15-30, 30-60, 60+), `morning_number` |
 | `night_checked` | once per finished night, on the next open | `verdict` (onTime, late, missed, noShield), `late_by_minutes` |
 | `pass_used` | a pass is spent | `passes_left` |
 | `emergency_unlock` | the emergency unlock | `phase`, `paused_night`, `ended_block_now`, `unlocked_morning` |
@@ -97,11 +97,12 @@ shouldn't be compared with the old one, and split funnels by it.
 Create one dashboard, "Locturne", with these insights.
 
 **1. Onboarding funnel** (Funnel, by unique users, 1 day window):
-`onboarding_started` → `onboarding_step_viewed` step = `reveal` → step = `walk` →
+`onboarding_started` → `onboarding_step_viewed` step = `reveal` → step = `tomorrow` →
 `screen_time_access` result = granted → `apps_picked` → `paywall_viewed` →
 `purchase_result` status = purchased. Break down by `onboarding_version`. The biggest drop
 is where to work next. Also break down by `onboarding_found` to see which video angle
-brings buyers rather than installs.
+brings buyers rather than installs. (Not step = `walk`: it's skipped late at night, so
+night-time installers would all read as drop-offs there.)
 
 **2. Every-step drop-off** (Funnel, or a Trends table of `onboarding_step_viewed` unique
 users broken down by `step`). Sort by `step_index`. Add a second Trends insight on

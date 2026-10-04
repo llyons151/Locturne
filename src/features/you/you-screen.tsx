@@ -3,7 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
@@ -21,9 +21,12 @@ import {
   type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
+import { readLock } from '@/lib/lock-controller';
 import { getPassesLeft } from '@/lib/passes';
+import { getRoutine } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
-import { type Protection } from '@/lib/screen-time';
+import { getScanCode } from '@/lib/scan';
+import { getArmedNight, isStoodDown, type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
@@ -54,13 +57,15 @@ const STATUS: Record<Protection, { icon: string; android: string; line: string }
   notSetUp: {
     icon: 'exclamationmark.triangle.fill',
     android: 'warning',
-    line: 'Screen Time access isn’t on yet, so I can’t block anything. Allow it from the Apps tab.',
+    line: 'Screen Time access isn’t on yet, so I can’t block anything. Set it up from the Apps tab.',
   },
   unavailable: { icon: 'iphone', android: 'smartphone', line: 'Blocking needs Screen Time, which only iPhone has.' },
 };
 
+/** The 1st after the month of the morning `now` belongs to: passes count by mornings (passes.ts). */
 function refillDate(now: Date) {
-  return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString(undefined, {
+  const [year, month] = readLock(now).morningKey.split('-').map(Number);
+  return new Date(year, month, 1).toLocaleDateString(undefined, {
     month: 'long',
     day: 'numeric',
   });
@@ -101,8 +106,12 @@ export function YouScreen() {
     setNotificationPrefs(next).catch(() => {});
   };
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  // Re-read on return from Settings: iOS doesn't restart the app when this one changes.
   useEffect(() => {
-    getNotificationPermission().then(setPermission, () => {});
+    const check = () => getNotificationPermission().then(setPermission, () => {});
+    check();
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && check());
+    return () => sub.remove();
   }, []);
   // Read again whenever the tab comes back into view: a pass spent on the exits screen or a
   // trial that ended since must show here.
@@ -122,6 +131,13 @@ export function YouScreen() {
       currentPlan().then(setPlan, () => {});
     }, []),
   );
+  // Setting up a code is refused from bed (scan.ts): then the morning scan if there's a code,
+  // or the ways out that work without one.
+  const cantWalk = () => {
+    const { phase } = readLock();
+    if (phase !== 'night' && phase !== 'morning') return router.push({ pathname: '/scan', params: { mode: 'setup' } });
+    router.push(getScanCode() ? '/scan?mode=morning' : '/exits');
+  };
   // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
   const manage = () => {
     const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
@@ -151,7 +167,16 @@ export function YouScreen() {
     }
   };
 
-  const s = STATUS[status];
+  // Access being on isn't the same as apps sleeping: a lapsed subscription or a night that
+  // never got scheduled says so here, like Home and Apps do.
+  const s =
+    status === 'on' && isStoodDown()
+      ? { ...STATUS.on, line: 'Screen Time access is on, but there’s no subscription, so nothing sleeps.' }
+      : status === 'on' && getRoutine().activeNights.length === 0
+        ? { ...STATUS.on, line: 'Screen Time access is on. Every night is switched off in Routine.' }
+        : status === 'on' && !getArmedNight()
+          ? { ...STATUS.on, line: 'Screen Time access is on, but bedtime isn’t scheduled yet.' }
+        : STATUS[status];
   const version = Constants.expoConfig?.version;
 
   return (
@@ -182,7 +207,7 @@ export function YouScreen() {
           icon={sym('figure.roll', 'accessible')}
           title="Can’t walk or use stairs"
           value=""
-          onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
+          onPress={cantWalk}
           last
         />
       </Section>

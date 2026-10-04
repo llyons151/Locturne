@@ -48,6 +48,14 @@ describe('forward', () => {
     assert.equal(currentStep(navigate(nav, next)), 'first-morning');
   });
 
+  test('the demo comes before the walk, and late at night the walk is skipped', () => {
+    assert.equal(nextStep('tomorrow'), 'walk');
+    assert.equal(nextStep('tomorrow', ['walk']), 'screen-time');
+    const nav = run(reach('tomorrow'), { type: 'next', skip: ['walk'] });
+    assert.equal(currentStep(nav), 'screen-time');
+    assert.equal(currentStep(navigate(nav, back)), 'tomorrow', 'Back returns to the demo, not the skipped walk');
+  });
+
   test('the side steps rejoin the main path', () => {
     assert.equal(nextStep('under-13'), 'alarm');
     assert.equal(nextStep('declined'), 'plans');
@@ -87,6 +95,14 @@ describe('back', () => {
     const nav = run(startNav('math', initialAnswers), next);
     assert.equal(currentStep(nav), 'reveal');
     assert.deepEqual(navigate(nav, back).history, ['math']);
+  });
+
+  test('a second next from the same screen does nothing', () => {
+    const nav = reach('armed');
+    const sent = { type: 'next', at: nav.history.length } as const;
+    const once = navigate(nav, sent);
+    assert.equal(currentStep(once), 'first-morning');
+    assert.equal(navigate(once, sent), once);
   });
 
   test('the under-13 screen has no Back', () => {
@@ -177,9 +193,9 @@ describe('editing the method from the walk', () => {
     assert.equal(nav.answers.method, 'steps');
   });
 
-  test('then the walk carries on to tomorrow', () => {
+  test('then the walk carries on to Screen Time', () => {
     const nav = run(walk(), edit('method'), next, next);
-    assert.equal(currentStep(nav), 'tomorrow');
+    assert.equal(currentStep(nav), 'screen-time');
   });
 });
 

@@ -238,15 +238,20 @@ test('switched-off kinds aren’t scheduled', async () => {
 
 /* The trial reminder */
 
-test('“Remind me” asks for permission when iOS hasn’t asked yet, then schedules the reminder', async () => {
+test('“Remind me” keeps the trial end without prompting; `armed` asks', async () => {
   saveRoutine(DEFAULT_ROUTINE, NOW);
   ios.settings = { granted: false, status: 'undetermined', ios: { status: IOS.NOT_DETERMINED } };
   ios.afterPrompt = { granted: true, status: 'granted', ios: { status: IOS.AUTHORIZED } };
 
   const ends = new Date(2026, 9, 10, 12, 0);
   await n.scheduleTrialReminder(ends);
-  assert.equal(ios.prompts, 1);
+  assert.equal(ios.prompts, 0);
   assert.equal(+n.getTrialEnd()!, +ends);
+  assert.ok(!ios.scheduled.has('locturne.trial'), 'nothing lands before permission');
+
+  // `armed` asks; once allowed, the reminder is scheduled 2 days before the end.
+  assert.equal(await n.askForNotifications(), true);
+  assert.equal(ios.prompts, 1);
   assert.equal(+ios.scheduled.get('locturne.trial')!.trigger!.date, +new Date(2026, 9, 8, 12, 0));
 
   await n.cancelTrialReminder();
@@ -259,6 +264,28 @@ test('“Remind me” with permission already answered doesn’t prompt again', 
   await n.scheduleTrialReminder(new Date(2026, 9, 10, 12, 0));
   assert.equal(ios.prompts, 0);
   assert.ok(n.getTrialEnd(), 'kept, so it schedules if permission is turned on later');
+});
+
+test('the trial reminder follows the store: cancelled drops it, renewing again brings it back', async () => {
+  saveRoutine(DEFAULT_ROUTINE, NOW);
+  const ends = new Date(2026, 9, 10, 12, 0);
+  sharedSet(n.TRIAL_REMINDER_KEY, true);
+  await n.scheduleTrialReminder(ends);
+  assert.ok(ios.scheduled.has('locturne.trial'));
+
+  await n.syncTrialEnd(null); // cancelled in Apple's sheet
+  assert.equal(n.getTrialEnd(), null);
+  assert.ok(!ios.scheduled.has('locturne.trial'));
+
+  await n.syncTrialEnd(ends); // auto-renew turned back on
+  assert.equal(+n.getTrialEnd()!, +ends);
+  assert.ok(ios.scheduled.has('locturne.trial'));
+
+  // Without "Remind me", a renewing trial isn't given a reminder it never asked for.
+  await n.cancelTrialReminder();
+  sharedSet(n.TRIAL_REMINDER_KEY, false);
+  await n.syncTrialEnd(ends);
+  assert.equal(n.getTrialEnd(), null);
 });
 
 /* Asking */

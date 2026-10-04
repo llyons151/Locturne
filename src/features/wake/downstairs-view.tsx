@@ -28,7 +28,7 @@ export function DownstairsView({
   onSteps: () => void;
   footer?: ReactNode;
 }) {
-  const { access, session, start, stop } = useDownstairs();
+  const { access, session, start, stop, cancel } = useDownstairs();
   const status = session?.status;
   const met = status === 'met';
 
@@ -103,7 +103,7 @@ export function DownstairsView({
       <View style={styles.bottom}>
         {!session && <PrimaryButton label="Start" onPress={start} disabled={access === 'checking'} />}
         {status === 'timedOut' && <PrimaryButton label="Start again" onPress={start} />}
-        {running && <TextButton label="Stop" onPress={stop} />}
+        {running && <TextButton label="Stop" onPress={cancel} />}
         {!met && <TextButton label={instead} onPress={onSteps} />}
         {footer}
       </View>
@@ -138,7 +138,7 @@ function HeightMeter({ session }: { session: DownstairsSession }) {
       accessible
       accessibilityLabel={
         holding
-          ? `Floor reached. Hold for ${secondsLeft} more seconds.`
+          ? `Floor reached. Hold for ${secondsLeft} more ${secondsLeft === 1 ? 'second' : 'seconds'}.`
           : `${metres.toFixed(1)} of ${DOWNSTAIRS.threshold} metres${direction ? `, going ${direction}` : ''}.`
       }
     >

@@ -228,7 +228,9 @@ export function NightSky({
   });
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    // Clipped: the risen moon's glow runs past the screen edges, which on the web widens and
+    // scrolls the page (iOS clips at the screen anyway).
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
       <Image
         source={require('@/assets/onboarding/night-sky-moonless.png')}
         style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
@@ -259,6 +261,7 @@ export function NightSky({
 }
 
 const styles = StyleSheet.create({
+  clip: { overflow: 'hidden' },
   moon: { position: 'absolute' },
   flipped: { transform: [{ scaleY: -1 }] },
 });

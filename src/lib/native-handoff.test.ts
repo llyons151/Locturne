@@ -56,9 +56,13 @@ const exports = {
     webdomainCount: 0,
     includeEntireCategory: false,
   }),
-  // Live list ⊆ draft: true when every live app is still in the draft (nothing removed).
-  isSubsetOf: (a: { activitySelectionId: string }, b: { activitySelectionId: string }) =>
-    apps(a.activitySelectionId).every((app) => apps(b.activitySelectionId).includes(app)),
+  // The apps both lists share, as metadata (live ∩ draft = live when nothing was removed).
+  intersection: (a: { activitySelectionId: string }, b: { activitySelectionId: string }) => ({
+    applicationCount: apps(a.activitySelectionId).filter((app) => apps(b.activitySelectionId).includes(app)).length,
+    categoryCount: 0,
+    webdomainCount: 0,
+    includeEntireCategory: false,
+  }),
   // Removals only in these scenarios, so the union of live and draft is the live list.
   union: () => {},
   // The library's native `userDefaultsClearWithPrefix`, twice.

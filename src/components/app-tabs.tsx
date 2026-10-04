@@ -254,7 +254,8 @@ function TabButton({
             tintColor={Nocturne.text}
           />
         </Animated.View>
-        <Animated.Text numberOfLines={1} style={styles.label}>
+        {/* Capped like iOS's own tab bar: the largest text sizes don't fit the 62 pt bar. */}
+        <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={styles.label}>
           {tab.label}
         </Animated.Text>
       </Animated.View>

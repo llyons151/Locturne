@@ -4,7 +4,7 @@
  * Flow and evidence: docs/ONBOARDING_CONVERSION.md.
  */
 
-import type { WakeMethod } from '@/lib/routine';
+import { getPendingRoutine, getRoutine, hasRoutine, type WakeMethod } from '@/lib/routine';
 
 import type { StepId } from './navigation';
 
@@ -76,8 +76,8 @@ export const PROGRESS_STEPS: StepId[] = [
   'bedtime',
   'wake',
   'method',
-  'walk',
   'tomorrow',
+  'walk',
   'screen-time',
   'apps',
   'ready',
@@ -132,9 +132,9 @@ export const ALARM: Choice<string>[] = [
 
 /** His reply to the alarm answer, on the page before the paywall. Deadpan, never a health claim. */
 export const ALARM_ECHO: Record<string, string> = {
-  wrecked: 'Wrecked, you said. Same. We walk anyway.',
-  groggy: 'Groggy, you said. So am I. We walk anyway.',
-  lying: '“Fine,” you said. Sure. We walk anyway.',
+  wrecked: 'Wrecked, you said. Same. We get up anyway.',
+  groggy: 'Groggy, you said. So am I. We get up anyway.',
+  lying: '“Fine,” you said. Sure. We get up anyway.',
   fine: 'Fine mornings, you said. Let’s keep them.',
 };
 
@@ -237,14 +237,13 @@ export {
   type ExitArm as ExitOffer,
 } from '@/lib/purchases';
 
-/** His line under "Try Locturne free", from the trial length the store reports. */
+/**
+ * His line under the paywall title, from the trial length the store reports. It says "try",
+ * never "free": Apple 3.1.2 rejects trial wording bigger than the billed price, and this line
+ * is set larger than the plan prices.
+ */
 export function trialVoice(days: number): string {
-  return `${days === 7 ? 'Seven' : days} nights free. I’ll sleep through most of them.`;
-}
-
-/** The `longer-trial` exit offer's headline. "Two free weeks" reads better than "14 days". */
-export function longerTrialVoice(days: number): string {
-  return days === 14 ? 'Fair. Two free weeks, then.' : `Fair. ${days} free days, then.`;
+  return `Try me for ${days === 7 ? 'a week' : `${days} nights`}. I’ll sleep through most of it.`;
 }
 
 /**
@@ -295,7 +294,7 @@ export const METHOD_COPY: Record<
     commit: 'Up for 200 steps.',
     morning: [
       { when: 'Steps', what: 'They count from your alarm. Bathroom, kitchen, it all counts.' },
-      { when: 'At 200', what: 'Open a sleeping app and tap Check steps. Or just open me.' },
+      { when: 'At 200', what: 'Open me. They wake up.' },
     ],
   },
   scan: {
@@ -314,7 +313,8 @@ export const METHOD_COPY: Record<
 /**
  * `walk`: a 20-step taste of tomorrow before the paywall (MORNING_ANGLE.md #2, TODO §4).
  * The count is live and real, and it's where iOS asks for Motion & Fitness, framed as
- * "that's how I count". Always skippable: nobody has to walk to see the price.
+ * "that's how I count". Always skippable: nobody has to walk to see the price. It comes right
+ * after the `tomorrow` demo (see it, then try it), and late at night it's skipped altogether.
  */
 export const WALK_GOAL = 20;
 
@@ -339,4 +339,25 @@ export function walkLine(steps: number, goal = WALK_GOAL): string {
   if (steps >= goal * 0.6) return 'Fine. I’m awake. Mostly.';
   if (steps >= goal * 0.25) return 'I can hear you walking. I’m ignoring it.';
   return 'No.';
+}
+
+type MethodCopy = (typeof METHOD_COPY)[WakeMethod];
+
+/**
+ * `METHOD_COPY` for the step goal in use. The copy is written for onboarding's 200; a rerun
+ * (See plans) keeps the goal saved in Routine, which can be 100, 300 or 500.
+ */
+export function methodCopy(method: WakeMethod): MethodCopy {
+  const copy = METHOD_COPY[method];
+  // The routine tomorrow runs on: a Routine edit waiting for bedtime included (`saveSetup`).
+  const goal = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()).stepGoal : 200;
+  if (goal === 200) return copy;
+  const swap = <T,>(value: T): T => {
+    if (typeof value === 'string') return value.replace(/\b200\b/g, String(goal)) as T;
+    if (Array.isArray(value)) return value.map(swap) as T;
+    if (value && typeof value === 'object')
+      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)])) as T;
+    return value;
+  };
+  return swap(copy);
 }

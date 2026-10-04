@@ -15,7 +15,7 @@ export default function WakeRoute() {
   const chosen: WakeMethodShown | undefined =
     method === 'downstairs' || method === 'steps' ? method : undefined;
   const scan = !chosen && getRoutine().method === 'scan';
-  if (scan && getScanCode()) return <Redirect href="/scan" />;
+  if (scan && getScanCode()) return <Redirect href="/scan?mode=morning" />;
   return (
     <AppBackground>
       <WakeScreen method={scan ? 'steps' : chosen} />

@@ -11,7 +11,7 @@
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { usePathname } from 'expo-router';
-import PostHog from 'posthog-react-native';
+import PostHog, { PostHogPersistedProperty } from 'posthog-react-native';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 
@@ -63,7 +63,15 @@ export function startAnalytics(): void {
     screen: (name) => void client.screen(name),
     register: (properties) => void client.register(properties),
     setPerson: (properties) => client.setPersonProperties(properties),
-    optOut: () => void client.optOut(),
+    // `optOut` only stops new events: what's already queued would still upload, and "nothing
+    // more is sent" (privacy.html, under 13) has to hold for those too.
+    optOut: () => {
+      void client.optOut();
+      client.setPersistedProperty(PostHogPersistedProperty.Queue, null);
+      // Linked at launch, before the age question: unlink, or RevenueCat's server-side
+      // integration would still send this person's subscription events (an empty value deletes it).
+      setAttributes({ $posthogUserId: '' });
+    },
   });
 
   registerProperties({
@@ -75,7 +83,14 @@ export function startAnalytics(): void {
 
   // RevenueCat's PostHog integration sends trial conversions, renewals and cancellations to
   // this same person, so retention can be split by who's still paying.
-  setAttributes({ $posthogUserId: client.getDistinctId() });
+  // The id only exists once the SDK's storage has loaded (an empty one deletes the attribute),
+  // and a known under-13 install is never linked.
+  client
+    .ready()
+    .then(() => {
+      if (!client.optedOut) setAttributes({ $posthogUserId: client.getDistinctId() });
+    })
+    .catch(() => {});
 
   onProofChange(reportNewestProof);
   watchNotificationTaps();
@@ -115,6 +130,26 @@ async function reportNotificationPermission(): Promise<void> {
   track('notifications_permission', { granted: permission === 'granted' });
 }
 
+/** Minutes after morning start, coarsely. A pass or emergency can come before it. */
+export function afterStartBucket(minutes: number): string {
+  if (minutes < 0) return 'before';
+  if (minutes < 5) return '<5';
+  if (minutes < 15) return '5-15';
+  if (minutes < 30) return '15-30';
+  if (minutes < 60) return '30-60';
+  return '60+';
+}
+
+const MORNING_COUNT_KEY = 'locturne.analytics.morningCount';
+
+/** Counts every proved morning: the proof list stops at 30, so its length can't. */
+function nextMorningNumber(kept: number): number {
+  // Installs from before this counter start from the list they have.
+  const next = (sharedGet<number>(MORNING_COUNT_KEY) ?? kept - 1) + 1;
+  sharedSet(MORNING_COUNT_KEY, next);
+  return next;
+}
+
 /** `morning_unlocked` for the proof just recorded. Every way of waking the apps ends in one. */
 function reportNewestProof(): void {
   const proofs = getProofs();
@@ -124,8 +159,9 @@ function reportNewestProof(): void {
   const start = currentMorning(at, toLockSettings(getRoutine(at))).start;
   track('morning_unlocked', {
     method: proof.kind,
-    minutes_after_start: Math.round((proof.at - start.getTime()) / 60_000),
-    morning_number: proofs.length,
+    // Bucketed: the exact minute plus the event time would give away the wake-up time.
+    after_start: afterStartBucket(Math.round((proof.at - start.getTime()) / 60_000)),
+    morning_number: nextMorningNumber(proofs.length),
   });
 }
 

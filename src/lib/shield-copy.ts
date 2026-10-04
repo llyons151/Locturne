@@ -50,11 +50,16 @@ export function shieldRule(facts: ShieldFacts): ShieldRule {
   return 'always';
 }
 
-/** What the morning asks for, as a short instruction. */
-const PROOF: Record<WakeMethod, string> = {
-  downstairs: 'Go downstairs',
-  steps: 'Walk your steps',
-  scan: 'Scan your code',
+/**
+ * What the morning asks for, in the order that works. Steps count from history, so walking
+ * first is fine. The barometer only listens after Start and the camera lives in the app, so
+ * downstairs and scan start in Locturne: "go downstairs, then open Locturne" fails the morning
+ * for anyone who obeys it.
+ */
+const PROOF: Record<WakeMethod, (stepGoal: number) => string> = {
+  downstairs: () => 'Open Locturne and tap Start. Then the stairs.',
+  steps: (goal) => `Walk ${goal} steps, then open Locturne. That wakes them.`,
+  scan: () => 'Open Locturne and scan your code. That wakes them.',
 };
 
 /**
@@ -80,14 +85,12 @@ export function shieldCopy(
         subtitle: `Your apps are asleep until you’re up after ${wake}.`,
         button: 'Back to bed',
       };
-    case 'morning': {
-      const proof = routine.method === 'steps' ? `Walk ${routine.stepGoal} steps` : PROOF[routine.method];
+    case 'morning':
       return {
         title: 'No.',
-        subtitle: `${proof}, then open Locturne. That wakes them.`,
+        subtitle: PROOF[routine.method](routine.stepGoal),
         button: 'Fine',
       };
-    }
     case 'blockNow':
       return {
         title: 'Tucked in. Do not perceive me.',

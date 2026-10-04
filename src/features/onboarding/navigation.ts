@@ -28,8 +28,10 @@ export const STEPS = [
   'bedtime',
   'wake',
   'method',
-  'walk',
+  // See it, then try it: the demo shows tomorrow morning, then the walk is a 20-step taste of
+  // it. Skipped late at night (`skip` on `next`), when they're in bed (ONBOARDING_OPTIMIZATION §7).
   'tomorrow',
+  'walk',
   'screen-time',
   'apps',
   'ready',
@@ -63,7 +65,12 @@ export type Nav = {
 };
 
 export type NavAction =
-  | { type: 'next' }
+  /** `skip`: steps to pass over on the way, such as the walk late at night. */
+  /**
+   * `at` is the history length it was sent from: a second `next` from the same screen (a
+   * double tap, a late async callback) finds the screen gone and does nothing.
+   */
+  | { type: 'next'; skip?: StepId[]; at?: number }
   | { type: 'go'; to: StepId }
   /** Edit a choice from the step on screen, and come back to it on Continue. */
   | { type: 'edit'; to: StepId }
@@ -76,11 +83,12 @@ export function isStep(value: string | undefined): value is StepId {
   return value === 'declined' || (STEPS as readonly string[]).includes(value ?? '');
 }
 
-export function nextStep(step: StepId): StepId {
+export function nextStep(step: StepId, skip: StepId[] = []): StepId {
   if (step === 'declined') return 'plans';
   if (step === 'under-13') return 'alarm';
-  const index = STEPS.indexOf(step);
-  return STEPS[Math.min(index + 1, STEPS.length - 1)];
+  let index = STEPS.indexOf(step) + 1;
+  while (index < STEPS.length - 1 && skip.includes(STEPS[index])) index += 1;
+  return STEPS[Math.min(index, STEPS.length - 1)];
 }
 
 export function startNav(step: StepId, answers: Answers): Nav {
@@ -103,12 +111,13 @@ export function navigate(nav: Nav, action: NavAction): Nav {
       return { ...nav, history: [...nav.history, action.to] };
 
     case 'next': {
+      if (action.at !== undefined && action.at !== nav.history.length) return nav;
       if (isEditing(nav)) {
         // Pop back to where the edit started instead of stacking another copy of it.
         const at = nav.history.lastIndexOf(nav.returnTo!);
         return finishEdit({ ...nav, history: nav.history.slice(0, at + 1) });
       }
-      return navigate(nav, { type: 'go', to: nextStep(currentStep(nav)) });
+      return navigate(nav, { type: 'go', to: nextStep(currentStep(nav), action.skip) });
     }
 
     case 'edit':

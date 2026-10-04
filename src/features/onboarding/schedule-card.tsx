@@ -7,7 +7,7 @@ import { Reveal } from '@/components/motion';
 import type { WakeMethod } from '@/lib/routine';
 import { Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
 
-import { METHOD_COPY } from './content';
+import { methodCopy } from './content';
 import { formatClock } from './estimate';
 
 const MAX_ICONS = 5;
@@ -45,7 +45,7 @@ export function ScheduleCard({
   const shown = apps.slice(0, MAX_ICONS);
   const extra = apps.length - shown.length;
   const iconSize = compact ? 34 : 40;
-  const proof = METHOD_COPY[method].short;
+  const proof = methodCopy(method).short;
   const count = liveCount ?? apps.length;
 
   return (

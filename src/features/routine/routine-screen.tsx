@@ -1,17 +1,18 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AccessibilityInfo, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { type MenuOption } from '@/components/control-types';
 import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
-import { ChoiceRow, Section, sym } from '@/components/grouped-list';
+import { ChoiceRow, Section, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
 import { armRoutine } from '@/lib/lock-controller';
+import { MIN_WINDOW } from '@/lib/night-plan';
 import { rescheduleNotifications } from '@/lib/notifications';
 import {
   getPendingRoutine,
@@ -21,6 +22,7 @@ import {
   type WakeMethod,
 } from '@/lib/routine';
 import { getArmedNight, isScreenTimeAvailable } from '@/lib/screen-time';
+import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 import { formatPreset, noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
@@ -127,6 +129,13 @@ const same = (a: Routine, b: Routine) =>
   a.nights.join() === b.nights.join();
 
 const SAME_TIME = "Bedtime and morning start can't be the same time.";
+const TOO_SHORT = `Bedtime and morning start need ${MIN_WINDOW} minutes between them. iOS won't schedule a shorter night.`;
+
+/** Why this night can't be saved: iOS won't run a window under `MIN_WINDOW`, so it would disarm. */
+function nightRefusal(bedtime: number, morningStart: number): string | null {
+  if (bedtime === morningStart) return SAME_TIME;
+  return (morningStart - bedtime + 1440) % 1440 < MIN_WINDOW ? TOO_SHORT : null;
+}
 
 /** "from tonight's bedtime, 11 pm", "from tomorrow night at 11 pm", "from Friday at 11 pm". */
 function startsWhen(at: Date, now: Date) {
@@ -150,12 +159,23 @@ export function RoutineScreen() {
   const bottom = useTabBarInset();
 
   const [{ active, saved, from }, setLoaded] = useState<Loaded>(load);
-  // Onboarding, or a bedtime passing, can change it while the tab is away.
+  // Onboarding, or a bedtime passing, can change it while the tab is away, or while the app
+  // sits in the background on this tab.
   useFocusEffect(useCallback(() => setLoaded(load()), []));
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && setLoaded(load()));
+    return () => sub.remove();
+  }, []);
 
   const commit = (next: Routine) => {
+    const wasWaiting = from !== null;
     saveRoutine(toStored(next));
-    setLoaded(load());
+    const loaded = load();
+    setLoaded(loaded);
+    // The note appears above the control VoiceOver is on, and iOS has no live regions.
+    if (loaded.from && !wasWaiting) {
+      AccessibilityInfo.announceForAccessibility(`Your changes apply ${startsWhen(loaded.from, new Date())}.`);
+    }
     // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
     // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
     // Nothing armed yet means nothing was bought yet (or the night was lost): only a
@@ -168,6 +188,8 @@ export function RoutineScreen() {
   const set = (patch: Partial<Routine>) => commit({ ...saved, ...patch });
 
   const options = methods(saved.stepGoal);
+  // Scan picked with no code saved: the setup, offered only when it's allowed (not from bed).
+  const offerCodeSetup = saved.method === 'scan' && !getScanCode() && !getScanEditRefusal();
   const chosen = options.find((o) => o.value === saved.method) ?? options[0];
 
   const now = new Date();
@@ -224,9 +246,18 @@ export function RoutineScreen() {
             detail={o.detail}
             selected={o.value === saved.method}
             onPress={() => set({ method: o.value })}
-            last={i === options.length - 1}
+            last={i === options.length - 1 && !offerCodeSetup}
           />
         ))}
+        {offerCodeSetup ? (
+          <ValueRow
+            icon={sym('qrcode', 'qr_code')}
+            title="Set up your code"
+            value=""
+            onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
+            last
+          />
+        ) : null}
       </Section>
 
       <Section>
@@ -247,7 +278,7 @@ export function RoutineScreen() {
           value={saved.bedtime}
           onChange={(bedtime) => set({ bedtime })}
           presets={BEDTIME_PRESETS}
-          invalid={(m) => (m === saved.morningStart ? SAME_TIME : null)}
+          invalid={(m) => nightRefusal(m, saved.morningStart)}
         />
         <TimeRow
           icon={sym('sunrise.fill', 'wb_twilight')}
@@ -255,7 +286,7 @@ export function RoutineScreen() {
           value={saved.morningStart}
           onChange={(morningStart) => set({ morningStart })}
           presets={MORNING_PRESETS}
-          invalid={(m) => (m === saved.bedtime ? SAME_TIME : null)}
+          invalid={(m) => nightRefusal(saved.bedtime, m)}
         />
         <NightsRow icon={sym('calendar', 'calendar_month')} value={saved.nights} onChange={(nights) => set({ nights })} last />
       </Section>
@@ -270,14 +301,18 @@ export function RoutineScreen() {
 
 function wakeVerb(r: Routine) {
   if (r.method === 'downstairs') return 'get downstairs';
-  if (r.method === 'scan') return 'scan your code';
+  // Until a code is saved, the morning asks for steps (`methodInUse`), so say that.
+  if (r.method === 'scan') return getScanCode() ? 'scan your code' : `walk ${r.stepGoal} steps, until your code is set up`;
   return `walk ${r.stepGoal} steps`;
 }
 
 /** The steps fallback for the chosen method. */
 function wakeFooter(r: Routine) {
   if (r.method === 'downstairs') return `No stairs that morning, like in a hotel? Walk ${r.stepGoal} steps instead.`;
-  if (r.method === 'scan') return `Lost the code? Walk ${r.stepGoal} steps instead.`;
+  if (r.method === 'scan')
+    return getScanCode()
+      ? `Lost the code? Walk ${r.stepGoal} steps instead.`
+      : `No code yet, so mornings are ${r.stepGoal} steps until you set one up. Not from bed: in the day.`;
   return 'Have stairs? Going down one floor is quicker, and harder to fake.';
 }
 

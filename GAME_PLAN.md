@@ -271,7 +271,9 @@ ugly UI is fine.
 - Honest status: revocation on every open, an extension heartbeat log in the App
   Group, the nightly self-check, a hidden diagnostics screen for beta testers.
 - Notifications: morning start, bedtime warning, shield tap, day-5 trial reminder,
-  revoked access. Asked for after the first successful night.
+  revoked access. Asked for on onboarding's `armed` screen, right after purchase, once he's
+  said what they're for (decided 2026-10-03); the first successful night is the second
+  chance.
 
 **Step 3: money and data (Nov 1–20).** RevenueCat (annual with trial plus monthly,
 no trial toggle, restore, exit-offer arms by remote config). PostHog in the app

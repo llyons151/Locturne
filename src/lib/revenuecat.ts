@@ -76,6 +76,8 @@ export type EntitlementRecord = {
   expiresAt?: number;
   /** When the running free trial began (ms). Missing outside a trial. */
   trialStartedAt?: number;
+  /** False once the subscription is cancelled: it stays active until `expiresAt`, then ends. */
+  willRenew?: boolean;
   checkedAt: number;
 };
 
@@ -188,13 +190,16 @@ export function entitlementRecord(info: CustomerInfo, now: Date): EntitlementRec
   const record: EntitlementRecord = { active: true, productId: entitlement.productIdentifier, checkedAt };
   if (entitlement.expirationDateMillis != null) record.expiresAt = entitlement.expirationDateMillis;
   if (entitlement.periodType === 'TRIAL') record.trialStartedAt = entitlement.latestPurchaseDateMillis;
+  if (entitlement.willRenew === false) record.willRenew = false;
   return record;
 }
 
 /** Whether a cached record still counts as paid when the store can't be asked. */
 export function cachedEntitlement(record: EntitlementRecord | undefined, now: Date): boolean {
   if (!record?.active) return false;
-  return record.expiresAt === undefined || now.getTime() < record.expiresAt + OFFLINE_GRACE_MS;
+  // The grace covers a renewal the phone couldn't see offline. A cancelled one won't renew.
+  const grace = record.willRenew === false ? 0 : OFFLINE_GRACE_MS;
+  return record.expiresAt === undefined || now.getTime() < record.expiresAt + grace;
 }
 
 /** A purchase that threw, in the paywall's terms. Closing Apple's sheet isn't an error. */
@@ -295,9 +300,12 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
       return (await latest()).active;
     },
     async currentTrialEnd() {
-      // In a trial, the entitlement expires when the trial first charges.
+      // In a trial, the entitlement expires when the trial first charges. A cancelled trial
+      // never charges, so it has no end to remind about.
       const record = await latest().catch(() => undefined);
-      return record?.active && record.trialStartedAt && record.expiresAt ? new Date(record.expiresAt) : null;
+      return record?.active && record.trialStartedAt && record.expiresAt && record.willRenew !== false
+        ? new Date(record.expiresAt)
+        : null;
     },
     async currentPlan() {
       const record = await latest().catch(() => undefined);

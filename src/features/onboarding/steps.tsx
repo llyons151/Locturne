@@ -9,12 +9,12 @@ import { Reveal } from '@/components/motion';
 import { quizContentTop } from '@/components/night-sky';
 import { AgeWheel, TimeWheel } from '@/components/time-wheel';
 import type { ArmFailure, ArmResult } from '@/lib/arm';
+import { BEDTIME_WARNING, type NotificationPermission } from '@/lib/notifications';
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
 import type { WakeMethod } from '@/lib/routine';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
-import { AppleAlertPicture } from './apple-alert';
 import {
   AGE_DEFAULT,
   AGE_MAX,
@@ -27,6 +27,7 @@ import {
   METHOD_CHOICES,
   METHOD_COPY,
   MORE_METHODS,
+  methodCopy,
   MORNING_ECHO,
   MORNING_MINUTES,
   NIGHT_MINUTES,
@@ -112,13 +113,23 @@ export type StepContext = {
   /** Handing tonight to iOS after purchase. `working` until iOS answers. */
   arm: ArmResult | { status: 'working' };
   retryArm: () => void;
-  /** Motion & Fitness, asked after purchase. Null until asked. */
+  /** Motion & Fitness: answered on the walk or on `armed`. Null while iOS would still ask. */
   motion: MotionAccess | null;
-  askMotion: () => void;
-  /** The 20-step walk before the paywall: live on an iPhone, faked in the web preview. */
+  /** Notifications, as iOS has them once `armed` is shown. Null until checked. */
+  notifications: NotificationPermission | null;
+  /** When the trial bought in this session ends; null for no trial (monthly, restore). */
+  trialEnds: Date | null;
+  /** `armed`'s Continue: iOS's notification prompt, then Motion's, whichever are still unasked. */
+  askPermissions: () => void;
+  /** iOS's prompts are up: Continue waits, so a double tap can't skip a step. */
+  asking: boolean;
+  /** The 20-step walk, right after the demo: live on an iPhone, faked in the web preview. */
   walk: WalkState;
   /** Starts counting; iOS asks for Motion & Fitness at this moment. */
   startWalk: () => void;
+  /** The reveal's or the demo's payoff has played (or the backstop ran out): its button wakes. */
+  payoff: boolean;
+  onPayoff: () => void;
 };
 
 export type WalkState = {
@@ -152,7 +163,7 @@ export function renderStep(ctx: StepContext): StepView {
   // "This morning" when it's already the small hours; "Later today" for afternoon wake-ups.
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
   const wakeDay = lateNight && answers.wake > nowMinutes ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
-  const method = METHOD_COPY[answers.method ?? 'downstairs'];
+  const method = methodCopy(answers.method ?? 'downstairs');
   // How many picks: the real count on an iPhone, the stand-in names in the preview.
   const pickCount = live ? live.count : answers.apps.length;
 
@@ -185,7 +196,8 @@ export function renderStep(ctx: StepContext): StepView {
             </View>
             {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner. */}
             <View style={page.gapSection} />
-            <Body>First, a few questions. Then I do math on your nights. About two minutes, and your answers stay on your phone.</Body>
+            {/* Quiz answers go to analytics (docs/ANALYTICS.md), so no "stays on your phone" here. What's true: no account, and the picked apps never leave the phone. */}
+            <Body>First, a few questions. Then I do math on your nights. About two minutes. No name, no email, and the apps you pick never leave your phone.</Body>
           </View>
         ),
         footer: <PrimaryButton label="Ask away" onPress={next} />,
@@ -405,8 +417,14 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'reveal':
       return {
-        body: <RevealScreen numbers={numbers} />,
-        footer: <PrimaryButton label={numbers.lightUser ? 'Keep it that way' : 'Let’s fix this'} onPress={next} />,
+        body: <RevealScreen numbers={numbers} onPayoff={ctx.onPayoff} />,
+        footer: (
+          <PrimaryButton
+            label={numbers.lightUser ? 'Keep it that way' : 'Let’s fix this'}
+            disabled={!ctx.payoff}
+            onPress={next}
+          />
+        ),
         secondary: (
           <TextButton
             label="Share this"
@@ -473,7 +491,7 @@ export function renderStep(ctx: StepContext): StepView {
           </View>
         ),
         footer: done ? (
-          <PrimaryButton label="Continue" onPress={next} />
+          <PrimaryButton label="Set it up" onPress={next} />
         ) : (
           <PrimaryButton label={`${WALK_GOAL - steps} to go`} disabled onPress={() => {}} />
         ),
@@ -483,8 +501,16 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'tomorrow':
       return {
-        body: <TomorrowDemo when={`${wakeDay}, ${wake}`} clock={wake.replace(/\s?[AP]M$/i, '')} />,
-        footer: <PrimaryButton label="Set it up" onPress={next} />,
+        body: (
+          <TomorrowDemo
+            when={`${wakeDay}, ${wake}`}
+            clock={wake.replace(/\s?[AP]M$/i, '')}
+            method={answers.method ?? 'downstairs'}
+            onPayoff={ctx.onPayoff}
+          />
+        ),
+        // The walk comes next, so "try it"; late at night it's skipped and setup is next.
+        footer: <PrimaryButton label={lateNight ? 'Set it up' : 'Try it'} disabled={!ctx.payoff} onPress={next} />,
       };
 
     case 'screen-time':
@@ -496,7 +522,7 @@ export function renderStep(ctx: StepContext): StepView {
               <Voice text="No access, no sleeping apps." size={VoiceSize.headline} header />
               <View style={page.gapHeadline} />
               <Body>
-                Without Screen Time access I can’t put anything to sleep. Tap Try again and choose Continue. If a parent
+                Without Screen Time access I can’t put anything to sleep. Try again whenever you’re ready. If a parent
                 manages Screen Time on this iPhone, they have to approve it.
               </Body>
               <View style={page.gapAside} />
@@ -512,14 +538,14 @@ export function renderStep(ctx: StepContext): StepView {
           <View style={page.top}>
             <Voice text="I need Screen Time access." size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
-            <Body>It’s how I put apps to sleep. What you use stays on your phone. I never see it.</Body>
-            <AppleAlertPicture
-              title="“Locturne” Would Like to Access Screen Time"
-              message="Providing “Locturne” access to Screen Time may allow it to see your activity data, restrict content, and limit the usage of apps and websites."
-              buttons={['Continue', 'Don’t Allow']}
-              point={0}
-            />
-            {compact ? null : <Voice text="Apple’s box is boring. So am I." size={VoiceSize.aside} delay={600} sub />}
+            {/* Words, not a picture: HIG forbids an image of the system alert or a cue toward its
+                Allow button (App Review 5.1.1(iv)). Warning about Face ID still cuts surprise drop-off. */}
+            <Body>
+              It’s how I put apps to sleep. Apple will ask next, then want your Face ID or passcode. What you use stays
+              on your phone. I never see it.
+            </Body>
+            <View style={page.gapAside} />
+            <Voice text="Apple’s paperwork. Not mine." size={VoiceSize.aside} delay={600} sub />
           </View>
         ),
         // iOS asks for Face ID or the passcode after Apple's Continue.
@@ -603,7 +629,7 @@ export function renderStep(ctx: StepContext): StepView {
           <View style={page.top}>
             <Voice text={headline} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
-            <Body>{ALARM_ECHO[answers.alarm ?? ''] ?? 'I guard them at night. You do the walking.'}</Body>
+            <Body>{ALARM_ECHO[answers.alarm ?? ''] ?? 'I guard them at night. You do the getting up.'}</Body>
             {trialDays ? (
               // The trial timeline (Blinkist pattern): the most replicated paywall win in
               // docs/sub-club/themes/02-paywall-design-and-copy.md. The reminder day matches the
@@ -677,15 +703,45 @@ export function renderStep(ctx: StepContext): StepView {
         };
       }
       const startsNow = arm.status === 'armed' ? arm.now : lateNight;
+      const { notifications, motion, trialEnds } = ctx;
+      // Say what each prompt is for before iOS shows it (decided 2026-10-03), and only the ones
+      // iOS will really show. One Continue opens them, per Apple's pre-permission guidance.
+      const asksNotifications = notifications === 'undetermined';
+      const reminds = answers.remindTrial && trialEnds !== null;
       return {
         body: (
           <View style={page.top}>
             <Voice text={startsNow ? 'Armed. Starting now. Put it down.' : `Armed. See you at ${bed}.`} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
-            <Body>
-              {startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. Your apps sleep at ${bed}.`}{' '}
-              {MOTION_WHY[answers.method ?? 'downstairs']}
-            </Body>
+            <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. Your apps sleep at ${bed}.`}</Body>
+            {asksNotifications ? (
+              <>
+                <View style={page.gapBlock} />
+                <Body>
+                  {reminds
+                    ? `Next, iOS asks if I can send notifications. Bedtime in ${BEDTIME_WARNING} minutes. Morning’s started. And at least two days before your free trial ends on ${trialDay(trialEnds)}, so the charge is never a surprise.`
+                    : `Next, iOS asks if I can send notifications. Two kinds: bedtime in ${BEDTIME_WARNING} minutes, and morning’s started. That’s it.`}
+                </Body>
+              </>
+            ) : null}
+            {notifications === 'denied' && reminds ? (
+              <>
+                <View style={page.gapBlock} />
+                <Body>{noReminderLine(trialEnds)}</Body>
+              </>
+            ) : null}
+            {motion === null ? (
+              <>
+                <View style={page.gapBlock} />
+                <Body>{`${asksNotifications ? 'Then' : 'Next,'} iOS asks about Motion & Fitness. It’s ${MOTION_WHY[answers.method ?? 'downstairs'].replace('{goal}', methodCopy('steps').short.split(' ')[0])}.`}</Body>
+              </>
+            ) : null}
+            {asksNotifications ? (
+              <>
+                <View style={page.gapAside} />
+                <Voice text="I’m not chatty. I’m a raccoon." size={VoiceSize.aside} delay={600} sub />
+              </>
+            ) : null}
             {arm.status === 'preview' ? (
               <>
                 <View style={page.gapBlock} />
@@ -694,8 +750,8 @@ export function renderStep(ctx: StepContext): StepView {
             ) : null}
           </View>
         ),
-        // Motion & Fitness is asked here, after purchase (TODO §4). Notifications come after the first night.
-        footer: <PrimaryButton label="Continue" onPress={ctx.askMotion} />,
+        // Waits for iOS's answers so far, so the copy above is right before anything is asked.
+        footer: <PrimaryButton label="Continue" disabled={notifications === null || ctx.asking} onPress={ctx.askPermissions} />,
       };
     }
 
@@ -710,6 +766,10 @@ export function renderStep(ctx: StepContext): StepView {
                 <PlanRow key={row.when} when={row.when} what={row.what} />
               ))}
               <PlanRow when="Bad day" what="Use a pass. No walking." />
+              {/* The paywall promised a reminder. Without notifications it can't come, so say the date now. */}
+              {ctx.notifications === 'denied' && answers.remindTrial && ctx.trialEnds ? (
+                <PlanRow when="Free trial" what={noReminderLine(ctx.trialEnds)} />
+              ) : null}
               {ctx.motion === 'denied' ? (
                 <PlanRow when="Motion" what="It’s off, so I can’t feel stairs or count steps. Turn on Motion & Fitness for Locturne in Settings." />
               ) : null}
@@ -781,18 +841,30 @@ function ScheduleWarning({ minutes }: { minutes: number }) {
   return <Body style={styles.warning}>That’s {formatHoursFromMinutes(minutes)} hours in bed. Check AM and PM.</Body>;
 }
 
-/** Why Motion & Fitness, on `armed`, right before iOS asks. */
+/** Why Motion & Fitness, on `armed`, right before iOS asks: "It's {this}." */
 const MOTION_WHY: Record<WakeMethod, string> = {
-  downstairs: 'Next, iOS asks about Motion & Fitness. It’s how I feel the stairs, and count steps on days without them.',
-  steps: 'Next, iOS asks about Motion & Fitness. It’s how I count your steps. Nothing else.',
-  scan: 'Next, iOS asks about Motion & Fitness, so 200 steps can stand in for your code.',
+  downstairs: 'how I feel the stairs, and count steps on days without them',
+  steps: 'how I count your steps. Nothing else',
+  // The goal in use is filled in (`methodCopy`'s rule): a rerun keeps Routine's.
+  scan: 'how {goal} steps can stand in for your code',
 };
+
+/** "Fri, Oct 10": the trial's last day, the way the reminder would have said it. */
+function trialDay(ends: Date): string {
+  return ends.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/** The paywall's reminder can't arrive without notifications, so the date goes on screen instead. */
+function noReminderLine(ends: Date): string {
+  return `Notifications are off, so I can’t remind you. Your free trial ends ${trialDay(ends)}. Cancel in Settings before then if you want out.`;
+}
 
 /** What went wrong handing tonight to iOS, and the one thing that fixes it. */
 const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
   'no-access': {
-    body: 'Screen Time access is off, so iOS won’t let me put anything to sleep. Allow it and I’ll try again.',
-    button: 'Allow and try again',
+    // HIG: a button that opens Apple's prompt never says "Allow" (App Review 5.1.1(iv)).
+    body: 'Screen Time access is off, so iOS won’t let me put anything to sleep. Try again, or turn it on in Settings.',
+    button: 'Try again',
   },
   'no-apps': { body: 'No apps are picked, so there’s nothing to put to sleep.', button: 'Pick apps' },
   'too-short': {

@@ -44,7 +44,7 @@ export type Events = {
   walk_started: Record<string, never>;
   walk_finished: { result: 'done' | 'denied' | 'unavailable'; seconds: number };
   motion_access: { result: 'granted' | 'denied' | 'unavailable' };
-  paywall_viewed: { page: string; exit_arm: string; prices_loaded: boolean; trial_days: number | null };
+  paywall_viewed: { page: string; exit_arm: string | null; prices_loaded: boolean; trial_days: number | null };
   offers_failed: Record<string, never>;
   purchase_started: { target: string; page: string };
   purchase_result: { target: string; page: string; status: 'purchased' | 'pending' | 'failed' | 'cancelled' };
@@ -54,8 +54,8 @@ export type Events = {
   /* The app, after onboarding: retention and whether the product works */
   morning_unlocked: {
     method: ProofKindEvent;
-    /** From the morning start; negative for a pass used the night before. */
-    minutes_after_start: number;
+    /** Minutes after morning start, bucketed (`afterStartBucket`): never the exact time. */
+    after_start: string;
     /** How many mornings this install has proved, counting this one (up to 30 kept). */
     morning_number: number;
   };

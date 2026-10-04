@@ -190,3 +190,10 @@ test('hadSuccessfulNight', () => {
   assert.equal(hadSuccessfulNight([night('missed'), night('unknown')]), false);
   assert.equal(hadSuccessfulNight([night('late')]), true);
 });
+
+test('a night still under way that iOS started late is called tonight, not last night', () => {
+  // The night of Oct 3 → 4 ends at 07:00 on the 4th; at 23:10 on the 3rd it's tonight.
+  assert.equal(roll({ nights: [night('missed')], now: at(3, 23, 10) }).title, 'iOS was late putting me to bed tonight.');
+  assert.equal(roll({ nights: [night('missed')] }).title, 'iOS never put me to bed last night.');
+  assert.match(roll({ nights: [night('late')], now: at(3, 23, 10) }).detail, /Tonight started 30 minutes late/);
+});

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 
@@ -27,9 +27,14 @@ const DAYS_PER_MONTH = 30.44;
  * The big number: hours a week on the phone in bed, rolled up, then a grid of the rest of
  * their life (or one year) with that time lit.
  */
-export function RevealScreen({ numbers }: { numbers: Estimate }) {
+export function RevealScreen({ numbers, onPayoff }: { numbers: Estimate; onPayoff?: () => void }) {
   const [landed, setLanded] = useState(false);
   const [filled, setFilled] = useState(false);
+  // The payoff is the filled grid and its line; a light user's page has nothing to wait for.
+  const payoffShown = filled || numbers.lightUser;
+  useEffect(() => {
+    if (payoffShown) onPayoff?.();
+  }, [payoffShown, onPayoff]);
   const [area, setArea] = useState({ width: 0, height: 0 });
   const compact = useCompact();
 

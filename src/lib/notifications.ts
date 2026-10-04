@@ -1,6 +1,6 @@
 /**
  * Locturne's local notifications (GAME_PLAN, Build order Step 2): morning start, the bedtime
- * warning, revoked access, the day-5 trial reminder, and the shield-tap follow-up. Nothing
+ * warning, revoked access, the trial reminder (noon, at least two days before the end), and the shield-tap follow-up. Nothing
  * is pushed from a server.
  *
  * Every scheduled notification is a one-off for a real date, planned for the next
@@ -9,8 +9,10 @@
  * clock change, and a one-off can. The plan is redone on every app open and every routine
  * change (`rescheduleNotifications`), which also keeps it well under iOS's 64 pending.
  *
- * Permission is asked after the first night that held (GAME_PLAN), not in onboarding:
- * `isGoodMomentToAsk` says when, `askForNotifications` asks.
+ * Permission is asked on onboarding's `armed` screen, right after purchase, once he's said
+ * what the notifications are for (decided 2026-10-03, docs/ONBOARDING_OPTIMIZATION.md §7).
+ * `isGoodMomentToAsk` is the second chance, after the first night that held, for anyone who
+ * got past `armed` without iOS's prompt. `askForNotifications` asks.
  *
  * Copy is Loc's (docs/VOICE.md): no shaming, no fake urgency, and plain when it's serious.
  */
@@ -19,6 +21,7 @@ import { Platform } from 'react-native';
 
 import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
+import { lastPaidMorning } from './lock-controller.ts';
 import { getProofs, type MorningProof } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, hasRoutine, type Routine, type StoredRoutine } from './routine.ts';
 import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
@@ -57,8 +60,9 @@ export const COPY = {
     title: 'Screen Time access is off.',
     body: 'So I can’t block anything tonight. Turn it back on in Settings. Until then I’m just a raccoon.',
   },
+  // Named, not counted: noon two days before an 8:00 end is nearly three days out.
   trial: (ends: Date) => ({
-    title: 'Your free trial ends in 2 days.',
+    title: `Your free trial ends ${ends.toLocaleDateString(undefined, { weekday: 'long' })}.`,
     body: `It ends ${ends.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, go to Settings › Apple ID › Subscriptions. No hard feelings. Some feelings.`,
   }),
 };
@@ -94,6 +98,8 @@ export type PlanFacts = {
   trialEnd?: Date | null;
   /** Which kinds the person wants. All of them when left out. */
   prefs?: NotificationPrefs;
+  /** A lapsed subscription's last covered morning (`lastPaidMorning`): later nights don't sleep. */
+  lastPaidMorning?: string | null;
   now: Date;
   days?: number;
 };
@@ -130,6 +136,7 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     if (!r.activeNights.includes(atMinute(end, 0, -1).getDay())) continue;
 
     const key = dayKey(end);
+    if (facts.lastPaidMorning && key > facts.lastPaidMorning) continue;
     const warnAt = new Date(start.getTime() - BEDTIME_WARNING * MINUTE);
     if (warnAt > now && (protection === 'off' || prefs.bedtime)) {
       const kind = protection === 'off' ? 'revoked' : 'bedtime';
@@ -163,7 +170,7 @@ export function planTrialReminder(ends: Date, now: Date): PlannedNotification | 
 export type NotificationPermission = 'granted' | 'denied' | 'undetermined';
 
 /**
- * Whether now is the moment to ask (GAME_PLAN: after the first successful night). Only
+ * Whether now is the second-chance moment to ask (after the first successful night). Only
  * while iOS would still show its prompt, and only once a night really held or a morning
  * was unlocked.
  */
@@ -265,13 +272,13 @@ export function getTrialEnd(): Date | null {
 /**
  * Remembers the trial end and schedules the reminder 2 days before it. Purchases call this
  * when a trial starts with "Remind me" on. Kept in the App Group, so every reschedule keeps
- * it. "Remind me" is asking for a notification, so iOS's prompt shows here if it hasn't yet;
- * without that the paywall's promise could silently not happen.
+ * it. Never prompts: `armed` explains the notifications and asks right after (a cold prompt
+ * the instant the purchase lands got refused more). If permission never comes, `armed` and
+ * `first-morning` say the reminder can't arrive and give the date instead.
  */
 export async function scheduleTrialReminder(trialEnd: Date): Promise<void> {
   sharedSet(TRIAL_KEY, trialEnd.getTime());
-  if ((await getNotificationPermission()) === 'undetermined') await askForNotifications();
-  else await rescheduleNotifications();
+  await rescheduleNotifications();
 }
 
 /** The You tab's switches, as last saved. */
@@ -285,7 +292,26 @@ export async function setNotificationPrefs(prefs: NotificationPrefs): Promise<vo
   await rescheduleNotifications();
 }
 
-/** For a cancelled trial, a switch to monthly, or "Remind me" turned off. */
+/** Whether the paywall's "Remind me" was on at purchase. */
+export const TRIAL_REMINDER_KEY = 'locturne.trialReminder';
+
+/**
+ * Keeps the stored trial end in step with the store's (`currentTrialEnd`): a trial that
+ * stopped renewing (cancelled in Apple's sheet, refunded) or ended loses its reminder and
+ * Home's notice; one turned back on, with "Remind me" chosen, gets them back.
+ */
+export async function syncTrialEnd(end: Date | null): Promise<void> {
+  const stored = getTrialEnd();
+  if (!end) {
+    if (stored) await cancelTrialReminder();
+    return;
+  }
+  if (sharedGet<boolean>(TRIAL_REMINDER_KEY) === true && stored?.getTime() !== end.getTime()) {
+    await scheduleTrialReminder(end);
+  }
+}
+
+/** For a cancelled trial, or "Remind me" turned off. */
 export async function cancelTrialReminder(): Promise<void> {
   sharedRemove(TRIAL_KEY);
   await rescheduleNotifications();
@@ -336,6 +362,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       unlockedMornings: getProofs().map((p) => p.morningKey),
       trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),
+      lastPaidMorning: lastPaidMorning(),
       now: new Date(),
     });
     for (const n of plan) {

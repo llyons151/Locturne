@@ -57,6 +57,12 @@ test('resolveExitArm keeps none and half-price as they are', async () => {
 test('savings and per-month come from the offer prices', async () => {
   const offers = await createDevPurchases().getOffers();
   assert.equal(annualSavingsPercent(offers), 49);
+  // Round storefront prices whose float result lands a hair under a whole number.
+  const priced = (annual: number, monthly: number) =>
+    annualSavingsPercent({ annual: { ...offers.annual, price: annual }, monthly: { ...offers.monthly, price: monthly } });
+  assert.equal(priced(48, 5), 20);
+  assert.equal(priced(66, 10), 45);
+  assert.equal(priced(54, 5), 10);
   assert.equal(perMonth(offers.annual, 'en-US'), '$5.00');
   assert.equal(perMonth(offers.monthly, 'en-US'), '$9.99');
   assert.equal(formatPrice(59.99, 'EUR', 'de-DE'), '59,99 €');
@@ -123,9 +129,12 @@ test('trial dates', () => {
   const start = new Date(2026, 9, 3);
   assert.equal(trialEndsAt(7, start).getDate(), 10);
   assert.equal(trialEndsAt(14, start).getMonth(), 9);
-  assert.equal(reminderDay(7), 5);
-  assert.equal(reminderDay(14), 12);
-  assert.equal(reminderDay(2), 1);
+  const afternoon = new Date(2026, 9, 3, 15);
+  assert.equal(reminderDay(7, afternoon), 5);
+  assert.equal(reminderDay(14, afternoon), 12);
+  assert.equal(reminderDay(2, afternoon), 1);
+  // Before noon, noon two days before the charge has already gone: it's the day before.
+  assert.equal(reminderDay(7, new Date(2026, 9, 3, 9)), 4);
   assert.ok(isExitArm('half-price'));
   assert.ok(!isExitArm('lifetime'));
   assert.ok(!isExitArm(undefined));

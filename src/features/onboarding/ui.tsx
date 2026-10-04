@@ -4,8 +4,10 @@ import {
   AccessibilityInfo,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type StyleProp,
   type TextStyle,
@@ -25,6 +27,9 @@ import * as haptic from '@/lib/haptics';
 import { noOrphan } from '@/lib/text';
 import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
+/** Above this text scale the page body scrolls instead of clipping. */
+const SCROLL_ABOVE_SCALE = 1.3;
+
 type ShellProps = PropsWithChildren<{
   /** 0–1, or null to hide the bar. */
   progress: number | null;
@@ -37,6 +42,10 @@ type ShellProps = PropsWithChildren<{
 export function Shell({ progress, onBack, onExit, footer, children }: ShellProps) {
   // Pad with the provider's window insets; the native SafeAreaView can measure zero inside a full-screen modal.
   const insets = useSafeAreaInsets();
+  // Pages are laid out to fit at the standard text sizes. Past that (B13: larger Dynamic Type
+  // settings), a five-option question or a long paragraph won't fit, so the body scrolls.
+  const { fontScale } = useWindowDimensions();
+  const scrolls = fontScale > SCROLL_ABOVE_SCALE;
   return (
     <View style={[styles.shell, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.topBar}>
@@ -55,12 +64,23 @@ export function Shell({ progress, onBack, onExit, footer, children }: ShellProps
           />
         </Pressable>
         {progress === null ? <View style={styles.progress} /> : <ProgressBar value={progress} />}
-        <Pressable onPress={onExit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exit preview" style={styles.exitButton}>
+        <Pressable onPress={onExit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exit" style={styles.exitButton}>
           <Text style={styles.exit}>Exit</Text>
         </Pressable>
       </View>
-      {/* Onboarding pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
-      <View testID="onboarding-body" style={[styles.scroll, styles.body]}>{children}</View>
+      {/* At standard text sizes pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
+      {scrolls ? (
+        <ScrollView
+          testID="onboarding-body"
+          style={styles.scroll}
+          contentContainerStyle={[styles.body, styles.grow]}
+          showsVerticalScrollIndicator
+        >
+          {children}
+        </ScrollView>
+      ) : (
+        <View testID="onboarding-body" style={[styles.scroll, styles.body]}>{children}</View>
+      )}
       {footer ? <View testID="onboarding-footer" style={styles.footer}>{footer}</View> : null}
     </View>
   );
@@ -435,6 +455,8 @@ const styles = StyleSheet.create({
   // Neutral shadow (not a glow) keeps it legible over the moon in the corner.
   exit: { color: Nocturne.text2, fontSize: 15, fontWeight: '500', textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 6 },
   body: { paddingHorizontal: Gap.gutter, paddingBottom: Space.l },
+  /** A scrolling body still fills the page, so flex layouts inside it keep their shape. */
+  grow: { flexGrow: 1 },
   footer: { paddingHorizontal: Gap.gutter, paddingTop: Space.s, paddingBottom: Space.s },
   eyebrow: { ...Type.label, marginBottom: Gap.headline },
   title: { color: Nocturne.text, ...Type.title },

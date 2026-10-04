@@ -52,7 +52,7 @@ export function fakeDeviceActivity({ available = true } = {}) {
       webdomainCount: 0,
       includeEntireCategory: false,
     }),
-    isSubsetOf: () => false,
+    intersection: () => undefined,
     union: record('union'),
     blockSelection: record('blockSelection'),
     unblockSelection: record('unblockSelection'),
@@ -71,7 +71,8 @@ export function fakeDeviceActivity({ available = true } = {}) {
     cleanUpAfterActivity: record('cleanUpAfterActivity'),
     getActivities: () => [...state.activities],
     getEvents: () => [],
-    userDefaultsGet: (key: string) => state.store[key],
+    // Like the real bridge: a missing key is null, not undefined.
+    userDefaultsGet: (key: string) => state.store[key] ?? null,
     userDefaultsSet: (key: string, value: unknown) => {
       assertPlist(value, key);
       state.store[key] = value;

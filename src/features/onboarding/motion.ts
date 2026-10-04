@@ -18,3 +18,18 @@ export async function requestMotion(): Promise<MotionAccess> {
     return 'unavailable';
   }
 }
+
+/**
+ * iOS's answer so far, without asking: null while iOS would still show its prompt. Lets
+ * `armed` say "iOS asks about Motion" only when it really will.
+ */
+export async function checkMotion(): Promise<MotionAccess | null> {
+  try {
+    if (!(await Pedometer.isAvailableAsync())) return 'unavailable';
+    const current = await Pedometer.getPermissionsAsync();
+    if (current.granted) return 'granted';
+    return current.canAskAgain ? null : 'denied';
+  } catch {
+    return 'unavailable';
+  }
+}

@@ -16,17 +16,10 @@
  */
 import { readLock, syncLock } from './lock-controller.ts';
 import { recordProof } from './morning-proof.ts';
-import { sharedGet, sharedSet } from './screen-time.ts';
+import { getScanCode, SCAN_CODE_KEY, type ScanCode } from './scan-code.ts';
+import { sharedSet } from './screen-time.ts';
 
-export type ScanCode = {
-  /** `qr`: one Locturne generated. `barcode`: a product's own code. */
-  kind: 'qr' | 'barcode';
-  /** The scanned text, as the camera reported it. */
-  data: string;
-  /** The camera's barcode type (`ean13`, `qr`...), for diagnostics. */
-  type: string;
-  registeredAt: number;
-};
+export type { ScanCode } from './scan-code.ts';
 
 /** Every generated QR starts with this, so a stray QR elsewhere can't be confused for one. */
 export const QR_PREFIX = 'LOCTURNE-';
@@ -73,11 +66,7 @@ export function editRefusal(phase: string): 'asleep' | null {
 
 /* Applying it. */
 
-const KEY = 'locturne.scanCode';
-
-export function getScanCode(): ScanCode | null {
-  return sharedGet<ScanCode>(KEY) ?? null;
-}
+export { getScanCode };
 
 /** Can the code be set or changed right now? */
 export function getScanEditRefusal(now = new Date()): 'asleep' | null {
@@ -92,7 +81,9 @@ export function registerScanCode(
   const refusal = getScanEditRefusal(now);
   if (refusal) return refusal;
   if (!registrable(code.data)) return 'unusable';
-  sharedSet(KEY, { ...code, data: code.data.trim(), registeredAt: now.getTime() });
+  sharedSet(SCAN_CODE_KEY, { ...code, data: code.data.trim(), registeredAt: now.getTime() });
+  // Tonight's shield said "walk" while there was no code; it now says "scan".
+  syncLock(now);
   return null;
 }
 

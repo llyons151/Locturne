@@ -8,6 +8,10 @@ a free prototype and focused on usability. Their accessibility, honesty and
 permission findings still apply. [GAME_PLAN.md](../GAME_PLAN.md) stays the source
 of truth.
 
+**Update, October 3, 2026:** the eight-track study in
+[ONBOARDING_OPTIMIZATION.md](ONBOARDING_OPTIMIZATION.md) audits the flow as built and
+corrects parts of this doc (the bucket citation and the real-data reveal). Read it first.
+
 **Evidence labels:**
 - **[S]** Controlled experiment or large dataset.
 - **[M]** Vendor or operator data with numbers.
@@ -391,8 +395,10 @@ paywall is compliant, and the voice is consistent.
 - Point 2: the alarm answer is echoed on the `offer` page (`ALARM_ECHO` in
   `content.ts`, e.g. "Groggy, you said. So am I. We walk anyway.").
 - Point 3, in part: "by 79" is removed; the line reads "Over 2 years."
-- Point 5: the paywall has his line under the title, "Seven nights free. I'll sleep
-  through most of them." The price is still fully visible at 390×844.
+- Point 5: the paywall has his line under the title, "Try me for a week. I'll sleep
+  through most of it." The price is still fully visible at 390×844. (It said "Seven
+  nights free" until 2026-10-03, when B14 took trial wording out of anything bigger
+  than the billed price.)
 
 **Re-rated after the fixes: 7.5/10.** The alarm question and the paywall voice are
 fully fixed. The morning angle and the reveal are only partly fixed: the quiz still
@@ -496,7 +502,7 @@ Blinkist trial timeline and the "See other plans" sheet.** That gives up Blinkis
 published result (+23% trial starts, −55% complaints) in exchange for a layout that
 shows all three plans side by side. It's worth an A/B test once there's traffic.
 
-**Top to bottom:** the title "Try Locturne free", his line, then three checks
+**Top to bottom:** the title "Pick a plan", his line, then three checks
 ("TikTok and 2 more sleep at 11:30 PM", "Awake again after 200 morning steps",
 "Passes for sick days and travel"). Then the plan cards:
 - **Lifetime:** $99.99 once. "Pay once. Yours forever." ($99.99 is placeholder

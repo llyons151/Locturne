@@ -25,7 +25,7 @@ mock.module('react-native-device-activity', {
     getEvents: () => [],
     getFamilyActivitySelectionId: () => undefined,
     isShieldActive: () => false,
-    isSubsetOf: () => true,
+    intersection: () => undefined,
     onAuthorizationStatusChange: () => ({ remove: noop }),
     pollAuthorizationStatus: async () => 2,
     requestAuthorization: async () => {},
@@ -36,7 +36,7 @@ mock.module('react-native-device-activity', {
     union: noop,
     updateShield: (config: { title: string; subtitle: string; primaryButtonLabel: string }) => shields.push(config),
     updateShieldWithId: noop,
-    userDefaultsGet: (key: string) => store[key],
+    userDefaultsGet: (key: string) => store[key] ?? null,
     userDefaultsSet: (key: string, value: unknown) => {
       store[key] = value;
     },
@@ -112,9 +112,17 @@ describe('the words', () => {
   });
 
   test('the morning says what to do for the chosen method', () => {
-    assert.match(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'downstairs' }).subtitle, /^Go downstairs/);
     assert.match(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'steps', stepGoal: 300 }).subtitle, /^Walk 300 steps/);
-    assert.match(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'scan' }).subtitle, /^Scan your code/);
+  });
+
+  // The barometer only listens after Start, and the camera is in the app. A shield that says
+  // "go downstairs, then open Locturne" fails the morning of anyone who does what it says.
+  test('downstairs and scan start in the app, before the proof', () => {
+    for (const method of ['downstairs', 'scan'] as const) {
+      const { subtitle } = shieldCopy('morning', { ...DEFAULT_ROUTINE, method });
+      assert.match(subtitle, /^Open Locturne/, `${method}: ${subtitle}`);
+    }
+    assert.match(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'downstairs' }).subtitle, /tap Start/);
   });
 
   test('Block now names when the nap ends', () => {

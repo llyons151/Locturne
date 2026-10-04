@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Alert, AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,13 +21,17 @@ import {
 } from '@/lib/analytics';
 import { armTonight, type ArmResult } from '@/lib/arm';
 import * as haptic from '@/lib/haptics';
+import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
 import { settingsTakeEffectAt } from '@/lib/lock-state';
-import { markPurchasePending } from '@/lib/pending-purchase';
+import { askForNotifications, getNotificationPermission, rescheduleNotifications, type NotificationPermission } from '@/lib/notifications';
+import { isPurchasePending, markPurchasePending } from '@/lib/pending-purchase';
 import {
   getOffers,
   isEntitled,
+  EXIT_OFFER_LIVE,
   isExitArm,
+  isPurchasing,
   onEntitled,
   purchase,
   resolveExitArm,
@@ -35,8 +39,10 @@ import {
   type Offers,
   type PurchaseResult,
   type PurchaseTarget,
+  currentTrialEnd,
+  trialEndsAt,
 } from '@/lib/purchases';
-import { getRoutine, hasRoutine, toLockSettings } from '@/lib/routine';
+import { getPendingRoutine, getRoutine, hasRoutine, toLockSettings } from '@/lib/routine';
 import {
   beginListEdit,
   finishListEdit,
@@ -53,9 +59,9 @@ import { Nocturne } from '@/theme';
 
 import { initialAnswers, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
-import { requestMotion, type MotionAccess } from './motion';
+import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
-import { markExitOfferShown, saveSetup, saveTrialReminder, wasExitOfferShown } from './setup';
+import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { renderStep, type WalkState } from './steps';
@@ -126,6 +132,10 @@ function progressFor(step: StepId): number | null {
  * arming tonight and Motion & Fitness. Off iOS (the web preview) Screen Time doesn't exist,
  * so those stand-ins remain (`simulate`), and the store is the dev stub in purchases.ts.
  */
+/** Steps whose button waits for the payoff (B6), and the most it ever waits. */
+const PAYOFF_STEPS: StepId[] = ['reveal', 'tomorrow'];
+const PAYOFF_BACKSTOP_MS = 9000;
+
 export function OnboardingFlow({
   initialStep,
   exitOffer,
@@ -142,8 +152,16 @@ export function OnboardingFlow({
   const screenTimeHere = isScreenTimeAvailable();
   const [nav, dispatch] = useReducer(navigate, null, () => {
     if (resumeAtPaywall) {
-      const saved = getRoutine();
-      return startNav('offer', { ...initialAnswers, bedtime: saved.bedtime, wake: saved.morningStart, method: saved.method });
+      // A Routine edit still waiting for bedtime is the one to keep, not the one it replaces.
+      const saved = getPendingRoutine()?.routine ?? getRoutine();
+      // The quiz answers too, or the paywall's headline treats everyone as a light user (B5).
+      return startNav('offer', {
+        ...initialAnswers,
+        ...savedQuizAnswers(),
+        bedtime: saved.bedtime,
+        wake: saved.morningStart,
+        method: saved.method,
+      });
     }
     const jump = isStep(initialStep) ? initialStep : 'hello';
     return startNav(jump, { ...initialAnswers, ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}) });
@@ -165,6 +183,9 @@ export function OnboardingFlow({
     [answers],
   );
 
+  // Onboarding inside their own bedtime window, e.g. at 12:40 AM: they're in bed, so the walk is skipped.
+  const lateNight = isInsideBedtime(answers.bedtime, answers.wake);
+
   const simulate = (message: string, then: () => void) => setSimulated({ message, then });
   /** A native alert on iOS; the preview's stand-in on the web, where `Alert` does nothing. */
   const say = (title: string, message: string, then?: () => void) => {
@@ -176,27 +197,55 @@ export function OnboardingFlow({
   const [offers, setOffers] = useState<Offers | null>(null);
   const [offersFailed, setOffersFailed] = useState(false);
   const fetchOffers = useCallback(() => {
-    getOffers().then(setOffers, () => {
-      setOffersFailed(true);
-      track('offers_failed', {});
-    });
+    getOffers().then(
+      (loaded) => {
+        setOffers(loaded);
+        setOffersFailed(false);
+      },
+      () => {
+        setOffersFailed(true);
+        track('offers_failed', {});
+      },
+    );
   }, []);
   useEffect(fetchOffers, [fetchOffers]);
   const retryOffers = () => {
     setOffersFailed(false);
     fetchOffers();
   };
+  // B10: a failure minutes ago (say, a flaky network at `hello`) mustn't greet them at the
+  // paywall. Ask again on reaching a money screen without prices, and on coming back to the app.
+  // Quietly: the failure stays on screen until prices arrive, so nothing flickers.
+  const refetchIfFailed = useEffectEvent(() => {
+    if (offersFailed && offers === null) fetchOffers();
+  });
+  const onMoneyStep = PAYWALL.includes(step) || step === 'declined';
+  useEffect(() => {
+    if (onMoneyStep) refetchIfFailed();
+  }, [onMoneyStep]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refetchIfFailed();
+    });
+    return () => sub.remove();
+  }, []);
   const [entitled, setEntitled] = useState(false);
   useEffect(() => {
     isEntitled().then(setEntitled, () => {});
   }, []);
   const [busy, setBusy] = useState(false);
+  /** Bought or restored in this session (`finishSetup`). */
+  const [finished, setFinished] = useState(false);
 
   // The exit offer shows once per install, so rerunning onboarding can't farm it.
   const [offerShownBefore] = useState(wasExitOfferShown);
+  // Set once `declined` shows (Back from it mustn't bring it round again) or a purchase is
+  // waiting for approval (no half price right after asking a parent for full price).
+  const [noMoreExitOffer, setNoMoreExitOffer] = useState(() => isPurchasePending());
   const requestedArm = isExitArm(exitOffer) ? exitOffer : undefined;
-  const exitArm: ExitOffer =
-    !offers || offerShownBefore ? 'none' : resolveExitArm(requestedArm ?? offers.exitArm, offers);
+  // Off in 1.0 (`EXIT_OFFER_LIVE`); the review tools' `?exit=` still previews each arm.
+  const liveArm = requestedArm ?? (EXIT_OFFER_LIVE && offers ? offers.exitArm : 'none');
+  const exitArm: ExitOffer = !offers || offerShownBefore ? 'none' : resolveExitArm(liveArm, offers);
 
   /*
    * Analytics (docs/ANALYTICS.md): a view per step, how long the previous one stayed open,
@@ -236,7 +285,8 @@ export function OnboardingFlow({
     if (PAYWALL.includes(step) || step === 'declined') {
       track('paywall_viewed', {
         page: step,
-        exit_arm: exitArm,
+        // Before the offers load the arm isn't known yet; `none` would skew the arm split.
+        exit_arm: offers || offerShownBefore ? exitArm : null,
         prices_loaded: offers !== null,
         trial_days: offers?.annual.trialDays ?? null,
       });
@@ -248,10 +298,13 @@ export function OnboardingFlow({
 
   // navigation.ts has the rules; this adds the side effects.
   const go = (to: StepId) => {
-    if (to === 'declined') markExitOfferShown();
+    if (to === 'declined') {
+      markExitOfferShown();
+      setNoMoreExitOffer(true);
+    }
     dispatch({ type: 'go', to });
   };
-  const next = () => dispatch({ type: 'next' });
+  const next = () => dispatch({ type: 'next', skip: lateNight ? ['walk'] : [], at: history.length });
   const edit = (to: StepId) => dispatch({ type: 'edit', to });
   const back = canGoBack(nav)
     ? () => {
@@ -261,21 +314,25 @@ export function OnboardingFlow({
       }
     : undefined;
   const exit = () => {
-    // The declined path (ONBOARDING_CONVERSION): keep the setup, arm nothing.
+    // The declined path (ONBOARDING_CONVERSION): keep the setup, arm nothing. After a purchase
+    // the history was reset to `armed`, and `finishSetup` has saved it already.
     const setupDone = history.some((s) => SETUP_DONE.includes(s));
-    if (setupDone) saveSetup(answers);
+    if (setupDone && !finished) saveSetup(answers);
     track('onboarding_exited', {
       step,
       depth: history.length,
-      setup_saved: setupDone,
-      saw_paywall: history.some((s) => PAYWALL.includes(s)),
+      setup_saved: finished || setupDone,
+      saw_paywall: finished || history.some((s) => PAYWALL.includes(s)),
     });
+    // Leaving unpaid: what's gated on a subscription (always list, limits, Block now) stands
+    // down now, not at the next foreground.
+    armIfPaid();
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
   // Leaving the paywall lands on one honest "Fair." screen, once (unless the test arm has
   // no offer). A second exit really exits.
-  const leave = PAYWALL.includes(step) && exitArm !== 'none' && !history.includes('declined') ? () => go('declined') : exit;
+  const leave = PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
     dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
@@ -364,6 +421,8 @@ export function OnboardingFlow({
     setArm({ status: 'working' });
     const result = await armTonight();
     setArm(result);
+    // `saveSetup` planned before the night was armed, so it found no bedtime to warn about.
+    if (result.status === 'armed') rescheduleNotifications().catch(() => {});
     track('night_armed', {
       status: result.status,
       reason: result.status === 'failed' ? result.reason : null,
@@ -388,12 +447,21 @@ export function OnboardingFlow({
     // Whatever was bought: a plan with no trial (monthly) just has no end to remind about.
     saveTrialReminder(answers.remindTrial);
     track('onboarding_completed', { via, depth: history.length });
+    setFinished(true);
     setEntitled(true);
+    // An approval or a restore has no offer to read the trial from: ask the store.
+    currentTrialEnd()
+      .then((end) => end && setTrialEnds(end))
+      .catch(() => {});
     dispatch({ type: 'reset', to: 'armed' });
     runArm();
   };
+  // When the trial bought just now ends, for `armed` and `first-morning` to name the date.
+  const [trialEnds, setTrialEnds] = useState<Date | null>(null);
   const buy = async (target: PurchaseTarget) => {
-    if (busy) return;
+    // `busy` hasn't rendered yet for a tap in the same frame; its `cancelled` would open the
+    // exit offer under Apple's sheet.
+    if (busy || isPurchasing()) return;
     setBusy(true);
     track('purchase_started', { target, page: step });
     let result: PurchaseResult;
@@ -404,15 +472,27 @@ export function OnboardingFlow({
     }
     setBusy(false);
     track('purchase_result', { target, page: step, status: result.status });
-    if (result.status === 'purchased') finishSetup('purchase');
-    else if (result.status === 'pending') {
+    if (result.status === 'purchased') {
+      const offer = target === 'annual' || target === 'monthly' ? offers?.[target] : offers?.exitOffers[target];
+      setTrialEnds(offer?.trialDays ? trialEndsAt(offer.trialDays) : null);
+      finishSetup('purchase');
+    } else if (result.status === 'pending') {
       saveSetup(answers);
+      // Kept now: an approval that lands after they've left only arms (`armIfPaid`), and the
+      // reminder follows the store from there (`syncTrialEnd`) if this says they wanted it.
+      saveTrialReminder(answers.remindTrial);
       markPurchasePending();
+      setNoMoreExitOffer(true);
       say('Waiting for approval', 'Once the purchase is approved, open Locturne and I’ll set tonight. Nothing is asleep until then.');
     } else if (result.status === 'failed') {
       say('That didn’t go through', `${result.message} Nothing is set up yet. Try again in a moment.`);
     }
-    // Cancelled: they closed Apple's sheet. Say nothing.
+    // Cancelled: they closed Apple's sheet. Closest to buying of anyone who leaves, so the one
+    // exit offer shows here too (once per install, same as closing the paywall). Apple allows
+    // one offer after a cancelled purchase, not a loop (ONBOARDING_OPTIMIZATION §5).
+    else if (result.status === 'cancelled' && PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer) {
+      go('declined');
+    }
   };
   const restorePurchases = async () => {
     if (busy) return;
@@ -444,26 +524,58 @@ export function OnboardingFlow({
   // A purchase waiting for Ask to Buy can be approved while the paywall is still open: move
   // on as if it had just gone through.
   const approvedLater = useEffectEvent(() => {
-    if (PAYWALL.includes(step) || step === 'declined') finishSetup('purchase');
+    if (!PAYWALL.includes(step) && step !== 'declined') return;
+    // The insights start from `purchase_result = purchased`: an approval is one too.
+    track('purchase_result', { target: 'approved', page: step, status: 'purchased' });
+    finishSetup('purchase');
   });
   useEffect(() => onEntitled(approvedLater), []);
   const [motion, setMotion] = useState<MotionAccess | null>(null);
-  const askMotion = async () => {
+  /* After purchase, `armed` says what notifications and Motion are for, then asks for both. */
+  // The web preview has neither prompt, so it starts as unasked and plays both stand-ins.
+  const [notifications, setNotifications] = useState<NotificationPermission | null>(screenTimeHere ? null : 'undetermined');
+  // What iOS has already answered, so `armed` only mentions the prompts that will really show.
+  const checkPermissions = useEffectEvent(() => {
+    if (!screenTimeHere) return;
+    getNotificationPermission().then(setNotifications, () => setNotifications('denied'));
+    if (motion === null) checkMotion().then((m) => m && setMotion(m), () => {});
+  });
+  useEffect(() => {
+    if (step === 'armed') checkPermissions();
+  }, [step]);
+  // A second tap while iOS's prompts are up would `next` twice.
+  const [asking, setAsking] = useState(false);
+  const askPermissions = async () => {
+    if (asking) return;
     if (!screenTimeHere) {
-      // The walk already showed the stand-in prompt.
-      if (motion) return next();
-      simulate('iOS asks for Motion & Fitness here. “Don’t Allow” is always an option.', next);
+      const asks = [notifications === 'undetermined' && 'notifications', motion === null && 'Motion & Fitness'].filter(Boolean);
+      if (asks.length === 0) return next();
+      simulate(`iOS asks about ${asks.join(', then ')} here. “Don’t Allow” is always an option.`, () => {
+        if (notifications === 'undetermined') setNotifications('granted');
+        if (motion === null) setMotion('granted');
+        next();
+      });
       return;
     }
-    // Already answered on the walk, this returns at once without a prompt.
-    const access = await requestMotion();
-    setMotion(access);
-    track('motion_access', { result: access });
-    next();
+    setAsking(true);
+    try {
+      if (notifications === 'undetermined') {
+        const granted = await askForNotifications().catch(() => false);
+        setNotifications(granted ? 'granted' : 'denied');
+      }
+      if (motion === null) {
+        const access = await requestMotion();
+        setMotion(access);
+        track('motion_access', { result: access });
+      }
+      next();
+    } finally {
+      setAsking(false);
+    }
   };
 
   /*
-   * The 20-step walk before the paywall. Counting starts on "Start walking", which is also
+   * The 20-step walk before the paywall, right after the demo. Counting starts on "Start walking", which is also
    * when iOS asks for Motion & Fitness (useStepCount asks). Steps from that moment only, and
    * only while the page is open. The web preview fakes a steady walk.
    */
@@ -535,7 +647,24 @@ export function OnboardingFlow({
     return () => clearTimeout(timer);
   }, [moonMoving, step]);
 
-  const lateNight = isInsideBedtime(answers.bedtime, answers.wake);
+  // B6: the reveal's and the demo's buttons wait until their payoff has played, so it can't be
+  // tapped past. Keyed by visit, so coming back replays it. The timer is a backstop: a payoff
+  // that never reports (no layout, a dropped callback) mustn't leave the button dead.
+  const visit = `${step}-${history.length}`;
+  const [payoffAt, setPayoffAt] = useState<string | null>(null);
+  // Back lands on the same key it left, so forget the payoff on every move, not just new keys.
+  const [shownVisit, setShownVisit] = useState(visit);
+  if (shownVisit !== visit) {
+    setShownVisit(visit);
+    setPayoffAt(null);
+  }
+  const onPayoff = useCallback(() => setPayoffAt(visit), [visit]);
+  useEffect(() => {
+    if (!PAYOFF_STEPS.includes(step)) return;
+    const timer = setTimeout(onPayoff, PAYOFF_BACKSTOP_MS);
+    return () => clearTimeout(timer);
+  }, [step, onPayoff]);
+
   const compact = useCompact();
   const screen = renderStep({
     step,
@@ -571,9 +700,14 @@ export function OnboardingFlow({
     arm,
     retryArm,
     motion,
-    askMotion,
+    notifications,
+    trialEnds,
+    askPermissions,
+    asking,
     walk,
     startWalk,
+    payoff: payoffAt === visit,
+    onPayoff,
   });
 
   return (

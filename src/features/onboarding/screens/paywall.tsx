@@ -8,7 +8,7 @@ import { LEGAL_URLS } from '@/lib/links';
 import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
-import { longerTrialVoice, METHOD_COPY, trialVoice } from '../content';
+import { methodCopy, trialVoice } from '../content';
 import { dateFromToday, formatWhen } from '../estimate';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';
@@ -54,16 +54,17 @@ export function plansStep(ctx: StepContext): StepView {
   const { answers, set, buy, busy, restorePurchases, compact, offers } = ctx;
   if (!offers) return storeStep(ctx);
   const bed = formatWhen(answers.bedtime);
-  const method = METHOD_COPY[answers.method ?? 'downstairs'];
+  const method = methodCopy(answers.method ?? 'downstairs');
   const trialDays = offers.annual.trialDays;
   const annual = offers.annual.priceString;
   const monthly = offers.monthly.priceString;
   const plan = answers.plan;
   const trialPlan = plan === 'annual' && trialDays !== null;
   const remindBefore = trialDays !== null ? trialDays - reminderDay(trialDays) : 2;
+  // The billed price stays on the button that buys (Apple 3.1.2), as the exit offer's does.
   const cta = {
     annual: trialDays
-      ? { title: `Start ${trialDays}-day free trial`, sub: 'No payment due now · cancel anytime' }
+      ? { title: `Start ${trialDays}-day free trial`, sub: `Then ${annual}/year · cancel anytime` }
       : { title: `Subscribe for ${annual}/year`, sub: 'Cancel anytime in Settings' },
     monthly: { title: `Subscribe for ${monthly}/month`, sub: 'Billed today · cancel anytime' },
   }[plan];
@@ -82,7 +83,8 @@ export function plansStep(ctx: StepContext): StepView {
       <View style={[styles.paywall, compact && styles.paywallCompact]}>
         <Reveal>
           <Text style={[styles.paywallTitle, compact && styles.paywallTitleCompact]} accessibilityRole="header">
-            {trialDays ? 'Try Locturne free' : 'Pick a plan'}
+            {/* Never "Try free": Apple 3.1.2 rejects trial wording that's bigger than the billed price. */}
+            Pick a plan
           </Text>
         </Reveal>
         {compact ? null : (
@@ -164,7 +166,7 @@ export function plansStep(ctx: StepContext): StepView {
  * timer. The full price is named as a plain comparison, never struck through.
  */
 export function declinedStep(ctx: StepContext): StepView {
-  const { exitArm, buy, busy, exit, offers } = ctx;
+  const { exitArm, buy, busy, exit, offers, compact, restorePurchases } = ctx;
   const offer: Offer | undefined = offers && exitArm !== 'none' ? offers.exitOffers[exitArm] : undefined;
   if (!offers || exitArm === 'none' || !offer) return storeStep(ctx);
   const longer = exitArm === 'longer-trial';
@@ -175,19 +177,22 @@ export function declinedStep(ctx: StepContext): StepView {
   return {
     body: (
       <View style={page.top}>
-        <Voice
-          text={longer && days ? longerTrialVoice(days) : 'Fair. Half price, then.'}
-          size={VoiceSize.headline}
-          header
-        />
+        {/* Apple 3.1.2: the billed price is the biggest number here, and no trial wording outranks it. */}
+        <Voice text={longer ? 'Fair. Take longer to decide.' : 'Fair. Half price, then.'} size={VoiceSize.headline} header />
         <View style={page.gapHeadline} />
+        <Text style={styles.offerPrice}>{`${price}/year`}</Text>
         <Body>
           {longer
-            ? `${days} days free${usual ? ` instead of ${usual}` : ''}, then ${full} a year. This only shows up here, once.`
-            : `Annual for ${price} a year instead of ${full}${days ? `, still with ${days} days free` : ''}. This price only shows up here, once.`}
+            ? `${days} days free${usual ? ` instead of ${usual}` : ''} before it starts. This screen only shows once.`
+            : `Instead of ${full}${days ? `, still with ${days} days free` : ''}. This screen only shows once.`}
         </Body>
-        <View style={page.gapAside} />
-        <Voice text="Don’t tell the others." size={VoiceSize.aside} delay={600} sub />
+        {/* Short phones drop his aside so the leave line isn't clipped by the price above. */}
+        {compact ? null : (
+          <>
+            <View style={page.gapAside} />
+            <Voice text="Don’t tell the others." size={VoiceSize.aside} delay={600} sub />
+          </>
+        )}
         <View style={page.gapSection} />
         <Body>Or leave. Your setup is saved, and nothing locks unless you start.</Body>
       </View>
@@ -197,7 +202,8 @@ export function declinedStep(ctx: StepContext): StepView {
         <Text style={styles.paywallFine}>
           {`${days ? `${days} days free, then ${price}/year from ${dateFromToday(days)}` : `${price}/year`}. Auto-renews at ${price}/year unless cancelled at least 24 hours before renewal.`}{' '}
           {isStubbed() ? 'Preview: nothing is charged. ' : ''}
-          <FineLink label="Terms" url={LEGAL_URLS.terms} /> · <FineLink label="Privacy" url={LEGAL_URLS.privacy} />
+          <FineLink label="Restore" onPress={restorePurchases} /> · <FineLink label="Terms" url={LEGAL_URLS.terms} /> ·{' '}
+          <FineLink label="Privacy" url={LEGAL_URLS.privacy} />
         </Text>
         <TwoLineCta
           title={days ? `Start ${days}-day free trial` : `Subscribe for ${price}/year`}
@@ -373,6 +379,7 @@ const styles = StyleSheet.create({
   pressedCta: { opacity: 0.8 },
   twoLineTitle: { color: Nocturne.onCta, fontSize: 18, fontWeight: '700' },
   twoLineSub: { color: Nocturne.onCta, opacity: 0.7, fontSize: 13, fontWeight: '500', marginTop: 1 },
+  offerPrice: { color: Nocturne.text, ...Type.title, fontVariant: ['tabular-nums'], marginBottom: Space.xs },
   paywallFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center' },
   link: { color: Nocturne.text, textDecorationLine: 'underline' },
 });

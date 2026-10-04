@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import * as StoreReview from 'expo-store-review';
+import { useIsFocused } from 'expo-router';
 import { useEffect } from 'react';
 
 import { getReviewAskedVersion, markReviewAsked, shouldAskForReview } from '@/lib/first-run';
@@ -16,7 +17,11 @@ const DELAY_MS = 2500;
  */
 export function useReviewPrompt(lock: Pick<LockState, 'phase' | 'morningKey'>, proof: MorningProof | null) {
   const version = Constants.expoConfig?.version ?? '0';
-  const due = shouldAskForReview(proof, lock, getReviewAskedVersion(), version);
+  // Home stays mounted under the wake screen, whose proof makes this due: wait until Home is
+  // the screen on top, or Apple's sheet covers the wake-up (and can stack on iOS's
+  // notification prompt there).
+  const focused = useIsFocused();
+  const due = focused && shouldAskForReview(proof, lock, getReviewAskedVersion(), version);
 
   useEffect(() => {
     if (!due) return;

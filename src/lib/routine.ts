@@ -6,7 +6,7 @@
  * 2026-10-01): `saveRoutine` keeps the edit as `pending` until then, and `getRoutine` promotes
  * it once that bedtime passes. With nothing armed there's no lock to loosen, so it applies now.
  */
-import { settingsTakeEffectAt, type LockSettings } from './lock-state.ts';
+import { nightsAround, settingsTakeEffectAt, type LockSettings } from './lock-state.ts';
 import { getArmedNight, sharedGet, sharedSet } from './screen-time.ts';
 
 /** The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. */
@@ -95,4 +95,37 @@ export function saveRoutine(next: Routine, now = new Date()): Date {
   const stored = applyEdit(read(now), next, now, getArmedNight() !== null);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;
+}
+
+/**
+ * The night at or after `start` (a bedtime worked out under one routine, which an edit waiting
+ * for bedtime may have moved, even across midnight): the routine it runs on, when it really
+ * starts under that routine, and whether it's on. Its evening is the day before its morning,
+ * as in lock-state.ts. For "Apps awake until …" wherever it's shown.
+ */
+export function nightAt(start: Date, now = new Date()): { routine: Routine; start: Date; on: boolean } {
+  const pending = getPendingRoutine(now);
+  const nightUnder = (r: Routine) => {
+    const { latest, next } = nightsAround(start, toLockSettings(r));
+    return start < latest.end ? latest : next;
+  };
+  // The edit governs from its first night, which can start before `from` when it moves
+  // bedtime earlier (the windows only tighten, so they're armed early: `planArming`).
+  const pendingNight = pending ? nightUnder(pending.routine) : null;
+  const usePending = pending && pendingNight && (pending.from <= start.getTime() || pendingNight.end.getTime() > pending.from);
+  const routine = usePending ? pending.routine : getRoutine(now);
+  const night = usePending && pendingNight ? pendingNight : nightUnder(routine);
+  const evening = new Date(night.end.getFullYear(), night.end.getMonth(), night.end.getDate() - 1).getDay();
+  return { routine, start: night.start, on: routine.activeNights.includes(evening) };
+}
+
+/** The start of the first night at or after `from` that's on, a week out at most. Null when every night is off. */
+export function nextNightOn(from: Date, now = new Date()): Date | null {
+  for (let days = 0; days < 7; days++) {
+    const at = new Date(from);
+    at.setDate(at.getDate() + days);
+    const night = nightAt(at, now);
+    if (night.on) return night.start;
+  }
+  return null;
 }
