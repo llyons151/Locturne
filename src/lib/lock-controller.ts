@@ -23,6 +23,7 @@ import {
   getAccess,
   getArmedNight,
   getLimits,
+  getNap,
   isNightHeld,
   isScreenTimeAvailable,
   limitUsedUpToday,
@@ -84,9 +85,12 @@ export function onLockChange(listener: (state: LockState) => void): () => void {
  *   shields them (a missed window, or shields lost and access restored).
  * - otherwise re-shields whatever the standing rules hold.
  * It also re-arms the windows in the background if the routine changed since they were
- * armed (only once something was armed, so nothing arms before purchase).
+ * armed (only once something was armed, so nothing arms before purchase), and lifts a
+ * Block now that iOS never ended (a missed `intervalDidEnd` would otherwise keep its apps
+ * asleep while the app shows it as over).
  */
 export function syncLock(now = new Date()): LockState {
+  if (isScreenTimeAvailable()) getNap();
   const state = readLock(now);
   if (isScreenTimeAvailable()) {
     const asleep = state.phase === 'night' || state.phase === 'morning';

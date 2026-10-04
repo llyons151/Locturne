@@ -92,14 +92,19 @@ export function fakeDeviceActivity({ available = true } = {}) {
    * A bedtime schedule armed long ago, so mornings are locked until proven (`armedInTime` in
    * lock-state.ts). Without it every morning reads as free, as on the day of install.
    */
-  const arm = (since = new Date(2026, 0, 1)) => {
-    state.store['locturne.armedNight'] = {
-      bedtime: 23 * 60,
-      morningStart: 7 * 60,
-      windows: 16,
-      armedAt: since.toISOString(),
-      since: since.toISOString(),
-    };
+  const armedNight = (since = new Date(2026, 0, 1)) => ({
+    bedtime: 23 * 60,
+    morningStart: 7 * 60,
+    windows: 16,
+    armedAt: since.toISOString(),
+    since: since.toISOString(),
+  });
+  /**
+   * Writes it to the fake App Group. With `available: false`, screen-time.ts keeps records in
+   * memory instead, so those tests store `armedNight()` with `sharedSet`.
+   */
+  const arm = (since?: Date) => {
+    state.store['locturne.armedNight'] = armedNight(since);
   };
 
   /** Which selection ids a shield call named, in order. */
@@ -108,5 +113,5 @@ export function fakeDeviceActivity({ available = true } = {}) {
       .filter(([call]) => call === name)
       .map(([, input]) => (input as { activitySelectionId: string }).activitySelectionId);
 
-  return { state, exports, reset, ids, shielded, arm };
+  return { state, exports, reset, ids, shielded, arm, armedNight };
 }

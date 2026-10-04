@@ -88,4 +88,28 @@ describe('step count', () => {
     count = addHistory(count, 80, s(10));
     assert.equal(stepsOf(count), 120);
   });
+
+  test('live steps after a return from the background move the number at once', () => {
+    // 50 live steps, then 100 more with the app in the background.
+    let count = startCount(200, 0, 0);
+    count = addLive(count, 50, s(30));
+    // Back: the watcher restarts from zero, then history catches up.
+    count = restartLive(count);
+    count = addHistory(count, 150, s(120));
+    assert.equal(stepsOf(count), 150);
+    // 30 more live steps before the next history poll.
+    count = addLive(count, 30, s(129));
+    assert.equal(stepsOf(count), 180);
+    // The next poll holds those 30 too, and doesn't add them again.
+    count = addHistory(count, 180, s(130));
+    assert.equal(stepsOf(count), 180);
+  });
+
+  test('an ordinary poll that runs ahead of live steps banks nothing', () => {
+    let count = startCount(200, 0, 0);
+    count = addLive(count, 40, s(30));
+    count = addHistory(count, 50, s(31));
+    count = addLive(count, 50, s(32));
+    assert.equal(stepsOf(count), 50);
+  });
 });

@@ -16,6 +16,7 @@ let armed: ArmedNight | null = null;
 let live = 0;
 let nightPicks = 3;
 let shieldTexts: { title: string; tap: boolean }[] = [];
+let napTidies = 0;
 
 mock.module(new URL('./screen-time.ts', import.meta.url).href, {
   namedExports: {
@@ -44,6 +45,10 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     },
     armedSince: (a: ArmedNight) => new Date(a.since ?? a.armedAt),
     peekNap: () => null,
+    getNap: () => {
+      napTidies += 1;
+      return null;
+    },
     getLimits: () => [],
     limitUsedUpToday: () => false,
     setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),
@@ -195,6 +200,12 @@ describe('the shield', () => {
 });
 
 describe('re-shielding when the night was lost', () => {
+  test('every sync tidies a Block now that iOS never ended, before reading the state', () => {
+    napTidies = 0;
+    syncLock(at(15));
+    assert.equal(napTidies, 1);
+  });
+
   test('a missed night, armed in time, is put back to sleep on open', async () => {
     await armYesterday();
     nightHeld = false; // no window ever fired

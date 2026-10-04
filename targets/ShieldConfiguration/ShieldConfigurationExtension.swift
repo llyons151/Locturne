@@ -134,7 +134,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     let placeholders: [String: String?] = [
       "applicationOrDomainDisplayName": application.localizedDisplayName,
-      "token": "\(application.token!.hashValue)",
+      "token": application.token.map { "\($0.hashValue)" } ?? "",
       "tokenType": "application",
       "familyActivitySelectionId": getPossibleFamilyActivitySelectionIds(
         applicationToken: application.token
@@ -161,7 +161,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     let placeholders = [
       "applicationOrDomainDisplayName": application.localizedDisplayName,
-      "token": "\(category.token!.hashValue)",
+      "token": category.token.map { "\($0.hashValue)" } ?? "",
       "tokenType": "application_category",
       "familyActivitySelectionId": getPossibleFamilyActivitySelectionIds(
         applicationToken: application.token,
@@ -186,7 +186,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     let placeholders = [
       "applicationOrDomainDisplayName": webDomain.domain,
-      "token": "\(webDomain.token!.hashValue)",
+      "token": webDomain.token.map { "\($0.hashValue)" } ?? "",
       "tokenType": "web_domain",
       "familyActivitySelectionId": getPossibleFamilyActivitySelectionIds(
         webDomainToken: webDomain.token
@@ -213,7 +213,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     let placeholders = [
       "applicationOrDomainDisplayName": webDomain.domain,
-      "token": "\(category.token!.hashValue)",
+      "token": category.token.map { "\($0.hashValue)" } ?? "",
       "tokenType": "web_domain_category",
       "familyActivitySelectionId": getPossibleFamilyActivitySelectionIds(
         webDomainToken: webDomain.token,

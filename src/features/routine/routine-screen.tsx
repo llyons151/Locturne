@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTabBarInset } from '@/components/app-tabs';
 import { ChoiceRow, Section, sym } from '@/components/grouped-list';
 import { formatPreset } from '@/features/onboarding/time-wheel';
+import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
 import { armRoutine } from '@/lib/lock-controller';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -18,7 +19,7 @@ import {
   type Routine as StoredRoutine,
   type WakeMethod,
 } from '@/lib/routine';
-import { isScreenTimeAvailable } from '@/lib/screen-time';
+import { getArmedNight, isScreenTimeAvailable } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
@@ -158,7 +159,11 @@ export function RoutineScreen() {
     setLoaded(load());
     // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
     // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
-    armRoutine().catch(() => {});
+    // Nothing armed yet means nothing was bought yet (or the night was lost): only a
+    // subscription arms it, or leaving onboarding at the paywall and saving here would lock
+    // tonight for free.
+    if (getArmedNight()) armRoutine().catch(() => {});
+    else armIfPaid();
     rescheduleNotifications().catch(() => {});
   };
   const set = (patch: Partial<Routine>) => commit({ ...saved, ...patch });

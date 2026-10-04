@@ -40,12 +40,20 @@ export type StepCount = {
   history: number;
   /** Live steps dropped as implausibly fast. */
   refused: number;
+  /**
+   * Steps walked while the live watcher was off (the app in the background), banked from the
+   * first history read after it restarted. Without them, live steps after a return wouldn't
+   * move the number until they outran the history read.
+   */
+  away: number;
+  /** The watcher restarted and the next history read should bank what it missed. */
+  catchUp: boolean;
 };
 
 /** Starts the count from the history read on open (`steps` since morning start). */
 export function startCount(goal: number, steps: number, at: number): StepCount {
   const base = Math.max(0, Math.floor(steps));
-  return { goal, base, live: 0, lastRaw: 0, openedAt: at, history: base, refused: 0 };
+  return { goal, base, live: 0, lastRaw: 0, openedAt: at, history: base, refused: 0, away: 0, catchUp: false };
 }
 
 /** Most steps a person could walk between two times, with the burst allowance. */
@@ -71,11 +79,15 @@ export function addLive(count: StepCount, raw: number, at: number): StepCount {
  */
 export function addHistory(count: StepCount, steps: number, at: number): StepCount {
   const capped = Math.min(Math.floor(steps), count.base + plausible(count.openedAt, at));
-  return { ...count, history: Math.max(count.history, capped) };
+  const history = Math.max(count.history, capped);
+  // Only right after a restart: on ordinary reads, live steps the history already holds
+  // would be counted twice.
+  const away = count.catchUp ? Math.max(count.away, history - count.base - count.live) : count.away;
+  return { ...count, history, away, catchUp: false };
 }
 
 export function stepsOf(count: StepCount): number {
-  return Math.max(count.base + count.live, count.history);
+  return Math.max(count.base + count.away + count.live, count.history);
 }
 
 export function stepsLeft(count: StepCount): number {
@@ -88,5 +100,5 @@ export function isWalked(count: StepCount): boolean {
 
 /** The live watcher restarted (it counts from zero again); keep what was credited. */
 export function restartLive(count: StepCount): StepCount {
-  return { ...count, lastRaw: 0 };
+  return { ...count, lastRaw: 0, catchUp: true };
 }

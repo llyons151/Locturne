@@ -1,7 +1,7 @@
 import { Link, router, useFocusEffect } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -154,12 +154,15 @@ export function HomeScreen() {
           </View>
         )}
         <View style={styles.flex} />
-        {/* No settings screen yet: this opens the onboarding preview. */}
-        <Link href="/onboarding" asChild>
-          <Pressable hitSlop={12} accessibilityRole="button" accessibilityLabel="Preview onboarding">
-            <SymbolView name={sym('gearshape', 'settings')} size={22} tintColor={Nocturne.text} />
-          </Pressable>
-        </Link>
+        {/* No settings screen yet: this opens the onboarding preview, so it stays out of the
+            App Store build (rerunning onboarding there would show a subscriber the paywall). */}
+        {(__DEV__ || Platform.OS === 'web') && (
+          <Link href="/onboarding" asChild>
+            <Pressable hitSlop={12} accessibilityRole="button" accessibilityLabel="Preview onboarding">
+              <SymbolView name={sym('gearshape', 'settings')} size={22} tintColor={Nocturne.text} />
+            </Pressable>
+          </Link>
+        )}
       </View>
 
       <ScrollView

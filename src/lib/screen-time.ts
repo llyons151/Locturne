@@ -202,7 +202,7 @@ export function wakeApps(id: SelectionId): void {
 }
 
 export function isNightHeld(): boolean {
-  return userDefaultsGet<boolean>(NIGHT_HELD_KEY) === true;
+  return sharedGet<boolean>(NIGHT_HELD_KEY) === true;
 }
 
 /**
@@ -380,7 +380,7 @@ export function armedWindowNames(): string[] {
 }
 
 export function getArmedNight(): ArmedNight | null {
-  return userDefaultsGet<ArmedNight>(ARMED_KEY) ?? null;
+  return sharedGet<ArmedNight>(ARMED_KEY) ?? null;
 }
 
 /**
@@ -447,7 +447,7 @@ export function endNap(): void {
 }
 
 function readNap(): ActiveNap | null {
-  return userDefaultsGet<ActiveNap>(NAP_KEY) ?? null;
+  return sharedGet<ActiveNap>(NAP_KEY) ?? null;
 }
 
 /** The running nap, or null, without tidying anything up: safe to call while rendering. */
@@ -488,7 +488,7 @@ const PENDING_LISTS_KEY = 'locturne.pendingLists';
 export const draftId = (list: StandingList): DraftId => `${list}-next`;
 
 function getPendingLists(): Partial<Record<StandingList, { from: number }>> {
-  return userDefaultsGet(PENDING_LISTS_KEY) ?? {};
+  return sharedGet<Partial<Record<StandingList, { from: number }>>>(PENDING_LISTS_KEY) ?? {};
 }
 
 function setPending(list: StandingList, pending: { from: number } | null): void {
@@ -570,7 +570,7 @@ export function settleListChanges(now = new Date()): StandingList[] {
 
 /** Forgets a list's picks, so a reused limit slot opens Apple's picker empty. */
 export function clearSelection(id: SelectionId): void {
-  const ids = userDefaultsGet<Record<string, string>>(SELECTION_IDS_KEY) ?? {};
+  const ids = sharedGet<Record<string, string>>(SELECTION_IDS_KEY) ?? {};
   if (!(id in ids)) return;
   const rest = { ...ids };
   delete rest[id];
@@ -588,7 +588,7 @@ const LIMIT_EVENT = 'used-up';
 const usedUpKey = (id: LimitId) => `locturne.limitReached.${id}`;
 
 export function getLimits(): DailyLimit[] {
-  const limits = userDefaultsGet<DailyLimit[]>(LIMITS_KEY) ?? [];
+  const limits = sharedGet<DailyLimit[]>(LIMITS_KEY) ?? [];
   // A removal waiting for bedtime is `minutes: null`, which is stored without the field.
   return limits.map((l) => (l.pending ? { ...l, pending: { ...l.pending, minutes: l.pending.minutes ?? null } } : l));
 }
@@ -598,7 +598,7 @@ export function saveLimits(limits: DailyLimit[]): void {
 }
 
 export function limitUsedUpToday(id: LimitId): boolean {
-  return userDefaultsGet<string>(usedUpKey(id)) === dateKey(new Date());
+  return sharedGet<string>(usedUpKey(id)) === dateKey(new Date());
 }
 
 /**

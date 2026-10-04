@@ -284,9 +284,14 @@ let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
 let LOCTURNE_ROUTINE_KEY = "locturne.routine"
 let LOCTURNE_HEARTBEAT_KEEP = 100
 
-/// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts.
+/// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts. Always the
+/// Gregorian calendar: with the phone set to Japanese, Buddhist or Hebrew dates,
+/// `Calendar.current` would write years JS never matches, and used-up limits would read as
+/// not used up.
 func locturneDayKey(_ date: Date = Date()) -> String {
-  let day = Calendar.current.dateComponents([.year, .month, .day], from: date)
+  var calendar = Calendar(identifier: .gregorian)
+  calendar.timeZone = .current
+  let day = calendar.dateComponents([.year, .month, .day], from: date)
   return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
 }
 

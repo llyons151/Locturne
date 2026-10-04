@@ -16,7 +16,7 @@ mock.module('react-native-device-activity', { namedExports: fake.exports });
 const passes = await import('./passes.ts');
 const { currentMorning } = await import('./lock-state.ts');
 const { getProof } = await import('./morning-proof.ts');
-const { sharedRemove } = await import('./screen-time.ts');
+const { sharedRemove, sharedSet } = await import('./screen-time.ts');
 const { toLockSettings, DEFAULT_ROUTINE } = await import('./routine.ts');
 
 const { PASSES_PER_MONTH, passesLeft, passRefusal, withSpent, spendPass, getPassesLeft } = passes;
@@ -25,7 +25,7 @@ const { PASSES_PER_MONTH, passesLeft, passRefusal, withSpent, spendPass, getPass
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
 beforeEach(() => {
-  fake.arm();
+  sharedSet('locturne.armedNight', fake.armedNight());
   sharedRemove('locturne.passes');
   sharedRemove('locturne.morningProofs');
 });

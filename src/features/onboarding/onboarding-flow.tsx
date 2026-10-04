@@ -53,8 +53,12 @@ import { FooterEnter, MoonSurface, Shell, StepEnter } from './ui';
 const WALK_EPOCH = new Date(0);
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
-/** Steps that can be edited from the "Tonight's lock is ready" summary. */
-const EDITABLE: StepId[] = ['bedtime', 'wake', 'apps'];
+/**
+ * Steps that can be edited and then return: `bedtime`, `wake` and `apps` from the "Tonight's
+ * lock is ready" summary, and `method` from the walk ("Pick another way" when there's no
+ * step counter).
+ */
+const EDITABLE: StepId[] = ['bedtime', 'wake', 'method', 'apps'];
 
 /** Screens that move on by themselves. Back steps over them. */
 const AUTO_ADVANCE: StepId[] = ['math'];
@@ -415,19 +419,19 @@ export function OnboardingFlow({ initialStep, exitOffer }: { initialStep?: strin
   }, [counting]);
   const walkSteps = Platform.OS === 'ios' ? realWalk.steps : fakeSteps;
   const walkStatus = Platform.OS === 'ios' ? realWalk.status : 'counting';
+  // Both are set while rendering (React's "adjusting state when a prop changes"), so the
+  // page never draws a frame with stale values in between.
+  if (walkStart && !walkDone && walkStatus === 'counting' && walkSteps >= WALK_GOAL) setWalkDone(true);
   useEffect(() => {
-    if (!walkStart || walkDone) return;
-    if (walkStatus === 'counting' && walkSteps >= WALK_GOAL) {
-      setWalkDone(true);
-      haptic.done();
-    }
-  }, [walkStart, walkDone, walkStatus, walkSteps]);
+    if (walkDone) haptic.done();
+  }, [walkDone]);
   // The walk's answer is the Motion & Fitness answer, for the pages after it.
-  useEffect(() => {
-    if (!walkStart || Platform.OS !== 'ios') return;
+  const [seenWalkStatus, setSeenWalkStatus] = useState(walkStatus);
+  if (walkStart && Platform.OS === 'ios' && walkStatus !== seenWalkStatus) {
+    setSeenWalkStatus(walkStatus);
     if (walkStatus === 'counting') setMotion('granted');
     else if (walkStatus === 'denied' || walkStatus === 'unavailable') setMotion(walkStatus);
-  }, [walkStart, walkStatus]);
+  }
   const walk: WalkState = !walkStart
     ? { phase: 'idle', steps: 0 }
     : walkDone

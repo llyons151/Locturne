@@ -14,12 +14,12 @@ mock.module('react-native-device-activity', { namedExports: fake.exports });
 
 const scan = await import('./scan.ts');
 const { getProof, recordProof } = await import('./morning-proof.ts');
-const { sharedRemove } = await import('./screen-time.ts');
+const { sharedRemove, sharedSet } = await import('./screen-time.ts');
 
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
 beforeEach(() => {
-  fake.arm();
+  sharedSet('locturne.armedNight', fake.armedNight());
   sharedRemove('locturne.scanCode');
   sharedRemove('locturne.morningProofs');
 });
