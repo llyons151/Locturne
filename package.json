@@ -58,7 +58,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "node --test --experimental-test-module-mocks",
-    "test:tz": "for tz in UTC America/New_York Europe/London Pacific/Chatham America/Santiago; do echo \"TZ=$tz\"; TZ=$tz npm test --silent || exit 1; done"
+    "test:tz": "for tz in UTC America/New_York Europe/London Pacific/Chatham America/Santiago; do echo \"TZ=$tz\"; TZ=$tz npm test --silent || exit 1; done",
+    "test:native": "native-tests/run.sh",
+    "test:native:tz": "for tz in UTC America/New_York Europe/London Pacific/Chatham America/Santiago; do echo \"TZ=$tz\"; out=$(TZ=$tz native-tests/run.sh) || { echo \"$out\"; exit 1; }; echo \"$out\" | tail -1; done"
   },
   "private": true
 }
