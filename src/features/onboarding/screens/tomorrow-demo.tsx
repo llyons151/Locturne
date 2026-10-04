@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   Platform,
@@ -29,23 +29,37 @@ import { Reveal } from '@/components/motion';
 import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
+import { shieldCopy, shieldTap } from '@/lib/shield-copy';
 import { DOWNSTAIRS } from '@/lib/wake/downstairs';
+import { downstairsLine, PHASE_LINES, stepsLine } from '@/lib/wake/lines';
 import { DisplayFont, Nocturne, NUMBER_FONT, VoiceSize } from '@/theme';
 
 import { Eyebrow, Title } from '../ui';
 
 const STEP_GOAL = 200;
 
-/** The script, in ms from the page opening. */
+/**
+ * The script, in ms from the page opening. It's the real morning, in the order that works
+ * (shield-copy.ts): the shield's one button sends a notification, the notification opens
+ * Locturne, and the wake-up happens there. Never "do it, then press the shield's button".
+ */
 const TAP_AT = 1500;
 const SHIELD_AT = 1650;
-const WALK_AT = 2500;
-const WALK_TO_190_MS = 2600;
+/** "Fine", the shield's only button. */
+const FINE_AT = 2800;
+const BANNER_AT = 2950;
+const BANNER_TAP_AT = 3900;
+const APP_AT = 4050;
+/** Downstairs only: the barometer listens after Start. */
+const START_AT = 4750;
+const WALK_AT = 4950;
+const WALK_TO_190_MS = 2400;
 const LAST_STEPS_MS = 110;
-/** At 200 steps: the shield's button is pressed, then the shield lifts. */
-const LIFT_AFTER_MS = 320;
-/** Reduced motion: no zoom or counting, just the two states. */
-const REDUCED_AWAKE_AT = 3000;
+/** At the goal his done line shows in the app, then it's back to Instagram. */
+const LIFT_AFTER_MS = 800;
+/** Reduced motion: no zoom or counting, just the states. */
+const REDUCED_APP_AT = 2800;
+const REDUCED_AWAKE_AT = 4300;
 
 /** Apple's iPhone 17 bezel image (Apple Design Resources), 1350×2760, and its screen opening. */
 const FRAME = require('@/assets/onboarding/iphone-frame.png');
@@ -67,58 +81,70 @@ const DOCK_APPS: SystemName[] = ['Phone', 'Safari', 'Messages', 'Music'];
 /**
  * What the demo shows for the method they just chose (B2 in docs/ONBOARDING_OPTIMIZATION.md):
  * someone who said "yes, stairs" mustn't watch a step counter at the aha moment. The timeline
- * is the same for all three; `tick` is how far along it is, 0 to STEP_GOAL.
+ * is the same for all three; `tick` is how far along it is, 0 to STEP_GOAL. The shield's words
+ * are the real ones (`shieldCopy`), and the app's lines are the real wake-up screen's.
  */
 const METHOD_DEMO: Record<
   WakeMethod,
   {
-    shield: string;
-    button: string;
     /** The big number and its unit, at this point of the timeline. */
     count: (tick: number) => { value: string; unit: string };
+    /** Loc under the phone once the app is open, before the count starts. */
+    go: string;
     /** His line halfway there. */
     midway: string;
+    /** The wake-up screen's own line inside the phone, before the goal. */
+    appLine: (tick: number) => string;
+    /** Downstairs has a Start button; the others count straight away. */
+    start: boolean;
     /** VoiceOver, at the end. */
     done: string;
   }
 > = {
   steps: {
-    shield: `Walk ${STEP_GOAL} steps and it wakes up.`,
-    button: 'Check my steps',
     count: (tick) => ({ value: String(tick), unit: ` / ${STEP_GOAL} steps` }),
+    go: 'Walk. I’m counting. Grudgingly.',
     midway: 'I can hear you walking. I’m ignoring it.',
+    appLine: (tick) => stepsLine(tick, STEP_GOAL).replace(/\*/g, ''),
+    start: false,
     done: `${STEP_GOAL} of ${STEP_GOAL} steps.`,
   },
   downstairs: {
-    shield: 'Go downstairs and it wakes up.',
-    button: 'I’m downstairs',
     // The same metres meter as the real wake-up screen (downstairs-view.tsx).
     count: (tick) => ({
       value: ((tick / STEP_GOAL) * DOWNSTAIRS.threshold).toFixed(1),
       unit: ` / ${DOWNSTAIRS.threshold} m down`,
     }),
+    go: 'Start. Then the stairs.',
     midway: 'I can feel the stairs. I’m ignoring them.',
+    appLine: (tick) =>
+      tick === 0 ? downstairsLine('idle', 0) : downstairsLine('moving', tick / STEP_GOAL),
+    start: true,
     done: 'One floor down.',
   },
   scan: {
-    shield: 'Scan your code and it wakes up.',
-    button: 'Scan my code',
     count: (tick) =>
       tick >= STEP_GOAL ? { value: 'Scanned', unit: '' } : { value: String(STEP_GOAL - tick), unit: ' steps to your code' },
+    go: 'Now walk me to your code.',
     midway: 'You’re going to the code. I’m ignoring it.',
+    appLine: () => 'Point me at your code.',
+    start: false,
     done: 'Code scanned.',
   },
 };
 
+/** The notification the shield's button sends (`shieldTap`): the way into the app. */
+const TAP_NOTE = shieldTap('morning')!;
+
 /** How far the phone leans under a finger or cursor, in degrees. */
 const MAX_TILT = 14;
 
-type Phase = 'home' | 'shield' | 'awake';
+type Phase = 'home' | 'shield' | 'banner' | 'app' | 'awake';
 type SharedNumber = ReturnType<typeof useSharedValue<number>>;
 
 /**
- * The product in six seconds, on an iPhone: tap Instagram at 7:00, get Loc's sleep
- * screen, do the chosen wake-up underneath, and the sleep screen lifts off the feed.
+ * The product in nine seconds, on an iPhone: tap Instagram at 7:00, get the morning shield,
+ * tap Fine, tap the notification it sends, do the chosen wake-up in Locturne, then Instagram.
  */
 export function TomorrowDemo({
   when,
@@ -133,6 +159,7 @@ export function TomorrowDemo({
   onPayoff?: () => void;
 }) {
   const copy = METHOD_DEMO[method];
+  const shield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL });
   const reduced = useReducedMotion();
   const compact = useCompact();
   const [phase, setPhase] = useState<Phase>('home');
@@ -140,9 +167,14 @@ export function TomorrowDemo({
   const [area, setArea] = useState({ width: 0, height: 0 });
 
   const press = useSharedValue(1);
-  const button = useSharedValue(1);
+  const fine = useSharedValue(1);
   const open = useSharedValue(0);
+  const banner = useSharedValue(0);
+  const bannerPress = useSharedValue(1);
+  const app = useSharedValue(0);
+  const start = useSharedValue(1);
   const lift = useSharedValue(0);
+  const [started, setStarted] = useState(!copy.start);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -155,6 +187,11 @@ export function TomorrowDemo({
         open.value = 1;
         setPhase('shield');
       });
+      at(REDUCED_APP_AT, () => {
+        app.value = 1;
+        setStarted(true);
+        setPhase('app');
+      });
       at(REDUCED_AWAKE_AT, () => {
         setSteps(STEP_GOAL);
         lift.value = 1;
@@ -165,14 +202,32 @@ export function TomorrowDemo({
       return () => timers.forEach(clearTimeout);
     }
 
-    at(TAP_AT, () => {
+    const tap = (value: typeof press, depth = 0.94) => {
       haptic.tap();
-      press.value = withSequence(withTiming(0.86, { duration: 90 }), withTiming(1, { duration: 160 }));
-    });
+      value.value = withSequence(withTiming(depth, { duration: 100 }), withTiming(1, { duration: 160 }));
+    };
+    at(TAP_AT, () => tap(press, 0.86));
     at(SHIELD_AT, () => {
       setPhase('shield');
       open.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
     });
+    at(FINE_AT, () => tap(fine));
+    at(BANNER_AT, () => {
+      setPhase('banner');
+      banner.value = withSpring(1, { damping: 18, stiffness: 180 });
+    });
+    at(BANNER_TAP_AT, () => tap(bannerPress, 0.96));
+    at(APP_AT, () => {
+      setPhase('app');
+      banner.value = withTiming(0, { duration: 220 });
+      app.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
+    });
+    if (copy.start) {
+      at(START_AT, () => {
+        tap(start);
+        setStarted(true);
+      });
+    }
     for (let s = 5; s <= 190; s += 5) {
       at(WALK_AT + Math.round((s / 190) * WALK_TO_190_MS), () => {
         setSteps(s);
@@ -185,17 +240,13 @@ export function TomorrowDemo({
       at(WALK_AT + WALK_TO_190_MS + (s - 190) * LAST_STEPS_MS, () => {
         setSteps(s);
         if (s < STEP_GOAL) haptic.thud();
+        else haptic.done();
       });
     }
-    // At 200, "Check my steps" gets tapped and the shield lifts off.
-    at(goalAt + 60, () => {
-      haptic.tap();
-      button.value = withSequence(withTiming(0.94, { duration: 100 }), withTiming(1, { duration: 160 }));
-    });
+    // His done line shows in the app for a beat, then it's back to Instagram.
     at(goalAt + LIFT_AFTER_MS, () => {
       setPhase('awake');
       lift.value = withTiming(1, { duration: 480, easing: Easing.inOut(Easing.cubic) });
-      haptic.done();
       announce();
     });
     return () => timers.forEach(clearTimeout);
@@ -211,8 +262,10 @@ export function TomorrowDemo({
     setArea({ width, height });
   };
 
-  // Built once per phase, not per step: the counter ticks ~40 times, and re-rendering the
-  // phone's icons, photos and gestures on every tick made the count stutter.
+  // The app's own count, inside the phone: only it changes per tick. The home screen and the
+  // feed are memoized, because re-rendering the phone's icons and photos on every tick made the
+  // count stutter.
+  const appTick = phase === 'app' || phase === 'awake' ? steps : 0;
   const phone = useMemo(
     () =>
       phoneHeight > 0 ? (
@@ -223,12 +276,26 @@ export function TomorrowDemo({
                 width={phoneWidth}
                 clock={clock}
                 phase={phase}
-                shieldLine={copy.shield}
-                buttonLabel={copy.button}
+                shieldTitle={shield.title}
+                shieldLine={shield.subtitle}
+                buttonLabel={shield.button}
                 press={press}
-                button={button}
+                fine={fine}
                 open={open}
+                banner={banner}
+                bannerPress={bannerPress}
+                app={app}
                 lift={lift}
+                appScreen={
+                  <WakeApp
+                    k={phoneWidth * SCREEN.width / 402}
+                    line={appTick >= STEP_GOAL ? PHASE_LINES.day : copy.appLine(started ? appTick : 0)}
+                    count={copy.count(appTick)}
+                    progress={appTick / STEP_GOAL}
+                    showStart={copy.start && !started}
+                    start={start}
+                  />
+                }
               />
             </Tilt>
           </View>
@@ -236,7 +303,7 @@ export function TomorrowDemo({
       ) : null,
     // Shared values are stable refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [phoneWidth, phoneHeight, reduced, clock, phase, copy],
+    [phoneWidth, phoneHeight, reduced, clock, phase, copy, shield, appTick, started],
   );
 
   const awake = phase === 'awake';
@@ -246,7 +313,11 @@ export function TomorrowDemo({
   const count = copy.count(steps);
   // "Fine. *Fine.*": the whole line is already italic, so the emphasis is an underline.
   const line =
-    phase === 'home' ? null : awake ? (
+    phase === 'home' ? null : phase === 'shield' ? (
+      'No. Tap Fine.'
+    ) : phase === 'banner' ? (
+      'That’s me. Tap it.'
+    ) : awake ? (
       'I’m up. Don’t talk to me yet.'
     ) : steps >= 160 ? (
       <>
@@ -255,7 +326,7 @@ export function TomorrowDemo({
     ) : steps >= 80 ? (
       copy.midway
     ) : (
-      'No.'
+      copy.go
     );
 
   return (
@@ -343,28 +414,39 @@ function Tilt({ width, height, still, children }: { width: number; height: numbe
 
 /**
  * Apple's iPhone 17 bezel with a live screen underneath. Layout inside the screen is
- * in iOS points on a 402pt-wide display, scaled by `k`.
+ * in iOS points on a 402pt-wide display, scaled by `k`. Layers, bottom up: the home screen
+ * (then Instagram), the morning shield, Locturne's wake-up screen, the notification banner.
  */
 function Phone({
   width,
   clock,
   phase,
+  shieldTitle,
   shieldLine,
   buttonLabel,
   press,
-  button,
+  fine,
   open,
+  banner,
+  bannerPress,
+  app,
   lift,
+  appScreen,
 }: {
   width: number;
   clock: string;
   phase: Phase;
+  shieldTitle: string;
   shieldLine: string;
   buttonLabel: string;
   press: SharedNumber;
-  button: SharedNumber;
+  fine: SharedNumber;
   open: SharedNumber;
+  banner: SharedNumber;
+  bannerPress: SharedNumber;
+  app: SharedNumber;
   lift: SharedNumber;
+  appScreen: ReactNode;
 }) {
   const height = width / PHONE_RATIO;
   const sw = width * SCREEN.width;
@@ -372,25 +454,36 @@ function Phone({
   const k = sw / 402;
   const pt = (n: number) => n * k;
 
-  // Where Instagram sits, relative to the screen's centre: the sleep screen grows out of it.
+  // Where Instagram sits, relative to the screen's centre: the shield grows out of it.
   const fromX = (GRID.left + CELL * (TARGET % 4) + CELL / 2) * k - sw / 2;
   const fromY = (GRID.top + ROW * Math.floor(TARGET / 4) + ICON / 2) * k - sh / 2;
   const fromScale = ICON / 402;
 
-  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
-  const buttonStyle = useAnimatedStyle(() => ({ transform: [{ scale: button.value }] }));
+  const fineStyle = useAnimatedStyle(() => ({ transform: [{ scale: fine.value }] }));
   const shieldStyle = useAnimatedStyle(() => {
     const p = open.value;
-    const l = lift.value;
     return {
-      opacity: Math.min(1, p * 2.5) * (1 - l),
+      opacity: Math.min(1, p * 2.5) * (1 - lift.value),
       transform: [
         { translateX: fromX * (1 - p) },
-        { translateY: fromY * (1 - p) - l * 24 * k },
-        { scale: (fromScale + (1 - fromScale) * p) * (1 + l * 0.04) },
+        { translateY: fromY * (1 - p) },
+        { scale: fromScale + (1 - fromScale) * p },
       ],
     };
   });
+  // The app opens from the banner at the top, the way a tapped notification opens one.
+  const appStyle = useAnimatedStyle(() => {
+    const a = app.value;
+    const l = lift.value;
+    return {
+      opacity: Math.min(1, a * 2) * (1 - l),
+      transform: [{ translateY: (1 - a) * -sh * 0.35 - l * 24 * k }, { scale: (0.4 + 0.6 * a) * (1 + l * 0.04) }],
+    };
+  });
+  const bannerStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, banner.value * 1.5),
+    transform: [{ translateY: (banner.value - 1) * pt(120) }, { scale: bannerPress.value }],
+  }));
 
   return (
     <View style={{ width, height }}>
@@ -400,76 +493,56 @@ function Phone({
           { left: width * SCREEN.left, top: height * SCREEN.top, width: sw, height: sh, borderRadius: sw * 0.14 },
         ]}
       >
-        {phase === 'awake' ? (
-          <InstagramFeed k={k} />
-        ) : (
-          <>
-            <Image source={WALLPAPER} style={StyleSheet.absoluteFill} contentFit="cover" />
-            <View style={[styles.grid, { top: pt(GRID.top), left: pt(GRID.left), right: pt(GRID.left) }]}>
-              {HOME_APPS.map((name, i) => (
-                <View key={name} style={{ width: pt(CELL), height: pt(ROW), alignItems: 'center', gap: pt(5) }}>
-                  <Animated.View style={i === TARGET ? pressStyle : undefined}>
-                    <BrandIcon name={name} size={pt(ICON)} />
-                  </Animated.View>
-                  <Text numberOfLines={1} style={[styles.label, { fontSize: pt(12) }]} maxFontSizeMultiplier={1}>
-                    {name}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View
-              style={[
-                styles.search,
-                { bottom: pt(124), height: pt(30), paddingHorizontal: pt(12), borderRadius: pt(15), gap: pt(4) },
-              ]}
-            >
-              <Glyph name="search" size={pt(13)} />
-              <Text style={[styles.searchText, { fontSize: pt(13) }]} maxFontSizeMultiplier={1}>
-                Search
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.dock,
-                { left: pt(12), right: pt(12), bottom: pt(12), height: pt(92), borderRadius: pt(36), paddingHorizontal: pt(14) },
-              ]}
-            >
-              {DOCK_APPS.map((name) => (
-                <SystemIcon key={name} name={name} size={pt(ICON)} />
-              ))}
-            </View>
-          </>
-        )}
+        {phase === 'awake' ? <InstagramFeed k={k} /> : <HomeScreen k={k} press={press} />}
 
         {/*
-          Loc's sleep screen, laid out like the Screen Time shield iOS really shows:
-          icon, title, subtitle, a primary and a secondary button, over a blurred backdrop.
+          The morning shield as iOS draws it from shield-copy.ts and screen-time.ts: near-black,
+          a white moon.zzz, the title, the subtitle and one white button. No second button.
         */}
         <Animated.View pointerEvents="none" style={[styles.shield, { borderRadius: sw * 0.14 }, shieldStyle]}>
-          <Image source={WALLPAPER} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={24} />
-          <View style={[StyleSheet.absoluteFill, styles.shieldTint]} />
           <View style={[styles.shieldBody, { top: pt(250), paddingHorizontal: pt(32), gap: pt(10) }]}>
-            <View style={[styles.shieldIcon, { width: pt(76), height: pt(76), borderRadius: pt(17), marginBottom: pt(10) }]}>
-              <Glyph name="moon" size={pt(40)} color={Nocturne.accent ?? Nocturne.text} />
+            <View style={{ marginBottom: pt(14) }}>
+              <Glyph name="moon" size={pt(52)} />
             </View>
             <Text style={[styles.shieldTitle, { fontSize: pt(26), lineHeight: pt(31) }]} maxFontSizeMultiplier={1}>
-              Shh. I’m sleeping.{'\n'}So is Instagram.
+              {shieldTitle}
             </Text>
             <Text style={[styles.shieldSub, { fontSize: pt(17), lineHeight: pt(22) }]} maxFontSizeMultiplier={1}>
               {shieldLine}
             </Text>
           </View>
-          <View style={[styles.shieldButtons, { left: pt(24), right: pt(24), bottom: pt(44), gap: pt(8) }]}>
-            <Animated.View style={[styles.shieldPrimary, { height: pt(54), borderRadius: pt(16) }, buttonStyle]}>
+          <View style={[styles.shieldButtons, { left: pt(24), right: pt(24), bottom: pt(60) }]}>
+            <Animated.View style={[styles.shieldPrimary, { height: pt(54), borderRadius: pt(16) }, fineStyle]}>
               <Text style={[styles.shieldPrimaryText, { fontSize: pt(18) }]} maxFontSizeMultiplier={1}>
                 {buttonLabel}
               </Text>
             </Animated.View>
-            <View style={{ height: pt(44), justifyContent: 'center' }}>
-              <Text style={[styles.shieldSecondaryText, { fontSize: pt(17) }]} maxFontSizeMultiplier={1}>
-                Close
+          </View>
+        </Animated.View>
+
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, appStyle]}>
+          {appScreen}
+        </Animated.View>
+
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.banner, { top: pt(54), left: pt(10), right: pt(10), borderRadius: pt(22), padding: pt(13), gap: pt(11) }, bannerStyle]}
+        >
+          <View style={[styles.bannerIcon, { width: pt(38), height: pt(38), borderRadius: pt(9) }]}>
+            <Glyph name="moon" size={pt(22)} />
+          </View>
+          <View style={styles.flex}>
+            <View style={styles.bannerHead}>
+              <Text style={[styles.bannerTitle, { fontSize: pt(15) }]} maxFontSizeMultiplier={1}>
+                {TAP_NOTE.title}
+              </Text>
+              <Text style={[styles.bannerWhen, { fontSize: pt(13) }]} maxFontSizeMultiplier={1}>
+                now
               </Text>
             </View>
+            <Text style={[styles.bannerBody, { fontSize: pt(15), lineHeight: pt(19) }]} maxFontSizeMultiplier={1}>
+              {TAP_NOTE.body}
+            </Text>
           </View>
         </Animated.View>
 
@@ -485,6 +558,97 @@ function Phone({
         </View>
       </View>
       <Image source={FRAME} style={StyleSheet.absoluteFill} contentFit="fill" pointerEvents="none" />
+    </View>
+  );
+}
+
+/** The home screen at 7:00, with Instagram about to be tapped. Memoized: it never changes. */
+const HomeScreen = memo(function HomeScreen({ k, press }: { k: number; press: SharedNumber }) {
+  const pt = (n: number) => n * k;
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
+  return (
+    <>
+      <Image source={WALLPAPER} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <View style={[styles.grid, { top: pt(GRID.top), left: pt(GRID.left), right: pt(GRID.left) }]}>
+        {HOME_APPS.map((name, i) => (
+          <View key={name} style={{ width: pt(CELL), height: pt(ROW), alignItems: 'center', gap: pt(5) }}>
+            <Animated.View style={i === TARGET ? pressStyle : undefined}>
+              <BrandIcon name={name} size={pt(ICON)} />
+            </Animated.View>
+            <Text numberOfLines={1} style={[styles.label, { fontSize: pt(12) }]} maxFontSizeMultiplier={1}>
+              {name}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <View
+        style={[
+          styles.search,
+          { bottom: pt(124), height: pt(30), paddingHorizontal: pt(12), borderRadius: pt(15), gap: pt(4) },
+        ]}
+      >
+        <Glyph name="search" size={pt(13)} />
+        <Text style={[styles.searchText, { fontSize: pt(13) }]} maxFontSizeMultiplier={1}>
+          Search
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.dock,
+          { left: pt(12), right: pt(12), bottom: pt(12), height: pt(92), borderRadius: pt(36), paddingHorizontal: pt(14) },
+        ]}
+      >
+        {DOCK_APPS.map((name) => (
+          <SystemIcon key={name} name={name} size={pt(ICON)} />
+        ))}
+      </View>
+    </>
+  );
+});
+
+/**
+ * Locturne's wake-up screen, small, inside the phone: his line, the count and, for
+ * downstairs, Start. The same words and meter as the real one (src/features/wake).
+ */
+function WakeApp({
+  k,
+  line,
+  count,
+  progress,
+  showStart,
+  start,
+}: {
+  k: number;
+  line: string;
+  count: { value: string; unit: string };
+  progress: number;
+  showStart: boolean;
+  start: SharedNumber;
+}) {
+  const pt = (n: number) => n * k;
+  const startStyle = useAnimatedStyle(() => ({ transform: [{ scale: start.value }] }));
+  return (
+    <View style={[styles.wakeApp, { paddingHorizontal: pt(24), paddingTop: pt(110), paddingBottom: pt(60) }]}>
+      <Text style={[styles.wakeLine, { fontSize: pt(32), lineHeight: pt(35) }]} maxFontSizeMultiplier={1}>
+        {line}
+      </Text>
+      <View style={styles.flex} />
+      <Text style={[styles.wakeCount, { fontSize: pt(64), lineHeight: pt(70) }]} maxFontSizeMultiplier={1}>
+        {count.value}
+        <Text style={[styles.walkGoal, { fontSize: pt(18) }]}>{count.unit}</Text>
+      </Text>
+      <View style={[styles.walkTrack, { height: pt(6), marginTop: pt(12) }]}>
+        <View style={[styles.walkFill, { width: `${Math.min(1, progress) * 100}%` }]} />
+      </View>
+      <View style={{ height: pt(54), marginTop: pt(28) }}>
+        {showStart ? (
+          <Animated.View style={[styles.shieldPrimary, { flex: 1, borderRadius: pt(27) }, startStyle]}>
+            <Text style={[styles.shieldPrimaryText, { fontSize: pt(18) }]} maxFontSizeMultiplier={1}>
+              Start
+            </Text>
+          </Animated.View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -505,8 +669,8 @@ const WORDMARK_FONT = Platform.select({
   default: "'Snell Roundhand', 'Brush Script MT', 'Segoe Script', cursive",
 });
 
-/** Instagram, open at last: the home feed, with a video post playing. */
-function InstagramFeed({ k }: { k: number }) {
+/** Instagram, open at last: the home feed, with a video post playing. Memoized: it never changes. */
+const InstagramFeed = memo(function InstagramFeed({ k }: { k: number }) {
   const pt = (n: number) => n * k;
   const text = (size: number, weight: TextStyle['fontWeight'] = '400', opacity = 1): StyleProp<TextStyle> => [
     styles.feedText,
@@ -620,7 +784,7 @@ function InstagramFeed({ k }: { k: number }) {
       <View style={[styles.homeBar, { bottom: pt(8), width: pt(134), height: pt(5), borderRadius: pt(3) }]} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, paddingTop: 20 },
@@ -651,17 +815,28 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.28)',
   },
 
-  shield: { ...StyleSheet.absoluteFill, overflow: 'hidden', backgroundColor: '#05070D' },
-  shieldTint: { backgroundColor: 'rgba(5,8,18,0.62)' },
+  // screen-time.ts's colours: background 11/11/12, subtitle 161/161/166.
+  shield: { ...StyleSheet.absoluteFill, overflow: 'hidden', backgroundColor: '#0B0B0C' },
   shieldBody: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  shieldIcon: { backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   // The system font, as on a real shield: Screen Time doesn't take custom fonts.
   shieldTitle: { color: '#FFFFFF', fontWeight: '700', textAlign: 'center' },
-  shieldSub: { color: 'rgba(235,240,255,0.72)', textAlign: 'center' },
+  shieldSub: { color: '#A1A1A6', textAlign: 'center' },
   shieldButtons: { position: 'absolute', alignItems: 'stretch' },
   shieldPrimary: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  shieldPrimaryText: { color: '#000000', fontWeight: '600' },
-  shieldSecondaryText: { color: 'rgba(255,255,255,0.85)', fontWeight: '500', textAlign: 'center' },
+  shieldPrimaryText: { color: '#0B0B0C', fontWeight: '600' },
+
+  // An iOS notification banner in dark mode: a grey rounded card, no tint.
+  banner: { position: 'absolute', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(44,44,48,0.96)' },
+  bannerIcon: { backgroundColor: '#0B0B0C', alignItems: 'center', justifyContent: 'center' },
+  bannerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  bannerTitle: { color: '#FFFFFF', fontWeight: '600' },
+  bannerWhen: { color: '#A1A1A6' },
+  bannerBody: { color: '#FFFFFF' },
+  flex: { flex: 1 },
+
+  wakeApp: { flex: 1, backgroundColor: Nocturne.bg },
+  wakeLine: { ...DisplayFont, color: Nocturne.text },
+  wakeCount: { ...NUMBER_FONT, color: Nocturne.text, fontVariant: ['tabular-nums'] },
 
   feed: { flex: 1, backgroundColor: '#000000' },
   feedText: { color: '#FFFFFF' },

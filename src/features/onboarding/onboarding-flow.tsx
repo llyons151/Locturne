@@ -133,7 +133,7 @@ function progressFor(step: StepId): number | null {
  */
 /** Steps whose button waits for the payoff (B6), and the most it ever waits. */
 const PAYOFF_STEPS: StepId[] = ['reveal', 'tomorrow'];
-const PAYOFF_BACKSTOP_MS = 9000;
+const PAYOFF_BACKSTOP_MS = 12000;
 
 export function OnboardingFlow({
   initialStep,
