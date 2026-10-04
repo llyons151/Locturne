@@ -212,17 +212,23 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.eventDidReachThreshold(event, activity: activity)
     logger.log("eventDidReachThreshold: \(event.rawValue, privacy: .public)")
 
-    // A daily limit is used up: remember the day, so it stays shielded until midnight.
-    if activity.rawValue.hasPrefix(LOCTURNE_LIMIT_PREFIX) {
+    // A daily limit is used up: remember the day, so it stays shielded until midnight. Unless
+    // it's yesterday's, delivered late: N minutes can't be used in less than N minutes of today,
+    // and taking it as today's would hold the apps asleep all day with nothing used.
+    let isLimit = activity.rawValue.hasPrefix(LOCTURNE_LIMIT_PREFIX)
+    let stale = isLimit && locturneLimitThresholdIsStale(activity.rawValue)
+    if isLimit && !stale {
       userDefaults?.set(
         locturneDayKey(), forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(activity.rawValue)")
     }
 
-    self.executeActionsForEvent(
-      activityName: activity.rawValue,
-      callbackName: "eventDidReachThreshold",
-      eventName: event.rawValue
-    )
+    if !stale {
+      self.executeActionsForEvent(
+        activityName: activity.rawValue,
+        callbackName: "eventDidReachThreshold",
+        eventName: event.rawValue
+      )
+    }
 
     persistToUserDefaults(
       activityName: activity.rawValue,
@@ -326,6 +332,19 @@ let LOCTURNE_ENDED_MORNING_KEY = "locturne.subscriptionEndedMorning"
 /// The morning words and their tap, kept fresh by the app (`MORNING_SHIELD` in screen-time.ts).
 let LOCTURNE_MORNING_SHIELD = "locturne-morning"
 let LOCTURNE_HEARTBEAT_KEEP = 100
+
+/// Has less real time passed since midnight than the limit allows? Then its threshold can't be
+/// today's (usage since midnight is at most the time since midnight). Real seconds, not wall
+/// minutes, so the autumn clock change can't drop a genuine one.
+func locturneLimitThresholdIsStale(_ id: String, now: Date = Date()) -> Bool {
+  guard let limits = userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]],
+    let limit = limits.first(where: { $0["id"] as? String == id }),
+    let minutes = (limit["minutes"] as? NSNumber)?.doubleValue
+  else { return false }
+  var calendar = Calendar(identifier: .gregorian)
+  calendar.timeZone = .current
+  return now.timeIntervalSince(calendar.startOfDay(for: now)) < minutes * 60
+}
 
 /// Today as YYYY-MM-DD in local time, like `dateKey` in src/lib/lock-state.ts. Always the
 /// Gregorian calendar: with the phone set to Japanese, Buddhist or Hebrew dates,

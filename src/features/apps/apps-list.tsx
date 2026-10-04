@@ -149,17 +149,22 @@ function LiveAppsList() {
 
   const saveAndArm = async (next: DailyLimit[], arm?: DailyLimit) => {
     setLimitError(null);
+    // Saved before arming: iOS can report a tightened limit as used up the moment it's armed,
+    // and the extension judges that against the saved minutes (a stale-threshold check), so
+    // the old, looser number must already be gone.
+    const previous = limits;
+    saveLimits(next);
     if (arm) {
       try {
         await armLimit(arm);
       } catch {
         // Never imply a limit is on when iOS refused it (GAME_PLAN, "Reliability"): the old
-        // limits stay saved, since they're what iOS is still enforcing.
+        // limits go back, since they're what iOS is still enforcing.
+        saveLimits(previous);
         setLimitError("iOS wouldn't start that limit. Try again in a moment.");
         return;
       }
     }
-    saveLimits(next);
     setLimits(next);
   };
 

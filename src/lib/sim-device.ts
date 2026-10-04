@@ -363,8 +363,13 @@ export function simDevice() {
   }
 
   function eventDidReachThreshold(activity: string) {
-    if (activity.startsWith(LIMIT_PREFIX)) set(`${LIMIT_REACHED_PREFIX}${activity}`, dayKey(new Date(now())));
-    execActions(activity, 'eventDidReachThreshold', 'used-up');
+    // `locturneLimitThresholdIsStale`: N minutes can't be used in under N minutes of today.
+    const limit = (get<{ id: string; minutes: number }[]>(LIMITS_KEY) ?? []).find((l) => l.id === activity);
+    const t = new Date(now());
+    const sinceMidnight = t.getTime() - new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+    const stale = limit !== undefined && sinceMidnight < limit.minutes * 60_000;
+    if (activity.startsWith(LIMIT_PREFIX) && !stale) set(`${LIMIT_REACHED_PREFIX}${activity}`, dayKey(t));
+    if (!stale) execActions(activity, 'eventDidReachThreshold', 'used-up');
     reapply();
   }
 
@@ -408,8 +413,11 @@ export function simDevice() {
   function use(limitId: string, minutes: number): boolean {
     const apps = appsOfId(limitId);
     if (!apps.length || apps.some((a) => s.shielded.has(a))) return false;
-    const key = `${dayKey(new Date(now()))}|${limitId}`;
-    s.usage.set(key, (s.usage.get(key) ?? 0) + minutes);
+    const t = new Date(now());
+    const key = `${dayKey(t)}|${limitId}`;
+    // Like a real phone: no more use today than time since midnight.
+    const sinceMidnight = (t.getTime() - new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()) / 60_000;
+    s.usage.set(key, Math.min((s.usage.get(key) ?? 0) + minutes, Math.floor(sinceMidnight)));
     const m = s.monitored.get(limitId);
     if (m) checkThreshold(m);
     return true;

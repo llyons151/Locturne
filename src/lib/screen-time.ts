@@ -427,14 +427,19 @@ export function standDown(): void {
   sharedSet(STOOD_DOWN_KEY, true);
   disarmNight();
   endNap();
+  stopLimits();
+  unshield('always');
+  wakeApps('night');
+}
+
+/** Stops and unshields every daily limit, keeping the settings. */
+function stopLimits(): void {
   for (const limit of getLimits()) {
     stopMonitoring([limit.id]);
     cleanUpAfterActivity(limit.id);
     userDefaultsRemove(usedUpKey(limit.id));
     unshield(limit.id);
   }
-  unshield('always');
-  wakeApps('night');
 }
 
 /**
@@ -452,6 +457,9 @@ export async function standUp(): Promise<void> {
   try {
     for (const limit of getLimits()) await armLimit(limit);
     sharedRemove(LIMITS_UNARMED_KEY);
+    // Stood down again while iOS was registering: a limit that landed anyway would shield
+    // (the extension doesn't check), so take them back off.
+    if (isStoodDown()) stopLimits();
   } finally {
     reapplyStandingBlocks();
   }

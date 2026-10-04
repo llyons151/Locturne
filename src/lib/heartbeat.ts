@@ -9,7 +9,7 @@
  */
 import { checkNights, heartbeatCoverage, type NightCheck } from './health.ts';
 import { getRoutine } from './routine.ts';
-import { getArmedNight, isScreenTimeAvailable, sharedGet, windowStarts } from './screen-time.ts';
+import { getArmedNight, isScreenTimeAvailable, sharedGet, sharedSet, windowStarts } from './screen-time.ts';
 
 export type Heartbeat = {
   /** The DeviceActivity name: `night-3`, `limit-0`, `locturne-nap`. */
@@ -79,6 +79,25 @@ export function readNightChecks(now = new Date()): NightCheck[] {
     routine: getRoutine(now),
     heartbeats: all,
     coverageStart: heartbeatCoverage(log, recovered, HEARTBEAT_KEEP, now),
+    zoneChangedAt: zoneChangedAt(now),
     now,
   });
+}
+
+const ZONE_KEY = 'locturne.timeZone';
+
+/**
+ * When the phone's time zone (by name, so the clocks changing doesn't count) last changed,
+ * as noticed on a read: a flight. Null when it hasn't since this was first recorded.
+ */
+function zoneChangedAt(now: Date): number | null {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const seen = sharedGet<{ zone: string; changedAt: number | null }>(ZONE_KEY);
+  if (!seen) {
+    sharedSet(ZONE_KEY, { zone, changedAt: null });
+    return null;
+  }
+  if (seen.zone === zone) return seen.changedAt ?? null;
+  sharedSet(ZONE_KEY, { zone, changedAt: now.getTime() });
+  return now.getTime();
 }

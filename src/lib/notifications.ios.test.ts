@@ -14,8 +14,11 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 type Scheduled = {
   identifier: string;
   content: { title?: string; body?: string; data?: Record<string, unknown> | null };
-  trigger?: { type: string; date: Date };
+  trigger?: { type: string; date?: Date; year?: number; month?: number; day?: number; hour?: number; minute?: number };
 };
+/** When a trigger fires, read as local time: a date, or calendar parts (which float with the zone). */
+const fireAt = (t: Scheduled['trigger']) =>
+  t?.type === 'calendar' ? new Date(t.year!, t.month! - 1, t.day!, t.hour!, t.minute!) : t!.date!;
 type Response = { notification: { request: { identifier: string } } };
 type Settings = { granted: boolean; status: string; ios?: { status: number } };
 
@@ -42,7 +45,7 @@ mock.module('react-native', { namedExports: { Platform: { OS: 'ios' } } });
 mock.module('expo-notifications', {
   namedExports: {
     IosAuthorizationStatus: IOS,
-    SchedulableTriggerInputTypes: { DATE: 'date' },
+    SchedulableTriggerInputTypes: { DATE: 'date', CALENDAR: 'calendar' },
     setNotificationHandler: () => ios.log.push('handler'),
     getPermissionsAsync: async () => ios.settings,
     requestPermissionsAsync: async () => {
@@ -171,8 +174,9 @@ test('each notification fires on its date and carries that time for diagnostics'
   await n.rescheduleNotifications();
   const warning = ios.scheduled.get('locturne.bedtime.2026-10-04');
   assert.ok(warning);
-  assert.equal(warning.trigger?.type, 'date');
-  assert.equal(+warning.trigger!.date, +new Date(2026, 9, 3, 22, 45));
+  // A clock time, not an instant: after a flight it still comes 15 minutes before bedtime.
+  assert.equal(warning.trigger?.type, 'calendar');
+  assert.equal(+fireAt(warning.trigger), +new Date(2026, 9, 3, 22, 45));
   assert.equal(warning.content.data?.at, +new Date(2026, 9, 3, 22, 45));
   assert.equal(warning.content.data?.kind, 'bedtime');
 
@@ -219,13 +223,13 @@ test('a reschedule that fails doesn’t block the next one', async () => {
 test('before onboarding has saved a routine, the one passed in is planned', async () => {
   const late = { ...DEFAULT_ROUTINE, bedtime: 23 * 60 + 30 };
   await n.rescheduleNotifications(late);
-  assert.equal(+ios.scheduled.get('locturne.bedtime.2026-10-04')!.trigger!.date, +new Date(2026, 9, 3, 23, 15));
+  assert.equal(+fireAt(ios.scheduled.get('locturne.bedtime.2026-10-04')!.trigger), +new Date(2026, 9, 3, 23, 15));
 });
 
 test('once a routine is saved, a routine passed in doesn’t move tonight', async () => {
   saveRoutine(DEFAULT_ROUTINE, NOW);
   await n.rescheduleNotifications({ ...DEFAULT_ROUTINE, bedtime: 23 * 60 + 30 });
-  assert.equal(+ios.scheduled.get('locturne.bedtime.2026-10-04')!.trigger!.date, +new Date(2026, 9, 3, 22, 45));
+  assert.equal(+fireAt(ios.scheduled.get('locturne.bedtime.2026-10-04')!.trigger), +new Date(2026, 9, 3, 22, 45));
 });
 
 test('switched-off kinds aren’t scheduled', async () => {
@@ -252,7 +256,7 @@ test('“Remind me” keeps the trial end without prompting; `armed` asks', asyn
   // `armed` asks; once allowed, the reminder is scheduled 2 days before the end.
   assert.equal(await n.askForNotifications(), true);
   assert.equal(ios.prompts, 1);
-  assert.equal(+ios.scheduled.get('locturne.trial')!.trigger!.date, +new Date(2026, 9, 8, 12, 0));
+  assert.equal(+fireAt(ios.scheduled.get('locturne.trial')!.trigger), +new Date(2026, 9, 8, 12, 0));
 
   await n.cancelTrialReminder();
   assert.equal(n.getTrialEnd(), null);

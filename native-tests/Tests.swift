@@ -7,6 +7,21 @@ func registerTests() {
 
   // MARK: Bedtime
 
+  test("a limit threshold from yesterday, delivered just after midnight, is ignored") {
+    pick("limit-0", ["youtube"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    at("2026-10-06 00:00")
+    start("limit-0")
+    at("2026-10-06 00:01")
+    threshold("limit-0")
+    expectEqual(shielded(), [], "30 min can't be used in the first minute of the day")
+    expectEqual(get("\(LOCTURNE_LIMIT_REACHED_PREFIX)limit-0") as? String, nil, "no used-up day")
+    at("2026-10-06 09:00")
+    threshold("limit-0")
+    expectEqual(shielded(), ["youtube"], "a real one later in the day still shields")
+  }
+
   test("a bedtime window shields the bedtime list and the always list, and holds the night") {
     pick("night", ["tiktok", "instagram"])
     pick("always", ["reddit"])

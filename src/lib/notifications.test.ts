@@ -13,7 +13,7 @@ mock.module('expo-notifications', {
   namedExports: {
     setNotificationHandler: noop,
     IosAuthorizationStatus: { NOT_DETERMINED: 0, DENIED: 1, AUTHORIZED: 2 },
-    SchedulableTriggerInputTypes: { DATE: 'date' },
+    SchedulableTriggerInputTypes: { DATE: 'date', CALENDAR: 'calendar' },
   },
 });
 // Off iOS the Screen Time wrapper keeps the App Group in memory; only the names must exist.

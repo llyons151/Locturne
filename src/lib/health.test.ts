@@ -197,3 +197,10 @@ test('a night still under way that iOS started late is called tonight, not last 
   assert.equal(roll({ nights: [night('missed')] }).title, 'iOS never put me to bed last night.');
   assert.match(roll({ nights: [night('late')], now: at(3, 23, 10) }).detail, /Tonight started 30 minutes late/);
 });
+
+test('nights before a time-zone change are not judged: they were logged on another clock', () => {
+  const nights = check([], at(4, 8));
+  assert.ok(nights.some((n) => n.verdict === 'missed'));
+  const after = check([], at(4, 8), { zoneChangedAt: +at(4, 6) });
+  assert.ok(after.length > 0 && after.every((n) => n.verdict === 'unknown'));
+});

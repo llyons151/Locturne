@@ -318,6 +318,25 @@ export async function cancelTrialReminder(): Promise<void> {
 }
 
 /** Our pending notifications as iOS has them, soonest first. For diagnostics. */
+/**
+ * The nightly ones fire at a local clock time, like the night windows: a date trigger becomes
+ * a fixed interval on iOS (expo-notifications' `DateTriggerRecord`), so after a flight
+ * "Bedtime in 15 minutes" would come at the old zone's time. Calendar parts with no time zone
+ * float with the phone's. The trial reminder is a real instant, so it stays a date.
+ */
+function triggerFor(n: PlannedNotification): Notifications.SchedulableNotificationTriggerInput {
+  if (n.kind === 'trial') return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at };
+  return {
+    type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+    year: n.at.getFullYear(),
+    month: n.at.getMonth() + 1,
+    day: n.at.getDate(),
+    hour: n.at.getHours(),
+    minute: n.at.getMinutes(),
+    repeats: false,
+  };
+}
+
 export async function getScheduledNotifications(): Promise<{ id: string; title: string; at: Date | null }[]> {
   if (!isIOS()) return [];
   const all = await Notifications.getAllScheduledNotificationsAsync();
@@ -369,7 +388,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       await Notifications.scheduleNotificationAsync({
         identifier: n.id,
         content: { title: n.title, body: n.body, data: { kind: n.kind, at: n.at.getTime() } },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at },
+        trigger: triggerFor(n),
       });
     }
   };

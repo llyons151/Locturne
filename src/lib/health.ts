@@ -63,6 +63,11 @@ export type NightFacts = {
    * See `heartbeatCoverage`.
    */
   coverageStart: number | null;
+  /**
+   * When the phone last changed time zone, in ms. Nights before it were logged on another
+   * zone's clock but are rebuilt in this one, so they can't be judged: `unknown`.
+   */
+  zoneChangedAt?: number | null;
   now: Date;
   nights?: number;
 };
@@ -132,7 +137,8 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     const ran = starts.filter((h) => h.at >= start.getTime() - EARLY_SLACK && h.at <= end.getTime());
     const first = ran[0];
     let verdict: NightVerdict;
-    if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
+    if (facts.zoneChangedAt && start.getTime() < facts.zoneChangedAt) verdict = 'unknown';
+    else if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
     // An empty bedtime list puts nothing to sleep, even with another list's shield up.
     else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) verdict = 'noShield';
     else verdict = first.at <= start.getTime() + ON_TIME_GRACE * MINUTE ? 'onTime' : 'late';

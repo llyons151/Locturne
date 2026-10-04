@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { OnboardingFlow } from '@/features/onboarding/onboarding-flow';
+import { hasRoutine } from '@/lib/routine';
 
 export default function OnboardingScreen() {
   // `?step=<id>` jumps straight to a screen while reviewing the draft; `?exit=<arm>` picks
@@ -12,6 +13,8 @@ export default function OnboardingScreen() {
   const review = __DEV__ || Platform.OS === 'web';
   // `?resume=paywall` (the You tab and Home's Subscribe): straight to the plans with the
   // saved setup, for someone who left at the paywall or whose subscription ended.
-  if (resume === 'paywall') return <OnboardingFlow resumeAtPaywall />;
+  // Only with a saved setup: someone who left before `commit` gets the questions, not the
+  // defaults (and leaving the offer would save those, ending onboarding for good).
+  if (resume === 'paywall' && hasRoutine()) return <OnboardingFlow resumeAtPaywall />;
   return <OnboardingFlow initialStep={review ? step : undefined} exitOffer={review ? exit : undefined} />;
 }

@@ -5,6 +5,7 @@
  */
 
 import { getPendingRoutine, getRoutine, hasRoutine, type WakeMethod } from '@/lib/routine';
+import { getScanCode } from '@/lib/scan-code';
 
 import type { StepId } from './navigation';
 
@@ -348,7 +349,12 @@ type MethodCopy = (typeof METHOD_COPY)[WakeMethod];
  * (See plans) keeps the goal saved in Routine, which can be 100, 300 or 500.
  */
 export function methodCopy(method: WakeMethod): MethodCopy {
-  const copy = METHOD_COPY[method];
+  const saved = METHOD_COPY[method];
+  // A returning scan user already has a code: no "set up your code" today.
+  const copy: MethodCopy =
+    method === 'scan' && getScanCode()
+      ? { ...saved, morning: [{ when: 'Morning', what: 'Walk to your code and scan it. That wakes them.' }] }
+      : saved;
   // The routine tomorrow runs on: a Routine edit waiting for bedtime included (`saveSetup`).
   const goal = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()).stepGoal : 200;
   if (goal === 200) return copy;
