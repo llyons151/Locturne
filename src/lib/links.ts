@@ -1,5 +1,5 @@
 /**
- * The fine-print links, on locturne.com (web/, not deployed yet). Apple requires working Terms
+ * The fine-print links, on locturne.com (the locturne_landing Astro site, live since 2026-10-04). Apple requires working Terms
  * (EULA) and Privacy links on the paywall and in App Store Connect before review, and the
  * support page is the listing's Support URL.
  */

@@ -2,7 +2,9 @@
 
 Written October 3, 2026 from the code at commit 5138092. Section 1 is the text for ASC →
 version → **App Review Information → Notes** (limit 4,000 characters; this is about
-3,300). Section 2 says which test paths the code actually supports. Section 3 lists the
+3,600). Section 1 was rewritten October 4, 2026 for [APP_REVIEW_AUDIT.md](../APP_REVIEW_AUDIT.md):
+it now covers the emergency unlock, the always-blocked list, a declined Screen Time prompt,
+when each permission is really asked, and the hidden diagnostics screen (2.3.1(a)). Section 2 says which test paths the code actually supports. Section 3 lists the
 usual rejections, and section 4 checks this app against each of them.
 
 ---
@@ -13,47 +15,53 @@ Replace the bracketed parts before pasting.
 
 ```
 WHAT LOCTURNE DOES
-Locturne is a self-control app for people who lose sleep to their phone. The user picks some of their own apps. At bedtime those apps are shielded. In the morning they stay shielded until the user proves they are out of bed: a trip downstairs (barometer, CMAltimeter), 200 steps (CMPedometer), or scanning a code they keep in another room (camera). Then the apps unshield until the next bedtime. There are also daytime controls: always-blocked apps, "Block now" for 15 min to 4 h, and daily limits.
+A self-control app for people who lose sleep to their phone. The user picks some of their own apps. At bedtime they're shielded. In the morning they stay shielded until the user proves they're out of bed: a trip downstairs (CMAltimeter), 200 steps (CMPedometer) or scanning a code kept in another room (camera). Daytime controls: always-blocked apps, "Block now" (15 min to 4 h) and daily limits.
 
-HOW WE USE FAMILY CONTROLS
-- AuthorizationCenter.requestAuthorization(for: .individual). The user restricts only their own iPhone. No parental or organizational use.
-- FamilyActivityPicker returns opaque tokens. They stay in the App Group on the device. We can't see app names, and no Screen Time data leaves the device.
-- ManagedSettings shields (shield.applications / applicationCategories), applied by a DeviceActivityMonitor extension on schedule, so blocking works with the app closed.
-- ShieldConfiguration customizes the shield text. ShieldAction handles the shield buttons.
-- Family Controls (Distribution) is enabled on all four bundle IDs: com.lukelyons.locturne, .DeviceActivityMonitor, .ShieldConfiguration, .ShieldAction.
+FAMILY CONTROLS
+- requestAuthorization(for: .individual): the user restricts only their own iPhone. No parental or organizational use.
+- FamilyActivityPicker tokens stay in the App Group on the device. We can't see app names; no Screen Time data leaves the device.
+- ManagedSettings shields, applied on schedule by a DeviceActivityMonitor extension. ShieldConfiguration sets the shield text; ShieldAction handles its buttons.
+- Family Controls (Distribution) is on all four bundle IDs: com.lukelyons.locturne, .DeviceActivityMonitor, .ShieldConfiguration, .ShieldAction.
 
 NO SIGN-IN
-There are no accounts. Use any device. Please use a real iPhone: Screen Time shields and the motion sensors don't work in the Simulator. On iPad, step counting isn't available, and the app offers stairs or scan instead.
+No accounts. Please use a real iPhone: shields and motion sensors don't work in the Simulator.
 
 SUBSCRIPTION
-The lock is set up after the paywall at the end of onboarding. Products: Locturne Annual $59.99/yr with a 7-day free trial (default), Locturne Monthly $9.99/mo. If you close the paywall, a one-time offer may appear: [14 days free on Annual / Annual at $29.99]. Restore is on the paywall and in You > Subscription. Your sandbox account is charged nothing.
+The paywall is at the end of onboarding; nothing is shielded before a purchase. Locturne Annual $59.99/yr with a 7-day free trial (default), Locturne Monthly $9.99/mo. Closing the paywall exits; there's no follow-up offer. Restore: first onboarding screen, the paywall, and You > Subscription. If your sandbox account already has Locturne, tap Restore.
 
-QUICK TEST: SEE A SHIELD IN ABOUT 1 MINUTE
-1. Go through onboarding. At "Which apps keep you up?", pick one app you can open, for example a category or one installed app.
+QUICK TEST (1 MIN)
+1. In onboarding, at "Which apps keep you up?", pick one app you can open.
 2. Start the free trial with your sandbox account. "Armed" appears.
-3. Open the Nap tab, choose 15 min and tap "Tuck him in". Open the picked app: Locturne's shield appears.
-4. To end it early: "Wake him early" on the Nap tab, then confirm.
+3. Nap tab: 15 min, "Tuck him in". Open the picked app: the shield appears.
+4. To end it: "Wake him early" on the Nap tab.
 
-FULL TEST: NIGHT AND MORNING IN ABOUT 20 MINUTES
-1. During onboarding, set "When do you get into bed?" to 5 minutes BEFORE the current time, and "When does your alarm go off?" to about 12 minutes AFTER it. A night must be at least 15 minutes, because iOS won't schedule a shorter one.
-2. After the purchase, the app says "Armed. Starting now." The picked apps are shielded immediately.
-3. At the alarm time the morning begins. The apps stay shielded. On Locturne's Home tab, use any of these to unlock:
-   a) "Go downstairs", then Start, then one flight of stairs (up or down) or an elevator ride of one floor. A change of about 2.5 m counts.
-   b) "Walk 200 steps instead": about 2 minutes of walking.
-   c) No walking: "Use a pass" on Home. This is the sick-day path.
-4. The apps unshield. They will shield again at tomorrow's bedtime.
-Settings changes made later (Routine tab) apply from the next bedtime, by design. Please set the short schedule during onboarding.
+FULL TEST: NIGHT AND MORNING (ABOUT 20 MIN)
+1. In onboarding set "When do you get into bed?" to 5 minutes BEFORE now and "When does your alarm go off?" about 12 minutes AFTER now (iOS needs a night of at least 15 min).
+2. After purchase: "Armed. Starting now." The apps are shielded.
+3. At the alarm time the morning begins. On Home, unlock with any of: "Go downstairs" > Start > one flight of stairs or a one-floor elevator ride (about 2.5 m); "Walk 200 steps instead" (about 2 min); or "Use a pass" (no walking).
+4. The apps unshield until tomorrow's bedtime.
+Settings changes (Routine tab) apply from the next bedtime by design, so set the short schedule during onboarding. A screen recording on a real device, with real stairs, is attached.
 
-A screen recording of the full flow on a real device, including real stairs, is attached.
+GETTING OUT OF A BLOCK
+- You > Emergency unlock (also on Home while apps are asleep): a 10-second wait, then a confirmation. Always available: it wakes the bedtime apps (night or morning) and ends Block now.
+- It never lifts the Apps tab's "Always asleep" list or a used-up daily limit, by design. Please don't add apps to it unless you're testing it.
+- Turning off Locturne's Screen Time access in Settings, or deleting the app, removes all shields.
 
 PERMISSIONS
-Screen Time (to shield apps), Motion & Fitness (asked after purchase, for steps and stairs), Camera (only for the scan method; nothing is recorded), Notifications (asked after the first night, never required).
+- Screen Time: asked in onboarding before the picker. If declined, the app says nothing can be shielded without it and offers Try again and Open Settings.
+- Motion & Fitness: on "Start walking" in the optional onboarding demo ("Not now" skips it), otherwise on "Armed" after purchase. If declined, scan, passes and the emergency unlock still work.
+- Notifications: on "Armed" after purchase. Never required.
+- Camera: only for the scan method. Nothing is recorded.
+
+DIAGNOSTICS
+A long press on the version line (bottom of the You tab) opens a read-only diagnostics screen for support. It changes nothing.
 
 Contact: [name], [phone], hello@locturne.com
 ```
 
-Fill in the exit-offer line with the arm that's live in the reviewed build (`DEFAULT_EXIT_ARM`
-is `longer-trial` today), or delete the sentence if remote config sets `none` for review.
+The exit offer is off in code for 1.0 (`EXIT_OFFER_LIVE` in `src/lib/purchases.ts`), so the
+notes say closing the paywall exits. If a later version turns it on, describe it here in the
+same submission; never switch it on from the dashboard after approval.
 
 ---
 
@@ -90,7 +98,7 @@ asks for one for features they can't easily exercise, and stairs at bedtime qual
 | **2.3.1 Accurate metadata** | Claims the app can't back ("impossible to bypass", "guaranteed"). Hidden features not described in the notes. | LAUNCH_PLAN already bans "unbreakable" claims. |
 | **2.3.3 / 2.3.4 Screenshots and previews** | Screenshots that don't show the app in use. Device frames other than Apple's. Previews with footage from outside the app. | |
 | **2.3.7 Keywords and names** | Competitor or trademarked names (TikTok, Instagram, Opal) in keywords, name or subtitle. Prices in the name. | |
-| **2.5.1 Public APIs** | Using `ManagedSettings` `application.blockedApplications` to hide apps, or Screen Time use without the entitlement on every target. Apple's 2026 automated check falsely flags apps whose entitlement *is* set. | Apple Forums threads 776058, 838802, 822078. |
+| **2.5.1 Public APIs** | Using `ManagedSettings` `application.blockedApplications` to hide apps, or Screen Time use without the entitlement on every target. Apple's 2026 automated check falsely flags apps whose entitlement *is* set (838802, July–August 2026, unresolved). An app that keeps the Screen Time API after dropping its Screen Time features is flagged too (822078). | Apple Forums threads 776058, 838802, 822078. |
 | **3.1.1 In-App Purchase** | Unlocking paid features without IAP, or no restore mechanism. | |
 | **3.1.2 Subscriptions** | The paywall doesn't clearly show the title, length and price of each subscription. The trial terms are unclear. A per-month price is bigger than the billed price. Missing functional links to the Terms (EULA) and Privacy Policy **in the app and in the metadata**. Toggle paywalls (rejected since January 2026). | Very common. Repeated rejections when the EULA link is missing from one localization. |
 | **3.1.2(a)** | A subscription with no ongoing value. | Blockers pass: blocking is an ongoing service. |
@@ -112,7 +120,7 @@ small.
 
 | Check | Status | Where / fix |
 |---|---|---|
-| Real purchases (no stub) | ❌ | `src/app/_layout.tsx` sets `createDevPurchases`. The paywall then shows "Preview: nothing is charged." Ship only with the RevenueCat provider (in progress in another worktree). |
+| Real purchases (no stub) | ⚠️ | Updated 2026-10-04: `src/lib/purchases-start.ts` uses RevenueCat when `expo.extra.revenueCat.appleApiKey` is a real key, and `app.config.js` refuses a production EAS build without an `appl_` key. The key in `app.json` is still the placeholder, so set it before the production build. |
 | You → Restore purchases works | ✅ | Calls `restore()` (2026-10-03). |
 | You → Help, Send feedback, Rate | ✅ | Help opens `locturne.com/support` (`web/public/support.html`), Feedback a `mailto:hello@locturne.com`, Rate the write-review URL once `ios.appStoreUrl` is in `app.json`, Apple's prompt until then (2026-10-03). The site and the mailbox must be live before review. |
 | You footer "Preview. The plan is a placeholder." | ✅ | Removed; the footer is just the version. Manage subscription shows the real plan (2026-10-03). |
@@ -122,7 +130,7 @@ small.
 | Dev screens unreachable | ✅ | The Screen Time lab and the home preview toggles are behind `__DEV__`. |
 | "Calls and texts aren't touched" is accurate | ✅ | Reworded everywhere (onboarding, the picker footer, the schedule card, Nap) to "Phone calls always get through", matching the listing (2026-10-03). |
 | iPad in compatibility mode | ✅ ⚠️ | `supportsTablet` isn't set, so it runs as an iPhone app on iPad. Fixed 2026-10-03: when steps can't be counted (no pedometer, or Motion & Fitness denied) the morning screen offers "Other ways to wake them" (passes, scan, emergency), so nobody is stuck; the downstairs denied state no longer loops to steps and back; onboarding's last page warns a steps user on a device with no step counter. iPads have a barometer, so stairs still work. Still to do: untick Mac (Apple silicon) and Vision Pro in ASC, and try one run on an iPad if you can borrow one. |
-| No crash on first launch, permission denials and offline paywall | ✅ ⚠️ | Checked in code 2026-10-03: offers that fail to load show "The App Store isn't answering" with Try again; a failed purchase or restore says so; Screen Time refused offers Try again and Settings; camera denied offers Allow or Settings; motion denied shows Settings plus a way out. Still test airplane mode on the paywall on the device. |
+| No crash on first launch, permission denials and offline paywall | ✅ ⚠️ | Checked in code 2026-10-03: offers that fail to load show "The App Store isn't answering" with Try again; a failed purchase or restore says so; Screen Time refused offers Try again and Settings; camera denied offers Continue (re-ask) or Settings; motion denied shows Settings plus a way out. Still test airplane mode on the paywall on the device. |
 | Privacy manifests | ✅ | Added 2026-10-03 and confirmed inside the built IPA (app and all three extensions). PRIVACY_LABELS.md §C. |
 
 ### Subscriptions (3.1.1, 3.1.2)
@@ -137,7 +145,7 @@ small.
 | Terms (EULA) and Privacy links in the metadata | ✅ | LISTING.md description, plus the ASC Privacy Policy URL. |
 | No trial toggle | ✅ | The "Remind me" switch is a reminder, not a trial toggle. But a switch next to plans can be misread as one: keep its label explicit about the reminder. |
 | Pending (Ask to Buy) shows "waiting", never "armed" | ✅ ⚠️ | RevenueCat's payment-pending error maps to `pending`; the paywall says "Waiting for approval" and arms nothing; Home now says "Waiting for approval" too (`src/lib/pending-purchase.ts`, 48 hours) instead of a bare "Bedtime isn't scheduled"; approval arms tonight via `onEntitled`/`armIfPaid`. Still test with a sandbox Ask to Buy. |
-| IAP products submitted with the version | ⚠️ | ASC: attach both subscriptions (and the exit-offer product) to version 1.0 under "In-App Purchases and Subscriptions". |
+| IAP products submitted with the version | ⚠️ | ASC: attach `locturne.annual` and `locturne.monthly` to version 1.0 under "In-App Purchases and Subscriptions". Don't attach the two exit-offer products: the offer is off in 1.0 (`EXIT_OFFER_LIVE`), and a product the reviewer can't reach has to be explained (2.1(b)). |
 | Exit offer can actually be built in ASC | ⚠️ | A 14-day free trial on `locturne.annual` **can't coexist** with its 7-day introductory offer: one intro offer per product per territory. Use a separate product, a promotional offer through RevenueCat, or an offer code. **[UNVERIFIED for the best option; settle it in REVENUECAT_SETUP.md]** |
 | Lock arms only after purchase | ✅ | `armTonight` runs after the paywall; `commit` skips the paywall only for people already entitled. |
 
@@ -152,8 +160,8 @@ small.
 | Motion purpose string (`NSMotionUsageDescription`) | ✅ | app.json. It covers both the pedometer and the barometer (`CMAltimeter`). |
 | Microphone | ✅ | Disabled in the expo-camera plugin. |
 | Photo library add string | ⚠️ | Needed only when the image share card ships. |
-| Permissions asked in context | ✅ | Screen Time at setup. Motion after purchase. Camera only for Scan. Notifications after the first good night. |
-| Pre-permission screen | ⚠️ | The `screen-time` step shows a picture of Apple's alert pointing at "Continue". Our button is a neutral "Continue" that leads straight to the real prompt, which is the pattern Apple accepts. Low risk. If 5.1.1(iv) is cited, remove the pointer. |
+| Permissions asked in context | ✅ | Screen Time at setup. Motion on the optional walk, otherwise on `armed` after purchase. Camera only for Scan. Notifications on `armed` after purchase, with the first proven morning as a fallback if still unasked (corrected 2026-10-04). |
+| Pre-permission screen | ✅ | Updated 2026-10-04: the picture of Apple's alert is gone (`apple-alert.tsx` deleted); the `screen-time` step uses words and a single "Continue". Buttons that open a system prompt no longer say "Allow" (HIG, Privacy), and the refused screen no longer tells people which alert button to pick. See [APP_REVIEW_AUDIT.md](../APP_REVIEW_AUDIT.md). |
 | Nothing paid depends on optional data | ✅ | Notifications and Motion are optional. Steps fall back to passes. |
 
 ### Metadata (2.3) and legal

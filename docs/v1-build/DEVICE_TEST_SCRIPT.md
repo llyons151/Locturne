@@ -79,7 +79,9 @@ the top of your results.
   ([src/lib/morning-proof.ts](../../src/lib/morning-proof.ts)). To test another unlock on the
   same day, do a full reset.
 - **Schedule-only reset (keeps the install):** open the **Screen Time lab** (dev build: You →
-  Developer → Screen Time lab; preview build: `locturne://screen-time-lab` in Safari) and tap
+  Developer → Screen Time lab. preview build: `locturne://screen-time-lab` in Safari, which works in
+  development and EAS preview builds only (`EXPO_PUBLIC_DEV_LABS`; see
+  [APP_REVIEW_AUDIT.md](../APP_REVIEW_AUDIT.md))) and tap
   **Disarm schedule**. The next single Routine-tab change then applies at once and re-arms.
   Every later change waits for bedtime again, so disarm before each one. The time pickers
   count each wheel turn as one change, so turn only one wheel per disarm.
@@ -364,7 +366,7 @@ a product barcode.
   `src/lib/health.ts`.
 - [ ] **R2. After a restart.** Force-quit and reopen.
   *Expect:* "Screen Time access is off." (Access `denied`). If Access reads `notDetermined`,
-  Home shows "Screen Time access isn't on yet." with **Allow Screen Time**. Record which one
+  Home shows "Screen Time access isn't on yet." with **Set up Screen Time**. Record which one
   appears.
 - [ ] **R3. Restore.** Apps → **Turn Screen Time access back on** (if no prompt appears, turn
   it on in Settings).

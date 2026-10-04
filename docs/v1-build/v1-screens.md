@@ -19,7 +19,7 @@ Nothing here has run on an iPhone yet; the checklist at the end is for that.
 |---|---|---|---|---|---|
 | Loc | "Shh. I'm sleeping. So are they." | "No." | "I'm awake. Technically." | "Night off. I'm sleeping anyway." | "Screen Time access is off." / "…isn't on yet." |
 | Status | Apps asleep until you're up, after 7 am | What's left, by method ("Go down one floor and your apps wake up.") | Apps awake until 11 pm (or "Tonight is off.") | No lock tonight. Always-asleep apps still sleep. | The plain fix |
-| Action | none | Go downstairs / Start walking / Scan my code → `/wake` | none | none | Open Settings, or Allow Screen Time → Apps |
+| Action | none | Go downstairs / Start walking / Scan my code → `/wake` | none | none | Open Settings, or Set up Screen Time → Apps |
 | Links | Use a pass · Emergency unlock → `/exits` | same | none | none | none |
 
   The Apps row now shows the real count of night apps (Apple hides the names, so the fake

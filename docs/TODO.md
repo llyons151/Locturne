@@ -62,6 +62,7 @@ exact steps.
 - [ ] After the App Store record exists: add `ios.appStoreUrl` to `app.json` so Rate
   opens the write-review page.
 - [ ] App icon and splash (needs your art direction).
+- [ ] Work through the App Review audit (2026-10-04): ranked rejection risks, the fixes made, and the exit-offer and paywall decisions left for you. ([APP_REVIEW_AUDIT.md](APP_REVIEW_AUDIT.md))
 
 Then November: TestFlight, screenshots, privacy answers, review video, early
 submission Mon Nov 16 ([app-store/OWNER_TODO.md](app-store/OWNER_TODO.md)).
@@ -166,7 +167,7 @@ Needs the real app:
   "Your apps" / "N apps". ([ONBOARDING_CONVERSION.md](ONBOARDING_CONVERSION.md), Sept 26 review) *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
 - [x] Show "Armed" only once tonight's schedule is confirmed. If it can't be set,
   say so. *Built 2026-10-03 ([v1-build/INTEGRATION.md](v1-build/INTEGRATION.md)), needs a device test.*
-- [ ] Real day-5 trial reminders, plus an in-app fallback when notifications are off. *Reminder scheduling built (`scheduleTrialReminder`); the in-app fallback isn't.*
+- [x] Real day-5 trial reminders, plus an in-app fallback when notifications are off. *Reminder scheduling built (`scheduleTrialReminder`); the in-app fallback is a Home notice in the trial's last two days (`src/lib/trial-notice.ts`, 2026-10-03). Needs a device test.*
 - [ ] Teen child accounts, which need a parent to authorize Screen Time.
 - [ ] The declined path: save the setup, arm nothing, and make at most one
   follow-up offer. The exit offer is now a 3-arm test (`EXIT_OFFERS`: none /

@@ -145,7 +145,7 @@ Run on a dev build with Family Controls (Development) and a sandbox Apple ID.
   windows), and the routine is saved.
 - [ ] Buy (sandbox): "Setting tonight." then "Armed. See you at …". The Screen Time lab shows the night windows.
 - [ ] Buy after bedtime: "Armed. Starting now." and the night apps are shielded at once.
-- [ ] Turn off Screen Time access, then buy: "Tonight isn't set" with "Allow and try again".
+- [ ] Turn off Screen Time access, then buy: "Tonight isn't set" with "Try again".
 - [ ] `armed` → Continue shows the Motion & Fitness prompt. Deny: `first-morning` shows the
   Motion row and Open Settings.
 - [ ] `first-morning` reads "Tomorrow 7:00. Your apps stay asleep until you're up." with the method's rows. Done closes onboarding.
