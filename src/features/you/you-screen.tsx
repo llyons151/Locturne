@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
-import { SwitchRow } from '@/components/controls';
+import { MenuRow, SwitchRow } from '@/components/controls';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
@@ -22,11 +22,13 @@ import {
   getNotificationPermission,
   getNotificationPrefs,
   getTrialEnd,
+  rescheduleNotifications,
   setNotificationPrefs,
   type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
-import { lapseStillCovers, onLockChange, readLock, subscriptionEnded } from '@/lib/lock-controller';
+import { lapseStillCovers, onLockChange, readLock, subscriptionEnded, syncLock } from '@/lib/lock-controller';
+import { getTone, setTone, TONE_LABEL, TONES, type Tone } from '@/lib/tone';
 import { getPassesLeft } from '@/lib/passes';
 import { nextNightOn } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
@@ -107,6 +109,14 @@ export function YouScreen() {
   const [status] = useProtection();
 
   const [alerts, setAlerts] = useState<NotificationPrefs>(getNotificationPrefs);
+  const [tone, setToneShown] = useState<Tone>(getTone);
+  // His words only, so it applies now: the shield's text and the planned notes follow at once.
+  const changeTone = (next: Tone) => {
+    setTone(next);
+    setToneShown(next);
+    syncLock(new Date());
+    rescheduleNotifications().catch(() => {});
+  };
   const toggle = (key: keyof NotificationPrefs) => (on: boolean) => {
     const next = { ...alerts, [key]: on };
     setAlerts(next);
@@ -226,6 +236,17 @@ export function YouScreen() {
           title="Can’t walk or use stairs"
           value=""
           onPress={cantWalk}
+          last
+        />
+      </Section>
+
+      <Section label="Loc" footer="How he talks on the block screen and in notifications. It changes his words, never the rules, so it applies straight away.">
+        <MenuRow
+          icon={sym('theatermasks.fill', 'theater_comedy')}
+          title="How grumpy"
+          value={tone}
+          options={TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }))}
+          onChange={changeTone}
           last
         />
       </Section>

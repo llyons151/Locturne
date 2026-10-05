@@ -21,7 +21,6 @@ import {
   answerFor,
   registerProperties,
   setPersonProperties,
-  stopForChild,
   SUPER_QUESTIONS,
   track,
 } from '@/lib/analytics';
@@ -29,7 +28,7 @@ import { armTonight, type ArmResult } from '@/lib/arm';
 import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
-import { askForNotifications, getNotificationPermission, rescheduleNotifications, type NotificationPermission } from '@/lib/notifications';
+import { askForNotifications, getNotificationPermission, rescheduleNotifications, sendFirstNote, type NotificationPermission } from '@/lib/notifications';
 import { isPurchasePending, markPurchasePending, takePendingApproval } from '@/lib/pending-purchase';
 import {
   getOffers,
@@ -57,11 +56,12 @@ import {
   type ScreenTimeAccess,
   type SelectionId,
 } from '@/lib/screen-time';
+import { getTone } from '@/lib/tone';
 import { Nocturne } from '@/theme';
 
 import { firstEnabledNight } from './schedule-copy';
-import { initialAnswers, isNewYearWeek, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
-import { estimate, isInsideBedtime } from './estimate';
+import { CHAPTERS, initialAnswers, isNewYearWeek, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
+import { estimate, formatWhen, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
@@ -69,7 +69,7 @@ import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, was
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { renderStep, type WalkState } from './steps';
-import { FooterEnter, Shell, StepEnter } from './ui';
+import { FooterEnter, Shell, StepEnter, type Progress } from './ui';
 
 /** Any fixed date: the walk's count is off until it starts. */
 const WALK_EPOCH = new Date(0);
@@ -101,11 +101,10 @@ const MOTION: Partial<Record<StepId, TextMotion>> = {
 // Plausible answers for jumping straight to a later screen with `?step=`.
 const PREVIEW_ANSWERS: Partial<Answers> = {
   nights: 'one-more',
-  nightMinutes: 45,
+  nightMinutes: 60,
   morningMinutes: 20,
   nightsPerWeek: 7,
   scrollDays: [0, 1, 2, 3, 4, 5, 6],
-  age: 22,
   tried: 'screen-time',
   timeBack: 'mornings',
   found: 'tiktok',
@@ -113,17 +112,16 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   apps: ['TikTok', 'Instagram', 'YouTube'],
 };
 
-/** Head start so the bar never opens empty (endowed progress). */
-const PROGRESS_START = 0.08;
-/** Above 1, early steps fill more than late ones: fast-to-slow, which cuts drop-off. */
-const PROGRESS_EASE = 1.3;
+/** Head start so a chapter's bar never opens empty (endowed progress). */
+const PROGRESS_START = 0.12;
 
-/** Fill from 0 to 1, or null on screens that hide the bar. */
-function progressFor(step: StepId): number | null {
-  const index = PROGRESS_STEPS.indexOf(step === 'under-13' ? 'age' : step);
-  if (index < 0) return null;
-  const done = (index + 1) / PROGRESS_STEPS.length;
-  return PROGRESS_START + (1 - PROGRESS_START) * (1 - (1 - done) ** PROGRESS_EASE);
+/** Which chapter and how far into it, or null on screens that hide the bar. */
+function progressFor(step: StepId): Progress | null {
+  const chapter = CHAPTERS.findIndex((steps) => steps.includes(step));
+  if (chapter < 0) return null;
+  const steps = CHAPTERS[chapter];
+  const done = (steps.indexOf(step) + 1) / steps.length;
+  return { chapter, value: PROGRESS_START + (1 - PROGRESS_START) * done, chapters: CHAPTERS.length };
 }
 
 /**
@@ -164,13 +162,15 @@ export function OnboardingFlow({
       return startNav('offer', {
         ...initialAnswers,
         ...savedQuizAnswers(),
+        tone: getTone(),
         bedtime: saved.bedtime,
         wake: saved.morningStart,
         method: saved.method,
       });
     }
     const jump = isStep(initialStep) ? initialStep : 'hello';
-    return startNav(jump, { ...initialAnswers, ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}) });
+    // A rerun starts from the tone they already have, so passing through `voice` keeps it.
+    return startNav(jump, { ...initialAnswers, tone: getTone(), ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}) });
   });
   const { history, answers, returnTo } = nav;
   const [simulated, setSimulated] = useState<Simulated | null>(null);
@@ -184,7 +184,8 @@ export function OnboardingFlow({
         nightsPerWeek: answers.nightsPerWeek ?? 7,
         bedtime: answers.bedtime,
         wake: answers.wake,
-        age: answers.age,
+        // No age question (cut 2026-10-05): the number never needed it, only the old life grid.
+        age: undefined,
       }),
     [answers],
   );
@@ -282,11 +283,6 @@ export function OnboardingFlow({
     }
     wentBack.current = false;
     lastView.current = { step, at: now };
-    // Under 13: nothing more leaves the phone, not even this screen (docs/TEEN_ACCOUNTS.md).
-    if (step === 'under-13') {
-      stopForChild();
-      return;
-    }
     track('onboarding_step_viewed', {
       step,
       step_index: (STEPS as readonly string[]).indexOf(step),
@@ -637,6 +633,8 @@ export function OnboardingFlow({
       if (notifications === 'undetermined') {
         const granted = await askForNotifications().catch(() => false);
         setNotifications(granted ? 'granted' : 'denied');
+        // The first thing they hear from him is what tonight's will look like.
+        if (granted) sendFirstNote(formatWhen(answers.bedtime)).catch(() => {});
       }
       if (asksMotion) {
         const access = await requestMotion();
@@ -659,6 +657,7 @@ export function OnboardingFlow({
    */
   const [walkStart, setWalkStart] = useState<Date | null>(null);
   const [walkDone, setWalkDone] = useState(false);
+  const [walkSeconds, setWalkSeconds] = useState<number | null>(null);
   const counting = walkStart !== null && !walkDone && step === 'walk';
   const realWalk = useStepCount(Platform.OS === 'ios' && counting, walkStart ?? WALK_EPOCH, WALK_GOAL);
   const [fakeSteps, setFakeSteps] = useState(0);
@@ -671,7 +670,11 @@ export function OnboardingFlow({
   const walkStatus = Platform.OS === 'ios' ? realWalk.status : 'counting';
   // Both are set while rendering (React's "adjusting state when a prop changes"), so the
   // page never draws a frame with stale values in between.
-  if (walkStart && !walkDone && walkStatus === 'counting' && walkSteps >= WALK_GOAL) setWalkDone(true);
+  if (walkStart && !walkDone && walkStatus === 'counting' && walkSteps >= WALK_GOAL) {
+    setWalkDone(true);
+    // eslint-disable-next-line react-hooks/purity -- read once, when the walk finishes
+    setWalkSeconds(Math.max(1, Math.round((Date.now() - walkStart.getTime()) / 1000)));
+  }
   useEffect(() => {
     if (walkDone) haptic.done();
   }, [walkDone]);
@@ -799,6 +802,7 @@ export function OnboardingFlow({
     askPermissions,
     asking,
     walk,
+    walkSeconds,
     startWalk,
     payoff: payoffAt === visit,
     onPayoff,

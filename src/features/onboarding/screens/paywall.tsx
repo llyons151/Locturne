@@ -6,7 +6,6 @@ import { SymbolView } from 'expo-symbols';
 import { Linking, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
-import { Reveal } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
 import { LEGAL_URLS } from '@/lib/links';
 import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
@@ -86,12 +85,9 @@ export function plansStep(ctx: StepContext): StepView {
   return {
     body: (
       <View style={[styles.paywall, compact && styles.paywallCompact]}>
-        <Reveal>
-          <Text style={[styles.paywallTitle, compact && styles.paywallTitleCompact]} accessibilityRole="header">
-            {/* Never "Try free": Apple 3.1.2 rejects trial wording that's bigger than the billed price. */}
-            Pick a plan
-          </Text>
-        </Reveal>
+        {/* His voice, like every other headline. Never "Try free": Apple 3.1.2 rejects trial
+            wording that's bigger than the billed price. */}
+        <Voice text="Right. The boring bit." size={compact ? 26 : 30} header center />
         {compact ? null : (
           <View style={styles.paywallVoice}>
             <Voice

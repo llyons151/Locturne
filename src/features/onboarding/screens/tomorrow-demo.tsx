@@ -30,6 +30,7 @@ import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
+import type { Tone } from '@/lib/tone';
 import { DOWNSTAIRS } from '@/lib/wake/downstairs';
 import { downstairsLine, PHASE_LINES, stepsLine } from '@/lib/wake/lines';
 import { DisplayFont, Nocturne, NUMBER_FONT, VoiceSize } from '@/theme';
@@ -150,16 +151,19 @@ export function TomorrowDemo({
   when,
   clock,
   method,
+  tone = 'grumpy',
   onPayoff,
 }: {
   when: string;
   clock: string;
   method: WakeMethod;
+  /** How grumpy he was asked to be (`voice`): the shield in the demo says it his way. */
+  tone?: Tone;
   /** Called once the sleep screen has lifted: the onboarding's button waits for it. */
   onPayoff?: () => void;
 }) {
   const copy = METHOD_DEMO[method];
-  const shield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL });
+  const shield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL }, null, tone);
   const reduced = useReducedMotion();
   const compact = useCompact();
   const [phase, setPhase] = useState<Phase>('home');
@@ -314,7 +318,7 @@ export function TomorrowDemo({
   // "Fine. *Fine.*": the whole line is already italic, so the emphasis is an underline.
   const line =
     phase === 'home' ? null : phase === 'shield' ? (
-      'No. Tap Fine.'
+      `${shield.title} Tap ${shield.button.replace(/\.$/, '')}.`
     ) : phase === 'banner' ? (
       'That’s me. Tap it.'
     ) : awake ? (

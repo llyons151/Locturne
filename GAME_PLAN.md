@@ -199,12 +199,13 @@ How to keep the brand from reading as generated:
   The full price is named as a plain comparison, never struck through.
 - Keep a freemium fallback ready if word of mouth is weak (Opal's revenue grew after
   it went freemium).
-- **Onboarding shape:** about 22 screens to the paywall (details in
-  [docs/ONBOARDING_CONVERSION.md](docs/ONBOARDING_CONVERSION.md); `stat`, `alarm` and
-  `ready` cut 2026-10-04, D4 in [docs/ONBOARDING_OPTIMIZATION.md](docs/ONBOARDING_OPTIMIZATION.md)):
-  1. A 6-question quiz.
-  2. The "hours a week on your phone in bed" number.
-  3. Set up apps and times, then the deal: the editable schedule and hold to agree.
+- **Onboarding shape:** about 22 screens to the paywall, redesigned 2026-10-05
+  ([docs/ONBOARDING_10.md](docs/ONBOARDING_10.md): Loc replies to every answer, the times come
+  first, a grumpiness setting; the age question is cut). Earlier details in
+  [docs/ONBOARDING_CONVERSION.md](docs/ONBOARDING_CONVERSION.md):
+  1. How grumpy he should be, then bedtime and alarm, then a 6-question quiz in their own times.
+  2. The "hours a week on your phone in bed" number, then their night drawn with and without him.
+  3. Set up apps, then the deal: the editable schedule and hold to agree.
   4. A two-page paywall with a 7-day trial on the annual plan.
   5. The lock **arms only after purchase**. Nothing ever blocks the phone of
      someone who hasn't paid.

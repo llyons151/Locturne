@@ -25,6 +25,7 @@ import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { wallClock } from './lock-state.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
 import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, hasRoutine, holdsEarly, runsAs, type ArmedTimes, type Routine, type StoredRoutine } from './routine.ts';
+import { getTone, type Tone } from './tone.ts';
 import { armedSince, getArmedNight, getProtection, listChangeLandsAt, selectionSize, selectionSizeAfterChange, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
@@ -66,6 +67,22 @@ export const COPY = {
     title: `Your free trial ends ${ends.toLocaleDateString('en-US', { weekday: 'long' })}.`,
     body: `It ends ${ends.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, tap Manage subscription in the You tab. No hard feelings. Some feelings.`,
   }),
+};
+
+/**
+ * The bedtime and morning notes by how grumpy he was asked to be (`lib/tone.ts`). Grumpy is
+ * `COPY`'s own. The titles stay the plain fact; his part is the body.
+ */
+export const TONE_COPY: Record<Tone, Pick<typeof COPY, 'morning' | 'bedtime'>> = {
+  mild: {
+    morning: { title: 'Morning.', body: 'Your apps are asleep until you’re up. No rush. Some rush.' },
+    bedtime: { title: COPY.bedtime.title, body: 'Then your apps sleep. Then I do. Goodnight.' },
+  },
+  grumpy: { morning: COPY.morning, bedtime: COPY.bedtime },
+  unbearable: {
+    morning: { title: 'Morning. Up.', body: 'Your apps are asleep until you’re up. I’m not getting up first. Obviously.' },
+    bedtime: { title: COPY.bedtime.title, body: 'Then your apps sleep. No negotiating. I’m too tired.' },
+  },
 };
 
 /** Local midnight `days` after `date`, plus `minutes`, as lock-state.ts places it (`wallClock`). */
@@ -110,6 +127,8 @@ export type PlanFacts = {
   proofs?: MorningProof[];
   /** When the trial first charges, if one is running and a reminder was asked for. */
   trialEnd?: Date | null;
+  /** How grumpy the bedtime and morning notes are. Grumpy when left out. */
+  tone?: Tone;
   /** Which kinds the person wants. All of them when left out. */
   prefs?: NotificationPrefs;
   /** A lapsed subscription's last covered morning (`lastPaidMorning`): later nights don't sleep. */
@@ -130,6 +149,7 @@ export type PlanFacts = {
 export function planNotifications(facts: PlanFacts): PlannedNotification[] {
   const { routine, pending, protection, now } = facts;
   const prefs = facts.prefs ?? DEFAULT_PREFS;
+  const words = { ...COPY, ...TONE_COPY[facts.tone ?? 'grumpy'] };
   const plan: PlannedNotification[] = [];
   const nightly = facts.armed && (protection === 'on' || protection === 'off');
   const hasAppsAt = (at: Date) => {
@@ -171,7 +191,7 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     const warnAt = new Date(start.getTime() - BEDTIME_WARNING * MINUTE);
     if (warnAt > now && hasAppsAt(start) && (protection === 'off' || prefs.bedtime)) {
       const kind = protection === 'off' ? 'revoked' : 'bedtime';
-      plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
+      plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...words[kind] });
     }
     // Not for a morning that's already free: it would say the apps are asleep when they aren't.
     // A night still to come runs under the routine it's planned under (`nightRanUnder`): a proof
@@ -179,7 +199,7 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     const unlocked = facts.proofs?.some((proof) => proofUnlocks(proof, { key, nightStart: start, ran: end > now }));
     const free = unlocked || (facts.armedSince && facts.armedSince >= end);
     if (protection === 'on' && prefs.morning && end > now && !free && hasAppsAt(end)) {
-      plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });
+      plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...words.morning });
     }
   }
 
@@ -268,6 +288,22 @@ export function configureNotifications(): void {
       shouldPlaySound: false,
       shouldSetBadge: false,
     }),
+  });
+}
+
+/**
+ * Right after notifications are allowed in onboarding: one real note a few seconds later, so
+ * the first thing they hear from him is what tonight's will look like. It deliberately doesn't
+ * start with `ID_PREFIX`, so a reschedule can't cancel it before it lands.
+ */
+export async function sendFirstNote(bedtime: string): Promise<void> {
+  if (!isIOS() || (await getNotificationPermission()) !== 'granted') return;
+  configureNotifications();
+  const { title, body } = TONE_COPY[getTone()].bedtime;
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'onboarding.firstNote',
+    content: { title: `Like this. ${title}`, body: `${body} Tonight, at ${bedtime}.` },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 4 },
   });
 }
 
@@ -433,6 +469,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       proofs: getProofs(),
       trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),
+      tone: getTone(),
       lastPaidMorning: lastPaidMorning(),
       now: new Date(),
     });

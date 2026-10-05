@@ -25,14 +25,17 @@ import { useOnMoon } from '@/components/moon-surface';
 import { MotionPage, Reveal, WordsIn, type TextMotion } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
 import { noOrphan } from '@/lib/text';
-import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
+import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
 /** Above this text scale the page body scrolls instead of clipping. */
 const SCROLL_ABOVE_SCALE = 1.3;
 
+/** Where the bar is: which of the three chapters, and how far through it (0–1). */
+export type Progress = { chapter: number; value: number; chapters: number };
+
 type ShellProps = PropsWithChildren<{
-  /** 0–1, or null to hide the bar. */
-  progress: number | null;
+  /** Null hides the bar. */
+  progress: Progress | null;
   onBack?: () => void;
   onExit: () => void;
   footer?: ReactNode;
@@ -63,7 +66,7 @@ export function Shell({ progress, onBack, onExit, footer, children }: ShellProps
             tintColor={Nocturne.text}
           />
         </Pressable>
-        {progress === null ? <View style={styles.progress} /> : <ProgressBar value={progress} />}
+        {progress === null ? <View style={styles.progress} /> : <ChapterBar progress={progress} />}
         <Pressable onPress={onExit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exit" style={styles.exitButton}>
           <Text style={styles.exit}>Exit</Text>
         </Pressable>
@@ -86,8 +89,28 @@ export function Shell({ progress, onBack, onExit, footer, children }: ShellProps
   );
 }
 
-/** One continuous bar that eases to each new value. */
-function ProgressBar({ value }: { value: number }) {
+/**
+ * Three short bars, one per chapter (your nights, your mornings, your apps), after Headway's
+ * split bar: finished chapters are full, the current one eases to its value.
+ */
+function ChapterBar({ progress }: { progress: Progress }) {
+  const { chapter, value, chapters } = progress;
+  const overall = (chapter + value) / chapters;
+  return (
+    <View
+      style={[styles.progress, styles.chapters]}
+      accessibilityRole="progressbar"
+      accessibilityLabel={`Part ${chapter + 1} of ${chapters}`}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(overall * 100) }}
+    >
+      {Array.from({ length: chapters }, (_, i) => (
+        <ChapterTrack key={i} value={i < chapter ? 1 : i === chapter ? value : 0} />
+      ))}
+    </View>
+  );
+}
+
+function ChapterTrack({ value }: { value: number }) {
   const reduced = useReducedMotion();
   const fill = useSharedValue(value);
   useEffect(() => {
@@ -95,11 +118,7 @@ function ProgressBar({ value }: { value: number }) {
   }, [value, reduced, fill]);
   const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
   return (
-    <View
-      style={[styles.progress, styles.track]}
-      accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
-    >
+    <View style={styles.track}>
       <Animated.View style={[styles.trackFill, fillStyle]} />
     </View>
   );
@@ -166,6 +185,90 @@ export function Voice({
   );
 }
 
+/**
+ * Holds its place but stays invisible until `ready`, then fades up: a button that waits for
+ * an answer or a payoff never shows as a grey, dead-looking pill, and the page doesn't jump
+ * when it arrives.
+ */
+export function Ready({ ready, children }: PropsWithChildren<{ ready: boolean }>) {
+  const reduced = useReducedMotion();
+  const shown = useSharedValue(ready ? 1 : 0);
+  useEffect(() => {
+    shown.value = reduced ? (ready ? 1 : 0) : withTiming(ready ? 1 : 0, { duration: 260 });
+  }, [ready, reduced, shown]);
+  const style = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ translateY: (1 - shown.value) * 6 }] }));
+  return (
+    <Animated.View style={[style, { pointerEvents: ready ? 'auto' : 'none' }]} accessibilityElementsHidden={!ready}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * His reply to the answer just picked, on the question's own screen: one italic line (and,
+ * for `tried`, a plain sentence under it). Keyed by the answer, so a new pick replays it.
+ */
+export function Reply({ text, detail }: { text?: string; detail?: string }) {
+  return (
+    <View style={styles.reply} accessibilityLiveRegion="polite">
+      {text ? (
+        <>
+          <Voice key={text} text={text} size={VoiceSize.aside} sub center />
+          {detail ? (
+            <Reveal key={detail} delay={350}>
+              <Text style={styles.replyDetail}>{noOrphan(detail)}</Text>
+            </Reveal>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * A drawing of one of his notifications, the way iOS shows a banner in dark mode (a grey
+ * card, no tint). Clearly a preview: labelled, and never shaped like Apple's permission alert.
+ */
+export function NotePreview({ time, title, body }: { time: string; title: string; body: string }) {
+  return (
+    <Reveal>
+      <View style={styles.note} accessible accessibilityLabel={`Preview of a notification at ${time}: ${title} ${body}`}>
+      <View style={styles.noteIcon}>
+        <SymbolView name={{ ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' }} size={16} tintColor="#FFFFFF" />
+      </View>
+      <View style={styles.noteText}>
+        <View style={styles.noteHead}>
+          <Text style={styles.noteApp}>LOCTURNE</Text>
+          <Text style={styles.noteTime}>{time}</Text>
+        </View>
+        <Text style={styles.noteTitle}>{title}</Text>
+        <Text style={styles.noteBody}>{body}</Text>
+      </View>
+      </View>
+    </Reveal>
+  );
+}
+
+/**
+ * Tonight, filling in as it's set up (Lose It's program card): bedtime → alarm, how they'll
+ * prove they're up, how many apps. Slots not chosen yet show a dash.
+ */
+export function TonightStrip({ parts }: { parts: (string | null)[] }) {
+  return (
+    <Reveal style={styles.strip}>
+      <Text style={styles.stripLabel}>TONIGHT</Text>
+      <Text style={styles.stripText} numberOfLines={2}>
+        {parts.map((part, i) => (
+          <Text key={i} style={part ? undefined : styles.stripEmpty}>
+            {i > 0 ? '  ·  ' : ''}
+            {part ?? '—'}
+          </Text>
+        ))}
+      </Text>
+    </Reveal>
+  );
+}
+
 const FOOTER_DELAY_MS = 450;
 
 /**
@@ -211,16 +314,19 @@ export function Options<T>({
   value,
   onChoose,
   tone = 'sky',
+  dense = false,
 }: {
   options: { label: string; value: T }[];
   value: T | undefined;
   onChoose: (value: T) => void;
   /** 'moon': black pills sitting on the risen quiz moon. */
   tone?: 'sky' | 'moon';
+  /** Short phones: tighter pills, so five answers, his reply and the button all fit. */
+  dense?: boolean;
 }) {
   const moon = tone === 'moon';
   return (
-    <View style={styles.options} accessibilityRole="radiogroup">
+    <View style={[styles.options, dense && styles.optionsDense]} accessibilityRole="radiogroup">
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -235,6 +341,7 @@ export function Options<T>({
               style={({ pressed }) => [
                 styles.option,
                 moon && styles.optionMoon,
+                dense && styles.optionDense,
                 selected && (moon ? styles.optionMoonSelected : styles.optionSelected),
                 pressed && styles.pressed,
               ]}
@@ -449,7 +556,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   progress: { flex: 1 },
-  track: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
+  chapters: { flexDirection: 'row', gap: 5 },
+  track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
   trackFill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.text },
   exitButton: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   // Neutral shadow (not a glow) keeps it legible over the moon in the corner.
@@ -465,8 +573,38 @@ const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
   voice: { ...DisplayFont, color: Nocturne.text, letterSpacing: -0.3 },
   footerStack: { gap: Space.s },
+  reply: { minHeight: 52, justifyContent: 'center', gap: Space.s },
+  replyDetail: { color: Nocturne.text, ...Type.secondary, textAlign: 'center' },
+  note: {
+    flexDirection: 'row',
+    gap: Space.m,
+    alignItems: 'flex-start',
+    padding: 14,
+    borderRadius: 22,
+    backgroundColor: 'rgba(44,44,48,0.92)',
+  },
+  noteIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' },
+  noteText: { flex: 1, gap: 2 },
+  noteHead: { flexDirection: 'row', justifyContent: 'space-between' },
+  noteApp: { color: Nocturne.text2, fontSize: 12, fontWeight: '600', letterSpacing: 0.6 },
+  noteTime: { color: Nocturne.text2, fontSize: 12 },
+  noteTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  noteBody: { color: '#FFFFFF', fontSize: 15, lineHeight: 20 },
+  strip: {
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    borderColor: Nocturne.line,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 3,
+  },
+  stripLabel: { ...Type.label, fontSize: 11 },
+  stripText: { color: Nocturne.text, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  stripEmpty: { color: Nocturne.text3 },
   pressed: { opacity: 0.75 },
   options: { gap: Space.m },
+  optionsDense: { gap: Space.s },
+  optionDense: { minHeight: 46, paddingVertical: 11 },
   option: {
     minHeight: 58,
     borderRadius: Radius.pill,

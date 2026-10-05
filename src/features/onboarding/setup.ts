@@ -8,6 +8,7 @@ import { cancelTrialReminder, rescheduleNotifications, syncTrialEnd, TRIAL_REMIN
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
+import { setTone } from '@/lib/tone';
 
 import type { Answers } from './content';
 
@@ -48,6 +49,8 @@ export function saveSetup(answers: Answers): void {
   // the nights off and step goal set on the Routine tab.
   const current = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : DEFAULT_ROUTINE;
   const now = new Date();
+  // His words, not a rule: saved before the sync below so the shield says it his way tonight.
+  setTone(answers.tone);
   // A rerun inside a waiting edit's early first night: that edit governs tonight, so this one
   // waits for its next bedtime (`applyEdit`).
   saveRoutine(
@@ -65,10 +68,13 @@ export function saveSetup(answers: Answers): void {
   syncLock(now);
   rescheduleNotifications().catch(() => {});
   sharedSet(QUIZ_KEY, pickQuiz(answers));
-  if (answers.found) {
-    sharedSet(ATTRIBUTION_KEY, { found: answers.found, at: Date.now() });
-    setAttributes({ [ATTRIBUTES.found]: answers.found });
-  }
+  if (answers.found) saveAttribution(answers.found);
+}
+
+/** "How'd you find me?": kept for the purchase event and sent to RevenueCat as `found`. */
+export function saveAttribution(found: string): void {
+  sharedSet(ATTRIBUTION_KEY, { found, at: Date.now() });
+  setAttributes({ [ATTRIBUTES.found]: found });
 }
 
 /** Pure: the quiz answers worth keeping, without the ones they skipped. */

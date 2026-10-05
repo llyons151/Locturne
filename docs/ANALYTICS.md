@@ -40,8 +40,7 @@ These keep the app inside what [privacy.html](../web/public/privacy.html) and
 |---|---|
 | Which apps were picked | `apps_picked.count` |
 | Step counts, stairs, altitude | the method (`morning_unlocked.method`) and how the walk ended |
-| Exact age | `age_bracket` (13-17, 18-24, 25-34, 35+) |
-| Anything after "under 13" | nothing: `stopForChild` opts the install out for good |
+| Age | nothing: onboarding stopped asking on 2026-10-05 (`age_bracket` and the under-13 opt-out only apply to installs from before) |
 | Bedtime and wake times | nothing (ONBOARDING_RESEARCH: don't attach routine times to a funnel) |
 | Screen recordings, tap targets | nothing: session replay and touch autocapture are off, because the screen shows the picked apps' names |
 
@@ -52,8 +51,8 @@ unhandled rejections) is on, as the policy lists "error reports".
 
 Every event also carries `app_env`, `store_stubbed`, `onboarding_version`, PostHog's
 device and app properties, and, once answered, the super properties
-`onboarding_found`, `onboarding_method`, `onboarding_age_bracket` and
-`onboarding_timeBack`. That means any event can be split by how they found the app or
+`onboarding_found`, `onboarding_method`, `onboarding_timeBack` and `onboarding_tone`
+(Mild / Grumpy / Unbearable, from `voice`). That means any event can be split by how they found the app or
 which wake-up method they picked. All quiz answers are also set on the person.
 
 ### Onboarding

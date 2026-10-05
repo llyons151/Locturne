@@ -23,7 +23,7 @@ import {
 } from './navigation.ts';
 
 /** content.ts's `initialAnswers` (content.ts itself needs the app's `@/` paths to load). */
-const initialAnswers: Answers = { bedtime: 23 * 60 + 30, wake: 7 * 60, apps: [], plan: 'annual', remindTrial: true };
+const initialAnswers: Answers = { bedtime: 23 * 60 + 30, wake: 7 * 60, tone: 'grumpy', apps: [], plan: 'annual', remindTrial: true };
 
 const run = (nav: Nav, ...actions: NavAction[]) => actions.reduce(navigate, nav);
 const next: NavAction = { type: 'next' };
@@ -56,15 +56,20 @@ describe('forward', () => {
     assert.equal(currentStep(navigate(nav, back)), 'tomorrow', 'Back returns to the demo, not the skipped walk');
   });
 
-  test('the side steps rejoin the main path', () => {
-    assert.equal(nextStep('under-13'), 'tried');
+  test('the side step rejoins the main path', () => {
     assert.equal(nextStep('declined'), 'plans');
+  });
+
+  test('the times come before the quiz, so the questions can speak in them', () => {
+    assert.ok(STEPS.indexOf('bedtime') < STEPS.indexOf('nights'));
+    assert.ok(STEPS.indexOf('wake') < STEPS.indexOf('night-minutes'));
+    assert.ok(STEPS.indexOf('found') < STEPS.indexOf('plans'), 'attribution is asked before the paywall');
+    assert.ok(!(STEPS as readonly string[]).includes('age'), 'no age question');
   });
 
   test('`?step=` accepts real steps and `declined` only', () => {
     assert.ok(isStep('walk'));
     assert.ok(isStep('declined'));
-    assert.ok(!isStep('under-13'), 'the age gate can’t be jumped to');
     assert.ok(!isStep('nope'));
     assert.ok(!isStep(undefined));
   });
@@ -80,21 +85,15 @@ describe('forward', () => {
 describe('back', () => {
   test('goes to the step before, and not past the first', () => {
     const nav = reach('nights');
-    assert.equal(currentStep(navigate(nav, back)), 'deal');
+    assert.equal(currentStep(navigate(nav, back)), 'wake');
     const first = startNav('hello', initialAnswers);
     assert.equal(canGoBack(first), false);
     assert.equal(navigate(first, back), first);
   });
 
-  test('steps over the math screen, which would bounce straight forward again', () => {
+  test('from the reveal goes back to the last question', () => {
     const nav = reach('reveal');
     assert.equal(currentStep(navigate(nav, back)), 'time-back');
-  });
-
-  test('never steps over the first screen, even when it moves on by itself', () => {
-    const nav = run(startNav('math', initialAnswers), next);
-    assert.equal(currentStep(nav), 'reveal');
-    assert.deepEqual(navigate(nav, back).history, ['math']);
   });
 
   test('a second next from the same screen does nothing', () => {
@@ -103,12 +102,6 @@ describe('back', () => {
     const once = navigate(nav, sent);
     assert.equal(currentStep(once), 'first-morning');
     assert.equal(navigate(once, sent), once);
-  });
-
-  test('the under-13 screen has no Back', () => {
-    const nav = run(reach('age'), { type: 'go', to: 'under-13' });
-    assert.equal(canGoBack(nav), false);
-    assert.equal(navigate(nav, back), nav);
   });
 
   test('after purchase the stack starts again, with no way back to the paywall', () => {

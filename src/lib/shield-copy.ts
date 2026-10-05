@@ -13,6 +13,7 @@
  */
 import type { LockState, Phase } from './lock-state.ts';
 import type { Routine, WakeMethod } from './routine.ts';
+import type { Tone } from './tone.ts';
 
 export type ShieldText = { title: string; subtitle: string; button: string };
 
@@ -63,6 +64,44 @@ const PROOF: Record<WakeMethod, (stepGoal: number) => string> = {
 };
 
 /**
+ * His line and the button, by how grumpy he was asked to be (`voice` in onboarding, the You
+ * tab). Grumpy is the original voice. Only these change: the subtitle stays the plain fact of
+ * why the app is asleep and when it wakes, at every tone.
+ */
+const TONE_LINES: Record<ShieldRule, Record<Tone, { title: string; button: string }>> = {
+  night: {
+    mild: { title: 'Asleep. Both of us.', button: 'Okay' },
+    grumpy: { title: 'Shh. I’m sleeping. So are they.', button: 'Fine' },
+    unbearable: { title: 'Absolutely not. It’s bedtime.', button: 'Fine. Fine.' },
+  },
+  lateNight: {
+    mild: { title: 'Still up? They’re asleep.', button: 'Back to bed' },
+    grumpy: { title: 'Why are we awake.', button: 'Back to bed' },
+    unbearable: { title: 'It’s the middle of the night. Why.', button: 'Back to bed' },
+  },
+  morning: {
+    mild: { title: 'Not yet.', button: 'Okay' },
+    grumpy: { title: 'No.', button: 'Fine' },
+    unbearable: { title: 'No. Get up.', button: 'Fine. Fine.' },
+  },
+  blockNow: {
+    mild: { title: 'Napping. Back soon.', button: 'Okay' },
+    grumpy: { title: 'Tucked in. Do not perceive me.', button: 'Fine' },
+    unbearable: { title: 'Nap in progress. Leave.', button: 'Fine. Fine.' },
+  },
+  limit: {
+    mild: { title: 'That’s today’s lot.', button: 'Okay' },
+    grumpy: { title: 'That’s today’s lot.', button: 'Fine' },
+    unbearable: { title: 'That’s today’s lot. I counted.', button: 'Fine. Fine.' },
+  },
+  always: {
+    mild: { title: 'It’s asleep.', button: 'Okay' },
+    grumpy: { title: 'Shh. It’s asleep.', button: 'Fine' },
+    unbearable: { title: 'Asleep. Staying that way.', button: 'Fine. Fine.' },
+  },
+};
+
+/**
  * Pure: the words for one rule. `routine` supplies the wake-up time and method; `until` is
  * when a Block now session ends.
  */
@@ -70,6 +109,16 @@ export function shieldCopy(
   rule: ShieldRule,
   routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal'>,
   until: Date | null = null,
+  tone: Tone = 'grumpy',
+): ShieldText {
+  return { ...shieldFacts(rule, routine, until), ...TONE_LINES[rule][tone] };
+}
+
+/** The subtitle, which is the same at every tone, plus the grumpy words `TONE_LINES` replaces. */
+function shieldFacts(
+  rule: ShieldRule,
+  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal'>,
+  until: Date | null,
 ): ShieldText {
   const wake = clockLabel(routine.morningStart);
   switch (rule) {
@@ -123,6 +172,7 @@ export function shieldTextFor(
   routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal'>,
   now: Date,
   limitReached: boolean,
+  tone: Tone = 'grumpy',
 ): ShieldText {
   const rule = shieldRule({
     phase: state.phase,
@@ -130,7 +180,7 @@ export function shieldTextFor(
     blockNowUntil: state.blockNowUntil,
     limitReached,
   });
-  return shieldCopy(rule, routine, state.blockNowUntil);
+  return shieldCopy(rule, routine, state.blockNowUntil, tone);
 }
 
 /**

@@ -6,26 +6,30 @@
  */
 import type { Answers } from './content.ts';
 
-/** Every step, in order. Two side steps aren't in it: `declined` (the paywall exit) and `under-13`. */
+/**
+ * Every step, in order (docs/ONBOARDING_10.md). One side step isn't in it: `declined` (the
+ * paywall exit). The times come first, so every later screen can speak in them.
+ */
 export const STEPS = [
   'hello',
   'deal',
+  // How grumpy he is: his words from here on, on the shield and in notifications.
+  'voice',
+  // Attribution early, before the build-up to the reveal, and before the paywall so that
+  // conversion can still be split by channel for people who don't buy.
+  'found',
+  'bedtime',
+  'wake',
   'nights',
   'night-minutes',
   'nights-per-week',
   'morning-minutes',
-  // Attribution sits mid-quiz, between the minutes and the objections, so it doesn't stall
-  // the build-up to the reveal.
-  'found',
-  'age',
   'tried',
-  'tried-echo',
   'time-back',
-  'math',
   'reveal',
-  'bedtime',
-  'wake',
   'method',
+  // Their usual night next to the night with him, drawn from their own answers.
+  'your-night',
   // See it, then try it: the demo shows tomorrow morning, then the walk is a 20-step taste of
   // it. Skipped late at night (`skip` on `next`), when they're in bed (ONBOARDING_OPTIMIZATION §7).
   'tomorrow',
@@ -40,7 +44,7 @@ export const STEPS = [
   'first-morning',
 ] as const;
 
-export type StepId = (typeof STEPS)[number] | 'declined' | 'under-13';
+export type StepId = (typeof STEPS)[number] | 'declined';
 
 /**
  * Steps that can be edited and then return: `bedtime`, `wake`, `method` and `apps` from the
@@ -49,8 +53,8 @@ export type StepId = (typeof STEPS)[number] | 'declined' | 'under-13';
  */
 export const EDITABLE: StepId[] = ['bedtime', 'wake', 'method', 'apps'];
 
-/** Screens that move on by themselves. Back steps over them. */
-export const AUTO_ADVANCE: StepId[] = ['math'];
+/** Screens that move on by themselves. Back steps over them. None now: kept for the rule. */
+export const AUTO_ADVANCE: StepId[] = [];
 
 export type Nav = {
   /** Monotonic screen visit; stack depth alone repeats after Back/edit. */
@@ -85,7 +89,6 @@ export function isStep(value: string | undefined): value is StepId {
 
 export function nextStep(step: StepId, skip: StepId[] = []): StepId {
   if (step === 'declined') return 'plans';
-  if (step === 'under-13') return nextStep('age');
   let index = STEPS.indexOf(step) + 1;
   while (index < STEPS.length - 1 && skip.includes(STEPS[index])) index += 1;
   return STEPS[Math.min(index, STEPS.length - 1)];
@@ -100,8 +103,8 @@ export const currentStep = (nav: Nav): StepId => nav.history[nav.history.length 
 /** Whether the step on screen is one being edited, so Continue saves and returns. */
 export const isEditing = (nav: Nav): boolean => nav.returnTo !== null && EDITABLE.includes(currentStep(nav));
 
-/** The age gate can't be re-answered with Back, and there's no way back to the paywall after purchase. */
-export const canGoBack = (nav: Nav): boolean => nav.history.length > 1 && currentStep(nav) !== 'under-13';
+/** There's no way back to the paywall after purchase (the history is reset to `armed`). */
+export const canGoBack = (nav: Nav): boolean => nav.history.length > 1;
 
 const finishEdit = (nav: Nav): Nav => ({ ...nav, returnTo: null, beforeEdit: null });
 

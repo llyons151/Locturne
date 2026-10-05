@@ -30,17 +30,20 @@ export function TimeWheel({
   value,
   onChange,
   presets,
+  short = false,
 }: {
   value: number;
   onChange: (minutes: number) => void;
   presets: number[];
+  /** Five rows instead of seven, to leave room for something under the wheel. */
+  short?: boolean;
 }) {
   const { height } = useWindowDimensions();
   // Seven rows on a normal phone, five on short ones so the page still fits without scrolling.
   // The quiz moon leaves less room under its curve, so it drops two rows there.
   const moon = useOnMoon();
   const row = height < 700 ? 34 : 40;
-  const visible = (height < 700 ? 5 : 7) - (moon ? 2 : 0);
+  const visible = (height < 700 || short ? 5 : 7) - (moon ? 2 : 0);
 
   const hours24 = Math.floor(value / 60);
   const minute = value % 60;

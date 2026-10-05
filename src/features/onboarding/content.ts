@@ -6,10 +6,16 @@
 
 import { getPendingRoutine, getRoutine, hasRoutine, type WakeMethod } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan-code';
+import type { Tone } from '@/lib/tone';
+
+import { formatWhen } from './estimate';
 
 import type { StepId } from './navigation';
 
 export type Choice<T> = { label: string; value: T };
+
+/** "1 AM", "12:30 AM", "midnight": answers read like speech, so no ":00". */
+const spoken = (minutes: number) => formatWhen(minutes).replace(':00', '');
 
 export type Answers = {
   nights?: string;
@@ -20,14 +26,14 @@ export type Answers = {
   bedtime: number;
   wake: number;
   morningMinutes?: number;
-  /** Years. */
-  age?: number;
-  /** What they've tried before. Only feeds his reply on the next screen. */
+  /** How grumpy he should be (`voice`): his words on the shield and in notifications. */
+  tone: Tone;
+  /** What they've tried before. Only feeds his reply under it. */
   tried?: string;
   timeBack?: string;
   /**
-   * "How'd you find me?" Attribution only: never shown back or used in the number. The one
-   * exception to "every answer feeds the number or a setting" (docs/sub-club/APPLIED_TO_LOCTURNE.md, O1).
+   * "How'd you find me?" Attribution only: never used in the number. The one exception to
+   * "every answer feeds the number or a setting" (docs/sub-club/APPLIED_TO_LOCTURNE.md, O1).
    */
   found?: string;
   /**
@@ -47,6 +53,7 @@ export type Answers = {
 export const initialAnswers: Answers = {
   bedtime: 23 * 60 + 30,
   wake: 7 * 60,
+  tone: 'grumpy',
   apps: [],
   plan: 'annual',
   remindTrial: true,
@@ -56,29 +63,14 @@ export const initialAnswers: Answers = {
 export { STEPS, type StepId } from './navigation';
 
 /**
- * Steps that show the progress bar: the quiz and setup only. Welcome, offer and
- * post-purchase screens hide it, so the paywall never reads as one more step.
+ * The progress bar's three chapters (Headway's split bar, docs/ONBOARDING_10.md): your
+ * nights, your mornings, your apps. Welcome, offer and post-purchase screens hide the bar, so
+ * the paywall never reads as one more step.
  */
-export const PROGRESS_STEPS: StepId[] = [
-  'nights',
-  'night-minutes',
-  'nights-per-week',
-  'morning-minutes',
-  'found',
-  'age',
-  'tried',
-  'tried-echo',
-  'time-back',
-  'math',
-  'reveal',
-  'bedtime',
-  'wake',
-  'method',
-  'tomorrow',
-  'walk',
-  'screen-time',
-  'apps',
-  'commit',
+export const CHAPTERS: StepId[][] = [
+  ['voice', 'found', 'bedtime', 'wake', 'nights', 'night-minutes', 'nights-per-week'],
+  ['morning-minutes', 'tried', 'time-back', 'reveal', 'method', 'your-night', 'tomorrow', 'walk'],
+  ['screen-time', 'apps', 'commit'],
 ];
 
 // Values are deliberately at or below each bucket's midpoint, so the number never overstates.
@@ -89,37 +81,57 @@ export const NIGHTS: Choice<string>[] = [
   { label: 'Honestly, all of it.', value: 'all' },
 ];
 
-export const NIGHT_MINUTES: Choice<number>[] = [
-  { label: 'Under 10 minutes', value: 5 },
-  { label: '10–30 minutes', value: 20 },
-  { label: '30–60 minutes', value: 45 },
-  { label: '1–2 hours', value: 90 },
-  { label: '2+ hours', value: 150 },
-];
-
 /**
- * His line on the math loader, echoing "What happens most nights?". Deadpan, and never
- * a health claim: "can't sleep" gets sympathy, not advice.
+ * "In bed at 11:30 PM. When does the phone actually go down?" Answered in their own clock
+ * (group E in docs/design-references/onboarding-library/_analysis): each choice is bedtime
+ * plus the minutes in `value`, so the number is a subtraction they can see.
  */
-export const NIGHTS_ECHO: Record<string, string> = {
-  'one-more': '“One more video.” Counting all of them.',
-  'cant-sleep': 'Can’t sleep, you said. Same. Counting anyway.',
-  'lose-track': 'You lose track of time. I don’t. Counting.',
-  all: 'All of it, you said. Counting all of it.',
+const NIGHT_OFFSETS = [5, 30, 60, 90, 150];
+
+export function nightMinuteChoices(bedtime: number): Choice<number>[] {
+  return NIGHT_OFFSETS.map((value, i) => ({
+    value,
+    label: i === 0 ? 'Pretty much straight away' : i === NIGHT_OFFSETS.length - 1 ? 'Later. Don’t ask.' : `Around ${spoken(bedtime + value)}`,
+  }));
+}
+
+export const NIGHT_MINUTES_REPLY: Record<number, string> = {
+  5: 'Straight away. Suspicious, but fine.',
+  30: 'Half an hour. An episode, basically.',
+  60: 'An hour. I was up for all of it.',
+  90: 'Ninety minutes. I’ve had shorter naps.',
+  150: 'Raccoon hours. I know them well.',
 };
 
-export const MORNING_MINUTES: Choice<number>[] = [
-  { label: 'Under 5 minutes', value: 3 },
-  { label: '5–15 minutes', value: 10 },
-  { label: '15–30 minutes', value: 20 },
-  { label: '30–60 minutes', value: 45 },
-  { label: '1+ hour', value: 75 },
-];
+/**
+ * His reply under each answer, on the question's own screen (docs/ONBOARDING_10.md, rule 1:
+ * every answer gets a visible reaction). Deadpan, about him or the phone, never the user, and
+ * never a health claim: "can't sleep" gets sympathy, not advice.
+ */
+export const NIGHTS_REPLY: Record<string, string> = {
+  'one-more': 'It’s never one more. I’ve checked.',
+  'cant-sleep': 'Scrolling isn’t sleeping. I’d know.',
+  'lose-track': 'Time’s fine. It’s right where you left it.',
+  all: 'Honest. I respect that. Bit worrying.',
+};
 
-/** The age wheel's range and starting point. Under 13 leads to the age gate. */
-export const AGE_MIN = 10;
-export const AGE_MAX = 99;
-export const AGE_DEFAULT = 22;
+/** "Alarm at 7:00 AM. When do your feet hit the floor?" The alarm plus `value` minutes. */
+const MORNING_OFFSETS = [3, 10, 20, 45, 75];
+
+export function morningMinuteChoices(wake: number): Choice<number>[] {
+  return MORNING_OFFSETS.map((value, i) => ({
+    value,
+    label: i === 0 ? 'Straight up' : i === MORNING_OFFSETS.length - 1 ? 'Later than that' : `Around ${spoken(wake + value)}`,
+  }));
+}
+
+export const MORNING_MINUTES_REPLY: Record<number, string> = {
+  3: 'Straight up. I don’t believe you, but fine.',
+  10: 'The snooze-and-scroll. A classic.',
+  20: 'Twenty minutes. I’d still be under the covers.',
+  45: 'Your phone gets up before you do.',
+  75: 'Later. Now I like you.',
+};
 
 // Single choice, so the question asks for the one that lasted longest.
 export const TRIED: Choice<string>[] = [
@@ -131,12 +143,11 @@ export const TRIED: Choice<string>[] = [
 ];
 
 /**
- * His reply to "what have you tried?": the objection, then how Locturne differs. The
+ * His reply under "what have you tried?": the objection, then how Locturne differs. The
  * body stays literal, and never claims there's no way out (emergency unlock exists).
- * Temporary copy (2026-10-03): method-neutral because the stairs question comes later.
- * The founder will rewrite these in his voice.
+ * Method-neutral, because the stairs question comes later.
  */
-export const TRIED_ECHO: Record<string, { line: string; body: string }> = {
+export const TRIED_REPLY: Record<string, { line: string; body: string }> = {
   'screen-time': {
     line: 'Screen Time has an Ignore button. I don’t.',
     body: 'Its limits end with one tap. Mine end when you’re out of bed. There’s an emergency unlock, but it takes more than a tap.',
@@ -167,6 +178,23 @@ export const TIME_BACK: Choice<string>[] = [
   { label: 'Something else', value: 'else' },
 ];
 
+export const TIME_BACK_REPLY: Record<string, string> = {
+  sleep: 'Sleep. Bold. I support it.',
+  read: 'Paper. Doesn’t buzz.',
+  workout: 'Ugh. Fine. Not me, though.',
+  mornings: 'Slow mornings. Now we’re talking.',
+  else: 'Mysterious. I’ll allow it.',
+};
+
+/** The reveal's second beat: "Or 7½ hours of {this}. Your pick." */
+export const TIME_BACK_PHRASE: Record<string, string> = {
+  sleep: 'sleep',
+  read: 'reading',
+  workout: 'workouts',
+  mornings: 'slow mornings',
+  else: 'whatever you like',
+};
+
 /**
  * Where they heard about Locturne. Payers per 1K views needs to know which channel an
  * install came from, and Opal calls this question its most reliable attribution.
@@ -180,6 +208,43 @@ export const FOUND: Choice<string>[] = [
   { label: 'Somewhere else', value: 'else' },
 ];
 
+export const FOUND_REPLY: Record<string, string> = {
+  tiktok: 'TikTok sent you here to quit TikTok. Poetic.',
+  instagram: 'Instagram sent you. Ironic. I’ll take it.',
+  youtube: 'YouTube. You watched to the end. Rare.',
+  friend: 'Thank them. Or don’t. I’m not your mum.',
+  'app-store': 'You searched for me. Flattering.',
+  else: 'Mysterious. Fine.',
+};
+
+/**
+ * `voice`: how grumpy he is. His line as the slider moves, what the morning shield will say
+ * at that tone (from `shieldCopy`, so it's the real thing), and the reply button.
+ */
+export const TONE_STEP: Record<Tone, { line: string; button: string }> = {
+  mild: { line: 'Mild. I’ll be nice. Mostly.', button: 'Nice. Thanks.' },
+  grumpy: { line: 'Grumpy. My natural state.', button: 'Perfect.' },
+  unbearable: { line: 'Unbearable. You asked for this.', button: 'Bring it.' },
+};
+
+/**
+ * The quiz's buttons are the person's reply to him, not "Continue" (Gentler Streak, Focus
+ * Friend, Duolingo's "I'm committed"). Shown once an answer is picked.
+ */
+export const REPLY_BUTTON: Partial<Record<StepId, string>> = {
+  found: 'That’s how.',
+  bedtime: 'That’s bedtime.',
+  wake: 'That’s the alarm.',
+  nights: 'That’s me.',
+  'night-minutes': 'Roughly.',
+  'nights-per-week': 'That’s the lot.',
+  'morning-minutes': 'Sounds right.',
+  tried: 'Fair point.',
+  'time-back': 'Deal.',
+  method: 'That’s my morning.',
+  'your-night': 'The second one.',
+};
+
 /** Paywall headline, echoing the answer to "what would you do with them?" */
 export const OFFER_HEADLINES: Record<string, string> = {
   sleep: 'Earlier nights. For both of us.',
@@ -191,17 +256,6 @@ export const OFFER_HEADLINES: Record<string, string> = {
 
 /** For people who barely use their phone in bed: the pitch is mornings, not a cost. */
 export const LIGHT_OFFER_HEADLINE = 'Mornings, then. Mine too.';
-
-/**
- * His aside on `math` as the mornings line ticks, echoing "how long are you on your phone
- * before you get up?". Under ten minutes gets none: there's nothing to say nothing about.
- */
-export const MORNING_ECHO: Record<number, string> = {
-  10: 'You said ten minutes. I said nothing.',
-  20: 'You said twenty minutes. I said nothing.',
-  45: 'You said forty-five minutes. I said nothing.',
-  75: 'You said an hour. I said nothing. Loudly.',
-};
 
 /*
  * Prices, trials and the exit-offer arm all come from the store (`getOffers` in

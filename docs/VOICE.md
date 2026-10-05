@@ -53,6 +53,15 @@ off, emergency unlock, a payment problem), clarity comes first. He states the
 problem and the fix plainly, and he can add one small bit of himself afterward.
 Never make a warning ambiguous for a joke.
 
+## How grumpy (added 2026-10-05)
+
+The person picks Mild, Grumpy or Unbearable in onboarding (`voice`) and can change it in You.
+Grumpy is this document's voice. Mild is the same raccoon on a good night ("Asleep. Both of
+us."); Unbearable is the same raccoon more tired ("No. Get up."). Every tone still follows the
+rules below: no threats, no guilt, no exclamation points. Only his lines change, never the
+facts on the shield. Lines: `TONE_LINES` in src/lib/shield-copy.ts, `TONE_COPY` in
+src/lib/notifications.ts.
+
 ## Never
 
 - **Guilt or shame:** "You failed," "You broke your streak," "You've wasted 3 hours."

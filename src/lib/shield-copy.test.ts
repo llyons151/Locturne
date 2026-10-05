@@ -125,6 +125,21 @@ describe('the words', () => {
     assert.match(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'downstairs' }).subtitle, /tap Start/);
   });
 
+  test('the tone changes his words, never the facts or the rule', () => {
+    const rules = ['night', 'lateNight', 'morning', 'blockNow', 'limit', 'always'] as const;
+    for (const rule of rules) {
+      const grumpy = shieldCopy(rule, DEFAULT_ROUTINE, null);
+      assert.deepEqual(shieldCopy(rule, DEFAULT_ROUTINE, null, 'grumpy'), grumpy, `${rule}: grumpy is the default`);
+      for (const tone of ['mild', 'unbearable'] as const) {
+        const text = shieldCopy(rule, DEFAULT_ROUTINE, null, tone);
+        assert.equal(text.subtitle, grumpy.subtitle, `${rule}/${tone}: the subtitle stays the plain fact`);
+        assert.ok(text.title.split(' ').length <= 8, `${rule}/${tone}: ${text.title}`);
+        assert.ok(!/!/.test(text.title + text.button), `${rule}/${tone}: no exclamation points`);
+      }
+    }
+    assert.equal(shieldCopy('morning', DEFAULT_ROUTINE, null, 'unbearable').title, 'No. Get up.');
+  });
+
   test('Block now names when the nap ends', () => {
     assert.match(shieldCopy('blockNow', DEFAULT_ROUTINE, new Date(2026, 9, 3, 15, 30)).subtitle, /until 3:30 pm/);
   });
