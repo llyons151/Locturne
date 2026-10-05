@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';

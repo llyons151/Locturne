@@ -127,7 +127,7 @@ describe('back', () => {
 describe('editing from the schedule card on commit', () => {
   const summary = () => reach('commit', run(startNav('hello', initialAnswers), set({ method: 'downstairs' })));
 
-  test('Save returns to the summary without stacking a second copy', () => {
+  test('Save returns to commit without stacking a second copy', () => {
     const before = summary();
     const nav = run(before, edit('bedtime'), set({ bedtime: 22 * 60 }), next);
     assert.equal(currentStep(nav), 'commit');
@@ -159,7 +159,7 @@ describe('editing from the schedule card on commit', () => {
     assert.equal(nav.answers.wake, initialAnswers.wake);
   });
 
-  test('two edits in a row each return to the summary', () => {
+  test('two edits in a row each return to commit', () => {
     const before = summary();
     const nav = run(before, edit('bedtime'), next, edit('apps'), set({ apps: ['TikTok'] }), next);
     assert.deepEqual(nav.history, before.history);
@@ -171,7 +171,7 @@ describe('editing from the schedule card on commit', () => {
     assert.equal(currentStep(nav), 'offer');
   });
 
-  test('Back from the summary after a saved edit goes to the step before it, not the edit', () => {
+  test('Back from commit after a saved edit goes to the step before it, not the edit', () => {
     const nav = run(summary(), edit('bedtime'), next, back);
     assert.equal(currentStep(nav), 'apps');
   });

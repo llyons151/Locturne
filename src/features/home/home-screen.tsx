@@ -1,4 +1,9 @@
-import { Link, router, useFocusEffect } from 'expo-router';
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
+import { Link, router, useFocusEffect, useIsFocused } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -15,7 +20,7 @@ import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine 
 import { tap } from '@/lib/haptics';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { nightAt, type Routine, type WakeMethod } from '@/lib/routine';
+import { getPendingRoutine, nightAt, type Routine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import { getArmedNight, isScreenTimeAvailable, isStoodDown, shownSelection } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
@@ -70,6 +75,8 @@ const MORNING_ACTION: Record<WakeMethod, string> = {
 const LOCK_DELAY_MS = HOME_RISE_MS * 0.7;
 /** The text arrives while the moon is still rising, so the screen never sits empty. */
 const CONTENT_DELAY_MS = HOME_RISE_MS * 0.35;
+/** A first counts as seen once its line has faded in and stayed a moment. */
+const SEEN_AFTER_MS = CONTENT_DELAY_MS + 450 + 1000;
 
 /** iOS's dark-mode orange: a warning, not a brand colour. */
 const WARNING = '#FF9F0A';
@@ -108,16 +115,26 @@ export function HomeScreen() {
   useFocusEffect(useCallback(() => setVisit((v) => v + 1), []));
 
   // His firsts: shown on the real state only, and remembered by the morning they belong to.
+  // Only while Home is on top: it stays mounted under the wake screen and onboarding, where
+  // marking a first as seen would spend it unseen.
+  const focused = useIsFocused();
   // Not on a night that isn't held: "First night. Phone down." would be spent on nothing.
   const moment = unprotected || preview || pause || phase !== lock.phase ? null : firstMoment(lock, proof, getFirstRunSeen());
+  // Seen once it's been on screen past its fade-in: a cold launch from the morning
+  // notification opens the wake screen over Home a moment after Home first renders.
   useEffect(() => {
-    if (moment) markFirstSeen(moment, lock.morningKey);
-  }, [moment, lock.morningKey]);
+    if (!moment || !focused) return;
+    const timer = setTimeout(() => markFirstSeen(moment, lock.morningKey), SEEN_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [moment, focused, lock.morningKey]);
 
   useReviewPrompt(lock, proof);
 
-  const bedtime = clockLabel(routine.bedtime);
-  const wake = clockLabel(routine.morningStart);
+  // The Schedule row shows the routine as set, a change waiting for bedtime included, like the
+  // Routine tab it opens (the status line already says what tonight runs on).
+  const scheduled = getPendingRoutine()?.routine ?? routine;
+  const bedtime = clockLabel(scheduled.bedtime);
+  const wake = clockLabel(scheduled.morningStart);
   // The method the morning will really ask for (`methodInUse`), as everywhere on Home.
   const first = moment ? firstLine(moment, { ...routine, method: methodInUse(routine.method) }) : null;
 

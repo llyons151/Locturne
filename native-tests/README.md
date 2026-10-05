@@ -6,7 +6,7 @@ the only way to run it was a night on a real iPhone. `run.sh` compiles the real 
 library's `Shared.swift`) against stand-ins for Apple's frameworks (`Shims.swift`) and
 runs two sets of checks.
 
-- **`Tests.swift`: 24 scenarios** written against the extension directly. They cover:
+- **`Tests.swift`: 47 scenarios** written against the extension directly. They cover:
   - bedtime windows;
   - off nights, including a window after midnight belonging to the evening before;
   - a routine edit that's due, with iOS starting the window a little early;
@@ -18,7 +18,11 @@ runs two sets of checks.
   - the emergency pause across the rest of the night and the next bedtime;
   - stand-down;
   - the heartbeat log;
-  - the Gregorian day key.
+  - the Gregorian day key;
+  - a limit threshold delivered late, just after midnight (ignored);
+  - the words left on the shields when a rule ends with the app closed: a nap, a night off, a
+    limit's midnight or mid-day start, an emergency-paused morning (`shown(app)` runs the
+    library's real lookup).
 - **`Fixtures.swift`: the JS↔Swift handoff.** `src/lib/native-handoff.test.ts` drives the
   real app code: onboarding's arm, routine and list edits, a limit with Block now, the
   emergency unlock, a lapsed subscription, and both clock changes. It runs against a fake

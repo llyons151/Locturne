@@ -317,7 +317,6 @@ export async function cancelTrialReminder(): Promise<void> {
   await rescheduleNotifications();
 }
 
-/** Our pending notifications as iOS has them, soonest first. For diagnostics. */
 /**
  * The nightly ones fire at a local clock time, like the night windows: a date trigger becomes
  * a fixed interval on iOS (expo-notifications' `DateTriggerRecord`), so after a flight
@@ -337,6 +336,7 @@ function triggerFor(n: PlannedNotification): Notifications.SchedulableNotificati
   };
 }
 
+/** Our pending notifications as iOS has them, soonest first. For diagnostics. */
 export async function getScheduledNotifications(): Promise<{ id: string; title: string; at: Date | null }[]> {
   if (!isIOS()) return [];
   const all = await Notifications.getAllScheduledNotificationsAsync();

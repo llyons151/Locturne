@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -36,6 +41,7 @@ import {
 } from '@/lib/daily-limits';
 import { getNightPause } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
+import { onLockChange } from '@/lib/lock-controller';
 import {
   armLimit,
   beginListEdit,
@@ -133,6 +139,9 @@ function LiveAppsList() {
 
   // Onboarding or the Screen Time lab can change the picks while this tab is hidden.
   useFocusEffect(refresh);
+  // And after each sync: settling limits on return awaits iOS per limit, so the rows read on
+  // `active` can be one step behind (a used-up mark not yet forgotten, or a re-fire just in).
+  useEffect(() => onLockChange(() => refresh()), [refresh]);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
     return () => sub.remove();
@@ -152,15 +161,21 @@ function LiveAppsList() {
     // Saved before arming: iOS can report a tightened limit as used up the moment it's armed,
     // and the extension judges that against the saved minutes (a stale-threshold check), so
     // the old, looser number must already be gone.
-    const previous = limits;
+    const before = limits.find((l) => l.id === arm?.id);
     saveLimits(next);
     if (arm) {
       try {
         await armLimit(arm);
       } catch {
-        // Never imply a limit is on when iOS refused it (GAME_PLAN, "Reliability"): the old
-        // limits go back, since they're what iOS is still enforcing.
-        saveLimits(previous);
+        // Never imply a limit is on when iOS refused it (GAME_PLAN, "Reliability"): this one
+        // goes back to what iOS is still enforcing, on disk and on screen. Only this one: an
+        // edit to another limit may have landed meanwhile.
+        // In place, so the rows keep their order.
+        const reverted = before
+          ? getLimits().map((l) => (l.id === arm.id ? before : l))
+          : getLimits().filter((l) => l.id !== arm.id);
+        saveLimits(reverted);
+        setLimits(reverted);
         setLimitError("iOS wouldn't start that limit. Try again in a moment.");
         return;
       }
@@ -388,11 +403,13 @@ function LimitHeader({
   if (usedUp) parts.push('Used up today. Back at midnight.');
   // `from` is the next bedtime, or midnight with nothing armed (`looserEditsStart`): name it.
   const when = pending ? startsLabel(new Date(pending.from), new Date()) : '';
-  if (pending?.minutes === null) parts.push(`Ends ${when}.`);
-  else if (pending) parts.push(`Goes up to ${limitLabel(pending.minutes)} ${when}.`);
+  // Applied by the app (`settleLimitChanges`), so on the first open after then.
+  if (pending?.minutes === null) parts.push(`Ends ${when}, when you next open Locturne.`);
+  else if (pending) parts.push(`Goes up to ${limitLabel(pending.minutes)} ${when}, when you next open Locturne.`);
   let status: string | null = parts.length ? parts.join(' ') : null;
   if (appsChangeAt) {
-    const leave = `Removed apps leave at ${clock(appsChangeAt)}.`;
+    // The app applies a limit's removals (with iOS's count), so on the first open after that time.
+    const leave = `Removed apps leave after ${clock(appsChangeAt)}, when you next open Locturne.`;
     status = status ? `${status} ${leave}` : leave;
   }
 

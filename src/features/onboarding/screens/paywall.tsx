@@ -1,3 +1,7 @@
+'use no memo';
+// Rendered from onboarding-flow, which reads the App Group during render (the React Compiler
+// would cache those reads, #130): kept out with it, so nothing here is cached across them.
+
 import { SymbolView } from 'expo-symbols';
 import { Linking, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 

@@ -20,6 +20,17 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     // First, so a bedtime window shields the edited list, not the old one.
     settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
 
+    // A limit's day starting, maybe a few seconds before midnight (iOS can be early, as with
+    // the night windows): yesterday's mark goes now, or the re-apply below would read it as
+    // today's and put the apps back to sleep for the whole new day. An arm in the middle of
+    // the day keeps its mark: two minutes on is still the same day.
+    if activity.rawValue.hasPrefix(LOCTURNE_LIMIT_PREFIX),
+      !locturneLimitUsedUpToday(activity.rawValue, now: Date().addingTimeInterval(120))
+    {
+      userDefaults?.removeObject(forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(activity.rawValue)")
+      userDefaults?.removeObject(forKey: "\(LOCTURNE_LIMIT_REACHED_AT_PREFIX)\(activity.rawValue)")
+    }
+
     if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) {
       // No subscription: nothing locks (`standDown` in src/lib/screen-time.ts stops the windows;
       // this covers a callback iOS was already making), and nothing is held for `standUp`.
@@ -56,6 +67,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       eventName: nil
     )
 
+    // A limit's day starts: yesterday's "daily limit is used up" words go with it.
+    if activity.rawValue.hasPrefix(LOCTURNE_LIMIT_PREFIX) {
+      restoreLocturneFallbackShield(triggeredBy: "locturne_\(activity.rawValue)_newDay")
+    }
+
     persistToUserDefaults(
       activityName: activity.rawValue,
       callbackName: "intervalDidStart"
@@ -77,6 +93,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     if let night = getFamilyActivitySelectionById(id: "night") {
       unblockSelection(removeSelection: night, triggeredBy: triggeredBy)
     }
+    // An unproven morning's words ("prove it") would stay on the always list all night off.
+    restoreLocturneFallbackShield(triggeredBy: triggeredBy)
 
     persistToUserDefaults(
       activityName: activity,
@@ -122,6 +140,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     )
 
     showLocturneMorningShield(activity: activity.rawValue)
+
+    // The nap is over: its "Napping until 3 pm" words go too.
+    if activity.rawValue == LOCTURNE_NAP_ACTIVITY {
+      restoreLocturneFallbackShield(triggeredBy: "locturne_napEnded")
+    }
 
     persistToUserDefaults(
       activityName: activity.rawValue,
@@ -220,6 +243,13 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     if isLimit && !stale {
       userDefaults?.set(
         locturneDayKey(), forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(activity.rawValue)")
+      // And the moment, which says "today" across a flight (`locturneLimitUsedUpToday`).
+      userDefaults?.set(
+        (Date().timeIntervalSince1970 * 1000).rounded(),
+        forKey: "\(LOCTURNE_LIMIT_REACHED_AT_PREFIX)\(activity.rawValue)")
+      // Its words aren't put on its own list's config: iOS would rank that above the bedtime
+      // and nap words on apps in both lists. With the app closed it shows the fallback's (true,
+      // if less specific) until the app or a restore writes the limit's.
     }
 
     if !stale {
@@ -322,6 +352,26 @@ let LOCTURNE_NAP_KEY = "locturne.nap"
 let LOCTURNE_NIGHT_HELD_KEY = "locturne.nightHeld"
 let LOCTURNE_LIMITS_KEY = "locturne.limits"
 let LOCTURNE_LIMIT_REACHED_PREFIX = "locturne.limitReached."
+let LOCTURNE_LIMIT_REACHED_AT_PREFIX = "locturne.limitReachedAt."
+
+/// Was the limit used up today? By the moment it happened, against local midnight now: right
+/// across a flight either way, and still today's with the clock set back. A mark without the
+/// moment (an older build) goes by the day. Keep in step with `usedUpToday` in screen-time.ts.
+func locturneLimitUsedUpToday(_ id: String, now: Date = Date()) -> Bool {
+  if let at = (userDefaults?.object(forKey: "\(LOCTURNE_LIMIT_REACHED_AT_PREFIX)\(id)") as? NSNumber)?.doubleValue {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = .current
+    // At least the limit's minutes after midnight (the stale-threshold bound): only then can
+    // the whole allowance have been used today. A flight west can put it just after midnight.
+    let limits = userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]]
+    let minutes = (limits?.first(where: { $0["id"] as? String == id })?["minutes"] as? NSNumber)?.doubleValue ?? 0
+    // And not more than a day ahead: a mark from a clock set forward (then put back) would
+    // otherwise hold the apps for every real day until that moment comes round.
+    return at / 1000 >= calendar.startOfDay(for: now).timeIntervalSince1970 + minutes * 60
+      && at / 1000 < now.timeIntervalSince1970 + 26 * 60 * 60
+  }
+  return userDefaults?.string(forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(id)") == locturneDayKey(now)
+}
 let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
 let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
 let LOCTURNE_ROUTINE_KEY = "locturne.routine"
@@ -331,6 +381,11 @@ let LOCTURNE_SUBSCRIPTION_ENDED_KEY = "locturne.subscriptionEnded"
 let LOCTURNE_ENDED_MORNING_KEY = "locturne.subscriptionEndedMorning"
 /// The morning words and their tap, kept fresh by the app (`MORNING_SHIELD` in screen-time.ts).
 let LOCTURNE_MORNING_SHIELD = "locturne-morning"
+/// The always list's words, for the fallback shield (`ALWAYS_SHIELD` in screen-time.ts).
+let LOCTURNE_ALWAYS_SHIELD = "locturne-always"
+/// A used-up limit's words, restored to the fallback while one is used up today
+/// (`LIMIT_SHIELD` in screen-time.ts).
+let LOCTURNE_LIMIT_SHIELD = "locturne-limit"
 let LOCTURNE_HEARTBEAT_KEEP = 100
 
 /// Has less real time passed since midnight than the limit allows? Then its threshold can't be
@@ -473,12 +528,12 @@ func locturneSubscriptionLapsed(before evening: Date) -> Bool {
 
 /// The last night window ends at morning start. With the night still held, the bedtime apps
 /// now show the morning's words, whose button sends the notification that opens the wake-up
-/// screen, even if Locturne stayed closed all night. Only the words change: nothing is
-/// shielded here, so a night that was off or already unlocked is untouched.
+/// screen, even if Locturne stayed closed all night. Nothing is shielded here: a night that
+/// was off is untouched, and one with no bedtime picks left (an emergency pause, or a list
+/// emptied at bedtime) has its hold let go and the day's words put back.
 @available(iOS 15.0, *)
 func showLocturneMorningShield(activity: String, now: Date = Date()) {
   guard activity.hasPrefix(LOCTURNE_NIGHT_PREFIX),
-    userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true,
     let armed = userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY),
     let morningStart = (armed["morningStart"] as? NSNumber)?.intValue
   else { return }
@@ -487,9 +542,54 @@ func showLocturneMorningShield(activity: String, now: Date = Date()) {
   // iOS may call a little early or late; earlier windows end at least 15 minutes before.
   let sinceMorning = (minute - morningStart + 1440) % 1440
   guard sinceMorning <= 30 || sinceMorning >= 1440 - 5 else { return }
+  if getFamilyActivitySelectionById(id: "night") == nil {
+    // No bedtime picks (an emergency pause, or a list emptied at bedtime): nothing to prove.
+    // Let go of any hold the windows set on the empty list and put the day's words back, or
+    // the night's would stay all day. Held or not: an emergency after the last window starts
+    // leaves no hold, but the night words the app wrote then are still up.
+    userDefaults?.set(false, forKey: LOCTURNE_NIGHT_HELD_KEY)
+    restoreLocturneFallbackShield(triggeredBy: "locturne_\(activity)_pausedMorning")
+    return
+  }
+  guard userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true else { return }
   updateShield(
     shieldId: LOCTURNE_MORNING_SHIELD,
     triggeredBy: "locturne_\(activity)_morning",
+    activitySelectionId: "night"
+  )
+}
+
+/// The always list's words back on the app-wide fallback shield, which every app without a
+/// list's own config shows (the always list, a used-up limit). Only the app rewrites it
+/// otherwise, so a rule ending with Locturne closed would leave its words behind. The app
+/// keeps them fresh under `LOCTURNE_ALWAYS_SHIELD` (`setAlwaysShieldText` in screen-time.ts);
+/// before it has, there's nothing to restore and nothing changes.
+func restoreLocturneFallbackShield(triggeredBy: String) {
+  // A held night's words are on the fallback too (a window's `blockSelection` names its
+  // shield): a limit's midnight mid-night mustn't swap them out. A night off clears the hold first.
+  if userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true { return }
+  // A running nap's words live only on the fallback (its list has no config of its own):
+  // a limit's midnight or a night off mid-nap mustn't take them away.
+  if let nap = userDefaults?.dictionary(forKey: LOCTURNE_NAP_KEY),
+    let end = nap["end"] as? Double,
+    Date().timeIntervalSince1970 * 1000 < end
+  {
+    return
+  }
+  // A limit used up today ranks next (`shieldRule` in shield-copy.ts): its words, not the
+  // always list's. A limit's start isn't only midnight (arming one mid-day starts it too); at
+  // a real midnight every used-up mark is yesterday's, so the always words come back then.
+  let limitUsedUp =
+    (userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]])?.contains(where: { limit in
+      guard let id = limit["id"] as? String else { return false }
+      return locturneLimitUsedUpToday(id)
+    }) ?? false
+  // The bedtime list's own config too: an app on it that's also asleep for another rule
+  // reads that first, and it still holds the last words the app or a window put there. Safe:
+  // this never runs while the night is held, and the next bedtime window rewrites it.
+  updateShield(
+    shieldId: limitUsedUp ? LOCTURNE_LIMIT_SHIELD : LOCTURNE_ALWAYS_SHIELD,
+    triggeredBy: triggeredBy,
     activitySelectionId: "night"
   )
 }
@@ -513,11 +613,10 @@ func reapplyLocturneBlocks(triggeredBy: String) {
     held.append(list)
   }
 
-  let today = locturneDayKey()
   if let limits = userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]] {
     for limit in limits {
       if let id = limit["id"] as? String,
-        userDefaults?.string(forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(id)") == today
+        locturneLimitUsedUpToday(id)
       {
         held.append(id)
       }
@@ -551,6 +650,10 @@ func settleLocturneLists(triggeredBy: String) {
   var changed = false
 
   for (list, value) in pending {
+    // A daily limit's picks wait for the app (`settleLimitChanges`), which swaps them and
+    // re-arms iOS's count in one go. Swapped here, the list and what iOS counts would part:
+    // its threshold would measure apps the limit no longer holds, or be ignored.
+    if list.hasPrefix(LOCTURNE_LIMIT_PREFIX) { continue }
     guard let entry = value as? [String: Any],
       let from = (entry["from"] as? NSNumber)?.doubleValue,
       from <= now

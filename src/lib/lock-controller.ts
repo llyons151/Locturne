@@ -32,6 +32,8 @@ import {
   peekNap,
   reapplyStandingBlocks,
   selectionSize,
+  setAlwaysShieldText,
+  setLimitShieldText,
   setMorningShieldText,
   setNightShieldText,
   setShieldText,
@@ -52,7 +54,7 @@ function readDaytime(now: Date): DaytimeFacts {
   const today = dateKey(now);
   return {
     blockNow: nap ? { apps: [nap.list], end: new Date(nap.end) } : null,
-    limits: getLimits().map((limit) => ({ apps: [limit.id], reachedOn: limitUsedUpToday(limit.id) ? today : null })),
+    limits: getLimits().map((limit) => ({ apps: [limit.id], reachedOn: limitUsedUpToday(limit.id, now) ? today : null })),
   };
 }
 
@@ -307,4 +309,6 @@ function applyShieldText(state: LockState, now: Date): void {
   const next = pending ? { ...pending, method: methodInUse(pending.method) } : routine;
   setNightShieldText(shieldCopy('night', next));
   setMorningShieldText(shieldCopy('morning', next), shieldTap('morning'));
+  setAlwaysShieldText(shieldCopy('always', routine));
+  setLimitShieldText(shieldCopy('limit', routine));
 }

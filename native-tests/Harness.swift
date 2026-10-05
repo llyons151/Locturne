@@ -223,3 +223,29 @@ func shieldTitle(forList list: String) -> String? {
 func heartbeats() -> [[String: Any]] {
   (get(LOCTURNE_HEARTBEAT_KEY) as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
 }
+
+/// What the real ShieldConfiguration / ShieldAction lookup (library Shared.swift) shows on `app`.
+func shown(_ app: String) -> (title: String?, tap: Bool) {
+  let config = getActivitySelectionPrefixedConfigFromUserDefaults(
+    keyPrefix: SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX, fallbackKey: FALLBACK_SHIELD_CONFIGURATION_KEY,
+    applicationToken: Token(app))
+  let actions = getActivitySelectionPrefixedConfigFromUserDefaults(
+    keyPrefix: SHIELD_ACTIONS_FOR_SELECTION_PREFIX, fallbackKey: SHIELD_ACTIONS_KEY,
+    applicationToken: Token(app))
+  let primary = actions?["primary"] as? [String: Any]
+  return (config?["title"] as? String, (primary?["actions"] as? [Any])?.isEmpty == false)
+}
+
+/// `setShieldText` in screen-time.ts: fallback + the night list's config.
+func appSetShieldText(_ title: String) {
+  let primary: [String: Any] = ["behavior": "close"]
+  for k in [FALLBACK_SHIELD_CONFIGURATION_KEY, "\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_night"] { set(k, ["title": title]) }
+  for k in [SHIELD_ACTIONS_KEY, "\(SHIELD_ACTIONS_FOR_SELECTION_PREFIX)_night"] { set(k, ["primary": primary]) }
+}
+
+func appWritesNamed() {
+  shieldWords("locturne-always", title: "Always words")
+  shieldWords("locturne-night", title: "Bedtime words")
+  shieldWords("locturne-morning", title: "Morning words", tap: ["title": "Up already?"])
+  shieldWords("locturne-limit", title: "That’s today’s lot.")
+}

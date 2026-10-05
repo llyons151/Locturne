@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -13,6 +18,7 @@ import { readLock } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, spendPass, type PassRefusal } from '@/lib/passes';
 import { getScanCode } from '@/lib/scan';
+import { peekNap } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -103,6 +109,7 @@ export function ExitsScreen() {
     return () => clearTimeout(id);
   }, [stage.kind, wait]);
 
+  const [endsNap, setEndsNap] = useState(false);
   const begin = (exit: Exit) => {
     if (exit === 'pass') {
       const refusal = getPassRefusal();
@@ -114,6 +121,8 @@ export function ExitsScreen() {
       });
     }
     refresh();
+    // A pass ends a running Block now too (`spendPass`): say so, as the emergency wording does.
+    setEndsNap(peekNap() !== null);
     setWait(EMERGENCY_WAIT_SECONDS);
     setStage({ kind: 'wait', exit });
   };
@@ -163,12 +172,18 @@ export function ExitsScreen() {
   const words = (() => {
     if (stage.kind === 'wait') {
       return stage.exit === 'pass'
-        ? { line: 'A pass. Sure.', body: `It wakes your apps until bedtime, no walking. You have ${passesLabel(left)} this month.` }
+        ? {
+            line: 'A pass. Sure.',
+            body: `It wakes your apps until bedtime, no walking.${endsNap ? ' Your Block now session ends.' : ''} You have ${passesLabel(left)} this month.`,
+          }
         : { line: 'Is it an emergency.', body: plan ? describe(plan) : '' };
     }
     if (stage.kind === 'done') {
       return stage.exit === 'pass'
-        ? { line: 'Fine. *Fine.*', body: `Your apps are awake until bedtime. ${passesLabel(left)} left this month.` }
+        ? {
+            line: 'Fine. *Fine.*',
+            body: `Your apps are awake until bedtime.${endsNap ? ' Your Block now session ended.' : ''} ${passesLabel(left)} left this month.`,
+          }
         : { line: "I'll allow it. This once. Maybe.", body: plan ? describe(plan) : '' };
     }
     // Only the ways out that exist: no pass with none left, no scan without a code.

@@ -7,6 +7,235 @@ func registerTests() {
 
   // MARK: Bedtime
 
+  test("a limit's picks wait for the app: the extension doesn't swap them at bedtime") {
+    pick("limit-0", ["instagram", "tiktok"]) // live: the union while TikTok's removal waits
+    pick("limit-0-next", ["instagram"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    set(LOCTURNE_PENDING_LISTS_KEY, ["limit-0": ["from": ms(local("2026-10-05 23:00"))]])
+    at("2026-10-06 00:00")
+    start("limit-0") // the limit's own start settles lists too
+    expectEqual(picks("limit-0"), Set(["instagram", "tiktok"]), "still the union iOS counts")
+    at("2026-10-06 14:00")
+    threshold("limit-0")
+    expectEqual(shielded(), ["instagram", "tiktok"], "a real threshold on what iOS counts holds")
+  }
+
+  test("the used-up moment decides today: a mark from a clock set days forward doesn't hold the apps") {
+    pick("limit-0", ["youtube"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    at("2026-10-05 15:00")
+    threshold("limit-0")
+    expectEqual(shielded(), ["youtube"], "used up today: asleep")
+    // Back to normal time, but the mark says three days ahead (a clock set forward, then back).
+    set("\(LOCTURNE_LIMIT_REACHED_AT_PREFIX)limit-0", ms(local("2026-10-08 15:00")))
+    set("\(LOCTURNE_LIMIT_REACHED_PREFIX)limit-0", "2026-10-08")
+    at("2026-10-06 00:00")
+    start("limit-0")
+    expectEqual(shielded(), [], "not today's: awake")
+  }
+
+  test("a limit's day starting a few seconds before midnight still wakes yesterday's used-up apps") {
+    pick("limit-0", ["youtube"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    at("2026-10-05 22:00")
+    threshold("limit-0")
+    expectEqual(shielded(), ["youtube"])
+    harnessClock = local("2026-10-06 00:00").addingTimeInterval(-3)
+    start("limit-0")
+    at("2026-10-06 09:00")
+    expectEqual(shielded(), [], "awake on the new day")
+  }
+
+  test("an emergency after the last window starts: the next day shows the day's words too") {
+    pick("night", ["tiktok"]); pick("always", ["reddit"])
+    saveRoutine(routine()); armNight(); appWritesNamed()
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-06 01:40"); start("night-1")
+    at("2026-10-06 04:20"); start("night-2")
+    at("2026-10-06 05:00") // no window starts after this to set the hold again
+    pick("night-next", ["tiktok"]); appUnshields("night"); removeFamilyActivitySelectionById(id: "night")
+    set(LOCTURNE_PENDING_LISTS_KEY, ["night": ["from": ms(local("2026-10-06 23:00"))]])
+    set(LOCTURNE_NIGHT_HELD_KEY, false)
+    appSetShieldText("Shh. I’m sleeping.")
+    at("2026-10-06 07:00"); end("night-2")
+    at("2026-10-06 12:00")
+    expectEqual(shown("reddit").title, "Always words", "the always app the next day")
+  }
+
+  test("after an emergency-paused night, the next day shows the day's words, not the night's") {
+    pick("night", ["tiktok"]); pick("always", ["reddit"])
+    saveRoutine(routine()); armNight(); appWritesNamed()
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-05 23:30")
+    pick("night-next", ["tiktok"]); appUnshields("night"); removeFamilyActivitySelectionById(id: "night")
+    set(LOCTURNE_PENDING_LISTS_KEY, ["night": ["from": ms(local("2026-10-06 23:00"))]])
+    set(LOCTURNE_NIGHT_HELD_KEY, false)
+    appSetShieldText("Shh. I’m sleeping.") // the phase is still night after the emergency
+    at("2026-10-06 01:40"); start("night-1")
+    at("2026-10-06 04:20"); start("night-2")
+    at("2026-10-06 07:00"); end("night-2")
+    at("2026-10-06 12:00")
+    expectEqual(shown("reddit").title, "Always words", "the always app the next day")
+    expect(!nightHeld(), "the hold the paused windows set is let go")
+  }
+
+  test("a nap ending with the app closed: an always app also on the bedtime list loses the nap's words") {
+    pick("night", ["insta"]); pick("always", ["insta", "reddit"]); pick("block", ["youtube"])
+    saveRoutine(routine()); armNight(); appWritesNamed()
+    at("2026-10-05 14:00")
+    startNap(list: "block", minutes: 60); appShields("block"); appShields("always")
+    appSetShieldText("Tucked in. Napping until 3 pm.")   // syncLock, then app closed
+    at("2026-10-05 15:00"); end(LOCTURNE_NAP_ACTIVITY)
+    expectEqual(shown("reddit").title, "Always words", "always-only app")
+    expect(shielded().contains("insta"), "insta still asleep (always)")
+    expectEqual(shown("insta").title, "Always words", "always+night app after the nap")
+  }
+
+  test("an unproven morning then a night off: an always app also on the bedtime list loses 'prove it' and its tap") {
+    pick("night", ["insta"]); pick("always", ["insta", "reddit"])
+    saveRoutine(routine(nights: [1])); armNight(); appWritesNamed()   // Monday night on, Tuesday off
+    appSetShieldText("Always words")
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-06 07:00"); end("night-2")
+    expectEqual(shown("insta").title, "Morning words", "morning, unproven")
+    at("2026-10-06 23:00"); start("night-0")   // Tuesday: off
+    expect(!nightHeld(), "night released")
+    expectEqual(shown("reddit").title, "Always words", "always-only app")
+    expect(shielded().contains("insta"), "insta still asleep (always)")
+    let s = shown("insta")
+    expectEqual(s.title, "Always words", "always+night app on the night off")
+    expect(!s.tap, "and no 'prove it' tap")
+  }
+
+  test("a nap ending on a day a limit is used up shows the limit's words, not the nap's") {
+    pick("block", ["youtube"])
+    pick("limit-0", ["tiktok"])
+    pick("always", ["reddit"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    shieldWords("locturne-always", title: "Always words")
+    shieldWords("locturne-limit", title: "Limit words")
+    at("2026-10-06 10:00")
+    threshold("limit-0")
+    at("2026-10-06 13:00")
+    startNap(list: "block", minutes: 60)
+    appShields("block")
+    set(FALLBACK_SHIELD_CONFIGURATION_KEY, ["title": "Tucked in. Do not perceive me."])
+    at("2026-10-06 14:00")
+    end(LOCTURNE_NAP_ACTIVITY)
+    expectEqual(shieldTitle(forList: "always"), "Limit words", "the nap is over; the limit is still used up")
+  }
+
+  test("a limit's day starts at midnight: yesterday's used-up words go") {
+    pick("limit-0", ["tiktok"])
+    pick("always", ["reddit"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    shieldWords("locturne-always", title: "Always words")
+    at("2026-10-06 10:00")
+    threshold("limit-0")
+    set(FALLBACK_SHIELD_CONFIGURATION_KEY, ["title": "That’s today’s lot."])
+    at("2026-10-07 00:00")
+    start("limit-0")
+    expectEqual(shieldTitle(forList: "always"), "Always words", "a new day")
+  }
+
+  test("a limit armed mid-day doesn't take another used-up limit's words") {
+    pick("limit-0", ["tiktok"])
+    pick("limit-1", ["youtube"])
+    pick("always", ["reddit"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30], ["id": "limit-1", "minutes": 30]])
+    armLimit("limit-0")
+    armLimit("limit-1")
+    shieldWords("locturne-always", title: "Always words")
+    shieldWords("locturne-limit", title: "Limit words")
+    at("2026-10-06 10:00")
+    threshold("limit-1")
+    set(FALLBACK_SHIELD_CONFIGURATION_KEY, ["title": "That’s today’s lot."])
+    at("2026-10-06 14:00")
+    start("limit-0") // iOS starts a limit registered while its day is open
+    expectEqual(shieldTitle(forList: "always"), "Limit words", "limit-1 is still used up today")
+  }
+
+  test("a limit's midnight during a running nap leaves the nap's words") {
+    pick("block", ["youtube"])
+    pick("always", ["reddit"])
+    pick("limit-0", ["tiktok"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    shieldWords("locturne-always", title: "Always words")
+    at("2026-10-06 23:30")
+    startNap(list: "block", minutes: 60)
+    appShields("block")
+    set(FALLBACK_SHIELD_CONFIGURATION_KEY, ["title": "Tucked in. Do not perceive me."])
+    at("2026-10-07 00:00")
+    start("limit-0")
+    expectEqual(shieldTitle(forList: "block"), "Tucked in. Do not perceive me.", "the nap is still on")
+    at("2026-10-07 00:30")
+    end(LOCTURNE_NAP_ACTIVITY)
+    expectEqual(shieldTitle(forList: "always"), "Always words", "and its words go when it ends")
+  }
+
+  test("an emergency-paused night: no morning words at morning start, that morning is already unlocked") {
+    pick("night", ["tiktok"])
+    pick("always", ["reddit"])
+    saveRoutine(routine())
+    armNight()
+    shieldWords("locturne-night", title: "Bedtime words")
+    shieldWords("locturne-morning", title: "Morning words", tap: ["title": "Up already?", "body": "Tap here and prove it."])
+    at("2026-10-05 23:00")
+    start("night-0")
+    // 00:30, the emergency unlock (`pauseNightUntil`): the picks wait in the draft until bedtime.
+    at("2026-10-06 00:30")
+    pick("night-next", ["tiktok"])
+    appUnshields("night")
+    removeFamilyActivitySelectionById(id: "night")
+    set(LOCTURNE_PENDING_LISTS_KEY, ["night": ["from": ms(local("2026-10-06 23:00"))]])
+    set(LOCTURNE_NIGHT_HELD_KEY, false)
+    at("2026-10-06 01:40")
+    start("night-1")
+    at("2026-10-06 04:20")
+    start("night-2")
+    at("2026-10-06 07:00")
+    end("night-2")
+    expectEqual(shieldTitle(forList: "always") == "Morning words", false, "an unlocked morning shows no morning words")
+  }
+
+  test("a Block now ending with the app closed takes its words off the always list") {
+    pick("night", ["tiktok"])
+    pick("block", ["youtube"])
+    pick("always", ["reddit"])
+    saveRoutine(routine())
+    armNight()
+    shieldWords("locturne-always", title: "Always words")
+    at("2026-10-06 14:00")
+    startNap(list: "block", minutes: 60)
+    appShields("block")
+    set(FALLBACK_SHIELD_CONFIGURATION_KEY, ["title": "Tucked in. Do not perceive me.", "subtitle": "Napping until 3 pm."])
+    at("2026-10-06 15:00")
+    end(LOCTURNE_NAP_ACTIVITY)
+    expectEqual(shieldTitle(forList: "always"), "Always words", "the nap is over")
+  }
+
+  test("a night off after an unproven morning takes the morning words off the always list") {
+    pick("night", ["tiktok"])
+    pick("always", ["reddit"])
+    saveRoutine(routine(nights: [0, 1, 3, 4, 5, 6])) // Tuesday evening off
+    armNight()
+    shieldWords("locturne-night", title: "Bedtime words")
+    shieldWords("locturne-morning", title: "Morning words", tap: ["title": "Up already?", "body": "x"])
+    shieldWords("locturne-always", title: "Always words")
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-06 01:40"); start("night-1")
+    at("2026-10-06 04:20"); start("night-2")
+    at("2026-10-06 07:00"); end("night-2")
+    at("2026-10-06 23:00"); start("night-0")
+    expectEqual(shieldTitle(forList: "always"), "Always words", "a night off: no morning to prove")
+  }
+
   test("a limit threshold from yesterday, delivered just after midnight, is ignored") {
     pick("limit-0", ["youtube"])
     set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])

@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -10,7 +15,7 @@ import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
 import { getRoutine } from '@/lib/routine';
 import {
-  generateQrData,
+  draftQrData,
   getScanCode,
   getScanEditRefusal,
   QR_PREFIX,
@@ -63,7 +68,8 @@ function firstStage(mode: ScanMode | undefined): Stage {
   const phase = readLock().phase;
   const code = getScanCode();
   if (mode === 'morning' || (!mode && phase === 'morning' && code)) {
-    if (!code) return { kind: 'noCode' };
+    // No code: from bed it can't be set up ("your usual way still works"); in the day it can.
+    if (!code) return phase === 'night' || phase === 'morning' ? { kind: 'noCode' } : { kind: 'choose', source: 'qr' };
     return notMorning(phase) ?? { kind: 'morning' };
   }
   if (getScanEditRefusal()) return { kind: 'asleep' };
@@ -131,7 +137,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
   // Keep showing the code they already printed rather than a new one each visit.
   const [qr] = useState(() => {
     const code = getScanCode();
-    return code?.kind === 'qr' ? code.data : generateQrData();
+    return code?.kind === 'qr' ? code.data : draftQrData();
   });
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -191,6 +197,17 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
               stage.kind === 'morning' ? onMorningScan : onRegisterScan(stage.source, stage.expect)
             }
           />
+        ) : null}
+
+        {/* Every morning offers walking instead (GAME_PLAN): the camera off, the printout lost. */}
+        {stage.kind === 'morning' ? (
+          <>
+            <TextButton
+              label={`Walk ${getRoutine().stepGoal} steps instead`}
+              onPress={() => router.replace({ pathname: '/wake', params: { method: 'steps' } })}
+            />
+            <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />
+          </>
         ) : null}
 
         {stage.kind === 'choose' ? (

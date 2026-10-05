@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -86,10 +91,11 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   else if (lock.phase !== 'morning') content = <NotMorning state={lock} onClose={close} />;
   else {
     const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
-    // Only with a code to scan; pushed, so Back returns here.
+    // Only with a code to scan. Replaced, like the scan screen's "Walk instead", so switching
+    // between the two doesn't stack screens.
     const scan =
       routine.method === 'scan' && getScanCode() ? (
-        <TextButton label="Scan your code instead" onPress={() => router.push('/scan?mode=morning')} />
+        <TextButton label="Scan your code instead" onPress={() => router.replace('/scan?mode=morning')} />
       ) : null;
     // Steps can't be counted here at all: passes, the scan code and the emergency unlock.
     const stuck = <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />;

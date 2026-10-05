@@ -1,5 +1,4 @@
-import { Redirect } from 'expo-router';
-
+import { LeaveRoute } from '@/components/leave-route';
 import { ScreenTimeLab } from '@/features/dev/screen-time-lab/screen-time-lab';
 
 /**
@@ -10,6 +9,6 @@ import { ScreenTimeLab } from '@/features/dev/screen-time-lab/screen-time-lab';
  * it goes home instead.
  */
 export default function ScreenTimeLabScreen() {
-  if (!__DEV__ && process.env.EXPO_PUBLIC_DEV_LABS !== '1') return <Redirect href="/" />;
+  if (!__DEV__ && process.env.EXPO_PUBLIC_DEV_LABS !== '1') return <LeaveRoute />;
   return <ScreenTimeLab />;
 }

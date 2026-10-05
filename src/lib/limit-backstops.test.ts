@@ -48,6 +48,77 @@ test("today's used-up limit stays asleep", async () => {
   assert.ok(st.limitUsedUpToday('limit-0'));
 });
 
+test('setting the clock back is no way out: the real moment is after the false midnight', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  // Used up at the real time, then the clock set back most of a day.
+  const now = new Date();
+  const later = new Date(now.getTime() + 20 * 3600_000);
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(later);
+  fake.state.store['locturne.limitReachedAt.limit-0'] = later.getTime();
+  await st.settleLimitChanges(now);
+  assert.ok(!fake.shielded('unblockSelection').includes('limit-0'));
+  assert.ok(st.limitUsedUpToday('limit-0', now));
+});
+
+test('a flight that moves midnight past the moment it was used up lifts it, whatever the dates say', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Used up in Tokyo on what is "tomorrow" by its date, but before midnight here.
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(new Date(midnight.getTime() + 36 * 3600_000));
+  fake.state.store['locturne.limitReachedAt.limit-0'] = midnight.getTime() - 60_000;
+  await st.settleLimitChanges(now);
+  assert.ok(fake.shielded('unblockSelection').includes('limit-0'));
+  assert.equal(fake.state.store['locturne.limitReached.limit-0'], undefined);
+  assert.equal(fake.state.store['locturne.limitReachedAt.limit-0'], undefined);
+});
+
+test('a mark too soon after midnight for the allowance to fit is not today\'s (a flight west)', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(now);
+  fake.state.store['locturne.limitReachedAt.limit-0'] = midnight.getTime() + 10 * 60_000;
+  assert.equal(st.limitUsedUpToday('limit-0', new Date(midnight.getTime() + 12 * 3600_000)), false);
+  fake.state.store['locturne.limitReachedAt.limit-0'] = midnight.getTime() + 40 * 60_000;
+  assert.equal(st.limitUsedUpToday('limit-0', new Date(midnight.getTime() + 12 * 3600_000)), true);
+});
+
+test('a mark from a clock set days forward, then back, does not hold the limit for those days', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  const now = new Date();
+  const ahead = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3, 12);
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(ahead);
+  fake.state.store['locturne.limitReachedAt.limit-0'] = ahead.getTime();
+  assert.equal(st.limitUsedUpToday('limit-0', now), false);
+});
+
+test('picks swapped at bedtime: a mark earned on the old picks goes with the re-arm', async () => {
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+  fake.ids()['limit-0'] = 'picks-tiktok'; // Instagram removed; an older build's extension swapped it in at bedtime
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  fake.state.store['locturne.limitArmedPicks.limit-0'] = 'picks-tiktok-instagram'; // what iOS counted
+  const at = new Date(now);
+  at.setHours(11); // 30 minutes of Instagram tripped the old monitoring
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(at);
+  fake.state.store['locturne.limitReachedAt.limit-0'] = at.getTime();
+  await st.settleLimitChanges(now);
+  assert.equal(fake.state.store['locturne.limitArmedPicks.limit-0'], 'picks-tiktok');
+  assert.equal(st.limitUsedUpToday('limit-0', now), false);
+  assert.ok(fake.shielded('unblockSelection').includes('limit-0'));
+});
+
+test('an emergency unlock leaves a limit\'s waiting removal to the app, which re-arms with it', () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  fake.ids()['limit-0'] = 'picks-tiktok-instagram'; // the union iOS counts
+  fake.ids()['limit-0-next'] = 'picks-tiktok';
+  fake.state.store['locturne.pendingLists'] = { 'limit-0': { from: Date.now() - 60_000 } };
+  st.pauseNightUntil(new Date(Date.now() + 12 * 3600_000));
+  assert.equal(fake.ids()['limit-0'], 'picks-tiktok-instagram');
+  assert.ok((fake.state.store['locturne.pendingLists'] as Record<string, unknown>)['limit-0']);
+});
+
 test('a looser limit iOS refuses stays pending, and the next open retries it', async () => {
   const pending = { minutes: 60, from: Date.now() - 1000 };
   st.saveLimits([{ id: 'limit-0', minutes: 30, pending }]);

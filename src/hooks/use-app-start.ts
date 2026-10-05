@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
@@ -83,9 +83,13 @@ function followTrial(): void {
  *   button can't open the app; its notification can).
  */
 export function useAppStart(): void {
+  // Read once, at launch: where a cold deep link put the app.
+  const pathname = usePathname();
   useEffect(() => {
     if (!hasRoutine()) {
-      router.push('/onboarding');
+      // Not when a link already opened it (`/onboarding?…` on a fresh install): a second copy
+      // would be pushed on top, and finishing one would land on the other.
+      if (pathname !== '/onboarding') router.push('/onboarding');
       armIfPaid();
       return;
     }
@@ -93,6 +97,7 @@ export function useAppStart(): void {
       .then((ask) => (ask ? askForNotifications() : false))
       .catch(() => {});
     armIfPaid();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per launch, where it started
   }, []);
 
   useEffect(() => onEntitled(armIfPaid), []);

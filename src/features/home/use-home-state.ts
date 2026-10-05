@@ -16,6 +16,9 @@ export type HomeData = {
 };
 
 export function useHomeState(): HomeData {
+  // The React Compiler would cache `getRoutine()` (no reactive inputs) from the first render:
+  // Home mounts under onboarding, before a routine exists, and kept showing the default.
+  'use no memo';
   const lock = useLock();
   return { lock, routine: getRoutine(), proof: getProof(lock.morningKey) };
 }

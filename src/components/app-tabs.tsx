@@ -1,3 +1,7 @@
+'use no memo';
+// Reads the navigation state during render (`navigation.getState()`), which changes outside its
+// props. The React Compiler could cache that read, so it stays out here, like the screens (#130).
+
 import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';

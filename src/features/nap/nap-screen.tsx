@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { SymbolView } from 'expo-symbols';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -11,7 +16,7 @@ import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { Segmented } from '@/components/segmented';
 import * as haptic from '@/lib/haptics';
-import { syncLock } from '@/lib/lock-controller';
+import { onLockChange, syncLock } from '@/lib/lock-controller';
 import {
   endNap,
   getAccess,
@@ -21,6 +26,7 @@ import {
   isScreenTimeAvailable,
   isStoodDown,
   NapClockChangeError,
+  peekNap,
   selectionSize,
   shownSelection,
   startNap,
@@ -121,6 +127,9 @@ export function NapScreen() {
   const [focused, setFocused] = useState(false);
   // Turning the phone on its side mid-nap shows the moon clock. Only listens while it could.
   const side = useSideways(nap !== null && focused);
+
+  // A stand-down (a lapse found on return) or a pass ends the nap while this tab is open.
+  useEffect(() => onLockChange(() => isScreenTimeAvailable() && setNap(peekNap())), []);
 
   // Pick up a nap started earlier (or one iOS already ended) whenever the tab comes back.
   useFocusEffect(

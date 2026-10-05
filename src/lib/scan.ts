@@ -17,7 +17,7 @@
 import { readLock, syncLock } from './lock-controller.ts';
 import { recordProof } from './morning-proof.ts';
 import { getScanCode, SCAN_CODE_KEY, type ScanCode } from './scan-code.ts';
-import { sharedSet } from './screen-time.ts';
+import { sharedGet, sharedRemove, sharedSet } from './screen-time.ts';
 
 export type { ScanCode } from './scan-code.ts';
 
@@ -68,6 +68,20 @@ export function editRefusal(phase: string): 'asleep' | null {
 
 export { getScanCode };
 
+const QR_DRAFT_KEY = 'locturne.scanQrDraft';
+
+/**
+ * The QR to print before one is registered: the same one until it is. A fresh one per visit
+ * would refuse the printout of the last (printed on another device, then the screen closed).
+ */
+export function draftQrData(): string {
+  const saved = sharedGet<string>(QR_DRAFT_KEY);
+  if (saved) return saved;
+  const data = generateQrData();
+  sharedSet(QR_DRAFT_KEY, data);
+  return data;
+}
+
 /** Can the code be set or changed right now? */
 export function getScanEditRefusal(now = new Date()): 'asleep' | null {
   return editRefusal(readLock(now).phase);
@@ -82,6 +96,8 @@ export function registerScanCode(
   if (refusal) return refusal;
   if (!registrable(code.data)) return 'unusable';
   sharedSet(SCAN_CODE_KEY, { ...code, data: code.data.trim(), registeredAt: now.getTime() });
+  // A barcode keeps the QR printout for a later switch back.
+  if (code.kind === 'qr') sharedRemove(QR_DRAFT_KEY);
   // Tonight's shield said "walk" while there was no code; it now says "scan".
   syncLock(now);
   return null;

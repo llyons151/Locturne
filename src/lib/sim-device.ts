@@ -240,6 +240,8 @@ export function simDevice() {
     const t = now() + 120_000;
     let changed = false;
     for (const [list, entry] of Object.entries(pending)) {
+      // A daily limit's picks wait for the app (`settleLocturneLists`).
+      if (list.startsWith(LIMIT_PREFIX)) continue;
       if (!(entry.from <= t)) continue;
       const next = ids()[`${list}-next`];
       if (next !== undefined || entry.empty === true) {

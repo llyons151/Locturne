@@ -100,3 +100,14 @@ test('Block now in spring, across the hour that is skipped, is allowed', { skip:
   }
   assert.ok(fake.state.activities.includes('locturne-nap'));
 });
+
+test('a limit iOS refuses keeps the record of the picks it still counts', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  fake.state.store['locturne.limitArmedPicks.limit-0'] = 'the picks iOS counts';
+  refuse = true;
+  await assert.rejects(st.armLimit({ id: 'limit-0', minutes: 30 }));
+  refuse = false;
+  assert.equal(fake.state.store['locturne.limitArmedPicks.limit-0'], 'the picks iOS counts');
+  await st.armLimit({ id: 'limit-0', minutes: 30 });
+  assert.equal(fake.state.store['locturne.limitArmedPicks.limit-0'], 'limit-picks');
+});

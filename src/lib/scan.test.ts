@@ -80,3 +80,11 @@ test('morning: only the registered code unlocks, and only after morning start', 
   assert.equal(scan.submitScan(CODE.data, at(10, 6, 8)), 'unlocked');
   assert.equal(getProof('2026-10-06')?.kind, 'scan');
 });
+
+test('the QR to print stays the same until one is registered, then a new one is drawn', () => {
+  const first = scan.draftQrData();
+  assert.equal(scan.draftQrData(), first, 'a second visit shows the printout already made');
+  recordProof({ morningKey: '2026-10-05', kind: 'steps', at: at(10, 5, 7, 30).getTime() });
+  assert.equal(scan.registerScanCode({ kind: 'qr', data: first, type: 'qr' }, at(10, 5, 14)), null);
+  assert.notEqual(scan.draftQrData(), first);
+});

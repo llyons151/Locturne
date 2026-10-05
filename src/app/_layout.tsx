@@ -14,6 +14,13 @@ startPurchases();
 // PostHog, or nothing without a key. After purchases: it links the two (analytics-start.ts).
 startAnalytics();
 
+/**
+ * The tabs always sit under a deep-linked screen (`locturne://wake` from a Shortcut, say):
+ * they run `useAppStart`, which settles the subscription. Without them a lapsed subscriber
+ * opening only that way would never be stood down.
+ */
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 // Locturne is dark in both system appearances: the night sky never turns light.
 export default function RootLayout() {
   useStandingBlocks();

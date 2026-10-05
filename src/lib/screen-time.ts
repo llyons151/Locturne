@@ -272,6 +272,13 @@ const ACTIONS_FOR_LIST = 'shieldActionsForSelection_';
 export const NIGHT_SHIELD = 'locturne-night';
 /** The morning shield, copied onto the bedtime list by the extension when the last window ends. */
 export const MORNING_SHIELD = 'locturne-morning';
+/**
+ * The always list's words, put back on the app-wide fallback by the extension when a rule
+ * ends with the app closed (a nap, a limit's day, a night off), so its words don't linger.
+ */
+export const ALWAYS_SHIELD = 'locturne-always';
+/** A used-up limit's words, restored by the extension instead while one is used up today. */
+export const LIMIT_SHIELD = 'locturne-limit';
 
 function shieldConfig({ title, subtitle, button }: ShieldText) {
   return {
@@ -323,6 +330,18 @@ export function setShieldText(text: ShieldText, tap: ShieldTap = null) {
 export function setNightShieldText(text: ShieldText) {
   if (!isAvailable()) return;
   updateShieldWithId(shieldConfig(text), shieldActions(null), NIGHT_SHIELD);
+}
+
+/** The always list's words, kept for the extension (`ALWAYS_SHIELD`). */
+export function setAlwaysShieldText(text: ShieldText) {
+  if (!isAvailable()) return;
+  updateShieldWithId(shieldConfig(text), shieldActions(null), ALWAYS_SHIELD);
+}
+
+/** A used-up limit's words, kept for the extension (`LIMIT_SHIELD`). */
+export function setLimitShieldText(text: ShieldText) {
+  if (!isAvailable()) return;
+  updateShieldWithId(shieldConfig(text), shieldActions(null), LIMIT_SHIELD);
 }
 
 /**
@@ -437,7 +456,7 @@ function stopLimits(): void {
   for (const limit of getLimits()) {
     stopMonitoring([limit.id]);
     cleanUpAfterActivity(limit.id);
-    userDefaultsRemove(usedUpKey(limit.id));
+    forgetUsedUp(limit.id);
     unshield(limit.id);
   }
 }
@@ -457,10 +476,10 @@ export async function standUp(): Promise<void> {
   try {
     for (const limit of getLimits()) await armLimit(limit);
     sharedRemove(LIMITS_UNARMED_KEY);
-    // Stood down again while iOS was registering: a limit that landed anyway would shield
-    // (the extension doesn't check), so take them back off.
-    if (isStoodDown()) stopLimits();
   } finally {
+    // Stood down again while iOS was registering: a limit that landed anyway would shield
+    // (the extension doesn't check), so take them back off, even if a later one failed.
+    if (isStoodDown()) stopLimits();
     reapplyStandingBlocks();
   }
 }
@@ -601,7 +620,8 @@ export function getNap(): ActiveNap | null {
  * tightens things. If any were removed, the live list keeps them until bedtime, when the
  * draft replaces it: here when the app next opens (`settleListChanges`), or in the monitor
  * extension's first window after bedtime (`settleLocturneLists` in
- * DeviceActivityMonitorExtension.swift), whichever comes first. Keep the two in step.
+ * DeviceActivityMonitorExtension.swift), whichever comes first. Keep the two in step. A daily
+ * limit's list waits for the app, which re-arms iOS's count with it (`settleLimitChanges`).
  */
 
 const PENDING_LISTS_KEY = 'locturne.pendingLists';
@@ -692,9 +712,11 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
  * Swaps in every draft whose bedtime has passed, and returns which lists changed. The old
  * picks are unshielded first, so removed apps really wake; re-shield and re-arm limits after.
  */
-export function settleListChanges(now = new Date()): StandingList[] {
+export function settleListChanges(now = new Date(), { limits = true } = {}): StandingList[] {
   const settled: StandingList[] = [];
   for (const list of Object.keys(getPendingLists()) as StandingList[]) {
+    // A daily limit's picks swap only with its re-arm (`settleLimitChanges`).
+    if (!limits && list.startsWith('limit-')) continue;
     // Read again for each list: the monitor extension may have settled it a moment ago.
     const pending = getPendingLists()[list];
     if (!pending || pending.from > now.getTime()) continue;
@@ -727,6 +749,38 @@ const LIMITS_KEY = 'locturne.limits';
 const LIMIT_EVENT = 'used-up';
 /** Written by the monitor extension when a limit is used up: the day, as YYYY-MM-DD. */
 const usedUpKey = (id: LimitId) => `locturne.limitReached.${id}`;
+/** How far ahead of now a used-up moment still counts as today's (a clock set back a day). */
+const USED_UP_AHEAD_MS = 26 * 60 * 60 * 1000;
+/** When it was used up (ms), written by the extension with the day. */
+const usedUpAtKey = (id: LimitId) => `locturne.limitReachedAt.${id}`;
+
+/** Forgets a limit's used-up mark: the day and the moment. */
+function forgetUsedUp(id: LimitId): void {
+  userDefaultsRemove(usedUpKey(id));
+  userDefaultsRemove(usedUpAtKey(id));
+}
+
+/**
+ * Was the limit used up today? By the moment it happened, against local midnight now: right
+ * across a flight either way (a day counted in Tokyo isn't LA's), and still today's with the
+ * clock set back (the real moment is after the false midnight). A mark from an older
+ * extension has only the day: then the day decides.
+ */
+function usedUpToday(id: LimitId, now: Date): boolean {
+  const at = sharedGet<number>(usedUpAtKey(id));
+  if (typeof at === 'number') {
+    // At least `minutes` after midnight (#82's bound): only then can the whole allowance have
+    // been used today. A flight west can put the moment just after the new midnight.
+    const minutes = getLimits().find((l) => l.id === id)?.minutes ?? 0;
+    // And not more than a day ahead: a mark from a clock set forward (then put back) would
+    // otherwise hold the apps for every real day until that moment comes round.
+    return (
+      at >= new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() + minutes * 60_000 &&
+      at < now.getTime() + USED_UP_AHEAD_MS
+    );
+  }
+  return sharedGet<string>(usedUpKey(id)) === dateKey(now);
+}
 
 export function getLimits(): DailyLimit[] {
   const limits = sharedGet<DailyLimit[]>(LIMITS_KEY) ?? [];
@@ -738,8 +792,8 @@ export function saveLimits(limits: DailyLimit[]): void {
   userDefaultsSet(LIMITS_KEY, toPlist(limits));
 }
 
-export function limitUsedUpToday(id: LimitId): boolean {
-  return sharedGet<string>(usedUpKey(id)) === dateKey(new Date());
+export function limitUsedUpToday(id: LimitId, now = new Date()): boolean {
+  return sharedGet<string>(usedUpKey(id)) !== undefined && usedUpToday(id, now);
 }
 
 /**
@@ -754,7 +808,7 @@ export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promi
   // Without a subscription the limit is only saved; `standUp` arms it.
   if (!selection || isStoodDown()) return;
   // A looser limit starts again from what's been used today, so forget today's used-up mark.
-  if (fresh) userDefaultsRemove(usedUpKey(limit.id));
+  if (fresh) forgetUsedUp(limit.id);
   configureActions({
     activityName: limit.id,
     callbackName: 'intervalDidStart',
@@ -766,27 +820,47 @@ export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promi
     eventName: LIMIT_EVENT,
     actions: [{ type: 'blockSelection', familyActivitySelectionId: limit.id }],
   });
-  await startMonitoring(
-    limit.id,
-    { intervalStart: { hour: 0, minute: 0 }, intervalEnd: { hour: 23, minute: 59 }, repeats: true },
-    [
-      {
-        familyActivitySelection: selection,
-        threshold: hourMinute(limit.minutes),
-        eventName: LIMIT_EVENT,
-        includesPastActivity: true,
-      },
-    ],
-  );
+  // What iOS will count, recorded before it starts, so `settleLimitChanges` can tell when the
+  // live picks have moved on from it. Put back if iOS refuses: it still counts the old.
+  const armedKey = `${LIMIT_ARMED_PICKS_PREFIX}${limit.id}`;
+  const before = sharedGet<string>(armedKey);
+  sharedSet(armedKey, selection);
+  try {
+    await startMonitoring(
+      limit.id,
+      { intervalStart: { hour: 0, minute: 0 }, intervalEnd: { hour: 23, minute: 59 }, repeats: true },
+      [
+        {
+          familyActivitySelection: selection,
+          threshold: hourMinute(limit.minutes),
+          eventName: LIMIT_EVENT,
+          includesPastActivity: true,
+        },
+      ],
+    );
+  } catch (error) {
+    if (before === undefined) sharedRemove(armedKey);
+    else sharedSet(armedKey, before);
+    throw error;
+  }
   // If it was used up under the old number, wake it; the event fires again if it's still over.
   if (fresh) unshield(limit.id);
+}
+
+const LIMIT_ARMED_PICKS_PREFIX = 'locturne.limitArmedPicks.';
+
+/** Has the limit's list changed since iOS was handed it? Then iOS still counts the old apps. */
+function armedPicksStale(id: LimitId): boolean {
+  const armed = sharedGet<string>(`${LIMIT_ARMED_PICKS_PREFIX}${id}`);
+  return armed !== undefined && armed !== getFamilyActivitySelectionId(id);
 }
 
 /** Stops a limit, wakes its apps (unless another rule holds them) and forgets its picks. */
 export function removeLimit(id: LimitId): void {
   stopMonitoring([id]);
   cleanUpAfterActivity(id);
-  userDefaultsRemove(usedUpKey(id));
+  forgetUsedUp(id);
+  sharedRemove(`${LIMIT_ARMED_PICKS_PREFIX}${id}`);
   unshield(id);
   clearSelection(id);
   clearSelection(draftId(id));
@@ -803,9 +877,9 @@ function liftYesterdaysLimits(now: Date): void {
   if (!isAvailable()) return;
   let lifted = false;
   for (const limit of getLimits()) {
-    const day = sharedGet<string>(usedUpKey(limit.id));
-    if (day === undefined || day === dateKey(now)) continue;
-    userDefaultsRemove(usedUpKey(limit.id));
+    // Not used up today (`usedUpToday`): an earlier day, or a flight that moved midnight.
+    if (sharedGet<string>(usedUpKey(limit.id)) === undefined || usedUpToday(limit.id, now)) continue;
+    forgetUsedUp(limit.id);
     unshield(limit.id);
     lifted = true;
   }
@@ -821,7 +895,10 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
   liftYesterdaysLimits(now);
   const lists = settleListChanges(now);
   const settled = settleLimits(getLimits(), now);
-  if (!lists.length && !settled.rearm.length && !settled.removed.length) return;
+  // Picks that moved on from what iOS counts with no waiting edit left for `lists` to show
+  // (a re-arm iOS refused, or a swap an older build's extension made at bedtime).
+  const swapped = settled.limits.filter((l) => armedPicksStale(l.id)).map((l) => l.id);
+  if (!lists.length && !swapped.length && !settled.rearm.length && !settled.removed.length) return;
   for (const id of settled.removed) removeLimit(id);
   saveLimits(getLimits().filter((l) => !settled.removed.includes(l.id)));
   // Each looser limit is saved only once iOS has it. If iOS refuses, it stays pending, the
@@ -832,7 +909,16 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
   }
   // A limit whose apps changed at bedtime: hand iOS the new picks.
   for (const limit of settled.limits) {
-    if (lists.includes(limit.id) && !settled.rearm.includes(limit)) await armLimit(limit);
+    if (!(lists.includes(limit.id) || swapped.includes(limit.id)) || settled.rearm.includes(limit)) continue;
+    // Emptied at bedtime: nothing to count, so stop counting the old picks.
+    if (!getFamilyActivitySelectionId(limit.id)) {
+      stopMonitoring([limit.id]);
+      forgetUsedUp(limit.id);
+      sharedRemove(`${LIMIT_ARMED_PICKS_PREFIX}${limit.id}`);
+    }
+    // Fresh: a used-up mark earned on the old picks (iOS counted them until now) mustn't hold
+    // the new ones. iOS fires again at once if the new picks really are over (past activity counts).
+    else await armLimit(limit, { fresh: true });
   }
   reapplyStandingBlocks();
 }
@@ -857,7 +943,8 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
  */
 export function pauseNightUntil(until: Date, now = new Date()): void {
   if (!isAvailable()) return;
-  settleListChanges(now);
+  // Not a daily limit's: its picks swap only with a re-arm of iOS's count, which isn't here.
+  settleListChanges(now, { limits: false });
   const waiting = getPendingLists().night;
   if (hasSelection('night')) {
     if (!waiting) copySelection('night', draftId('night'));

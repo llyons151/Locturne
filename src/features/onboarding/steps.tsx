@@ -1,3 +1,7 @@
+'use no memo';
+// Reads the App Group during render through `methodCopy` (the step goal, a saved scan code),
+// which changes outside React: the React Compiler would cache it (#130), so it stays out here.
+
 import type { ReactNode } from 'react';
 import { Linking, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -164,6 +168,8 @@ export function renderStep(ctx: StepContext): StepView {
   // "This morning" when it's already the small hours; "Later today" for afternoon wake-ups.
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
   const wakeDay = lateNight && answers.wake > nowMinutes ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
+  // Installed in the small hours with morning under an hour away: no "Go to sleep".
+  const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
   const method = methodCopy(answers.method ?? 'downstairs');
   // How many picks: the real count on an iPhone, the stand-in names in the preview.
   const pickCount = live ? live.count : answers.apps.length;
@@ -623,7 +629,11 @@ export function renderStep(ctx: StepContext): StepView {
               // docs/sub-club/themes/02-paywall-design-and-copy.md. The reminder day matches the
               // paywall's toggle. "Morning" puts the first wake-up in the timeline (TODO §4).
               <View style={styles.plan}>
-                <PlanRow when="Tonight" what={`Your apps sleep at ${bed}. $0 today.`} />
+                {/* Past bedtime already, arming shields at once (`commit` said so too). */}
+                <PlanRow
+                  when={lateNight ? 'Now' : 'Tonight'}
+                  what={lateNight ? 'Your apps sleep as soon as you’re in. $0 today.' : `Your apps sleep at ${bed}. $0 today.`}
+                />
                 {/* Short phones keep the original three rows so nothing scrolls. */}
                 {compact ? null : <PlanRow when="Morning" what={`${wake}: they stay asleep until ${method.until}.`} />}
                 <PlanRow when={`Day ${reminderDay(trialDays)}`} what="I remind you. Grudgingly." />
@@ -770,12 +780,17 @@ export function renderStep(ctx: StepContext): StepView {
                 <PlanRow when="This device" what="It can’t count steps. Set up a scan code from the You tab, or use a pass." />
               ) : null}
             </View>
-            <Voice text={lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`} size={VoiceSize.aside} delay={700} sub />
+            <Voice
+              text={morningSoon ? `That’s it. Morning starts at ${wake}.` : lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`}
+              size={VoiceSize.aside}
+              delay={700}
+              sub
+            />
             <View style={styles.gap8} />
             <Voice text="I’ll be asleep. Don’t wake me." size={VoiceSize.aside} delay={1300} sub />
           </View>
         ),
-        footer: <PrimaryButton label={lateNight ? 'Good night' : 'Done'} onPress={exit} />,
+        footer: <PrimaryButton label={lateNight && !morningSoon ? 'Good night' : 'Done'} onPress={exit} />,
         secondary:
           ctx.motion === 'denied' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
       };

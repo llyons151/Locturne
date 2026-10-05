@@ -1,3 +1,8 @@
+'use no memo';
+// Reads the App Group stores during render (routine, passes, limits…), which change outside
+// React. The React Compiler would cache those reads from the first render (Home mounts under
+// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+
 import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { AppBackground } from '@/components/app-background';
@@ -12,8 +17,9 @@ import { getScanCode } from '@/lib/scan';
  */
 export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
+  // Steps always (the fallback every morning offers); downstairs only for a downstairs routine.
   const chosen: WakeMethodShown | undefined =
-    method === 'downstairs' || method === 'steps' ? method : undefined;
+    method === 'steps' || (method === 'downstairs' && getRoutine().method === 'downstairs') ? method : undefined;
   const scan = !chosen && getRoutine().method === 'scan';
   if (scan && getScanCode()) return <Redirect href="/scan?mode=morning" />;
   return (
