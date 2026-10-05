@@ -28,6 +28,7 @@ import { noOrphan } from '@/lib/text';
 import { trialNotice } from '@/lib/trial-notice';
 import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
+import { awakeLine } from './awake-line';
 import { MoonLock } from './moon-lock';
 import { useReviewPrompt } from './review-prompt';
 import { useHomeState } from './use-home-state';
@@ -381,16 +382,18 @@ function Status({
       </View>
     );
   }
-  // An edit waiting for bedtime governs tonight from its first night.
+  // An edit waiting for bedtime governs tonight from its first night. With no night lock
+  // (stood down, never bought, arming failed) nothing is scheduled, so no bedtime is named.
   const { start: tonightStarts, on: tonightOn } = nightAt(nextChange);
+  const line = awakeLine({
+    armed: nightLockArmed(),
+    stoodDown: isStoodDown(),
+    tonightAt: tonightOn ? clockLabel(tonightStarts.getHours() * 60 + tonightStarts.getMinutes()) : null,
+  });
   return (
     <View style={styles.statusRow}>
       <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
-      <Text style={[styles.status, styles.flex]}>
-        {tonightOn
-          ? `Apps awake until ${clockLabel(tonightStarts.getHours() * 60 + tonightStarts.getMinutes())}`
-          : 'Apps awake. Tonight is off.'}
-      </Text>
+      <Text style={[styles.status, styles.flex]}>{line}</Text>
     </View>
   );
 }

@@ -39,9 +39,9 @@ import {
   type DailyLimit,
   type LimitId,
 } from '@/lib/daily-limits';
-import { getNightPause } from '@/lib/emergency';
+import { getNightPause, pauseWording } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { onLockChange } from '@/lib/lock-controller';
+import { onLockChange, readLock } from '@/lib/lock-controller';
 import {
   armLimit,
   beginListEdit,
@@ -66,6 +66,7 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } fr
 
 import { APPS, type AppEntry } from './catalog';
 import { LimitMenu } from './limit-menu';
+import { pauseNote, removalNote, startsLabel } from './pending-note';
 
 /**
  * The Apps tab: the picked apps in Settings-style rows, one group per Screen Time
@@ -93,32 +94,19 @@ const LIVE_GROUPS: { key: 'night' | 'always'; label: string }[] = [
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
 /**
- * "at 11:00 PM", or "tomorrow at 11:00 PM" when that's tomorrow evening (a change made after
- * tonight's bedtime waits for the next night). Midnight, or an after-midnight bedtime, is
- * tomorrow by the date but tonight to a person, so it reads as plain "at 1:00 AM".
- */
-function startsLabel(from: Date, now: Date): string {
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const tomorrowEvening = from.toDateString() === tomorrow.toDateString() && from.getHours() >= 12;
-  return tomorrowEvening ? `tomorrow at ${clock(from)}` : `at ${clock(from)}`;
-}
-
-/** When the next bedtime is, for "removed apps wake at 11:30 PM". */
-
-const clock = (date: Date) => date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
-/**
  * Removals wait for bedtime (GAME_PLAN), so say when, and that they're still asleep. Limits
  * say it in their header instead.
  */
 function PendingNote({ list }: { list: StandingList }) {
   const starts = listChangeStarts(list);
   if (!starts) return null;
+  const now = new Date();
   if (list === 'night') {
-    const paused = getNightPause();
-    if (paused) return <Text style={styles.footer}>Awake tonight after an emergency unlock. They sleep again at {clock(paused)}.</Text>;
+    // Parked by an emergency unlock until the next night that's on (`pauseWording`).
+    const paused = getNightPause(now);
+    if (paused) return <Text style={styles.footer}>{pauseNote(pauseWording(paused, now), readLock(now).phase === 'night')}</Text>;
   }
-  return <Text style={styles.footer}>Apps you removed stay asleep until {clock(starts)}, when your change starts.</Text>;
+  return <Text style={styles.footer}>{removalNote(starts, now)}</Text>;
 }
 
 function LiveAppsList() {
@@ -409,7 +397,7 @@ function LimitHeader({
   let status: string | null = parts.length ? parts.join(' ') : null;
   if (appsChangeAt) {
     // The app applies a limit's removals (with iOS's count), so on the first open after that time.
-    const leave = `Removed apps leave after ${clock(appsChangeAt)}, when you next open Locturne.`;
+    const leave = `Removed apps leave ${startsLabel(appsChangeAt, new Date()).replace(/^at /, 'after ')}, when you next open Locturne.`;
     status = status ? `${status} ${leave}` : leave;
   }
 

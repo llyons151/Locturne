@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
+import { awakeLine as dayLine } from '@/features/home/awake-line';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
@@ -21,6 +22,7 @@ import { askForNotifications, shouldAskForNotifications } from '@/lib/notificati
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, nightAt, toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
+import { isStoodDown, nightLockArmed } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
@@ -33,10 +35,18 @@ export type WakeMethodShown = 'downstairs' | 'steps';
 
 const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinutes());
 
-/** "Apps awake until 10:00 PM", from the routine that runs tonight (a waiting edit, a night off). */
+/**
+ * "Apps awake until 10:00 PM", from the routine that runs tonight (a waiting edit, a night
+ * off), as on Home. A lapsed user proving the last paid morning has nothing scheduled after.
+ */
 function awakeLine(bedtimeStart: Date): string {
   const { start, on } = nightAt(bedtimeStart);
-  return on ? `Apps awake until ${formatPreset(start.getHours() * 60 + start.getMinutes())}.` : 'Apps awake. Tonight is off.';
+  const line = dayLine({
+    armed: nightLockArmed(),
+    stoodDown: isStoodDown(),
+    tonightAt: on ? formatPreset(start.getHours() * 60 + start.getMinutes()) : null,
+  });
+  return line.endsWith('.') ? line : `${line}.`;
 }
 
 /**

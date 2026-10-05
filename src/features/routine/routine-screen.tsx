@@ -16,12 +16,13 @@ import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
 import { ChoiceRow, Section, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
-import { armRoutine, syncLock } from '@/lib/lock-controller';
+import { armRoutine, inPendingFirstNight, syncLock } from '@/lib/lock-controller';
 import { MIN_WINDOW } from '@/lib/night-plan';
 import { rescheduleNotifications } from '@/lib/notifications';
 import {
   getPendingRoutine,
   getRoutine,
+  hasRoutine,
   saveRoutine,
   type Routine as StoredRoutine,
   type WakeMethod,
@@ -173,6 +174,10 @@ export function RoutineScreen() {
   }, []);
 
   const commit = (next: Routine) => {
+    // Left onboarding before its setup was saved: a save here would be the first routine, and
+    // with one saved onboarding never opens again (`useAppStart`, `?resume=paywall`). The screen
+    // offers "Finish setup" instead; this only guards a stale render.
+    if (!hasRoutine()) return;
     const wasWaiting = from !== null;
     saveRoutine(toStored(next));
     // The shield words the extension copies later (tonight's, the morning's) follow the saved
@@ -202,6 +207,42 @@ export function RoutineScreen() {
 
   const now = new Date();
 
+  if (!hasRoutine()) {
+    return (
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+            Routine
+          </Text>
+          <Text style={styles.summary}>No routine yet. You left setup before the end.</Text>
+        </View>
+        <View style={styles.wake}>
+          <Text style={styles.voice} maxFontSizeMultiplier={1.3}>
+            {noOrphan('We were in the middle of something.')}
+          </Text>
+        </View>
+        <Section footer="Bedtime, mornings and your wake-up all come from setup.">
+          <ValueRow
+            icon={sym('moon.fill', 'bedtime')}
+            title="Finish setup"
+            value=""
+            onPress={() => router.push('/onboarding')}
+            last
+          />
+        </Section>
+      </ScrollView>
+    );
+  }
+
+  // An earlier bedtime saved in the day governs its own first night once that starts (#137):
+  // it already began, so don't say it waits for the old bedtime.
+  const earlyNight = from !== null && inPendingFirstNight(now);
+  const pendingNote = earlyNight
+    ? `Your changes started at tonight’s new bedtime, ${formatPreset(saved.bedtime).replace(' ', '\u00a0')}.`
+    : `Your changes apply ${startsWhen(from ?? now, now)}. Until then, the old routine stays.`;
+
   return (
     <ScrollView
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
@@ -221,7 +262,7 @@ export function RoutineScreen() {
         <View style={styles.pending} accessibilityLiveRegion="polite">
           <SymbolView name={sym('clock', 'schedule')} size={17} tintColor={Nocturne.text} style={styles.pendingIcon} />
           <Text style={styles.pendingText}>
-            {noOrphan(`Your changes apply ${startsWhen(from, now)}. Until then, the old routine stays.`)}
+            {noOrphan(pendingNote)}
           </Text>
           <Pressable
             onPress={() => {
