@@ -211,10 +211,13 @@ export function toOffers(
 }
 
 /** What to remember of a `CustomerInfo`. */
-export function entitlementRecord(info: CustomerInfo, now: Date): EntitlementRecord {
-  const entitlement = info.entitlements.active[ENTITLEMENT_ID];
+export function entitlementRecord(info: CustomerInfo, now: Date, cached = false): EntitlementRecord {
+  // The SDK's cache drops an entitlement from `active` by the phone's clock three days after it
+  // was fetched, before the app's offline grace can apply: from the cache, read it from `all`
+  // and let `cachedEntitlement` judge its end date.
+  const entitlement = (cached ? info.entitlements.all : info.entitlements.active)[ENTITLEMENT_ID];
   const checkedAt = now.getTime();
-  if (!entitlement?.isActive || forged(info)) return { active: false, checkedAt };
+  if (!entitlement || (!cached && !entitlement.isActive) || forged(info)) return { active: false, checkedAt };
   const record: EntitlementRecord = { active: true, productId: entitlement.productIdentifier, checkedAt };
   if (entitlement.expirationDateMillis != null) record.expiresAt = entitlement.expirationDateMillis;
   if (entitlement.periodType === 'TRIAL') record.trialStartedAt = entitlement.latestPurchaseDateMillis;
@@ -284,7 +287,7 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
       store.set(SEEN_AT_KEY, served);
       store.set(DEVICE_SEEN_AT_KEY, now().getTime());
     }
-    let record = entitlementRecord(info, now());
+    let record = entitlementRecord(info, now(), cache && !behind());
     // An answer built on the phone is judged by the phone's clock, so it only counts once this
     // install has seen the server's time and the clock isn't behind it (a reinstall, the
     // clock set back and the server blocked would otherwise read as paid).

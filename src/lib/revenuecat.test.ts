@@ -72,7 +72,7 @@ function customer(active: { productId: string; trial?: boolean; startedAt?: numb
     latestPurchaseDateMillis: active.startedAt ?? 0,
     expirationDateMillis: active.expiresAt === undefined ? (active.startedAt ?? 0) + 7 * DAY : active.expiresAt,
   };
-  return { entitlements: { active: entitlement ? { pro: entitlement } : {}, all: {} } } as unknown as CustomerInfo;
+  return { entitlements: { active: entitlement ? { pro: entitlement } : {}, all: entitlement ? { pro: entitlement } : {} } } as unknown as CustomerInfo;
 }
 
 type Fake = RevenueCatSdk & {
@@ -479,4 +479,22 @@ test('the SDK\'s cache is judged by the app\'s rule: a cancelled plan ends on ti
   // A fresh answer is the server's word, judged by its own time.
   payer.getCustomerInfo = async () => signed(customer({ productId: PRODUCT_IDS.annual, expiresAt: expiresAt + 365 * DAY }), now);
   assert.equal(await provider(payer, renewing, 0.9, now).isEntitled(), true);
+});
+
+test('a renewal missed offline keeps its grace even after the SDK drops it from active', async () => {
+  const store = memoryKeyValue();
+  // Last online Friday 08:00; the plan renewed Saturday 20:00 with no signal; opened Monday 09:00.
+  const friday = new Date(2026, 9, 2, 8);
+  const renewed = new Date(2026, 9, 3, 20).getTime();
+  const monday = new Date(2026, 9, 5, 9);
+  store.set(SEEN_AT_KEY, friday.getTime());
+  const plan = customer({ productId: PRODUCT_IDS.monthly, expiresAt: renewed });
+  // The SDK's cache, filtered by the phone's clock more than three days after it was fetched.
+  const sdk = fakeSdk();
+  sdk.info = { ...signed(plan, friday), entitlements: { ...plan.entitlements, active: {}, verification: 'VERIFIED' } } as CustomerInfo;
+  assert.equal(await provider(sdk, store, 0.9, monday).isEntitled(), true);
+  // Cancelled instead: it ends on time.
+  const cancelled = customer({ productId: PRODUCT_IDS.monthly, expiresAt: renewed, willRenew: false });
+  sdk.info = { ...signed(cancelled, friday), entitlements: { ...cancelled.entitlements, active: {}, verification: 'VERIFIED' } } as CustomerInfo;
+  assert.equal(await provider(sdk, store, 0.9, monday).isEntitled(), false);
 });

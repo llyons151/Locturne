@@ -169,8 +169,12 @@ export function renderStep(ctx: StepContext): StepView {
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
   // "This morning" when it's already the small hours; "Later today" for afternoon wake-ups.
+  // Also today when the whole night is still ahead today (bedtime 01:00 finished at 00:30,
+  // or a night shift's 08:00 bedtime finished at 07:00).
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-  const wakeDay = lateNight && answers.wake > nowMinutes ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
+  const today =
+    answers.wake > nowMinutes && (lateNight || (answers.bedtime < answers.wake && nowMinutes < answers.bedtime));
+  const wakeDay = today ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
   // Installed in the small hours with morning under an hour away: no "Go to sleep".
   const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
   // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
