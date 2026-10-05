@@ -24,6 +24,17 @@ export type MorningProof = {
   morningStart?: number;
 };
 
+/**
+ * Pure: the morning start of the morning this proof unlocks, under the routine it was judged
+ * by (its saved times), or null for a proof saved without them. A routine edited since can't
+ * move it.
+ */
+export function proofMorningStart(proof: MorningProof): Date | null {
+  const { bedtime, morningStart } = proof;
+  if (bedtime === undefined || morningStart === undefined) return null;
+  return nightInto(proof.morningKey, { bedtime, morningStart }).end;
+}
+
 const KEY = 'locturne.morningProofs';
 /** Enough history for the share card and diagnostics, without growing forever. */
 const KEEP = 30;

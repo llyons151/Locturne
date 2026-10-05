@@ -187,7 +187,7 @@ test('the trial reminder is at noon, at least 2 days before the trial ends', () 
   assert.equal(planTrialReminder(at(10, 9), at(9, 9)), null);
   // An 8:00 end is reminded nearly 3 days out, so the title names the day instead of counting.
   const early = planTrialReminder(at(8, 8), at(1, 8))!;
-  assert.equal(early.title, `Your free trial ends ${at(8, 8).toLocaleDateString(undefined, { weekday: 'long' })}.`);
+  assert.equal(early.title, `Your free trial ends ${at(8, 8).toLocaleDateString('en-US', { weekday: 'long' })}.`);
   // It joins the plan, even with nothing armed.
   assert.deepEqual(
     plan({ armed: false, trialEnd: at(10, 9) }).map((n) => n.kind),

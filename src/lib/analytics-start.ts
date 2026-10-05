@@ -25,7 +25,7 @@ import {
 } from './analytics';
 import { readNightChecks } from './heartbeat';
 import { currentMorning } from './lock-state';
-import { getProofs, onProofChange } from './morning-proof';
+import { getProofs, onProofChange, proofMorningStart } from './morning-proof';
 import { getNotificationPermission, ID_PREFIX } from './notifications';
 import { isStubbed, setAttributes } from './purchases';
 import { getRoutine, toLockSettings } from './routine';
@@ -156,7 +156,8 @@ function reportNewestProof(): void {
   const proof = proofs[0];
   if (!proof) return;
   const at = new Date(proof.at);
-  const start = currentMorning(at, toLockSettings(getRoutine(at))).start;
+  // The times the proof was judged under: a routine read now could be an edit saved since.
+  const start = proofMorningStart(proof) ?? currentMorning(at, toLockSettings(getRoutine(at))).start;
   track('morning_unlocked', {
     method: proof.kind,
     // Bucketed: the exact minute plus the event time would give away the wake-up time.

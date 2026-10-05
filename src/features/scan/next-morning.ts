@@ -18,7 +18,7 @@ export function morningName(morning: Date, now: Date): string {
   const part = morning.getHours() >= 12 ? 'afternoon' : 'morning';
   if (days <= 0) return part === 'afternoon' ? 'later today' : 'this morning';
   if (days === 1) return `tomorrow ${part}`;
-  const weekday = morning.toLocaleDateString(undefined, { weekday: 'long' });
+  const weekday = morning.toLocaleDateString('en-US', { weekday: 'long' });
   return days < 7 ? `${weekday} ${part}` : `next ${weekday} ${part}`;
 }
 

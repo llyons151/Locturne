@@ -65,15 +65,21 @@ which wake-up method they picked. All quiz answers are also set on the person.
 | `onboarding_answered` | leaving a quiz step forwards | `question`, `answer` |
 | `walk_started` / `walk_finished` | the 20-step walk | `result` (done, denied, unavailable), `seconds` |
 | `screen_time_access` | after Apple's prompt | `result` |
-| `apps_picked` | Apple's picker closes | `count` |
-| `paywall_viewed` | `offer`, `plans`, `declined` | `page`, `exit_arm` (null until prices load), `prices_loaded`, `trial_days` |
+| `apps_picked` | Apple's picker closes with at least one app picked (closing it empty sends nothing) | `count` |
+| `paywall_viewed` | `offer`, `plans`, `declined` | `page`, `exit_arm` (null until prices load), `prices_loaded`, `trial_days` (the annual plan's; on `declined`, the exit offer's) |
 | `offers_failed` | the store didn't return prices | |
 | `purchase_started` / `purchase_result` | a plan is tapped (and an Ask to Buy approval, `target` = `approved`) | `target`, `page`, `status` |
+| `purchase_result` (`page` = `later`) | an Ask to Buy approval found after the paywall closed: on the next open, or while the app runs elsewhere. Once per waiting purchase. | `target` = `approved`, `page` = `later`, `status` = `purchased` |
 | `restore_result` | Restore | `found`, `step` |
-| `onboarding_completed` | setup saved after purchase or restore | `via`, `depth` |
+| `onboarding_completed` | setup saved and armed in the flow | `via` (`purchase`; `restore` when Restore found a subscription; `entitled` when already subscribed as the flow opened, nothing restored), `depth` |
 | `night_armed` | after arming tonight | `status`, `reason`, `now` |
 | `motion_access` | the post-purchase Motion ask | `result` |
 | `onboarding_exited` | the close button | `step`, `depth`, `setup_saved`, `saw_paywall` |
+
+An approval that lands after the paywall closed sends `purchase_result` with `page` = `later`
+but no `onboarding_completed`: the setup was saved when the purchase went pending, and nothing
+in the flow finished. Count paying users from `purchase_result` (purchased), as the views
+below do, not from `onboarding_completed`.
 
 Bump `ONBOARDING_VERSION` in analytics.ts whenever the flow changes enough that its funnel
 shouldn't be compared with the old one, and split funnels by it.
@@ -84,7 +90,7 @@ shouldn't be compared with the old one, and split funnels by it.
 |---|---|---|
 | `Application Opened`, `Application Became Active`, `Application Installed`, … | PostHog lifecycle events | |
 | `$screen` | each route (tabs, wake, scan, exits) | `$screen_name` |
-| `morning_unlocked` | any proof: stairs, steps, scan, pass, emergency | `method`, `after_start` (bucket: before, <5, 5-15, 15-30, 30-60, 60+), `morning_number` |
+| `morning_unlocked` | any proof: stairs, steps, scan, pass, emergency | `method`, `after_start` (bucket: before, <5, 5-15, 15-30, 30-60, 60+, from the morning start of the routine the proof was judged under), `morning_number` |
 | `night_checked` | once per finished night, on the next open | `verdict` (onTime, late, missed, noShield), `late_by_minutes` |
 | `pass_used` | a pass is spent | `passes_left` |
 | `emergency_unlock` | the emergency unlock | `phase`, `paused_night`, `ended_block_now`, `unlocked_morning` |

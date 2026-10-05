@@ -170,6 +170,42 @@ test('eligibility decides the trial: unknown or ineligible shows none', () => {
   assert.equal(toOffer(product(PRODUCT_IDS.monthly, 9.99, 'P1M', null), ELIGIBLE).period, 'month');
 });
 
+test('the per-month line is the store’s own string when it gives one', () => {
+  const annual = { ...product(PRODUCT_IDS.annual, 59.99, 'P1Y', 1, 'EUR'), pricePerMonthString: '5,00 €' };
+  assert.equal(toOffer(annual, ELIGIBLE).pricePerMonthString, '5,00 €');
+  // Older SDK answers (or a non-subscription) have none: `perMonth` formats it instead.
+  assert.equal('pricePerMonthString' in toOffer({ ...annual, pricePerMonthString: null }, ELIGIBLE), false);
+});
+
+test('a paid intro offer fails the paywall plans, and costs an exit offer only its arm', async () => {
+  const paid = { price: 0.99, priceString: '$0.99', cycles: 1, period: 'P1M', periodUnit: 'MONTH', periodNumberOfUnits: 1 };
+  const annual = { ...product(PRODUCT_IDS.annual, 59.99, 'P1Y', null), introPrice: paid };
+  // Whatever the eligibility: StoreKit could still charge it, and the paywall shows the full price.
+  assert.throws(() => toOffer(annual, ELIGIBLE), /paid intro/);
+  assert.throws(() => toOffer(annual, INELIGIBLE), /paid intro/);
+
+  const offerings = catalog();
+  (offerings.all['exit-half-price'].annual as unknown as { product: unknown }).product = {
+    ...product(PRODUCT_IDS['half-price'], 29.99, 'P1Y', null),
+    introPrice: paid,
+  };
+  const offers = await provider(fakeSdk({ offerings })).getOffers();
+  assert.equal(offers.exitOffers['half-price'], undefined);
+  assert.equal(offers.exitOffers['longer-trial']?.trialDays, 14);
+  assert.equal(offers.annual.trialDays, 7);
+});
+
+test('paid but not showing yet: Restore is the advice, not trying again', async () => {
+  const sdk = fakeSdk();
+  sdk.purchasePackage = async () => ({ customerInfo: customer(null) });
+  const result = await provider(sdk).purchase('annual');
+  assert.equal(result.status, 'failed');
+  assert.equal(result.status === 'failed' && result.retry, false);
+  // Real failures keep the "try again" advice.
+  const failed = await provider(fakeSdk({ purchaseError: { code: '10' } })).purchase('annual');
+  assert.equal(failed.status === 'failed' && failed.retry, undefined);
+});
+
 test('offers come from the store, localized, with the exit products', async () => {
   const offers = await provider(fakeSdk({ offerings: catalog({ currency: 'EUR' }) })).getOffers();
   assert.equal(offers.annual.priceString, '59,99 €');

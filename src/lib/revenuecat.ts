@@ -148,12 +148,23 @@ export function introTrialDays(
 type ProductFields = Pick<
   PurchasesStoreProduct,
   'identifier' | 'price' | 'priceString' | 'currencyCode' | 'introPrice' | 'subscriptionPeriod'
->;
+> &
+  Partial<Pick<PurchasesStoreProduct, 'pricePerMonthString'>>;
 
-/** One product as the paywall needs it. The trial only when this Apple ID is eligible. */
+/**
+ * One product as the paywall needs it. The trial only when this Apple ID is eligible.
+ *
+ * Throws on a paid intro offer (a discounted first period). Every product has a free trial or
+ * none (`PRODUCT_IDS`), and the paywall shows only the full price: a paid intro would charge an
+ * amount the screen never showed (App Review 3.1.2). Throwing makes it an `offers_failed`, so
+ * the paywall sells nothing instead of mis-pricing, until App Store Connect is fixed.
+ */
 export function toOffer(product: ProductFields, eligibility: IntroEligibility | undefined): Offer {
+  if (product.introPrice && product.introPrice.price !== 0) {
+    throw new Error(`${product.identifier} has a paid intro offer, which the paywall can't show.`);
+  }
   const yearly = product.subscriptionPeriod === 'P1Y' || product.subscriptionPeriod === 'P12M';
-  return {
+  const offer: Offer = {
     productId: product.identifier,
     period: yearly ? 'year' : 'month',
     price: product.price,
@@ -161,6 +172,8 @@ export function toOffer(product: ProductFields, eligibility: IntroEligibility | 
     priceString: product.priceString,
     trialDays: eligibility?.status === ELIGIBLE ? introTrialDays(product.introPrice) : null,
   };
+  if (product.pricePerMonthString) offer.pricePerMonthString = product.pricePerMonthString;
+  return offer;
 }
 
 /** The current offering: the dashboard's "current", else the one named `default`. */
@@ -207,7 +220,12 @@ export function toOffers(
   for (const arm of EXIT_ARMS) {
     if (arm === 'none') continue;
     const pkg = exitPackage(offerings, arm);
-    if (pkg) exitOffers[arm] = offer(pkg);
+    if (!pkg) continue;
+    try {
+      exitOffers[arm] = offer(pkg);
+    } catch {
+      // A misconfigured exit product (a paid intro) costs only its arm, not the paywall.
+    }
   }
   const built = { annual: offer(annual), monthly: offer(monthly), exitOffers };
   return { ...built, exitArm: resolveExitArm(metadataArm(offerings) ?? assignedArm, built) };
@@ -369,7 +387,7 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
         if (!pkg) return { status: 'failed', message: 'That plan isn’t available right now.' };
         const { customerInfo } = await sdk.purchasePackage(pkg);
         if (remember(customerInfo).active) return { status: 'purchased' };
-        return { status: 'failed', message: 'The purchase went through but isn’t showing yet. Tap Restore in a moment.' };
+        return { status: 'failed', message: 'The purchase went through but isn’t showing yet. Tap Restore in a moment.', retry: false };
       } catch (error) {
         return purchaseFailure(error);
       } finally {

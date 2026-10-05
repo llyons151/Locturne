@@ -2,6 +2,7 @@ import { router, usePathname } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
+import { track } from '@/lib/analytics';
 import { armTonight } from '@/lib/arm';
 import { paidSettleCount, settleSubscription } from '@/lib/lock-controller';
 import { onProofChange } from '@/lib/morning-proof';
@@ -13,6 +14,7 @@ import {
   shouldAskForNotifications,
   syncTrialEnd,
 } from '@/lib/notifications';
+import { takePendingApproval } from '@/lib/pending-purchase';
 import { currentTrialEnd, isEntitled, isPurchasing, onEntitled } from '@/lib/purchases';
 import { hasRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
@@ -36,6 +38,11 @@ export function armIfPaid(): void {
   isEntitled().then(
     (paid) => {
       if (!paid && stale()) return;
+      // An Ask to Buy approval that landed after the paywall closed (onboarding reports the
+      // one it sees itself): the funnels start from `purchase_result = purchased`.
+      if (paid && !isPurchasing() && takePendingApproval()) {
+        track('purchase_result', { target: 'approved', page: 'later', status: 'purchased' });
+      }
       settleSubscription(paid);
       // A stand-down took the armed night away, and Health still reads "on": replan, or
       // "Bedtime in 15 minutes" keeps coming with nothing to block.

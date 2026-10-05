@@ -66,6 +66,8 @@ test('savings and per-month come from the offer prices', async () => {
   assert.equal(priced(54, 5), 10);
   assert.equal(perMonth(offers.annual, 'en-US'), '$5.00');
   assert.equal(perMonth(offers.monthly, 'en-US'), '$9.99');
+  // The store's string wins, so it's formatted like the billed price, not the phone's locale.
+  assert.equal(perMonth({ ...offers.annual, pricePerMonthString: 'US$5.00' }, 'de-DE'), 'US$5.00');
   assert.equal(formatPrice(59.99, 'EUR', 'de-DE'), '59,99 €');
 });
 

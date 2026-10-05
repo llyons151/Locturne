@@ -6,7 +6,9 @@
  * signed up.
  *
  * Spam protection, kept light on purpose:
- * - a honeypot field (`company`) that people never see; bots that fill it get a fake success
+ * - a honeypot field (`hp_k7`) that people never see; bots that fill it get a fake success.
+ *   A meaningless name with `autocomplete="new-password"`, so browser autofill never fills it
+ *   (a `company` field got autofilled, and real people were silently dropped)
  * - a time trap: a form sent under 1.5 s after the page loaded is treated the same way. The
  *   page measures that itself (`t`, in ms), so a phone whose clock is off can't trip it
  * - same-origin only: a browser POST from another site is refused
@@ -126,7 +128,7 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
   if (!fields) return reply(request, 400, 'bad_request');
 
   // Bots: pretend it worked, store nothing.
-  if (typeof fields.company === 'string' && fields.company.trim() !== '') return reply(request, 200);
+  if (typeof fields.hp_k7 === 'string' && fields.hp_k7.trim() !== '') return reply(request, 200);
   // Milliseconds from page load to submit, measured by the page. A page cached from before
   // sends a clock time instead, which is never this small, so it passes.
   // Without JavaScript the hidden field arrives empty, and `Number('')` is 0: no timing then.

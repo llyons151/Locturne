@@ -7,7 +7,7 @@ import { awakeBody, morningName, savedBody } from './next-morning.ts';
 
 // 2026-10-05 is a Monday.
 const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m);
-const weekday = (d: Date) => d.toLocaleDateString(undefined, { weekday: 'long' });
+const weekday = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'long' });
 
 test('in the small hours before a 1 am bedtime, the next morning is this one', () => {
   assert.equal(awakeBody(at(6, 7), at(6, 0, 30)), 'Nothing to scan for until this morning.');

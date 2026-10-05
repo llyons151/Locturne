@@ -72,7 +72,7 @@ const STATUS: Record<Protection, { icon: string; android: string; line: string }
 /** The 1st after the month of the morning `now` belongs to: passes count by mornings (passes.ts). */
 function refillDate(now: Date) {
   const [year, month] = readLock(now).morningKey.split('-').map(Number);
-  return new Date(year, month, 1).toLocaleDateString(undefined, {
+  return new Date(year, month, 1).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
   });

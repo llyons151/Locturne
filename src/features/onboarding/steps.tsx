@@ -865,10 +865,16 @@ function Beat({ label, text }: { label: string; text: string }) {
   );
 }
 
+/** The plan rows' label column at the default text size. */
+const PLAN_WHEN_WIDTH = 78;
+
 function PlanRow({ when, what }: { when: string; what: string }) {
+  // The label column grows with Dynamic Type, so "Afternoon" never breaks mid-word; it keeps
+  // the rows' text lined up at any size, and sizes to a longer label rather than wrapping it.
+  const { fontScale } = useWindowDimensions();
   return (
     <Reveal style={styles.planRow}>
-      <Text style={styles.planWhen}>{when}</Text>
+      <Text style={[styles.planWhen, { minWidth: PLAN_WHEN_WIDTH * fontScale }]}>{when}</Text>
       <Text style={styles.planWhat}>{what}</Text>
     </Reveal>
   );
@@ -933,7 +939,8 @@ const styles = StyleSheet.create({
   methodOptions: { marginTop: Gap.block, marginBottom: Space.l },
   plan: { marginVertical: Gap.block, gap: Space.m },
   planRow: { flexDirection: 'row', gap: Space.m, alignItems: 'baseline' },
-  planWhen: { width: 78, ...Type.rowKey, fontVariant: ['tabular-nums'] },
+  // Never squeezed by the text beside it; at the largest sizes it stops at half the row.
+  planWhen: { flexShrink: 0, maxWidth: '50%', ...Type.rowKey, fontVariant: ['tabular-nums'] },
   planWhat: { flex: 1, color: Nocturne.text, ...Type.body },
   reassure: { color: Nocturne.text2, ...Type.secondary },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },

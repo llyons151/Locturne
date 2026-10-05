@@ -57,7 +57,7 @@ describe('startsWhen', () => {
 
   test('further out: the weekday', () => {
     const night = nightsAround(at(5, 14), settings(23 * 60, 7 * 60)).latest;
-    assert.equal(startsWhen(at(8, 23), at(5, 14), night), `from ${at(8, 23).toLocaleDateString(undefined, { weekday: 'long' })} at 11 pm`);
+    assert.equal(startsWhen(at(8, 23), at(5, 14), night), `from ${at(8, 23).toLocaleDateString('en-US', { weekday: 'long' })} at 11 pm`);
   });
 });
 
@@ -87,7 +87,7 @@ test('startsWhen names the real day for every routine and time of day', () => {
               ? (inNight && (ahead === 0 || (ahead === 1 && small))) || ahead === (small ? 2 : 1)
               : words.includes('tomorrow')
                 ? ahead === 1
-                : words.includes(from.toLocaleDateString(undefined, { weekday: 'long' }));
+                : words.includes(from.toLocaleDateString('en-US', { weekday: 'long' }));
         if (!ok || from <= now) bad.push(`${b}-${m} at ${n}: ${from.toString().slice(0, 21)} → "${words}"`);
       }
     }

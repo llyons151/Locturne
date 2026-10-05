@@ -38,7 +38,12 @@ export type Events = {
   };
   onboarding_answered: { question: string; answer: Value };
   onboarding_exited: { step: string; depth: number; setup_saved: boolean; saw_paywall: boolean };
-  onboarding_completed: { via: 'purchase' | 'restore'; depth: number };
+  /**
+   * `entitled`: already subscribed when the flow opened, so it finished without a purchase or a
+   * Restore. An Ask to Buy approval after the paywall closed sends no `onboarding_completed`
+   * (the setup was saved when it went pending); it's `purchase_result` with `page: later`.
+   */
+  onboarding_completed: { via: 'purchase' | 'restore' | 'entitled'; depth: number };
   screen_time_access: { result: 'granted' | 'denied' };
   apps_picked: { count: number };
   walk_started: Record<string, never>;

@@ -29,7 +29,7 @@ import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
 import { askForNotifications, getNotificationPermission, rescheduleNotifications, type NotificationPermission } from '@/lib/notifications';
-import { isPurchasePending, markPurchasePending } from '@/lib/pending-purchase';
+import { isPurchasePending, markPurchasePending, takePendingApproval } from '@/lib/pending-purchase';
 import {
   getOffers,
   isEntitled,
@@ -293,7 +293,13 @@ export function OnboardingFlow({
         // Before the offers load the arm isn't known yet; `none` would skew the arm split.
         exit_arm: offers || offerShownBefore ? exitArm : null,
         prices_loaded: offers !== null,
-        trial_days: offers?.annual.trialDays ?? null,
+        // `declined` sells the exit offer, whose trial can differ (14 days on `longer-trial`).
+        trial_days:
+          step === 'declined'
+            ? exitArm === 'none'
+              ? null
+              : (offers?.exitOffers[exitArm]?.trialDays ?? null)
+            : (offers?.annual.trialDays ?? null),
       });
     }
   });
@@ -413,7 +419,9 @@ export function OnboardingFlow({
       closeNightPicker(list);
       setPicks(selectionSize('night'));
       setPickRevision((r) => r + 1);
-      track('apps_picked', { count: selectionSize('night') });
+      // Closed with nothing picked isn't a pick: a 0 would count as reaching this funnel step.
+      const count = selectionSize('night');
+      if (count > 0) track('apps_picked', { count });
       // Arming failed for want of apps: try again now there are some.
       if (step === 'armed') runArm();
     }, PICKER_SETTLE_MS);
@@ -447,8 +455,16 @@ export function OnboardingFlow({
     }
     runArm();
   };
-  /** Saves the setup and arms. Only ever after a purchase or a restored subscription. */
-  const finishSetup = (via: 'purchase' | 'restore' = 'restore') => {
+  /** A Restore found a subscription in this session, so finishing from `commit` is a restore. */
+  const [restored, setRestored] = useState(false);
+  /**
+   * Saves the setup and arms. Only ever after a purchase or a restored subscription, or for
+   * someone already subscribed when the flow opened (`entitled`: nothing was restored).
+   */
+  const finishSetup = (via: 'purchase' | 'restore' | 'entitled' = restored ? 'restore' : 'entitled') => {
+    // A purchase that was waiting for approval ends here, reported (or not) by this flow: the
+    // app-start check mustn't count it again as an approval after the paywall.
+    takePendingApproval();
     // Bought or restored: anything stood down (an earlier subscription ended) comes back.
     settleSubscription(true);
     saveSetup(answers);
@@ -493,7 +509,9 @@ export function OnboardingFlow({
       setNoMoreExitOffer(true);
       say('Waiting for approval', 'Once the purchase is approved, open Locturne and I’ll set tonight. Nothing is asleep until then.');
     } else if (result.status === 'failed') {
-      say('That didn’t go through', `${result.message} Nothing is set up yet. Try again in a moment.`);
+      // Paid but not showing yet: Restore is the advice, not trying again.
+      if (result.retry === false) say('Not showing yet', result.message);
+      else say('That didn’t go through', `${result.message} Nothing is set up yet. Try again in a moment.`);
     }
     // Cancelled: they closed Apple's sheet. Closest to buying of anyone who leaves, so the one
     // exit offer shows here too (once per install, same as closing the paywall). Apple allows
@@ -515,13 +533,14 @@ export function OnboardingFlow({
     }
     setBusy(false);
     setEntitled(found);
+    if (found) setRestored(true);
     track('restore_result', { found, step });
     if (!found) {
       say('Nothing to restore', 'There’s no Locturne subscription on this Apple ID.');
       return;
     }
     if (PAYWALL.includes(step) || step === 'declined') {
-      finishSetup();
+      finishSetup('restore');
       return;
     }
     // From the first screen: set up the nights, then arm without a paywall.

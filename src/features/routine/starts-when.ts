@@ -23,8 +23,8 @@ function dayOfBedtime(at: Date, now: Date, night: Night): { days: number; isNigh
   const days = isNight ? daysBetween(inside ? evening(night.start) : now, evening(at)) : daysBetween(now, at);
   const weekday =
     daysBetween(now, at) < 7
-      ? at.toLocaleDateString(undefined, { weekday: 'long' })
-      : at.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+      ? at.toLocaleDateString('en-US', { weekday: 'long' })
+      : at.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   return { days, isNight, weekday };
 }
 

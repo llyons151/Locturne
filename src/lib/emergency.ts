@@ -142,6 +142,6 @@ export function pauseWording(
     // The morning this night leads into: today's once past midnight, or a shift worker's.
     morning: readLock(now).morningKey === dateKey(now) ? 'this morning' : 'tomorrow morning',
     resumes,
-    weekday: resumes && !sameDay ? resumes.toLocaleDateString(undefined, { weekday: 'long' }) : null,
+    weekday: resumes && !sameDay ? resumes.toLocaleDateString('en-US', { weekday: 'long' }) : null,
   };
 }

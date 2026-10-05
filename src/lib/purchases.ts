@@ -90,6 +90,12 @@ export type Offer = {
   currencyCode: string;
   /** Localized by the store, e.g. "$59.99" or "59,99 €". */
   priceString: string;
+  /**
+   * The price per month, formatted by the store like `priceString` (RevenueCat's
+   * `pricePerMonthString`), so the annual plan's "/month" line matches its billed price.
+   * Missing in the dev stub: `perMonth` then formats it in the phone's locale.
+   */
+  pricePerMonthString?: string;
   /** Free days before the first charge, or null when there's no trial or this Apple ID isn't eligible. */
   trialDays: number | null;
 };
@@ -109,7 +115,11 @@ export type PurchaseResult =
   | { status: 'cancelled' }
   /** Ask to Buy or a bank check: not paid yet, so nothing arms. */
   | { status: 'pending' }
-  | { status: 'failed'; message: string };
+  /**
+   * `retry: false` when trying again is the wrong advice: the purchase went through and only
+   * needs a Restore, so the paywall says the message alone.
+   */
+  | { status: 'failed'; message: string; retry?: false };
 
 export interface PurchasesProvider {
   /** True for the dev stub: nothing is charged. */
@@ -159,8 +169,12 @@ export function formatPrice(amount: number, currencyCode: string, locale?: strin
   }
 }
 
-/** The annual plan's per-month line, "$5.00". Smaller than the billed price (App Review 3.1.2). */
+/**
+ * The annual plan's per-month line, "$5.00". Smaller than the billed price (App Review 3.1.2).
+ * The store's own string when it gave one, so it's formatted like the billed price.
+ */
 export function perMonth(offer: Offer, locale?: string): string {
+  if (offer.pricePerMonthString) return offer.pricePerMonthString;
   return formatPrice(offer.period === 'year' ? offer.price / 12 : offer.price, offer.currencyCode, locale);
 }
 

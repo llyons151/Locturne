@@ -63,8 +63,8 @@ export const COPY = {
   },
   // Named, not counted: noon two days before an 8:00 end is nearly three days out.
   trial: (ends: Date) => ({
-    title: `Your free trial ends ${ends.toLocaleDateString(undefined, { weekday: 'long' })}.`,
-    body: `It ends ${ends.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, go to Settings › Apple ID › Subscriptions. No hard feelings. Some feelings.`,
+    title: `Your free trial ends ${ends.toLocaleDateString('en-US', { weekday: 'long' })}.`,
+    body: `It ends ${ends.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, tap Manage subscription in the You tab. No hard feelings. Some feelings.`,
   }),
 };
 

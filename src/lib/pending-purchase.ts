@@ -21,3 +21,20 @@ export function isPurchasePending(now = Date.now()): boolean {
   const at = sharedGet<number>(KEY);
   return typeof at === 'number' && now - at < PENDING_FOR_MS;
 }
+
+const REPORTED_KEY = 'locturne.purchasePendingReported';
+
+/**
+ * True the first time a waiting purchase is found paid, then false until another one waits:
+ * `purchase_result` for an approval that landed after the paywall closed is sent once
+ * (docs/ANALYTICS.md, `page: later`). Onboarding takes it too when it finishes a purchase or
+ * restore itself, so the same approval isn't counted twice. Doesn't clear the waiting note:
+ * arming does that (arm.ts).
+ */
+export function takePendingApproval(now = Date.now()): boolean {
+  const at = sharedGet<number>(KEY);
+  if (typeof at !== 'number' || now - at >= PENDING_FOR_MS) return false;
+  if (sharedGet<number>(REPORTED_KEY) === at) return false;
+  sharedSet(REPORTED_KEY, at);
+  return true;
+}

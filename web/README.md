@@ -1,5 +1,10 @@
 # locturne.com
 
+> **Not deployed. Superseded on 2026-10-04.** This folder is the October 3 first draft. The
+> live site is the separate `locturne_landing` Astro repo (`~/Documents/Projects/locturne_landing`),
+> deployed on Cloudflare: edit Terms, Privacy and Support there. See
+> [docs/WEBSITE.md](../docs/WEBSITE.md).
+
 The website: a waitlist landing page (`/`), the Privacy Policy (`/privacy`) and the Terms
 of Use (`/terms`). Plain HTML and CSS on Cloudflare Pages, with one Pages Function
 (`functions/api/waitlist.ts`) that stores sign-ups in Cloudflare D1. Background and open
