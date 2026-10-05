@@ -35,7 +35,11 @@ export function startPurchases(): void {
     return;
   }
   if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG).catch(() => {});
-  Purchases.configure({ apiKey });
+  // Trusted Entitlements: a proxy rewriting RevenueCat's answers is caught (revenuecat.ts).
+  Purchases.configure({
+    apiKey,
+    entitlementVerificationMode: Purchases.ENTITLEMENT_VERIFICATION_MODE.INFORMATIONAL,
+  });
   // Sandbox only, dev builds only: every purchase comes back pending, like a teen's Ask to Buy.
   if (__DEV__ && extra?.revenueCat?.simulateAskToBuy === true) {
     Purchases.setSimulatesAskToBuyInSandbox(true).catch(() => {});

@@ -76,6 +76,7 @@ function customer(active: { productId: string; trial?: boolean; startedAt?: numb
 
 type Fake = RevenueCatSdk & {
   attributes: Record<string, string | null>;
+  invalidated: number;
   bought: string[];
   info: CustomerInfo;
   push(info: CustomerInfo): void;
@@ -93,6 +94,7 @@ function fakeSdk(options: {
   let listener: ((info: CustomerInfo) => void) | null = null;
   const fake: Fake = {
     attributes: {},
+    invalidated: 0,
     bought: [],
     info: customer(null),
     push(info) {
@@ -120,6 +122,9 @@ function fakeSdk(options: {
     async getCustomerInfo() {
       if (options.offline) throw { code: '35' };
       return fake.info;
+    },
+    async invalidateCustomerInfoCache() {
+      fake.invalidated += 1;
     },
     async setAttributes(attributes) {
       Object.assign(fake.attributes, attributes);
@@ -350,4 +355,44 @@ test('a clock once set forward doesn\'t lock a paying user out', async () => {
   // Clock set right; a trial bought now runs 7 days.
   sdk.info = { ...customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() + 7 * DAY }), requestDate: today.toISOString() } as CustomerInfo;
   assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
+});
+
+test('a clock set back before the plan ended makes the store answer afresh', async () => {
+  const store = memoryKeyValue();
+  const expiresAt = new Date(2026, 10, 1).getTime();
+  // Last answered a week before a cancelled plan ended; opened next after it ended, clock a month back.
+  const lastSeen = expiresAt - 7 * DAY;
+  store.set(SEEN_AT_KEY, lastSeen);
+  const back = new Date(expiresAt - 30 * DAY);
+  const plan = customer({ productId: PRODUCT_IDS.annual, expiresAt, willRenew: false });
+  const sdk = fakeSdk();
+  // The SDK's cache, judged by the set-back clock, says active until asked afresh.
+  sdk.getCustomerInfo = async () =>
+    sdk.invalidated
+      ? ({ ...customer(null), requestDate: new Date(expiresAt + DAY).toISOString() } as CustomerInfo)
+      : ({ ...plan, requestDate: new Date(lastSeen).toISOString() } as CustomerInfo);
+  assert.equal(await provider(sdk, store, 0.9, back).isEntitled(), false);
+  assert.equal(sdk.invalidated, 1);
+  // No answer at all with the clock behind: the cache doesn't count.
+  store.set(ENTITLEMENT_KEY, { active: true, expiresAt, willRenew: false, checkedAt: lastSeen });
+  assert.equal(await provider(fakeSdk({ offline: true }), store, 0.9, back).isEntitled(), false);
+});
+
+test('an answer that fails Trusted Entitlements counts as unpaid and moves no clock', async () => {
+  const store = memoryKeyValue();
+  const sdk = fakeSdk();
+  const info = customer({ productId: PRODUCT_IDS.annual, expiresAt: Date.now() + 365 * DAY });
+  sdk.info = {
+    ...info,
+    requestDate: new Date(2099, 0, 1).toISOString(),
+    entitlements: { ...info.entitlements, verification: 'FAILED' },
+  } as CustomerInfo;
+  assert.equal(await provider(sdk, store).isEntitled(), false);
+  assert.equal(store.get(SEEN_AT_KEY), undefined);
+});
+
+test('cached values of the wrong type fail closed', async () => {
+  const store = memoryKeyValue();
+  store.set(ENTITLEMENT_KEY, { active: 'false', checkedAt: 0 });
+  assert.equal(await provider(fakeSdk({ offline: true }), store).isEntitled(), false);
 });

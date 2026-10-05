@@ -54,6 +54,7 @@ export type RevenueCatSdk = {
   purchasePackage(aPackage: PurchasesPackage): Promise<{ customerInfo: CustomerInfo }>;
   restorePurchases(): Promise<CustomerInfo>;
   getCustomerInfo(): Promise<CustomerInfo>;
+  invalidateCustomerInfoCache(): Promise<void>;
   setAttributes(attributes: { [key: string]: string | null }): Promise<void>;
   addCustomerInfoUpdateListener(listener: (info: CustomerInfo) => void): void;
   showManageSubscriptions(): Promise<void>;
@@ -67,6 +68,8 @@ const NOT_ALLOWED: `${PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED_ERROR}` = '3';
 const NETWORK: `${PURCHASES_ERROR_CODE.NETWORK_ERROR}` = '10';
 const PENDING: `${PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR}` = '20';
 const OFFLINE: `${PURCHASES_ERROR_CODE.OFFLINE_CONNECTION_ERROR}` = '35';
+// Trusted Entitlements (purchases-start.ts): an answer whose signature didn't check out.
+const FORGED: Extract<`${CustomerInfo['entitlements']['verification']}`, 'FAILED'> = 'FAILED';
 
 /** What's cached of the last answer about the entitlement. Plist-safe: no nulls. */
 export type EntitlementRecord = {
@@ -197,7 +200,7 @@ export function toOffers(
 export function entitlementRecord(info: CustomerInfo, now: Date): EntitlementRecord {
   const entitlement = info.entitlements.active[ENTITLEMENT_ID];
   const checkedAt = now.getTime();
-  if (!entitlement?.isActive) return { active: false, checkedAt };
+  if (!entitlement?.isActive || forged(info)) return { active: false, checkedAt };
   const record: EntitlementRecord = { active: true, productId: entitlement.productIdentifier, checkedAt };
   if (entitlement.expirationDateMillis != null) record.expiresAt = entitlement.expirationDateMillis;
   if (entitlement.periodType === 'TRIAL') record.trialStartedAt = entitlement.latestPurchaseDateMillis;
@@ -205,9 +208,14 @@ export function entitlementRecord(info: CustomerInfo, now: Date): EntitlementRec
   return record;
 }
 
+/** An answer altered on the way (a proxy's "unlock" script), caught by Trusted Entitlements. */
+function forged(info: CustomerInfo): boolean {
+  return info.entitlements.verification === FORGED || info.entitlements.active[ENTITLEMENT_ID]?.verification === FORGED;
+}
+
 /** Whether a cached record still counts as paid when the store can't be asked. */
 export function cachedEntitlement(record: EntitlementRecord | undefined, now: Date): boolean {
-  if (!record?.active) return false;
+  if (record?.active !== true) return false;
   // The grace covers a renewal the phone couldn't see offline. A cancelled one won't renew.
   const grace = record.willRenew === false ? 0 : OFFLINE_GRACE_MS;
   return record.expiresAt === undefined || now.getTime() < record.expiresAt + grace;
@@ -239,14 +247,15 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
 
   const cached = () => store.get<EntitlementRecord>(ENTITLEMENT_KEY);
   /** Now, or the server time seen when the clock has been set back behind it. */
-  const judgedAt = () => {
-    const at = now().getTime();
-    const seen = store.get<number>(SEEN_AT_KEY) ?? 0;
-    return new Date(at < seen - CLOCK_SLACK_MS ? seen : at);
+  const seenAt = () => {
+    const seen = store.get<number>(SEEN_AT_KEY);
+    return typeof seen === 'number' && Number.isFinite(seen) ? seen : 0;
   };
+  const behind = () => now().getTime() < seenAt() - CLOCK_SLACK_MS;
+  const judgedAt = () => new Date(behind() ? seenAt() : now().getTime());
   const remember = (info: CustomerInfo) => {
     const served = Date.parse(info.requestDate);
-    if (served > (store.get<number>(SEEN_AT_KEY) ?? 0)) store.set(SEEN_AT_KEY, served);
+    if (!forged(info) && served > seenAt()) store.set(SEEN_AT_KEY, served);
     let record = entitlementRecord(info, now());
     const at = judgedAt();
     // The clock is behind: the store's answer may be its stale cache, judged by that clock.
@@ -258,10 +267,16 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   };
   /** The store's answer, else the cache. Throws only with neither. */
   const latest = async (): Promise<EntitlementRecord> => {
+    // With the clock behind its last fetch, the SDK's cache never goes stale and it never asks
+    // again: make it ask, so a fresh server time judges the answer.
+    const wasBehind = behind();
     try {
+      if (wasBehind) await sdk.invalidateCustomerInfoCache();
       return remember(await sdk.getCustomerInfo());
     } catch (error) {
       const record = cached();
+      // A clock set back and no answer: the cache can't be judged, so it doesn't count.
+      if (wasBehind) return { ...record, active: false, checkedAt: now().getTime() };
       if (!record) throw error;
       return cachedEntitlement(record, judgedAt()) ? record : { ...record, active: false };
     }
