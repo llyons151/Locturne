@@ -339,6 +339,11 @@ export function OnboardingFlow({
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
+  /** `armed` with every night off: done here, on to the Routine tab to turn one on. */
+  const openRoutine = () => {
+    exit();
+    router.navigate('/routine');
+  };
   // Leaving the paywall lands on one honest "Fair." screen, once (unless the test arm has
   // no offer). A second exit really exits.
   const leave = PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
@@ -709,6 +714,7 @@ export function OnboardingFlow({
     onIconRef,
     arm,
     retryArm,
+    openRoutine,
     motion,
     notifications,
     trialEnds,

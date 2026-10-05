@@ -95,8 +95,11 @@ export function registerScanCode(
   const refusal = getScanEditRefusal(now);
   if (refusal) return refusal;
   if (!registrable(code.data)) return 'unusable';
+  // A barcode keeps the QR printout for a later switch back: the registered one, if it was a
+  // QR (its draft went when it was registered), so the fridge printout still works.
+  const old = getScanCode();
+  if (code.kind !== 'qr' && old?.kind === 'qr') sharedSet(QR_DRAFT_KEY, old.data);
   sharedSet(SCAN_CODE_KEY, { ...code, data: code.data.trim(), registeredAt: now.getTime() });
-  // A barcode keeps the QR printout for a later switch back.
   if (code.kind === 'qr') sharedRemove(QR_DRAFT_KEY);
   // Tonight's shield said "walk" while there was no code; it now says "scan".
   syncLock(now);

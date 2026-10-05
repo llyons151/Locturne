@@ -88,3 +88,15 @@ test('the QR to print stays the same until one is registered, then a new one is 
   assert.equal(scan.registerScanCode({ kind: 'qr', data: first, type: 'qr' }, at(10, 5, 14)), null);
   assert.notEqual(scan.draftQrData(), first);
 });
+
+test('a registered QR printout survives a switch to a barcode and back', () => {
+  const printed = scan.draftQrData();
+  recordProof({ morningKey: '2026-10-05', kind: 'steps', at: at(10, 5, 7, 30).getTime() });
+  assert.equal(scan.registerScanCode({ kind: 'qr', data: printed, type: 'qr' }, at(10, 5, 14)), null);
+  // Tried a barcode instead...
+  assert.equal(scan.registerScanCode({ kind: 'barcode', data: '012345678905', type: 'ean13' }, at(10, 5, 15)), null);
+  // ...then back to "My own code": the fridge printout, not a new one.
+  assert.equal(scan.draftQrData(), printed);
+  assert.equal(scan.registerScanCode({ kind: 'qr', data: printed, type: 'qr' }, at(10, 5, 16)), null);
+  assert.equal(scan.getScanCode()?.data, printed);
+});

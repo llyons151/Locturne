@@ -175,6 +175,9 @@ test('rollUpHealth says when nothing sleeps for want of a subscription, and offe
   assert.notEqual(lapsed.level, 'ok');
   // Tonight still armed (it ends after the coming morning): the normal status until then.
   assert.equal(roll({ unsubscribed: true }).needsSubscription, undefined);
+  // Every night off too: the subscription comes first, since unpaid nothing sleeps either way.
+  assert.equal(roll({ armed: null, unsubscribed: true, routine: { activeNights: [] } }).needsSubscription, true);
+  assert.equal(roll({ armed: null, routine: { activeNights: [] } }).title, 'Every night is off.');
 });
 
 test('rollUpHealth flags the newest judged night, skipping unknown ones', () => {

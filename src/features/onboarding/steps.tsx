@@ -118,6 +118,8 @@ export type StepContext = {
   /** Handing tonight to iOS after purchase. `working` until iOS answers. */
   arm: ArmResult | { status: 'working' };
   retryArm: () => void;
+  /** Leaves onboarding for the Routine tab (`arm` came back `nights-off`). */
+  openRoutine: () => void;
   /** Motion & Fitness: answered on the walk or on `armed`. Null while iOS would still ask. */
   motion: MotionAccess | null;
   /** Notifications, as iOS has them once `armed` is shown. Null until checked. */
@@ -681,6 +683,21 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>Handing your schedule to iOS. A second.</Body>
             </View>
           ),
+        };
+      }
+      if (arm.status === 'nights-off') {
+        // Subscribed, but there's nothing to schedule: not a failure, and no retry fixes it.
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text="Nothing to set tonight." size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>Every night is off in Routine. Turn one on and I’ll schedule it.</Body>
+              <View style={page.gapAside} />
+              <Body>You’re subscribed. Nothing sleeps at bedtime until then.</Body>
+            </View>
+          ),
+          footer: <PrimaryButton label="Open Routine" onPress={ctx.openRoutine} />,
         };
       }
       if (arm.status === 'failed') {

@@ -7,7 +7,7 @@
 import { armRoutine, readLock } from './lock-controller.ts';
 import { planNightWindows } from './night-plan.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
-import { getRoutine } from './routine.ts';
+import { getPendingRoutine, getRoutine } from './routine.ts';
 import { armedWindowNames, getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from './screen-time.ts';
 
 export type ArmFailure = 'no-access' | 'no-apps' | 'too-short' | 'refused';
@@ -17,11 +17,19 @@ export type ArmResult =
   | { status: 'armed'; now: boolean }
   /** No Screen Time here (the web preview): nothing was handed to iOS. */
   | { status: 'preview' }
+  /** Every night is off in Routine, now and in any edit waiting for bedtime: nothing to hand iOS. */
+  | { status: 'nights-off' }
   | { status: 'failed'; reason: ArmFailure };
 
 export async function armTonight(): Promise<ArmResult> {
   if (!isScreenTimeAvailable()) return { status: 'preview' };
   if (getAccess() !== 'approved') return { status: 'failed', reason: 'no-access' };
+  // A resubscriber who turned every night off: arming keeps nothing, which isn't a refusal.
+  const pending = getPendingRoutine();
+  if (getRoutine().activeNights.length === 0 && (pending?.routine.activeNights.length ?? 0) === 0) {
+    clearPurchasePending();
+    return { status: 'nights-off' };
+  }
   // The picks as the Apps tab shows them: an emergency unlock parks them in the list's draft
   // until the next bedtime (`pauseNightUntil`), and they're still the bedtime apps.
   if (shownSelection('night').size === 0) return { status: 'failed', reason: 'no-apps' };

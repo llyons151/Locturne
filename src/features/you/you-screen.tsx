@@ -26,7 +26,7 @@ import {
   type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
-import { readLock } from '@/lib/lock-controller';
+import { onLockChange, readLock } from '@/lib/lock-controller';
 import { getPassesLeft } from '@/lib/passes';
 import { getRoutine } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
@@ -126,16 +126,23 @@ export function YouScreen() {
     passesLeft: getPassesLeft(),
   });
   const [{ inTrial, passesLeft }, setFacts] = useState(read);
-  useFocusEffect(useCallback(() => setFacts(read()), []));
 
   // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
   // Asked again on focus: the paywall may have just sold one.
   const [plan, setPlan] = useState<PlanId | null | undefined>(undefined);
-  useFocusEffect(
-    useCallback(() => {
-      currentPlan().then(setPlan, () => {});
-    }, []),
-  );
+  // The facts and the plan, and with them the status line (read during render).
+  const refresh = useCallback(() => {
+    setFacts(read());
+    currentPlan().then(setPlan, () => {});
+  }, []);
+  useFocusEffect(refresh);
+  // And on every sync and return to the foreground, like Home and Apps: the store's answer
+  // lands after the foreground read, and a lapse found then stands everything down.
+  useEffect(() => onLockChange(refresh), [refresh]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
+    return () => sub.remove();
+  }, [refresh]);
   // Setting up a code is refused from bed (scan.ts): then the morning scan if there's a code,
   // or the ways out that work without one.
   const cantWalk = () => {

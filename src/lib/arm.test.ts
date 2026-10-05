@@ -59,3 +59,14 @@ test('still refuses when there really are no bedtime apps', async () => {
   lc.settleSubscription(true, at(5, 15));
   assert.deepEqual(await armTonight(), { status: 'failed', reason: 'no-apps' });
 });
+
+test('every night off in Routine is its own answer, not a refusal a retry could fix', async () => {
+  // A resubscriber who switched every night off before the subscription ended.
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, activeNights: [] });
+  lc.settleSubscription(true, at(5, 15));
+  assert.deepEqual(await armTonight(), { status: 'nights-off' });
+  assert.equal(st.getArmedNight(), null);
+  // One night back on: it arms.
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, activeNights: [1] });
+  assert.equal((await armTonight()).status, 'armed');
+});

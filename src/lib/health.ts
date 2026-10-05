@@ -236,14 +236,8 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
         };
   }
 
-  if (routine.activeNights.length === 0) {
-    return {
-      ...base,
-      level: 'idle',
-      title: 'Every night is off.',
-      detail: 'Nothing sleeps at bedtime until you turn a night back on.',
-    };
-  }
+  // The purchase before "every night is off": unpaid, not even the always-asleep apps sleep,
+  // and turning a night on wouldn't change that. Home offers the plans.
   if (!armed && purchasePending) {
     return {
       ...base,
@@ -259,6 +253,14 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       title: 'No subscription, so nothing sleeps.',
       detail: 'Your setup is saved. Subscribe and I’ll pick up where we left off.',
       needsSubscription: true,
+    };
+  }
+  if (routine.activeNights.length === 0) {
+    return {
+      ...base,
+      level: 'idle',
+      title: 'Every night is off.',
+      detail: 'Nothing sleeps at bedtime until you turn a night back on.',
     };
   }
   if (!armed) {
