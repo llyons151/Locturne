@@ -8,6 +8,7 @@
  */
 import { armedBedtime, dateKey, nightInto, nightsAround, settingsTakeEffectAt, type LockSettings, type Morning } from './lock-state.ts';
 import { getArmedNight, sharedGet, sharedSet } from './screen-time.ts';
+import { EXTENSION_SLACK_MS } from './wake/arming.ts';
 
 /** The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. */
 export type WakeMethod = 'downstairs' | 'steps' | 'scan';
@@ -235,7 +236,8 @@ export function bringEditForward(from: number, now = new Date()): boolean {
  * monitor extension shields there only if the windows iOS has armed are in their night at
  * `at` (an earlier bedtime is armed at once, but arming can also wait for a phantom night to
  * pass, `planArming`, and then iOS still has the routine in force's later windows), and it
- * skips them on an evening the routine in force has off. `evening` is the `getDay()` of the
+ * skips them on an evening the routine in force has off, until two minutes before the edit
+ * (`edit`) applies, when it reads the edit's nights instead. `evening` is the `getDay()` of the
  * edit's night's evening. The one rule for `inPendingFirstNight` (lock-controller.ts),
  * `nightAt` and the notification planner, so the lock, Home and the warning agree.
  */
@@ -244,8 +246,14 @@ export function holdsEarly(
   evening: number,
   inForce: Routine,
   armed: { bedtime: number; morningStart: number } | null,
+  edit?: { routine: Pick<Routine, 'activeNights'>; from: number } | null,
 ): boolean {
-  if (!armed || !inForce.activeNights.includes(evening)) return false;
+  // The extension reads the edit as in force from two minutes before it applies
+  // (`locturneRoutineInForce`), so a window starting then shields on an evening the edit has on
+  // even if the routine in force has it off (round 53: an open at 02:58 before a 03:00 edit
+  // read day and woke the night the windows had just shielded).
+  const nights = edit && at.getTime() >= edit.from - EXTENSION_SLACK_MS ? edit.routine.activeNights : inForce.activeNights;
+  if (!armed || !nights.includes(evening)) return false;
   const { latest } = nightsAround(at, { ...toLockSettings(inForce), ...armed, activeNights: [0, 1, 2, 3, 4, 5, 6] });
   return at >= latest.start && at < latest.end;
 }
@@ -280,7 +288,7 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   // An earlier start than `from` is only real if iOS holds it early (`holdsEarly`). Otherwise
   // the edit's night starts at `from`.
   const early = usePending && pending && night.start.getTime() < pending.from;
-  const held = holdsEarly(night.start, evening, getRoutine(now), getArmedNight());
+  const held = holdsEarly(night.start, evening, getRoutine(now), getArmedNight(), pending);
   const on = routine.activeNights.includes(evening);
   // An edit's night already under way when it applies, on an evening it has off and not held
   // early: nothing sleeps in it, so the night that comes is its next one ("Tonight is off" at

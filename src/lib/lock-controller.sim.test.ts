@@ -313,7 +313,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       const armed = st.getArmedNight();
       const theirs = armed && ls.nightsAround(new Date(at), { ...rt.toLockSettings(next.routine), ...armed, activeNights: [0, 1, 2, 3, 4, 5, 6] }).latest;
       const armedInside = !!theirs && at >= theirs.start.getTime() && at < theirs.end.getTime();
-      const held = armedInside && inForceAt(asOf).activeNights.includes(evening) && next.routine.activeNights.includes(evening);
+      // The extension reads the edit's nights from two minutes before it applies.
+      const nights = at >= next.from - 2 * MIN ? next.routine.activeNights : inForceAt(asOf).activeNights;
+      const held = armedInside && nights.includes(evening) && next.routine.activeNights.includes(evening);
       if (inside && held && (!spec.lapse || spec.lapse.underWayKey === ls.dateKey(latest.end))) return next.routine;
       // Otherwise the routine in force as iOS runs it, as with no edit waiting: windows still
       // armed for an older routine hold its night from their bedtime, and an edit saved from

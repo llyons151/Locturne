@@ -56,6 +56,7 @@ import {
 } from './screen-time.ts';
 import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
+import { planNightWindows } from './night-plan.ts';
 
 /** Block now and used-up daily limits, as `getLockState` takes them. Selection ids are the apps. */
 function readDaytime(now: Date): DaytimeFacts {
@@ -192,7 +193,7 @@ function governsEarly(at: Date, pending: { routine: Routine; from: number }, inF
   // While iOS registers new windows, it can run one's start at once (shielding the early
   // night) before `getArmedNight()` names them: judge by the times being armed too, or a sync
   // in that gap would read day and wake the apps until `arm` sleeps them again.
-  const held = holdsEarly(at, evening, inForce, getArmedNight()) || (!!armingTimes && holdsEarly(at, evening, inForce, armingTimes));
+  const held = holdsEarly(at, evening, inForce, getArmedNight(), pending) || (!!armingTimes && holdsEarly(at, evening, inForce, armingTimes, pending));
   if (!held) return false;
   return !subscriptionEnded() || underWayWhenEnded(dateKey(latest.end));
 }
@@ -251,11 +252,19 @@ export function syncLock(now = new Date()): LockState {
       });
     }
     applyShieldText(state, now);
-    // A waiting list change no window reaches at its `from` (the windows armed again since).
-    scheduleListSettle(now);
+    // A waiting list change no window reaches at its `from` (the windows armed again since),
+    // leaving room for the windows the routine in force and a waiting edit will arm.
+    scheduleListSettle(now, plannedWindows(now));
   }
   for (const listener of listeners) listener(state);
   return state;
+}
+
+/** The most night windows the routine in force or a waiting edit will have iOS monitor. */
+function plannedWindows(now: Date): number {
+  const count = (r: Routine) => (r.activeNights.length > 0 ? planNightWindows(r.bedtime, r.morningStart).length : 0);
+  const pending = getPendingRoutine(now);
+  return Math.max(count(getRoutine(now)), pending ? count(pending.routine) : 0);
 }
 
 const SUBSCRIPTION_ENDED_KEY = 'locturne.subscriptionEnded';
@@ -683,10 +692,14 @@ function redateLooserEdits(now: Date): void {
   // With nothing armed there's no bedtime to judge them by (a lapse stood everything down, or
   // every night is off): midnight would move a change dated by tonight's bedtime past it.
   if (!getArmedNight()) return;
-  delayListChanges((list, dated, awake) => {
+  const dueNow = delayListChanges((list, dated, awake) => {
     const due = looserStart(dated, list, awake);
     return { at: due.at, earlier: awake === true && due.early };
   }, now);
+  // Moved earlier to now (the night it waited for began before this sync: protection armed again
+  // after a renewal, say): due, and the window start that would swap it in has passed, so it lands
+  // here rather than at the next one (round 53: the Apps tab had said "now").
+  if (dueNow.some((list) => list === 'night' || list === 'always')) settleListChanges(now, { limits: false });
   const limits = getLimits();
   let changed = false;
   const next = limits.map((limit) => {

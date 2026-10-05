@@ -55,7 +55,7 @@ function asSettings(t: ArmTimes): LockSettings {
  * applies (`locturneNightIsOn` in DeviceActivityMonitorExtension.swift); before that, the
  * routine in force decides whether a window's night is on.
  */
-const EXTENSION_SLACK_MS = 2 * 60_000;
+export const EXTENSION_SLACK_MS = 2 * 60_000;
 
 /**
  * Would the monitor extension shield at a window start at `t`, rather than skip it as a night

@@ -91,6 +91,13 @@ export function simDevice() {
      * skipped it (a night off, which wakes the list), or ignored it (changes nothing).
      */
     lastWindow: null as 'shield' | 'skip' | 'ignore' | null,
+    /**
+     * iOS's cap on monitored activities (about 20): a new one past it is refused. Null (the
+     * default) for no cap.
+     */
+    cap: null as number | null,
+    /** Registrations finish after a turn of the event loop, as the real bridge's do. */
+    asyncRegistration: false,
   };
 
   const ids = (): Record<string, string> => (s.store[IDS_KEY] ??= {}) as Record<string, string>;
@@ -132,6 +139,10 @@ export function simDevice() {
   function occurrence(schedule: Schedule, day: Date) {
     const { intervalStart: a, intervalEnd: b } = schedule;
     const start = wallInstant(day.getFullYear(), day.getMonth(), day.getDate(), a.hour, a.minute, a.second ?? 0);
+    // A one-off with a full end date (the list settle) ends then, even before its start.
+    if (!schedule.repeats && b.year !== undefined && b.month !== undefined && b.day !== undefined) {
+      return { start, end: wallInstant(b.year, b.month - 1, b.day, b.hour, b.minute, b.second ?? 0) };
+    }
     const crosses = b.hour * 3600 + b.minute * 60 + (b.second ?? 0) <= a.hour * 3600 + a.minute * 60 + (a.second ?? 0);
     const end = wallInstant(day.getFullYear(), day.getMonth(), day.getDate() + (crosses ? 1 : 0), b.hour, b.minute, b.second ?? 0);
     return { start, end };
@@ -215,11 +226,15 @@ export function simDevice() {
       s.actions.set(`actions_for_${activityName}_${callbackName}${eventName ? `_${eventName}` : ''}`, copy(actions));
     },
     startMonitoring: async (name: string, schedule: Schedule, events: MonitorEvent[]) => {
+      if (s.asyncRegistration) await Promise.resolve();
+      if (s.cap !== null && !s.monitored.has(name) && s.monitored.size >= s.cap) throw new Error('excessiveActivities');
       const t = now();
       const m: Monitored = { name, schedule: copy(schedule), events: copy(events), registeredAt: t };
       // A one-off with a date (the list settle) runs on that day; without one (Block now), today.
       const a = schedule.intervalStart;
       if (!schedule.repeats) m.once = occurrence(schedule, a.year !== undefined && a.month !== undefined && a.day !== undefined ? new Date(a.year, a.month - 1, a.day) : new Date(t));
+      // iOS refuses an interval that ends before it starts.
+      if (m.once && m.once.end <= m.once.start) throw new Error('invalidDateComponents');
       s.monitored.set(name, m);
       if (s.startsOnRegister && schedule.repeats && insideNow(m, t)) {
         s.queue.push({ activity: name, callback: 'intervalDidStart' });
@@ -585,6 +600,8 @@ export function simDevice() {
     s.usage.clear();
     s.trace.length = 0;
     s.lastWindow = null;
+    s.cap = null;
+    s.asyncRegistration = false;
   }
 
   return { state: s, exports, ids, appsOfId, fire, dueEvents, use, reset, get };

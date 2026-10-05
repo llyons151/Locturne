@@ -151,7 +151,7 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
       // An earlier bedtime only starts early if iOS holds it (`holdsEarly`, as
       // `inPendingFirstNight` judges it). Otherwise the edit's first night starts at `from`.
       // Judged by what iOS has armed now: the arming that makes it held reschedules (`onArmed`).
-      const held = holdsEarly(start, atMinute(end, 0, -1).getDay(), routine, facts.armedTimes ?? null);
+      const held = holdsEarly(start, atMinute(end, 0, -1).getDay(), routine, facts.armedTimes ?? null, pending);
       if (!held && start.getTime() < pending.from) start = new Date(pending.from);
     }
     // A night inside the spring clock gap has no length, but its windows all fire at the gap's

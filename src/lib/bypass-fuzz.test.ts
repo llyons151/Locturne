@@ -50,13 +50,25 @@ const realStart = device.exports.startMonitoring;
 let acceptLeft = Infinity;
 let refuseLeft = 0;
 let fireOnRegister = false;
+/**
+ * Registrations the simulated iOS itself refused (its cap of 20 activities, `device.state.cap`,
+ * or an interval ending before it starts), not the forced refusals above. The night windows,
+ * Block now, three limits and the list settle are budgeted to fit (night-plan.ts,
+ * `scheduleListSettle`), so any is a failure.
+ */
+const iosRefused: string[] = [];
 device.exports.startMonitoring = async (...args: Parameters<typeof realStart>) => {
   if (acceptLeft <= 0 && refuseLeft > 0) {
     refuseLeft -= 1;
     throw new Error('excessiveActivities');
   }
   acceptLeft -= 1;
-  await realStart(...args);
+  try {
+    await realStart(...args);
+  } catch (error) {
+    iosRefused.push(`${args[0]} (${String(error)}) at ${new Date().toString().slice(0, 24)} with ${[...device.state.monitored.keys()].join(',')}`);
+    throw error;
+  }
   if (fireOnRegister) for (const q of device.state.queue.splice(0)) device.fire(q.activity, q.callback);
 };
 const noRefusals = () => {
@@ -303,6 +315,11 @@ async function run(seed: number): Promise<string | null> {
     R0.activeNights = ALL.filter((d) => !off.includes(d));
   }
   await setup(noon(), R0);
+  // iOS's cap of 20 activities, and registrations that finish after a turn of the event loop (the
+  // real bridge's), in most runs: a sync can land while `armNight` is part-way.
+  device.state.cap = r.chance(0.8) ? 20 : null;
+  device.state.asyncRegistration = r.chance(0.5);
+  iosRefused.length = 0;
   const S0 = rt.toLockSettings(R0);
   // R0's first night starts at B1 and runs into M1; R0's next bedtime (night on or off) is B2;
   // its next night that's on runs from B2on into M2.
@@ -315,7 +332,9 @@ async function run(seed: number): Promise<string | null> {
   const t0 = B1 + Math.floor(r.next() * ((M1 - B1) / MIN - 20)) * MIN + 5 * MIN;
   runTo(t0);
   if (r.chance(0.5)) await open();
-  const log: string[] = [`R0 ${R0.bedtime}/${R0.morningStart} nights ${R0.activeNights.join('')}, first night from ${hm(B1)}, fire on register ${fireOnRegister}`];
+  const log: string[] = [
+    `R0 ${R0.bedtime}/${R0.morningStart} nights ${R0.activeNights.join('')}, first night from ${hm(B1)}, fire on register ${fireOnRegister}, cap ${device.state.cap}, async ${device.state.asyncRegistration}`,
+  ];
   let everLapsed = false;
   const failure = (why: string) => `seed ${seed}${everLapsed ? ' [lapsed]' : ''}: ${why}\n   ${log.join('\n   ')}`;
   if (!asleep('tiktok')) return failure('first night not held');
@@ -492,6 +511,9 @@ async function run(seed: number): Promise<string | null> {
         const from = st.listChangeStarts(list);
         if (from) marks.push(from.getTime());
       }
+      // The one-off list settle's start (`scheduleListSettle`).
+      const settleAt = device.get<number>('locturne.settleAt');
+      if (typeof settleAt === 'number') marks.push(settleAt, settleAt);
       const mark = r.pick(marks) + r.pick([-121, -119, -61, -59, -1, 0, 1, 59, 61, 119]) * 1000;
       if (mark > Date.now() && mark < B2 - 20 * MIN) at = mark;
     }
@@ -505,6 +527,7 @@ async function run(seed: number): Promise<string | null> {
       'field', 'field', 'field', 'edit', 'edit', 'undo', 'undo', 'nightsOff', 'offOn', 'list', 'list', 'picker', 'always',
       'limit', 'limitNew', 'limitList', 'use', 'use', 'emergency', 'pass', 'proof', 'proof', 'nap', 'wake', 'rerun',
       'lapse', 'lapseLong', 'renew', 'scanSet', 'scan', 'open', 'open',
+      'longNight', 'fillLimits', 'napLong', 'settleEdge',
     ] as const;
     let kind: (typeof kinds)[number] = r.pick(kinds);
     if ((forceEmergency || process.env.BYPASS_FUZZ_NOLAPSE) && (kind === 'lapse' || kind === 'lapseLong')) kind = 'open';
@@ -672,12 +695,14 @@ async function run(seed: number): Promise<string | null> {
         }
         break;
       }
-      case 'nap': {
+      case 'nap':
+      case 'napLong': {
         const list = r.pick(['night', 'block'] as const);
+        const minutes = kind === 'napLong' ? r.pick([120, 240, 480]) : r.pick([15, 30, 60]);
+        // The Nap tab's `blocker`. Its picks can't change while a session runs.
+        if (st.getNap()) break;
         if (list === 'block') device.exports.setFamilyActivitySelectionId({ id: 'block', familyActivitySelection: token(r.pick([['tiktok', 'yt', 'reddit'], ['fb'], ['insta', 'x']])) });
-        const minutes = r.pick([15, 30, 60]);
-        // The Nap tab's `blocker`.
-        if (!st.getNap() && !st.isStoodDown() && st.hasSelection(list) && !(list === 'night' && st.isNightHeld())) {
+        if (!st.isStoodDown() && st.hasSelection(list) && !(list === 'night' && st.isNightHeld())) {
           note = await st.startNap(list, minutes).then(
             () => `${list} ${minutes}`,
             () => 'refused',
@@ -737,6 +762,37 @@ async function run(seed: number): Promise<string | null> {
           note = 'renewed';
         }
         break;
+      case 'longNight': {
+        // A night of 12 hours or more: 16 windows, iOS's whole night budget.
+        const bedtime = r.pick([R0.bedtime - 300, (mins + 2) % 1440, (mins + 60) % 1440, 19 * 60, 20 * 60].map((x) => (x + 1440) % 1440));
+        const morningStart = (bedtime + r.pick([720, 780, 900])) % 1440;
+        note = `${bedtime}/${morningStart}`;
+        await commit({ ...edited(), bedtime, morningStart });
+        break;
+      }
+      case 'fillLimits': {
+        // Every daily limit there can be, each on its own apps.
+        const made: string[] = [];
+        for (let id = dl.freeLimitId(st.getLimits()); id; id = dl.freeLimitId(st.getLimits())) {
+          await listEdit(id, [r.pick(['fb', 'yt', 'x', 'snap'])]);
+          if (!st.getLimits().some((l) => l.id === id)) break;
+          strictest.set(id, 30);
+          made.push(id);
+        }
+        note = made.join(',');
+        break;
+      }
+      case 'settleEdge': {
+        // An open (or a save) a moment either side of the list settle's start.
+        const settleAt = device.get<number>('locturne.settleAt');
+        if (typeof settleAt !== 'number') break;
+        const edge = settleAt + r.pick([-121, -61, -1, 0, 1, 61]) * 1000;
+        if (edge <= Date.now() || edge >= B2 - 20 * MIN) break;
+        advance(edge);
+        note = `at ${hm(edge)}`;
+        if (r.chance(0.5)) await listEdit('always', r.pick([[], ['reddit'], ['reddit', 'x']]));
+        break;
+      }
       case 'open':
         break;
     }
@@ -757,6 +813,7 @@ async function run(seed: number): Promise<string | null> {
     );
     if (DEBUG) console.log(log[log.length - 1], JSON.stringify(device.get('locturne.routine')), JSON.stringify(device.get('locturne.armedNight')), JSON.stringify(device.get('locturne.pendingLists')), JSON.stringify(device.get('locturne.limits')));
     check();
+    if (!failed && iosRefused.length) failed = `iOS refused a registration: ${iosRefused[0]}`;
     if (failed) break;
   }
   if (failed) return failure(failed);
@@ -864,6 +921,7 @@ async function run(seed: number): Promise<string | null> {
     if (failed) break;
   }
   if (!failed) advance(end + 40 * MIN, phase2);
+  if (!failed && iosRefused.length) failed = `iOS refused a registration: ${iosRefused[0]}`;
   return failed ? failure(failed) : null;
 }
 

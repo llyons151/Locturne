@@ -38,7 +38,7 @@ import {
   userDefaultsSet,
 } from 'react-native-device-activity';
 
-import { settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
+import { MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 
@@ -400,6 +400,10 @@ export async function armNight(
 ): Promise<void> {
   const before = getArmedNight();
   stopNightWindows();
+  // The one-off settle activity gives way when these windows need its slot (`settleFits`); the
+  // next sync registers it again if there's room.
+  if (!settleFits(windows.length)) stopListSettle();
+  nightArming = windows.length;
   try {
     await monitorNight(windows, list);
   } catch (error) {
@@ -415,6 +419,8 @@ export async function armNight(
       await monitorNight(planNightWindows(before.bedtime, before.morningStart), list).catch(() => {});
     }
     throw error;
+  } finally {
+    nightArming = null;
   }
   const armedAt = new Date().toISOString();
   const sameTimes = !!before && before.bedtime === times.bedtime && before.morningStart === times.morningStart;
@@ -428,8 +434,12 @@ export async function armNight(
   userDefaultsSet(ARMED_KEY, armed);
 }
 
+/** How many windows `armNight` is handing iOS right now, until it returns. */
+let nightArming: number | null = null;
+
 async function monitorNight(windows: NightWindow[], list: SelectionId): Promise<void> {
   for (const w of windows) {
+    makeRoomFor(w.name);
     configureActions({
       activityName: w.name,
       callbackName: 'intervalDidStart',
@@ -557,6 +567,8 @@ export type ActiveNap = { start: number; end: number; list: 'night' | 'block' };
 
 const NAP_KEY = 'locturne.nap';
 const NAP_ACTIVITY = 'locturne-nap';
+let napStarting = false;
+let napGeneration = 0;
 
 /** A Block now that would run across the clock going back an hour. */
 export class NapClockChangeError extends Error {
@@ -577,6 +589,7 @@ function clockOf(ms: number) {
  */
 export async function startNap(list: ActiveNap['list'], minutes: number): Promise<ActiveNap> {
   if (isStoodDown()) throw new Error('Block now needs a subscription.');
+  if (napStarting) throw new Error('A nap is already starting.');
   const start = Date.now();
   const nap: ActiveNap = { start, end: start + minutes * 60_000, list };
   // iOS reads the window as clock times. Across the autumn clock change the end's clock time
@@ -586,19 +599,33 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
   const wall = (c: { hour: number; minute: number }) => c.hour * 60 + c.minute;
   const span = (wall(clockOf(nap.end)) - wall(clockOf(start)) + 1440) % 1440;
   if (span < minutes || span > minutes + 60) throw new NapClockChangeError();
-  configureActions({
-    activityName: NAP_ACTIVITY,
-    callbackName: 'intervalDidEnd',
-    actions: [{ type: 'unblockSelection', familyActivitySelectionId: list }],
-  });
-  await startMonitoring(
-    NAP_ACTIVITY,
-    { intervalStart: clockOf(nap.start), intervalEnd: clockOf(nap.end), repeats: false },
-    [],
-  );
-  shield(list);
-  userDefaultsSet(NAP_KEY, nap);
-  return nap;
+  napStarting = true;
+  const generation = ++napGeneration;
+  try {
+    makeRoomFor(NAP_ACTIVITY);
+    configureActions({
+      activityName: NAP_ACTIVITY,
+      callbackName: 'intervalDidEnd',
+      actions: [{ type: 'unblockSelection', familyActivitySelectionId: list }],
+    });
+    await startMonitoring(
+      NAP_ACTIVITY,
+      { intervalStart: clockOf(nap.start), intervalEnd: clockOf(nap.end), repeats: false },
+      [],
+    );
+    // A lapse or an exit may have cancelled this request while the native bridge
+    // registered it. A subsequent renewal must not revive the cancelled request.
+    if (generation !== napGeneration || isStoodDown()) {
+      stopMonitoring([NAP_ACTIVITY]);
+      cleanUpAfterActivity(NAP_ACTIVITY);
+      throw new Error('The nap was cancelled before it started.');
+    }
+    shield(list);
+    userDefaultsSet(NAP_KEY, nap);
+    return nap;
+  } finally {
+    napStarting = false;
+  }
 }
 
 /**
@@ -606,6 +633,7 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
  * to call when no nap is running.
  */
 export function endNap(): void {
+  napGeneration++;
   const nap = getNap();
   stopMonitoring([NAP_ACTIVITY]);
   cleanUpAfterActivity(NAP_ACTIVITY);
@@ -783,11 +811,13 @@ const SETTLE_SLACK_MS = 2 * 60_000;
  * within the extension's slack (it may have swapped it), is left alone, and so are the bedtime
  * picks parked by an emergency unlock (no `dated`, or the live list emptied while they wait:
  * moving the change later would keep the bedtime list empty past the pause's end).
+ * Returns the lists moved earlier to now: due, with no window start left to swap them in.
  */
 export function delayListChanges(
   dueAt: (list: StandingList, dated: Date, awake: boolean | undefined) => { at: Date; earlier?: boolean },
   now = new Date(),
-): void {
+): StandingList[] {
+  const dueNow: StandingList[] = [];
   for (const list of Object.keys(getPendingLists()) as StandingList[]) {
     // Read again for each list: the monitor extension may have settled it a moment ago.
     const pending = getPendingLists()[list];
@@ -795,8 +825,12 @@ export function delayListChanges(
     if (selectionSize(list) === 0) continue;
     const due = dueAt(list, new Date(pending.dated), pending.awake);
     const at = due.earlier ? Math.max(due.at.getTime(), now.getTime()) : due.at.getTime();
-    if (at > pending.from || (due.earlier && at < pending.from)) setPending(list, { ...pending, from: at });
+    if (at > pending.from || (due.earlier && at < pending.from)) {
+      setPending(list, { ...pending, from: at });
+      if (at <= now.getTime()) dueNow.push(list);
+    }
   }
+  return dueNow;
 }
 
 /** A one-off activity whose start swaps in a waiting list change no window would reach in time. */
@@ -809,6 +843,69 @@ const ACTIVITY_CAP = 20;
 const SHORTEST_INTERVAL_MS = 15 * 60_000;
 
 /**
+ * Is there room for the settle activity next to `windows` night windows, with Block now and
+ * every daily limit kept free? Those are registered later, when they're asked for, and iOS
+ * refuses one past its cap: a 16-window night leaves no room (round 53).
+ */
+function settleFits(windows: number): boolean {
+  return windows + 1 + MAX_LIMITS + 1 <= ACTIVITY_CAP;
+}
+
+/**
+ * Before registering `name`: if iOS is at its cap, the settle activity gives up its slot (a
+ * night window, Block now or a limit matters more; the next sync registers it again if there's
+ * room).
+ */
+function makeRoomFor(name: string): void {
+  const activities = getActivities();
+  if (activities.includes(name) || !activities.includes(SETTLE_ACTIVITY)) return;
+  if (activities.length >= ACTIVITY_CAP) stopListSettle();
+}
+
+function stopListSettle(): void {
+  if (sharedGet<number>(SETTLE_AT_KEY) === undefined && !hasActivity(SETTLE_ACTIVITY)) return;
+  stopMonitoring([SETTLE_ACTIVITY]);
+  userDefaultsRemove(SETTLE_AT_KEY);
+}
+
+/**
+ * A moment's calendar parts, which iOS reads on the wall clock. `want` itself if those parts
+ * name it, else the first quarter-hour after it whose parts do: in the autumn repeated hour
+ * they name the first pass, an hour early (`settleLocturneLists` would find nothing due yet).
+ */
+function wallParts(ms: number) {
+  const d = new Date(ms);
+  return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() };
+}
+/** The wall-clock reading of a moment, as a number that orders readings. */
+function wallStamp(ms: number): number {
+  const p = wallParts(ms);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+}
+/**
+ * The settle activity's interval for a change due at `want`: calendar parts iOS reads on the wall
+ * clock, each naming one moment (`at`, the start, is `want` unless the autumn repeated hour makes
+ * it ambiguous), and an end at least iOS's shortest interval later and after the start on the
+ * wall clock too (across the autumn change, 01:50 + 15 min reads 01:05).
+ */
+export function settleInterval(want: number) {
+  const at = unambiguous(want);
+  let end = unambiguous(at + SHORTEST_INTERVAL_MS);
+  while (wallStamp(end) - wallStamp(at) < SHORTEST_INTERVAL_MS) end = unambiguous(end + SHORTEST_INTERVAL_MS);
+  return { at, intervalStart: wallParts(at), intervalEnd: wallParts(end) };
+}
+
+function unambiguous(ms: number): number {
+  const named = (t: number) => {
+    const p = wallParts(t);
+    return new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second).getTime() === t;
+  };
+  let t = ms;
+  while (!named(t)) t += SHORTEST_INTERVAL_MS;
+  return t;
+}
+
+/**
  * Makes sure a waiting bedtime or always list change lands at its `from` with Locturne closed.
  * The monitor extension swaps lists at any activity's interval start (`settleLocturneLists`, run
  * first in `intervalDidStart`), normally the bedtime window `from` was worked out from. When the
@@ -817,8 +914,11 @@ const SHORTEST_INTERVAL_MS = 15 * 60_000;
  * `from`. Only one, for the earliest such change, and only while iOS has room for it. Safe to
  * call at every sync: it re-registers only when the moment changes.
  */
-export function scheduleListSettle(now = new Date()): void {
+export function scheduleListSettle(now = new Date(), plannedWindows = 0): void {
   if (!isAvailable()) return;
+  // Not while new windows are being registered: the old ones are already stopped, so the cap
+  // check below would count too few and the settle could take a slot the windows need.
+  if (nightArming !== null) return;
   let want: number | null = null;
   if (!isStoodDown() && getArmedNight()) {
     for (const list of ['night', 'always'] as const) {
@@ -833,20 +933,24 @@ export function scheduleListSettle(now = new Date()): void {
       want = want === null ? from : Math.min(want, from);
     }
   }
+  // Calendar parts name it on the wall clock, so it starts at the first moment they name alone.
+  if (want !== null) want = settleInterval(want).at;
   const have = sharedGet<number>(SETTLE_AT_KEY) ?? null;
-  if (want === have) return;
+  // Unless iOS has dropped it meanwhile (it can drop every activity): then register it again.
+  if (want !== null && want === have && hasActivity(SETTLE_ACTIVITY)) return;
+  if (want === null && have === null) return;
   if (have !== null) {
     stopMonitoring([SETTLE_ACTIVITY]);
     userDefaultsRemove(SETTLE_AT_KEY);
   }
   if (want === null) return;
+  // Room for it next to the windows armed and the ones the next arming plans, with Block now and
+  // every limit kept free; and next to whatever else iOS has now.
+  if (!settleFits(Math.max(armedWindowNames().length, plannedWindows))) return;
   if (getActivities().filter((name) => name !== SETTLE_ACTIVITY).length >= ACTIVITY_CAP) return;
-  userDefaultsSet(SETTLE_AT_KEY, want);
-  const parts = (ms: number) => {
-    const d = new Date(ms);
-    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() };
-  };
-  startMonitoring(SETTLE_ACTIVITY, { intervalStart: parts(want), intervalEnd: parts(want + SHORTEST_INTERVAL_MS), repeats: false }, []).catch(() => {
+  const { at, intervalStart, intervalEnd } = settleInterval(want);
+  userDefaultsSet(SETTLE_AT_KEY, at);
+  startMonitoring(SETTLE_ACTIVITY, { intervalStart, intervalEnd, repeats: false }, []).catch(() => {
     // iOS refused it: the next window or open settles the change, and the next sync tries again.
     userDefaultsRemove(SETTLE_AT_KEY);
   });
@@ -1016,6 +1120,7 @@ export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promi
   const armedKey = `${LIMIT_ARMED_PICKS_PREFIX}${limit.id}`;
   const before = sharedGet<string>(armedKey);
   sharedSet(armedKey, selection);
+  makeRoomFor(limit.id);
   try {
     await startMonitoring(
       limit.id,
