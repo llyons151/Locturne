@@ -115,12 +115,12 @@ function words(stage: Stage): { line: string; body: string } {
     case 'noCode':
       return {
         line: 'There is no code.',
-        body: 'You can set one up once your apps are awake. This morning, your usual way still works.',
+        body: 'You can set one up in the day, once you’re up. Until then, your usual way still works.',
       };
     case 'asleep':
       return {
         line: 'Not from bed.',
-        body: "You can set up or change your code once your apps are awake. Otherwise I'd let you register your pillow.",
+        body: "You can set up or change your code in the day, once you're up. Otherwise I'd let you register your pillow.",
       };
     case 'choose':
       return stage.source === 'qr'
