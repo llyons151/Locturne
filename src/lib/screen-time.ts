@@ -398,6 +398,9 @@ export async function armNight(
     await monitorNight(windows, list);
   } catch (error) {
     stopNightWindows();
+    // iOS may already have run an accepted window's start (armed after bedtime): with nothing
+    // armed before, nothing holds that night, so nothing may stay asleep under it.
+    if (!before) wakeApps(list);
     // Unless something disarmed it meanwhile (standing down): then nothing comes back.
     if (before && getArmedNight()) {
       // Keep the record even if iOS refuses these too: the morning stays locked, Home says
@@ -509,12 +512,13 @@ export function getArmedNight(): ArmedNight | null {
 }
 
 /**
- * Is there a night lock at all: armed, with a subscription. The phase comes from the clock, so
- * after bedtime it says night even with nothing armed (never bought, stood down, or arming
- * failed). Off iOS (web, previews) the screens act as if there were.
+ * Is there a night lock at all: armed, with a subscription, or bedtime apps asleep under one
+ * whatever the records say (an emergency must still wake them). The phase comes from the
+ * clock, so after bedtime it says night even with nothing armed (never bought, stood down, or
+ * arming failed). Off iOS (web, previews) the screens act as if there were.
  */
 export function nightLockArmed(): boolean {
-  return !isAvailable() || (getArmedNight() !== null && !isStoodDown());
+  return !isAvailable() || isNightHeld() || (getArmedNight() !== null && !isStoodDown());
 }
 
 /**
