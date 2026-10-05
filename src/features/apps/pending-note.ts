@@ -3,17 +3,24 @@
  * emergency unlock. Pure, so they're tested (`pending-note.test.ts`).
  */
 
-export const clock = (date: Date) => date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+const TIME = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+
+export const clock = (date: Date) => TIME.format(date);
+
+/** A bedtime before 6 am belongs to the evening before it. */
+const SMALL_HOURS = 6;
+const HOUR = 3_600_000;
 
 /**
- * "at 11:00 PM", or "tomorrow at 11:00 PM" when that's tomorrow evening (a change made after
- * tonight's bedtime waits for the next night). Midnight, or an after-midnight bedtime, is
- * tomorrow by the date but tonight to a person, so it reads as plain "at 1:00 AM".
+ * "at 11:00 PM", or "tomorrow at 11:00 PM" when it's on tomorrow's date (a change made after
+ * tonight's bedtime waits for the next night). An after-midnight bedtime is tomorrow by the
+ * date but tonight to a person, so it's plain "at 1:00 AM" (or "at 12:00 AM" for a limit's
+ * midnight) while it's under 18 hours away. Made from bed, the next one is a day off: tomorrow.
  */
 export function startsLabel(from: Date, now: Date): string {
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const tomorrowEvening = from.toDateString() === tomorrow.toDateString() && from.getHours() >= 12;
-  return tomorrowEvening ? `tomorrow at ${clock(from)}` : `at ${clock(from)}`;
+  const tonight = from.getHours() < SMALL_HOURS && from.getTime() - now.getTime() < 18 * HOUR;
+  return from.toDateString() === tomorrow.toDateString() && !tonight ? `tomorrow at ${clock(from)}` : `at ${clock(from)}`;
 }
 
 /**

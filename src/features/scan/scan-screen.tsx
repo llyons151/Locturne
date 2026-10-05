@@ -11,10 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
-import { heldPhase } from '@/lib/emergency';
+import { getNightPause, heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock, routineAt } from '@/lib/lock-controller';
-import { getRoutine } from '@/lib/routine';
+import { nightsAround } from '@/lib/lock-state';
+import { getRoutine, nextNightOn, nightAt, toLockSettings } from '@/lib/routine';
 import {
   draftQrData,
   getScanCode,
@@ -28,6 +29,7 @@ import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
+import { awakeBody } from './next-morning';
 import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
 import { ShareCode } from './share-code';
@@ -82,6 +84,18 @@ const SOURCES: { value: Source; label: string }[] = [
   { value: 'barcode', label: 'A barcode' },
 ];
 
+/**
+ * The next morning the lock holds, or null when every night is off. A night under way here
+ * holds nothing (no lock, or an emergency paused it), so its morning is free: look past it.
+ */
+function nextLockedMorning(now: Date): Date | null {
+  const night = nightsAround(now, toLockSettings(routineAt(now))).latest;
+  const from = readLock(now).phase === 'night' ? (getNightPause(now) ?? night.end) : now;
+  const start = nextNightOn(from, now);
+  if (!start) return null;
+  return nightsAround(start, toLockSettings(nightAt(start, now).routine)).latest.end;
+}
+
 /** Loc's line and the plain sentence under it, per stage. */
 function words(stage: Stage): { line: string; body: string } {
   switch (stage.kind) {
@@ -97,7 +111,7 @@ function words(stage: Stage): { line: string; body: string } {
         body: `Scanning works from ${formatPreset(routineAt(new Date()).morningStart)}. Bedtime wins until then.`,
       };
     case 'awake':
-      return { line: "They're already up.", body: 'Nothing to scan for until tomorrow morning.' };
+      return { line: "They're already up.", body: awakeBody(nextLockedMorning(new Date()), new Date()) };
     case 'noCode':
       return {
         line: 'There is no code.',

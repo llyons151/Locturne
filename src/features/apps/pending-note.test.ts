@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { settingsTakeEffectAt, type LockSettings } from '../../lib/lock-state.ts';
 import { clock, pauseNote, removalNote, startsLabel } from './pending-note.ts';
 
 // 2026-10-05 is a Monday.
@@ -37,6 +38,17 @@ describe('removalNote', () => {
 
   test('an after-midnight bedtime reads as tonight', () => {
     assert.equal(startsLabel(at(6, 1), at(5, 14)), `at ${clock(at(6, 1))}`);
+    assert.equal(startsLabel(at(6, 1), at(6, 0, 30)), `at ${clock(at(6, 1))}`);
+  });
+
+  test('made from bed, the next bedtime is tomorrow', () => {
+    assert.equal(startsLabel(at(7, 1), at(6, 2)), `tomorrow at ${clock(at(7, 1))}`);
+    // A night shift (8 am to 4 pm) edited at 9 am.
+    assert.equal(startsLabel(at(7, 8), at(6, 9)), `tomorrow at ${clock(at(7, 8))}`);
+  });
+
+  test('a limit’s midnight in the day is tonight', () => {
+    assert.equal(startsLabel(at(6, 0), at(5, 9)), `at ${clock(at(6, 0))}`);
   });
 });
 
@@ -62,4 +74,35 @@ describe('pauseNote', () => {
     assert.match(line, /Every night is switched off, so they stay awake\.$/);
     assert.doesNotMatch(line, /sleep again/);
   });
+});
+
+// Every bedtime and morning start on a 30-minute grid, edited every 15 minutes of a day: never
+// "tomorrow" for later today, and always for tomorrow when it's a day off.
+test('startsLabel names tomorrow when it is, and only then', () => {
+  const settings = (bedtime: number, morningStart: number): LockSettings => ({
+    bedtime,
+    morningStart,
+    stepGoal: 200,
+    activeNights: [0, 1, 2, 3, 4, 5, 6],
+    nightApps: [],
+    alwaysApps: [],
+  });
+  const bad: string[] = [];
+  for (let b = 0; b < 1440; b += 30)
+    for (let m = 0; m < 1440; m += 30) {
+      if ((m - b + 1440) % 1440 < 30) continue;
+      const s = settings(b, m);
+      for (let n = 0; n < 1440; n += 15) {
+        const now = at(6, 0, n);
+        const from = settingsTakeEffectAt(now, s);
+        const label = startsLabel(from, now);
+        const tomorrow = from.getDate() !== now.getDate();
+        const away = (from.getTime() - now.getTime()) / 3_600_000;
+        const ok = label.startsWith('tomorrow')
+          ? tomorrow
+          : !tomorrow || (from.getHours() < 6 && away < 18);
+        if (!ok) bad.push(`${b}-${m} at ${n}: ${from.toString().slice(0, 21)} → "${label}"`);
+      }
+    }
+  assert.deepEqual(bad.slice(0, 10), []);
 });

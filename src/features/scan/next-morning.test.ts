@@ -1,0 +1,27 @@
+/// <reference types="node" />
+
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { awakeBody, morningName } from './next-morning.ts';
+
+// 2026-10-05 is a Monday.
+const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m);
+const weekday = (d: Date) => d.toLocaleDateString(undefined, { weekday: 'long' });
+
+test('in the small hours before a 1 am bedtime, the next morning is this one', () => {
+  assert.equal(awakeBody(at(6, 7), at(6, 0, 30)), 'Nothing to scan for until this morning.');
+});
+
+test('in the day, it’s tomorrow morning', () => {
+  assert.equal(awakeBody(at(6, 7), at(5, 14)), 'Nothing to scan for until tomorrow morning.');
+});
+
+test('the next night off: the weekday of the morning that’s on', () => {
+  assert.equal(morningName(at(8, 7), at(5, 14)), `${weekday(at(8, 7))} morning`);
+  assert.equal(morningName(at(12, 7), at(5, 14)), `next ${weekday(at(12, 7))} morning`);
+});
+
+test('every night off', () => {
+  assert.equal(awakeBody(null, at(5, 14)), 'Every night is off, so there’s nothing to scan for.');
+});

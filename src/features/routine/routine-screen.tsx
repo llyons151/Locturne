@@ -16,7 +16,8 @@ import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
 import { ChoiceRow, Section, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
-import { armRoutine, inPendingFirstNight, syncLock } from '@/lib/lock-controller';
+import { armRoutine, inPendingFirstNight, routineAt, syncLock } from '@/lib/lock-controller';
+import { nightsAround } from '@/lib/lock-state';
 import { MIN_WINDOW } from '@/lib/night-plan';
 import { rescheduleNotifications } from '@/lib/notifications';
 import {
@@ -24,6 +25,7 @@ import {
   getRoutine,
   hasRoutine,
   saveRoutine,
+  toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
 } from '@/lib/routine';
@@ -43,6 +45,7 @@ import {
 } from '@/theme';
 
 import { nightsToWeekdays, weekdaysToNights } from './nights';
+import { startsWhen } from './starts-when';
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
@@ -143,22 +146,9 @@ function nightRefusal(bedtime: number, morningStart: number): string | null {
   return (morningStart - bedtime + 1440) % 1440 < MIN_WINDOW ? TOO_SHORT : null;
 }
 
-/** "from tonight's bedtime, 11 pm", "from tomorrow night at 11 pm", "from Friday at 11 pm". */
-function startsWhen(at: Date, now: Date) {
-  const days = Math.round(
-    (new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime() -
-      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /
-      86_400_000,
-  );
-  // A no-break space keeps "11 pm" on one line.
-  const time = formatPreset(at.getHours() * 60 + at.getMinutes()).replace(' ', ' ');
-  // A bedtime after midnight belongs to the evening before it.
-  const night = at.getHours() < 12 ? days - 1 : days;
-  if (night <= 0) return `from tonight’s bedtime, ${time}`;
-  if (night === 1) return `from tomorrow night at ${time}`;
-  if (night < 7) return `from ${at.toLocaleDateString(undefined, { weekday: 'long' })} at ${time}`;
-  return `from ${at.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at ${time}`;
-}
+/** `startsWhen` against the night under the routine in force now: one made from bed waits a day. */
+const appliesWhen = (at: Date, now: Date) =>
+  startsWhen(at, now, nightsAround(now, toLockSettings(routineAt(now))).latest);
 
 export function RoutineScreen() {
   const insets = useSafeAreaInsets();
@@ -190,7 +180,7 @@ export function RoutineScreen() {
     setLoaded(loaded);
     // The note appears above the control VoiceOver is on, and iOS has no live regions.
     if (loaded.from && !wasWaiting) {
-      AccessibilityInfo.announceForAccessibility(`Your changes apply ${startsWhen(loaded.from, new Date())}.`);
+      AccessibilityInfo.announceForAccessibility(`Your changes apply ${appliesWhen(loaded.from, new Date())}.`);
     }
     // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
     // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
@@ -244,7 +234,7 @@ export function RoutineScreen() {
   const earlyNight = from !== null && inPendingFirstNight(now);
   const pendingNote = earlyNight
     ? `Your changes started at tonight’s new bedtime, ${formatPreset(saved.bedtime).replace(' ', '\u00a0')}.`
-    : `Your changes apply ${startsWhen(from ?? now, now)}. Until then, the old routine stays.`;
+    : `Your changes apply ${appliesWhen(from ?? now, now)}. Until then, the old routine stays.`;
 
   return (
     <ScrollView
