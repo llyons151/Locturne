@@ -13,8 +13,8 @@ import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
 import { getNightPause, heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { readLock, routineAt } from '@/lib/lock-controller';
-import { nightsAround } from '@/lib/lock-state';
+import { lapseStillCovers, readLock, routineAt, subscriptionEnded } from '@/lib/lock-controller';
+import { nightsAround, type Phase } from '@/lib/lock-state';
 import { getRoutine, nextNightOn, nightAt, toLockSettings } from '@/lib/routine';
 import {
   draftQrData,
@@ -25,11 +25,12 @@ import {
   submitScan,
   type ScanCode,
 } from '@/lib/scan';
+import { isStoodDown, nightLockArmed } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
-import { awakeBody, savedBody } from './next-morning';
+import { awakeBody, savedBody, type NextMorning } from './next-morning';
 import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
 import { ShareCode } from './share-code';
@@ -60,11 +61,14 @@ type Stage =
   | { kind: 'register'; source: Source; expect?: string; miss?: boolean }
   | { kind: 'saved' };
 
-/** Night and day both refuse a scan, for different reasons. A night with nothing asleep is day. */
-function notMorning(phase: string): Stage | null {
+/**
+ * Night and day both refuse a scan, for different reasons. A night or morning with nothing
+ * asleep (`heldPhase`: no lock, paused, or after a lapse's last paid morning) is day.
+ */
+function notMorning(phase: Phase): Stage | null {
   if (phase === 'night') return heldPhase('night') === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
-  if (phase === 'day' || phase === 'off') return { kind: 'awake' };
-  return null;
+  if (phase === 'morning') return heldPhase('morning') === 'morning' ? null : { kind: 'awake' };
+  return { kind: 'awake' };
 }
 
 function firstStage(mode: ScanMode | undefined): Stage {
@@ -87,8 +91,11 @@ const SOURCES: { value: Source; label: string }[] = [
 /**
  * The next morning the lock holds, or null when every night is off. A night under way here
  * holds nothing (no lock, or an emergency paused it), so its morning is free: look past it.
+ * With nothing scheduled to sleep at all (no night lock, stood down, or no subscription past
+ * the night or morning a lapse still covers), no morning wants the code: 'unscheduled'.
  */
-function nextLockedMorning(now: Date): Date | null {
+function nextLockedMorning(now: Date): NextMorning {
+  if (!nightLockArmed() || isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null)) return 'unscheduled';
   const night = nightsAround(now, toLockSettings(routineAt(now))).latest;
   const from = readLock(now).phase === 'night' ? (getNightPause(now) ?? night.end) : now;
   const start = nextNightOn(from, now);

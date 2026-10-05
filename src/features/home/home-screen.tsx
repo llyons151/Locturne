@@ -15,10 +15,10 @@ import { PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
 import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/components/night-sky';
 import { useHealth } from '@/hooks/use-health';
-import { getNightPause, pauseWording } from '@/lib/emergency';
+import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
 import { tap } from '@/lib/haptics';
-import { pastLastPaid } from '@/lib/lock-controller';
+import { lapseStillCovers, subscriptionEnded } from '@/lib/lock-controller';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
 import { getPendingRoutine, nightAt, type Routine, type WakeMethod } from '@/lib/routine';
@@ -29,7 +29,7 @@ import { noOrphan } from '@/lib/text';
 import { trialNotice } from '@/lib/trial-notice';
 import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
-import { awakeLine } from './awake-line';
+import { awakeLine, unheldLine } from './awake-line';
 import { MoonLock } from './moon-lock';
 import { useReviewPrompt } from './review-prompt';
 import { useHomeState } from './use-home-state';
@@ -103,10 +103,9 @@ export function HomeScreen() {
 
   // The phase comes from the clock: after bedtime it says night even with nothing armed (never
   // bought, stood down, or arming failed), or after a lapse's last paid night or morning.
-  // Nothing is asleep then, so don't say it is.
-  const underWay = lock.phase === 'night' || lock.phase === 'morning';
-  const phase =
-    (lock.phase === 'night' && !nightLockArmed()) || (underWay && pastLastPaid(lock.morningKey)) ? 'day' : lock.phase;
+  // Nothing is asleep then, so don't say it is (`heldPhase` reads it as day, as the wake,
+  // exits and scan screens do). A paused night is day there too; it shows as 'paused' below.
+  const phase = heldPhase(lock.phase);
 
   // Development only: tap the label to see each look without waiting for the clock.
   const [preview, setPreview] = useState<HomeView | null>(null);
@@ -204,7 +203,7 @@ export function HomeScreen() {
             view={view}
             routine={{ ...routine, method }}
             nextChange={lock.nextChange}
-            unheld={phase !== lock.phase}
+            unheld={phase !== lock.phase && (lock.phase === 'night' || lock.phase === 'morning') ? lock.phase : null}
             detail={health.detail}
             pausedUntil={pause}
             blockNowUntil={lock.blockNowUntil}
@@ -307,8 +306,8 @@ function Status({
   view: HomeView;
   routine: Routine;
   nextChange: Date;
-  /** It's bedtime by the clock, but nothing was armed: the health note says why. */
-  unheld: boolean;
+  /** A night or morning by the clock that nothing holds (`heldPhase`): the health note says why. */
+  unheld: 'night' | 'morning' | null;
   /** health.ts's plain explanation, shown as is when protection is off. */
   detail: string;
   pausedUntil: Date | null;
@@ -317,8 +316,12 @@ function Status({
 }) {
   const bedtime = clockLabel(routine.bedtime);
   const wake = clockLabel(routine.morningStart);
+  // No subscription past the night or morning a lapse still covers: nothing is promised to
+  // sleep, as the health note says ("No subscription, so nothing sleeps").
+  const unpaid = subscriptionEnded() && lapseStillCovers() === null;
   // The always list sleeps only with apps in it and a subscription (previews show it).
-  const alwaysSleeps = !isStoodDown() && (!isScreenTimeAvailable() || selectionSize('always') > 0);
+  const listSleeps = !isStoodDown() && (!isScreenTimeAvailable() || selectionSize('always') > 0);
+  const alwaysSleeps = listSleeps && !unpaid;
 
   if (view === 'unprotected') {
     return (
@@ -382,9 +385,7 @@ function Status({
     return (
       <View style={styles.statusRow}>
         <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
-        <Text style={[styles.status, styles.flex]}>
-          {alwaysSleeps ? 'Bedtime apps awake tonight. Always-asleep apps still sleep.' : 'Apps awake. Nothing is asleep tonight.'}
-        </Text>
+        <Text style={[styles.status, styles.flex]}>{unheldLine({ phase: unheld, alwaysSleeps: listSleeps, unpaid })}</Text>
       </View>
     );
   }
@@ -393,7 +394,7 @@ function Status({
   const { start: tonightStarts, on: tonightOn } = nightAt(nextChange);
   const line = awakeLine({
     armed: nightLockArmed(),
-    stoodDown: isStoodDown(),
+    stoodDown: isStoodDown() || unpaid,
     tonightAt: tonightOn ? clockLabel(tonightStarts.getHours() * 60 + tonightStarts.getMinutes()) : null,
     alwaysSleeps,
   });

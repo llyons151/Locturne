@@ -32,6 +32,7 @@ import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { Confirm } from './confirm';
+import { unheldBody, unheldNoCode } from './unheld-words';
 import { Voice } from './voice';
 
 /**
@@ -70,8 +71,8 @@ const OPENERS: Record<Phase, { line: string; body: string }> = {
   off: { line: 'Night off.', body: 'Nothing is locked tonight. The emergency unlock can still end a Block now session.' },
 };
 
-/** Bedtime by the clock, with nothing asleep: no lock armed, or an emergency already used tonight. */
-const AWAKE_NIGHT = { line: "I'm awake. Technically.", body: 'Your bedtime apps are awake tonight. The emergency unlock can still end a Block now session.' };
+/** His line for a night or morning by the clock with nothing asleep (`unheldBody` says why). */
+const AWAKE_LINE = "I'm awake. Technically.";
 
 const PASS_REFUSALS: Record<PassRefusal, string> = {
   notMorning: 'Passes work in the morning, while your apps wait for you to get up.',
@@ -162,14 +163,14 @@ export function ExitsScreen() {
     setLeft(getPassesLeft());
   };
 
-  // Bedtime by the clock with nothing asleep to wake: no lock armed, or already paused tonight.
-  const awakeNight = phase === 'night' && heldPhase(phase) !== 'night';
+  // A night or morning by the clock with nothing asleep to wake: no lock armed, already paused
+  // tonight, or after a lapse's last paid morning. No pass, no "Rough morning".
+  const unheld = (phase === 'night' || phase === 'morning') && heldPhase(phase) !== phase ? phase : null;
+  const heldMorning = phase === 'morning' && !unheld;
 
   const cantWalk = () => {
     if (getScanCode()) return router.push('/scan?mode=morning');
-    if (awakeNight) {
-      return setStage({ kind: 'menu', notice: 'No code yet, and it can’t be set up from bed. Your bedtime apps are awake tonight anyway.' });
-    }
+    if (unheld) return setStage({ kind: 'menu', notice: unheldNoCode(unheld) });
     // A code can't be set up from bed (any barcode by the pillow would do), so say what can help.
     if (phase === 'night' || phase === 'morning') {
       return setStage({
@@ -205,6 +206,8 @@ export function ExitsScreen() {
           }
         : { line: "I'll allow it. This once. Maybe.", body: plan ? describe(plan) : '' };
     }
+    // The clock says night or morning, but nothing is asleep to wake: don't say bedtime wins.
+    if (unheld) return { line: AWAKE_LINE, body: unheldBody(unheld, isStoodDown()) };
     // Only the ways out that exist: no pass with none left, no scan without a code.
     if (phase === 'morning' && getScanCode() && left === 0) {
       return { ...OPENERS.morning, body: "Scan your code if walking is hard today, or unlock in an emergency. I won't make it weird." };
@@ -214,10 +217,6 @@ export function ExitsScreen() {
         ...OPENERS.morning,
         body: left > 0 ? "Use a pass, or unlock in an emergency. I won't make it weird." : "No passes left this month. The emergency unlock is still here. I won't make it weird.",
       };
-    }
-    // The clock says night, but nothing is asleep to wake: don't say bedtime wins.
-    if (awakeNight) {
-      return isStoodDown() ? { ...AWAKE_NIGHT, body: 'Nothing is asleep tonight.' } : AWAKE_NIGHT;
     }
     if (phase === 'day') {
       // Before the day's first morning (00:33 ahead of a 01:00 bedtime, a night shift's 07:00,
@@ -249,7 +248,7 @@ export function ExitsScreen() {
             <ValueRow
               icon={sym('ticket', 'confirmation_number')}
               title="Use a pass"
-              value={phase === 'morning' ? `${left} left` : 'Mornings'}
+              value={heldMorning ? `${left} left` : 'Mornings'}
               onPress={() => begin('pass')}
             />
             <ValueRow

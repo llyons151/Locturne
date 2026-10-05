@@ -364,6 +364,11 @@ export type ArmedNight = {
    * Says whether a night was armed in time to lock its morning. Older records lack it.
    */
   since?: string;
+  /**
+   * When these times (bedtime and morning start) were first armed, kept across re-arms that
+   * don't change them. The self-check judges nights from then (`checkNights`). Older records lack it.
+   */
+  timesSince?: string;
 };
 
 /** When protection was first armed: `since`, or `armedAt` for records from before it. */
@@ -411,7 +416,14 @@ export async function armNight(
     throw error;
   }
   const armedAt = new Date().toISOString();
-  const armed: ArmedNight = { ...times, windows: windows.length, armedAt, since: before ? armedSince(before).toISOString() : armedAt };
+  const sameTimes = !!before && before.bedtime === times.bedtime && before.morningStart === times.morningStart;
+  const armed: ArmedNight = {
+    ...times,
+    windows: windows.length,
+    armedAt,
+    since: before ? armedSince(before).toISOString() : armedAt,
+    timesSince: sameTimes ? (before.timesSince ?? before.armedAt) : armedAt,
+  };
   userDefaultsSet(ARMED_KEY, armed);
 }
 
@@ -970,4 +982,15 @@ export function pauseNightUntil(until: Date, now = new Date()): void {
   }
   userDefaultsSet(NIGHT_HELD_KEY, false);
   reapplyStandingBlocks();
+}
+
+/**
+ * Brings forward when the bedtime picks parked by `pauseNightUntil` come back, to `until` (an
+ * earlier bedtime armed during the pause: `endPauseAtNextBedtime` in lock-controller.ts). Only
+ * while they're parked (the live list empty) and only ever earlier.
+ */
+export function moveNightPause(until: Date): void {
+  const waiting = getPendingLists().night;
+  if (!waiting || waiting.from <= until.getTime() || selectionSize('night') > 0) return;
+  setPending('night', { ...waiting, from: until.getTime() });
 }

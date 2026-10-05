@@ -77,6 +77,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     },
     getLimits: () => [],
     limitUsedUpToday: () => false,
+    moveNightPause: () => {},
     setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),
     setNightShieldText: (text: { subtitle: string }) => nightSubtitles.push(text.subtitle),
     setMorningShieldText: (text: { subtitle: string }) => morningSubtitles.push(text.subtitle),
@@ -669,7 +670,11 @@ describe('a subscription that ends', () => {
     syncLock(at(7, 30, 3)); // a later morning, but the store hasn't been asked yet
     assert.ok(!calls.includes('standDown'));
     settleSubscription(true, at(7, 30, 3));
-    assert.equal(readLock(at(7, 31, 3)).phase, 'morning', 'the renewed morning still asks for its wake-up');
+    assert.ok(!calls.includes('standDown'));
+    // The extension skipped that morning's night (after the last paid one), so nothing held it:
+    // the renewal leaves it free rather than asking for a wake-up (round 50). The next one locks.
+    assert.equal(readLock(at(7, 31, 3)).phase, 'day', 'a morning whose night the lapse skipped stays free');
+    assert.equal(readLock(at(7, 31, 4)).phase, 'morning', 'the next morning asks for its wake-up');
   });
 
   test('a flight west mid-night never ends the night under way early', async () => {

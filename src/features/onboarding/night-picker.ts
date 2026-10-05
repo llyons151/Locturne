@@ -1,4 +1,4 @@
-import { looserEditsStart } from '../../lib/daily-limits.ts';
+import { looserEditsStartAt } from '../../lib/lock-controller.ts';
 import {
   beginListEdit,
   finishListEdit,
@@ -35,6 +35,6 @@ export function openNightPicker(now = new Date()): SelectionId {
  */
 export function closeNightPicker(list: SelectionId, now = new Date()): void {
   if (list === 'night') return;
-  finishListEdit('night', looserEditsStart(now, getArmedNight()));
+  finishListEdit('night', looserEditsStartAt(now));
   reapplyStandingBlocks();
 }

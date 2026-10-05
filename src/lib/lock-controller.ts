@@ -12,7 +12,8 @@
  *    the phase is now `day` and wakes the apps. Block now, used-up limits and the always
  *    list are re-shielded straight after (`wakeApps`), so a proof never lifts them.
  */
-import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, type DaytimeFacts, type LockState } from './lock-state.ts';
+import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, settingsTakeEffectAt, type DaytimeFacts, type LockState } from './lock-state.ts';
+import { looserEditsStart } from './daily-limits.ts';
 import { getProof, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
 import { armedForEdit, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, runsAs, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
@@ -29,6 +30,7 @@ import {
   isScreenTimeAvailable,
   isStoodDown,
   limitUsedUpToday,
+  moveNightPause,
   nightLockArmed,
   peekNap,
   reapplyStandingBlocks,
@@ -87,7 +89,9 @@ export function readLock(now = new Date()): LockState {
   // A morning no night really ran into is free too (`nightRanUnder`): a switch from a night
   // shift saved before its bedtime names this morning again under the new routine, and nothing
   // ever held it.
-  const free = unrun || !armedInTime(now, settings, armed ? armedSince(armed) : null);
+  // So is one whose night a lapse skipped before a renewal (`FREE_MORNING_KEY`).
+  const free =
+    unrun || !armedInTime(now, settings, armed ? armedSince(armed) : null) || sharedGet<string>(FREE_MORNING_KEY) === morning.key;
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
   const state = getLockState(
     now,
@@ -255,8 +259,18 @@ function underWayWhenEnded(morningKey: string): boolean {
  * sleeps then: the monitor extension skips its windows, and the app never re-shields them.
  */
 export function pastLastPaid(morningKey: string): boolean {
-  return subscriptionEnded() && !underWayWhenEnded(morningKey);
+  if (!subscriptionEnded()) return false;
+  const ended = sharedGet<string>(ENDED_MORNING_KEY);
+  // As the extension judges it (`locturneSubscriptionLapsed`): a later morning, by its key. Both
+  // are YYYY-MM-DD, so they compare as dates. Recorded before the key existed: nothing is past.
+  return ended !== undefined && morningKey > ended;
 }
+
+/**
+ * A morning a renewal found after the last paid one (`settleSubscription`): the extension
+ * skipped its night, so nothing held it, and it stays free once the subscription is back.
+ */
+const FREE_MORNING_KEY = 'locturne.freeMorning';
 
 /**
  * While a lapsed subscription's last night or morning still finishes (`settleSubscription`):
@@ -307,6 +321,10 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
   if (!isScreenTimeAvailable()) return;
   if (paid) {
     paidSettles += 1;
+    // A renewal in a morning whose night the lapse skipped: iOS held nothing overnight, so the
+    // morning stays free rather than putting the apps to sleep now. A night re-shields at once.
+    const lapsed = readLock(now);
+    if (lapsed.phase === 'morning' && pastLastPaid(lapsed.morningKey)) sharedSet(FREE_MORNING_KEY, lapsed.morningKey);
     sharedRemove(SUBSCRIPTION_ENDED_KEY);
     sharedRemove(ENDED_MORNING_KEY);
     standUp().catch(() => {
@@ -332,11 +350,13 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
 /**
  * Records a proof for the morning `now` belongs to and wakes the apps. Returns the new
  * state, or null when nothing was recorded: it isn't the morning yet (bedtime wins), the
- * morning is already unlocked, or the night was off.
+ * morning is already unlocked, the night was off, or it's after the last paid morning.
  */
 export function proveMorning(kind: ProofKind, now = new Date()): LockState | null {
   const state = readLock(now);
-  if (state.phase !== 'morning') return null;
+  // A morning after the last one a lapsed subscription covers holds nothing: the extension
+  // skipped its night, so there's nothing to prove (and no unlock to report).
+  if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return null;
   if (!recordProof({ morningKey: state.morningKey, kind, at: now.getTime() }, judgedAt(now))) return null;
   return syncLock(now);
 }
@@ -459,6 +479,7 @@ async function arm(now: Date): Promise<ArmResult> {
     armChanged();
     return 'disarmed';
   }
+  endPauseAtNextBedtime(now);
   if (readLock(now).phase === 'night' && selectionSize('night') > 0) sleepApps('night');
   syncLock(now);
   armChanged();
@@ -466,13 +487,72 @@ async function arm(now: Date): Promise<ArmResult> {
 }
 
 /**
+ * The next bedtime, where an emergency unlock's night pause ends (emergency.ts). A routine
+ * edit waiting for that bedtime may move it earlier, so take whichever comes first: the paused
+ * lock must be back by the first window that runs.
+ */
+export function nextBedtime(now: Date): Date {
+  const pending = getPendingRoutine(now);
+  // Inside a waiting edit's own first night (an earlier bedtime, armed at once): the next
+  // bedtime is that routine's next one, not the old routine's later one tonight.
+  if (pending && inPendingFirstNight(now)) return settingsTakeEffectAt(now, toLockSettings(pending.routine));
+  // The routine in force as iOS runs it: windows still armed for an older bedtime (`routineAt`).
+  const governing = toLockSettings(routineAt(now));
+  const next = settingsTakeEffectAt(now, governing);
+  if (!pending) return next;
+  const edited = settingsTakeEffectAt(now, toLockSettings(pending.routine));
+  // An edit made from bed waits for the next bedtime: a bedtime of its that falls inside the
+  // night under way isn't one (a later bedtime saved at 23:20 for 23:45 applies tomorrow), and
+  // resuming there would put the paused night back to sleep tonight.
+  const tonightEnds = nightsAround(now, governing).latest.end;
+  return edited < next && edited >= tonightEnds ? edited : next;
+}
+
+/**
+ * When a looser edit saved now starts (removals from a standing list, a looser or removed daily
+ * limit): the next bedtime of the routine in force as iOS runs it (`routineAt`), dated like a
+ * routine edit saved now. Not the armed windows' next start: a throwaway edit (bedtime in five
+ * minutes, armed at once because it only tightens) would pull every loosening forward to its
+ * first window, even from bed, and an Undo doesn't take it back. With nothing armed there's no
+ * bedtime, so it waits for midnight (`looserEditsStart` in daily-limits.ts).
+ */
+export function looserEditsStartAt(now = new Date()): Date {
+  if (!getArmedNight()) return looserEditsStart(now, null);
+  return settingsTakeEffectAt(now, toLockSettings(routineAt(now)));
+}
+
+/**
  * Is tonight's bedtime lock paused by an emergency unlock? `getNightPause` (emergency.ts), read
  * here because emergency.ts imports this file: its log's latest night pause, until it resumes.
  */
 function nightPaused(now: Date): boolean {
-  const log = sharedGet<{ pauseNight: boolean; resumesAt?: number | null }[]>('locturne.emergencyLog') ?? [];
+  const log = sharedGet<{ pauseNight: boolean; resumesAt?: number | null }[]>(EMERGENCY_LOG_KEY) ?? [];
   const latest = log.find((use) => use.pauseNight && use.resumesAt != null);
   return !!latest?.resumesAt && latest.resumesAt > now.getTime();
+}
+
+const EMERGENCY_LOG_KEY = 'locturne.emergencyLog';
+
+/**
+ * An emergency unlock pauses only tonight (GAME_PLAN): the bedtime picks stay parked until the
+ * next bedtime. An earlier bedtime saved during the pause (from bed, or the next day) is armed
+ * at once, since it only tightens, so its first window comes before the pause was due to end:
+ * without this the parked picks stay parked until then, and that night's windows shield nothing
+ * while Home says the apps sleep. Brings the pause's end (the log's `resumesAt` and the parked
+ * list's `from`) forward to the next bedtime, when the armed windows really start then.
+ */
+function endPauseAtNextBedtime(now: Date): void {
+  const log = sharedGet<{ pauseNight: boolean; resumesAt?: number | null }[]>(EMERGENCY_LOG_KEY) ?? [];
+  const i = log.findIndex((use) => use.pauseNight && use.resumesAt != null);
+  const until = i >= 0 ? log[i].resumesAt : null;
+  if (!until || until <= now.getTime()) return;
+  const next = nextBedtime(now);
+  const armed = getArmedNight();
+  // Only to a time a window really starts: the windows iOS runs now.
+  if (!armed || next.getHours() * 60 + next.getMinutes() !== armed.bedtime) return;
+  if (next.getTime() >= until || next.getTime() <= now.getTime()) return;
+  sharedSet(EMERGENCY_LOG_KEY, log.map((use, j) => (j === i ? { ...use, resumesAt: next.getTime() } : use)));
+  moveNightPause(next);
 }
 
 /**

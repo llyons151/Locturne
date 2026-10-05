@@ -8,6 +8,7 @@
  * entry shape and `HEARTBEAT_KEEP` in step with it.
  */
 import { getEmergencyLog } from './emergency.ts';
+import { lastPaidMorning } from './lock-controller.ts';
 import { checkNights, heartbeatCoverage, type NightCheck } from './health.ts';
 import { getRoutine } from './routine.ts';
 import { getArmedNight, isScreenTimeAvailable, sharedGet, sharedSet, windowStarts } from './screen-time.ts';
@@ -84,6 +85,8 @@ export function readNightChecks(now = new Date()): NightCheck[] {
     paused: getEmergencyLog()
       .filter((use) => use.pauseNight)
       .map((use) => use.morningKey),
+    pauses: getEmergencyLog().flatMap((use) => (use.pauseNight && use.resumesAt !== null ? [{ from: use.at, until: use.resumesAt }] : [])),
+    lastPaidMorning: lastPaidMorning(),
     now,
   });
 }

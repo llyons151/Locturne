@@ -33,3 +33,26 @@ export function awakeLine({
   }
   return `Apps awake until ${tonightAt}`;
 }
+
+/**
+ * Home's line for a night or morning the clock names but nothing holds (`heldPhase` reads it
+ * as day: no lock armed, or after a lapse's last paid morning). "Tonight" is wrong at 07:30,
+ * so it names the part of the day. The always list is only promised while it's paid for:
+ * without a subscription, but before the store's answer stands it down (opened offline), it
+ * may still be shielded, so it isn't mentioned either way.
+ */
+export function unheldLine({
+  phase,
+  alwaysSleeps,
+  unpaid,
+}: {
+  phase: 'night' | 'morning';
+  /** The always list has apps in it and isn't stood down. */
+  alwaysSleeps: boolean;
+  /** No subscription past the night or morning a lapse still covers. */
+  unpaid: boolean;
+}): string {
+  const when = phase === 'morning' ? 'this morning' : 'tonight';
+  if (!alwaysSleeps) return `Apps awake. Nothing is asleep ${when}.`;
+  return unpaid ? `Bedtime apps awake ${when}.` : `Bedtime apps awake ${when}. Always-asleep apps still sleep.`;
+}

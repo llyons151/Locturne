@@ -28,7 +28,7 @@ import {
 } from '@/lib/notifications';
 import { lapseStillCovers, onLockChange, readLock, subscriptionEnded } from '@/lib/lock-controller';
 import { getPassesLeft } from '@/lib/passes';
-import { getRoutine } from '@/lib/routine';
+import { nextNightOn } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { getScanCode } from '@/lib/scan';
 import { getArmedNight, isStoodDown, type Protection } from '@/lib/screen-time';
@@ -189,7 +189,8 @@ export function YouScreen() {
       : // A lapse found mid-night or mid-morning: that one finishes, nothing after it.
         status === 'on' && subscriptionEnded()
         ? { ...STATUS.on, line: lapseLine(lapseStillCovers() ?? (readLock().phase === 'day' ? 'day' : null)) }
-      : status === 'on' && getRoutine().activeNights.length === 0
+      : // Every night off, counting an edit waiting to turn one back on (`nextNightOn` follows it).
+        status === 'on' && nextNightOn(new Date()) === null
         ? { ...STATUS.on, line: 'Screen Time access is on. Every night is switched off in Routine.' }
         : status === 'on' && !getArmedNight()
           ? { ...STATUS.on, line: 'Screen Time access is on, but bedtime isn’t scheduled yet.' }

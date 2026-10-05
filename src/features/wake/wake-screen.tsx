@@ -17,7 +17,7 @@ import { awakeLine as dayLine } from '@/features/home/awake-line';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { currentProof, proveMorning, readLock, routineAt } from '@/lib/lock-controller';
+import { currentProof, lapseStillCovers, proveMorning, readLock, routineAt, subscriptionEnded } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, nightAt, toLockSettings } from '@/lib/routine';
@@ -31,7 +31,7 @@ import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
 import { Body, TopBar, Voice } from './parts';
 import { StepsView } from './steps-view';
-import { dayStatus, wakeLabel } from './wake-words';
+import { dayStatus, unheldWakeBody, wakeLabel, wakePhase } from './wake-words';
 
 export type WakeMethodShown = 'downstairs' | 'steps';
 
@@ -48,7 +48,8 @@ function awakeLine(state: LockState): string {
     state.blockNowUntil,
     dayLine({
       armed: nightLockArmed(),
-      stoodDown: isStoodDown(),
+      // Past a lapse's last paid morning nothing is scheduled either, stood down or not yet.
+      stoodDown: isStoodDown() || (subscriptionEnded() && lapseStillCovers() === null),
       tonightAt: on ? formatPreset(start.getHours() * 60 + start.getMinutes()) : null,
       alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
     }),
@@ -79,6 +80,8 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   const [unlocked, setUnlocked] = useState<LockState | null>(null);
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  // A morning nothing holds (after a lapse's last paid one) is day here, as on Home.
+  const phase = wakePhase(lock.phase, heldPhase(lock.phase));
 
   const onMet = useCallback(
     (kind: WakeMethodShown) => {
@@ -105,7 +108,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
 
   let content;
   if (unlocked) content = <Unlocked state={unlocked} onDone={close} />;
-  else if (lock.phase !== 'morning') content = <NotMorning state={lock} onClose={close} />;
+  else if (phase !== 'morning') content = <NotMorning state={lock} onClose={close} />;
   else {
     const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
     // Only with a code to scan. Replaced, like the scan screen's "Walk instead", so switching
@@ -143,8 +146,8 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + Space.l }]}
       showsVerticalScrollIndicator={false}
     >
-      {!unlocked && lock.phase === 'morning' ? <StayAwake /> : null}
-      <TopBar label={wakeLabel(lock.phase, !!unlocked)} onClose={close} />
+      {!unlocked && phase === 'morning' ? <StayAwake /> : null}
+      <TopBar label={wakeLabel(phase, !!unlocked)} onClose={close} />
       {content}
     </ScrollView>
   );
@@ -172,17 +175,19 @@ function Unlocked({ state, onDone }: { state: LockState; onDone: () => void }) {
   );
 }
 
-/** Night, day or a night off: nothing to prove right now, and why. */
+/** Night, day, a night off, or a morning nothing holds: nothing to prove right now, and why. */
 function NotMorning({ state, onClose }: { state: LockState; onClose: () => void }) {
-  // Bedtime by the clock with nothing asleep (no lock armed, or an emergency used tonight).
-  const awakeNight = state.phase === 'night' && heldPhase(state.phase) !== 'night';
-  const phase = state.phase === 'morning' || awakeNight ? 'day' : state.phase;
+  // A night or morning by the clock with nothing asleep (no lock armed, an emergency used
+  // tonight, or after a lapse's last paid morning).
+  const unheld =
+    (state.phase === 'night' || state.phase === 'morning') && heldPhase(state.phase) !== state.phase ? state.phase : null;
+  const phase = state.phase === 'morning' || unheld ? 'day' : state.phase;
   // Before the day's first morning (00:33 ahead of a 01:00 bedtime, a night shift's 07:00, an
   // install's first day) nothing is done yet.
   const now = new Date();
   const done = morningDoneToday(now, toLockSettings(routineAt(now)), currentProof(now));
-  const body = awakeNight
-    ? 'Your bedtime apps are awake tonight, so there is no morning lock to lift.'
+  const body = unheld
+    ? unheldWakeBody(unheld)
     : {
         night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
         day: `${done ? DAY_OPENER.done : DAY_OPENER.notYet} ${awakeLine(state)}`,

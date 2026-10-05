@@ -32,3 +32,13 @@ test('a saved code names the morning it’s first wanted', () => {
   assert.equal(savedBody(at(8, 7), at(5, 14)), `${weekday(at(8, 7))} morning, scan it and your apps wake up.`);
   assert.equal(savedBody(null, at(5, 14)), 'Every night is off. When one’s on, scan it to wake your apps.');
 });
+
+test('nothing scheduled to sleep (never bought, Ask to Buy, stood down, unpaid): no morning is named', () => {
+  for (const now of [at(5, 14), at(6, 0, 30), at(6, 7, 30)]) {
+    const awake = awakeBody('unscheduled', now);
+    const saved = savedBody('unscheduled', now);
+    assert.equal(awake, 'Nothing is scheduled to sleep, so there’s nothing to scan for.');
+    assert.equal(saved, 'Nothing is scheduled to sleep yet. When it is, scan it in the morning and your apps wake up.');
+    for (const line of [awake, saved]) assert.doesNotMatch(line, /tomorrow|this morning|Every night/i);
+  }
+});

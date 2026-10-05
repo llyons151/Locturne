@@ -262,6 +262,8 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     proofs: [] as Proof[],
     passes: [] as string[],
     pausedKey: null as string | null,
+    /** A morning a renewal found after the last paid one, whose night nothing held. */
+    freeMorning: null as string | null,
     /** When the emergency pause ends: the next bedtime as it stood at the unlock. */
     pausedUntil: null as number | null,
     /** A flight since the last app action: the calendar day may have gone backwards. */
@@ -415,7 +417,8 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const judged = under === 'prior' && !settings.activeNights.includes(kEvening) ? { ...settings, activeNights: [...settings.activeNights, kEvening] } : settings;
     const after = (p: Proof) => p.at >= (under === 'routine' ? morning.nightStart.getTime() : nightInto(p));
     const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || after(p)));
-    const free = spec.armedSince === null || under === 'none' || !ls.armedInTime(now, settings, new Date(spec.armedSince));
+    const free =
+      spec.armedSince === null || under === 'none' || !ls.armedInTime(now, settings, new Date(spec.armedSince)) || spec.freeMorning === morning.key;
     return ls.getLockState(now, judged, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
   const locked = (at: number) => {
@@ -426,15 +429,33 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   const inUnderWay = (at: number) => !!spec.lapse?.underWayKey && locked(at) && phaseAt(at).morningKey === spec.lapse.underWayKey;
   const napRunning = (at: number) => !!spec.nap && at < spec.nap.end;
 
-  /** The next bedtime under the routine in force or the one waiting, whichever comes first. */
+  /**
+   * When a looser edit saved at `at` starts (`looserEditsStartAt` in lock-controller.ts): the
+   * next bedtime of the routine the lock runs on, like a routine edit saved then. Not a waiting
+   * edit's earlier bedtime: a throwaway edit armed at once would pull every loosening forward to
+   * its first window (security audit, round 50). Midnight with nothing armed.
+   */
   function nextBedtime(at: number): number {
     const now = new Date(at);
     if (spec.armedSince === null) return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-    // Limits and lists judge by the routine in force (or iOS's armed times), not the early night.
-    const times = [ls.settingsTakeEffectAt(now, rt.toLockSettings(inForceAt(at))).getTime()];
-    const waiting = spec.routines.filter((r) => r.from > at);
-    for (const w of waiting) times.push(ls.settingsTakeEffectAt(now, rt.toLockSettings(w.routine)).getTime());
-    return Math.min(...times);
+    return ls.settingsTakeEffectAt(now, settingsAt(at)).getTime();
+  }
+
+  /**
+   * Where an emergency pause ends (`nextBedtime` in lock-controller.ts): the next bedtime of the
+   * routine the lock runs on, or a waiting edit's earlier one after tonight's night (a bedtime of
+   * its inside tonight waits).
+   */
+  function pauseEndsAt(at: number): number {
+    const now = new Date(at);
+    const tonightEnds = ls.nightsAround(now, settingsAt(at)).latest.end.getTime();
+    return Math.min(
+      ls.settingsTakeEffectAt(now, settingsAt(at)).getTime(),
+      ...spec.routines
+        .filter((r) => r.from > at)
+        .map((r) => ls.settingsTakeEffectAt(now, rt.toLockSettings(r.routine)).getTime())
+        .filter((end) => end >= tonightEnds),
+    );
   }
 
   /**
@@ -597,6 +618,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       return;
     }
     if (spec.lapse && spec.everPaid && !spec.stoodDown) count('renewed-before-stand-down');
+    // A renewal in a morning after the last paid one: the extension skipped its night, so it
+    // stays free (`FREE_MORNING_KEY` in lock-controller.ts).
+    if (spec.lapse && !spec.stoodDown && phaseAt(t).phase === 'morning' && !inUnderWay(t)) spec.freeMorning = phaseAt(t).morningKey;
     spec.lapse = null;
     if (spec.stoodDown || !spec.everPaid) {
       spec.stoodDown = false;
@@ -652,7 +676,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   /** The Apps tab's limit edit (`setMinutes` in apps-list.tsx). */
   async function setLimitMinutes(id: LimitId, minutes: number | null) {
     const limits = st.getLimits();
-    const next = dl.editLimit(limits, id, minutes, dl.looserEditsStart(new Date(), st.getArmedNight()));
+    const next = dl.editLimit(limits, id, minutes, lc.looserEditsStartAt(new Date()));
     const after = next.find((l) => l.id === id);
     const before = limits.find((l) => l.id === id);
     if (after && after.minutes !== before?.minutes) await st.armLimit(after);
@@ -671,7 +695,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     if (apps.length) all[draft] = token(apps);
     else delete all[draft];
     device.exports.userDefaultsSet('familyActivitySelectionIds', all);
-    st.finishListEdit(list, dl.looserEditsStart(new Date(), st.getArmedNight()));
+    st.finishListEdit(list, lc.looserEditsStartAt(new Date()));
     const removed = shown.filter((a) => !apps.includes(a));
     // During an emergency pause the bedtime list's change starts when the pause ends, which
     // only differs from the next bedtime after a flight.
@@ -712,7 +736,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         const before = phaseAt(t);
         const state = lc.proveMorning(a.method);
         await flush();
-        const expect = before.phase === 'morning';
+        const expect = before.phase === 'morning' && !(!!spec.lapse && !inUnderWay(t));
         if (expect !== (state?.phase === 'day')) fail('proof', `phase ${before.phase}, proof ${state ? state.phase : 'refused'}`);
         if (expect) {
           spec.proofs.push({ key: before.morningKey, kind: a.method, at: t, ...timesAt(t) });
@@ -723,7 +747,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       case 'pass': {
         const before = phaseAt(t);
         const left = ps.PASSES_PER_MONTH - spec.passes.filter((k) => k.slice(0, 7) === before.morningKey.slice(0, 7)).length;
-        const expect = before.phase === 'morning' && left > 0 && !spec.passes.includes(before.morningKey);
+        // After a lapse, a morning other than the one under way then holds nothing (`pastLastPaid`).
+        const lapsed = !!spec.lapse && !inUnderWay(t);
+        const expect = before.phase === 'morning' && !lapsed && left > 0 && !spec.passes.includes(before.morningKey);
         const refusal = ps.spendPass();
         await flush();
         if (expect !== (refusal === null)) fail('pass', `phase ${before.phase}, ${left} left, refusal ${refusal}`);
@@ -749,17 +775,11 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         }
         if (plan?.pauseNight) {
           spec.pausedKey = before.morningKey;
-          // `nextBedtime` in emergency.ts: the routine's, armed or not.
-          // A waiting edit's bedtime inside tonight's night isn't a next bedtime: it waits.
-          const now = new Date(t);
-          const tonightEnds = ls.nightsAround(now, settingsAt(t)).latest.end.getTime();
-          spec.pausedUntil = Math.min(
-            ls.settingsTakeEffectAt(now, settingsAt(t)).getTime(),
-            ...spec.routines
-              .filter((r) => r.from > t)
-              .map((r) => ls.settingsTakeEffectAt(now, rt.toLockSettings(r.routine)).getTime())
-              .filter((at) => at >= tonightEnds),
-          );
+          // `nextBedtime` in lock-controller.ts: the routine's, armed or not.
+          spec.pausedUntil = pauseEndsAt(t);
+          // `pauseNightUntil` parks the bedtime picks with any removal already waiting: it starts
+          // when the pause ends (the next bedtime, which can be a waiting edit's earlier one).
+          for (const r of spec.removals) if (r.list === 'night' && r.from > t) r.from = Math.min(r.from, spec.pausedUntil);
           count('emergency-night');
         }
         if (plan?.unlockMorning) spec.proofs.push({ key: before.morningKey, kind: 'emergency', at: t, ...timesAt(t) });
@@ -797,8 +817,21 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         assert.deepEqual(next, expected, 'harness and app agree on the routine being edited');
         rt.saveRoutine(next, new Date(t), lc.inPendingFirstNight(new Date(t)));
         specRoutineEdit(next);
-        if (st.getArmedNight()) await lc.armRoutine().catch(() => {});
-        else {
+        if (st.getArmedNight()) {
+          const result = await lc.armRoutine().catch(() => null);
+          // An earlier bedtime armed during an emergency pause ends the pause there
+          // (`endPauseAtNextBedtime`): it pauses only tonight. Only once its windows run then.
+          const armed = st.getArmedNight();
+          if (result === 'armed' && pausedAbs(t) && armed) {
+            const ends = pauseEndsAt(t);
+            const d = new Date(ends);
+            if (ends > t && ends < spec.pausedUntil! && d.getHours() * 60 + d.getMinutes() === armed.bedtime) {
+              for (const r of spec.removals) if (r.list === 'night' && r.from > ends) r.from = ends;
+              spec.pausedUntil = ends;
+              count('emergency-pause-ended-early');
+            }
+          }
+        } else {
           await armIfPaid();
           noticeSubscription(spec.paid);
         }

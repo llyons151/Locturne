@@ -11,7 +11,8 @@
  * The accounting here is pure; `spendPass` at the bottom applies it.
  */
 import { endNap, getNap, sharedGet, sharedSet } from './screen-time.ts';
-import { judgedAt, readLock, syncLock } from './lock-controller.ts';
+import { judgedAt, pastLastPaid, readLock, syncLock } from './lock-controller.ts';
+import type { LockState } from './lock-state.ts';
 import { recordProof } from './morning-proof.ts';
 
 /**
@@ -72,10 +73,19 @@ export function getPassesLeft(now = new Date()): number {
   return passesLeft(getPassLedger(), readLock(now).morningKey);
 }
 
+/**
+ * The phase as a pass sees it: a morning after the last one a lapsed subscription covers
+ * (`pastLastPaid`) holds nothing, since the extension skips its night, so there's nothing for
+ * a pass to wake and none is spent on it.
+ */
+function passPhase(state: LockState): string {
+  return pastLastPaid(state.morningKey) ? 'day' : state.phase;
+}
+
 /** Why a pass can't be used now, or null. */
 export function getPassRefusal(now = new Date()): PassRefusal | null {
   const state = readLock(now);
-  return passRefusal(getPassLedger(), state.phase, state.morningKey);
+  return passRefusal(getPassLedger(), passPhase(state), state.morningKey);
 }
 
 /**
@@ -86,7 +96,7 @@ export function getPassRefusal(now = new Date()): PassRefusal | null {
 export function spendPass(now = new Date()): PassRefusal | null {
   const state = readLock(now);
   const ledger = getPassLedger();
-  const refusal = passRefusal(ledger, state.phase, state.morningKey);
+  const refusal = passRefusal(ledger, passPhase(state), state.morningKey);
   if (refusal) return refusal;
   sharedSet(KEY, withSpent(ledger, state.morningKey, now.getTime()));
   recordProof({ morningKey: state.morningKey, kind: 'pass', at: now.getTime() }, judgedAt(now));

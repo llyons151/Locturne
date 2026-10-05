@@ -14,7 +14,7 @@
  *
  * Matching and code generation are pure; the bottom of the file applies them.
  */
-import { judgedAt, readLock, syncLock } from './lock-controller.ts';
+import { judgedAt, pastLastPaid, readLock, syncLock } from './lock-controller.ts';
 import { recordProof } from './morning-proof.ts';
 import { getScanCode, SCAN_CODE_KEY, type ScanCode } from './scan-code.ts';
 import { sharedGet, sharedRemove, sharedSet } from './screen-time.ts';
@@ -117,7 +117,8 @@ export function submitScan(data: string, now = new Date()): ScanResult {
   if (!code) return 'noCode';
   if (!matches(code, data)) return 'wrongCode';
   const state = readLock(now);
-  if (state.phase !== 'morning') return 'notMorning';
+  // A morning after the last one a lapsed subscription covers holds nothing (`pastLastPaid`).
+  if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return 'notMorning';
   recordProof({ morningKey: state.morningKey, kind: 'scan', at: now.getTime() }, judgedAt(now));
   syncLock(now);
   return 'unlocked';

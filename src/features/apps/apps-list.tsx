@@ -35,13 +35,12 @@ import {
   LIMIT_CHOICES,
   limitLabel,
   MAX_LIMITS,
-  looserEditsStart,
   type DailyLimit,
   type LimitId,
 } from '@/lib/daily-limits';
 import { getNightPause, pauseWording } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { onLockChange, readLock } from '@/lib/lock-controller';
+import { looserEditsStartAt, onLockChange, readLock } from '@/lib/lock-controller';
 import {
   armLimit,
   beginListEdit,
@@ -184,7 +183,7 @@ function LiveAppsList() {
   /** Stricter edits start now; looser ones wait for bedtime (`editLimit`). */
   const setMinutes = (id: LimitId, minutes: number | null) => {
     haptic.tap();
-    const next = editLimit(limits, id, minutes, looserEditsStart(new Date(), getArmedNight()));
+    const next = editLimit(limits, id, minutes, looserEditsStartAt(new Date()));
     const after = next.find((l) => l.id === id);
     const before = limits.find((l) => l.id === id);
     saveAndArm(next, after && after.minutes !== before?.minutes ? after : undefined);
@@ -195,7 +194,7 @@ function LiveAppsList() {
    * bedtime (`finishListEdit`). Newly added apps may need shielding straight away.
    */
   const pickedList = (list: StandingList) => {
-    finishListEdit(list, looserEditsStart(new Date(), getArmedNight()));
+    finishListEdit(list, looserEditsStartAt(new Date()));
     if (isLimitId(list)) pickedLimit(list);
     reapplyStandingBlocks();
     refresh();
@@ -399,7 +398,7 @@ function LimitHeader({
   // Used up comes first: it's why the apps are asleep right now, whatever waits for bedtime.
   const parts: string[] = [];
   if (usedUp) parts.push('Used up today. Back at midnight.');
-  // `from` is the next bedtime, or midnight with nothing armed (`looserEditsStart`): name it.
+  // `from` is the next bedtime, or midnight with nothing armed (`looserEditsStartAt`): name it.
   const when = pending ? startsLabel(new Date(pending.from), new Date()) : '';
   // Applied by the app (`settleLimitChanges`), so on the first open after then.
   if (pending?.minutes === null) parts.push(`Ends ${when}, when you next open Locturne.`);

@@ -74,6 +74,17 @@ export type NightFacts = {
    * purpose: not a `noShield`.
    */
   paused?: string[];
+  /**
+   * Each emergency night pause, in ms: from the unlock to `resumesAt`. Windows that ran inside
+   * one shielded nothing on purpose too, whichever night they belong to (an earlier bedtime
+   * saved during the pause starts the next night before it ends).
+   */
+  pauses?: { from: number; until: number }[];
+  /**
+   * The last morning a lapsed subscription covers (`lastPaidMorning`), or null while subscribed.
+   * Nights after it aren't locked (the extension skips them), so they aren't checked.
+   */
+  lastPaidMorning?: string | null;
   now: Date;
   nights?: number;
 };
@@ -133,7 +144,9 @@ export function heartbeatCoverage(log: Heartbeat[], recovered: Heartbeat[], keep
 export function checkNights(facts: NightFacts): NightCheck[] {
   const { armed, routine, heartbeats, coverageStart, now } = facts;
   if (!armed || armed.bedtime === armed.morningStart) return [];
-  const armedAt = Date.parse(armed.armedAt);
+  // Since the times now armed were first armed: a re-arm with the same times (a lost window
+  // put back, a list change) mid-night doesn't drop that night. Older records: the last arm.
+  const armedAt = Date.parse(armed.timesSince ?? armed.armedAt);
   const starts = heartbeats
     .filter((h) => h.callback === 'intervalDidStart' && h.activity.startsWith(WINDOW_PREFIX))
     .sort((a, b) => a.at - b.at);
@@ -147,6 +160,7 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     if (start.getTime() + ON_TIME_GRACE * MINUTE > now.getTime()) continue;
     if (!Number.isNaN(armedAt) && start.getTime() < armedAt) continue;
     if (!routine.activeNights.includes(eveningOf(end))) continue;
+    if (facts.lastPaidMorning && dateKey(end) > facts.lastPaidMorning) continue;
 
     const ran = starts.filter((h) => h.at >= start.getTime() - EARLY_SLACK && h.at <= end.getTime());
     const first = ran[0];
@@ -154,7 +168,10 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     if (facts.zoneChangedAt && start.getTime() < facts.zoneChangedAt) verdict = 'unknown';
     else if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
     // An empty bedtime list puts nothing to sleep, even with another list's shield up.
-    else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) verdict = facts.paused?.includes(dateKey(end)) ? 'unknown' : 'noShield';
+    else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) {
+      const inPause = (at: number) => facts.pauses?.some((p) => at >= p.from && at < p.until) ?? false;
+      verdict = facts.paused?.includes(dateKey(end)) || ran.every((h) => inPause(h.at)) ? 'unknown' : 'noShield';
+    }
     else verdict = first.at <= start.getTime() + ON_TIME_GRACE * MINUTE ? 'onTime' : 'late';
 
     checks.push({

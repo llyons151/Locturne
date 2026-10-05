@@ -14,10 +14,10 @@
  *
  * `planEmergency` and the log helpers are pure; `emergencyUnlock` applies the plan.
  */
-import { inPendingFirstNight, judgedAt, pastLastPaid, readLock, routineAt, subscriptionEnded, syncLock } from './lock-controller.ts';
-import { dateKey, nightsAround, settingsTakeEffectAt, type Phase } from './lock-state.ts';
+import { judgedAt, nextBedtime, pastLastPaid, readLock, subscriptionEnded, syncLock } from './lock-controller.ts';
+import { dateKey, type Phase } from './lock-state.ts';
 import { recordProof, type MorningProof } from './morning-proof.ts';
-import { getPendingRoutine, nextNightOn, toLockSettings } from './routine.ts';
+import { nextNightOn } from './routine.ts';
 import { endNap, getNap, nightLockArmed, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
 
 /** Seconds the exits screen waits before the unlock button works. */
@@ -84,28 +84,6 @@ export function getNightPause(now = new Date()): Date | null {
 }
 
 /**
- * The next bedtime. A routine edit waiting for that bedtime may move it earlier, so take
- * whichever comes first: the paused lock must be back by the first window that runs.
- */
-function nextBedtime(now: Date): Date {
-  const pending = getPendingRoutine(now);
-  // Inside a waiting edit's own first night (an earlier bedtime, armed at once): the next
-  // bedtime is that routine's next one, not the old routine's later one tonight.
-  if (pending && inPendingFirstNight(now)) return settingsTakeEffectAt(now, toLockSettings(pending.routine));
-  // The routine in force as iOS runs it: windows still armed for an older bedtime (`routineAt`).
-  const governing = toLockSettings(routineAt(now));
-  const next = settingsTakeEffectAt(now, governing);
-  if (!pending) return next;
-  const edited = settingsTakeEffectAt(now, toLockSettings(pending.routine));
-  // An edit made from bed waits for the next bedtime: a bedtime of its that falls inside the
-  // night under way isn't one (a later bedtime saved at 23:20 for 23:45 applies tomorrow), and
-  // resuming there would put the paused night back to sleep tonight.
-  const tonightEnds = nightsAround(now, governing).latest.end;
-  return edited < next && edited >= tonightEnds ? edited : next;
-}
-
-
-/**
  * The phase as far as what's asleep: the lock's phase comes from the clock, so a night with
  * nothing to wake reads as day. That's a night with no lock (`nightLockArmed`: never bought,
  * stood down, arming failed) or one an emergency already paused. A morning needs no check:
@@ -155,7 +133,10 @@ export function pauseWording(
   resumesAt: Date,
   now = new Date(),
 ): { morning: string; resumes: Date | null; weekday: string | null } {
-  const resumes = nextNightOn(resumesAt, now);
+  // Never a time before the pause ends: the parked picks come back only then (an earlier
+  // bedtime saved during the pause, still waiting to be armed, starts a night before it).
+  const next = nextNightOn(resumesAt, now);
+  const resumes = next && next < resumesAt ? resumesAt : next;
   const sameDay = resumes?.toDateString() === resumesAt.toDateString();
   return {
     // The morning this night leads into: today's once past midnight, or a shift worker's.
