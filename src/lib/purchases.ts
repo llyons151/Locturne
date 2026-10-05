@@ -372,7 +372,8 @@ export function createClosedPurchases(): PurchasesProvider {
 
 /* The provider in use. */
 
-let provider: PurchasesProvider = createDevPurchases({ latencyMs: 400 });
+// Closed until startup picks a store: nothing that runs early can unlock anything.
+let provider: PurchasesProvider = createClosedPurchases();
 
 /** Swap in the real store (RevenueCat) at startup, or a configured stub in tests. */
 export function setPurchasesProvider(next: PurchasesProvider): void {

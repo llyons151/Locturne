@@ -20,6 +20,7 @@ import {
   OFFLINE_GRACE_MS,
   purchaseFailure,
   revenueCatKey,
+  SEEN_AT_KEY,
   toOffer,
   type EntitlementRecord,
   type RevenueCatSdk,
@@ -286,10 +287,6 @@ test('cachedEntitlement', () => {
   assert.equal(cachedEntitlement({ active: true, expiresAt: now.getTime() - OFFLINE_GRACE_MS, checkedAt: 0 }, now), false);
   // Cancelled: it won't renew, so there's no offline renewal to wait for.
   assert.equal(cachedEntitlement({ active: true, willRenew: false, expiresAt: now.getTime() - 1, checkedAt: 0 }, now), false);
-  // A clock set back before the last check doesn't keep a lapsed subscription paid offline.
-  const later = now.getTime() + 2 * 60 * 60 * 1000;
-  assert.equal(cachedEntitlement({ active: true, expiresAt: later + 1, checkedAt: later }, now), false);
-  assert.equal(cachedEntitlement({ active: true, expiresAt: later + 1, checkedAt: now.getTime() + 60_000 }, now), true);
 });
 
 test('entitlementRecord keeps only plist-safe fields', () => {
@@ -327,4 +324,23 @@ test('attributes go to the customer record', () => {
   const sdk = fakeSdk();
   provider(sdk).setAttributes({ [ATTRIBUTES.found]: 'tiktok' });
   assert.equal(sdk.attributes.found, 'tiktok');
+});
+
+test('a clock set back past expiry keeps nothing paid, from the store\'s cache or ours', async () => {
+  const store = memoryKeyValue();
+  const lapsed = new Date(2026, 10, 1);
+  const expiresAt = lapsed.getTime() - 30 * DAY;
+  // Seen a month after a cancelled plan ended; then the clock goes back before the end.
+  provider(fakeSdk({ offline: true }), store, 0.9, lapsed);
+  store.set(SEEN_AT_KEY, lapsed.getTime());
+  const back = new Date(expiresAt - DAY);
+  const sdk = fakeSdk();
+  sdk.info = customer({ productId: PRODUCT_IDS.annual, expiresAt, willRenew: false });
+  assert.equal(await provider(sdk, store, 0.9, back).isEntitled(), false);
+  const offline = fakeSdk({ offline: true });
+  store.set(ENTITLEMENT_KEY, { active: true, expiresAt, willRenew: false, checkedAt: back.getTime() });
+  assert.equal(await provider(offline, store, 0.9, back).isEntitled(), false);
+  // The clock right: a running plan stays paid.
+  sdk.info = customer({ productId: PRODUCT_IDS.annual, expiresAt: lapsed.getTime() + DAY });
+  assert.equal(await provider(sdk, store, 0.9, lapsed).isEntitled(), true);
 });

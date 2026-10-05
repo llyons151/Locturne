@@ -10,5 +10,9 @@ module.exports = ({ config }) => {
         'in app.json to the appl_ key (docs/REVENUECAT_SETUP.md).',
     );
   }
+  // The dev labs include "Disarm schedule", and a keyless preview build sells for free.
+  if (process.env.EAS_BUILD_PROFILE === 'production' && process.env.EXPO_PUBLIC_DEV_LABS) {
+    throw new Error('Production build with EXPO_PUBLIC_DEV_LABS set: unset it (it belongs to the preview profile).');
+  }
   return config;
 };

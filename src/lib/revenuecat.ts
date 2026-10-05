@@ -91,7 +91,14 @@ export const EXIT_ARM_KEY = 'locturne.exitArm';
  */
 export const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
-/** How far behind the last check the clock may be before the cache stops counting. */
+/**
+ * The latest time this install has seen (ms), so a clock set back can't hold a lapsed
+ * subscription: RevenueCat's own cache judges expiry by the clock too, and never goes stale
+ * while the clock runs behind it.
+ */
+export const SEEN_AT_KEY = 'locturne.entitlementSeenAt';
+
+/** How far behind the latest time seen the clock may be before answers are judged by that time. */
 const CLOCK_SLACK_MS = 60 * 60 * 1000;
 
 const UNIT_DAYS: Record<string, number> = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 };
@@ -200,8 +207,6 @@ export function entitlementRecord(info: CustomerInfo, now: Date): EntitlementRec
 /** Whether a cached record still counts as paid when the store can't be asked. */
 export function cachedEntitlement(record: EntitlementRecord | undefined, now: Date): boolean {
   if (!record?.active) return false;
-  // A clock set back before the last check could hold a lapsed subscription forever offline.
-  if (now.getTime() < record.checkedAt - CLOCK_SLACK_MS) return false;
   // The grace covers a renewal the phone couldn't see offline. A cancelled one won't renew.
   const grace = record.willRenew === false ? 0 : OFFLINE_GRACE_MS;
   return record.expiresAt === undefined || now.getTime() < record.expiresAt + grace;
@@ -232,8 +237,20 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   let inFlight = 0;
 
   const cached = () => store.get<EntitlementRecord>(ENTITLEMENT_KEY);
+  /** Now, or the latest time seen when the clock has been set back behind it. */
+  const judgedAt = () => {
+    const at = now().getTime();
+    const seen = Math.max(store.get<number>(SEEN_AT_KEY) ?? 0, at);
+    store.set(SEEN_AT_KEY, seen);
+    return new Date(at < seen - CLOCK_SLACK_MS ? seen : at);
+  };
   const remember = (info: CustomerInfo) => {
-    const record = entitlementRecord(info, now());
+    let record = entitlementRecord(info, now());
+    const at = judgedAt();
+    // The clock is behind: the store's answer may be its stale cache, judged by that clock.
+    if (record.active && at.getTime() > now().getTime() && !cachedEntitlement(record, at)) {
+      record = { ...record, active: false };
+    }
     store.set(ENTITLEMENT_KEY, record);
     return record;
   };
@@ -244,7 +261,7 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     } catch (error) {
       const record = cached();
       if (!record) throw error;
-      return cachedEntitlement(record, now()) ? record : { ...record, active: false };
+      return cachedEntitlement(record, judgedAt()) ? record : { ...record, active: false };
     }
   };
   const tag = (attributes: Record<string, string>) => {
