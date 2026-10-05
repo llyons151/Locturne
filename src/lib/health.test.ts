@@ -173,11 +173,31 @@ test('rollUpHealth says when nothing sleeps for want of a subscription, and offe
   assert.equal(lapsed.title, 'No subscription, so nothing sleeps.');
   assert.equal(lapsed.needsSubscription, true);
   assert.notEqual(lapsed.level, 'ok');
-  // Tonight still armed (it ends after the coming morning): the normal status until then.
-  assert.equal(roll({ unsubscribed: true }).needsSubscription, undefined);
+  // Still armed: the night or morning under way when the end was found finishes first.
+  assert.equal(roll({ unsubscribed: true }).needsSubscription, true);
   // Every night off too: the subscription comes first, since unpaid nothing sleeps either way.
   assert.equal(roll({ armed: null, unsubscribed: true, routine: { activeNights: [] } }).needsSubscription, true);
   assert.equal(roll({ armed: null, routine: { activeNights: [] } }).title, 'Every night is off.');
+});
+
+test('an ended subscription found in a held night or an unproven morning: that one counts, then nothing sleeps', () => {
+  // Found at 15:00 in a morning nobody proved: it lasts until they're up or bedtime.
+  const morning = roll({ unsubscribed: true, now: at(2, 15) });
+  assert.equal(morning.level, 'attention');
+  assert.equal(morning.needsSubscription, true, 'Home offers the plans');
+  assert.equal(morning.title, 'Your subscription ended.');
+  assert.match(morning.detail, /This morning still counts until you’re up\. From tonight, nothing sleeps\./);
+  assert.doesNotMatch(morning.detail, /sleep at 23:00/);
+  // Found at 23:30 or 02:00 in the night under way: that night and its morning still hold.
+  for (const now of [at(2, 23, 30), at(3, 2)]) {
+    const held = roll({ unsubscribed: true, now });
+    assert.equal(held.needsSubscription, true);
+    assert.match(held.detail, /^Tonight still counts, and so does its morning\. After that, nothing sleeps\./);
+  }
+  // Ahead of a missed-night note too: the subscription is the fix that matters.
+  assert.equal(roll({ unsubscribed: true, nights: [night('missed')] }).needsSubscription, true);
+  // Every night off but still armed: same, the subscription first.
+  assert.equal(roll({ unsubscribed: true, routine: { activeNights: [] } }).needsSubscription, true);
 });
 
 test('rollUpHealth flags the newest judged night, skipping unknown ones', () => {

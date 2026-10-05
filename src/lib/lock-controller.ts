@@ -66,8 +66,9 @@ function readDaytime(now: Date): DaytimeFacts {
 export function readLock(now = new Date()): LockState {
   const settings = toLockSettings(routineAt(now));
   const morning = currentMorning(now, settings);
-  // Only a proof that counts for this morning (one made after morning start, or a pass).
-  const proof = getProof(morning.key, morning);
+  // A proof saved for this morning. Its timing was judged when it was saved (`recordProof`),
+  // so a flight west or a later morning start since then doesn't take the morning back.
+  const proof = getProof(morning.key);
   const armed = getArmedNight();
   const free = !armedInTime(now, settings, armed ? armedSince(armed) : null);
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.

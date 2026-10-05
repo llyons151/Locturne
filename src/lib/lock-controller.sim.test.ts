@@ -313,9 +313,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const settings = settingsAt(at);
     const now = new Date(at);
     const morning = ls.currentMorning(now, settings);
-    const proven = spec.proofs.some(
-      (p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || p.at >= morning.start.getTime()),
-    );
+    // Only accepted proofs are pushed (judged when made), and one counts for its morning from
+    // then on: a flight west or a later morning start doesn't take it back.
+    const proven = spec.proofs.some((p) => p.key === morning.key);
     const free = spec.armedSince === null || !ls.armedInTime(now, settings, new Date(spec.armedSince));
     return ls.getLockState(now, settings, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
@@ -765,9 +765,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       // The extension places each window by the armed times and releases only inside the
       // night in force (`locturneWindowNight`, `locturneInsideNightInForce`), so an old window
       // no longer ends a morning nobody proved (native-tests covers it). The lock still isn't
-      // required here: after an edit, lock-state re-reads a morning already proven under the
-      // old times and may call it locked again (open product question, seed 368), which the
-      // extension can't know.
+      // required here: an old window can start inside what the routine now in force calls
+      // day, which the extension can't know. (A proven morning no longer reads as locked
+      // again after an edit: proofs are judged once, when saved.)
       const armed = st.getArmedNight();
       const target = latestRoutine();
       const stale = !!armed && (armed.bedtime !== target.bedtime || armed.morningStart !== target.morningStart);

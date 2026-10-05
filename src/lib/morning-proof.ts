@@ -24,10 +24,16 @@ const KEEP = 30;
 const listeners = new Set<() => void>();
 
 /**
- * Pure: does this proof unlock `morning`? Bedtime wins (GAME_PLAN, "Core loop"), so stairs,
- * steps or a scan only count once the morning has started: a walk at 23:30 must not unlock
- * tomorrow. A pass or an emergency unlock is a deliberate choice and counts whenever it was
- * made (a pass used the night before covers the morning).
+ * Pure: may this proof be recorded for `morning`, the morning its moment belongs to? Bedtime
+ * wins (GAME_PLAN, "Core loop"), so stairs, steps or a scan only count once the morning has
+ * started: a walk at 23:30 must not unlock tomorrow. A pass or an emergency unlock is a
+ * deliberate choice and counts whenever it was made (a pass used the night before covers the
+ * morning).
+ *
+ * Timing is judged once, here, when `recordProof` saves the proof. A saved proof then counts
+ * for its morning (`proofUnlocks`): re-reading its time against a start computed later would
+ * take back a morning proven legitimately, after a flight west (07:30 New York is before
+ * 07:00 in LA) or an edit that moved morning start later.
  */
 export function proofCounts(proof: MorningProof, morning: Morning): boolean {
   if (proof.morningKey !== morning.key) return false;
@@ -35,15 +41,18 @@ export function proofCounts(proof: MorningProof, morning: Morning): boolean {
   return proof.at >= morning.start.getTime();
 }
 
+/** Pure: does this saved proof unlock `morning`? Saved proofs were judged in `recordProof`. */
+export function proofUnlocks(proof: MorningProof, morning: Pick<Morning, 'key'>): boolean {
+  return proof.morningKey === morning.key;
+}
+
 export function getProofs(): MorningProof[] {
   return sharedGet<MorningProof[]>(KEY) ?? [];
 }
 
-/** The proof that unlocked this morning, or null. Only proofs that count are returned. */
-export function getProof(morningKey: string, morning?: Morning): MorningProof | null {
-  return (
-    getProofs().find((p) => p.morningKey === morningKey && (!morning || proofCounts(p, morning))) ?? null
-  );
+/** The proof that unlocked this morning, or null. */
+export function getProof(morningKey: string): MorningProof | null {
+  return getProofs().find((p) => proofUnlocks(p, { key: morningKey })) ?? null;
 }
 
 /**
@@ -59,10 +68,8 @@ export function recordProof(proof: MorningProof, routine?: Routine): boolean {
   const morning = currentMorning(at, toLockSettings(routine ?? getRoutine(at)));
   if (!proofCounts(proof, morning)) return false;
   const all = getProofs();
-  // Only a proof that still counts blocks another. One that stopped counting (made before a
-  // timezone change or a routine edit moved this morning's start later) must not leave the
-  // morning locked with no way out, not even the emergency unlock.
-  if (all.some((p) => p.morningKey === proof.morningKey && proofCounts(p, morning))) return false;
+  // A saved proof keeps counting for its morning, so the morning is already unlocked.
+  if (all.some((p) => proofUnlocks(p, morning))) return false;
   sharedSet(KEY, [proof, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();
   return true;

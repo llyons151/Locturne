@@ -164,18 +164,27 @@ describe('the morning gate', () => {
     assert.equal(getProofs()[0].kind, 'downstairs');
   });
 
-  test('a proof that stopped counting never blocks the next one, so the morning can still open', async () => {
+  test('a saved proof keeps counting when a later morning start re-reads its morning', async () => {
     await armYesterday();
     nightHeld = true;
-    // A walk logged for this morning before its start as the clock now reads it (the phone
-    // crossed timezones westward after proving, say). It no longer counts...
-    const key = readLock(at(7, 30, 2)).morningKey;
-    store.set('locturne.morningProofs', [{ morningKey: key, kind: 'steps', at: at(6, 0, 2).getTime() }]);
-    assert.equal(syncLock(at(7, 30, 2)).phase, 'morning');
-    // ...and must not stop the emergency unlock, a pass or a fresh walk from opening it.
-    assert.ok(recordProof({ morningKey: key, kind: 'emergency', at: at(7, 40, 2).getTime() }));
-    assert.equal(syncLock(at(7, 40, 2)).phase, 'day');
+    assert.equal(proveMorning('downstairs', at(7, 30))?.phase, 'day');
+    // Saved in the day: bedtime 01:00, mornings from 08:00. It takes over at 23:00, and the
+    // morning it reads 23:00 to 01:00 as is this one, now starting at 08:00, after the walk.
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 60, morningStart: 8 * 60 }, at(9));
+    calls = [];
+    assert.equal(syncLock(at(23, 30)).phase, 'day', 'the walk at 07:30 still proves it');
+    assert.ok(!calls.includes('sleep:night'));
     assert.equal(nightHeld, false);
+    assert.equal(proveMorning('steps', at(23, 40)), null, 'already unlocked: nothing more to record');
+    assert.equal(getProofs().length, 1);
+  });
+
+  test('a proof is judged when it is saved: one made before morning start is never stored', async () => {
+    await armYesterday();
+    const key = readLock(at(7, 30)).morningKey;
+    assert.equal(recordProof({ morningKey: key, kind: 'steps', at: at(6, 59).getTime() }), false);
+    assert.equal(getProofs().length, 0);
+    assert.ok(recordProof({ morningKey: key, kind: 'steps', at: at(7, 0).getTime() }));
   });
 
   test('a pass covers the morning even if used the night before', async () => {

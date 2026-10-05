@@ -88,6 +88,14 @@ function nightInto(now: Date, times: { bedtime: number; morningStart: number }, 
 /** The weekday whose evening starts the night into this morning, even past midnight. */
 const eveningOf = (morningEnd: Date) => atMinute(morningEnd, 0, -1).getDay();
 
+/** Whether `now` is inside a night of these times, switched on or not. */
+function inNight(now: Date, times: { bedtime: number; morningStart: number }): boolean {
+  return [-1, 0, 1].some((offset) => {
+    const { start, end } = nightInto(now, times, offset);
+    return start <= now && now < end;
+  });
+}
+
 /** Whether the night in progress, or else the next one, is switched on. */
 export function nextNightIsOn(now: Date, times: { bedtime: number; morningStart: number }, activeNights: number[]): boolean {
   for (const offset of [-1, 0, 1, 2]) {
@@ -252,6 +260,20 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       level: 'attention',
       title: 'No subscription, so nothing sleeps.',
       detail: 'Your setup is saved. Subscribe and I’ll pick up where we left off.',
+      needsSubscription: true,
+    };
+  }
+  // Ended, but the night or morning under way when it was found still finishes
+  // (`settleSubscription`): bedtime stays armed until then, and the next night won't start.
+  // Say so, and offer the plans now rather than once nothing sleeps.
+  if (armed && unsubscribed) {
+    return {
+      ...base,
+      level: 'attention',
+      title: 'Your subscription ended.',
+      detail: inNight(now, armed)
+        ? 'Tonight still counts, and so does its morning. After that, nothing sleeps. Subscribe and I’ll keep going.'
+        : 'This morning still counts until you’re up. From tonight, nothing sleeps. Subscribe and I’ll keep going.',
       needsSubscription: true,
     };
   }
