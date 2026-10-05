@@ -427,3 +427,112 @@ test("L1: a lapse found mid-night while an early first night's windows are armed
   drain();
   runChecking(at(5, 7, 59), () => assert.ok(asleep('tiktok'), `tiktok awake at ${new Date().toTimeString().slice(0, 5)}`));
 });
+
+/*
+ * Round 52's review: a waiting removal is redated for the moment it was saved, and whether the
+ * bedtime list was awake then is decided when it's saved (`awake`), not from the phone later.
+ */
+
+const hhmm = () => new Date().toTimeString().slice(0, 5);
+
+test('a by-day removal stays at an early first night when Block now holds the bedtime list later', async () => {
+  // 15:00: bedtime 21:00 (armed at once) and insta removed, due at 21:00. 15:30: Block now.
+  await setUp(at(4, 12));
+  await proveAt(at(5, 7, 10));
+  runTo(at(5, 15));
+  await edit({ bedtime: 21 * 60 });
+  editList('night', ['tiktok']);
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 21));
+  runTo(at(5, 15, 30));
+  await st.startNap('night', 15);
+  lc.syncLock();
+  drain();
+  await open();
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 21), `moved to ${st.listChangeStarts('night')}`);
+});
+
+test("the first day's by-day removal keeps its bedtime when Block now runs later", async () => {
+  await setUp(at(5, 15));
+  editList('night', ['tiktok']);
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 23));
+  runTo(at(5, 16));
+  await st.startNap('night', 15);
+  lc.syncLock();
+  drain();
+  await open();
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 23), `moved to ${st.listChangeStarts('night')}`);
+});
+
+test('a removal made while a short Block now holds the bedtime list never sleeps the first night', async () => {
+  await setUp(at(5, 15));
+  runTo(at(5, 16));
+  await st.startNap('night', 15);
+  lc.syncLock();
+  drain();
+  editList('night', ['tiktok']);
+  const from = st.listChangeStarts('night')?.getTime();
+  runChecking(at(6, 6, 50), () => assert.ok(Date.now() < at(5, 16, 20) || !asleep('insta'), `insta asleep at ${hhmm()} (from ${new Date(from!)})`));
+});
+
+test('a by-day removal, then an earlier bedtime saved after it has passed: the removed app wakes, not a night later', async () => {
+  // 12:00: insta removed (due 23:00). 21:30: bedtime 21:00, its first night held at once.
+  await setUp(at(4, 12));
+  await proveAt(at(5, 7, 10));
+  runTo(at(5, 12));
+  await open();
+  editList('night', ['tiktok']);
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 23));
+  runTo(at(5, 21, 30));
+  await open();
+  await edit({ bedtime: 21 * 60 });
+  await open();
+  const from = st.listChangeStarts('night');
+  assert.ok(asleep('tiktok'));
+  runChecking(at(6, 7, 30), () =>
+    assert.ok(Date.now() < at(5, 23, 5) || !asleep('insta'), `insta asleep at ${hhmm()} (removal now due ${from})`),
+  );
+});
+
+test('a lapse found by day and renewed the same afternoon keeps a waiting removal and a looser limit at bedtime', async () => {
+  await setUp(at(4, 12), {}, true);
+  await proveAt(at(5, 7, 10));
+  runTo(at(5, 10));
+  await open();
+  editList('always', ['x']);
+  await setLimit(60);
+  assert.equal(st.listChangeStarts('always')?.getTime(), at(5, 23));
+  assert.equal(st.getLimits()[0].pending?.from, at(5, 23));
+  runTo(at(5, 12));
+  lc.settleSubscription(false);
+  drain();
+  assert.ok(st.isStoodDown());
+  runTo(at(5, 15));
+  lc.settleSubscription(true);
+  drain();
+  await armTonight();
+  await flush();
+  drain();
+  await open();
+  assert.equal(st.listChangeStarts('always')?.getTime(), at(5, 23), `always removal moved to ${st.listChangeStarts('always')}`);
+  assert.equal(st.getLimits()[0].pending?.from, at(5, 23), `limit moved to ${new Date(st.getLimits()[0].pending!.from)}`);
+});
+
+test('an emergency at 23:30, then a long first night saved from bed and re-armed: the pause holds tonight', async () => {
+  await setUp(at(4, 12));
+  runTo(at(5, 23, 30));
+  await open();
+  assert.ok(em.emergencyUnlock());
+  await flush();
+  drain();
+  runTo(at(5, 23, 35));
+  await open();
+  assert.ok(!asleep('tiktok'));
+  await edit({ bedtime: 23 * 60 + 45, morningStart: 23 * 60 + 15 });
+  runTo(at(5, 23, 50));
+  await open();
+  // Any re-arm inside that night (another tweak saved from bed).
+  await edit({ stepGoal: 150 });
+  runTo(at(5, 23, 55));
+  await open();
+  assert.ok(!asleep('tiktok'), `paused night re-shielded at ${hhmm()} (pause until ${em.getNightPause()})`);
+});

@@ -323,7 +323,26 @@ type MethodCopy = (typeof METHOD_COPY)[WakeMethod];
  * `METHOD_COPY` for the step goal in use. The copy is written for onboarding's 200; a rerun
  * (See plans) keeps the goal saved in Routine, which can be 100, 300 or 500.
  */
-export function methodCopy(method: WakeMethod, { codeWaits = false }: { codeWaits?: boolean } = {}): MethodCopy {
+export function methodCopy(
+  method: WakeMethod,
+  { codeWaits = false, wake }: { codeWaits?: boolean; wake?: number } = {},
+): MethodCopy {
+  const copy = methodCopyFor(method, codeWaits);
+  // A night shift's wake-up is in the afternoon: its row isn't "Morning" (`wakePart`).
+  const part = wake === undefined ? 'Morning' : wakePart(wake);
+  if (part === 'Morning') return copy;
+  return { ...copy, morning: copy.morning.map((row) => (row.when === 'Morning' ? { ...row, when: part } : row)) };
+}
+
+/**
+ * The first wake-up's part of the day, from its time (minutes since midnight): "Afternoon" from
+ * noon on, as `wakeDayFor` ("Later today") and the scan screen's `morningName` say it.
+ */
+export function wakePart(wake: number): 'Morning' | 'Afternoon' {
+  return wake >= 12 * 60 ? 'Afternoon' : 'Morning';
+}
+
+function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
   const saved = METHOD_COPY[method];
   // A returning scan user already has a code: no "set up your code" today. Without one, a
   // code can't be set while the apps are asleep (`getScanEditRefusal`), so one finishing

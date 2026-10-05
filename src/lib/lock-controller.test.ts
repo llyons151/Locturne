@@ -78,6 +78,8 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     getLimits: () => [],
     saveLimits: () => {},
     delayListChanges: () => {},
+    judgeListAwakeWith: () => {},
+    scheduleListSettle: () => {},
     settleListChanges: () => [],
     limitUsedUpToday: () => false,
     moveNightPause: () => {},

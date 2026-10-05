@@ -19,7 +19,7 @@
  */
 import { assertPlist } from './fake-device-activity.ts';
 
-type Clock = { hour: number; minute: number; second?: number };
+type Clock = { hour: number; minute: number; second?: number; year?: number; month?: number; day?: number };
 type Schedule = { intervalStart: Clock; intervalEnd: Clock; repeats?: boolean };
 type MonitorEvent = { familyActivitySelection: string; threshold: { hour: number; minute: number }; eventName: string };
 type Action = { type: string; familyActivitySelectionId?: string };
@@ -217,7 +217,9 @@ export function simDevice() {
     startMonitoring: async (name: string, schedule: Schedule, events: MonitorEvent[]) => {
       const t = now();
       const m: Monitored = { name, schedule: copy(schedule), events: copy(events), registeredAt: t };
-      if (!schedule.repeats) m.once = occurrence(schedule, new Date(t));
+      // A one-off with a date (the list settle) runs on that day; without one (Block now), today.
+      const a = schedule.intervalStart;
+      if (!schedule.repeats) m.once = occurrence(schedule, a.year !== undefined && a.month !== undefined && a.day !== undefined ? new Date(a.year, a.month - 1, a.day) : new Date(t));
       s.monitored.set(name, m);
       if (s.startsOnRegister && schedule.repeats && insideNow(m, t)) {
         s.queue.push({ activity: name, callback: 'intervalDidStart' });
@@ -541,6 +543,9 @@ export function simDevice() {
     };
     for (const m of s.monitored.values()) {
       if (m.once) {
+        // A one-off registered ahead of its start (the list settle) starts then; Block now's
+        // starts as it's registered, which the app handles itself.
+        if (m.once.start > m.registeredAt) push(m.once.start, m.name, 'intervalDidStart');
         push(m.once.end, m.name, 'intervalDidEnd');
         continue;
       }

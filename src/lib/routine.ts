@@ -194,6 +194,10 @@ export function runsAs(
   since: number | null | undefined,
 ): Routine {
   if (!armed || (pending && armedForEdit(armed, pending.routine, since))) return routine;
+  // Windows armed since the routine in force took over, for other times, are an edit's: the
+  // waiting one's, or one since abandoned (an Undo iOS refused). Never the routine in force's.
+  const at = armed.armedAt === undefined ? Number.NaN : Date.parse(armed.armedAt);
+  if (since !== null && since !== undefined && !Number.isNaN(at) && at >= since) return routine;
   return asArmed(routine, armed);
 }
 
@@ -211,6 +215,19 @@ export function saveRoutine(next: Routine, now = new Date(), early = false): Dat
   const stored = applyEdit(read(now), next, now, getArmedNight() ?? false, early);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;
+}
+
+/**
+ * Brings a waiting edit forward to `from`, the next bedtime as iOS now runs the routine in force
+ * (`applyEdit` took it from windows armed then, and arming has since replaced them: windows
+ * still armed for an older, later bedtime when the edit was saved by day, now the routine's own
+ * earlier ones). Only earlier, and only to a moment still ahead. Returns whether it moved.
+ */
+export function bringEditForward(from: number, now = new Date()): boolean {
+  const stored = read(now);
+  if (!stored?.pending || from >= stored.pending.from || from <= now.getTime()) return false;
+  sharedSet(KEY, { ...stored, pending: { ...stored.pending, from } });
+  return true;
 }
 
 /**
@@ -264,8 +281,15 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   // the edit's night starts at `from`.
   const early = usePending && pending && night.start.getTime() < pending.from;
   const held = holdsEarly(night.start, evening, getRoutine(now), getArmedNight());
+  const on = routine.activeNights.includes(evening);
+  // An edit's night already under way when it applies, on an evening it has off and not held
+  // early: nothing sleeps in it, so the night that comes is its next one ("Tonight is off" at
+  // 08:21 for a 03:00 night that began before the edit, when the next one at 03:00 is on).
+  // (Judged by the edit's own night: windows still armed for older times can move its start.)
+  const underWay = usePending && pending && pendingNight && pendingNight.start.getTime() < pending.from;
+  if (underWay && !held && !on && night.end > start) return nightAt(night.end, now);
   const begins = early && pending && !held ? new Date(pending.from) : night.start;
-  return { routine, start: begins, on: routine.activeNights.includes(evening) };
+  return { routine, start: begins, on };
 }
 
 /** The start of the first night at or after `from` that's on, a week out at most. Null when every night is off. */

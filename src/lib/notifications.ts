@@ -353,10 +353,17 @@ export async function cancelTrialReminder(): Promise<void> {
  * The nightly ones fire at a local clock time, like the night windows: a date trigger becomes
  * a fixed interval on iOS (expo-notifications' `DateTriggerRecord`), so after a flight
  * "Bedtime in 15 minutes" would come at the old zone's time. Calendar parts with no time zone
- * float with the phone's. The trial reminder is a real instant, so it stays a date.
+ * float with the phone's. The trial reminder is a real instant, so it stays a date. Exported for
+ * the tests (honest-fuzz.test.ts fires what iOS was handed).
  */
-function triggerFor(n: PlannedNotification): Notifications.SchedulableNotificationTriggerInput {
+export function triggerFor(n: PlannedNotification): Notifications.SchedulableNotificationTriggerInput {
   if (n.kind === 'trial') return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at };
+  // In the hour an autumn clock change repeats, calendar parts name its first pass, and iOS would
+  // fire then: an hour early for one meant for the second. Those stay a real instant.
+  const first = new Date(n.at.getFullYear(), n.at.getMonth(), n.at.getDate(), n.at.getHours(), n.at.getMinutes());
+  if (first.getTime() !== n.at.getTime() - n.at.getSeconds() * 1000 - n.at.getMilliseconds()) {
+    return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at };
+  }
   return {
     type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
     year: n.at.getFullYear(),

@@ -516,6 +516,10 @@ function stopNightWindows(): void {
 }
 
 /** The night windows iOS is monitoring right now. */
+function hasActivity(name: string): boolean {
+  return getActivities().includes(name);
+}
+
 export function armedWindowNames(): string[] {
   return getActivities().filter((name) => name.startsWith(WINDOW_PREFIX));
 }
@@ -661,9 +665,22 @@ export const draftId = (list: StandingList): DraftId => `${list}-next`;
  * first, and the list is left as it is. `dated`: when `from` was worked out, so it can be
  * worked out again for that moment if the windows or the waiting routine edit change
  * (`delayListChanges`). The bedtime picks parked by an emergency unlock have none: they come
- * back when the pause ends.
+ * back when the pause ends. `awake`: for the bedtime list, whether it was awake when the change
+ * was saved (`judgeListAwakeWith`), decided then and never again: the phone's state later (a
+ * night held, Block now) says nothing about that moment. Older records lack it.
  */
-type PendingList = { from: number; empty?: boolean; dated?: number };
+type PendingList = { from: number; empty?: boolean; dated?: number; awake?: boolean };
+
+/** Is the bedtime list awake at `now`, for a removal saved then? Set by lock-controller.ts. */
+let bedtimeListAwake: ((now: Date) => boolean) | null = null;
+
+/**
+ * How `finishListEdit` judges whether the bedtime list is awake when a removal is saved
+ * (`looserEditsStartAt` in lock-controller.ts, which imports this file and sets it on load).
+ */
+export function judgeListAwakeWith(judge: (now: Date) => boolean): void {
+  bedtimeListAwake = judge;
+}
 
 function getPendingLists(): Partial<Record<StandingList, PendingList>> {
   return sharedGet<Partial<Record<StandingList, PendingList>>>(PENDING_LISTS_KEY) ?? {};
@@ -738,8 +755,15 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
   // than they were due (a second edit once a night is armed would otherwise pull a change that
   // waits for midnight forward to that bedtime).
   const from = waiting ? Math.max(waiting.from, takeEffectAt.getTime()) : takeEffectAt.getTime();
-  const dated = waiting && waiting.from > takeEffectAt.getTime() ? waiting.dated : Date.now();
-  setPending(list, { from, empty: selectionSize(draft) === 0, ...(dated === undefined ? {} : { dated }) });
+  const kept = !!waiting && waiting.from > takeEffectAt.getTime();
+  const dated = kept ? waiting.dated : Date.now();
+  const awake = kept ? waiting.awake : list === 'night' && bedtimeListAwake ? bedtimeListAwake(new Date(dated!)) : undefined;
+  setPending(list, {
+    from,
+    empty: selectionSize(draft) === 0,
+    ...(dated === undefined ? {} : { dated }),
+    ...(awake === undefined ? {} : { awake }),
+  });
   return 'bedtime';
 }
 
@@ -750,20 +774,82 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
 const SETTLE_SLACK_MS = 2 * 60_000;
 
 /**
- * Moves waiting list changes later, never earlier: each to `dueAt(list, dated)` (worked out again
- * for the moment it was dated) when that's later. For when a looser edit's start was worked out
- * from windows or a routine edit that have changed since (`redateLooserEdits` in
- * lock-controller.ts). One already due, or due within the extension's slack (it may have swapped
- * it), is left alone, and so are the bedtime picks parked by an emergency unlock (no `dated`).
+ * Moves waiting list changes later, never earlier: each to `dueAt(list, dated, awake)` (worked
+ * out again for the moment it was dated, and whether the bedtime list was awake then) when that's
+ * later. For when a looser edit's start was worked out from windows or a routine edit that have
+ * changed since (`redateLooserEdits` in lock-controller.ts). With `earlier` it may move earlier
+ * too, never before now: a removal made by day, when an earlier bedtime saved since starts a
+ * night it would otherwise sleep through and wake in the middle of. One already due, or due
+ * within the extension's slack (it may have swapped it), is left alone, and so are the bedtime
+ * picks parked by an emergency unlock (no `dated`, or the live list emptied while they wait:
+ * moving the change later would keep the bedtime list empty past the pause's end).
  */
-export function delayListChanges(dueAt: (list: StandingList, dated: Date) => Date, now = new Date()): void {
+export function delayListChanges(
+  dueAt: (list: StandingList, dated: Date, awake: boolean | undefined) => { at: Date; earlier?: boolean },
+  now = new Date(),
+): void {
   for (const list of Object.keys(getPendingLists()) as StandingList[]) {
     // Read again for each list: the monitor extension may have settled it a moment ago.
     const pending = getPendingLists()[list];
     if (!pending || pending.dated === undefined || pending.from <= now.getTime() + SETTLE_SLACK_MS) continue;
-    const due = dueAt(list, new Date(pending.dated));
-    if (due.getTime() > pending.from) setPending(list, { ...pending, from: due.getTime() });
+    if (selectionSize(list) === 0) continue;
+    const due = dueAt(list, new Date(pending.dated), pending.awake);
+    const at = due.earlier ? Math.max(due.at.getTime(), now.getTime()) : due.at.getTime();
+    if (at > pending.from || (due.earlier && at < pending.from)) setPending(list, { ...pending, from: at });
   }
+}
+
+/** A one-off activity whose start swaps in a waiting list change no window would reach in time. */
+const SETTLE_ACTIVITY = 'locturne-settle';
+/** When the settle activity starts (ms), while one is registered. */
+const SETTLE_AT_KEY = 'locturne.settleAt';
+/** iOS monitors about 20 activities at once: 16 night windows at most, Block now, three limits. */
+const ACTIVITY_CAP = 20;
+/** iOS's shortest monitoring interval. */
+const SHORTEST_INTERVAL_MS = 15 * 60_000;
+
+/**
+ * Makes sure a waiting bedtime or always list change lands at its `from` with Locturne closed.
+ * The monitor extension swaps lists at any activity's interval start (`settleLocturneLists`, run
+ * first in `intervalDidStart`), normally the bedtime window `from` was worked out from. When the
+ * windows were armed again since for other times (a later bedtime saved the same day: no window
+ * at 23:00, the first at 02:30), nothing starts then, so a one-off activity is registered at
+ * `from`. Only one, for the earliest such change, and only while iOS has room for it. Safe to
+ * call at every sync: it re-registers only when the moment changes.
+ */
+export function scheduleListSettle(now = new Date()): void {
+  if (!isAvailable()) return;
+  let want: number | null = null;
+  if (!isStoodDown() && getArmedNight()) {
+    for (const list of ['night', 'always'] as const) {
+      // Looser edits only (`dated`): the bedtime picks an emergency unlock parked come back with
+      // the next window that starts, not at a moment of their own.
+      const pending = getPendingLists()[list];
+      if (pending?.dated === undefined || selectionSize(list) === 0) continue;
+      const from = pending.from;
+      const landed = landsAt(list, now, false);
+      if (!landed || landed.waitsForOpen || from <= now.getTime() + 60_000) continue;
+      if (landed.at.getTime() <= from + SETTLE_SLACK_MS) continue;
+      want = want === null ? from : Math.min(want, from);
+    }
+  }
+  const have = sharedGet<number>(SETTLE_AT_KEY) ?? null;
+  if (want === have) return;
+  if (have !== null) {
+    stopMonitoring([SETTLE_ACTIVITY]);
+    userDefaultsRemove(SETTLE_AT_KEY);
+  }
+  if (want === null) return;
+  if (getActivities().filter((name) => name !== SETTLE_ACTIVITY).length >= ACTIVITY_CAP) return;
+  userDefaultsSet(SETTLE_AT_KEY, want);
+  const parts = (ms: number) => {
+    const d = new Date(ms);
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() };
+  };
+  startMonitoring(SETTLE_ACTIVITY, { intervalStart: parts(want), intervalEnd: parts(want + SHORTEST_INTERVAL_MS), repeats: false }, []).catch(() => {
+    // iOS refused it: the next window or open settles the change, and the next sync tries again.
+    userDefaultsRemove(SETTLE_AT_KEY);
+  });
 }
 
 /**
@@ -779,6 +865,11 @@ export function listChangeLandsAt(
   list: 'night' | 'always',
   now = new Date(),
 ): { at: Date; waitsForOpen: boolean; sleepsFirst: boolean } | null {
+  return landsAt(list, now, true);
+}
+
+/** `listChangeLandsAt`, with or without the one-off settle activity (`scheduleListSettle`). */
+function landsAt(list: 'night' | 'always', now: Date, settle: boolean): { at: Date; waitsForOpen: boolean; sleepsFirst: boolean } | null {
   const from = listChangeStarts(list);
   if (!from) return null;
   if (isStoodDown()) return { at: from, waitsForOpen: true, sleepsFirst: false };
@@ -796,6 +887,8 @@ export function listChangeLandsAt(
     const midnight = wallClock(from, 0, day).getTime();
     if (limits && midnight >= earliest) at = at === null ? midnight : Math.min(at, midnight);
   }
+  const settleAt = settle && hasActivity(SETTLE_ACTIVITY) ? (sharedGet<number>(SETTLE_AT_KEY) ?? null) : null;
+  if (settleAt !== null && settleAt >= earliest) at = at === null ? settleAt : Math.min(at, settleAt);
   if (at === null) return { at: from, waitsForOpen: true, sleepsFirst: false };
   for (let day = -1; day <= 8; day++) {
     for (const w of windows) {

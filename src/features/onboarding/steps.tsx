@@ -42,6 +42,7 @@ import {
   TRIED,
   TRIED_ECHO,
   WALK_GOAL,
+  wakePart,
   walkLine,
   type Answers,
   type ExitOffer,
@@ -175,7 +176,7 @@ export function renderStep(ctx: StepContext): StepView {
   const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
   // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
   // morning, it waits for the day after the first morning (`getScanEditRefusal`).
-  const method = methodCopy(answers.method ?? 'downstairs', { codeWaits: lateNight || getScanEditRefusal() !== null });
+  const method = methodCopy(answers.method ?? 'downstairs', { codeWaits: lateNight || getScanEditRefusal() !== null, wake: answers.wake });
   // How many picks: the real count on an iPhone, the stand-in names in the preview.
   const pickCount = live ? live.count : answers.apps.length;
 
@@ -640,7 +641,7 @@ export function renderStep(ctx: StepContext): StepView {
                   what={lateNight ? 'Your apps sleep as soon as you’re in. $0 today.' : `Your apps sleep at ${bed}. $0 today.`}
                 />
                 {/* Short phones keep the original three rows so nothing scrolls. */}
-                {compact ? null : <PlanRow when="Morning" what={`${wake}: they stay asleep until ${method.until}.`} />}
+                {compact ? null : <PlanRow when={wakePart(answers.wake)} what={`${wake}: they stay asleep until ${method.until}.`} />}
                 <PlanRow when={`Day ${reminderDay(trialDays)}`} what="I remind you. Grudgingly." />
                 <PlanRow
                   when={`Day ${trialDays}`}

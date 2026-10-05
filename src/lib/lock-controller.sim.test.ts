@@ -275,7 +275,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     established: null as string | null,
     limits: new Map<LimitId, LimitSpec>(),
     /** `dated`: when its start was worked out (none once an emergency pause parks it). */
-    removals: [] as { list: 'night' | 'always'; apps: string[]; from: number; dated?: number }[],
+    removals: [] as { list: 'night' | 'always'; apps: string[]; from: number; dated?: number; awake?: boolean }[],
     allowedFlag: Object.fromEntries(LISTS.map((l) => [l, false])) as Record<ListName, boolean>,
   };
 
@@ -296,8 +296,14 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
    * first night saved from bed with tonight off, round 51). Once a lapse was
    * noticed, only if that night was the one under way then: only it finishes.
    */
-  const routineAt = (at: number) => {
-    const next = spec.routines.find((r) => r.from > at);
+  const routineAt = (at: number) => routineAtAsOf(at, at);
+  /**
+   * `routineAt`, with the routines as they stood at `asOf` (a later moment): the app judges a past
+   * moment with the routine in force and the waiting edit it has now (`looserEditsStartAt` when
+   * it redates a change saved then).
+   */
+  const routineAtAsOf = (at: number, asOf: number) => {
+    const next = spec.routines.find((r) => r.from > asOf);
     if (next) {
       const { latest } = ls.nightsAround(new Date(at), rt.toLockSettings(next.routine));
       const inside = at >= latest.start.getTime() && at < latest.end.getTime() && latest.end.getTime() > next.from;
@@ -307,14 +313,14 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       const armed = st.getArmedNight();
       const theirs = armed && ls.nightsAround(new Date(at), { ...rt.toLockSettings(next.routine), ...armed, activeNights: [0, 1, 2, 3, 4, 5, 6] }).latest;
       const armedInside = !!theirs && at >= theirs.start.getTime() && at < theirs.end.getTime();
-      const held = armedInside && inForceAt(at).activeNights.includes(evening) && next.routine.activeNights.includes(evening);
+      const held = armedInside && inForceAt(asOf).activeNights.includes(evening) && next.routine.activeNights.includes(evening);
       if (inside && held && (!spec.lapse || spec.lapse.underWayKey === ls.dateKey(latest.end))) return next.routine;
       // Otherwise the routine in force as iOS runs it, as with no edit waiting: windows still
       // armed for an older routine hold its night from their bedtime, and an edit saved from
       // inside that night doesn't hand it back. Not windows armed early for the edit itself.
-      return editsArmed(at, next.routine) ? inForceAt(at) : asRun(inForceAt(at));
+      return editsArmed(asOf, next.routine) ? inForceAt(asOf) : asRun(inForceAt(asOf));
     }
-    return asRun(inForceAt(at));
+    return asRun(inForceAt(asOf));
   };
   /**
    * Are the windows armed the waiting edit's own: its times, armed after the routine in force
@@ -364,6 +370,14 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const [y, mo, d] = morning.key.split('-').map(Number);
     const evening = new Date(y, mo - 1, d - 1).getDay();
     return prior.activeNights.includes(evening) && ls.nightInto(morning.key, prior).start.getTime() < since ? 'prior' : 'none';
+  };
+  /** The routine before the one in force at `at` (`getRoutineChange().prior`), or null. */
+  const priorAt = (at: number): Routine | null => {
+    let i = 0;
+    spec.routines.forEach((r, j) => {
+      if (r.from <= at) i = j;
+    });
+    return spec.routines[i - 1]?.routine ?? null;
   };
   const routineFrom = (at: number) => {
     let from = -Infinity;
@@ -420,8 +434,14 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const judged = under === 'prior' && !settings.activeNights.includes(kEvening) ? { ...settings, activeNights: [...settings.activeNights, kEvening] } : settings;
     const after = (p: Proof) => p.at >= (under === 'routine' ? morning.nightStart.getTime() : nightInto(p));
     const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || after(p)));
-    const free =
-      spec.armedSince === null || under === 'none' || !ls.armedInTime(now, settings, new Date(spec.armedSince)) || spec.freeMorning === morning.key;
+    // A morning the routine before held was armed in time only if its night under that routine
+    // was (round 52: a lapse, a renewal by day, then a switch to other times re-read that
+    // morning as locked under the new routine's later morning start).
+    const prior = under === 'prior' ? priorAt(at) : null;
+    const inTime =
+      spec.armedSince !== null &&
+      (prior ? spec.armedSince < ls.nightInto(morning.key, prior).end.getTime() : ls.armedInTime(now, settings, new Date(spec.armedSince)));
+    const free = spec.armedSince === null || under === 'none' || !inTime || spec.freeMorning === morning.key;
     return ls.getLockState(now, judged, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
   const locked = (at: number) => {
@@ -444,16 +464,34 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
    * removed app never sleeps at 21:00 only to wake mid-night at 23:15; while it's asleep, not
    * inside such a night either, but the bedtime after it.
    */
-  function nextBedtime(at: number, list: 'night' | 'always' | 'limit' = 'always'): number {
+  function nextBedtime(at: number, list: 'night' | 'always' | 'limit' = 'always', awake?: boolean): number {
+    return looserStart(at, list, awake).at;
+  }
+
+  /**
+   * `nextBedtime`, whether the bedtime list counts as awake at `at` (`awake`: recorded when the
+   * change was saved, never judged again from what the phone does later), and whether that rule
+   * landed on a waiting edit's early first night (`early`). The floor applies only to a change
+   * saved since protection was first armed: one saved before a re-arm (a lapse, then a renewal)
+   * was dated by a bedtime already. A Block now on the bedtime list counts as asleep only if it
+   * runs past the removal's start.
+   */
+  function looserStart(at: number, list: 'night' | 'always' | 'limit', awake?: boolean): { at: number; awake: boolean; early: boolean } {
     const now = new Date(at);
-    if (spec.armedSince === null) return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-    const first = new Date(spec.armedSince);
-    const floor = new Date(first.getFullYear(), first.getMonth(), first.getDate() + 1).getTime();
-    const waiting = spec.routines.find((r) => r.from > at);
-    if (waiting && routineAt(at) === waiting.routine) {
-      return Math.max(floor, ls.settingsTakeEffectAt(now, rt.toLockSettings(waiting.routine)).getTime());
+    if (spec.armedSince === null) {
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+      return { at: midnight, awake: list === 'night' && (awake ?? listAwake(at, midnight)), early: false };
     }
-    const runs = waiting && editsArmed(at, waiting.routine) ? inForceAt(at) : asRun(inForceAt(at));
+    const first = new Date(spec.armedSince);
+    const floor = spec.armedSince <= at ? new Date(first.getFullYear(), first.getMonth(), first.getDate() + 1).getTime() : -Infinity;
+    // With the routines as they stand now, also for a change saved earlier (D, round 52): the app
+    // has only those. With nothing armed when it was saved, midnight then, and it moves only later.
+    const asOf = Math.max(at, t);
+    const waiting = spec.routines.find((r) => r.from > asOf);
+    if (awake !== true && waiting && routineAtAsOf(at, asOf) === waiting.routine) {
+      return { at: Math.max(floor, ls.settingsTakeEffectAt(now, rt.toLockSettings(waiting.routine)).getTime()), awake: false, early: false };
+    }
+    const runs = waiting && editsArmed(asOf, waiting.routine) ? inForceAt(asOf) : asRun(inForceAt(asOf));
     const next = ls.settingsTakeEffectAt(now, rt.toLockSettings(runs)).getTime();
     // A waiting edit's first night that iOS holds early (the lock runs on it from its start).
     let early: { start: number; end: number } | null = null;
@@ -462,25 +500,35 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       const night = at < latest.end.getTime() ? latest : after;
       const start = night.start.getTime();
       const end = night.end.getTime();
-      if (start < waiting.from && end > waiting.from && routineAt(Math.max(start, at)) === waiting.routine) early = { start, end };
+      if (start < waiting.from && end > waiting.from && routineAtAsOf(Math.max(start, at), asOf) === waiting.routine) early = { start, end };
     }
-    const awake = !locked(at) && !(napRunning(at) && spec.nap?.list === 'night');
-    if (list === 'night' && awake) return early && early.start < next ? early.start : next;
+    if (list === 'night') {
+      const firstNight = early && early.start < next ? early.start : next;
+      if (awake ?? listAwake(at, firstNight)) return { at: firstNight, awake: true, early: firstNight !== next || spec.armedSince > at };
+    }
     const from = Math.max(floor, next);
     if (list === 'night' && waiting && early && from >= early.start && from < early.end) {
-      return Math.max(floor, ls.settingsTakeEffectAt(new Date(early.end), rt.toLockSettings(waiting.routine)).getTime());
+      return { at: Math.max(floor, ls.settingsTakeEffectAt(new Date(early.end), rt.toLockSettings(waiting.routine)).getTime()), awake: false, early: false };
     }
-    return from;
+    return { at: from, awake: false, early: false };
   }
+
+  /** The bedtime list is awake at `at`, for a removal from `from`: no night or morning, nor a Block now on it past `from`. */
+  const listAwake = (at: number, from: number) => !locked(at) && !(napRunning(at) && spec.nap?.list === 'night' && spec.nap.end > from);
 
   /**
    * After the windows are armed again or a waiting edit replaced, the rule worked out again for
    * the moment each looser edit was saved: it only moves later, so an Undo can't bring it forward.
+   * Except a removal made while the bedtime list was awake, which moves earlier (never before now)
+   * to an early first night that appears before it. Nothing moves while nothing is armed.
    */
   function redate() {
+    if (spec.armedSince === null) return;
     for (const r of spec.removals) {
       if (r.dated === undefined || r.from <= t + 2 * MIN) continue;
-      r.from = Math.max(r.from, nextBedtime(r.dated, r.list));
+      const due = looserStart(r.dated, r.list, r.awake);
+      if (r.awake && due.early && due.at < r.from) r.from = Math.max(t, due.at);
+      else r.from = Math.max(r.from, due.at);
     }
     for (const limit of spec.limits.values()) {
       if (!limit.loosen || limit.loosen.from <= t) continue;
@@ -754,7 +802,10 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       // During an emergency pause the bedtime list's change starts when the pause ends, which
       // only differs from the next bedtime after a flight.
       if (list === 'night' && pausedAbs(t)) spec.removals.push({ list, apps: removed, from: Math.min(nextBedtime(t, list), spec.pausedUntil!) });
-      else spec.removals.push({ list, apps: removed, from: nextBedtime(t, list), dated: t });
+      else {
+        const due = looserStart(t, list);
+        spec.removals.push({ list, apps: removed, from: due.at, dated: t, ...(list === 'night' ? { awake: due.awake } : {}) });
+      }
     }
   }
 

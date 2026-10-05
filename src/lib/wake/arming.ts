@@ -32,6 +32,8 @@ export type ArmedNow = {
   live: number;
   /** They're the waiting edit's own, armed early for it (`armedForEdit`, routine.ts). */
   edit?: boolean;
+  /** Armed before the routine in force took over: an older routine's (`runsAs`, routine.ts). */
+  older?: boolean;
 } | null;
 
 export type ArmPlan =
@@ -228,6 +230,7 @@ function isArmed(armed: ArmedNow, times: ArmTimes, windows: NightWindow[]): bool
  * on an evening `target` has on: on one that's off, the extension never shielded.
  */
 function heldUntil(now: Date, target: ArmTimes, armed: ArmedNow): Date | null {
+  if (armed?.older === false) return null;
   const bedtime = armed ? armedBedtime(target, armed) : null;
   if (bedtime === null) return null;
   const { latest } = nightsAround(now, asSettings({ ...target, bedtime }));
