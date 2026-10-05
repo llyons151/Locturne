@@ -41,7 +41,6 @@ import {
   TIME_BACK,
   TRIED,
   TRIED_ECHO,
-  WALK_COPY,
   WALK_GOAL,
   walkLine,
   type Answers,
@@ -64,6 +63,7 @@ import { RevealScreen } from './screens/reveal-screen';
 import { WalkMeter } from './screens/walk-meter';
 import { TomorrowDemo } from './screens/tomorrow-demo';
 import { Body, Chip, Eyebrow, HoldButton, Options, page, PreviewNote, Title, Voice } from './ui';
+import { wakeDayFor, walkCopy } from './walk-copy';
 
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */
 export type StepContext = {
@@ -168,13 +168,9 @@ export function renderStep(ctx: StepContext): StepView {
   const { step, answers, numbers, set, choose, next, go, edit, exit, simulate, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
-  // "This morning" when it's already the small hours; "Later today" for afternoon wake-ups.
-  // Also today when the whole night is still ahead today (bedtime 01:00 finished at 00:30,
-  // or a night shift's 08:00 bedtime finished at 07:00).
+  // The first locked morning's day: this morning, later today or tomorrow (`wakeDayFor`).
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-  const today =
-    answers.wake > nowMinutes && (lateNight || (answers.bedtime < answers.wake && nowMinutes < answers.bedtime));
-  const wakeDay = today ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
+  const wakeDay = wakeDayFor({ bedtime: answers.bedtime, wake: answers.wake, now: nowMinutes, lateNight });
   // Installed in the small hours with morning under an hour away: no "Go to sleep".
   const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
   // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
@@ -440,10 +436,10 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'walk': {
-      const copy = WALK_COPY[answers.method ?? 'downstairs'];
+      const copy = walkCopy(answers.method ?? 'downstairs', wakeDay);
       const { phase, steps } = ctx.walk;
       if (phase === 'denied' || phase === 'unavailable') {
-        // Never a dead end: say what it means for tomorrow, then carry on to the price.
+        // Never a dead end: say what it means for the first morning, then carry on to the price.
         const noCounter = phase === 'unavailable';
         return {
           body: (
@@ -455,7 +451,7 @@ export function renderStep(ctx: StepContext): StepView {
                   ? answers.method === 'steps'
                     ? 'This device has no step counter, so steps can’t wake your apps here. Stairs or a scan code can.'
                     : 'This device has no step counter. Stairs and a scan code still work.'
-                  : 'Motion & Fitness is off, so I can’t count steps or feel stairs. Turn it on in Settings before tomorrow morning.'}
+                  : 'Motion & Fitness is off, so I can’t count steps or feel stairs. Turn it on in Settings before bed.'}
               </Body>
             </View>
           ),

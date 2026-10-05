@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
+import { DAY_OPENER, morningDoneToday } from '@/features/wake/morning-done';
 import { track } from '@/lib/analytics';
 import {
   EMERGENCY_WAIT_SECONDS,
@@ -21,9 +22,10 @@ import {
   type EmergencyPlan,
 } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { readLock } from '@/lib/lock-controller';
+import { currentProof, readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, spendPass, type PassRefusal } from '@/lib/passes';
+import { toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
 import { isStoodDown, peekNap } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
@@ -63,6 +65,7 @@ const OPENERS: Record<Phase, { line: string; body: string }> = {
     line: 'Rough morning.',
     body: "Use a pass, scan your code if walking is hard today, or unlock in an emergency. I won't make it weird.",
   },
+  // Only once today's morning really happened (`morningDoneToday`); otherwise `DAY_OPENER.notYet`.
   day: { line: "I'm awake. Technically.", body: 'Your morning is done. The emergency unlock can still end a Block now session.' },
   off: { line: 'Night off.', body: 'Nothing is locked tonight. The emergency unlock can still end a Block now session.' },
 };
@@ -215,6 +218,14 @@ export function ExitsScreen() {
     // The clock says night, but nothing is asleep to wake: don't say bedtime wins.
     if (awakeNight) {
       return isStoodDown() ? { ...AWAKE_NIGHT, body: 'Nothing is asleep tonight.' } : AWAKE_NIGHT;
+    }
+    if (phase === 'day') {
+      // Before the day's first morning (00:33 ahead of a 01:00 bedtime, a night shift's 07:00,
+      // an install's first day) nothing is done yet.
+      const now = new Date();
+      if (!morningDoneToday(now, toLockSettings(routineAt(now)), currentProof(now))) {
+        return { ...OPENERS.day, body: `${DAY_OPENER.notYet} The emergency unlock can still end a Block now session.` };
+      }
     }
     return OPENERS[phase];
   })();

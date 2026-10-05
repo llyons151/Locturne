@@ -17,7 +17,7 @@ import { awakeLine as dayLine } from '@/features/home/awake-line';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { proveMorning, readLock } from '@/lib/lock-controller';
+import { currentProof, proveMorning, readLock, routineAt } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, nightAt, toLockSettings } from '@/lib/routine';
@@ -28,6 +28,7 @@ import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { DownstairsView } from './downstairs-view';
+import { DAY_OPENER, morningDoneToday } from './morning-done';
 import { Body, TopBar, Voice } from './parts';
 import { StepsView } from './steps-view';
 
@@ -172,11 +173,15 @@ function NotMorning({ state, onClose }: { state: LockState; onClose: () => void 
   // Bedtime by the clock with nothing asleep (no lock armed, or an emergency used tonight).
   const awakeNight = state.phase === 'night' && heldPhase(state.phase) !== 'night';
   const phase = state.phase === 'morning' || awakeNight ? 'day' : state.phase;
+  // Before the day's first morning (00:33 ahead of a 01:00 bedtime, a night shift's 07:00, an
+  // install's first day) nothing is done yet.
+  const now = new Date();
+  const done = morningDoneToday(now, toLockSettings(routineAt(now)), currentProof(now));
   const body = awakeNight
     ? 'Your bedtime apps are awake tonight, so there is no morning lock to lift.'
     : {
         night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
-        day: `This morning's done. ${awakeLine(state.nextChange)}`,
+        day: `${done ? DAY_OPENER.done : DAY_OPENER.notYet} ${awakeLine(state.nextChange)}`,
         off: 'Tonight is switched off, so there is no morning lock to lift.',
       }[phase];
   return (

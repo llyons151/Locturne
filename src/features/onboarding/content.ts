@@ -301,27 +301,13 @@ export const METHOD_COPY: Record<
 };
 
 /**
- * `walk`: a 20-step taste of tomorrow before the paywall (MORNING_ANGLE.md #2, TODO §4).
+ * `walk`: a 20-step taste of the first morning before the paywall (MORNING_ANGLE.md #2, TODO §4).
+ * Its words follow the day that morning falls on (`walkCopy`, walk-copy.ts).
  * The count is live and real, and it's where iOS asks for Motion & Fitness, framed as
  * "that's how I count". Always skippable: nobody has to walk to see the price. It comes right
  * after the `tomorrow` demo (see it, then try it), and late at night it's skipped altogether.
  */
 export const WALK_GOAL = 20;
-
-export const WALK_COPY: Record<WakeMethod, { intro: string; done: string }> = {
-  downstairs: {
-    intro: 'Tomorrow it’s a trip downstairs. Tonight, 20 steps anywhere will do.',
-    done: 'That’s tomorrow morning, with real stairs instead of 20 steps. Then your apps wake up.',
-  },
-  steps: {
-    intro: 'Tomorrow it’s 200 steps. Tonight, 20 will do. Walk around the room.',
-    done: 'Same tomorrow, just 200 instead of 20. Then your apps wake up.',
-  },
-  scan: {
-    intro: 'Tomorrow you walk to your code. Tonight, 20 steps anywhere will do.',
-    done: 'That’s tomorrow morning: up, a short walk, then your apps wake up.',
-  },
-};
 
 /** His line as the count climbs. No asterisk emphasis: onboarding's Voice doesn't parse it. */
 export function walkLine(steps: number, goal = WALK_GOAL): string {
