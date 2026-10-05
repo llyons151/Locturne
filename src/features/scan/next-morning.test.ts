@@ -42,3 +42,10 @@ test('nothing scheduled to sleep (never bought, Ask to Buy, stood down, unpaid):
     for (const line of [awake, saved]) assert.doesNotMatch(line, /tomorrow|this morning|Every night/i);
   }
 });
+
+test('a night shift\'s afternoon wake-up is named as one', () => {
+  const now = new Date(2026, 9, 6, 7, 3);
+  assert.equal(morningName(new Date(2026, 9, 6, 15), now), 'later today');
+  assert.equal(morningName(new Date(2026, 9, 7, 15), now), 'tomorrow afternoon');
+  assert.equal(morningName(new Date(2026, 9, 6, 7), new Date(2026, 9, 6, 0, 30)), 'this morning');
+});

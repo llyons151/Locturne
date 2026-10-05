@@ -3,7 +3,7 @@
  * keep the setup saved and arm nothing). Saving never blocks anything: only `armTonight`
  * does, and only after purchase.
  */
-import { inPendingFirstNight } from '@/lib/lock-controller';
+import { inPendingFirstNight, syncLock } from '@/lib/lock-controller';
 import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder, TRIAL_REMINDER_KEY } from '@/lib/notifications';
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
@@ -60,6 +60,9 @@ export function saveSetup(answers: Answers): void {
     now,
     inPendingFirstNight(now),
   );
+  // Home has been reading the default routine under onboarding; arming syncs, but an arm that
+  // fails before it gets that far (no access, no picks) wouldn't, so tell the screens now.
+  syncLock(now);
   rescheduleNotifications().catch(() => {});
   sharedSet(QUIZ_KEY, pickQuiz(answers));
   if (answers.found) {

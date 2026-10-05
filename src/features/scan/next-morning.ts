@@ -14,10 +14,12 @@ export type NextMorning = Date | null | 'unscheduled';
 export function morningName(morning: Date, now: Date): string {
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((day(morning) - day(now)) / 86_400_000);
-  if (days <= 0) return 'this morning';
-  if (days === 1) return 'tomorrow morning';
+  // A night shift's wake-up is in the afternoon: say so, as onboarding does ("Later today").
+  const part = morning.getHours() >= 12 ? 'afternoon' : 'morning';
+  if (days <= 0) return part === 'afternoon' ? 'later today' : 'this morning';
+  if (days === 1) return `tomorrow ${part}`;
   const weekday = morning.toLocaleDateString(undefined, { weekday: 'long' });
-  return days < 7 ? `${weekday} morning` : `next ${weekday} morning`;
+  return days < 7 ? `${weekday} ${part}` : `next ${weekday} ${part}`;
 }
 
 /** `morning`: the next one the lock holds (`NextMorning`). */
