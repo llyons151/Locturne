@@ -171,6 +171,10 @@ describe('the morning gate', () => {
     // Saved in the day: bedtime 01:00, mornings from 08:00. It takes over at 23:00, and the
     // morning it reads 23:00 to 01:00 as is this one, now starting at 08:00, after the walk.
     saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 60, morningStart: 8 * 60 }, at(9));
+    // Armed at once (no window of the edit's falls before 23:00). Windows left at 23:00 would
+    // shield from 23:00 instead, and the lock would follow them (`asArmed`).
+    clock = at(9).getTime();
+    assert.equal(await armRoutine(at(9)), 'armed');
     calls = [];
     assert.equal(syncLock(at(23, 30)).phase, 'day', 'the walk at 07:30 still proves it');
     assert.ok(!calls.includes('sleep:night'));

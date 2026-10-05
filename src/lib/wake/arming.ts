@@ -18,7 +18,7 @@
  *    (`defer`) and the next sync tries again. Firing a little early on the night the edit
  *    applies (an earlier bedtime) is allowed: it only tightens, once.
  */
-import { nightsAround, type LockSettings } from '../lock-state.ts';
+import { armedBedtime, dateKey, nightInto, nightsAround, type LockSettings } from '../lock-state.ts';
 import { planNightWindows, type NightWindow } from '../night-plan.ts';
 
 /** The parts of a routine the windows depend on. */
@@ -95,6 +95,13 @@ function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTime
     }
     const ours = nightsAround(t, asSettings(active)).latest;
     if (t < ours.end) continue; // night under the routine in force anyway
+    // The extension places the window by the times armed (the edit's, once armed) and, until
+    // just before the edit applies, asks the routine in force whether that evening is on. On an
+    // evening that's off it skips the window, and outside that routine's night a skip changes
+    // nothing: no phantom night, so nothing to wait for (and waiting would leave the old windows
+    // to run after the edit applies if Locturne stays closed).
+    const evening = new Date(theirs.end.getFullYear(), theirs.end.getMonth(), theirs.end.getDate() - 1).getDay();
+    if (t.getTime() < from - EXTENSION_SLACK_MS && !active.activeNights.includes(evening)) continue;
     if (!until || theirs.end > until) until = theirs.end;
   }
   return until;
@@ -124,7 +131,13 @@ export function planArming(
   }
 
   // Without a pending edit the target is the routine in force, so its windows are its real
-  // nights and nothing can be phantom.
+  // nights and nothing can be phantom. But the windows armed may still be an older routine's
+  // (arming waited out a phantom night, and nothing re-armed with Locturne closed), holding a
+  // night from their earlier bedtime: re-arming now would hand it back to a later bedtime.
+  if (!pending || now.getTime() >= pending.from) {
+    const held = heldUntil(now, target, armed);
+    if (held) return { action: 'defer', until: held };
+  }
   const until = pending && now.getTime() < pending.from ? phantomUntil(now, pending.from, active, target, windows) : null;
   if (!until) return isArmed(armed, target, windows) ? { action: 'keep' } : { action: 'arm', times: target, windows };
 
@@ -147,4 +160,23 @@ function isArmed(armed: ArmedNow, times: ArmTimes, windows: NightWindow[]): bool
     armed.windows === windows.length &&
     armed.live === windows.length
   );
+}
+
+/**
+ * When windows armed for older times hold a night from their bedtime, before `target`'s own
+ * night into the same morning begins (a later bedtime saved after the walk, whose arming waited
+ * out a phantom night and never ran with Locturne closed): that night's start under `target`,
+ * or null. Until then the lock follows the armed windows (`asArmed`, routine.ts), and arming
+ * waits for it, or the first open from bed would wake the apps until `target`'s bedtime. Only
+ * on an evening `target` has on: on one that's off, the extension never shielded.
+ */
+function heldUntil(now: Date, target: ArmTimes, armed: ArmedNow): Date | null {
+  const bedtime = armed ? armedBedtime(target, armed) : null;
+  if (bedtime === null) return null;
+  const { latest } = nightsAround(now, asSettings({ ...target, bedtime }));
+  if (now < latest.start || now >= latest.end) return null;
+  const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
+  if (!target.activeNights.includes(evening)) return null;
+  const ours = nightInto(dateKey(latest.end), target);
+  return now < ours.start ? ours.start : null;
 }

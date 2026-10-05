@@ -51,8 +51,17 @@ function key(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * The wall-clock time on that day. One the spring change skips (02:30 when 02:00 jumps to
+ * 03:00) is the moment the clocks jumped, where iOS fires a window scheduled inside the gap:
+ * found here by walking back to where the UTC offset changes.
+ */
 function at(base: Date, minutes: number, days = 0) {
-  return new Date(base.getFullYear(), base.getMonth(), base.getDate() + days, 0, minutes);
+  const naive = new Date(base.getFullYear(), base.getMonth(), base.getDate() + days, 0, minutes);
+  if (naive.getHours() * 60 + naive.getMinutes() === minutes % (24 * H)) return naive;
+  let t = +naive;
+  while (new Date(t - 60_000).getTimezoneOffset() === naive.getTimezoneOffset()) t -= 60_000;
+  return new Date(t);
 }
 
 /**

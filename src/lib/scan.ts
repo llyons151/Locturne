@@ -14,7 +14,7 @@
  *
  * Matching and code generation are pure; the bottom of the file applies them.
  */
-import { readLock, syncLock } from './lock-controller.ts';
+import { judgedAt, readLock, syncLock } from './lock-controller.ts';
 import { recordProof } from './morning-proof.ts';
 import { getScanCode, SCAN_CODE_KEY, type ScanCode } from './scan-code.ts';
 import { sharedGet, sharedRemove, sharedSet } from './screen-time.ts';
@@ -118,7 +118,7 @@ export function submitScan(data: string, now = new Date()): ScanResult {
   if (!matches(code, data)) return 'wrongCode';
   const state = readLock(now);
   if (state.phase !== 'morning') return 'notMorning';
-  recordProof({ morningKey: state.morningKey, kind: 'scan', at: now.getTime() });
+  recordProof({ morningKey: state.morningKey, kind: 'scan', at: now.getTime() }, judgedAt(now));
   syncLock(now);
   return 'unlocked';
 }

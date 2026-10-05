@@ -14,7 +14,7 @@
  * never `onTime`.
  */
 import type { Heartbeat } from './heartbeat.ts';
-import { dateKey } from './lock-state.ts';
+import { dateKey, wallClock } from './lock-state.ts';
 import { formatMinutes, WINDOW_PREFIX } from './night-plan.ts';
 import type { Routine } from './routine.ts';
 import type { ArmedNight, Protection, ScreenTimeAccess } from './screen-time.ts';
@@ -72,9 +72,9 @@ export type NightFacts = {
   nights?: number;
 };
 
-/** Local midnight `days` after `date`, plus `minutes`, like lock-state.ts. */
+/** Local midnight `days` after `date`, plus `minutes`, as lock-state.ts places it (`wallClock`). */
 function atMinute(date: Date, minutes: number, days = 0): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 0, minutes);
+  return wallClock(date, minutes, days);
 }
 
 /** The night leading into the morning `offset` days from `now`'s date. */

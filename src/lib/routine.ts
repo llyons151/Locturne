@@ -6,7 +6,7 @@
  * 2026-10-01): `saveRoutine` keeps the edit as `pending` until then, and `getRoutine` promotes
  * it once that bedtime passes. With nothing armed there's no lock to loosen, so it applies now.
  */
-import { nightsAround, settingsTakeEffectAt, type LockSettings } from './lock-state.ts';
+import { armedBedtime, dateKey, nightInto, nightsAround, settingsTakeEffectAt, type LockSettings, type Morning } from './lock-state.ts';
 import { getArmedNight, sharedGet, sharedSet } from './screen-time.ts';
 
 /** The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. */
@@ -33,6 +33,14 @@ export type StoredRoutine = {
   active: Routine;
   /** An edit waiting for bedtime. `from` is when it applies, in ms. */
   pending?: { routine: Routine; from: number };
+  /**
+   * When `active` came into force, in ms: the edit's `from` once it applied, or the moment of a
+   * save that applied at once. A night of it that ended before then was never run under it
+   * (`nightRanUnder`). Missing on routines saved before it was kept.
+   */
+  since?: number;
+  /** The routine in force before `active`, for a night into the same morning that ran under it. */
+  prior?: Routine;
 };
 
 const KEY = 'locturne.routine';
@@ -51,7 +59,9 @@ export function toLockSettings(routine: Routine): LockSettings {
 
 /** Pure: promotes a pending edit whose bedtime has passed. */
 export function settleRoutine(stored: StoredRoutine, now: Date): StoredRoutine {
-  if (stored.pending && now.getTime() >= stored.pending.from) return { active: stored.pending.routine };
+  if (stored.pending && now.getTime() >= stored.pending.from) {
+    return { active: stored.pending.routine, since: stored.pending.from, prior: stored.active };
+  }
   return stored;
 }
 
@@ -72,11 +82,19 @@ export function applyEdit(
   armed = true,
   early = false,
 ): StoredRoutine {
-  if (!stored || !armed) return { active: next };
+  if (!stored) return { active: next, since: now.getTime() };
   const settled = settleRoutine(stored, now);
-  const active = early && settled.pending ? settled.pending.routine : settled.active;
+  if (!armed) return { active: next, since: now.getTime(), prior: settled.active };
+  // Promoted from inside its own early first night: in force from now, a night already running.
+  const promoted = early && settled.pending;
+  const active = promoted ? settled.pending!.routine : settled.active;
+  const change = promoted ? { since: now.getTime(), prior: settled.active } : { since: settled.since, prior: settled.prior };
   const from = settingsTakeEffectAt(now, toLockSettings(active)).getTime();
-  return { active, pending: { routine: next, from } };
+  const result: StoredRoutine = { active, pending: { routine: next, from } };
+  // Only defined fields: the App Group store takes property lists, which have no undefined.
+  if (change.since !== undefined) result.since = change.since;
+  if (change.prior !== undefined) result.prior = change.prior;
+  return result;
 }
 
 function read(now: Date): StoredRoutine | undefined {
@@ -95,6 +113,48 @@ export function hasRoutine(): boolean {
 /** The routine in force now. */
 export function getRoutine(now = new Date()): Routine {
   return read(now)?.active ?? DEFAULT_ROUTINE;
+}
+
+/** When the routine in force came into force and the one before it, or null if not known. */
+export function getRoutineChange(now = new Date()): { since: number; prior: Routine | null } | null {
+  const stored = read(now);
+  return stored?.since === undefined ? null : { since: stored.since, prior: stored.prior ?? null };
+}
+
+/**
+ * Pure: which routine did the night into `morning` (worked out under `routine`, the one in
+ * force) really run under? `routine` if that night ended after it came into force
+ * (`change.since`); else the routine before it, if that one's night into the same morning began
+ * before then on an evening it had on; else `none`. A morning no night ran into is free: a
+ * switch from a night shift (08:00 to 16:00) saved at 07:30 applies at 08:00, when 23:00 to
+ * 07:00 names this morning again with a night nobody slept under either routine. A morning the
+ * old routine's night led into stays locked until proven, as before the edit. `unknown` for a
+ * routine saved before the change was kept.
+ */
+export function nightRanUnder(
+  morning: Pick<Morning, 'key' | 'start'>,
+  change: { since: number; prior: Routine | null } | null,
+): 'routine' | 'prior' | 'none' | 'unknown' {
+  if (!change) return 'unknown';
+  if (morning.start.getTime() > change.since) return 'routine';
+  const { prior } = change;
+  if (!prior) return 'none';
+  const [year, month, day] = morning.key.split('-').map(Number);
+  const evening = new Date(year, month - 1, day - 1).getDay();
+  const began = nightInto(morning.key, prior).start.getTime() < change.since;
+  return prior.activeNights.includes(evening) && began ? 'prior' : 'none';
+}
+
+/**
+ * The routine a night under `routine` really runs on while iOS still has windows armed for
+ * other times (`armed`, from `getArmedNight`): the same, starting at the armed bedtime when the
+ * two nights overlap (`armedBedtime`, lock-state.ts). The one rule for `routineAt`
+ * (lock-controller.ts), `nightAt` and the notification planner, so the lock, Home and the
+ * warning follow the windows iOS will really run until Locturne opens and re-arms them.
+ */
+export function asArmed(routine: Routine, armed: { bedtime: number; morningStart: number } | null): Routine {
+  const bedtime = armed ? armedBedtime(routine, armed) : null;
+  return bedtime === null ? routine : { ...routine, bedtime };
 }
 
 /** The edit waiting for bedtime, if any. */
@@ -143,14 +203,23 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   const pending = getPendingRoutine(now);
   const nightUnder = (r: Routine) => {
     const { latest, next } = nightsAround(start, toLockSettings(r));
-    return start < latest.end ? latest : next;
+    // A night of no length starting right at `start` (one inside the spring clock gap, whose
+    // windows all fire at its end) still shields then.
+    return start < latest.end || start.getTime() === latest.start.getTime() ? latest : next;
   };
   // The edit governs from its first night, which can start before `from` when it moves
   // bedtime earlier (the windows only tighten, so they're armed early: `planArming`).
   const pendingNight = pending ? nightUnder(pending.routine) : null;
   const usePending = pending && pendingNight && (pending.from <= start.getTime() || pendingNight.end.getTime() > pending.from);
   const routine = usePending ? pending.routine : getRoutine(now);
-  const night = usePending && pendingNight ? pendingNight : nightUnder(routine);
+  let night = usePending && pendingNight ? pendingNight : nightUnder(routine);
+  // Windows still armed for other times run until Locturne re-arms them (`asArmed`). Not for a
+  // night of the routine in force while an edit waits: the windows armed then are that
+  // routine's or the edit's early ones (`holdsEarly` below).
+  if (usePending || !pending) {
+    const runs = asArmed(routine, getArmedNight());
+    if (runs !== routine) night = nightInto(dateKey(night.end), runs);
+  }
   const evening = new Date(night.end.getFullYear(), night.end.getMonth(), night.end.getDate() - 1).getDay();
   // An earlier start than `from` is only real if iOS holds it early (`holdsEarly`). Otherwise
   // the edit's night starts at `from`.

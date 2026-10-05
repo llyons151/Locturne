@@ -86,9 +86,34 @@ export type Morning = {
   nightStart: Date;
 };
 
-/** Local midnight `offsetDays` from `date`, plus `minutes`. Date normalizes any overflow. */
+/** Local midnight `offsetDays` from `date`, plus `minutes`, as `wallClock` places it. */
 function atMinute(date: Date, minutes: number, offsetDays = 0): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offsetDays, 0, minutes);
+  return wallClock(date, minutes, offsetDays);
+}
+
+/**
+ * The instant the clock on the wall reads `minutes` past local midnight, `offsetDays` from
+ * `date`'s day. A time the spring clock change skips (02:30 when 02:00 jumps to 03:00) is the
+ * first instant after the gap (03:00), where iOS fires a night window scheduled inside it, not
+ * the hour later JavaScript dates move it to. A time that comes round twice in the autumn is
+ * the first. Everything that works out a bedtime or a morning start goes through here, so the
+ * lock, Home's line and the bedtime warning agree with the windows.
+ */
+export function wallClock(date: Date, minutes: number, offsetDays = 0): Date {
+  const y = date.getFullYear();
+  const mo = date.getMonth();
+  const d = date.getDate() + offsetDays;
+  const at = new Date(y, mo, d, 0, minutes);
+  const wanted = Date.UTC(y, mo, d, 0, minutes);
+  const wall = (t: number) => {
+    const x = new Date(t);
+    return Date.UTC(x.getFullYear(), x.getMonth(), x.getDate(), x.getHours(), x.getMinutes(), x.getSeconds());
+  };
+  if (wall(at.getTime()) === wanted) return at;
+  // Skipped: step back to the gap's end (the minute before it reads earlier than wanted).
+  let t = at.getTime();
+  for (let i = 0; i < 24 * 60 && wall(t - 60_000) > wanted; i++) t -= 60_000;
+  return new Date(t);
 }
 
 /** A calendar day as YYYY-MM-DD, in local time. Daily limits reset when this changes. */
@@ -107,15 +132,15 @@ export type Night = { start: Date; end: Date };
  *
  * Working in real instants, not minutes of the day, keeps daylight-saving nights honest. When
  * clocks go back after bedtime, 01:00 comes round twice, but the night has already begun and
- * stays begun. A bedtime the clocks skip (02:30 when they jump to 03:00) moves forward the way
- * JavaScript dates do.
+ * stays begun. A bedtime the clocks skip (02:30 when they jump to 03:00) starts at the end of
+ * the gap, when iOS fires the window scheduled for it (`wallClock`).
  */
 function nightBefore(now: Date, s: Pick<LockSettings, 'bedtime' | 'morningStart'>, offsetDays: number): Night {
   const end = atMinute(now, s.morningStart, offsetDays);
   if (s.bedtime === s.morningStart) return { start: end, end };
   const start = atMinute(now, s.bedtime, s.bedtime < s.morningStart ? offsetDays : offsetDays - 1);
-  // A skipped bedtime can land after morning start (02:30 to 03:00 on spring-forward day).
-  // That night simply doesn't happen.
+  // A night inside the spring gap (02:30 to 03:00 when 02:00 jumps to 03:00) starts and ends at
+  // 03:00: a night of no length, as its windows all fire then.
   return start > end ? { start: end, end } : { start, end };
 }
 
@@ -147,6 +172,33 @@ function locate(now: Date, s: LockSettings) {
 export function nightsAround(now: Date, settings: LockSettings): { latest: Night; next: Night } {
   const { offset, night } = locate(now, settings);
   return { latest: night, next: nightBefore(now, settings, offset + 1) };
+}
+
+/**
+ * The bedtime a night under `times` really starts at while iOS still runs night windows armed
+ * for other times (`armed`): arming can wait out a phantom night (wake/arming.ts), and with
+ * Locturne closed nothing re-arms, so the old windows keep running after the edit applies. The
+ * monitor extension places each window by the armed times, so it shields the night into the
+ * same morning from the armed bedtime: earlier than the routine says (a later bedtime saved
+ * after the walk) or later (an earlier one). The morning still starts at the routine's time
+ * (the hold lasts until a proof either way). Null when the two nights into a morning don't
+ * overlap (a switch to or from a night shift): joining them would hold the apps through what
+ * the new routine calls day (23:00 to 16:00 for an 08:00 to 16:00 shift), so the routine's own
+ * night stands. Pure minutes since midnight, each night measured back from its morning's midnight.
+ */
+export function armedBedtime(
+  times: Pick<LockSettings, 'bedtime' | 'morningStart'>,
+  armed: Pick<LockSettings, 'bedtime' | 'morningStart'>,
+): number | null {
+  if (armed.bedtime === times.bedtime) return null;
+  if (times.bedtime === times.morningStart || armed.bedtime === armed.morningStart) return null;
+  const startOf = (t: Pick<LockSettings, 'bedtime' | 'morningStart'>) => (t.bedtime < t.morningStart ? t.bedtime : t.bedtime - 1440);
+  const ours = startOf(times);
+  const theirs = startOf(armed);
+  // The armed bedtime as a night ending at our morning start must land on the same evening.
+  const moved = armed.bedtime < times.morningStart ? armed.bedtime : armed.bedtime - 1440;
+  if (moved !== theirs) return null;
+  return Math.max(ours, theirs) < Math.min(times.morningStart, armed.morningStart) ? armed.bedtime : null;
 }
 
 /**

@@ -100,6 +100,18 @@ test('an earlier bedtime whose arming waits warns at the bedtime iOS still has',
   assert.equal(summary(armed).find((n) => n.startsWith('bedtime 3')), 'bedtime 3 21:45');
 });
 
+test('after the edit applies, windows still armed for the old times decide the warning', () => {
+  // The later bedtime (00:00, mornings 09:00) is in force, but its arming waited and nothing
+  // re-armed: iOS still has 23:00 to 07:00, and with the app closed the apps sleep at 23:00.
+  const later = { ...DEFAULT_ROUTINE, bedtime: 0, morningStart: 9 * H };
+  const stale = plan({ routine: later, now: at(3, 23, 10), days: 2, armedTimes: { bedtime: 23 * H, morningStart: 7 * H } });
+  assert.deepEqual(summary(stale), ['morning 4 9:0', 'bedtime 4 22:45', 'morning 5 9:0']);
+  // The same for an earlier bedtime: nothing sleeps before the armed 22:30.
+  const earlier = { ...DEFAULT_ROUTINE, bedtime: 21 * H, morningStart: 5 * H };
+  const old = plan({ routine: earlier, now: at(3, 12), days: 1, armedTimes: { bedtime: 22 * H + 30, morningStart: 5 * H } });
+  assert.equal(summary(old).find((n) => n.startsWith('bedtime 3')), 'bedtime 3 22:15');
+});
+
 test('nights switched off get nothing, including their morning', () => {
   // Saturday (6) off: no warning on the 3rd and no morning note on the 4th.
   const routine = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 4, 5] };

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import {
+  armedBedtime,
   armedInTime,
   currentMorning,
   getLockState,
@@ -238,5 +239,32 @@ describe('armedInTime', () => {
 
   test('nothing armed: nothing is locked', () => {
     assert.equal(armedInTime(at(8), settings, null), false);
+  });
+});
+
+describe('armedBedtime: a night under windows still armed for other times', () => {
+  const H = 60;
+  test('a later bedtime: the old windows start the night at their bedtime', () => {
+    assert.equal(armedBedtime({ bedtime: 0, morningStart: 9 * H }, { bedtime: 23 * H, morningStart: 7 * H }), 23 * H);
+  });
+  test('an earlier bedtime: not until the armed one', () => {
+    assert.equal(armedBedtime({ bedtime: 21 * H, morningStart: 5 * H }, { bedtime: 22 * H + 30, morningStart: 5 * H }), 22 * H + 30);
+  });
+  test('the same bedtime, or the same times: nothing moves', () => {
+    assert.equal(armedBedtime({ bedtime: 23 * H, morningStart: 8 * H }, { bedtime: 23 * H, morningStart: 7 * H }), null);
+    assert.equal(armedBedtime({ bedtime: 23 * H, morningStart: 7 * H }, { bedtime: 23 * H, morningStart: 7 * H }), null);
+  });
+  test('nights that never overlap (a switch to or from a night shift) keep the routine\'s', () => {
+    assert.equal(armedBedtime({ bedtime: 23 * H, morningStart: 7 * H }, { bedtime: 8 * H, morningStart: 16 * H }), null);
+    // Joined, 23:00 to 16:00 would hold the apps through the shift worker's night at work.
+    assert.equal(armedBedtime({ bedtime: 8 * H, morningStart: 16 * H }, { bedtime: 23 * H, morningStart: 7 * H }), null);
+  });
+  test('an armed bedtime after midnight against one before it, and the reverse', () => {
+    assert.equal(armedBedtime({ bedtime: 23 * H, morningStart: 7 * H }, { bedtime: 30, morningStart: 7 * H }), 30);
+    assert.equal(armedBedtime({ bedtime: 30, morningStart: 7 * H }, { bedtime: 23 * H, morningStart: 7 * H }), 23 * H);
+  });
+  test('a shift that overlaps the old night by an hour moves its start', () => {
+    // 06:00 to 14:00 armed, 23:00 to 07:00 in force: the night into a morning runs 06:00 to 07:00.
+    assert.equal(armedBedtime({ bedtime: 23 * H, morningStart: 7 * H }, { bedtime: 6 * H, morningStart: 14 * H }), 6 * H);
   });
 });

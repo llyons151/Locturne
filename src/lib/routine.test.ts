@@ -9,7 +9,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity({ available: false });
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { applyEdit, settleRoutine, DEFAULT_ROUTINE, nextNightOn, nightAt, saveRoutine } = await import('./routine.ts');
+const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, nextNightOn, nightAt, nightRanUnder, saveRoutine } = await import('./routine.ts');
 const { sharedSet } = await import('./screen-time.ts');
 
 /** Thursday 2026-10-01 at hh:mm, local time. Default routine: 23:00 to 07:00. */
@@ -17,20 +17,20 @@ const at = (hh: number, mm = 0, day = 1) => new Date(2026, 9, day, hh, mm);
 const later = { ...DEFAULT_ROUTINE, bedtime: 23 * 60 + 30 };
 
 test('the first save applies at once', () => {
-  assert.deepEqual(applyEdit(undefined, later, at(15)), { active: later });
+  assert.deepEqual(applyEdit(undefined, later, at(15)), { active: later, since: at(15).getTime() });
 });
 
 test('with a night armed, an edit waits for the next bedtime', () => {
   const stored = applyEdit({ active: DEFAULT_ROUTINE }, later, at(15), true);
   assert.deepEqual(stored.active, DEFAULT_ROUTINE);
   assert.equal(stored.pending?.from, at(23).getTime());
-  assert.deepEqual(settleRoutine(stored, at(23)).active, later);
+  assert.deepEqual(settleRoutine(stored, at(23)), { active: later, since: at(23).getTime(), prior: DEFAULT_ROUTINE });
 });
 
 test('with nothing armed, an edit applies at once and drops a waiting one', () => {
   const waiting = { active: DEFAULT_ROUTINE, pending: { routine: later, from: at(23).getTime() } };
   const earlier = { ...DEFAULT_ROUTINE, bedtime: 22 * 60 };
-  assert.deepEqual(applyEdit(waiting, earlier, at(15), false), { active: earlier });
+  assert.deepEqual(applyEdit(waiting, earlier, at(15), false), { active: earlier, since: at(15).getTime(), prior: DEFAULT_ROUTINE });
 });
 
 test('inside a waiting edit\'s early first night, that edit is in force and the new one waits for its next bedtime', () => {
@@ -39,6 +39,8 @@ test('inside a waiting edit\'s early first night, that edit is in force and the 
   const waiting = { active: DEFAULT_ROUTINE, pending: { routine: earlier, from: at(23).getTime() } };
   const stored = applyEdit(waiting, later, at(21, 40), true, true);
   assert.deepEqual(stored.active, earlier);
+  assert.equal(stored.since, at(21, 40).getTime(), 'in force from the promotion, inside its night');
+  assert.deepEqual(stored.prior, DEFAULT_ROUTINE);
   assert.deepEqual(stored.pending, { routine: later, from: at(21, 30, 2).getTime() });
   // Not inside it: the new edit replaces the waiting one, from the routine in force's bedtime.
   assert.deepEqual(applyEdit(waiting, later, at(15), true, false), { active: DEFAULT_ROUTINE, pending: { routine: later, from: at(23).getTime() } });
@@ -97,4 +99,27 @@ test('nightAt: an earlier bedtime on an evening off in force starts at the edit,
   const edit = { ...DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 };
   sharedSet('locturne.routine', { active: inForce, pending: { routine: edit, from: +at(23) } });
   assert.equal(+nightAt(at(23), at(14)).start, +at(23));
+});
+
+test('nightRanUnder: which routine the night into a morning really ran under', () => {
+  const shift = { ...DEFAULT_ROUTINE, bedtime: 8 * 60, morningStart: 16 * 60 };
+  // 23:00 to 07:00 took over at 08:00 on the 1st from a night shift: the 1st's 07:00 morning
+  // had no night under either (the shift's into the 1st starts at 08:00, when it no longer ran).
+  const fromShift = { since: at(8).getTime(), prior: shift };
+  assert.equal(nightRanUnder({ key: '2026-10-01', start: at(7) }, fromShift), 'none');
+  assert.equal(nightRanUnder({ key: '2026-10-02', start: at(7, 0, 2) }, fromShift), 'routine');
+  // A later bedtime that took over at 23:00: the morning the old night led into stays its.
+  const later = { since: at(23).getTime(), prior: DEFAULT_ROUTINE };
+  assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, later), 'prior');
+  // ...unless that evening was off under the old routine.
+  assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, { ...later, prior: { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 4, 5, 6] } }), 'none');
+  assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, { since: at(23).getTime(), prior: null }), 'none');
+  assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, null), 'unknown');
+});
+
+test('asArmed: a routine runs from the armed bedtime while older windows overlap its night', () => {
+  const edited = { ...DEFAULT_ROUTINE, bedtime: 0, morningStart: 9 * 60 };
+  assert.deepEqual(asArmed(edited, { bedtime: 23 * 60, morningStart: 7 * 60 }), { ...edited, bedtime: 23 * 60 });
+  assert.equal(asArmed(edited, { bedtime: 0, morningStart: 9 * 60 }), edited);
+  assert.equal(asArmed(edited, null), edited);
 });

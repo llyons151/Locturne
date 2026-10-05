@@ -4,7 +4,7 @@
  * wakes the apps, so adding a method never touches the lock rules.
  */
 import { currentMorning, nightInto, type Morning } from './lock-state.ts';
-import { getRoutine, toLockSettings, type Routine, type WakeMethod } from './routine.ts';
+import { getRoutine, getRoutineChange, nightRanUnder, toLockSettings, type Routine, type WakeMethod } from './routine.ts';
 import { sharedGet, sharedSet } from './screen-time.ts';
 
 export type ProofKind = WakeMethod | 'pass' | 'emergency';
@@ -66,16 +66,26 @@ export function proofCounts(proof: MorningProof, morning: Morning): boolean {
  * A pass or an emergency unlock is tied to its morning, not to a moment after bedtime (a pass
  * used the evening before covers the morning), so it counts for its key whenever it was made.
  */
-export function proofUnlocks(proof: MorningProof, morning: Pick<Morning, 'key' | 'nightStart'>): boolean {
+export function proofUnlocks(proof: MorningProof, morning: JudgedMorning): boolean {
   if (proof.morningKey !== morning.key) return false;
   if (proof.kind === 'pass' || proof.kind === 'emergency') return true;
   const { bedtime, morningStart } = proof;
+  // A night that really ran under the routine governing now (`nightRanUnder`, routine.ts) and began
+  // after the proof needs its own wake-up, whatever routine the proof was made under: a same-day
+  // night (20:00 to 22:00) held early after a 07:30 walk names the walk's morning again.
   const nightStart =
-    bedtime === undefined || morningStart === undefined
+    morning.ran === true || bedtime === undefined || morningStart === undefined
       ? morning.nightStart
       : nightInto(proof.morningKey, { bedtime, morningStart }).start;
   return proof.at >= nightStart.getTime();
 }
+
+/**
+ * A morning as `proofUnlocks` judges it. `ran`: did its night really run under the routine
+ * governing now (`nightRanUnder`)? Then that night's start is the one a proof must come after.
+ * Otherwise, or when not known, the night under the routine the proof was made under.
+ */
+export type JudgedMorning = Pick<Morning, 'key' | 'nightStart'> & { ran?: boolean };
 
 export function getProofs(): MorningProof[] {
   return sharedGet<MorningProof[]>(KEY) ?? [];
@@ -85,7 +95,7 @@ export function getProofs(): MorningProof[] {
  * The proof that unlocked `morning` (`currentMorning` under the routine governing now), or
  * null. `currentProof` (lock-controller.ts) asks it for the morning under way.
  */
-export function getProof(morning: Pick<Morning, 'key' | 'nightStart'>): MorningProof | null {
+export function getProof(morning: JudgedMorning): MorningProof | null {
   return getProofs().find((p) => proofUnlocks(p, morning)) ?? null;
 }
 
@@ -95,12 +105,14 @@ export function getProof(morning: Pick<Morning, 'key' | 'nightStart'>): MorningP
  * in force at `proof.at` (a walk before morning start). Checking here, not only in the
  * screens, means no method can poison a morning by recording too early.
  */
-export function recordProof(proof: MorningProof, routine?: Routine): boolean {
+export function recordProof(proof: MorningProof, governing?: { routine: Routine; ran: boolean }): boolean {
   const at = new Date(proof.at);
-  // The routine that governs `at`: in force, unless the caller knows a waiting edit's early
-  // first night governs it (`routineAt` in lock-controller.ts, which imports this file).
-  const judged = routine ?? getRoutine(at);
-  const morning = currentMorning(at, toLockSettings(judged));
+  // The routine that governs `at`: in force, unless the caller knows better (`judgedAt` in
+  // lock-controller.ts, which imports this file: a waiting edit's early first night, or windows
+  // iOS still runs for older times).
+  const judged = governing?.routine ?? getRoutine(at);
+  const found = currentMorning(at, toLockSettings(judged));
+  const morning = { ...found, ran: governing ? governing.ran : nightRanUnder(found, getRoutineChange(at)) === 'routine' };
   if (!proofCounts(proof, morning)) return false;
   // Saved with the times it was judged under, for `proofUnlocks`.
   const saved: MorningProof = { ...proof, bedtime: judged.bedtime, morningStart: judged.morningStart };

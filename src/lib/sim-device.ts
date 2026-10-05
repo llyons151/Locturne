@@ -86,6 +86,11 @@ export function simDevice() {
     startsOnRegister: true,
     /** Every callback the extension ran, for the reproduction log. */
     trace: [] as string[],
+    /**
+     * What the extension did with the last night window's start: shielded the bedtime list,
+     * skipped it (a night off, which wakes the list), or ignored it (changes nothing).
+     */
+    lastWindow: null as 'shield' | 'skip' | 'ignore' | null,
   };
 
   const ids = (): Record<string, string> => (s.store[IDS_KEY] ??= {}) as Record<string, string>;
@@ -99,13 +104,37 @@ export function simDevice() {
   };
   const now = () => Date.now();
 
+  /**
+   * The first instant whose local wall clock reads at least this date and time. A time the
+   * spring clock change skips (02:30 when 02:00 jumps to 03:00) fires at the end of the gap
+   * (03:00), as Calendar's next-time matching does, not where JavaScript dates put it (03:30).
+   */
+  function wallInstant(y: number, mo: number, d: number, h: number, mi: number, sec: number): number {
+    const wanted = Date.UTC(y, mo, d, h, mi, sec);
+    const wall = (t: number) => {
+      const x = new Date(t);
+      return Date.UTC(x.getFullYear(), x.getMonth(), x.getDate(), x.getHours(), x.getMinutes(), x.getSeconds());
+    };
+    const naive = new Date(y, mo, d, h, mi, sec).getTime();
+    if (wall(naive) === wanted) return naive;
+    // Skipped: search the few hours before for where the wall clock first passes it.
+    let lo = naive - 4 * 3_600_000;
+    let hi = naive;
+    while (hi - lo > 1000) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (wall(mid) >= wanted) hi = mid;
+      else lo = mid;
+    }
+    return hi;
+  }
+
   /** Where an interval starting on local day `day` (at 00:00) starts and ends, as real instants. */
   function occurrence(schedule: Schedule, day: Date) {
     const { intervalStart: a, intervalEnd: b } = schedule;
-    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), a.hour, a.minute, a.second ?? 0);
+    const start = wallInstant(day.getFullYear(), day.getMonth(), day.getDate(), a.hour, a.minute, a.second ?? 0);
     const crosses = b.hour * 3600 + b.minute * 60 + (b.second ?? 0) <= a.hour * 3600 + a.minute * 60 + (a.second ?? 0);
-    const end = new Date(day.getFullYear(), day.getMonth(), day.getDate() + (crosses ? 1 : 0), b.hour, b.minute, b.second ?? 0);
-    return { start: start.getTime(), end: end.getTime() };
+    const end = wallInstant(day.getFullYear(), day.getMonth(), day.getDate() + (crosses ? 1 : 0), b.hour, b.minute, b.second ?? 0);
+    return { start, end };
   }
 
   function insideNow(m: Monitored, t: number): boolean {
@@ -423,6 +452,7 @@ export function simDevice() {
         return;
       }
       set(NIGHT_HELD_KEY, true);
+      s.lastWindow = 'shield';
     }
 
     execActions(activity, 'intervalDidStart');
@@ -433,6 +463,7 @@ export function simDevice() {
 
   /** `skipLocturneNight`: a night that's off releases the hold and wakes the bedtime list. */
   function skipNight(activity: string) {
+    s.lastWindow = 'skip';
     set(NIGHT_HELD_KEY, false);
     unblock('night');
     // (`restoreLocturneFallbackShield`, words only.)
@@ -442,6 +473,7 @@ export function simDevice() {
 
   /** `ignoreLocturneWindow`: changes nothing, but is still noted in the heartbeat. */
   function ignoreWindow(activity: string) {
+    if (activity.startsWith(NIGHT_PREFIX)) s.lastWindow = 'ignore';
     reapply();
     recordHeartbeat(activity, 'intervalDidStart');
   }
@@ -547,6 +579,7 @@ export function simDevice() {
     s.queue.length = 0;
     s.usage.clear();
     s.trace.length = 0;
+    s.lastWindow = null;
   }
 
   return { state: s, exports, ids, appsOfId, fire, dueEvents, use, reset, get };

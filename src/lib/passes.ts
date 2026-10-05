@@ -11,7 +11,7 @@
  * The accounting here is pure; `spendPass` at the bottom applies it.
  */
 import { endNap, getNap, sharedGet, sharedSet } from './screen-time.ts';
-import { readLock, syncLock } from './lock-controller.ts';
+import { judgedAt, readLock, syncLock } from './lock-controller.ts';
 import { recordProof } from './morning-proof.ts';
 
 /**
@@ -89,7 +89,7 @@ export function spendPass(now = new Date()): PassRefusal | null {
   const refusal = passRefusal(ledger, state.phase, state.morningKey);
   if (refusal) return refusal;
   sharedSet(KEY, withSpent(ledger, state.morningKey, now.getTime()));
-  recordProof({ morningKey: state.morningKey, kind: 'pass', at: now.getTime() });
+  recordProof({ morningKey: state.morningKey, kind: 'pass', at: now.getTime() }, judgedAt(now));
   if (getNap()) endNap();
   syncLock(now);
   return null;

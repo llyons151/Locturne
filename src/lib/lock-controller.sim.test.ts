@@ -304,8 +304,50 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       const armedInside = !!theirs && at >= theirs.start.getTime() && at < theirs.end.getTime();
       const held = armedInside && inForceAt(at).activeNights.includes(evening);
       if (inside && held && (!spec.lapse || spec.lapse.underWayKey === ls.dateKey(latest.end))) return next.routine;
+      return inForceAt(at);
     }
-    return inForceAt(at);
+    return asRun(inForceAt(at));
+  };
+  /**
+   * The routine in force as iOS runs it, with no edit waiting: windows still armed for older
+   * times (arming waited out a phantom night, and nothing re-armed with the app closed) shield
+   * from their own bedtime, and the hold lasts until a proof, so the night into the same
+   * morning runs from there to the routine's morning start. Only when the two nights into that
+   * morning overlap; otherwise (a switch to or from a night shift) the routine's own night
+   * stands. Worked out on real instants for a sample morning, apart from the app's minute
+   * arithmetic (`armedBedtime`).
+   */
+  const asRun = (r: Routine): Routine => {
+    const armed = st.getArmedNight();
+    if (!armed || armed.bedtime === r.bedtime) return r;
+    const key = '2026-01-14';
+    const ours = ls.nightInto(key, r);
+    const theirs = ls.nightInto(key, armed);
+    const empty = (n: { start: Date; end: Date }) => n.start.getTime() === n.end.getTime();
+    if (empty(ours) || empty(theirs)) return r;
+    if (Math.max(+ours.start, +theirs.start) >= Math.min(+ours.end, +theirs.end)) return r;
+    const moved = { ...r, bedtime: armed.bedtime };
+    return +ls.nightInto(key, moved).start === +theirs.start ? moved : r;
+  };
+  /**
+   * Which routine the night into `morning` really ran under (`nightRanUnder` in routine.ts): the
+   * one governing `at` if it ended after that one took over (or it's a waiting edit's early
+   * first night), else the one before if its night into that morning began before then, on an
+   * evening it had on. A morning neither ran into is free.
+   */
+  const ranUnder = (at: number, morning: { key: string; start: Date }): 'routine' | 'prior' | 'none' => {
+    if (routineAt(at) === spec.routines.find((r) => r.from > at)?.routine) return 'routine';
+    let i = 0;
+    spec.routines.forEach((r, j) => {
+      if (r.from <= at) i = j;
+    });
+    const since = spec.routines[i]?.from ?? -Infinity;
+    if (morning.start.getTime() > since) return 'routine';
+    const prior = spec.routines[i - 1]?.routine;
+    if (!prior) return 'none';
+    const [y, mo, d] = morning.key.split('-').map(Number);
+    const evening = new Date(y, mo - 1, d - 1).getDay();
+    return prior.activeNights.includes(evening) && ls.nightInto(morning.key, prior).start.getTime() < since ? 'prior' : 'none';
   };
   const routineFrom = (at: number) => {
     let from = -Infinity;
@@ -353,8 +395,12 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     // after a whole night. That night is the one under the routine the walk was made under: a
     // night shift saved since names the same morning with a night nobody slept under it. A
     // pass or an emergency unlock is tied to its morning's key.
-    const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || p.at >= nightInto(p)));
-    const free = spec.armedSince === null || !ls.armedInTime(now, settings, new Date(spec.armedSince));
+    // A night that ran under the routine governing now and began after a walk takes the morning
+    // back, whatever routine the walk was made under (a same-day night held early after it).
+    const under = ranUnder(at, morning);
+    const after = (p: Proof) => p.at >= (under === 'routine' ? morning.nightStart.getTime() : nightInto(p));
+    const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || after(p)));
+    const free = spec.armedSince === null || under === 'none' || !ls.armedInTime(now, settings, new Date(spec.armedSince));
     return ls.getLockState(now, settings, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
   const locked = (at: number) => {
@@ -802,10 +848,15 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     device.fire(activity, callback);
     if (debug) console.log('event', new Date(t).toString().slice(0, 24), activity, callback, [...device.state.shielded].join(','));
     if (activity.startsWith('night-') && callback === 'intervalDidStart') {
-      released.push('night');
+      // A window the extension ignores (an evening that's off, outside the night in force)
+      // changes nothing on the bedtime list, so whatever held it before still does.
+      if (device.state.lastWindow !== 'ignore') released.push('night');
       // Windows still armed for an older routine (re-arming waits for a phantom night to pass,
-      // then for the next sync) shield at the old times: stricter than the rules, the safe
-      // side, until the app opens and re-arms. Windows armed for the right routine get no slack.
+      // then for the next sync) shield at the old times until the app opens and re-arms. Where
+      // their night overlaps the routine's, the lock follows them (`asRun` above, `asArmed` in
+      // the app); where it doesn't (a switch to or from a night shift) they can shield in what
+      // the routine calls day: tolerated, the first sync wakes them. Windows armed for the right
+      // routine get no slack.
       // The extension places each window by the armed times and releases only inside the
       // night in force (`locturneWindowNight`, `locturneInsideNightInForce`), so an old window
       // no longer ends a morning nobody proved (native-tests covers it). The lock still isn't
@@ -871,13 +922,13 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     if (sc.buys) {
       lc.settleSubscription(true);
       rt.saveRoutine(sc.routine);
-      spec.routines.push({ routine: sc.routine, from: -Infinity });
+      spec.routines.push({ routine: sc.routine, from: t });
       await armTonight();
       await flush();
       noticeSubscription(true);
     } else {
       rt.saveRoutine(sc.routine);
-      spec.routines.push({ routine: sc.routine, from: -Infinity });
+      spec.routines.push({ routine: sc.routine, from: t });
     }
     await afterAppAction();
 

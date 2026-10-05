@@ -22,8 +22,9 @@ import { Platform } from 'react-native';
 import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
 import { lastPaidMorning, onArmed } from './lock-controller.ts';
+import { wallClock } from './lock-state.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, hasRoutine, holdsEarly, type Routine, type StoredRoutine } from './routine.ts';
+import { asArmed, getPendingRoutine, getRoutine, hasRoutine, holdsEarly, type Routine, type StoredRoutine } from './routine.ts';
 import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
@@ -67,9 +68,9 @@ export const COPY = {
   }),
 };
 
-/** Local midnight `days` after `date`, plus `minutes`, like lock-state.ts. */
+/** Local midnight `days` after `date`, plus `minutes`, as lock-state.ts places it (`wallClock`). */
 function atMinute(date: Date, minutes: number, days = 0): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 0, minutes);
+  return wallClock(date, minutes, days);
 }
 
 const dayKey = (date: Date) =>
@@ -136,16 +137,24 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     });
     let r = routine;
     let { start, end } = pick(r);
-    if (pending && start.getTime() >= pending.from) {
-      r = pending.routine;
-      ({ start, end } = pick(r));
+    const underPending = !!pending && start.getTime() >= pending.from;
+    if (pending && underPending) r = pending.routine;
+    // Windows still armed for other times run until Locturne re-arms them (`asArmed`): an edit
+    // whose arming waited out a phantom night sleeps the apps at the old bedtime. Not for a
+    // night of the routine in force while an edit waits: its windows are that routine's or the
+    // edit's early ones (`holdsEarly` below).
+    if (!pending || underPending) r = asArmed(r, facts.armedTimes ?? null);
+    ({ start, end } = pick(r));
+    if (pending && underPending) {
       // An earlier bedtime only starts early if iOS holds it (`holdsEarly`, as
       // `inPendingFirstNight` judges it). Otherwise the edit's first night starts at `from`.
       // Judged by what iOS has armed now: the arming that makes it held reschedules (`onArmed`).
       const held = holdsEarly(start, atMinute(end, 0, -1).getDay(), routine, facts.armedTimes ?? null);
       if (!held && start.getTime() < pending.from) start = new Date(pending.from);
     }
-    if (start >= end) continue;
+    // A night inside the spring clock gap has no length, but its windows all fire at the gap's
+    // end and its morning locks: it gets its warning and its note. Equal times are no night.
+    if (start > end || r.bedtime === r.morningStart) continue;
     // The evening before the morning starts the night, even when bedtime is after midnight.
     if (!r.activeNights.includes(atMinute(end, 0, -1).getDay())) continue;
 
@@ -157,7 +166,9 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
       plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
     }
     // Not for a morning that's already free: it would say the apps are asleep when they aren't.
-    const unlocked = facts.proofs?.some((proof) => proofUnlocks(proof, { key, nightStart: start }));
+    // A night still to come runs under the routine it's planned under (`nightRanUnder`): a proof
+    // has to come after it began, whatever routine it was made under.
+    const unlocked = facts.proofs?.some((proof) => proofUnlocks(proof, { key, nightStart: start, ran: end > now }));
     const free = unlocked || (facts.armedSince && facts.armedSince >= end);
     if (protection === 'on' && prefs.morning && end > now && !free) {
       plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });

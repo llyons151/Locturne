@@ -13,8 +13,8 @@
  *    list are re-shielded straight after (`wakeApps`), so a proof never lifts them.
  */
 import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, type DaytimeFacts, type LockState } from './lock-state.ts';
-import { getProof, recordProof, type MorningProof, type ProofKind } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, holdsEarly, toLockSettings, type Routine } from './routine.ts';
+import { getProof, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
+import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import {
   armedSince,
@@ -64,16 +64,21 @@ function readDaytime(now: Date): DaytimeFacts {
  * nothing is asleep and nothing should pretend to be.
  */
 export function readLock(now = new Date()): LockState {
-  const settings = toLockSettings(routineAt(now));
-  const morning = currentMorning(now, settings);
+  const { routine, ran, free: unrun } = judgedAt(now);
+  const settings = toLockSettings(routine);
+  const morning: JudgedMorning = { ...currentMorning(now, settings), ran };
   // A proof saved for this morning since its night began here (`proofUnlocks`). Its timing
   // against morning start was judged when it was saved, so a flight west or a later morning
   // start since then doesn't take the morning back; a new night since then does. That night is
-  // the one under the routine the proof was made under: a night shift saved after it names the
-  // same morning with a night that was never slept.
+  // the one under the routine governing now if it really ran under it (`nightRanUnder`), else the
+  // one under the routine the proof was made under: a night shift saved after it names the same
+  // morning with a night that was never slept.
   const proof = getProof(morning);
   const armed = getArmedNight();
-  const free = !armedInTime(now, settings, armed ? armedSince(armed) : null);
+  // A morning no night really ran into is free too (`nightRanUnder`): a switch from a night
+  // shift saved before its bedtime names this morning again under the new routine, and nothing
+  // ever held it.
+  const free = unrun || !armedInTime(now, settings, armed ? armedSince(armed) : null);
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
   const state = getLockState(
     now,
@@ -96,7 +101,8 @@ export function readLock(now = new Date()): LockState {
 
 /** The proof that unlocked the morning `now` belongs to (as `readLock` reads it), or null. */
 export function currentProof(now = new Date()): MorningProof | null {
-  return getProof(currentMorning(now, toLockSettings(routineAt(now))));
+  const { routine, ran } = judgedAt(now);
+  return getProof({ ...currentMorning(now, toLockSettings(routine)), ran });
 }
 
 /**
@@ -104,10 +110,31 @@ export function currentProof(now = new Date()): MorningProof | null {
  * night. An earlier bedtime is armed at once (it only tightens: `planArming`), so from 21:30
  * the windows shield while the old routine still says it's day, and an open would wake them.
  * The same night `nightAt` (routine.ts) shows and the arming plans.
+ *
+ * With no edit waiting, the routine in force as iOS runs it (`asArmed`, routine.ts): an edit
+ * whose arming waited out a phantom night applies at its bedtime, but with Locturne closed
+ * nothing re-arms, so the old windows shield from the old bedtime (a later one saved after the
+ * walk) or not until it (an earlier one). The lock follows them until the app re-arms, so an
+ * open from bed never wakes a night iOS really holds, and Home and the warning name the time
+ * the apps really sleep.
  */
 export function routineAt(now: Date): Routine {
+  return judgedAt(now).routine;
+}
+
+/**
+ * `routineAt`, and how the night into the morning under way ran (`nightRanUnder`, routine.ts):
+ * `ran` if under that routine (a waiting edit's early first night always is), `free` if under
+ * none. `recordProof` takes it, so a proof is judged as `readLock` judges the morning.
+ */
+export function judgedAt(now: Date): { routine: Routine; ran: boolean; free: boolean } {
   const pending = getPendingRoutine(now);
-  return pending && inPendingFirstNight(now) ? pending.routine : getRoutine(now);
+  if (pending && inPendingFirstNight(now)) return { routine: pending.routine, ran: true, free: false };
+  const inForce = getRoutine(now);
+  // While iOS registers new windows, they're the ones it runs.
+  const routine = pending ? inForce : asArmed(inForce, armingTimes ?? getArmedNight());
+  const under = nightRanUnder(currentMorning(now, toLockSettings(routine)), getRoutineChange(now));
+  return { routine, ran: under === 'routine', free: under === 'none' };
 }
 
 /**
@@ -273,7 +300,7 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
 export function proveMorning(kind: ProofKind, now = new Date()): LockState | null {
   const state = readLock(now);
   if (state.phase !== 'morning') return null;
-  if (!recordProof({ morningKey: state.morningKey, kind, at: now.getTime() })) return null;
+  if (!recordProof({ morningKey: state.morningKey, kind, at: now.getTime() }, judgedAt(now))) return null;
   return syncLock(now);
 }
 

@@ -222,6 +222,8 @@ test('a reschedule that fails doesn’t block the next one', async () => {
 
 test('before onboarding has saved a routine, the one passed in is planned', async () => {
   const late = { ...DEFAULT_ROUTINE, bedtime: 23 * 60 + 30 };
+  // Whatever is armed is armed for it (windows armed for other times would decide: `asArmed`).
+  fake.state.store['locturne.armedNight'] = { ...fake.armedNight(new Date(2026, 8, 1)), bedtime: late.bedtime };
   await n.rescheduleNotifications(late);
   assert.equal(+fireAt(ios.scheduled.get('locturne.bedtime.2026-10-04')!.trigger), +new Date(2026, 9, 3, 23, 15));
 });

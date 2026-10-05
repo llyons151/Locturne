@@ -14,10 +14,10 @@
  *
  * `planEmergency` and the log helpers are pure; `emergencyUnlock` applies the plan.
  */
-import { inPendingFirstNight, readLock, routineAt, syncLock } from './lock-controller.ts';
+import { inPendingFirstNight, judgedAt, readLock, routineAt, syncLock } from './lock-controller.ts';
 import { dateKey, settingsTakeEffectAt, type Phase } from './lock-state.ts';
 import { recordProof, type MorningProof } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, nextNightOn, toLockSettings } from './routine.ts';
+import { getPendingRoutine, nextNightOn, toLockSettings } from './routine.ts';
 import { endNap, getNap, nightLockArmed, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
 
 /** Seconds the exits screen waits before the unlock button works. */
@@ -92,7 +92,8 @@ function nextBedtime(now: Date): Date {
   // Inside a waiting edit's own first night (an earlier bedtime, armed at once): the next
   // bedtime is that routine's next one, not the old routine's later one tonight.
   if (pending && inPendingFirstNight(now)) return settingsTakeEffectAt(now, toLockSettings(pending.routine));
-  const next = settingsTakeEffectAt(now, toLockSettings(getRoutine(now)));
+  // The routine in force as iOS runs it: windows still armed for an older bedtime (`routineAt`).
+  const next = settingsTakeEffectAt(now, toLockSettings(routineAt(now)));
   if (!pending) return next;
   const edited = settingsTakeEffectAt(now, toLockSettings(pending.routine));
   return edited < next ? edited : next;
@@ -129,7 +130,7 @@ export function emergencyUnlock(now = new Date()): EmergencyUse | null {
     const proof: MorningProof = { morningKey: state.morningKey, kind: 'emergency', at: now.getTime() };
     // Judged by the routine governing now: inside a waiting edit's early first night, the
     // morning it leads into is the edit's.
-    recordProof(proof, routineAt(now));
+    recordProof(proof, judgedAt(now));
   }
   const use: EmergencyUse = { ...plan, at: now.getTime(), phase: state.phase, morningKey: state.morningKey };
   sharedSet(KEY, withUse(getEmergencyLog(), use));

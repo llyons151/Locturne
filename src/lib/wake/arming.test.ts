@@ -157,3 +157,42 @@ describe('planArming', () => {
     assert.equal(planArming(at(23, 1), next, null, armedFor(usual)).action, 'arm');
   });
 });
+
+describe('planArming: windows still armed for older times', () => {
+  // A later bedtime saved after the walk waited out a phantom night, and nothing re-armed with
+  // the app closed: at 23:00 the old windows shield, a night the lock follows (`asArmed`).
+  const later = routine(0, 9 * H);
+  test('waits while they hold a night the routine\'s own bedtime hasn\'t reached', () => {
+    assert.deepEqual(planArming(at(23, 30), later, null, armedFor(usual)), { action: 'defer', until: at(0, 0, 2) });
+  });
+  test('arms once its own night is under way, or in the day', () => {
+    assert.equal(planArming(at(0, 15, 2), later, null, armedFor(usual)).action, 'arm');
+    assert.equal(planArming(at(14), later, null, armedFor(usual)).action, 'arm');
+  });
+  test('arms at once on an evening that is off: the extension skipped those windows', () => {
+    const thursdayOff = routine(0, 9 * H, [0, 1, 2, 3, 5, 6]);
+    assert.equal(planArming(at(23, 30), thursdayOff, null, armedFor(usual)).action, 'arm');
+  });
+  test('an earlier bedtime arms at once: its night starts now', () => {
+    assert.equal(planArming(at(21, 15), routine(21 * H, 5 * H), null, armedFor(routine(22 * H + 30, 5 * H))).action, 'arm');
+  });
+});
+
+describe('planArming: a phantom night on an evening the routine in force has off', () => {
+  test('arms at once: the extension skips those windows, and waiting would leave the old ones to run', () => {
+    // Weeknights 08:00 to 09:00 (Monday to Friday evenings); at 08:00 Saturday, 21:00 to 05:00
+    // is saved, applying at 08:00 Sunday. Its Saturday-evening windows fall before that, in a
+    // night the routine in force doesn't have, but Saturday is off under it.
+    const weekdays = [1, 2, 3, 4, 5];
+    const active = routine(8 * H, 9 * H, weekdays);
+    const target = routine(21 * H, 5 * H, weekdays);
+    const pending = { routine: target, from: at(8, 0, 4).getTime() };
+    assert.equal(planArming(at(8, 0, 3), active, pending, armedFor(active)).action, 'arm');
+    // Every evening on: Saturday 21:00 would shield a phantom night, so it waits for it to end.
+    const daily = { routine: routine(21 * H, 5 * H), from: pending.from };
+    assert.deepEqual(planArming(at(8, 0, 3), routine(8 * H, 9 * H), daily, armedFor(routine(8 * H, 9 * H))), {
+      action: 'defer',
+      until: at(5, 0, 4),
+    });
+  });
+});
