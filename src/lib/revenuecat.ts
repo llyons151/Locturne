@@ -99,6 +99,9 @@ export const EXIT_ARM_KEY = 'locturne.exitArm';
  */
 export const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
+/** How long the SDK judges its cache by the server's time (RevenueCat's `requestDateGracePeriod`). */
+const SDK_SERVER_TIME_MS = 3 * 24 * 60 * 60 * 1000;
+
 /**
  * The latest server time RevenueCat has reported (ms, `CustomerInfo.requestDate`), so a clock
  * set back can't hold a lapsed subscription: the SDK's own cache judges expiry by the device
@@ -212,12 +215,17 @@ export function toOffers(
 
 /** What to remember of a `CustomerInfo`. */
 export function entitlementRecord(info: CustomerInfo, now: Date, cached = false): EntitlementRecord {
-  // The SDK's cache drops an entitlement from `active` by the phone's clock three days after it
-  // was fetched, before the app's offline grace can apply: from the cache, read it from `all`
-  // and let `cachedEntitlement` judge its end date.
-  const entitlement = (cached ? info.entitlements.all : info.entitlements.active)[ENTITLEMENT_ID];
+  // The SDK judges its cache by the server's time for three days after the fetch, then by the
+  // phone's clock, which drops a renewal it couldn't see before the app's offline grace can
+  // apply. Past those three days, read an entitlement that was active when the server answered
+  // from `all`, and let `cachedEntitlement` judge its end date. Before then, the SDK's verdict
+  // stands: a refund or revoke the server already reported stays unpaid.
+  const served = Date.parse(info.requestDate);
+  const fromAll =
+    cached && now.getTime() - served > SDK_SERVER_TIME_MS && (info.entitlements.all[ENTITLEMENT_ID]?.expirationDateMillis ?? 0) > served;
+  const entitlement = (fromAll ? info.entitlements.all : info.entitlements.active)[ENTITLEMENT_ID];
   const checkedAt = now.getTime();
-  if (!entitlement || (!cached && !entitlement.isActive) || forged(info)) return { active: false, checkedAt };
+  if (!entitlement || (!fromAll && !entitlement.isActive) || forged(info)) return { active: false, checkedAt };
   const record: EntitlementRecord = { active: true, productId: entitlement.productIdentifier, checkedAt };
   if (entitlement.expirationDateMillis != null) record.expiresAt = entitlement.expirationDateMillis;
   if (entitlement.periodType === 'TRIAL') record.trialStartedAt = entitlement.latestPurchaseDateMillis;

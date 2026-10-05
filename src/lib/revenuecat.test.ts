@@ -498,3 +498,17 @@ test('a renewal missed offline keeps its grace even after the SDK drops it from 
   sdk.info = { ...signed(cancelled, friday), entitlements: { ...cancelled.entitlements, active: {}, verification: 'VERIFIED' } } as CustomerInfo;
   assert.equal(await provider(sdk, store, 0.9, monday).isEntitled(), false);
 });
+
+test('a refund the server already reported stays unpaid when the SDK serves it from its cache', async () => {
+  const store = memoryKeyValue();
+  const refunded = new Date(2026, 10, 1, 12);
+  // Refunded: the entitlement ended at the refund, still marked as renewing.
+  const ended = customer({ productId: PRODUCT_IDS.annual, expiresAt: refunded.getTime() - 60_000 });
+  const answer = { ...signed(ended, refunded), entitlements: { ...ended.entitlements, active: {}, verification: 'VERIFIED' } } as CustomerInfo;
+  const sdk = fakeSdk();
+  sdk.info = answer;
+  assert.equal(await provider(sdk, store, 0.9, refunded).isEntitled(), false);
+  // The same answer again, now the SDK's cache: a minute and nearly three days later.
+  assert.equal(await provider(sdk, store, 0.9, new Date(refunded.getTime() + 60_000)).isEntitled(), false);
+  assert.equal(await provider(sdk, store, 0.9, new Date(refunded.getTime() + 2.9 * DAY)).isEntitled(), false);
+});
