@@ -18,6 +18,7 @@ import { useHealth } from '@/hooks/use-health';
 import { getNightPause, pauseWording } from '@/lib/emergency';
 import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
 import { tap } from '@/lib/haptics';
+import { pastLastPaid } from '@/lib/lock-controller';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
 import { getPendingRoutine, nightAt, type Routine, type WakeMethod } from '@/lib/routine';
@@ -101,8 +102,11 @@ export function HomeScreen() {
   const pause = lock.phase === 'night' ? getNightPause() : null;
 
   // The phase comes from the clock: after bedtime it says night even with nothing armed (never
-  // bought, stood down, or arming failed). Nothing is asleep then, so don't say it is.
-  const phase = lock.phase === 'night' && !nightLockArmed() ? 'day' : lock.phase;
+  // bought, stood down, or arming failed), or after a lapse's last paid night or morning.
+  // Nothing is asleep then, so don't say it is.
+  const underWay = lock.phase === 'night' || lock.phase === 'morning';
+  const phase =
+    (lock.phase === 'night' && !nightLockArmed()) || (underWay && pastLastPaid(lock.morningKey)) ? 'day' : lock.phase;
 
   // Development only: tap the label to see each look without waiting for the clock.
   const [preview, setPreview] = useState<HomeView | null>(null);
