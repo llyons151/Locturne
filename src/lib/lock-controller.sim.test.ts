@@ -507,8 +507,14 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   }
 
   function specRoutineEdit(next: Routine) {
-    // The next bedtime of the routine in force (`applyEdit` in routine.ts), even inside a waiting
-    // edit's early first night: the new edit replaces that one and applies when it would have.
+    // The next bedtime of the routine in force (`applyEdit` in routine.ts). Inside a waiting
+    // edit's early first night that edit already governs, so it's in force from now and the
+    // new edit waits for its next bedtime: replacing it would hand tonight back to the old,
+    // later bedtime and wake the apps from bed (edits made at night wait, GAME_PLAN).
+    const waiting = spec.routines.findIndex((r) => r.from > t);
+    if (spec.armedSince !== null && waiting >= 0 && routineAt(t) !== inForceAt(t)) {
+      spec.routines[waiting] = { ...spec.routines[waiting], from: t };
+    }
     const from = spec.armedSince !== null ? ls.settingsTakeEffectAt(new Date(t), rt.toLockSettings(inForceAt(t))).getTime() : t;
     spec.routines = spec.routines.filter((r) => r.from <= t);
     spec.routines.push({ routine: next, from });
@@ -680,7 +686,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         const next = { ...(rt.getPendingRoutine()?.routine ?? rt.getRoutine()), ...a.patch };
         const expected = { ...latestRoutine(), ...a.patch };
         assert.deepEqual(next, expected, 'harness and app agree on the routine being edited');
-        rt.saveRoutine(next);
+        rt.saveRoutine(next, new Date(t), lc.inPendingFirstNight(new Date(t)));
         specRoutineEdit(next);
         if (st.getArmedNight()) await lc.armRoutine().catch(() => {});
         else {
@@ -724,7 +730,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         lc.settleSubscription(true);
         await flush();
         const current = rt.getPendingRoutine()?.routine ?? rt.getRoutine();
-        rt.saveRoutine(current);
+        rt.saveRoutine(current, new Date(t), lc.inPendingFirstNight(new Date(t)));
         specRoutineEdit(current);
         await armTonight();
         await flush();

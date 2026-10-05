@@ -13,6 +13,7 @@ import { ATTRIBUTES, memoryKeyValue, PRODUCT_IDS, type KeyValue } from './purcha
 import {
   cachedEntitlement,
   createRevenueCatPurchases,
+  DEVICE_SEEN_AT_KEY,
   ENTITLEMENT_KEY,
   entitlementRecord,
   EXIT_ARM_KEY,
@@ -350,11 +351,14 @@ test('a clock once set forward doesn\'t lock a paying user out', async () => {
   const today = new Date(2026, 10, 1);
   const ahead = new Date(today.getTime() + 14 * DAY);
   const sdk = fakeSdk();
-  sdk.info = { ...customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() - DAY }), requestDate: today.toISOString() } as CustomerInfo;
+  sdk.info = signed(customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() - DAY }), today);
   await provider(sdk, store, 0.9, ahead).isEntitled();
-  // Clock set right; a trial bought now runs 7 days.
-  sdk.info = { ...customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() + 7 * DAY }), requestDate: today.toISOString() } as CustomerInfo;
-  assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
+  // Clock set right; a trial bought a minute later runs 7 days. The server's fresh answer
+  // counts although the clock is now behind the time the phone last showed.
+  const later = new Date(today.getTime() + 60_000);
+  sdk.info = signed(customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() + 7 * DAY }), later);
+  assert.equal(await provider(sdk, store, 0.9, later).isEntitled(), true);
+  assert.equal(sdk.invalidated, 1, 'asked afresh, the clock being behind the time seen');
 });
 
 /** A server answer at `at`, signed (Trusted Entitlements). */
@@ -429,4 +433,50 @@ test('an answer built on the phone counts only after the server\'s time has been
   const store = memoryKeyValue();
   store.set(SEEN_AT_KEY, today.getTime() - DAY);
   assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
+});
+
+test('a clock wound back again and again, RevenueCat blocked before a cancelled plan ended, stops counting', async () => {
+  const store = memoryKeyValue();
+  const expiresAt = new Date(2026, 10, 1).getTime();
+  // The last signed answer, a week before the plan ends; then RevenueCat is blocked for good.
+  const lastSeen = expiresAt - 7 * DAY;
+  store.set(SEEN_AT_KEY, lastSeen);
+  const plan = customer({ productId: PRODUCT_IDS.annual, expiresAt, willRenew: false });
+  const sdk = fakeSdk();
+  // The real SDK vends its disk cache without throwing, and judges it active by a clock before the end.
+  sdk.getCustomerInfo = async () => signed(plan, new Date(lastSeen));
+  // Long past the end, the clock is set to a day before it: nothing tells this from a real day.
+  assert.equal(await provider(sdk, store, 0.9, new Date(expiresAt - DAY)).isEntitled(), true);
+  // It runs on to the evening, and the app is opened again.
+  assert.equal(await provider(sdk, store, 0.9, new Date(expiresAt - 2 * 60 * 60 * 1000)).isEntitled(), true);
+  // Next morning, wound back to a day before the end again: behind a time the phone already showed.
+  assert.equal(await provider(sdk, store, 0.9, new Date(expiresAt - DAY)).isEntitled(), false);
+  assert.equal(sdk.invalidated, 1);
+  // Unblocked, the server answers: a payer is paid again at once, even with the clock still back.
+  const renewed = customer({ productId: PRODUCT_IDS.annual, expiresAt: expiresAt + 365 * DAY });
+  sdk.getCustomerInfo = async () => signed(renewed, new Date(expiresAt + 30 * DAY));
+  assert.equal(await provider(sdk, store, 0.9, new Date(expiresAt - DAY)).isEntitled(), true);
+  assert.equal(store.get(DEVICE_SEEN_AT_KEY), expiresAt - DAY, 'a fresh answer resets the time the phone showed');
+});
+
+test('the SDK\'s cache is judged by the app\'s rule: a cancelled plan ends on time, a renewing one keeps its grace', async () => {
+  const expiresAt = new Date(2026, 10, 1).getTime();
+  const lastSeen = expiresAt - DAY;
+  // Clock right, RevenueCat unreachable two days after the end: the SDK judges its cache by
+  // its requestDate for three days, so it still says active.
+  const now = new Date(expiresAt + 2 * DAY - 60_000);
+  const cancelled = memoryKeyValue();
+  cancelled.set(SEEN_AT_KEY, lastSeen);
+  const ended = fakeSdk();
+  ended.getCustomerInfo = async () => signed(customer({ productId: PRODUCT_IDS.annual, expiresAt, willRenew: false }), new Date(lastSeen));
+  assert.equal(await provider(ended, cancelled, 0.9, now).isEntitled(), false);
+  // A plan that renews, offline over its renewal: the offline grace keeps it paid.
+  const renewing = memoryKeyValue();
+  renewing.set(SEEN_AT_KEY, lastSeen);
+  const payer = fakeSdk();
+  payer.getCustomerInfo = async () => signed(customer({ productId: PRODUCT_IDS.annual, expiresAt }), new Date(lastSeen));
+  assert.equal(await provider(payer, renewing, 0.9, now).isEntitled(), true);
+  // A fresh answer is the server's word, judged by its own time.
+  payer.getCustomerInfo = async () => signed(customer({ productId: PRODUCT_IDS.annual, expiresAt: expiresAt + 365 * DAY }), now);
+  assert.equal(await provider(payer, renewing, 0.9, now).isEntitled(), true);
 });

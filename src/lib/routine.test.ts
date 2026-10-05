@@ -33,6 +33,17 @@ test('with nothing armed, an edit applies at once and drops a waiting one', () =
   assert.deepEqual(applyEdit(waiting, earlier, at(15), false), { active: earlier });
 });
 
+test('inside a waiting edit\'s early first night, that edit is in force and the new one waits for its next bedtime', () => {
+  // 21:30 saved in the day waits for 23:00 but already holds tonight from 21:30 (`early`).
+  const earlier = { ...DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 };
+  const waiting = { active: DEFAULT_ROUTINE, pending: { routine: earlier, from: at(23).getTime() } };
+  const stored = applyEdit(waiting, later, at(21, 40), true, true);
+  assert.deepEqual(stored.active, earlier);
+  assert.deepEqual(stored.pending, { routine: later, from: at(21, 30, 2).getTime() });
+  // Not inside it: the new edit replaces the waiting one, from the routine in force's bedtime.
+  assert.deepEqual(applyEdit(waiting, later, at(15), true, false), { active: DEFAULT_ROUTINE, pending: { routine: later, from: at(23).getTime() } });
+});
+
 test('nextNightOn skips nights off, at that night’s bedtime, and is null with every night off', () => {
   // Thursday Oct 1 and Friday Oct 2 off (getDay 4 and 5).
   saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60, activeNights: [0, 1, 2, 3, 6] }, at(12));

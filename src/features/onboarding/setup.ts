@@ -3,6 +3,7 @@
  * keep the setup saved and arm nothing). Saving never blocks anything: only `armTonight`
  * does, and only after purchase.
  */
+import { inPendingFirstNight } from '@/lib/lock-controller';
 import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder, TRIAL_REMINDER_KEY } from '@/lib/notifications';
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
@@ -46,12 +47,19 @@ export function saveSetup(answers: Answers): void {
   // Onboarding only asks for these three, so a rerun (or the paywall reopened from You) keeps
   // the nights off and step goal set on the Routine tab.
   const current = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : DEFAULT_ROUTINE;
-  saveRoutine({
-    ...current,
-    bedtime: answers.bedtime,
-    morningStart: answers.wake,
-    method: answers.method ?? DEFAULT_ROUTINE.method,
-  });
+  const now = new Date();
+  // A rerun inside a waiting edit's early first night: that edit governs tonight, so this one
+  // waits for its next bedtime (`applyEdit`).
+  saveRoutine(
+    {
+      ...current,
+      bedtime: answers.bedtime,
+      morningStart: answers.wake,
+      method: answers.method ?? DEFAULT_ROUTINE.method,
+    },
+    now,
+    inPendingFirstNight(now),
+  );
   rescheduleNotifications().catch(() => {});
   sharedSet(QUIZ_KEY, pickQuiz(answers));
   if (answers.found) {

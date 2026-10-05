@@ -179,7 +179,10 @@ export function RoutineScreen() {
     // offers "Finish setup" instead; this only guards a stale render.
     if (!hasRoutine()) return;
     const wasWaiting = from !== null;
-    saveRoutine(toStored(next));
+    // Inside a waiting edit's early first night, that edit governs tonight: this one waits
+    // for its next bedtime rather than handing tonight back to the old, later bedtime.
+    const savedAt = new Date();
+    saveRoutine(toStored(next), savedAt, inPendingFirstNight(savedAt));
     // The shield words the extension copies later (tonight's, the morning's) follow the saved
     // routine: rewrite them now, even when the windows stay as they are (`kept`).
     syncLock();

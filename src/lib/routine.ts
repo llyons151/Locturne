@@ -59,12 +59,24 @@ export function settleRoutine(stored: StoredRoutine, now: Date): StoredRoutine {
  * Pure: records an edit. It waits for the next bedtime only while a night is armed: the
  * first save (onboarding), and any save while nothing is armed (they declined the paywall,
  * or every night was off), applies at once, since there's no lock to loosen.
+ *
+ * `early`: `now` is inside the waiting edit's own early first night, which already governs
+ * (`inPendingFirstNight`, lock-controller.ts, which this file can't import). That edit is then
+ * in force, and the new one waits for its next bedtime: replacing it would hand tonight back
+ * to the old routine's later bedtime and wake the apps from bed.
  */
-export function applyEdit(stored: StoredRoutine | undefined, next: Routine, now: Date, armed = true): StoredRoutine {
+export function applyEdit(
+  stored: StoredRoutine | undefined,
+  next: Routine,
+  now: Date,
+  armed = true,
+  early = false,
+): StoredRoutine {
   if (!stored || !armed) return { active: next };
   const settled = settleRoutine(stored, now);
-  const from = settingsTakeEffectAt(now, toLockSettings(settled.active)).getTime();
-  return { active: settled.active, pending: { routine: next, from } };
+  const active = early && settled.pending ? settled.pending.routine : settled.active;
+  const from = settingsTakeEffectAt(now, toLockSettings(active)).getTime();
+  return { active, pending: { routine: next, from } };
 }
 
 function read(now: Date): StoredRoutine | undefined {
@@ -90,9 +102,13 @@ export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | 
   return read(now)?.pending ?? null;
 }
 
-/** Saves an edit and returns when it takes effect. */
-export function saveRoutine(next: Routine, now = new Date()): Date {
-  const stored = applyEdit(read(now), next, now, getArmedNight() !== null);
+/**
+ * Saves an edit and returns when it takes effect. Callers pass `inPendingFirstNight(now)`
+ * (lock-controller.ts) as `early`, so an edit made inside a waiting edit's early first night
+ * waits for the next bedtime instead of ending tonight (`applyEdit`).
+ */
+export function saveRoutine(next: Routine, now = new Date(), early = false): Date {
+  const stored = applyEdit(read(now), next, now, getArmedNight() !== null, early);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;
 }

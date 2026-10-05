@@ -107,6 +107,15 @@ export const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
  */
 export const SEEN_AT_KEY = 'locturne.entitlementSeenAt';
 
+/**
+ * The latest device time seen at a check (ms) since the last fresh signed answer. With
+ * RevenueCat blocked, a clock wound back again and again to somewhere between that answer and
+ * a cancelled plan's end never falls behind `SEEN_AT_KEY`, but it falls behind this as soon as
+ * it is wound back past a time the phone already showed. Each fresh answer resets it to now,
+ * so a clock once set forward costs a payer nothing once the server answers.
+ */
+export const DEVICE_SEEN_AT_KEY = 'locturne.entitlementDeviceSeenAt';
+
 /** How far behind the server time seen the clock may be before answers are judged by it. */
 const CLOCK_SLACK_MS = 60 * 60 * 1000;
 
@@ -251,16 +260,30 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   let inFlight = 0;
 
   const cached = () => store.get<EntitlementRecord>(ENTITLEMENT_KEY);
-  /** Now, or the server time seen when the clock has been set back behind it. */
-  const seenAt = () => {
-    const seen = store.get<number>(SEEN_AT_KEY);
+  const time = (key: string) => {
+    const seen = store.get<number>(key);
     return typeof seen === 'number' && Number.isFinite(seen) ? seen : 0;
   };
-  const behind = () => now().getTime() < seenAt() - CLOCK_SLACK_MS;
-  const judgedAt = () => new Date(behind() ? seenAt() : now().getTime());
+  /** The latest server time seen (a signed answer's `requestDate`). */
+  const seenAt = () => time(SEEN_AT_KEY);
+  /** The clock is set back behind a time already seen: the server's, or its own since the last answer. */
+  const behind = () => now().getTime() < Math.max(seenAt(), time(DEVICE_SEEN_AT_KEY)) - CLOCK_SLACK_MS;
+  /** Now, or the server time seen when the clock has been set back behind it. */
+  const judgedAt = () => new Date(now().getTime() < seenAt() - CLOCK_SLACK_MS ? seenAt() : now().getTime());
+  const noteDeviceTime = () => {
+    if (now().getTime() > time(DEVICE_SEEN_AT_KEY)) store.set(DEVICE_SEEN_AT_KEY, now().getTime());
+  };
   const remember = (info: CustomerInfo) => {
     const served = Date.parse(info.requestDate);
-    if (info.entitlements.verification === SIGNED && served > seenAt()) store.set(SEEN_AT_KEY, served);
+    // A signed answer newer than any seen is the server's, just now. One no newer is the SDK's
+    // cache, which it judges by its `requestDate` for three days past it (RevenueCat's
+    // `requestDateGracePeriod`): a cancelled plan would read active up to three days past its end.
+    const fresh = info.entitlements.verification === SIGNED && served > seenAt();
+    const cache = served <= seenAt();
+    if (fresh) {
+      store.set(SEEN_AT_KEY, served);
+      store.set(DEVICE_SEEN_AT_KEY, now().getTime());
+    }
     let record = entitlementRecord(info, now());
     // An answer built on the phone is judged by the phone's clock, so it only counts once this
     // install has seen the server's time and the clock isn't behind it (a reinstall, the
@@ -268,9 +291,12 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     if (record.active && info.entitlements.verification === ON_DEVICE && (seenAt() === 0 || behind())) {
       record = { ...record, active: false };
     }
-    const at = judgedAt();
-    // The clock is behind: the store's answer may be its stale cache, judged by that clock.
-    if (record.active && at.getTime() > now().getTime() && !cachedEntitlement(record, at)) {
+    // The clock is behind a time already seen: only a fresh answer counts, judged by the
+    // server's time (the SDK's cache is judged by that clock, and never goes stale behind it).
+    if (record.active && behind() && !fresh) record = { ...record, active: false };
+    // The SDK's cache, or a fresh answer with the clock behind: the app's own rule, with the
+    // offline grace for a renewal it couldn't see.
+    if (record.active && (cache || behind()) && !cachedEntitlement(record, judgedAt())) {
       record = { ...record, active: false };
     }
     store.set(ENTITLEMENT_KEY, record);
@@ -281,6 +307,7 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     // With the clock behind its last fetch, the SDK's cache never goes stale and it never asks
     // again: make it ask, so a fresh server time judges the answer.
     const wasBehind = behind();
+    noteDeviceTime();
     try {
       if (wasBehind) await sdk.invalidateCustomerInfoCache();
       return remember(await sdk.getCustomerInfo());

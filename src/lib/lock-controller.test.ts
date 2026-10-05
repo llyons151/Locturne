@@ -91,10 +91,10 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
 /** The controller reads the clock only through `now`, except `armedAt` in the fake. */
 let clock = 0;
 
-const { syncLock, readLock, proveMorning, armRoutine, armRetryAt, onArmed, settleSubscription, subscriptionEnded } = await import(
+const { syncLock, readLock, proveMorning, armRoutine, armRetryAt, onArmed, settleSubscription, subscriptionEnded, inPendingFirstNight } = await import(
   './lock-controller.ts'
 );
-const { saveRoutine, DEFAULT_ROUTINE } = await import('./routine.ts');
+const { saveRoutine, getRoutine, getPendingRoutine, DEFAULT_ROUTINE } = await import('./routine.ts');
 const { recordProof, getProofs } = await import('./morning-proof.ts');
 
 /** Thursday 2026-10-01 at hh:mm, local time. Default routine: 23:00 to 07:00, every night. */
@@ -347,6 +347,50 @@ describe('an earlier bedtime saved in the day (#137)', () => {
     // edit applies and tonight is off.
     assert.equal(readLock(at(21, 40)).phase, 'day');
     assert.equal(readLock(at(23, 30)).phase, 'off');
+  });
+
+  test('a later bedtime saved from bed in that night waits for the next bedtime: tonight stays asleep', async () => {
+    await earlier();
+    nightHeld = true; // the 21:30 window fired
+    assert.equal(syncLock(at(21, 40)).phase, 'night');
+    calls = [];
+    // The Routine tab passes `inPendingFirstNight`: the 21:30 edit governs tonight, so it's in
+    // force now and the new one waits for its next bedtime, tomorrow at 21:30.
+    clock = at(21, 40).getTime();
+    assert.ok(inPendingFirstNight(at(21, 40)));
+    const from = saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 23 * 60 + 30 }, at(21, 40), inPendingFirstNight(at(21, 40)));
+    assert.equal(+from, +at(21, 30, 2));
+    assert.equal(getRoutine(at(21, 40)).bedtime, 21 * 60 + 30);
+    assert.equal(getPendingRoutine(at(21, 40))?.routine.bedtime, 23 * 60 + 30);
+    const state = syncLock(at(21, 40));
+    assert.equal(state.phase, 'night');
+    assert.equal(state.morningKey, '2026-10-02');
+    assert.ok(!calls.includes('wake:night'), `woke the bedtime apps from bed: ${calls.join(',')}`);
+    // The windows move to tomorrow's 23:30 (as for any edit from bed); tonight stays held.
+    await armRoutine(at(21, 40));
+    assert.ok(nightHeld);
+    assert.ok(!calls.includes('wake:night'), `woke after arming: ${calls.join(',')}`);
+    assert.equal(readLock(at(23, 10)).phase, 'night');
+    assert.equal(readLock(at(6, 50, 2)).phase, 'night', 'the morning still starts at 07:00');
+  });
+
+  test('a sync while iOS registers an earlier bedtime saved inside its night doesn\'t wake it', async () => {
+    await armYesterday();
+    recordProof({ morningKey: '2026-10-01', kind: 'steps', at: at(7, 30).getTime() });
+    clock = at(21, 45).getTime();
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 }, at(21, 45));
+    let release = () => {};
+    armGate = new Promise((r) => (release = r));
+    const run = armRoutine(at(21, 45));
+    nightHeld = true; // iOS ran the 21:30 window's start as soon as it was registered
+    assert.equal(syncLock(at(21, 45)).phase, 'night', 'a foreground in the registration gap');
+    const woke = calls.includes('wake:night');
+    release();
+    armGate = null;
+    await run;
+    assert.ok(!woke, `woke mid-registration: ${calls.join(',')}`);
+    assert.equal(armed?.bedtime, 21 * 60 + 30);
+    assert.ok(nightHeld);
   });
 });
 

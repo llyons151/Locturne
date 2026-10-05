@@ -121,7 +121,11 @@ function governsEarly(at: Date, pending: { routine: Routine; from: number }, inF
   const inside = at >= latest.start && at < latest.end && latest.end.getTime() > pending.from;
   if (!inside) return false;
   const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
-  if (!holdsEarly(at, evening, inForce, getArmedNight())) return false;
+  // While iOS registers new windows, it can run one's start at once (shielding the early
+  // night) before `getArmedNight()` names them: judge by the times being armed too, or a sync
+  // in that gap would read day and wake the apps until `arm` sleeps them again.
+  const held = holdsEarly(at, evening, inForce, getArmedNight()) || (!!armingTimes && holdsEarly(at, evening, inForce, armingTimes));
+  if (!held) return false;
   return !subscriptionEnded() || underWayWhenEnded(dateKey(latest.end));
 }
 
@@ -289,6 +293,8 @@ function planFor(now: Date): ArmPlan {
 export type ArmResult = 'armed' | 'kept' | 'disarmed' | 'deferred' | 'unavailable';
 
 let arming: Promise<ArmResult> | null = null;
+/** The times `armNight` is handing iOS right now, until it returns. */
+let armingTimes: { bedtime: number; morningStart: number } | null = null;
 /** A call that came in while arming: its clock, so the run after this one plans for it. */
 let armAgainAt: Date | null = null;
 
@@ -362,7 +368,12 @@ async function arm(now: Date): Promise<ArmResult> {
     return 'disarmed';
   }
   const { bedtime, morningStart } = plan.times;
-  await armNight(plan.windows, 'night', { bedtime, morningStart });
+  armingTimes = { bedtime, morningStart };
+  try {
+    await armNight(plan.windows, 'night', { bedtime, morningStart });
+  } finally {
+    armingTimes = null;
+  }
   // The subscription was found ended while iOS registered the windows, and everything stood
   // down: nothing stays armed without one.
   if (isStoodDown()) {
