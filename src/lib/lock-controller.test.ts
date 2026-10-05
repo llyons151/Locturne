@@ -17,6 +17,7 @@ let live = 0;
 let nightPicks = 3;
 let shieldTexts: { title: string; tap: boolean }[] = [];
 let morningSubtitles: string[] = [];
+let nightSubtitles: string[] = [];
 let napTidies = 0;
 let stoodDown = false;
 /** While set, `armNight` waits on it, like iOS registering windows over the bridge. */
@@ -69,7 +70,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     getLimits: () => [],
     limitUsedUpToday: () => false,
     setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),
-    setNightShieldText: () => {},
+    setNightShieldText: (text: { subtitle: string }) => nightSubtitles.push(text.subtitle),
     setMorningShieldText: (text: { subtitle: string }) => morningSubtitles.push(text.subtitle),
     setAlwaysShieldText: () => {},
     setLimitShieldText: () => {},
@@ -96,6 +97,7 @@ beforeEach(() => {
   calls = [];
   shieldTexts = [];
   morningSubtitles = [];
+  nightSubtitles = [];
   stoodDown = false;
   armGate = null;
   nightHeld = false;
@@ -228,6 +230,19 @@ describe('the shield', () => {
     assert.match(morningSubtitles.at(-1) ?? '', /steps/);
     assert.equal(registerScanCode({ kind: 'qr', data: 'LOCTURNE-abcd', type: 'qr' }, at(15)), null);
     assert.match(morningSubtitles.at(-1) ?? '', /scan your code/);
+  });
+});
+
+describe('the words for a waiting edit', () => {
+  test('an edit made in bed keeps tonight\'s shields on the routine in force', async () => {
+    await armYesterday();
+    nightHeld = true;
+    saveRoutine({ ...DEFAULT_ROUTINE, morningStart: 6 * 60 + 30 }, at(1, 0, 1)); // waits for tonight
+    syncLock(at(1, 0, 1));
+    assert.match(nightSubtitles.at(-1) ?? '', /after 7/);
+    // From morning start on (proven or not), the next window is the edit's.
+    syncLock(at(7, 30, 1));
+    assert.match(nightSubtitles.at(-1) ?? '', /after 6:30/);
   });
 });
 

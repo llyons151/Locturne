@@ -305,8 +305,12 @@ function applyShieldText(state: LockState, now: Date): void {
   const routine = { ...saved, method: methodInUse(saved.method) };
   const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
   setShieldText(shieldTextFor(state, routine, now, limitReached), shieldTap(state.phase));
+  // The words for the next window and the next morning start: a waiting edit's, unless it's
+  // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
+  // coming morning still run on the routine in force). From morning start on, both are next
+  // night's.
   const pending = getPendingRoutine(now)?.routine;
-  const next = pending ? { ...pending, method: methodInUse(pending.method) } : routine;
+  const next = pending && state.phase !== 'night' ? { ...pending, method: methodInUse(pending.method) } : routine;
   setNightShieldText(shieldCopy('night', next));
   setMorningShieldText(shieldCopy('morning', next), shieldTap('morning'));
   setAlwaysShieldText(shieldCopy('always', routine));
