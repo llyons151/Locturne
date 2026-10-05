@@ -128,8 +128,12 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     let r = routine;
     let { start, end } = pick(r);
     if (pending && start.getTime() >= pending.from) {
+      const held = routine.activeNights.includes(atMinute(end, 0, -1).getDay());
       r = pending.routine;
       ({ start, end } = pick(r));
+      // An earlier bedtime only starts early if iOS holds it (that evening on in the routine
+      // in force: `inPendingFirstNight`). Otherwise the edit's first night starts at `from`.
+      if (!held && start.getTime() < pending.from) start = new Date(pending.from);
     }
     if (start >= end) continue;
     // The evening before the morning starts the night, even when bedtime is after midnight.

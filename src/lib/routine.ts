@@ -116,7 +116,13 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   const routine = usePending ? pending.routine : getRoutine(now);
   const night = usePending && pendingNight ? pendingNight : nightUnder(routine);
   const evening = new Date(night.end.getFullYear(), night.end.getMonth(), night.end.getDate() - 1).getDay();
-  return { routine, start: night.start, on: routine.activeNights.includes(evening) };
+  // An earlier start than `from` is only real if iOS holds it early, which needs that evening
+  // on in the routine in force (`inPendingFirstNight` in lock-controller.ts). Otherwise the
+  // edit's night starts at `from`.
+  const early = usePending && pending && night.start.getTime() < pending.from;
+  const held = getRoutine(now).activeNights.includes(evening);
+  const begins = early && pending && !held ? new Date(pending.from) : night.start;
+  return { routine, start: begins, on: routine.activeNights.includes(evening) };
 }
 
 /** The start of the first night at or after `from` that's on, a week out at most. Null when every night is off. */

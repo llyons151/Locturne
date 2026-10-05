@@ -1,7 +1,8 @@
 import { useLock } from '@/hooks/use-lock';
 import type { LockState } from '@/lib/lock-state';
 import { getProof, type MorningProof } from '@/lib/morning-proof';
-import { getRoutine, type Routine } from '@/lib/routine';
+import { routineAt } from '@/lib/lock-controller';
+import { type Routine } from '@/lib/routine';
 
 /**
  * What Home shows: the live lock state from `useLock` (which syncs the shields and their
@@ -20,5 +21,6 @@ export function useHomeState(): HomeData {
   // Home mounts under onboarding, before a routine exists, and kept showing the default.
   'use no memo';
   const lock = useLock();
-  return { lock, routine: getRoutine(), proof: getProof(lock.morningKey) };
+  // The routine governing now: a waiting edit inside its own early first night (#137).
+  return { lock, routine: routineAt(new Date()), proof: getProof(lock.morningKey) };
 }

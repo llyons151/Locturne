@@ -65,3 +65,11 @@ test('a waiting edit to an earlier bedtime governs its first night, which starts
   // Wednesday's own night, before the edit's, stays on the old routine.
   assert.equal(nightAt(at(23, 0, 0), at(23, 45, 0)).routine.bedtime, 23 * 60);
 });
+
+test('nightAt: an earlier bedtime on an evening off in force starts at the edit, not early', () => {
+  // Thursday evening (4) off in force; the edit turns it on at 21:30 from Thursday's 23:00.
+  const inForce = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 5, 6] };
+  const edit = { ...DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 };
+  sharedSet('locturne.routine', { active: inForce, pending: { routine: edit, from: +at(23) } });
+  assert.equal(+nightAt(at(23), at(14)).start, +at(23));
+});

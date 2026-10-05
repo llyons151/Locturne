@@ -16,7 +16,7 @@ import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
 import { ChoiceRow, Section, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
-import { armRoutine } from '@/lib/lock-controller';
+import { armRoutine, syncLock } from '@/lib/lock-controller';
 import { MIN_WINDOW } from '@/lib/night-plan';
 import { rescheduleNotifications } from '@/lib/notifications';
 import {
@@ -175,6 +175,9 @@ export function RoutineScreen() {
   const commit = (next: Routine) => {
     const wasWaiting = from !== null;
     saveRoutine(toStored(next));
+    // The shield words the extension copies later (tonight's, the morning's) follow the saved
+    // routine: rewrite them now, even when the windows stay as they are (`kept`).
+    syncLock();
     const loaded = load();
     setLoaded(loaded);
     // The note appears above the control VoiceOver is on, and iOS has no live regions.

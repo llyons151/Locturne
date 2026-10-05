@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
 import * as haptic from '@/lib/haptics';
-import { readLock } from '@/lib/lock-controller';
+import { readLock, routineAt } from '@/lib/lock-controller';
 import { getRoutine } from '@/lib/routine';
 import {
   draftQrData,
@@ -93,7 +93,7 @@ function words(stage: Stage): { line: string; body: string } {
     case 'notYet':
       return {
         line: 'Shh. Still bedtime.',
-        body: `Scanning works from ${formatPreset(getRoutine().morningStart)}. Bedtime wins until then.`,
+        body: `Scanning works from ${formatPreset(routineAt(new Date()).morningStart)}. Bedtime wins until then.`,
       };
     case 'awake':
       return { line: "They're already up.", body: 'Nothing to scan for until tomorrow morning.' };

@@ -34,8 +34,8 @@ const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinu
 
 /** "Apps awake until 10:00 PM", from the routine that runs tonight (a waiting edit, a night off). */
 function awakeLine(bedtimeStart: Date): string {
-  const { routine, on } = nightAt(bedtimeStart);
-  return on ? `Apps awake until ${formatPreset(routine.bedtime)}.` : 'Apps awake. Tonight is off.';
+  const { start, on } = nightAt(bedtimeStart);
+  return on ? `Apps awake until ${formatPreset(start.getHours() * 60 + start.getMinutes())}.` : 'Apps awake. Tonight is off.';
 }
 
 /**

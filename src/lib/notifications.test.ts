@@ -81,6 +81,13 @@ test('after a lapse, only the morning still covered gets a note; later nights ge
   assert.deepEqual(summary(plan({ now: at(4, 2), lastPaidMorning: '2026-10-04' })), ['morning 4 7:0']);
 });
 
+test('an earlier bedtime on an evening that was off starts at the edit, not early (iOS doesn\'t hold it)', () => {
+  const offSaturday = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 4, 5] };
+  const pending = { routine: { ...DEFAULT_ROUTINE, bedtime: 21 * H + 30 }, from: at(3, 23).getTime() };
+  const first = summary(plan({ routine: offSaturday, pending })).find((n) => n.startsWith('bedtime 3'));
+  assert.equal(first, 'bedtime 3 22:45');
+});
+
 test('nights switched off get nothing, including their morning', () => {
   // Saturday (6) off: no warning on the 3rd and no morning note on the 4th.
   const routine = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 4, 5] };

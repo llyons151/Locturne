@@ -383,12 +383,14 @@ function Status({
     );
   }
   // An edit waiting for bedtime governs tonight from its first night.
-  const { routine: tonight, on: tonightOn } = nightAt(nextChange);
+  const { start: tonightStarts, on: tonightOn } = nightAt(nextChange);
   return (
     <View style={styles.statusRow}>
       <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
       <Text style={[styles.status, styles.flex]}>
-        {tonightOn ? `Apps awake until ${clockLabel(tonight.bedtime)}` : 'Apps awake. Tonight is off.'}
+        {tonightOn
+          ? `Apps awake until ${clockLabel(tonightStarts.getHours() * 60 + tonightStarts.getMinutes())}`
+          : 'Apps awake. Tonight is off.'}
       </Text>
     </View>
   );
