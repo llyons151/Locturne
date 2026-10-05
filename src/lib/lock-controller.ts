@@ -14,7 +14,7 @@
  */
 import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { getProof, recordProof, type ProofKind } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, toLockSettings, type Routine } from './routine.ts';
+import { getPendingRoutine, getRoutine, holdsEarly, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import {
   armedSince,
@@ -103,8 +103,9 @@ export function routineAt(now: Date): Routine {
 
 /**
  * Is `now` inside a waiting edit's own first night, which `routineAt` then governs? Only when
- * iOS holds that night early: the routine in force has its evening on (otherwise the monitor
- * extension skips the early windows and arming waits for the edit: wake/arming.ts). Once the
+ * iOS holds that night early (`holdsEarly`, routine.ts): the windows armed are in their night
+ * and the routine in force has its evening on. Arming can wait for a phantom night to pass
+ * (wake/arming.ts), and the extension skips the early windows of an evening that's off. Once the
  * subscription was found ended, only if that night was the one under way then: a lapse lets
  * only the night or morning under way finish, and an early first night after it is a new one.
  */
@@ -119,7 +120,7 @@ function governsEarly(at: Date, pending: { routine: Routine; from: number }, inF
   const inside = at >= latest.start && at < latest.end && latest.end.getTime() > pending.from;
   if (!inside) return false;
   const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
-  if (!inForce.activeNights.includes(evening)) return false;
+  if (!holdsEarly(at, evening, inForce, getArmedNight())) return false;
   return !subscriptionEnded() || underWayWhenEnded(dateKey(latest.end));
 }
 
@@ -263,6 +264,17 @@ export function proveMorning(kind: ProofKind, now = new Date()): LockState | nul
   return syncLock(now);
 }
 
+/**
+ * When arming that waits for a phantom night to pass (`planArming`'s `defer`) can go ahead,
+ * or null. Nothing re-arms at that moment by itself, so an app left open (`useLock`) syncs
+ * then: the waiting edit's windows go in, and an earlier bedtime starts early as Home says.
+ */
+export function armRetryAt(now = new Date()): Date | null {
+  if (!isScreenTimeAvailable() || !getArmedNight()) return null;
+  const plan = planFor(now);
+  return plan.action === 'defer' && plan.until > now ? plan.until : null;
+}
+
 function planFor(now: Date): ArmPlan {
   const armed = getArmedNight();
   return planArming(
@@ -291,8 +303,11 @@ let armAgainAt: Date | null = null;
 export function armRoutine(now = new Date()): Promise<ArmResult> {
   // One at a time: a second call while iOS is still registering waits for the first, then
   // plans again (the first planned against the routine before the edit that made the call:
-  // spin the hour, then the minutes, and tonight would lock at the old hour). Capped, since
-  // the sync inside `arm` can ask again while it's still running.
+  // spin the hour, then the minutes, and tonight would lock at the old hour). Not capped by
+  // count: a capped run dropped an edit that landed during its last re-run, and iOS kept the
+  // edit before it. It still ends: the sync inside `arm` asks again only while
+  // the plan isn't `keep`, and once a run has armed what the plan wants, that ask finds the
+  // same times (break below), a deferral or a disarm (neither of which syncs and asks again).
   if (arming) {
     // The later clock wins: the sync inside `arm` asks again with the run's own, older one.
     armAgainAt = armAgainAt && armAgainAt > now ? armAgainAt : now;
@@ -300,14 +315,14 @@ export function armRoutine(now = new Date()): Promise<ArmResult> {
   }
   arming = (async () => {
     let result = await arm(now);
-    for (let rerun = 0; armAgainAt && rerun < 3; rerun++) {
+    while (armAgainAt) {
       const at = armAgainAt;
       armAgainAt = null;
       // Only for times that changed: when iOS keeps reporting a different window count for
       // the same times, arming again doesn't help, and each try re-registers every window.
       const plan = planFor(at);
       const armed = getArmedNight();
-      if (plan.action === 'arm' && armed && armed.bedtime === plan.times.bedtime && armed.morningStart === plan.times.morningStart) break;
+      if (plan.action === 'arm' && armed && armed.bedtime === plan.times.bedtime && armed.morningStart === plan.times.morningStart) continue;
       result = await arm(at);
     }
     return result;
@@ -318,6 +333,22 @@ export function armRoutine(now = new Date()): Promise<ArmResult> {
   return arming;
 }
 
+const armListeners = new Set<() => void>();
+
+/**
+ * Called after `armRoutine` hands iOS new windows or stops them. Whatever was planned from
+ * the windows iOS had (the notification plan: a deferred earlier bedtime starts early only
+ * once its windows are armed, `holdsEarly`) re-plans here. Returns the unsubscribe.
+ */
+export function onArmed(listener: () => void): () => void {
+  armListeners.add(listener);
+  return () => armListeners.delete(listener);
+}
+
+function armChanged(): void {
+  for (const listener of armListeners) listener();
+}
+
 async function arm(now: Date): Promise<ArmResult> {
   if (!isScreenTimeAvailable() || getAccess() !== 'approved') return 'unavailable';
   const plan = planFor(now);
@@ -326,6 +357,7 @@ async function arm(now: Date): Promise<ArmResult> {
   if (plan.action === 'disarm') {
     disarmNight();
     syncLock(now);
+    armChanged();
     return 'disarmed';
   }
   const { bedtime, morningStart } = plan.times;
@@ -334,10 +366,12 @@ async function arm(now: Date): Promise<ArmResult> {
   // down: nothing stays armed without one.
   if (isStoodDown()) {
     disarmNight();
+    armChanged();
     return 'disarmed';
   }
   if (readLock(now).phase === 'night' && selectionSize('night') > 0) sleepApps('night');
   syncLock(now);
+  armChanged();
   return 'armed';
 }
 

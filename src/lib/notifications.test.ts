@@ -88,6 +88,18 @@ test('an earlier bedtime on an evening that was off starts at the edit, not earl
   assert.equal(first, 'bedtime 3 22:45');
 });
 
+test('an earlier bedtime whose arming waits warns at the bedtime iOS still has', () => {
+  // At 07:05 on the 3rd, after the walk, bedtime moves 23:00 to 22:00 and the morning 07:00
+  // to 08:00. Arming waits for 08:00 (wake/arming.ts), so until a sync after it iOS has the
+  // 23:00 windows: with the app left closed the apps sleep at 23:00.
+  const pending = { routine: { ...DEFAULT_ROUTINE, bedtime: 22 * H, morningStart: 8 * H }, from: at(3, 23).getTime() };
+  const deferred = plan({ pending, now: at(3, 7, 5), armedTimes: { bedtime: 23 * H, morningStart: 7 * H } });
+  assert.equal(summary(deferred).find((n) => n.startsWith('bedtime 3')), 'bedtime 3 22:45');
+  // The sync that arms the edit re-plans (`onArmed`): now 22:00 is held.
+  const armed = plan({ pending, now: at(3, 8, 30), armedTimes: { bedtime: 22 * H, morningStart: 8 * H } });
+  assert.equal(summary(armed).find((n) => n.startsWith('bedtime 3')), 'bedtime 3 21:45');
+});
+
 test('nights switched off get nothing, including their morning', () => {
   // Saturday (6) off: no warning on the 3rd and no morning note on the 4th.
   const routine = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 4, 5] };

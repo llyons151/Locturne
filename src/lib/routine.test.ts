@@ -59,11 +59,25 @@ test('a waiting edit to an earlier bedtime governs its first night, which starts
   // edit's, and it starts at 22:00 (the windows only tighten, so they're armed early).
   const earlier = { ...DEFAULT_ROUTINE, bedtime: 22 * 60 };
   sharedSet('locturne.routine', { active: DEFAULT_ROUTINE, pending: { routine: earlier, from: +at(23) } });
+  sharedSet('locturne.armedNight', { ...fake.armedNight(), bedtime: 22 * 60 });
   const night = nightAt(at(22), at(23, 45, 0));
   assert.equal(night.routine.bedtime, 22 * 60);
   assert.equal(+nextNightOn(at(22), at(23, 45, 0))!, +at(22));
   // Wednesday's own night, before the edit's, stays on the old routine.
   assert.equal(nightAt(at(23, 0, 0), at(23, 45, 0)).routine.bedtime, 23 * 60);
+});
+
+test('nightAt: an earlier bedtime whose arming waits (iOS still has 23:00) starts at the edit, not early', () => {
+  // At 07:05, after the walk, bedtime moves 23:00 to 22:00 and the morning 07:00 to 08:00.
+  // Arming waits for 08:00 (a 07:15 window would shield a phantom night: wake/arming.ts), so
+  // with the app closed iOS sleeps the apps at 23:00, and Home must say so.
+  const edit = { ...DEFAULT_ROUTINE, bedtime: 22 * 60, morningStart: 8 * 60 };
+  sharedSet('locturne.routine', { active: DEFAULT_ROUTINE, pending: { routine: edit, from: +at(23) } });
+  sharedSet('locturne.armedNight', fake.armedNight());
+  assert.equal(+nightAt(at(23), at(7, 5)).start, +at(23));
+  // Once a sync after 08:00 arms the edit's windows, iOS holds 22:00.
+  sharedSet('locturne.armedNight', { ...fake.armedNight(), bedtime: 22 * 60, morningStart: 8 * 60 });
+  assert.equal(+nightAt(at(23), at(8, 30)).start, +at(22));
 });
 
 test('nightAt: an earlier bedtime on an evening off in force starts at the edit, not early', () => {

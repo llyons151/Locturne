@@ -22,6 +22,11 @@ let napTidies = 0;
 let stoodDown = false;
 /** While set, `armNight` waits on it, like iOS registering windows over the bridge. */
 let armGate: Promise<void> | null = null;
+/** While on, each `armNight` waits for its own release, in call order. */
+let gating = false;
+let gates: (() => void)[] = [];
+/** Windows iOS fails to report back after arming (it keeps reporting a different count). */
+let lostWindows = 0;
 
 mock.module(new URL('./screen-time.ts', import.meta.url).href, {
   namedExports: {
@@ -57,7 +62,8 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     armNight: async (windows: unknown[], list: string, times: { bedtime: number; morningStart: number }) => {
       calls.push(`arm:${list}:${windows.length}`);
       if (armGate) await armGate;
-      live = windows.length;
+      if (gating) await new Promise<void>((r) => gates.push(r));
+      live = windows.length - lostWindows;
       const armedAt = new Date(clock).toISOString();
       armed = { ...times, windows: windows.length, armedAt, since: armed ? (armed.since ?? armed.armedAt) : armedAt };
     },
@@ -85,7 +91,9 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
 /** The controller reads the clock only through `now`, except `armedAt` in the fake. */
 let clock = 0;
 
-const { syncLock, readLock, proveMorning, armRoutine, settleSubscription, subscriptionEnded } = await import('./lock-controller.ts');
+const { syncLock, readLock, proveMorning, armRoutine, armRetryAt, onArmed, settleSubscription, subscriptionEnded } = await import(
+  './lock-controller.ts'
+);
 const { saveRoutine, DEFAULT_ROUTINE } = await import('./routine.ts');
 const { recordProof, getProofs } = await import('./morning-proof.ts');
 
@@ -100,6 +108,9 @@ beforeEach(() => {
   nightSubtitles = [];
   stoodDown = false;
   armGate = null;
+  gating = false;
+  gates = [];
+  lostWindows = 0;
   nightHeld = false;
   armed = null;
   live = 0;
@@ -323,7 +334,10 @@ describe('an earlier bedtime saved in the day (#137)', () => {
     clock = at(14, 1).getTime();
     await armRoutine(at(14, 1));
     assert.equal(armed?.bedtime, 23 * 60, 'the 21:30 windows would shield a night that is off');
-    assert.equal(readLock(at(21, 40)).phase, 'off');
+    // Nothing holds 21:30 any more, so it's the routine in force's day until 23:00, when the
+    // edit applies and tonight is off.
+    assert.equal(readLock(at(21, 40)).phase, 'day');
+    assert.equal(readLock(at(23, 30)).phase, 'off');
   });
 });
 
@@ -342,6 +356,90 @@ describe('arming one at a time', () => {
     armGate = null;
     await Promise.all([first, second]);
     assert.equal(armed?.bedtime, 22 * 60 + 30);
+  });
+
+  test('five quick edits, each landing while iOS registers the last: the last one is armed', async () => {
+    // A run used to re-plan at most 3 times, so an edit landing during the third re-run was
+    // dropped and iOS kept the one before it until the next sync.
+    await armYesterday();
+    gating = true;
+    const flush = () => new Promise((r) => setImmediate(r));
+    const runs: Promise<unknown>[] = [];
+    for (const minutes of [0, 10, 20, 30, 40]) {
+      // The Routine tab's commit: save, sync, arm.
+      saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60 + minutes }, at(12));
+      syncLock(at(12));
+      runs.push(armRoutine(at(12)));
+      await flush();
+      if (minutes > 0) {
+        gates.shift()?.();
+        await flush();
+        await flush();
+      }
+    }
+    while (gates.length) {
+      gates.shift()!();
+      await flush();
+    }
+    await Promise.all(runs);
+    assert.equal(armed?.bedtime, 22 * 60 + 40);
+  });
+
+  test('ends when iOS keeps reporting a different window count for the same times', async () => {
+    lostWindows = 1;
+    assert.equal(await armRoutine(at(14)), 'armed');
+    // The sync inside the arm asks again; the same times aren't registered twice.
+    assert.equal(calls.filter((c) => c.startsWith('arm:')).length, 1);
+  });
+
+  test('tells listeners (the notification plan) when it hands iOS new windows', async () => {
+    let told = 0;
+    const stop = onArmed(() => (told += 1));
+    await armRoutine(at(14));
+    assert.equal(told, 1);
+    await armRoutine(at(15)); // kept: nothing changed
+    assert.equal(told, 1);
+    stop();
+  });
+});
+
+describe('an earlier bedtime saved after the walk, while arming waits (deferred)', () => {
+  // 23:00 to 07:00 armed. At 07:05, after the walk, bedtime moves to 22:00 and the morning to
+  // 08:00. A 07:15 window would shield a phantom night, so arming waits for 08:00, and until a
+  // sync after it iOS keeps the 23:00 windows.
+  async function deferred() {
+    await armYesterday();
+    nightHeld = true;
+    proveMorning('steps', at(7, 2));
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60, morningStart: 8 * 60 }, at(7, 5));
+    clock = at(7, 5).getTime();
+    assert.equal(await armRoutine(at(7, 5)), 'deferred');
+    calls = [];
+  }
+
+  test('nothing holds 22:00 while iOS still has 23:00: the open app says day and sleeps nothing', async () => {
+    await deferred();
+    assert.equal(armed?.bedtime, 23 * 60);
+    assert.equal(+readLock(at(21)).nextChange, +at(23), 'no re-sync at 22:00: iOS holds nothing then');
+    assert.equal(readLock(at(22, 10)).phase, 'day');
+  });
+
+  test('an app left open wakes when arming can go ahead', async () => {
+    await deferred();
+    assert.equal(+armRetryAt(at(7, 5))!, +at(8));
+    clock = at(8, 0, 1).getTime();
+    syncLock(at(8, 0, 1)); // `useLock`'s timer
+    await armRoutine(at(8, 0, 1)); // waits for the background arm
+    assert.equal(armed?.bedtime, 22 * 60);
+    assert.equal(armRetryAt(at(8, 1)), null);
+  });
+
+  test('once a sync after 08:00 arms the edit, 22:00 is held: the edit governs from then', async () => {
+    await deferred();
+    clock = at(8, 30).getTime();
+    assert.equal(await armRoutine(at(8, 30)), 'armed');
+    assert.equal(+readLock(at(21)).nextChange, +at(22));
+    assert.equal(readLock(at(22, 10)).phase, 'night');
   });
 });
 

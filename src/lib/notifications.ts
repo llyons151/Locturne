@@ -21,9 +21,9 @@ import { Platform } from 'react-native';
 
 import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
-import { lastPaidMorning } from './lock-controller.ts';
+import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { getProofs, type MorningProof } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, hasRoutine, type Routine, type StoredRoutine } from './routine.ts';
+import { getPendingRoutine, getRoutine, hasRoutine, holdsEarly, type Routine, type StoredRoutine } from './routine.ts';
 import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
@@ -90,6 +90,11 @@ export type PlanFacts = {
   protection: Protection;
   /** Whether a night is armed with iOS. Unarmed (before purchase, say), nothing will sleep. */
   armed: boolean;
+  /**
+   * The times iOS has armed (`getArmedNight`). A waiting edit's earlier bedtime only starts
+   * early if they're its own (`holdsEarly`): arming can wait for a phantom night to pass.
+   */
+  armedTimes?: { bedtime: number; morningStart: number } | null;
   /** When the armed night was first armed: a morning whose night ended before then is free. */
   armedSince?: Date | null;
   /** Mornings already unlocked (a proof, a pass, an emergency unlock), by morning key. */
@@ -128,11 +133,12 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     let r = routine;
     let { start, end } = pick(r);
     if (pending && start.getTime() >= pending.from) {
-      const held = routine.activeNights.includes(atMinute(end, 0, -1).getDay());
       r = pending.routine;
       ({ start, end } = pick(r));
-      // An earlier bedtime only starts early if iOS holds it (that evening on in the routine
-      // in force: `inPendingFirstNight`). Otherwise the edit's first night starts at `from`.
+      // An earlier bedtime only starts early if iOS holds it (`holdsEarly`, as
+      // `inPendingFirstNight` judges it). Otherwise the edit's first night starts at `from`.
+      // Judged by what iOS has armed now: the arming that makes it held reschedules (`onArmed`).
+      const held = holdsEarly(start, atMinute(end, 0, -1).getDay(), routine, facts.armedTimes ?? null);
       if (!held && start.getTime() < pending.from) start = new Date(pending.from);
     }
     if (start >= end) continue;
@@ -221,12 +227,16 @@ const PREFS_KEY = 'locturne.notificationPrefs';
 let configured = false;
 
 /**
- * Shows our notifications as banners even while Locturne is open. Safe to call more than
- * once; the functions below call it themselves.
+ * Shows our notifications as banners even while Locturne is open, and re-plans whenever the
+ * night windows are re-armed (a deferred earlier bedtime armed after the phantom night moves
+ * its warning: `holdsEarly`). Safe to call more than once; the functions below call it themselves.
  */
 export function configureNotifications(): void {
   if (configured || !isIOS()) return;
   configured = true;
+  onArmed(() => {
+    rescheduleNotifications().catch(() => {});
+  });
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
@@ -381,6 +391,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       pending: stored ? getPendingRoutine() : null,
       protection: getProtection(),
       armed: armed !== null,
+      armedTimes: armed,
       armedSince: armed ? armedSince(armed) : null,
       unlockedMornings: getProofs().map((p) => p.morningKey),
       trialEnd: getTrialEnd(),

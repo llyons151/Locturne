@@ -33,6 +33,11 @@ beforeEach(() => {
 /** This morning was already proven, so it's daytime until bedtime. */
 const awake = () => recordProof({ morningKey: '2026-10-06', kind: 'steps', at: at(10, 6, 7, 30).getTime() });
 
+/** An earlier bedtime's windows armed at once, as `armRoutine` does (it only tightens). */
+const armEarlier = () => {
+  fake.state.store['locturne.armedNight'] = { ...fake.armedNight(), bedtime: 21 * 60 + 30 };
+};
+
 /** Bedtime has run: the monitor extension shielded the night list and marked it held. */
 function asleep() {
   st.sleepApps('night');
@@ -177,6 +182,7 @@ test('in an earlier bedtime\'s first night: pauses until its next bedtime and un
   rt.saveRoutine(rt.DEFAULT_ROUTINE, at(10, 1, 12));
   awake();
   rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 }, at(10, 6, 14));
+  armEarlier();
   asleep();
   assert.equal(readLock(at(10, 6, 21, 45)).phase, 'night');
   const use = emergencyUnlock(at(10, 6, 21, 45));
@@ -246,6 +252,7 @@ test('a second emergency in an earlier bedtime\'s paused first night (#137): not
   rt.saveRoutine(rt.DEFAULT_ROUTINE, at(10, 1, 12));
   awake();
   rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 }, at(10, 6, 14));
+  armEarlier();
   asleep();
   assert.ok(emergencyUnlock(at(10, 6, 21, 45))?.pauseNight);
   assert.equal(previewEmergency(at(10, 6, 23, 30)), null, 'still paused past the old 23:00 bedtime');

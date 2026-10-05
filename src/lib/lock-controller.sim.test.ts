@@ -268,8 +268,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
    * The routine the lock runs on: the one in force, except inside a waiting edit's own first
    * night, which starts early for an earlier bedtime (armed at once, it only tightens:
    * arming.ts). From that night's start the edit governs (`routineAt` in lock-controller.ts).
-   * Only where iOS can hold it early: the routine in force has that evening on (the extension
-   * skips the early windows of an evening it has off, so arming waits). Once a lapse was
+   * Only where iOS holds it early: the windows armed are in their night (arming can wait out
+   * a phantom night) and the routine in force has that evening on (the extension skips the
+   * early windows of an evening it has off, so arming waits). Once a lapse was
    * noticed, only if that night was the one under way then: only it finishes.
    */
   const routineAt = (at: number) => {
@@ -278,7 +279,12 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       const { latest } = ls.nightsAround(new Date(at), rt.toLockSettings(next.routine));
       const inside = at >= latest.start.getTime() && at < latest.end.getTime() && latest.end.getTime() > next.from;
       const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
-      const held = inForceAt(at).activeNights.includes(evening);
+      // iOS's armed windows must be in their night too: arming can wait out a phantom night
+      // (an earlier bedtime saved after the walk), leaving the routine in force's later ones.
+      const armed = st.getArmedNight();
+      const theirs = armed && ls.nightsAround(new Date(at), { ...rt.toLockSettings(next.routine), ...armed, activeNights: [0, 1, 2, 3, 4, 5, 6] }).latest;
+      const armedInside = !!theirs && at >= theirs.start.getTime() && at < theirs.end.getTime();
+      const held = armedInside && inForceAt(at).activeNights.includes(evening);
       if (inside && held && (!spec.lapse || spec.lapse.underWayKey === ls.dateKey(latest.end))) return next.routine;
     }
     return inForceAt(at);

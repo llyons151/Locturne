@@ -98,6 +98,26 @@ export function saveRoutine(next: Routine, now = new Date()): Date {
 }
 
 /**
+ * Does iOS really hold a waiting edit's night early at `at` (before the edit applies)? The
+ * monitor extension shields there only if the windows iOS has armed are in their night at
+ * `at` (an earlier bedtime is armed at once, but arming can also wait for a phantom night to
+ * pass, `planArming`, and then iOS still has the routine in force's later windows), and it
+ * skips them on an evening the routine in force has off. `evening` is the `getDay()` of the
+ * edit's night's evening. The one rule for `inPendingFirstNight` (lock-controller.ts),
+ * `nightAt` and the notification planner, so the lock, Home and the warning agree.
+ */
+export function holdsEarly(
+  at: Date,
+  evening: number,
+  inForce: Routine,
+  armed: { bedtime: number; morningStart: number } | null,
+): boolean {
+  if (!armed || !inForce.activeNights.includes(evening)) return false;
+  const { latest } = nightsAround(at, { ...toLockSettings(inForce), ...armed, activeNights: [0, 1, 2, 3, 4, 5, 6] });
+  return at >= latest.start && at < latest.end;
+}
+
+/**
  * The night at or after `start` (a bedtime worked out under one routine, which an edit waiting
  * for bedtime may have moved, even across midnight): the routine it runs on, when it really
  * starts under that routine, and whether it's on. Its evening is the day before its morning,
@@ -116,11 +136,10 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   const routine = usePending ? pending.routine : getRoutine(now);
   const night = usePending && pendingNight ? pendingNight : nightUnder(routine);
   const evening = new Date(night.end.getFullYear(), night.end.getMonth(), night.end.getDate() - 1).getDay();
-  // An earlier start than `from` is only real if iOS holds it early, which needs that evening
-  // on in the routine in force (`inPendingFirstNight` in lock-controller.ts). Otherwise the
-  // edit's night starts at `from`.
+  // An earlier start than `from` is only real if iOS holds it early (`holdsEarly`). Otherwise
+  // the edit's night starts at `from`.
   const early = usePending && pending && night.start.getTime() < pending.from;
-  const held = getRoutine(now).activeNights.includes(evening);
+  const held = holdsEarly(night.start, evening, getRoutine(now), getArmedNight());
   const begins = early && pending && !held ? new Date(pending.from) : night.start;
   return { routine, start: begins, on: routine.activeNights.includes(evening) };
 }
