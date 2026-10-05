@@ -13,6 +13,9 @@ import { onProofChange } from '@/lib/morning-proof';
  * else that calls `syncLock` (a routine save, a pass) updates it too.
  */
 export function useLock(): LockState {
+  // The React Compiler would cache `armRetryAt()` (a store read, no reactive inputs) from the
+  // first render, so a defer begun later was never seen and a past one pinned the timer.
+  'use no memo';
   // Read during render; the sync (which touches shields and tells every listener) runs after.
   const [state, setState] = useState<LockState>(() => readLock());
 
