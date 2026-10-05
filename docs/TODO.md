@@ -223,7 +223,9 @@ Needs the real app:
 
 - [ ] A real alarm (AlarmKit) to lead with the morning.
 - [ ] Streak widget, and Loc's moon in the Dynamic Island while apps sleep
-  ([LIVE_ACTIVITY_IDEA.md](LIVE_ACTIVITY_IDEA.md)).
+  ([LIVE_ACTIVITY_IDEA.md](LIVE_ACTIVITY_IDEA.md)). Widget research (2026-10-05):
+  StandBy and Lock Screen status widgets fit best; Duolingo's "+60%" is a myth. Open
+  decision: keep in v1.1 or pull the status widget into v1. ([WIDGETS.md](WIDGETS.md))
 - [ ] Buddy/couples mode (a message to a partner, no money).
 - [ ] Scheduled naps, and "put him to bed early" ("tuck him in now" moved to v1 as Block now).
 - [ ] *Idea (Oct 1):* **"Loc naps while you work"**, i.e. block apps while you're at
@@ -249,6 +251,13 @@ Needs the real app:
 - [ ] App Store copy says "your apps", not "your phone", and makes no health claims.
 - [ ] At launch: daily founder videos on 2–3 accounts, plus paid niche creators at
   $2–3 CPM. Measure payers per 1K views.
+- [ ] Competitor marketing plan (2026-10-05): store keywords around "get out of bed" /
+  "apps sleep", a Loc pose kit, handles reserved, "where did you hear about us?" in
+  onboarding; from Nov 1 the mechanic clip, a founder teaching account and a Loc
+  comment account; Apple featuring and press for January; paid creators only from
+  revenue. ([COMPETITOR_MARKETING.md](COMPETITOR_MARKETING.md) §5)
+- [ ] Slideshow hook lab from ~Nov 1: two disclosed accounts, one post a day each for
+  4 weeks, waitlist CTA, kill rules. ([SLIDESHOW_MARKETING.md](SLIDESHOW_MARKETING.md) §7)
 
 ## 8. Launch gates (TestFlight, 100–300 users)
 
