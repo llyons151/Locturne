@@ -340,7 +340,7 @@ export function OnboardingFlow({
     else router.replace('/');
   };
   /** `armed` with every night off: done here, on to the Routine tab to turn one on. */
-  const openRoutine = () => {
+  const leaveForRoutine = () => {
     exit();
     router.navigate('/routine');
   };
@@ -559,15 +559,17 @@ export function OnboardingFlow({
   }, [step]);
   // A second tap while iOS's prompts are up would `next` twice.
   const [asking, setAsking] = useState(false);
-  const askPermissions = async () => {
+  /** iOS's prompts, then `then`. With every night off there are no mornings, so no Motion. */
+  const ask = async (then: () => void, withMotion: boolean) => {
     if (asking) return;
+    const asksMotion = withMotion && motion === null;
     if (!screenTimeHere) {
-      const asks = [notifications === 'undetermined' && 'notifications', motion === null && 'Motion & Fitness'].filter(Boolean);
-      if (asks.length === 0) return next();
+      const asks = [notifications === 'undetermined' && 'notifications', asksMotion && 'Motion & Fitness'].filter(Boolean);
+      if (asks.length === 0) return then();
       simulate(`iOS asks about ${asks.join(', then ')} here. “Don’t Allow” is always an option.`, () => {
         if (notifications === 'undetermined') setNotifications('granted');
-        if (motion === null) setMotion('granted');
-        next();
+        if (asksMotion) setMotion('granted');
+        then();
       });
       return;
     }
@@ -577,16 +579,19 @@ export function OnboardingFlow({
         const granted = await askForNotifications().catch(() => false);
         setNotifications(granted ? 'granted' : 'denied');
       }
-      if (motion === null) {
+      if (asksMotion) {
         const access = await requestMotion();
         setMotion(access);
         track('motion_access', { result: access });
       }
-      next();
+      then();
     } finally {
       setAsking(false);
     }
   };
+  const askPermissions = () => ask(next, true);
+  // The trial reminder needs notifications, and with every night off no later moment asks.
+  const openRoutine = () => ask(leaveForRoutine, false);
 
   /*
    * The 20-step walk before the paywall, right after the demo. Counting starts on "Start walking", which is also

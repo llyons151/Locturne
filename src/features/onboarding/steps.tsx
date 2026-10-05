@@ -118,7 +118,7 @@ export type StepContext = {
   /** Handing tonight to iOS after purchase. `working` until iOS answers. */
   arm: ArmResult | { status: 'working' };
   retryArm: () => void;
-  /** Leaves onboarding for the Routine tab (`arm` came back `nights-off`). */
+  /** Asks for notifications if iOS still would, then leaves for the Routine tab (`arm` came back `nights-off`). */
   openRoutine: () => void;
   /** Motion & Fitness: answered on the walk or on `armed`. Null while iOS would still ask. */
   motion: MotionAccess | null;
@@ -695,9 +695,19 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>Every night is off in Routine. Turn one on and I’ll schedule it.</Body>
               <View style={page.gapAside} />
               <Body>You’re subscribed. Nothing sleeps at bedtime until then.</Body>
+              {ctx.notifications === 'undetermined' ? (
+                <>
+                  <View style={page.gapBlock} />
+                  <Body>
+                    {answers.remindTrial && ctx.trialEnds !== null
+                      ? `First, iOS asks if I can send notifications. At least two days before your free trial ends on ${trialDay(ctx.trialEnds)}, I’ll remind you, so the charge is never a surprise.`
+                      : 'First, iOS asks if I can send notifications. Bedtime and morning, once a night is on. That’s it.'}
+                  </Body>
+                </>
+              ) : null}
             </View>
           ),
-          footer: <PrimaryButton label="Open Routine" onPress={ctx.openRoutine} />,
+          footer: <PrimaryButton label="Open Routine" disabled={ctx.notifications === null || ctx.asking} onPress={ctx.openRoutine} />,
         };
       }
       if (arm.status === 'failed') {

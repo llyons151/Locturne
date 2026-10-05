@@ -70,3 +70,28 @@ test('every night off in Routine is its own answer, not a refusal a retry could 
   rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, activeNights: [1] });
   assert.equal((await armTonight()).status, 'armed');
 });
+
+test('every night off in an edit still waiting for bedtime says nights-off after a lapse and a renewal', async () => {
+  lc.settleSubscription(true, at(5, 15));
+  assert.equal((await armTonight()).status, 'armed');
+  // Every night off, saved in the day while armed: it waits for 23:00.
+  clock(at(5, 16));
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, activeNights: [] }, at(5, 16));
+  // The lapse is found in the day and everything stands down; then a renewal before bedtime.
+  clock(at(5, 17));
+  lc.settleSubscription(false, at(5, 17));
+  clock(at(5, 18));
+  lc.settleSubscription(true, at(5, 18));
+  assert.deepEqual(await armTonight(), { status: 'nights-off' });
+});
+
+test('a renewal found on foreground tells the screens, even with nothing to arm', async () => {
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, activeNights: [] });
+  lc.settleSubscription(false, at(5, 15));
+  let calls = 0;
+  const stop = lc.onLockChange(() => calls++);
+  lc.settleSubscription(true, at(5, 15, 5));
+  assert.equal((await armTonight()).status, 'nights-off');
+  stop();
+  assert.ok(calls > 0);
+});

@@ -17,7 +17,7 @@ export type ArmResult =
   | { status: 'armed'; now: boolean }
   /** No Screen Time here (the web preview): nothing was handed to iOS. */
   | { status: 'preview' }
-  /** Every night is off in Routine, now and in any edit waiting for bedtime: nothing to hand iOS. */
+  /** Every night is off in the routine iOS would get (an edit waiting for bedtime, else the one in force). */
   | { status: 'nights-off' }
   | { status: 'failed'; reason: ArmFailure };
 
@@ -25,8 +25,8 @@ export async function armTonight(): Promise<ArmResult> {
   if (!isScreenTimeAvailable()) return { status: 'preview' };
   if (getAccess() !== 'approved') return { status: 'failed', reason: 'no-access' };
   // A resubscriber who turned every night off: arming keeps nothing, which isn't a refusal.
-  const pending = getPendingRoutine();
-  if (getRoutine().activeNights.length === 0 && (pending?.routine.activeNights.length ?? 0) === 0) {
+  // Arming targets the edit waiting for bedtime when there is one (`planArming`).
+  if ((getPendingRoutine()?.routine ?? getRoutine()).activeNights.length === 0) {
     clearPurchasePending();
     return { status: 'nights-off' };
   }

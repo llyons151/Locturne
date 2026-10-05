@@ -234,6 +234,9 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
     standUp().catch(() => {
       // iOS refused a limit. It's saved, and the next open with a subscription tries again.
     });
+    // `standUp` clears the stand-down at once: tell the screens, which may have read the
+    // lapse a moment ago (a renewal found on foreground with nothing to arm).
+    syncLock(now);
     return;
   }
   const { morningKey } = readLock(now);
