@@ -313,9 +313,13 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const settings = settingsAt(at);
     const now = new Date(at);
     const morning = ls.currentMorning(now, settings);
-    // Only accepted proofs are pushed (judged when made), and one counts for its morning from
-    // then on: a flight west or a later morning start doesn't take it back.
-    const proven = spec.proofs.some((p) => p.key === morning.key);
+    // Only accepted proofs are pushed (judged against morning start when made). A flight west
+    // or a later morning start doesn't take one back, but a new night does: a walk counts for
+    // its morning only if no bedtime has begun here since (the night leading into this morning,
+    // on this clock, started before it). Over the date line the same key comes round again
+    // after a whole night. A pass or an emergency unlock is tied to its morning's key.
+    const nightBegan = ls.nightsAround(now, settings).latest.start.getTime();
+    const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || p.at >= nightBegan));
     const free = spec.armedSince === null || !ls.armedInTime(now, settings, new Date(spec.armedSince));
     return ls.getLockState(now, settings, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
@@ -773,7 +777,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       // no longer ends a morning nobody proved (native-tests covers it). The lock still isn't
       // required here: an old window can start inside what the routine now in force calls
       // day, which the extension can't know. (A proven morning no longer reads as locked
-      // again after an edit: proofs are judged once, when saved.)
+      // again after an edit: a proof's timing against morning start is judged when saved.)
       const armed = st.getArmedNight();
       const target = latestRoutine();
       const stale = !!armed && (armed.bedtime !== target.bedtime || armed.morningStart !== target.morningStart);

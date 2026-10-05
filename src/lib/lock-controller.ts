@@ -13,7 +13,7 @@
  *    list are re-shielded straight after (`wakeApps`), so a proof never lifts them.
  */
 import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, type DaytimeFacts, type LockState } from './lock-state.ts';
-import { getProof, recordProof, type ProofKind } from './morning-proof.ts';
+import { getProof, recordProof, type MorningProof, type ProofKind } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, holdsEarly, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import {
@@ -66,9 +66,10 @@ function readDaytime(now: Date): DaytimeFacts {
 export function readLock(now = new Date()): LockState {
   const settings = toLockSettings(routineAt(now));
   const morning = currentMorning(now, settings);
-  // A proof saved for this morning. Its timing was judged when it was saved (`recordProof`),
-  // so a flight west or a later morning start since then doesn't take the morning back.
-  const proof = getProof(morning.key);
+  // A proof saved for this morning since its night began here (`proofUnlocks`). Its timing
+  // against morning start was judged when it was saved, so a flight west or a later morning
+  // start since then doesn't take the morning back; a new night since then does.
+  const proof = getProof(morning);
   const armed = getArmedNight();
   const free = !armedInTime(now, settings, armed ? armedSince(armed) : null);
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
@@ -89,6 +90,11 @@ export function readLock(now = new Date()): LockState {
     if (early && governsEarly(start, pending, getRoutine(now))) state.nextChange = start;
   }
   return state;
+}
+
+/** The proof that unlocked the morning `now` belongs to (as `readLock` reads it), or null. */
+export function currentProof(now = new Date()): MorningProof | null {
+  return getProof(currentMorning(now, toLockSettings(routineAt(now))));
 }
 
 /**
@@ -371,6 +377,15 @@ async function arm(now: Date): Promise<ArmResult> {
   armingTimes = { bedtime, morningStart };
   try {
     await armNight(plan.windows, 'night', { bedtime, morningStart });
+  } catch (error) {
+    // iOS refused a window. It may have run an accepted one's start at once (an earlier bedtime
+    // saved inside its own night: shielded and `nightHeld`), and `armNight` put the old windows
+    // back without waking anything. Settle the shields by the old windows, now the record
+    // again: the old routine's day wakes the held night. Not a loop: this sync's re-arm finds
+    // `arming` still set and only asks for one more run, which `armRoutine` drops on this throw.
+    armingTimes = null;
+    syncLock(now);
+    throw error;
   } finally {
     armingTimes = null;
   }

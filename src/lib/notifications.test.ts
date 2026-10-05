@@ -119,7 +119,8 @@ test('an edit waiting for bedtime applies from its first night', () => {
 
 test('no morning promise for a morning already unlocked, or one whose night was armed too late', () => {
   // An emergency unlock at 2am on the 4th records that morning as unlocked.
-  assert.deepEqual(summary(plan({ now: at(4, 2), days: 1, unlockedMornings: ['2026-10-04'] })), [
+  const emergency = { morningKey: '2026-10-04', kind: 'emergency' as const, at: at(4, 2).getTime() };
+  assert.deepEqual(summary(plan({ now: at(4, 2), days: 1, proofs: [emergency] })), [
     'bedtime 4 22:45',
     'morning 5 7:0',
   ]);
@@ -133,6 +134,15 @@ test('no morning promise for a morning already unlocked, or one whose night was 
     'bedtime 4 22:45',
     'morning 5 7:0',
   ]);
+});
+
+test('a walk made before a morning\'s night began (the date replayed after a flight west) still gets its morning note', () => {
+  // Proved 07:30 on the 4th somewhere a day ahead; here the night into the 4th ran 23:00 to 07:00 after it.
+  const walk = { morningKey: '2026-10-04', kind: 'downstairs' as const, at: at(3, 7, 30).getTime() };
+  assert.deepEqual(summary(plan({ now: at(3, 12), days: 1, proofs: [walk] })), ['bedtime 3 22:45', 'morning 4 7:0']);
+  // A pass is tied to its morning, not to a moment after bedtime: it still frees it.
+  const pass = { ...walk, kind: 'pass' as const };
+  assert.deepEqual(summary(plan({ now: at(3, 12), days: 1, proofs: [pass] })), ['bedtime 3 22:45']);
 });
 
 test('access off: the warning becomes the revoked one, and no morning promise', () => {

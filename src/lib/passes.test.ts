@@ -14,8 +14,8 @@ const fake = fakeDeviceActivity({ available: false });
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
 const passes = await import('./passes.ts');
+const { currentProof } = await import('./lock-controller.ts');
 const { currentMorning } = await import('./lock-state.ts');
-const { getProof } = await import('./morning-proof.ts');
 const { sharedRemove, sharedSet } = await import('./screen-time.ts');
 const { toLockSettings, DEFAULT_ROUTINE } = await import('./routine.ts');
 
@@ -76,7 +76,7 @@ test('23:30 on the last day belongs to the next month (tonight leads into the 1s
 test('spendPass: only in the morning, records a pass proof, once per morning', () => {
   assert.equal(spendPass(at(10, 5, 3)), 'notMorning', 'at 03:00 bedtime wins');
   assert.equal(spendPass(at(10, 5, 7, 30)), null);
-  assert.equal(getProof('2026-10-05')?.kind, 'pass');
+  assert.equal(currentProof(at(10, 5, 7, 30))?.kind, 'pass');
   assert.equal(getPassesLeft(at(10, 5, 12)), PASSES_PER_MONTH - 1);
   // The morning is now unlocked, so there's nothing left for a pass to do.
   assert.equal(spendPass(at(10, 5, 8)), 'alreadyUsed');

@@ -1,7 +1,7 @@
 import { useLock } from '@/hooks/use-lock';
 import type { LockState } from '@/lib/lock-state';
-import { getProof, type MorningProof } from '@/lib/morning-proof';
-import { routineAt } from '@/lib/lock-controller';
+import { type MorningProof } from '@/lib/morning-proof';
+import { currentProof, routineAt } from '@/lib/lock-controller';
 import { type Routine } from '@/lib/routine';
 
 /**
@@ -22,5 +22,6 @@ export function useHomeState(): HomeData {
   'use no memo';
   const lock = useLock();
   // The routine governing now: a waiting edit inside its own early first night (#137).
-  return { lock, routine: routineAt(new Date()), proof: getProof(lock.morningKey) };
+  const now = new Date();
+  return { lock, routine: routineAt(now), proof: currentProof(now) };
 }

@@ -78,6 +78,12 @@ export type Morning = {
   key: string;
   /** Morning start on that day. Count steps from here. */
   start: Date;
+  /**
+   * When the night leading into it began, in this zone and under these settings (`start`
+   * itself for a night of zero length). A method proof made before it belongs to an earlier
+   * night's morning (`proofUnlocks`, morning-proof.ts).
+   */
+  nightStart: Date;
 };
 
 /** Local midnight `offsetDays` from `date`, plus `minutes`. Date normalizes any overflow. */
@@ -149,7 +155,7 @@ export function armedInTime(now: Date, settings: LockSettings, armedSince: Date 
  */
 export function currentMorning(now: Date, settings: LockSettings): Morning {
   const { night } = locate(now, settings);
-  return { key: dateKey(night.end), start: night.end };
+  return { key: dateKey(night.end), start: night.end, nightStart: night.start };
 }
 
 /**

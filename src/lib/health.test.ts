@@ -200,6 +200,20 @@ test('an ended subscription found in a held night or an unproven morning: that o
   assert.equal(roll({ unsubscribed: true, routine: { activeNights: [] } }).needsSubscription, true);
 });
 
+test('an ended subscription with a re-subscribe waiting on Ask to Buy: no second ask, and the same promise', () => {
+  for (const now of [at(2, 23, 30), at(3, 2)]) {
+    const held = roll({ unsubscribed: true, purchasePending: true, now });
+    assert.equal(held.title, 'Waiting for approval.');
+    assert.notEqual(held.needsSubscription, true, 'no See plans while a purchase waits');
+    assert.match(held.detail, /^Tonight still counts, and so does its morning\. After that, nothing sleeps until the purchase is approved\./);
+  }
+  const morning = roll({ unsubscribed: true, purchasePending: true, now: at(2, 15) });
+  assert.equal(morning.title, 'Waiting for approval.');
+  assert.notEqual(morning.needsSubscription, true);
+  assert.notEqual(morning.level, 'ok');
+  assert.match(morning.detail, /^This morning still counts until you’re up\. From tonight, nothing sleeps until the purchase is approved\./);
+});
+
 test('rollUpHealth flags the newest judged night, skipping unknown ones', () => {
   assert.equal(roll({ nights: [night('missed')] }).level, 'attention');
   assert.equal(roll({ nights: [night('noShield')] }).level, 'attention');

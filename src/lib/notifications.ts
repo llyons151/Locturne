@@ -22,7 +22,7 @@ import { Platform } from 'react-native';
 import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
 import { lastPaidMorning, onArmed } from './lock-controller.ts';
-import { getProofs, type MorningProof } from './morning-proof.ts';
+import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, hasRoutine, holdsEarly, type Routine, type StoredRoutine } from './routine.ts';
 import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
@@ -97,8 +97,12 @@ export type PlanFacts = {
   armedTimes?: { bedtime: number; morningStart: number } | null;
   /** When the armed night was first armed: a morning whose night ended before then is free. */
   armedSince?: Date | null;
-  /** Mornings already unlocked (a proof, a pass, an emergency unlock), by morning key. */
-  unlockedMornings?: string[];
+  /**
+   * The saved proofs (stairs, steps, a scan, a pass, an emergency unlock). A morning one of
+   * them unlocks (`proofUnlocks`: made since its night began, or a pass or emergency for its key)
+   * is already free.
+   */
+  proofs?: MorningProof[];
   /** When the trial first charges, if one is running and a reminder was asked for. */
   trialEnd?: Date | null;
   /** Which kinds the person wants. All of them when left out. */
@@ -153,7 +157,8 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
       plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
     }
     // Not for a morning that's already free: it would say the apps are asleep when they aren't.
-    const free = facts.unlockedMornings?.includes(key) || (facts.armedSince && facts.armedSince >= end);
+    const unlocked = facts.proofs?.some((proof) => proofUnlocks(proof, { key, nightStart: start }));
+    const free = unlocked || (facts.armedSince && facts.armedSince >= end);
     if (protection === 'on' && prefs.morning && end > now && !free) {
       plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });
     }
@@ -393,7 +398,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       armed: armed !== null,
       armedTimes: armed,
       armedSince: armed ? armedSince(armed) : null,
-      unlockedMornings: getProofs().map((p) => p.morningKey),
+      proofs: getProofs(),
       trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),
       lastPaidMorning: lastPaidMorning(),

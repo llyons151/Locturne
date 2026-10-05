@@ -30,10 +30,10 @@ const listeners = new Set<() => void>();
  * deliberate choice and counts whenever it was made (a pass used the night before covers the
  * morning).
  *
- * Timing is judged once, here, when `recordProof` saves the proof. A saved proof then counts
- * for its morning (`proofUnlocks`): re-reading its time against a start computed later would
- * take back a morning proven legitimately, after a flight west (07:30 New York is before
- * 07:00 in LA) or an edit that moved morning start later.
+ * Timing is judged here, when `recordProof` saves the proof. Afterwards a saved proof is read
+ * by `proofUnlocks`, which asks a weaker question: re-reading its time against a morning start
+ * computed later would take back a morning proven legitimately, after a flight west (07:30 New
+ * York is before 07:00 in LA) or an edit that moved morning start later.
  */
 export function proofCounts(proof: MorningProof, morning: Morning): boolean {
   if (proof.morningKey !== morning.key) return false;
@@ -41,18 +41,34 @@ export function proofCounts(proof: MorningProof, morning: Morning): boolean {
   return proof.at >= morning.start.getTime();
 }
 
-/** Pure: does this saved proof unlock `morning`? Saved proofs were judged in `recordProof`. */
-export function proofUnlocks(proof: MorningProof, morning: Pick<Morning, 'key'>): boolean {
-  return proof.morningKey === morning.key;
+/**
+ * Pure: does this saved proof unlock `morning`, as worked out in the zone and routine of now?
+ * Its timing against morning start was judged when it was saved (`proofCounts`). A stairs,
+ * steps or scan proof still has to come after the start of the night that leads into
+ * `morning`: no bedtime may have begun here since it. A flight west over the date line (07:30
+ * Oct 6 in Sydney, then LA's Oct 5 23:00 to Oct 6 07:00) replays the same morning key after a
+ * whole new night, and that morning needs its own wake-up. A same-day flight west keeps the
+ * proof: LA's night began at 02:00 New York time, before a 07:30 walk there.
+ *
+ * A pass or an emergency unlock is tied to its morning, not to a moment after bedtime (a pass
+ * used the evening before covers the morning), so it counts for its key whenever it was made.
+ */
+export function proofUnlocks(proof: MorningProof, morning: Pick<Morning, 'key' | 'nightStart'>): boolean {
+  if (proof.morningKey !== morning.key) return false;
+  if (proof.kind === 'pass' || proof.kind === 'emergency') return true;
+  return proof.at >= morning.nightStart.getTime();
 }
 
 export function getProofs(): MorningProof[] {
   return sharedGet<MorningProof[]>(KEY) ?? [];
 }
 
-/** The proof that unlocked this morning, or null. */
-export function getProof(morningKey: string): MorningProof | null {
-  return getProofs().find((p) => proofUnlocks(p, { key: morningKey })) ?? null;
+/**
+ * The proof that unlocked `morning` (`currentMorning` under the routine governing now), or
+ * null. `currentProof` (lock-controller.ts) asks it for the morning under way.
+ */
+export function getProof(morning: Pick<Morning, 'key' | 'nightStart'>): MorningProof | null {
+  return getProofs().find((p) => proofUnlocks(p, morning)) ?? null;
 }
 
 /**
@@ -68,7 +84,8 @@ export function recordProof(proof: MorningProof, routine?: Routine): boolean {
   const morning = currentMorning(at, toLockSettings(routine ?? getRoutine(at)));
   if (!proofCounts(proof, morning)) return false;
   const all = getProofs();
-  // A saved proof keeps counting for its morning, so the morning is already unlocked.
+  // A saved proof that still unlocks this morning means it's already unlocked. One from before
+  // this morning's night began (the date replayed after a flight west) doesn't block this one.
   if (all.some((p) => proofUnlocks(p, morning))) return false;
   sharedSet(KEY, [proof, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();

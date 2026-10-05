@@ -13,7 +13,8 @@ const fake = fakeDeviceActivity({ available: false });
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
 const scan = await import('./scan.ts');
-const { getProof, recordProof } = await import('./morning-proof.ts');
+const { recordProof } = await import('./morning-proof.ts');
+const { currentProof } = await import('./lock-controller.ts');
 const { sharedRemove, sharedSet } = await import('./screen-time.ts');
 
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
@@ -76,9 +77,9 @@ test('morning: only the registered code unlocks, and only after morning start', 
   registerYesterday();
   assert.equal(scan.submitScan(CODE.data, at(10, 6, 3)), 'notMorning', 'bedtime wins');
   assert.equal(scan.submitScan('LOCTURNE-SOMEONEELSES', at(10, 6, 8)), 'wrongCode');
-  assert.equal(getProof('2026-10-06'), null);
+  assert.equal(currentProof(at(10, 6, 8)), null);
   assert.equal(scan.submitScan(CODE.data, at(10, 6, 8)), 'unlocked');
-  assert.equal(getProof('2026-10-06')?.kind, 'scan');
+  assert.equal(currentProof(at(10, 6, 8))?.kind, 'scan');
 });
 
 test('the QR to print stays the same until one is registered, then a new one is drawn', () => {

@@ -265,7 +265,18 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
   }
   // Ended, but the night or morning under way when it was found still finishes
   // (`settleSubscription`): bedtime stays armed until then, and the next night won't start.
-  // Say so, and offer the plans now rather than once nothing sleeps.
+  // A purchase already waiting on Ask to Buy (re-subscribed from See plans): don't ask again.
+  if (armed && unsubscribed && purchasePending) {
+    return {
+      ...base,
+      level: 'attention',
+      title: 'Waiting for approval.',
+      detail: inNight(now, armed)
+        ? 'Tonight still counts, and so does its morning. After that, nothing sleeps until the purchase is approved.'
+        : 'This morning still counts until you’re up. From tonight, nothing sleeps until the purchase is approved.',
+    };
+  }
+  // Otherwise say so, and offer the plans now rather than once nothing sleeps.
   if (armed && unsubscribed) {
     return {
       ...base,

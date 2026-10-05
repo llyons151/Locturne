@@ -137,7 +137,10 @@ export function NapScreen() {
     useCallback(() => {
       setFocused(true);
       if (isScreenTimeAvailable()) {
-        setNap(getNap());
+        const found = getNap();
+        setNap(found);
+        // One running already reads as this tab's own, so ending it some other way reads as ended.
+        if (found) setLine('napping');
         setNow(Date.now());
         setPicks(selectionSize('block'));
       }

@@ -15,8 +15,8 @@ mock.module('react-native-device-activity', { namedExports: fake.exports });
 const { planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause, heldPhase, previewEmergency } = await import(
   './emergency.ts'
 );
-const { getProof, recordProof } = await import('./morning-proof.ts');
-const { readLock } = await import('./lock-controller.ts');
+const { recordProof } = await import('./morning-proof.ts');
+const { currentProof, readLock } = await import('./lock-controller.ts');
 const rt = await import('./routine.ts');
 const st = await import('./screen-time.ts');
 
@@ -92,7 +92,7 @@ test('at 03:00: the bedtime apps wake for the rest of tonight, the always list s
   assert.ok(fake.shielded('blockSelection').includes('always'));
 
   // This coming morning counts as unlocked, and the use is logged.
-  assert.equal(getProof('2026-10-06')?.kind, 'emergency');
+  assert.equal(currentProof(at(10, 6, 8))?.kind, 'emergency');
   assert.equal(getEmergencyLog().length, 1);
   assert.deepEqual(getNightPause(at(10, 6, 12)), BEDTIME);
 });
@@ -144,7 +144,7 @@ test('in the morning: records the proof and wakes the bedtime apps', () => {
   const use = emergencyUnlock(at(10, 6, 8));
   assert.equal(use?.phase, 'morning');
   assert.equal(use?.pauseNight, false);
-  assert.equal(getProof('2026-10-06')?.kind, 'emergency');
+  assert.equal(currentProof(at(10, 6, 8))?.kind, 'emergency');
   assert.equal(fake.ids().night, 'night-picks', 'nothing parked in the morning');
   assert.equal(st.isNightHeld(), false);
   assert.ok(fake.shielded('unblockSelection').includes('night'));
@@ -190,7 +190,7 @@ test('in an earlier bedtime\'s first night: pauses until its next bedtime and un
   assert.equal(use.morningKey, '2026-10-07');
   assert.equal(use.resumesAt, at(10, 7, 21, 30).getTime(), 'back at the edit\'s next bedtime, not 23:00 tonight');
   assert.equal(st.isNightHeld(), false);
-  assert.equal(getProof('2026-10-07')?.kind, 'emergency');
+  assert.equal(currentProof(at(10, 6, 21, 45))?.kind, 'emergency');
   assert.equal(readLock(at(10, 7, 7, 30)).phase, 'day', 'the morning it leads into counts as unlocked');
 });
 
@@ -205,7 +205,7 @@ test('stood down at 23:30: nothing to lift, no proof, the bedtime picks stay put
   assert.equal(readLock(now).phase, 'night', 'the clock says night');
   assert.equal(previewEmergency(now), null, 'the exits screen says "Nothing asleep"');
   assert.equal(emergencyUnlock(now), null);
-  assert.equal(getProof('2026-10-07'), null, 'no proof, so no morning_unlocked for a non-subscriber');
+  assert.equal(currentProof(now), null, 'no proof, so no morning_unlocked for a non-subscriber');
   assert.equal(getEmergencyLog().length, 0);
   // Not parked: resubscribing tonight arms with the bedtime picks and locks the morning.
   assert.equal(fake.ids().night, 'night-picks');
