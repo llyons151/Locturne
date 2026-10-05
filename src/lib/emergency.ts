@@ -18,7 +18,7 @@ import { inPendingFirstNight, readLock, routineAt, syncLock } from './lock-contr
 import { dateKey, settingsTakeEffectAt, type Phase } from './lock-state.ts';
 import { recordProof, type MorningProof } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, nextNightOn, toLockSettings } from './routine.ts';
-import { endNap, getNap, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
+import { endNap, getNap, nightLockArmed, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
 
 /** Seconds the exits screen waits before the unlock button works. */
 export const EMERGENCY_WAIT_SECONDS = 10;
@@ -99,9 +99,19 @@ function nextBedtime(now: Date): Date {
 }
 
 
+/**
+ * The phase as far as what's asleep: the lock's phase comes from the clock, so a night with
+ * nothing to wake reads as day. That's a night with no lock (`nightLockArmed`: never bought,
+ * stood down, arming failed) or one an emergency already paused. A morning needs no check:
+ * `readLock` reads one whose night wasn't armed as unlocked, and a paused night's is proved.
+ */
+export function heldPhase(phase: Phase, now = new Date()): Phase {
+  return phase === 'night' && (!nightLockArmed() || getNightPause(now) !== null) ? 'day' : phase;
+}
+
 /** What an emergency unlock would lift right now, for the exits screen's wording. */
 export function previewEmergency(now = new Date()): EmergencyPlan | null {
-  return planEmergency(readLock(now).phase, getNap() !== null, nextBedtime(now));
+  return planEmergency(heldPhase(readLock(now).phase, now), getNap() !== null, nextBedtime(now));
 }
 
 /**

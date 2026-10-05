@@ -12,7 +12,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity();
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause } = await import(
+const { planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause, heldPhase, previewEmergency } = await import(
   './emergency.ts'
 );
 const { getProof, recordProof } = await import('./morning-proof.ts');
@@ -186,4 +186,75 @@ test('in an earlier bedtime\'s first night: pauses until its next bedtime and un
   assert.equal(st.isNightHeld(), false);
   assert.equal(getProof('2026-10-07')?.kind, 'emergency');
   assert.equal(readLock(at(10, 7, 7, 30)).phase, 'day', 'the morning it leads into counts as unlocked');
+});
+
+/*
+ * The phase comes from the clock: after bedtime it says night whatever is armed. The unlock
+ * goes by what's really asleep, so a night with no lock, or one already paused, is daytime.
+ */
+
+test('stood down at 23:30: nothing to lift, no proof, the bedtime picks stay put', () => {
+  st.standDown();
+  const now = at(10, 6, 23, 30);
+  assert.equal(readLock(now).phase, 'night', 'the clock says night');
+  assert.equal(previewEmergency(now), null, 'the exits screen says "Nothing asleep"');
+  assert.equal(emergencyUnlock(now), null);
+  assert.equal(getProof('2026-10-07'), null, 'no proof, so no morning_unlocked for a non-subscriber');
+  assert.equal(getEmergencyLog().length, 0);
+  // Not parked: resubscribing tonight arms with the bedtime picks and locks the morning.
+  assert.equal(fake.ids().night, 'night-picks');
+  assert.equal(fake.ids()['night-next'], undefined);
+  assert.equal(st.listChangeStarts('night'), null);
+});
+
+test('never armed (never bought, or arming failed) at 23:30: nothing to lift', () => {
+  fake.reset();
+  fake.ids().night = 'night-picks';
+  assert.equal(st.getArmedNight(), null);
+  assert.equal(previewEmergency(at(10, 6, 23, 30)), null);
+  assert.equal(emergencyUnlock(at(10, 6, 23, 30)), null);
+  assert.equal(getEmergencyLog().length, 0);
+});
+
+test('an unheld night with Block now running: ends it, nothing else', async () => {
+  fake.reset();
+  fake.ids().night = 'night-picks';
+  fake.ids().block = 'nap-picks';
+  const realNow = Date.now;
+  Date.now = () => at(10, 6, 23, 30).getTime();
+  try {
+    await st.startNap('block', 30);
+    const plan = previewEmergency(at(10, 6, 23, 35));
+    assert.deepEqual(plan, { pauseNight: false, unlockMorning: false, endBlockNow: true, resumesAt: null });
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('a second emergency in a night already paused: nothing to lift, logged once', () => {
+  asleep();
+  assert.ok(emergencyUnlock(at(10, 6, 1))?.pauseNight);
+  assert.equal(heldPhase('night', at(10, 6, 2)), 'day');
+  assert.equal(previewEmergency(at(10, 6, 2)), null);
+  assert.equal(emergencyUnlock(at(10, 6, 2)), null);
+  assert.equal(getEmergencyLog().length, 1);
+  // The next night is held again.
+  assert.equal(heldPhase('night', at(10, 6, 23, 30)), 'night');
+});
+
+test('a second emergency in an earlier bedtime\'s paused first night (#137): nothing to lift', () => {
+  rt.saveRoutine(rt.DEFAULT_ROUTINE, at(10, 1, 12));
+  awake();
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 }, at(10, 6, 14));
+  asleep();
+  assert.ok(emergencyUnlock(at(10, 6, 21, 45))?.pauseNight);
+  assert.equal(previewEmergency(at(10, 6, 23, 30)), null, 'still paused past the old 23:00 bedtime');
+  assert.equal(getEmergencyLog().length, 1);
+});
+
+test('pauseNightUntil while stood down parks nothing', () => {
+  st.standDown();
+  st.pauseNightUntil(at(10, 7, 23), at(10, 6, 23, 30));
+  assert.equal(fake.ids().night, 'night-picks');
+  assert.equal(st.listChangeStarts('night'), null);
 });

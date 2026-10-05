@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
+import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock, routineAt } from '@/lib/lock-controller';
 import { getRoutine } from '@/lib/routine';
@@ -57,9 +58,9 @@ type Stage =
   | { kind: 'register'; source: Source; expect?: string; miss?: boolean }
   | { kind: 'saved' };
 
-/** Night and day both refuse a scan, for different reasons. */
+/** Night and day both refuse a scan, for different reasons. A night with nothing asleep is day. */
 function notMorning(phase: string): Stage | null {
-  if (phase === 'night') return { kind: 'notYet' };
+  if (phase === 'night') return heldPhase('night') === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   if (phase === 'day' || phase === 'off') return { kind: 'awake' };
   return null;
 }

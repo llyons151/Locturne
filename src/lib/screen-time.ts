@@ -509,6 +509,15 @@ export function getArmedNight(): ArmedNight | null {
 }
 
 /**
+ * Is there a night lock at all: armed, with a subscription. The phase comes from the clock, so
+ * after bedtime it says night even with nothing armed (never bought, stood down, or arming
+ * failed). Off iOS (web, previews) the screens act as if there were.
+ */
+export function nightLockArmed(): boolean {
+  return !isAvailable() || (getArmedNight() !== null && !isStoodDown());
+}
+
+/**
  * When the monitor extension last ran each window's start, newest first. This is the proof
  * the block was applied by iOS while the app was closed.
  */
@@ -942,7 +951,8 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
  * with nothing armed starts at midnight). Re-shields every other rule.
  */
 export function pauseNightUntil(until: Date, now = new Date()): void {
-  if (!isAvailable()) return;
+  // Stood down, nothing is asleep: parking the picks would leave a resubscribe tonight empty.
+  if (!isAvailable() || isStoodDown()) return;
   // Not a daily limit's: its picks swap only with a re-arm of iOS's count, which isn't here.
   settleListChanges(now, { limits: false });
   const waiting = getPendingLists().night;

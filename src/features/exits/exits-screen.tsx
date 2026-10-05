@@ -12,13 +12,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { track } from '@/lib/analytics';
-import { EMERGENCY_WAIT_SECONDS, emergencyUnlock, pauseWording, previewEmergency, type EmergencyPlan } from '@/lib/emergency';
+import {
+  EMERGENCY_WAIT_SECONDS,
+  emergencyUnlock,
+  heldPhase,
+  pauseWording,
+  previewEmergency,
+  type EmergencyPlan,
+} from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, spendPass, type PassRefusal } from '@/lib/passes';
 import { getScanCode } from '@/lib/scan';
-import { peekNap } from '@/lib/screen-time';
+import { isStoodDown, peekNap } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -59,6 +66,9 @@ const OPENERS: Record<Phase, { line: string; body: string }> = {
   day: { line: "I'm awake. Technically.", body: 'Your morning is done. The emergency unlock can still end a Block now session.' },
   off: { line: 'Night off.', body: 'Nothing is locked tonight. The emergency unlock can still end a Block now session.' },
 };
+
+/** Bedtime by the clock, with nothing asleep: no lock armed, or an emergency already used tonight. */
+const AWAKE_NIGHT = { line: "I'm awake. Technically.", body: 'Your bedtime apps are awake tonight. The emergency unlock can still end a Block now session.' };
 
 const PASS_REFUSALS: Record<PassRefusal, string> = {
   notMorning: 'Passes work in the morning, while your apps wait for you to get up.',
@@ -149,8 +159,14 @@ export function ExitsScreen() {
     setLeft(getPassesLeft());
   };
 
+  // Bedtime by the clock with nothing asleep to wake: no lock armed, or already paused tonight.
+  const awakeNight = phase === 'night' && heldPhase(phase) !== 'night';
+
   const cantWalk = () => {
     if (getScanCode()) return router.push('/scan?mode=morning');
+    if (awakeNight) {
+      return setStage({ kind: 'menu', notice: 'No code yet, and it can’t be set up from bed. Your bedtime apps are awake tonight anyway.' });
+    }
     // A code can't be set up from bed (any barcode by the pillow would do), so say what can help.
     if (phase === 'night' || phase === 'morning') {
       return setStage({
@@ -195,6 +211,10 @@ export function ExitsScreen() {
         ...OPENERS.morning,
         body: left > 0 ? "Use a pass, or unlock in an emergency. I won't make it weird." : "No passes left this month. The emergency unlock is still here. I won't make it weird.",
       };
+    }
+    // The clock says night, but nothing is asleep to wake: don't say bedtime wins.
+    if (awakeNight) {
+      return isStoodDown() ? { ...AWAKE_NIGHT, body: 'Nothing is asleep tonight.' } : AWAKE_NIGHT;
     }
     return OPENERS[phase];
   })();

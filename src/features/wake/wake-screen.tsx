@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { useLock } from '@/hooks/use-lock';
+import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { proveMorning, readLock } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
@@ -157,12 +158,16 @@ function Unlocked({ state, onDone }: { state: LockState; onDone: () => void }) {
 
 /** Night, day or a night off: nothing to prove right now, and why. */
 function NotMorning({ state, onClose }: { state: LockState; onClose: () => void }) {
-  const phase = state.phase === 'morning' ? 'day' : state.phase;
-  const body = {
-    night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
-    day: `This morning's done. ${awakeLine(state.nextChange)}`,
-    off: 'Tonight is switched off, so there is no morning lock to lift.',
-  }[phase];
+  // Bedtime by the clock with nothing asleep (no lock armed, or an emergency used tonight).
+  const awakeNight = state.phase === 'night' && heldPhase(state.phase) !== 'night';
+  const phase = state.phase === 'morning' || awakeNight ? 'day' : state.phase;
+  const body = awakeNight
+    ? 'Your bedtime apps are awake tonight, so there is no morning lock to lift.'
+    : {
+        night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
+        day: `This morning's done. ${awakeLine(state.nextChange)}`,
+        off: 'Tonight is switched off, so there is no morning lock to lift.',
+      }[phase];
   return (
     <View style={styles.page}>
       <View style={styles.top}>

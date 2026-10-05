@@ -374,6 +374,21 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     return inside && r.activeNights.includes(evening.getDay()) && spec.armedSince !== null;
   }
 
+  /**
+   * The rule for "used up today" (sweep #124, #126, #127), from the marks the extension
+   * stored: by the moment, if there is one, at least the limit's minutes after local midnight
+   * and less than 26 h ahead; else by the day. After a flight the moment, not the day, says
+   * which local day it belongs to (a limit used up at 22:30 in New York is today's in Tokyo).
+   */
+  function usedUpToday(id: LimitId, at: number, today: string): boolean {
+    const moment = device.get<unknown>(`locturne.limitReachedAt.${id}`);
+    if (typeof moment !== 'number') return device.get<string>(`locturne.limitReached.${id}`) === today;
+    const d = new Date(at);
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const minutes = device.get<{ id: string; minutes: number }[]>('locturne.limits')?.find((l) => l.id === id)?.minutes ?? 0;
+    return moment >= midnight + minutes * MIN && moment < at + 26 * 60 * MIN;
+  }
+
   function rules(at: number) {
     const allowed = {} as Record<ListName, boolean>;
     const required = {} as Record<ListName, boolean>;
@@ -396,7 +411,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const today = dayKey(new Date(at));
     for (const id of ['limit-0', 'limit-1', 'limit-2'] as LimitId[]) {
       const m = device.state.monitored.get(id);
-      const reached = device.get<string>(`locturne.limitReached.${id}`) === today;
+      const reached = usedUpToday(id, at, today);
       required[id] = on && !spec.travelled && !!m && m.deliveredOn === today && (reached || !spec.flown);
       allowed[id] = required[id] || (on && reached);
     }
@@ -607,7 +622,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       }
       case 'emergency': {
         const before = phaseAt(t);
-        const plan = em.planEmergency(before.phase, napRunning(t), new Date(t));
+        // By what's asleep (`heldPhase`): a night with nothing armed, or already paused, is day.
+        const held = spec.armedSince !== null && !spec.stoodDown && !pausedAbs(t);
+        const plan = em.planEmergency(before.phase === 'night' && !held ? 'day' : before.phase, napRunning(t), new Date(t));
         const use = em.previewEmergency() ? em.emergencyUnlock() : null;
         await flush();
         if (!!plan !== !!use || (plan && use && plan.pauseNight !== use.pauseNight)) {

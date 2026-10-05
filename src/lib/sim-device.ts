@@ -47,7 +47,10 @@ const NAP_KEY = 'locturne.nap';
 const NIGHT_HELD_KEY = 'locturne.nightHeld';
 const LIMITS_KEY = 'locturne.limits';
 const LIMIT_REACHED_PREFIX = 'locturne.limitReached.';
+const LIMIT_REACHED_AT_PREFIX = 'locturne.limitReachedAt.';
 const PENDING_LISTS_KEY = 'locturne.pendingLists';
+const HEARTBEAT_KEY = 'locturne.heartbeat';
+const HEARTBEAT_KEEP = 100;
 const ROUTINE_KEY = 'locturne.routine';
 const STOOD_DOWN_KEY = 'locturne.stoodDown';
 const ARMED_KEY = 'locturne.armedNight';
@@ -219,18 +222,82 @@ export function simDevice() {
     }
   }
 
+  /** Local midnight of the day `t` falls on, like `calendar.startOfDay(for:)`. */
+  const startOfDay = (t: number) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+
+  /** A limit's minutes from `locturne.limits`, if it's there with a number. */
+  function limitMinutes(id: string): number | undefined {
+    const minutes = (get<{ id?: unknown; minutes?: unknown }[]>(LIMITS_KEY) ?? []).find((l) => l.id === id)?.minutes;
+    return typeof minutes === 'number' ? minutes : undefined;
+  }
+
+  /**
+   * `locturneLimitUsedUpToday`: by the moment it was used up, against local midnight `t`, at
+   * least the limit's minutes after it (#126) and less than 26 h ahead (#127). A mark without
+   * the moment goes by the day (#124).
+   */
+  function limitUsedUpToday(id: string, t = now()): boolean {
+    const at = get<unknown>(`${LIMIT_REACHED_AT_PREFIX}${id}`);
+    if (typeof at === 'number') {
+      const minutes = limitMinutes(id) ?? 0;
+      return at >= startOfDay(t) + minutes * 60_000 && at < t + 26 * 60 * 60_000;
+    }
+    return get<string>(`${LIMIT_REACHED_PREFIX}${id}`) === dayKey(new Date(t));
+  }
+
+  /** `locturneLimitThresholdIsStale`: N minutes can't be used in under N minutes of today. */
+  function limitThresholdIsStale(id: string, t = now()): boolean {
+    const minutes = limitMinutes(id);
+    if (minutes === undefined) return false;
+    return t - startOfDay(t) < minutes * 60_000;
+  }
+
   /** `reapplyLocturneBlocks`. */
   function reapply() {
     if (get<boolean>(STOOD_DOWN_KEY) === true) return;
     const held = ['always'];
     if (get<boolean>(NIGHT_HELD_KEY) === true) held.push('night');
     const nap = get<{ end: number; list: string }>(NAP_KEY);
-    if (nap && now() < nap.end) held.push(nap.list);
-    const today = dayKey(new Date(now()));
-    for (const limit of get<{ id: string }[]>(LIMITS_KEY) ?? []) {
-      if (get<string>(`${LIMIT_REACHED_PREFIX}${limit.id}`) === today) held.push(limit.id);
+    if (nap && typeof nap.end === 'number' && typeof nap.list === 'string' && now() < nap.end) held.push(nap.list);
+    for (const limit of get<{ id?: unknown }[]>(LIMITS_KEY) ?? []) {
+      if (typeof limit.id === 'string' && limitUsedUpToday(limit.id)) held.push(limit.id);
     }
     for (const id of held) block(id);
+  }
+
+  /**
+   * `recordLocturneHeartbeat`: the extension's log in the App Group, newest first, which the
+   * app's self-check (heartbeat.ts) reads and `locturneNightWindowRan` searches.
+   */
+  function recordHeartbeat(activity: string, callback: string) {
+    const entry = {
+      activity,
+      callback,
+      at: Math.round(now()),
+      shielded: s.shielded.size > 0,
+      nightPicked: appsOfId('night').length > 0,
+    };
+    const earlier = get<unknown[]>(HEARTBEAT_KEY);
+    set(HEARTBEAT_KEY, [entry, ...(Array.isArray(earlier) ? earlier.slice(0, HEARTBEAT_KEEP - 1) : [])]);
+  }
+
+  /** `locturneNightWindowRan`: did any night window start since `since`? From the heartbeat log. */
+  function nightWindowRan(since: number): boolean {
+    const log = get<unknown[]>(HEARTBEAT_KEY);
+    return (Array.isArray(log) ? log : []).some((raw) => {
+      const e = raw as { activity?: unknown; callback?: unknown; at?: unknown } | null;
+      return (
+        !!e &&
+        typeof e.activity === 'string' &&
+        typeof e.at === 'number' &&
+        e.activity.startsWith(NIGHT_PREFIX) &&
+        e.callback === 'intervalDidStart' &&
+        e.at >= since
+      );
+    });
   }
 
   /** `settleLocturneLists`, with its two minutes' slack. */
@@ -325,54 +392,101 @@ export function simDevice() {
     return dayKey(new Date(evening.getFullYear(), evening.getMonth(), evening.getDate() + 1)) > ended;
   }
 
-  /** When each night window started, for `locturneNightWindowRan` (the heartbeat log). */
-  const nightStarts: number[] = [];
+  // Shield words aren't modelled (`updateShield` is a no-op), so `restoreLocturneFallbackShield`
+  // and the morning's `updateShield` are marked where the Swift calls them but do nothing.
+  // `persistToUserDefaults` and `notifyAppWithName` are the library's and aren't modelled either.
 
   function intervalDidStart(activity: string) {
+    // First, so a bedtime window shields the edited list, not the old one.
     settleLists();
+
+    // A limit's day starting, maybe a few seconds before midnight: yesterday's mark goes now
+    // (#128). An arm in the middle of the day keeps its mark.
+    if (activity.startsWith(LIMIT_PREFIX) && !limitUsedUpToday(activity, now() + 120_000)) {
+      delete s.store[`${LIMIT_REACHED_PREFIX}${activity}`];
+      delete s.store[`${LIMIT_REACHED_AT_PREFIX}${activity}`];
+    }
+
     if (activity.startsWith(NIGHT_PREFIX)) {
       if (get(STOOD_DOWN_KEY) === true) {
-        reapply();
+        ignoreWindow(activity);
         return;
       }
       const window = windowNight();
-      const ran = nightStarts.some((at) => at >= window.bedtime);
-      nightStarts.push(now());
-      // `ignoreLocturneWindow`: changes nothing.
-      if (window.outside && ran) {
-        reapply();
+      if (window.outside && nightWindowRan(window.bedtime)) {
+        ignoreWindow(activity);
         return;
       }
       if (!nightIsOn(window.evening) || subscriptionLapsed(window.evening)) {
-        if (insideNightInForce()) {
-          // `skipLocturneNight`
-          set(NIGHT_HELD_KEY, false);
-          unblock('night');
-        }
-        reapply();
+        if (insideNightInForce()) skipNight(activity);
+        else ignoreWindow(activity);
         return;
       }
       set(NIGHT_HELD_KEY, true);
     }
+
     execActions(activity, 'intervalDidStart');
+    // (A limit's start: `restoreLocturneFallbackShield`, words only.)
     reapply();
+    recordHeartbeat(activity, 'intervalDidStart');
+  }
+
+  /** `skipLocturneNight`: a night that's off releases the hold and wakes the bedtime list. */
+  function skipNight(activity: string) {
+    set(NIGHT_HELD_KEY, false);
+    unblock('night');
+    // (`restoreLocturneFallbackShield`, words only.)
+    reapply();
+    recordHeartbeat(activity, 'intervalDidStart');
+  }
+
+  /** `ignoreLocturneWindow`: changes nothing, but is still noted in the heartbeat. */
+  function ignoreWindow(activity: string) {
+    reapply();
+    recordHeartbeat(activity, 'intervalDidStart');
   }
 
   function intervalDidEnd(activity: string) {
+    // The nap is over: forget it first, so the re-apply doesn't shield it again.
     if (activity === NAP_ACTIVITY) delete s.store[NAP_KEY];
     execActions(activity, 'intervalDidEnd');
+    showMorningShield(activity);
+    // (A nap's end: `restoreLocturneFallbackShield`, words only.)
     reapply();
+    recordHeartbeat(activity, 'intervalDidEnd');
+  }
+
+  /**
+   * `showLocturneMorningShield`: at the last window's end (morning start, give or take), a night
+   * with no bedtime picks left (an emergency pause, a list emptied at bedtime) lets go of its
+   * hold, held or not (#113, #114). A held night with picks gets the morning words.
+   */
+  function showMorningShield(activity: string) {
+    const morningStart = get<{ morningStart?: unknown }>(ARMED_KEY)?.morningStart;
+    if (!activity.startsWith(NIGHT_PREFIX) || typeof morningStart !== 'number') return;
+    const sinceMorning = (minuteOf(new Date(now())) - Math.trunc(morningStart) + 1440) % 1440;
+    if (!(sinceMorning <= 30 || sinceMorning >= 1440 - 5)) return;
+    if (ids().night === undefined) {
+      set(NIGHT_HELD_KEY, false);
+      // (`restoreLocturneFallbackShield`, words only.)
+      return;
+    }
+    if (get<boolean>(NIGHT_HELD_KEY) !== true) return;
+    // (`updateShield` with the morning words, words only.)
   }
 
   function eventDidReachThreshold(activity: string) {
-    // `locturneLimitThresholdIsStale`: N minutes can't be used in under N minutes of today.
-    const limit = (get<{ id: string; minutes: number }[]>(LIMITS_KEY) ?? []).find((l) => l.id === activity);
-    const t = new Date(now());
-    const sinceMidnight = t.getTime() - new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
-    const stale = limit !== undefined && sinceMidnight < limit.minutes * 60_000;
-    if (activity.startsWith(LIMIT_PREFIX) && !stale) set(`${LIMIT_REACHED_PREFIX}${activity}`, dayKey(t));
+    // A daily limit is used up: the day and the moment (#124). Unless it's yesterday's,
+    // delivered late (`locturneLimitThresholdIsStale`).
+    const isLimit = activity.startsWith(LIMIT_PREFIX);
+    const stale = isLimit && limitThresholdIsStale(activity);
+    if (isLimit && !stale) {
+      set(`${LIMIT_REACHED_PREFIX}${activity}`, dayKey(new Date(now())));
+      set(`${LIMIT_REACHED_AT_PREFIX}${activity}`, Math.round(now()));
+    }
     if (!stale) execActions(activity, 'eventDidReachThreshold', 'used-up');
     reapply();
+    recordHeartbeat(activity, 'eventDidReachThreshold');
   }
 
   /** Runs one callback in the extension, if iOS is still monitoring the activity. */
@@ -433,7 +547,6 @@ export function simDevice() {
     s.queue.length = 0;
     s.usage.clear();
     s.trace.length = 0;
-    nightStarts.length = 0;
   }
 
   return { state: s, exports, ids, appsOfId, fire, dueEvents, use, reset, get };

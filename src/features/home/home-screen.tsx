@@ -22,7 +22,7 @@ import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
 import { getPendingRoutine, nightAt, type Routine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
-import { getArmedNight, isScreenTimeAvailable, isStoodDown, shownSelection } from '@/lib/screen-time';
+import { isScreenTimeAvailable, isStoodDown, nightLockArmed, shownSelection } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
 import { noOrphan } from '@/lib/text';
 import { trialNotice } from '@/lib/trial-notice';
@@ -101,8 +101,7 @@ export function HomeScreen() {
 
   // The phase comes from the clock: after bedtime it says night even with nothing armed (never
   // bought, stood down, or arming failed). Nothing is asleep then, so don't say it is.
-  const held = !isScreenTimeAvailable() || (getArmedNight() !== null && !isStoodDown());
-  const phase = lock.phase === 'night' && !held ? 'day' : lock.phase;
+  const phase = lock.phase === 'night' && !nightLockArmed() ? 'day' : lock.phase;
 
   // Development only: tap the label to see each look without waiting for the clock.
   const [preview, setPreview] = useState<HomeView | null>(null);
