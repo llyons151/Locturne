@@ -68,8 +68,13 @@ const NOT_ALLOWED: `${PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED_ERROR}` = '3';
 const NETWORK: `${PURCHASES_ERROR_CODE.NETWORK_ERROR}` = '10';
 const PENDING: `${PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR}` = '20';
 const OFFLINE: `${PURCHASES_ERROR_CODE.OFFLINE_CONNECTION_ERROR}` = '35';
+type Verification = `${CustomerInfo['entitlements']['verification']}`;
 // Trusted Entitlements (purchases-start.ts): an answer whose signature didn't check out.
-const FORGED: Extract<`${CustomerInfo['entitlements']['verification']}`, 'FAILED'> = 'FAILED';
+const FORGED: Extract<Verification, 'FAILED'> = 'FAILED';
+// Signed by RevenueCat's server: its `requestDate` is server time.
+const SIGNED: Extract<Verification, 'VERIFIED'> = 'VERIFIED';
+// Built on the phone from StoreKit during a RevenueCat outage: `requestDate` is the phone's clock.
+const ON_DEVICE: Extract<Verification, 'VERIFIED_ON_DEVICE'> = 'VERIFIED_ON_DEVICE';
 
 /** What's cached of the last answer about the entitlement. Plist-safe: no nulls. */
 export type EntitlementRecord = {
@@ -255,8 +260,14 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   const judgedAt = () => new Date(behind() ? seenAt() : now().getTime());
   const remember = (info: CustomerInfo) => {
     const served = Date.parse(info.requestDate);
-    if (!forged(info) && served > seenAt()) store.set(SEEN_AT_KEY, served);
+    if (info.entitlements.verification === SIGNED && served > seenAt()) store.set(SEEN_AT_KEY, served);
     let record = entitlementRecord(info, now());
+    // An answer built on the phone is judged by the phone's clock, so it only counts once this
+    // install has seen the server's time and the clock isn't behind it (a reinstall, the
+    // clock set back and the server blocked would otherwise read as paid).
+    if (record.active && info.entitlements.verification === ON_DEVICE && (seenAt() === 0 || behind())) {
+      record = { ...record, active: false };
+    }
     const at = judgedAt();
     // The clock is behind: the store's answer may be its stale cache, judged by that clock.
     if (record.active && at.getTime() > now().getTime() && !cachedEntitlement(record, at)) {

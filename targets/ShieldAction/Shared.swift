@@ -1068,9 +1068,13 @@ func deserializeFamilyActivitySelection(familyActivitySelectionStr: String)
   var activitySelection = FamilyActivitySelection()
 
   let decoder = JSONDecoder()
-  let data = Data(base64Encoded: familyActivitySelectionStr)
+  // Locturne: a string that isn't base64 returns an empty selection instead of crashing the
+  // extension on every callback (which would stop every list shielding).
+  guard let data = Data(base64Encoded: familyActivitySelectionStr) else {
+    return activitySelection
+  }
   do {
-    activitySelection = try decoder.decode(FamilyActivitySelection.self, from: data!)
+    activitySelection = try decoder.decode(FamilyActivitySelection.self, from: data)
   } catch {
     logger.log("decode error \(error.localizedDescription, privacy: .public)")
   }

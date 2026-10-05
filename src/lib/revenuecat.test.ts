@@ -357,6 +357,11 @@ test('a clock once set forward doesn\'t lock a paying user out', async () => {
   assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
 });
 
+/** A server answer at `at`, signed (Trusted Entitlements). */
+function signed(info: CustomerInfo, at: Date, verification = 'VERIFIED'): CustomerInfo {
+  return { ...info, requestDate: at.toISOString(), entitlements: { ...info.entitlements, verification } } as CustomerInfo;
+}
+
 test('a clock set back before the plan ended makes the store answer afresh', async () => {
   const store = memoryKeyValue();
   const expiresAt = new Date(2026, 10, 1).getTime();
@@ -369,7 +374,7 @@ test('a clock set back before the plan ended makes the store answer afresh', asy
   // The SDK's cache, judged by the set-back clock, says active until asked afresh.
   sdk.getCustomerInfo = async () =>
     sdk.invalidated
-      ? ({ ...customer(null), requestDate: new Date(expiresAt + DAY).toISOString() } as CustomerInfo)
+      ? signed(customer(null), new Date(expiresAt + DAY))
       : ({ ...plan, requestDate: new Date(lastSeen).toISOString() } as CustomerInfo);
   assert.equal(await provider(sdk, store, 0.9, back).isEntitled(), false);
   assert.equal(sdk.invalidated, 1);
@@ -395,4 +400,33 @@ test('cached values of the wrong type fail closed', async () => {
   const store = memoryKeyValue();
   store.set(ENTITLEMENT_KEY, { active: 'false', checkedAt: 0 });
   assert.equal(await provider(fakeSdk({ offline: true }), store).isEntitled(), false);
+});
+
+test('only a signed server answer moves the server time seen', async () => {
+  const store = memoryKeyValue();
+  const today = new Date(2026, 10, 1);
+  const ahead = new Date(today.getTime() + 365 * DAY);
+  const plan = customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() + 30 * DAY });
+  const sdk = fakeSdk();
+  // A restore during a RevenueCat outage with the clock a year ahead: built on the phone.
+  sdk.info = signed(plan, ahead, 'VERIFIED_ON_DEVICE');
+  await provider(sdk, store, 0.9, ahead).isEntitled();
+  assert.equal(store.get(SEEN_AT_KEY), undefined);
+  // Clock set right, the server answers: still paid.
+  sdk.info = signed(plan, today);
+  assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
+  assert.equal(store.get(SEEN_AT_KEY), today.getTime());
+});
+
+test('an answer built on the phone counts only after the server\'s time has been seen, clock not behind', async () => {
+  const today = new Date(2026, 10, 1);
+  const plan = customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() + 30 * DAY });
+  const sdk = fakeSdk();
+  sdk.info = signed(plan, today, 'VERIFIED_ON_DEVICE');
+  // A fresh install (or reinstall) with RevenueCat unreachable: not yet.
+  assert.equal(await provider(sdk, memoryKeyValue(), 0.9, today).isEntitled(), false);
+  // Seen the server before, clock right: an outage doesn't stand a payer down.
+  const store = memoryKeyValue();
+  store.set(SEEN_AT_KEY, today.getTime() - DAY);
+  assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
 });
