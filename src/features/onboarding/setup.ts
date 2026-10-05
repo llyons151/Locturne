@@ -4,7 +4,7 @@
  * does, and only after purchase.
  */
 import { inPendingFirstNight, syncLock } from '@/lib/lock-controller';
-import { cancelTrialReminder, rescheduleNotifications, scheduleTrialReminder, TRIAL_REMINDER_KEY } from '@/lib/notifications';
+import { cancelTrialReminder, rescheduleNotifications, syncTrialEnd, TRIAL_REMINDER_KEY } from '@/lib/notifications';
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
@@ -83,11 +83,19 @@ export function savedQuizAnswers(): QuizAnswers {
   return pickQuiz(sharedGet<Partial<Answers>>(QUIZ_KEY) ?? {});
 }
 
+let trialReminderRequest = 0;
+
 /** Called after purchase. Schedules the trial reminder (it lands once notifications are allowed). */
 export function saveTrialReminder(on: boolean): void {
+  const request = ++trialReminderRequest;
   sharedSet(TRIAL_REMINDER_KEY, on);
   const scheduled = on
-    ? currentTrialEnd().then((end) => (end ? scheduleTrialReminder(end) : undefined))
+    ? currentTrialEnd().then((end) => {
+        // A store lookup can finish after another setup or an opt-out. Only the latest
+        // choice may publish its deadline; a confirmed absent trial clears an old one.
+        if (request !== trialReminderRequest || sharedGet<boolean>(TRIAL_REMINDER_KEY) !== true) return;
+        return syncTrialEnd(end);
+      })
     : cancelTrialReminder();
   scheduled.catch(() => {});
 }

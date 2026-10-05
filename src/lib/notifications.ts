@@ -25,7 +25,7 @@ import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { wallClock } from './lock-state.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
 import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, hasRoutine, holdsEarly, runsAs, type ArmedTimes, type Routine, type StoredRoutine } from './routine.ts';
-import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
+import { armedSince, getArmedNight, getProtection, listChangeLandsAt, selectionSize, selectionSizeAfterChange, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
 const DAY_MS = 24 * 60 * MINUTE;
@@ -100,6 +100,8 @@ export type PlanFacts = {
   routineSince?: number | null;
   /** When the armed night was first armed: a morning whose night ended before then is free. */
   armedSince?: Date | null;
+  /** Actual picks now and after the next native handoff; a parked emergency list returns later. */
+  nightSelection?: { hasApps: boolean; change?: { at: Date; hasApps: boolean } };
   /**
    * The saved proofs (stairs, steps, a scan, a pass, an emergency unlock). A morning one of
    * them unlocks (`proofUnlocks`: made since its night began, under the routine it was made
@@ -130,6 +132,10 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
   const prefs = facts.prefs ?? DEFAULT_PREFS;
   const plan: PlannedNotification[] = [];
   const nightly = facts.armed && (protection === 'on' || protection === 'off');
+  const hasAppsAt = (at: Date) => {
+    const picks = facts.nightSelection;
+    return !picks || (picks.change && at >= picks.change.at ? picks.change.hasApps : picks.hasApps);
+  };
 
   for (let offset = 0; nightly && offset <= (facts.days ?? DAYS_AHEAD); offset++) {
     // The night into the morning `offset` days from today, under whichever routine it starts in.
@@ -163,7 +169,7 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     const key = dayKey(end);
     if (facts.lastPaidMorning && key > facts.lastPaidMorning) continue;
     const warnAt = new Date(start.getTime() - BEDTIME_WARNING * MINUTE);
-    if (warnAt > now && (protection === 'off' || prefs.bedtime)) {
+    if (warnAt > now && hasAppsAt(start) && (protection === 'off' || prefs.bedtime)) {
       const kind = protection === 'off' ? 'revoked' : 'bedtime';
       plan.push({ id: `${ID_PREFIX}${kind}.${key}`, kind, at: warnAt, ...COPY[kind] });
     }
@@ -172,7 +178,7 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     // has to come after it began, whatever routine it was made under.
     const unlocked = facts.proofs?.some((proof) => proofUnlocks(proof, { key, nightStart: start, ran: end > now }));
     const free = unlocked || (facts.armedSince && facts.armedSince >= end);
-    if (protection === 'on' && prefs.morning && end > now && !free) {
+    if (protection === 'on' && prefs.morning && end > now && !free && hasAppsAt(end)) {
       plan.push({ id: `${ID_PREFIX}morning.${key}`, kind: 'morning', at: end, ...COPY.morning });
     }
   }
@@ -411,6 +417,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
 
     const stored = hasRoutine();
     const armed = getArmedNight();
+    const handoff = listChangeLandsAt('night');
     const plan = planNotifications({
       routine: stored || !routine ? getRoutine() : routine,
       pending: stored ? getPendingRoutine() : null,
@@ -419,6 +426,10 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       armedTimes: armed,
       routineSince: stored ? getRoutineChange()?.since : null,
       armedSince: armed ? armedSince(armed) : null,
+      nightSelection: {
+        hasApps: selectionSize('night') > 0,
+        ...(handoff && !handoff.waitsForOpen ? { change: { at: handoff.at, hasApps: selectionSizeAfterChange('night') > 0 } } : {}),
+      },
       proofs: getProofs(),
       trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),

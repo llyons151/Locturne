@@ -223,6 +223,28 @@ describe('a session', () => {
     assert.deepEqual(t.world.sessions, []);
   });
 
+  test('Stop cancels a start still waiting for permission', async () => {
+    const t = setup((w) => void (w.holdPrompt = true));
+    const started = t.watch.start();
+    await settle();
+    t.watch.stop();
+    t.world.waiting.forEach((release) => release());
+    await started;
+    assert.equal(t.listening(), 0);
+    assert.deepEqual(t.world.sessions, []);
+  });
+
+  test('backgrounding while permission is pending cancels the hidden start', async () => {
+    const t = setup((w) => void (w.holdPrompt = true));
+    const started = t.watch.start();
+    await settle();
+    t.appState('background');
+    t.world.waiting.forEach((release) => release());
+    await started;
+    assert.equal(t.listening(), 0);
+    assert.deepEqual(t.world.sessions, []);
+  });
+
   test('a refused or failed prompt says denied and starts nothing', async () => {
     for (const prompt of [{ granted: false, canAskAgain: false }, new Error('nope')]) {
       const t = setup((w) => void (w.prompt = prompt));

@@ -103,7 +103,14 @@ export function readLock(now = new Date()): LockState {
   const priorRoutine = prior ? getRoutineChange(now)?.prior : null;
   const since = armed ? armedSince(armed) : null;
   const inTime = priorRoutine ? since !== null && since < nightInto(morning.key, priorRoutine).end : armedInTime(now, settings, since);
-  const free = unrun || !inTime || sharedGet<string>(FREE_MORNING_KEY) === morning.key;
+  const freeAt = sharedGet<number>(FREE_MORNING_AT_KEY);
+  const renewedFree = sharedGet<string>(FREE_MORNING_KEY) === morning.key &&
+    !(morning.ran === true && freeAt !== undefined && morning.nightStart.getTime() > freeAt);
+  // The extension has nothing to keep asleep after a bedtime-list removal lands.
+  // Asking for proof here would consume a scarce pass without waking any apps.
+  // Read live picks, not the pending picker draft: removals still wait for bedtime.
+  const empty = isScreenTimeAvailable() && selectionSize('night') === 0;
+  const free = unrun || !inTime || renewedFree || empty;
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
   const state = getLockState(
     now,
@@ -300,6 +307,8 @@ export function pastLastPaid(morningKey: string): boolean {
  * skipped its night, so nothing held it, and it stays free once the subscription is back.
  */
 const FREE_MORNING_KEY = 'locturne.freeMorning';
+/** A later real night can reuse the same calendar key after a schedule change. */
+const FREE_MORNING_AT_KEY = 'locturne.freeMorningAt';
 
 /**
  * While a lapsed subscription's last night or morning still finishes (`settleSubscription`):
@@ -354,7 +363,10 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
     // A renewal in a morning whose night the lapse skipped: iOS held nothing overnight, so the
     // morning stays free rather than putting the apps to sleep now. A night re-shields at once.
     const lapsed = readLock(now);
-    if (lapsed.phase === 'morning' && pastLastPaid(lapsed.morningKey)) sharedSet(FREE_MORNING_KEY, lapsed.morningKey);
+    if (lapsed.phase === 'morning' && pastLastPaid(lapsed.morningKey)) {
+      sharedSet(FREE_MORNING_KEY, lapsed.morningKey);
+      sharedSet(FREE_MORNING_AT_KEY, now.getTime());
+    }
     sharedRemove(SUBSCRIPTION_ENDED_KEY);
     sharedRemove(ENDED_MORNING_KEY);
     standUp().catch(() => {

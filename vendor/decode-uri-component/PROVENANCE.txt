@@ -1,0 +1,7 @@
+Source: https://github.com/SamVerschueren/decode-uri-component/tree/v0.5.0
+Advisory: https://github.com/advisories/GHSA-vcc3-ghjq-m6fr
+License: MIT, retained in LICENSE.
+Changes: CommonJS module.exports instead of ESM default export; retain v0.2.2 plus-to-space behavior.
+Hardening: decode each original encoded run once using a replacement callback, preserving BOM/C2 fallback behavior. Upstream whole-input replacement loops were quadratic, corrupted overlapping encoded runs, and compiled oversized dynamic regular expressions. Callback replacements also keep decoded dollar signs literal. Malformed C2 replacement acts only on original encoded bytes, never percent sequences produced by decoding.
+Reason: Expo 57 uses query-string 7, which requires a CommonJS function; published 0.5.0 is ESM-only.
+Remove this override when the supported Expo version uses a patched decoder natively.

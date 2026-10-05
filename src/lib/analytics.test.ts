@@ -7,6 +7,7 @@ import { beforeEach, test } from 'node:test';
 import {
   ageBracket,
   answerFor,
+  finishAnalyticsStartup,
   resetAnalytics,
   setAnalyticsSink,
   stopForChild,
@@ -75,4 +76,43 @@ test('under 13: opt out, and nothing more is sent or queued', () => {
 test('a sink that throws never breaks the caller', () => {
   setAnalyticsSink({ ...fakeSink().sink, capture: () => { throw new Error('offline'); } });
   assert.doesNotThrow(() => track('walk_started', {}));
+});
+
+test('under 13 before startup: discard queued events and opt out every later sink', () => {
+  track('walk_started', {});
+  stopForChild();
+  const first = fakeSink();
+  setAnalyticsSink(first.sink);
+  assert.equal(first.optedOut(), true);
+  assert.equal(first.captured.length, 0);
+  const replacement = fakeSink();
+  setAnalyticsSink(replacement.sink);
+  track('walk_started', {});
+  assert.equal(replacement.optedOut(), true);
+  assert.equal(replacement.captured.length, 0);
+});
+
+test('SDK storage finishing after under-13 opt-out purges again and never relinks the identity', () => {
+  const links: string[] = [];
+  let purges = 0;
+  const client = {
+    // The SDK has not applied its queued optOut callback yet.
+    optedOut: false,
+    getDistinctId: () => 'anonymous-child-id',
+    optOut: () => { purges += 1; links.push(''); },
+    link: (id: string) => { links.push(id); },
+  };
+  setAnalyticsSink({ ...fakeSink().sink, optOut: client.optOut });
+  stopForChild();
+  finishAnalyticsStartup(client);
+  assert.equal(purges, 2);
+  assert.deepEqual(links, ['', '']);
+});
+
+test('SDK startup links only opted-in adults', () => {
+  const links: string[] = [];
+  const client = { optedOut: false, getDistinctId: () => 'adult', optOut() {}, link: (id: string) => { links.push(id); } };
+  finishAnalyticsStartup(client);
+  finishAnalyticsStartup({ ...client, optedOut: true });
+  assert.deepEqual(links, ['adult']);
 });

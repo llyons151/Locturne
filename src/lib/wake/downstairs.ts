@@ -107,6 +107,8 @@ function median(values: number[]): number {
 function judge(s: DownstairsSession): DownstairsStatus {
   if (s.metAt !== null) return 'met';
   const elapsed = s.now - s.startedAt;
+  if (elapsed >= DOWNSTAIRS.timeoutMs && s.heldSince === null) return 'timedOut';
+  if (s.now - (s.recent.at(-1)?.at ?? s.startedAt) >= DOWNSTAIRS.noSignalMs) return 'noSignal';
   if (s.count === 0) return elapsed >= DOWNSTAIRS.noSignalMs ? 'noSignal' : 'waiting';
   if (
     elapsed >= DOWNSTAIRS.flatMs &&
@@ -121,6 +123,9 @@ function judge(s: DownstairsSession): DownstairsStatus {
 
 /** A barometer reading. Readings after the session has ended are ignored. */
 export function addSample(session: DownstairsSession, sample: Sample): DownstairsSession {
+  // A gap is not evidence that the height stayed beyond the threshold. Clear the hold
+  // before accepting a new sample, including when no clock tick ran during the gap.
+  session = tick(session, sample.at);
   if (isOver(session) || !Number.isFinite(sample.altitude)) return tick(session, sample.at);
   const at = Math.max(sample.at, session.now);
   const s: DownstairsSession = {
@@ -170,7 +175,12 @@ export function addSample(session: DownstairsSession, sample: Sample): Downstair
  * finish a hold, so a sensor that stops mid-hold never counts as met.
  */
 export function tick(session: DownstairsSession, now: number): DownstairsSession {
+  if (isOver(session)) return session;
   const s = { ...session, now: Math.max(now, session.now) };
+  if (s.now - (s.recent.at(-1)?.at ?? s.startedAt) >= DOWNSTAIRS.noSignalMs) {
+    s.heldSince = null;
+    s.direction = 0;
+  }
   s.status = judge(s);
   return s;
 }

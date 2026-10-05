@@ -11,11 +11,15 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 
 const fake = fakeDeviceActivity();
 let refuse = false;
+let thresholdDuringArm = false;
 mock.module('react-native-device-activity', {
   namedExports: {
     ...fake.exports,
     startMonitoring: async (name: string) => {
       if (refuse) throw new Error('iOS refused');
+      if (thresholdDuringArm) {
+        fake.state.store[`locturne.limitReached.${name}`] = dateKey(new Date());
+      }
       return fake.exports.startMonitoring(name);
     },
   },
@@ -27,6 +31,7 @@ const { dateKey } = await import('./lock-state.ts');
 beforeEach(() => {
   fake.reset();
   refuse = false;
+  thresholdDuringArm = false;
   fake.ids()['limit-0'] = 'limit-picks';
 });
 
@@ -122,11 +127,21 @@ test('an emergency unlock leaves a limit\'s waiting removal to the app, which re
 test('a looser limit iOS refuses stays pending, and the next open retries it', async () => {
   const pending = { minutes: 60, from: Date.now() - 1000 };
   st.saveLimits([{ id: 'limit-0', minutes: 30, pending }]);
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(new Date());
   refuse = true;
   await assert.rejects(st.settleLimitChanges());
   assert.deepEqual(st.getLimits(), [{ id: 'limit-0', minutes: 30, pending }], 'still what iOS enforces');
+  assert.ok(st.limitUsedUpToday('limit-0'), 'the stricter limit remains used up after failure');
   refuse = false;
   await st.settleLimitChanges();
   assert.deepEqual(st.getLimits(), [{ id: 'limit-0', minutes: 60 }]);
   assert.ok(fake.state.activities.includes('limit-0'));
+});
+
+test('a fresh limit whose past usage reaches its threshold during registration stays shielded', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 60 }]);
+  thresholdDuringArm = true;
+  await st.armLimit(st.getLimits()[0], { fresh: true });
+  assert.ok(st.limitUsedUpToday('limit-0'));
+  assert.ok(fake.shielded('blockSelection').includes('limit-0'), 'registration must preserve the new threshold shield');
 });

@@ -218,3 +218,12 @@ test('starting again after purchase drops any edit in progress', () => {
   assert.equal(nav.returnTo, null);
   assert.equal(nav.beforeEdit, null);
 });
+
+test('a permission callback cannot advance a different visit at the same stack depth', () => {
+  const original = reach('screen-time');
+  const callback: NavAction = { type: 'next', at: original.history.length, visit: original.visit };
+  const moved = run(original, back, { type: 'edit', to: 'method' });
+  assert.equal(moved.history.length, original.history.length);
+  assert.equal(currentStep(moved), 'method');
+  assert.equal(navigate(moved, callback), moved, 'old Screen Time completion must not submit a later method edit');
+});

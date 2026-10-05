@@ -33,6 +33,20 @@ beforeEach(() => {
 /** This morning was already proven, so it's daytime until bedtime. */
 const awake = () => recordProof({ morningKey: '2026-10-06', kind: 'steps', at: at(10, 6, 7, 30).getTime() });
 
+test('an emergency pause of an empty bedtime list also parks apps added during that pause', () => {
+  st.clearSelection('night');
+  const now = at(10, 6, 23, 30);
+  const use = emergencyUnlock(now);
+  assert.equal(use?.pauseNight, true);
+  st.beginListEdit('night');
+  fake.ids()['night-next'] = 'new-night-picks';
+  assert.equal(st.finishListEdit('night', new Date(use!.resumesAt!)), 'bedtime');
+  assert.equal(st.selectionSize('night'), 0);
+  assert.equal(st.listChangeStarts('night')?.getTime(), use!.resumesAt);
+  st.settleListChanges(new Date(use!.resumesAt!), { limits: false });
+  assert.ok(st.selectionSize('night') > 0);
+});
+
 /** An earlier bedtime's windows armed at once, as `armRoutine` does (it only tightens). */
 const armEarlier = () => {
   fake.state.store['locturne.armedNight'] = { ...fake.armedNight(), bedtime: 21 * 60 + 30 };

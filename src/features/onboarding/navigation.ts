@@ -53,6 +53,8 @@ export const EDITABLE: StepId[] = ['bedtime', 'wake', 'method', 'apps'];
 export const AUTO_ADVANCE: StepId[] = ['math'];
 
 export type Nav = {
+  /** Monotonic screen visit; stack depth alone repeats after Back/edit. */
+  visit: number;
   /** Every step shown, oldest first; the last is on screen. Never empty. */
   history: StepId[];
   answers: Answers;
@@ -68,7 +70,7 @@ export type NavAction =
    * `at` is the history length it was sent from: a second `next` from the same screen (a
    * double tap, a late async callback) finds the screen gone and does nothing.
    */
-  | { type: 'next'; skip?: StepId[]; at?: number }
+  | { type: 'next'; skip?: StepId[]; at?: number; visit?: number }
   | { type: 'go'; to: StepId }
   /** Edit a choice from the step on screen, and come back to it on Continue. */
   | { type: 'edit'; to: StepId }
@@ -90,7 +92,7 @@ export function nextStep(step: StepId, skip: StepId[] = []): StepId {
 }
 
 export function startNav(step: StepId, answers: Answers): Nav {
-  return { history: [step], answers, returnTo: null, beforeEdit: null };
+  return { visit: 0, history: [step], answers, returnTo: null, beforeEdit: null };
 }
 
 export const currentStep = (nav: Nav): StepId => nav.history[nav.history.length - 1];
@@ -106,14 +108,15 @@ const finishEdit = (nav: Nav): Nav => ({ ...nav, returnTo: null, beforeEdit: nul
 export function navigate(nav: Nav, action: NavAction): Nav {
   switch (action.type) {
     case 'go':
-      return { ...nav, history: [...nav.history, action.to] };
+      return { ...nav, visit: nav.visit + 1, history: [...nav.history, action.to] };
 
     case 'next': {
       if (action.at !== undefined && action.at !== nav.history.length) return nav;
+      if (action.visit !== undefined && action.visit !== nav.visit) return nav;
       if (isEditing(nav)) {
         // Pop back to where the edit started instead of stacking another copy of it.
         const at = nav.history.lastIndexOf(nav.returnTo!);
-        return finishEdit({ ...nav, history: nav.history.slice(0, at + 1) });
+        return finishEdit({ ...nav, visit: nav.visit + 1, history: nav.history.slice(0, at + 1) });
       }
       return navigate(nav, { type: 'go', to: nextStep(currentStep(nav), action.skip) });
     }
@@ -121,6 +124,7 @@ export function navigate(nav: Nav, action: NavAction): Nav {
     case 'edit':
       return {
         ...nav,
+        visit: nav.visit + 1,
         history: [...nav.history, action.to],
         returnTo: currentStep(nav),
         beforeEdit: nav.answers,
@@ -132,13 +136,13 @@ export function navigate(nav: Nav, action: NavAction): Nav {
       // Skip screens that advance on their own, or Back would bounce straight forward again.
       let to = nav.history.length - 1;
       while (to > 1 && AUTO_ADVANCE.includes(nav.history[to - 1])) to -= 1;
-      return { ...cancelled, history: nav.history.slice(0, to) };
+      return { ...cancelled, visit: nav.visit + 1, history: nav.history.slice(0, to) };
     }
 
     case 'set':
       return { ...nav, answers: { ...nav.answers, ...action.answers } };
 
     case 'reset':
-      return finishEdit({ ...nav, history: [action.to] });
+      return finishEdit({ ...nav, visit: nav.visit + 1, history: [action.to] });
   }
 }

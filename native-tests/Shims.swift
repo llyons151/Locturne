@@ -110,21 +110,44 @@ struct DeviceActivityEvent {
 }
 
 struct DeviceActivitySchedule {
-  init(intervalStart: DateComponents, intervalEnd: DateComponents, repeats: Bool) {}
+  let intervalStart: DateComponents
+  let intervalEnd: DateComponents
+  let repeats: Bool
+  init(intervalStart: DateComponents, intervalEnd: DateComponents, repeats: Bool) {
+    self.intervalStart = intervalStart
+    self.intervalEnd = intervalEnd
+    self.repeats = repeats
+  }
 }
 
 final class DeviceActivityCenter {
   /// The monitored activities, set by a test (the app's `startMonitoring` calls).
   nonisolated(unsafe) static var monitored: [DeviceActivityName] = []
+  nonisolated(unsafe) static var schedules: [DeviceActivityName: DeviceActivitySchedule] = [:]
+  nonisolated(unsafe) static var starts = 0
+  nonisolated(unsafe) static var refusedStarts: Set<Int> = []
+  nonisolated(unsafe) static var onStart: ((DeviceActivityName) -> Void)?
+  nonisolated(unsafe) static var peakActivities = 0
+  enum MonitoringFailure: Error { case refused, tooMany, tooShort }
   var activities: [DeviceActivityName] { Self.monitored }
   func startMonitoring(
     _ name: DeviceActivityName, during: DeviceActivitySchedule,
     events: [DeviceActivityEvent.Name: DeviceActivityEvent]
   ) throws {
+    Self.starts += 1
+    if Self.refusedStarts.contains(Self.starts) { throw MonitoringFailure.refused }
+    let minutes: (DateComponents) -> Int = { ($0.hour ?? 0) * 60 + ($0.minute ?? 0) }
+    let length = (minutes(during.intervalEnd) - minutes(during.intervalStart) + 1440) % 1440
+    if length < 15 { throw MonitoringFailure.tooShort }
+    if !Self.monitored.contains(name) && Self.monitored.count >= 20 { throw MonitoringFailure.tooMany }
     if !Self.monitored.contains(name) { Self.monitored.append(name) }
+    Self.schedules[name] = during
+    Self.peakActivities = max(Self.peakActivities, Self.monitored.count)
+    Self.onStart?(name)
   }
   func stopMonitoring(_ names: [DeviceActivityName] = []) {
     Self.monitored = names.isEmpty ? [] : Self.monitored.filter { !names.contains($0) }
+    Self.schedules = Self.schedules.filter { Self.monitored.contains($0.key) }
   }
 }
 

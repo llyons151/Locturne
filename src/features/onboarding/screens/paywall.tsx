@@ -13,7 +13,8 @@ import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } fr
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
 import { methodCopy, NEW_YEAR, trialVoice } from '../content';
-import { dateFromToday, formatWhen } from '../estimate';
+import { dateFromToday } from '../estimate';
+import { scheduleCopy } from '../schedule-copy';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';
 
@@ -57,7 +58,7 @@ export function storeStep({ offersFailed, retryOffers }: StepContext): StepView 
 export function plansStep(ctx: StepContext): StepView {
   const { answers, set, buy, busy, restorePurchases, compact, offers } = ctx;
   if (!offers) return storeStep(ctx);
-  const bed = formatWhen(answers.bedtime);
+  const schedule = scheduleCopy(ctx.scheduledNight, new Date());
   const method = methodCopy(answers.method ?? 'downstairs');
   const trialDays = offers.annual.trialDays;
   const annual = offers.annual.priceString;
@@ -105,8 +106,8 @@ export function plansStep(ctx: StepContext): StepView {
         )}
         <View style={[styles.checks, compact && styles.checksCompact]}>
           {/* Never an app's name: Apple's picker only hands back opaque tokens. */}
-          <Check text={`Your apps sleep at ${bed}`} />
-          <Check text={method.check} />
+          <Check text={schedule.sleep} />
+          <Check text={ctx.scheduledNight ? method.check : "Turn nights on in Routine anytime"} />
           <Check text="Passes for sick days and travel" />
         </View>
         <View accessibilityRole="radiogroup" style={styles.planCards}>

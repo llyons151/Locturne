@@ -104,6 +104,7 @@ beforeEach(() => {
   fake.reset();
   // Armed, with its windows monitored: protection reads as on.
   fake.arm(new Date(2026, 8, 1));
+  fake.ids().night = 'selected-apps';
   fake.state.activities = ['night-0'];
   ios.scheduled.clear();
   ios.log.length = 0;
@@ -113,6 +114,23 @@ beforeEach(() => {
   ios.failNextList = false;
   ios.launched = null;
   ios.listeners.clear();
+});
+
+test('native planner respects empty current picks, pending empty edits, and emergency parked picks', async () => {
+  saveRoutine(DEFAULT_ROUTINE);
+  delete fake.ids().night;
+  await n.rescheduleNotifications();
+  assert.deepEqual(ours(), []);
+  fake.ids().night = 'selected-apps';
+  sharedSet('locturne.pendingLists', { night: { from: new Date(2026, 9, 3, 23).getTime(), dated: NOW.getTime(), empty: true } });
+  await n.rescheduleNotifications();
+  assert.deepEqual(ours(), []);
+  delete fake.ids().night;
+  fake.ids()['night-next'] = 'parked-apps';
+  sharedSet('locturne.pendingLists', { night: { from: new Date(2026, 9, 3, 23).getTime() } });
+  await n.rescheduleNotifications();
+  assert.ok(ours().includes('locturne.bedtime.2026-10-04'));
+  assert.ok(ours().includes('locturne.morning.2026-10-04'));
 });
 
 /* The permission answer */

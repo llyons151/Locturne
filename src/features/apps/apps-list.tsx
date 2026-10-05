@@ -5,7 +5,7 @@
 
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -65,6 +65,7 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } fr
 
 import { APPS, type AppEntry } from './catalog';
 import { LimitMenu } from './limit-menu';
+import { isPickerSettling, settlePicker } from './picker-settle';
 import { pauseNote, removalNote, startsLabel } from './pending-note';
 
 /**
@@ -150,15 +151,18 @@ function LiveAppsList() {
   );
 
   const [limitError, setLimitError] = useState<string | null>(null);
+  const armingLimits = useRef(new Set<LimitId>());
 
   const saveAndArm = async (next: DailyLimit[], arm?: DailyLimit) => {
     setLimitError(null);
     // Saved before arming: iOS can report a tightened limit as used up the moment it's armed,
     // and the extension judges that against the saved minutes (a stale-threshold check), so
     // the old, looser number must already be gone.
-    const before = limits.find((l) => l.id === arm?.id);
+    const before = getLimits().find((l) => l.id === arm?.id);
     saveLimits(next);
+    setLimits(next);
     if (arm) {
+      armingLimits.current.add(arm.id);
       try {
         await armLimit(arm);
       } catch {
@@ -173,18 +177,25 @@ function LiveAppsList() {
         setLimits(reverted);
         setLimitError("iOS wouldn't start that limit. Try again in a moment.");
         return;
+      } finally {
+        armingLimits.current.delete(arm.id);
       }
     }
-    setLimits(next);
+    setLimits(getLimits());
   };
 
   /** Stricter edits start now; looser ones wait for bedtime (`editLimit`). */
   const setMinutes = (id: LimitId, minutes: number | null) => {
     haptic.tap();
+    if (armingLimits.current.has(id) || isPickerSettling(id)) {
+      setLimitError("Still saving this limit. Try again in a moment.");
+      return;
+    }
     const now = new Date();
-    const next = editLimit(limits, id, minutes, looserEditsStartAt(now), now);
+    const current = getLimits();
+    const next = editLimit(current, id, minutes, looserEditsStartAt(now), now);
     const after = next.find((l) => l.id === id);
-    const before = limits.find((l) => l.id === id);
+    const before = current.find((l) => l.id === id);
     saveAndArm(next, after && after.minutes !== before?.minutes ? after : undefined);
   };
 
@@ -202,30 +213,41 @@ function LiveAppsList() {
   // A limit's list changed: a new limit starts at 30 minutes; an existing one is re-armed,
   // because iOS keeps its own copy of the picks.
   const pickedLimit = (id: LimitId) => {
-    const existing = limits.find((l) => l.id === id);
-    if (existing) return saveAndArm(limits, existing);
+    const current = getLimits();
+    const existing = current.find((l) => l.id === id);
+    if (existing) return saveAndArm(current, existing);
     if (selectionSize(id) === 0) return clearSelection(id);
     const created: DailyLimit = { id, minutes: 30 };
-    saveAndArm([...limits, created], created);
+    saveAndArm([...current, created], created);
   };
 
   /** Opens Apple's picker on a draft of the list. Only here, never on render. */
   const edit = (list: StandingList) => {
     haptic.tap();
+    if (isPickerSettling(list) || (isLimitId(list) && armingLimits.current.has(list))) {
+      setLimitError("Still saving this limit. Try again in a moment.");
+      return;
+    }
     beginListEdit(list);
     setEditing(list);
   };
 
   const addLimit = () => {
-    const id = freeLimitId(limits);
+    const id = freeLimitId(getLimits());
     if (id) edit(id);
   };
 
   // Also the repair path when protection is off: once access is back, put the shields back.
   const allow = async () => {
     haptic.tap();
-    if ((await requestAccess()) === 'approved') reapplyStandingBlocks();
-    refresh();
+    setLimitError(null);
+    try {
+      if ((await requestAccess()) === 'approved') reapplyStandingBlocks();
+    } catch {
+      setLimitError("Screen Time access wasn't turned on. You can try again when you're ready.");
+    } finally {
+      refresh();
+    }
   };
 
   const access = protection === 'on' ? 'approved' : 'off';
@@ -258,6 +280,7 @@ function LiveAppsList() {
               label={protection === 'off' ? 'Turn Screen Time access back on' : 'Set up Screen Time access'}
               onPress={allow}
             />
+            {limitError ? <Text style={styles.footer}>{limitError}</Text> : null}
           </View>
         ) : (
           <>
@@ -333,7 +356,7 @@ function LiveAppsList() {
             setEditing(null);
             refresh();
             // In case the picker unmounts before its report arrives.
-            setTimeout(() => pickedList(closed), 500);
+            settlePicker(closed, () => pickedList(closed));
           }}
         />
       )}

@@ -152,6 +152,9 @@ function handoff(name: string, from: Date, to: Date, thresholds: { at: Date; act
   ].sort((a, b) => +a.at - +b.at);
   const steps: Step[] = events.map((e) => {
     clock(e.at);
+    // Native callbacks settle due picks before judging the lock. The original App Group
+    // snapshot above stays untouched for Swift replay; this updates only the JS oracle.
+    st.settleListChanges(e.at, { limits: false });
     // The extension records a used-up limit's day; the app's rules read it from there.
     const writes: Record<string, unknown> = {};
     if (e.callback === 'threshold') {

@@ -90,6 +90,11 @@ func resetWorld() {
   userDefaults = MemoryDefaults(suiteName: "locturne-native-tests")
   ManagedSettingsStore().clearAllSettings()
   DeviceActivityCenter.monitored = []
+  DeviceActivityCenter.schedules = [:]
+  DeviceActivityCenter.starts = 0
+  DeviceActivityCenter.refusedStarts = []
+  DeviceActivityCenter.onStart = nil
+  DeviceActivityCenter.peakActivities = 0
   UNUserNotificationCenter.sent = []
   at("2026-10-05 12:00")
 }

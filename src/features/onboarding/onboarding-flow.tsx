@@ -15,6 +15,7 @@ import type { TextMotion } from '@/components/motion';
 import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useCompact } from '@/hooks/use-compact';
+import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
 import { useStepCount } from '@/hooks/use-step-count';
 import {
   answerFor,
@@ -46,7 +47,8 @@ import {
   currentTrialEnd,
   trialEndsAt,
 } from '@/lib/purchases';
-import { getPendingRoutine, getRoutine, hasRoutine } from '@/lib/routine';
+import { getPendingRoutine, getRoutine, hasRoutine, nextNightOn, nightAt, toLockSettings } from '@/lib/routine';
+import { nightsAround } from '@/lib/lock-state';
 import {
   getAccess,
   isScreenTimeAvailable,
@@ -57,6 +59,7 @@ import {
 } from '@/lib/screen-time';
 import { Nocturne } from '@/theme';
 
+import { firstEnabledNight } from './schedule-copy';
 import { initialAnswers, isNewYearWeek, PROGRESS_STEPS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
@@ -82,7 +85,7 @@ const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
  * The library saves Apple's picks about 0.1 s after Done, so counts read on close alone are
  * stale (see apps-list.tsx). Read them a beat later.
  */
-const PICKER_SETTLE_MS = 500;
+
 
 /**
  * The quiz happens on the risen moon: it rises once at the first question and stays up
@@ -241,6 +244,11 @@ export function OnboardingFlow({
   const [busy, setBusy] = useState(false);
   /** Bought or restored in this session (`finishSetup`). */
   const [finished, setFinished] = useState(false);
+  const [flowActive] = useState(() => new Set(['active']));
+  useEffect(() => {
+    flowActive.add('active');
+    return () => { flowActive.delete('active'); };
+  }, [flowActive]);
 
   // The exit offer shows once per install, so rerunning onboarding can't farm it.
   const [offerShownBefore] = useState(wasExitOfferShown);
@@ -315,7 +323,7 @@ export function OnboardingFlow({
     }
     dispatch({ type: 'go', to });
   };
-  const next = () => dispatch({ type: 'next', skip: lateNight ? ['walk'] : [], at: history.length });
+  const next = () => dispatch({ type: 'next', skip: lateNight ? ['walk'] : [], at: history.length, visit: nav.visit });
   const edit = (to: StepId) => dispatch({ type: 'edit', to });
   const back = canGoBack(nav)
     ? () => {
@@ -325,6 +333,7 @@ export function OnboardingFlow({
       }
     : undefined;
   const exit = () => {
+    flowActive.delete('active');
     // The declined path (ONBOARDING_CONVERSION): keep the setup, arm nothing. After a purchase
     // the history was reset to `armed`, and `finishSetup` has saved it already.
     const setupDone = history.some((s) => SETUP_DONE.includes(s));
@@ -407,6 +416,7 @@ export function OnboardingFlow({
   const [pickerList, setPickerList] = useState<SelectionId | null>(null);
   const [previewPickerOpen, setPreviewPickerOpen] = useState(false);
   const openPicker = () => {
+    if (isPickerSettling('night')) return;
     if (!screenTimeHere) {
       setPreviewPickerOpen(true);
       return;
@@ -415,7 +425,7 @@ export function OnboardingFlow({
   };
   const pickerClosed = (list: SelectionId) => {
     setPickerList(null);
-    setTimeout(() => {
+    settlePicker('night', () => {
       closeNightPicker(list);
       setPicks(selectionSize('night'));
       setPickRevision((r) => r + 1);
@@ -424,7 +434,7 @@ export function OnboardingFlow({
       if (count > 0) track('apps_picked', { count });
       // Arming failed for want of apps: try again now there are some.
       if (step === 'armed') runArm();
-    }, PICKER_SETTLE_MS);
+    });
   };
 
   // "Put N to sleep": the picked icons fall into the moon and come back up asleep. Preview
@@ -467,6 +477,16 @@ export function OnboardingFlow({
     takePendingApproval();
     // Bought or restored: anything stood down (an earlier subscription ended) comes back.
     settleSubscription(true);
+    // StoreKit can finish after this modal closes. Keep any Routine edits made since then;
+    // a first setup lost through an external dismissal still needs to be saved once.
+    if (!flowActive.has('active')) {
+      if (!hasRoutine()) {
+        saveSetup(answers);
+        saveTrialReminder(answers.remindTrial);
+      }
+      armIfPaid();
+      return;
+    }
     saveSetup(answers);
     // Whatever was bought: a plan with no trial (monthly) just has no end to remind about.
     saveTrialReminder(answers.remindTrial);
@@ -482,6 +502,12 @@ export function OnboardingFlow({
   };
   // When the trial bought just now ends, for `armed` and `first-morning` to name the date.
   const [trialEnds, setTrialEnds] = useState<Date | null>(null);
+  // A purchase may span Back and another edit. Complete with the latest committed answers.
+  // Event-only holder, like SleepDrop's view map: read only when the store answers.
+  const [latestAnswers] = useState(() => new Map([['value', answers]]));
+  useEffect(() => { latestAnswers.set('value', answers); }, [answers, latestAnswers]);
+  const [finishLatest] = useState(() => new Map([['complete', finishSetup]]));
+  useEffect(() => { finishLatest.set('complete', finishSetup); });
   const buy = async (target: PurchaseTarget) => {
     // `busy` hasn't rendered yet for a tap in the same frame; its `cancelled` would open the
     // exit offer under Apple's sheet.
@@ -499,15 +525,25 @@ export function OnboardingFlow({
     if (result.status === 'purchased') {
       const offer = target === 'annual' || target === 'monthly' ? offers?.[target] : offers?.exitOffers[target];
       setTrialEnds(offer?.trialDays ? trialEndsAt(offer.trialDays) : null);
-      finishSetup('purchase');
+      finishLatest.get('complete')!('purchase');
     } else if (result.status === 'pending') {
-      saveSetup(answers);
+      if (!flowActive.has('active')) {
+        if (!hasRoutine()) {
+          saveSetup(latestAnswers.get('value')!);
+          saveTrialReminder(latestAnswers.get('value')!.remindTrial);
+        }
+        markPurchasePending();
+        return;
+      }
+      saveSetup(latestAnswers.get('value')!);
       // Kept now: an approval that lands after they've left only arms (`armIfPaid`), and the
       // reminder follows the store from there (`syncTrialEnd`) if this says they wanted it.
-      saveTrialReminder(answers.remindTrial);
+      saveTrialReminder(latestAnswers.get('value')!.remindTrial);
       markPurchasePending();
       setNoMoreExitOffer(true);
       say('Waiting for approval', 'Once the purchase is approved, open Locturne and I’ll set tonight. Nothing is asleep until then.');
+    } else if (!flowActive.has('active')) {
+      return;
     } else if (result.status === 'failed') {
       // Paid but not showing yet: Restore is the advice, not trying again.
       if (result.retry === false) say('Not showing yet', result.message);
@@ -528,10 +564,20 @@ export function OnboardingFlow({
       found = (await restore()).entitled;
     } catch {
       setBusy(false);
-      say('The App Store isn’t answering', 'Check your connection and try again.');
+      if (flowActive.has('active')) say('The App Store isn’t answering', 'Check your connection and try again.');
       return;
     }
     setBusy(false);
+    if (!flowActive.has('active')) {
+      if (found) {
+        if (PAYWALL.includes(step) || step === 'declined') finishLatest.get('complete')!('restore');
+        else {
+          settleSubscription(true);
+          armIfPaid();
+        }
+      }
+      return;
+    }
     setEntitled(found);
     if (found) setRestored(true);
     track('restore_result', { found, step });
@@ -540,7 +586,7 @@ export function OnboardingFlow({
       return;
     }
     if (PAYWALL.includes(step) || step === 'declined') {
-      finishSetup('restore');
+      finishLatest.get('complete')!('restore');
       return;
     }
     // From the first screen: set up the nights, then arm without a paywall.
@@ -682,7 +728,7 @@ export function OnboardingFlow({
   // B6: the reveal's and the demo's buttons wait until their payoff has played, so it can't be
   // tapped past. Keyed by visit, so coming back replays it. The timer is a backstop: a payoff
   // that never reports (no layout, a dropped callback) mustn't leave the button dead.
-  const visit = `${step}-${history.length}`;
+  const visit = `${step}-${nav.visit}`;
   const [payoffAt, setPayoffAt] = useState<string | null>(null);
   // Back lands on the same key it left, so forget the payoff on every move, not just new keys.
   const [shownVisit, setShownVisit] = useState(visit);
@@ -698,7 +744,21 @@ export function OnboardingFlow({
   }, [step, onPayoff]);
 
   const compact = useCompact();
+  const scheduleNow = new Date();
+  const savedRoutine = getPendingRoutine()?.routine ?? getRoutine();
+  let scheduledNight = firstEnabledNight(answers.bedtime, answers.wake, savedRoutine.activeNights, scheduleNow);
+  // After saving, use the same pending-edit and enabled-night rules as Home.
+  if (finished) {
+    const start = nextNightOn(scheduleNow);
+    if (!start) scheduledNight = null;
+    else {
+      const around = nightsAround(start, toLockSettings(nightAt(start).routine));
+      const night = start < around.latest.end ? around.latest : around.next;
+      scheduledNight = { start, end: night.end };
+    }
+  }
   const screen = renderStep({
+    scheduledNight,
     step,
     answers,
     numbers,

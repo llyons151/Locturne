@@ -39,9 +39,15 @@ afterEach(() => {
 });
 
 function advance(to: number) {
-  for (const e of device.dueEvents(Date.now(), to)) {
-    mock.timers.setTime(e.at);
-    device.fire(e.activity, e.callback);
+  // Native handoff can replace schedules during a callback. Recompute after each instant.
+  while (Date.now() < to) {
+    const due = device.dueEvents(Date.now(), to);
+    if (!due.length) break;
+    const batch = due.filter((e) => e.at === due[0].at);
+    for (const e of batch) {
+      mock.timers.setTime(e.at);
+      device.fire(e.activity, e.callback);
+    }
   }
   mock.timers.setTime(to);
 }
@@ -193,7 +199,7 @@ for (const [hh, mm] of [
     await save(rt.DEFAULT_ROUTINE);
     advance(at(8, 5));
     assert.equal(lc.readLock().phase, 'day');
-    if (hh === 7) assert.deepEqual([...device.state.shielded], []);
+    assert.deepEqual([...device.state.shielded], []);
     // Saved at 06:00, arming waited for 07:00 (a phantom night), so the shift's 08:00 windows
     // still run with the app closed; the first open wakes them and re-arms.
     assert.equal(lc.syncLock().phase, 'day');

@@ -17,6 +17,8 @@ import { BEDTIME_WARNING, type NotificationPermission } from '@/lib/notification
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
 import { getScanEditRefusal } from '@/lib/scan';
 import type { WakeMethod } from '@/lib/routine';
+import type { Night } from '@/lib/lock-state';
+import { scheduleCopy } from './schedule-copy';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
@@ -42,7 +44,6 @@ import {
   TRIED,
   TRIED_ECHO,
   WALK_GOAL,
-  wakePart,
   walkLine,
   type Answers,
   type ExitOffer,
@@ -69,6 +70,7 @@ import { wakeDayFor, walkCopy } from './walk-copy';
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */
 export type StepContext = {
   step: StepId;
+  scheduledNight: Night | null;
   answers: Answers;
   numbers: Estimate;
   set: <K extends keyof Answers>(key: K, value: Answers[K]) => void;
@@ -167,6 +169,7 @@ export type StepView = {
 /** What each step shows. One case per step, in the order of STEPS in content.ts. */
 export function renderStep(ctx: StepContext): StepView {
   const { step, answers, numbers, set, choose, next, go, edit, exit, simulate, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
+  const schedule = scheduleCopy(ctx.scheduledNight, new Date());
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
   // The first locked morning's day: this morning, later today or tomorrow (`wakeDayFor`).
@@ -637,11 +640,11 @@ export function renderStep(ctx: StepContext): StepView {
               <View style={styles.plan}>
                 {/* Past bedtime already, arming shields at once (`commit` said so too). */}
                 <PlanRow
-                  when={lateNight ? 'Now' : 'Tonight'}
-                  what={lateNight ? 'Your apps sleep as soon as you’re in. $0 today.' : `Your apps sleep at ${bed}. $0 today.`}
+                  when={schedule.when}
+                  what={`${schedule.sleep} $0 today.`}
                 />
                 {/* Short phones keep the original three rows so nothing scrolls. */}
-                {compact ? null : <PlanRow when={wakePart(answers.wake)} what={`${wake}: they stay asleep until ${method.until}.`} />}
+                {compact || !ctx.scheduledNight ? null : <PlanRow when="Wake-up" what={schedule.morning} />}
                 <PlanRow when={`Day ${reminderDay(trialDays)}`} what="I remind you. Grudgingly." />
                 <PlanRow
                   when={`Day ${trialDays}`}
@@ -653,7 +656,7 @@ export function renderStep(ctx: StepContext): StepView {
                 {!numbers.lightUser ? (
                   <PlanRow when="Now" what={`About ${weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed.`} />
                 ) : null}
-                <PlanRow when="With me" what={`Your apps can’t open from ${bed} until ${method.until}.`} />
+                <PlanRow when="Schedule" what={schedule.sleep} />
               </View>
             )}
             <Reveal>
@@ -741,12 +744,12 @@ export function renderStep(ctx: StepContext): StepView {
         body: (
           <View style={page.top}>
             <Voice
-              text={startsNow ? 'Armed. Starting now. Put it down.' : ctx.newYear ? NEW_YEAR.armed : `Armed. See you at ${bed}.`}
+              text={startsNow ? 'Armed. Starting now. Put it down.' : schedule.armed}
               size={VoiceSize.headline}
               header
             />
             <View style={page.gapHeadline} />
-            <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. Your apps sleep at ${bed}.`}</Body>
+            <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. ${schedule.sleep}`}</Body>
             {asksNotifications ? (
               <>
                 <View style={page.gapBlock} />
@@ -793,7 +796,7 @@ export function renderStep(ctx: StepContext): StepView {
       return {
         body: (
           <View style={page.top}>
-            <Title>{`${wakeDay} ${wake.replace(/ [AP]M$/, '')}. Your apps stay asleep until you’re up.`}</Title>
+            <Title>{schedule.morning}</Title>
             <View style={styles.plan}>
               {method.morning.map((row) => (
                 <PlanRow key={row.when} when={row.when} what={row.what} />
@@ -812,7 +815,7 @@ export function renderStep(ctx: StepContext): StepView {
               ) : null}
             </View>
             <Voice
-              text={morningSoon ? `That’s it. Morning starts at ${wake}.` : lateNight ? 'That’s it. Go to sleep.' : `That’s it. Bed at ${bed}.`}
+              text={ctx.scheduledNight && ctx.scheduledNight.start <= new Date() ? 'That’s it. Go to sleep.' : schedule.sleep}
               size={VoiceSize.aside}
               delay={700}
               sub

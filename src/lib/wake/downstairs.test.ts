@@ -133,4 +133,28 @@ describe('downstairs', () => {
     s = run(flight(3), 20, 1, s);
     assert.equal(s.status, 'met');
   });
+
+  test('a silent sensor cannot bridge the five-second hold', () => {
+    const holding = run(flight(3), 21);
+    assert.equal(holding.status, 'holding');
+    const silent = tick(holding, holding.now + DOWNSTAIRS.noSignalMs);
+    assert.equal(silent.status, 'noSignal');
+    assert.equal(silent.heldSince, null);
+    const resumed = addSample(silent, { at: silent.now + 1000, altitude: -3 });
+    assert.equal(resumed.metAt, null);
+    assert.equal(resumed.heldSince, resumed.now);
+  });
+
+  test('a delayed sample cannot bridge a hold even without clock ticks', () => {
+    const holding = run(flight(3), 21);
+    const resumed = addSample(holding, { at: holding.now + 60_000, altitude: -3 });
+    assert.equal(resumed.metAt, null);
+  });
+
+  test('sensor silence still ends at the session timeout', () => {
+    const holding = run(flight(3), 21);
+    const ended = tick(holding, DOWNSTAIRS.timeoutMs);
+    assert.equal(ended.status, 'timedOut');
+    assert.equal(addSample(ended, { at: DOWNSTAIRS.timeoutMs + 1000, altitude: -3 }).metAt, null);
+  });
 });

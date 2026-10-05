@@ -370,6 +370,8 @@ export type ArmedNight = {
    * don't change them. The self-check judges nights from then (`checkNights`). Older records lack it.
    */
   timesSince?: string;
+  /** Native handoffs use generation names; an app re-arm returns to night-N names. */
+  nativeWindowPrefix?: string;
 };
 
 /** When protection was first armed: `since`, or `armedAt` for records from before it. */
@@ -399,12 +401,15 @@ export async function armNight(
   times: { bedtime: number; morningStart: number },
 ): Promise<void> {
   const before = getArmedNight();
-  stopNightWindows();
-  // The one-off settle activity gives way when these windows need its slot (`settleFits`); the
-  // next sync registers it again if there's room.
-  if (!settleFits(windows.length)) stopListSettle();
+  // Native callbacks must not replace windows while the app is registering them.
+  // A timestamp lets the extension recover if the app dies mid-registration.
+  userDefaultsSet('locturne.nightArmingAt', Date.now());
   nightArming = windows.length;
   try {
+    stopNightWindows();
+    // The one-off settle activity gives way when these windows need its slot (`settleFits`);
+    // the next sync registers it again if there's room.
+    if (!settleFits(windows.length)) stopListSettle();
     await monitorNight(windows, list);
   } catch (error) {
     stopNightWindows();
@@ -415,12 +420,15 @@ export async function armNight(
     if (before && getArmedNight()) {
       // Keep the record even if iOS refuses these too: the morning stays locked, Home says
       // protection is off (`getProtection`), and the next sync tries again.
-      userDefaultsSet(ARMED_KEY, before);
+      const restored = { ...before };
+      delete restored.nativeWindowPrefix;
+      userDefaultsSet(ARMED_KEY, restored);
       await monitorNight(planNightWindows(before.bedtime, before.morningStart), list).catch(() => {});
     }
     throw error;
   } finally {
     nightArming = null;
+    userDefaultsRemove('locturne.nightArmingAt');
   }
   const armedAt = new Date().toISOString();
   const sameTimes = !!before && before.bedtime === times.bedtime && before.morningStart === times.morningStart;
@@ -620,8 +628,10 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
       cleanUpAfterActivity(NAP_ACTIVITY);
       throw new Error('The nap was cancelled before it started.');
     }
-    shield(list);
+    // Publish the replacement before shielding: a delayed end from the previous
+    // activity must see this session's deadline and leave its apps alone.
     userDefaultsSet(NAP_KEY, nap);
+    shield(list);
     return nap;
   } finally {
     napStarting = false;
@@ -743,6 +753,13 @@ export function shownSelection(list: StandingList): { id: SelectionId; size: num
   const size = selectionSize(list);
   if (size === 0 && getPendingLists()[list]) return { id: draftId(list), size: selectionSize(draftId(list)) };
   return { id: list, size };
+}
+
+/** The picks after a pending handoff, including an empty edit or an emergency restoration. */
+export function selectionSizeAfterChange(list: StandingList): number {
+  const pending = getPendingLists()[list];
+  if (!pending || (!pending.empty && !hasSelection(draftId(list)))) return selectionSize(list);
+  return selectionSize(draftId(list));
 }
 
 /**
@@ -1102,6 +1119,8 @@ export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promi
   const selection = getFamilyActivitySelectionId(limit.id);
   // Without a subscription the limit is only saved; `standUp` arms it.
   if (!selection || isStoodDown()) return;
+  const previousDay = sharedGet<string>(usedUpKey(limit.id));
+  const previousAt = sharedGet<number>(usedUpAtKey(limit.id));
   // A looser limit starts again from what's been used today, so forget today's used-up mark.
   if (fresh) forgetUsedUp(limit.id);
   configureActions({
@@ -1137,10 +1156,20 @@ export async function armLimit(limit: DailyLimit, { fresh = false } = {}): Promi
   } catch (error) {
     if (before === undefined) sharedRemove(armedKey);
     else sharedSet(armedKey, before);
+    // A refused replacement still enforces the old allowance. Keep its reached mark,
+    // unless standing down cleared it or the extension recorded a newer threshold.
+    if (fresh && !isStoodDown() && sharedGet<string>(usedUpKey(limit.id)) === undefined) {
+      if (previousDay !== undefined) sharedSet(usedUpKey(limit.id), previousDay);
+      if (previousAt !== undefined) sharedSet(usedUpAtKey(limit.id), previousAt);
+    }
     throw error;
   }
-  // If it was used up under the old number, wake it; the event fires again if it's still over.
-  if (fresh) unshield(limit.id);
+  // Past usage can fire the new threshold before registration returns. Reapply it (and
+  // overlapping night/always rules) after lifting the old allowance's shield.
+  if (fresh) {
+    unshield(limit.id);
+    reapplyStandingBlocks();
+  }
 }
 
 const LIMIT_ARMED_PICKS_PREFIX = 'locturne.limitArmedPicks.';
@@ -1248,9 +1277,9 @@ export function pauseNightUntil(until: Date, now = new Date()): void {
     unshield('night');
     clearSelection('night');
   }
-  if (hasSelection(draftId('night'))) {
-    setPending('night', { from: until.getTime() });
-  }
+  // Keep the pause even when its list is empty. Otherwise an app added before
+  // `until` becomes live immediately despite Home promising that tonight is paused.
+  setPending('night', { from: until.getTime(), ...(hasSelection(draftId('night')) ? {} : { empty: true }) });
   userDefaultsSet(NIGHT_HELD_KEY, false);
   reapplyStandingBlocks();
 }

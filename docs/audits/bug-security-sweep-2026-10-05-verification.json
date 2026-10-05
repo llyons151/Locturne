@@ -1,0 +1,114 @@
+{
+  "date": "2026-10-05",
+  "rounds": [
+    {
+      "round": 1,
+      "timezone": "UTC",
+      "node": {
+        "tests": 780,
+        "pass": 778,
+        "fail": 0,
+        "skipped": 2,
+        "cancelled": 0
+      },
+      "native_pass": 75,
+      "native_total": 75,
+      "bypass_seed_start": 2100,
+      "bypass_seed_count": 100,
+      "honest_seed_start": 210,
+      "honest_seed_count": 10
+    },
+    {
+      "round": 2,
+      "timezone": "America/New_York",
+      "node": {
+        "tests": 780,
+        "pass": 780,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      },
+      "native_pass": 75,
+      "native_total": 75,
+      "bypass_seed_start": 2200,
+      "bypass_seed_count": 100,
+      "honest_seed_start": 220,
+      "honest_seed_count": 10
+    },
+    {
+      "round": 3,
+      "timezone": "Europe/London",
+      "node": {
+        "tests": 780,
+        "pass": 778,
+        "fail": 0,
+        "skipped": 2,
+        "cancelled": 0
+      },
+      "native_pass": 75,
+      "native_total": 75,
+      "bypass_seed_start": 2300,
+      "bypass_seed_count": 100,
+      "honest_seed_start": 230,
+      "honest_seed_count": 10
+    },
+    {
+      "round": 4,
+      "timezone": "Pacific/Chatham",
+      "node": {
+        "tests": 780,
+        "pass": 778,
+        "fail": 0,
+        "skipped": 2,
+        "cancelled": 0
+      },
+      "native_pass": 75,
+      "native_total": 75,
+      "bypass_seed_start": 2400,
+      "bypass_seed_count": 100,
+      "honest_seed_start": 240,
+      "honest_seed_count": 10
+    },
+    {
+      "round": 5,
+      "timezone": "America/Santiago",
+      "node": {
+        "tests": 780,
+        "pass": 778,
+        "fail": 0,
+        "skipped": 2,
+        "cancelled": 0
+      },
+      "native_pass": 75,
+      "native_total": 75,
+      "bypass_seed_start": 2500,
+      "bypass_seed_count": 100,
+      "honest_seed_start": 250,
+      "honest_seed_count": 10
+    }
+  ],
+  "typescript": "passed",
+  "lint": "passed",
+  "diff_check": "passed",
+  "ios_hermes_export": "passed (not a native Xcode build)",
+  "root_audit_high_nodes": 21,
+  "web_audit_total": 0,
+  "source_files_verified": 278,
+  "logs_sha256": {
+    "/tmp/locturne-final-1-native.log": "76254478503b682289606a4a64eb7e1ea4936dcc386532aa0b131e6010b481cc",
+    "/tmp/locturne-final-1.log": "82f7f1f18683aa0474d80f64c95011f8f943877ab95f9326be9b2b4c31a89782",
+    "/tmp/locturne-final-2-native.log": "76254478503b682289606a4a64eb7e1ea4936dcc386532aa0b131e6010b481cc",
+    "/tmp/locturne-final-2.log": "0037925a825cc4e25b2a98afafb4d9d1d6e80235731058e2ed14c85f32b577ae",
+    "/tmp/locturne-final-3-native.log": "76254478503b682289606a4a64eb7e1ea4936dcc386532aa0b131e6010b481cc",
+    "/tmp/locturne-final-3.log": "6c8212bc18ce5503f0d21102b023a77f011b9bfe2b41a5319616fde6fcf35656",
+    "/tmp/locturne-final-4-native.log": "76254478503b682289606a4a64eb7e1ea4936dcc386532aa0b131e6010b481cc",
+    "/tmp/locturne-final-4.log": "1d5768cef7143e295ee2c661010cfa36544e68a2f5bba4cd6102deea0cc7349c",
+    "/tmp/locturne-final-5-native.log": "76254478503b682289606a4a64eb7e1ea4936dcc386532aa0b131e6010b481cc",
+    "/tmp/locturne-final-5.log": "410d4cbfd5185a6df850794898d24b01c0bf1b115ad6b18369e460fb98cd08a4"
+  },
+  "limitations": [
+    "Swift harness uses Apple framework stand-ins on Linux; iPhone testing remains.",
+    "Two upstream build-tool advisories remain open.",
+    "Five integrated automated verification rounds follow source review; not five independent human audits."
+  ]
+}

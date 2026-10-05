@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as StoreReview from 'expo-store-review';
 import { useIsFocused } from 'expo-router';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import { getReviewAskedVersion, markReviewAsked, shouldAskForReview } from '@/lib/first-run';
 import type { LockState } from '@/lib/lock-state';
@@ -25,9 +26,10 @@ export function useReviewPrompt(lock: Pick<LockState, 'phase' | 'morningKey'>, p
 
   useEffect(() => {
     if (!due) return;
+    let live = true;
     const id = setTimeout(async () => {
       try {
-        if (!(await StoreReview.isAvailableAsync())) return;
+        if (!(await StoreReview.isAvailableAsync()) || !live || AppState.currentState !== 'active') return;
         // Marked before asking, so a crash in the sheet can't make it ask twice.
         markReviewAsked(version);
         await StoreReview.requestReview();
@@ -35,6 +37,9 @@ export function useReviewPrompt(lock: Pick<LockState, 'phase' | 'morningKey'>, p
         // A rating prompt is never worth an error.
       }
     }, DELAY_MS);
-    return () => clearTimeout(id);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
   }, [due, version]);
 }

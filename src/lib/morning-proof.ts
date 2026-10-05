@@ -74,13 +74,20 @@ export function proofCounts(proof: MorningProof, morning: Morning): boolean {
  * after the 07:30 walk; that night was never slept under the new routine, so it doesn't take
  * the morning back. A proof saved without the times goes by `morning.nightStart`.
  *
- * A pass or an emergency unlock is tied to its morning, not to a moment after bedtime (a pass
- * used the evening before covers the morning), so it counts for its key whenever it was made.
+ * A pass or an emergency unlock can be intended before its own bedtime. It covers that
+ * morning, but not a later night that really ran under new routine times and reused its key.
  */
 export function proofUnlocks(proof: MorningProof, morning: JudgedMorning): boolean {
   if (proof.morningKey !== morning.key) return false;
-  if (proof.kind === 'pass' || proof.kind === 'emergency') return true;
   const { bedtime, morningStart } = proof;
+  if (proof.kind === 'pass' || proof.kind === 'emergency') {
+    const originalNight = bedtime === undefined || morningStart === undefined
+      ? null
+      : nightInto(proof.morningKey, { bedtime, morningStart });
+    // Keep deliberately early exits and existing travel semantics. Only a genuinely new
+    // routine night after both the original night and this exit needs another wake-up.
+    return !(morning.ran === true && originalNight && morning.nightStart > originalNight.start && proof.at < morning.nightStart.getTime());
+  }
   // A night that really ran under the routine governing now (`nightRanUnder`, routine.ts) and began
   // after the proof needs its own wake-up, whatever routine the proof was made under: a same-day
   // night (20:00 to 22:00) held early after a 07:30 walk names the walk's morning again.

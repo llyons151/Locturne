@@ -61,20 +61,43 @@ export function normalizeEmail(raw: unknown): string | null {
 export function cleanTag(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const tag = raw.trim().slice(0, 64);
+  if (/^[=+\-@]/.test(tag)) return null;
   return /^[A-Za-z0-9._~+-]+$/.test(tag) ? tag : null;
 }
 
 function cleanHost(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const host = raw.trim().toLowerCase().slice(0, 100);
+  if (host.startsWith('-')) return null;
   return /^[a-z0-9.-]+$/.test(host) ? host : null;
 }
 
 async function readFields(request: Request): Promise<Record<string, unknown> | null> {
-  // Refuse a big body before reading it; the check after reading covers a missing header.
+  // Count bytes while streaming: missing or false Content-Length must not allow buffering
+  // an arbitrarily large request in the worker.
   if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY) return null;
-  const text = await request.text();
-  if (text.length > MAX_BODY) return null;
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let bytes = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_BODY) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
   const type = request.headers.get('content-type') ?? '';
   try {
     if (type.includes('application/json')) {
@@ -115,7 +138,7 @@ function sameOrigin(request: Request): boolean {
   const origin = request.headers.get('origin');
   if (!origin) return true; // Non-browser clients and some older browsers omit it.
   try {
-    return new URL(origin).host === new URL(request.url).host;
+    return new URL(origin).origin === new URL(request.url).origin;
   } catch {
     return false;
   }

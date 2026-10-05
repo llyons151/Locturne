@@ -1,0 +1,130 @@
+Locturne bug and security sweep — 2026-10-05
+
+RESUMED REVIEW
+The preliminary focused review was reopened because its five narrow passes did
+not cover the complete integration. This report supersedes that completion
+claim and its historical 721-test result. The resumed review examined app callers,
+UI lifecycle, lock/proof rules, native callbacks and schedule handoffs, purchases,
+analytics privacy, notifications, dependency patches and the legacy waitlist API.
+
+Final verification: five consecutive integrated rounds passed, zero failures.
+Each round: 780 Node tests, plus 75/75 native harness cases.
+A clean automated round means all available suites passed on the same source
+snapshot. These are five integrated verification rounds after source review,
+not five independent human audits or proof that no bugs remain.
+
+REPAIRS CARRIED FORWARD
+- Downstairs proof cannot survive missing sensor evidence; Stop or backgrounding
+  cancels a pending permission/start. Step permission cannot open after disposal.
+  A changed morning, step goal or enabled state cannot reuse stale hook readings.
+- Failed fresh daily-limit registration keeps the stricter reached state. A
+  threshold delivered during registration remains shielded afterward.
+- Old signed subscription responses cannot overwrite newer purchases/refunds.
+- Child analytics opt-out applies to delayed/replaced SDK sinks and cannot be
+  undone by SDK readiness relinking the RevenueCat identity.
+- Waitlist request bodies are byte-bounded while streaming; exact origins are
+  checked; spreadsheet formula prefixes are rejected in attribution fields.
+- Pass/emergency and renewal free-morning records cannot unlock a later real
+  routine night merely because it shares the earlier morning's calendar date.
+- Patched transitive XML and UUID packages. Adapted the upstream patched URI
+  decoder to Expo 57's CommonJS dependency, then fixed long-pattern crashes,
+  overlapping replacements and quadratic repeated whole-input scanning.
+  License and upstream provenance are retained in vendor/decode-uri-component.
+- Corrected local dependency override installation; verified a fresh offline
+  installation in /tmp with URI/UUID/legacy plist compatibility smoke checks.
+
+
+ADDITIONAL REPAIRS IN THE BROADER REVIEW
+- Deferred disjoint routines hand over natively while the app is closed, within
+  the activity budget. Generation names reject obsolete callbacks; registration
+  ownership checks and rollback preserve protection on failure/cancellation.
+- A skipped DST window cannot re-lock an unrun morning after a native handoff
+  has already judged it free. Reproduced by New York spring-change seed 94 and
+  a failing native regression before repair.
+- A delayed nap-end callback cannot end a newer replacement session. A stale
+  daily-limit threshold after stand-down or slot removal cannot poison renewal
+  or a newly created limit. Native and simulation regressions cover both paths.
+- Empty bedtime lists require no morning proof or pass. Notifications account
+  for live and deferred picks. Emergency pauses survive an empty list.
+- Purchase completion after dismissing onboarding preserves newer saved settings;
+  late approval and restore callbacks retain their intended arming behavior.
+- Picker settlement is reserved across screens; limit edits read current storage
+  and guard in-flight registration. Navigation callbacks are scoped to visits.
+- Sensor and camera callbacks respect screen/session lifetime. Nap registration
+  cancellation and protection failure no longer leave misleading success UI.
+- Nap status reflects revoked Screen Time protection. The exits menu follows
+  live lock boundaries, confirmation revalidates its effect, and completed exit
+  messaging expires at the next boundary.
+- Trial reminder lookups cannot overwrite a newer setup choice or undo opt-out;
+  a confirmed absent trial clears a stale deadline.
+
+VERIFICATION METHOD
+Confirmed defects received regression tests before restarting the clean count.
+A first matrix found the DST handoff defect. A later fourth round found a test
+oracle mismatch: an emergency pause followed by travel changed the morning key,
+but its live bedtime list was still empty. The app correctly required no proof;
+the simulator now accounts for empty picks, and a focused emergency/travel test
+checks the day state, refusal to record needless proof, and always-list shielding.
+The clean count restarted after that test correction too.
+
+Each final round runs the complete Node suite and real Swift monitor harness.
+Zones: UTC, America/New_York, Europe/London, Pacific/Chatham, America/Santiago.
+Each also runs 100 shifted bypass seeds (2100–2599 across all five rounds) and
+10 honest-user seeds (210–259 across all rounds, each exercised in three zones),
+plus the lock simulator's 300 default seeds and historical regressions.
+
+FINAL MATRIX
+Round  Timezone           Node passed/skipped  Native passed
+1      UTC                778/780; 2 skipped  75/75
+2      America/New_York   780/780; 0 skipped  75/75
+3      Europe/London      778/780; 2 skipped  75/75
+4      Pacific/Chatham    778/780; 2 skipped  75/75
+5      America/Santiago   778/780; 2 skipped  75/75
+All rounds: zero failures and cancellations. The two skips outside New York
+are timezone-specific regressions; both ran and passed in New York.
+Logs: /tmp/locturne-final-{1..5}.log and corresponding -native.log.
+
+OTHER CHECKS
+- TypeScript, lint, and git diff --check passed after the final test correction.
+- Expo 57 iOS production JavaScript/Hermes export passed; only test files changed
+  afterward. Export: /tmp/locturne-resume-export.
+- Native window partition invariants cover all 1,440 durations at six bedtimes,
+  checking coverage, continuity, minimum length, and the 16-window budget.
+- Fresh root npm audit: 21 high affected dependency nodes; legacy web audit: 0.
+- Source/document secret-pattern scan found no candidate private keys or common
+  secret-token patterns. This is not a complete secret-history audit.
+- All existing user changes are preserved, including AI UGC research. The user
+  explicitly requested that all changes be committed and pushed to main.
+
+KNOWN RESIDUAL DEPENDENCY FINDINGS
+npm audit decreased from 36 affected dependency nodes (22 high, 14 moderate) to
+21 high nodes, all propagated from two upstream build-tool advisories. The web
+package audit reported zero. Neither upstream advisory has a patched release:
+
+braces@3.0.3 — https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+Only installed direct consumer is micromatch. The reviewed Metro watcher paths
+use micromatch.some(), which calls picomatch directly rather than the vulnerable
+braces recursive AST walkers. No production app input path was found.
+
+node-forge@1.4.0 — https://github.com/advisories/GHSA-86w9-cpqp-85rv
+Consumers are Expo CLI and code-signing tooling, handling local/authenticated
+signing material; no application imports or configured custom update signing.
+No production app input path to the vulnerable verification operation was found.
+These remain open upstream findings; the audit is not zero. Do not force an Expo
+major downgrade or introduce custom crypto to silence the scanner.
+
+LIMITS
+Linux native tests use the real monitor sources with framework stand-ins. Actual
+iPhone DeviceActivity delivery, signing/entitlements, memory limits, sensors and
+shield rendering still require device testing. The iOS export is not an Xcode
+native build. web/ is the legacy undeployed website copy; the live website is a
+separate repository and was not tested. Legacy date-only exit/free-morning
+records lacking the new metadata preserve compatibility; new records are scoped.
+
+
+DURABLE EVIDENCE
+Saved beside this report:
+- bug-security-sweep-2026-10-05-verification.json: counts, seeds and log hashes.
+- bug-security-sweep-2026-10-05-source-hashes.json: 278 source/config file hashes,
+  verified unchanged after all five rounds.
+Raw execution logs are in /tmp and may not survive this environment.

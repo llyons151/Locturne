@@ -64,6 +64,15 @@ const plan = (more: Partial<Facts> = {}) =>
   planNotifications({ routine: DEFAULT_ROUTINE, protection: 'on', armed: true, now: at(3, 12), days: 2, ...more });
 const summary = (p: ReturnType<typeof plan>) => p.map((n) => `${n.kind} ${n.at.getDate()} ${n.at.getHours()}:${n.at.getMinutes()}`);
 
+test('empty bedtime picks schedule no false sleep claims; pending removals and parked restorations follow their actual handoff', () => {
+  assert.deepEqual(plan({ nightSelection: { hasApps: false } }), []);
+  assert.deepEqual(plan({ nightSelection: { hasApps: true, change: { at: at(3, 23), hasApps: false } } }), []);
+  const restored = plan({ now: at(4, 2), nightSelection: { hasApps: false, change: { at: at(4, 23), hasApps: true } } });
+  assert.equal(restored.some((n) => n.kind === 'morning' && n.at.getDate() === 4), false);
+  assert.equal(restored.some((n) => n.kind === 'bedtime' && n.at.getDate() === 4), true);
+  assert.equal(restored.some((n) => n.kind === 'morning' && n.at.getDate() === 5), true);
+});
+
 test('each night: a bedtime warning 15 minutes before, and a note at morning start', () => {
   // Default routine is 23:00 to 07:00. From Saturday noon, two days ahead.
   assert.deepEqual(summary(plan()), ['bedtime 3 22:45', 'morning 4 7:0', 'bedtime 4 22:45', 'morning 5 7:0']);

@@ -98,6 +98,7 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
   (async () => {
     try {
       if (!deps.isIOS || !(await pedometer.isAvailableAsync())) return status('unavailable');
+      if (stopped) return;
       const permission = await pedometer.requestPermissionsAsync();
       if (stopped) return;
       if (!permission.granted) return status('denied');

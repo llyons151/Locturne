@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions, type BarcodeType } from 'expo-camera';
-import { useRef } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { useIsFocused } from 'expo-router';
+import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/buttons';
 import { Nocturne, Radius, Space, Type } from '@/theme';
@@ -17,7 +18,16 @@ const REPEAT_MS = 2000;
 export type Scan = { data: string; type: string };
 
 export function Scanner({ onScan, active = true }: { onScan: (scan: Scan) => void; active?: boolean }) {
-  const [permission, requestPermission] = useCameraPermissions();
+  const focused = useIsFocused();
+  const scanning = active && focused;
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  // Expo reads once on mount. Settings can grant or revoke access without remounting us.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') getPermission().catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [getPermission]);
   const last = useRef<{ data: string; at: number } | null>(null);
 
   if (!permission) return <View style={styles.frame} />;
@@ -33,7 +43,7 @@ export function Scanner({ onScan, active = true }: { onScan: (scan: Scan) => voi
         <PrimaryButton
           // HIG: the button before Apple's prompt says Continue, never "Allow" (App Review 5.1.1(iv)).
           label={permission.canAskAgain ? 'Continue' : 'Open Settings'}
-          onPress={() => (permission.canAskAgain ? requestPermission() : Linking.openSettings())}
+          onPress={() => (permission.canAskAgain ? requestPermission() : Linking.openSettings()).catch(() => {})}
         />
       </View>
     );
@@ -44,10 +54,10 @@ export function Scanner({ onScan, active = true }: { onScan: (scan: Scan) => voi
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"
-        active={active}
+        active={scanning}
         barcodeScannerSettings={{ barcodeTypes: TYPES }}
         onBarcodeScanned={
-          active
+          scanning
             ? ({ data, type }) => {
                 const now = Date.now();
                 if (last.current && last.current.data === data && now - last.current.at < REPEAT_MS) return;

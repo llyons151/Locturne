@@ -24,6 +24,7 @@ function makeWorld() {
     clock: MORNING + 60_000,
     available: true as boolean | Error,
     granted: true,
+    prompts: 0,
     /** Steps since morning start that the motion chip reports. */
     history: 50,
     historyFails: false,
@@ -49,7 +50,10 @@ function setup(before: (world: World) => void = () => {}, overrides: Partial<Ste
         if (world.available instanceof Error) throw world.available;
         return world.available;
       },
-      requestPermissionsAsync: async () => ({ granted: world.granted }),
+      requestPermissionsAsync: async () => {
+        world.prompts++;
+        return { granted: world.granted };
+      },
       getStepCountAsync: async (start, end) => {
         world.historyReads.push([+start, +end]);
         if (world.historyFails) throw new Error('CMErrorDomain');
@@ -201,6 +205,7 @@ describe('step watch', () => {
     assert.deepEqual(t.world.statuses, []);
     assert.equal(t.world.watchers.length, 0);
     assert.equal(t.world.timers.size, 0);
+    assert.equal(t.world.prompts, 0, 'unmounted availability checks must not open a permission prompt');
   });
 
   test('Motion & Fitness off', async () => {

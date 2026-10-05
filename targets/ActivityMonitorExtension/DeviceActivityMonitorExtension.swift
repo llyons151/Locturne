@@ -17,8 +17,19 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.intervalDidStart(for: activity)
     logger.log("intervalDidStart")
 
+    if locturneObsoleteNightCallback(activity.rawValue) { return }
+
     // First, so a bedtime window shields the edited list, not the old one.
     settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
+
+    // A deferred change between disjoint sleep periods needs a new schedule even when
+    // the app stays closed. The callback that handed it over belongs to the old schedule.
+    if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX), locturneHandoffNight() {
+      reapplyLocturneBlocks(triggeredBy: "locturne_nativeHandoff")
+      recordLocturneHeartbeat(activity: activity.rawValue, callback: "scheduleHandoff")
+      notifyAppWithName(name: "intervalDidStart")
+      return
+    }
 
     // A limit's day starting, maybe a few seconds before midnight (iOS can be early, as with
     // the night windows): yesterday's mark goes now, or the re-apply below would read it as
@@ -126,6 +137,17 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
     logger.log("intervalDidEnd")
+
+    if locturneObsoleteNightCallback(activity.rawValue) { return }
+
+    // iOS can deliver the previous session's end after the app has installed a
+    // replacement under the same activity name. Only end the current nap near
+    // its own deadline, allowing the same two-minute delivery slack as nights.
+    if activity.rawValue == LOCTURNE_NAP_ACTIVITY,
+      let nap = userDefaults?.dictionary(forKey: LOCTURNE_NAP_KEY),
+      let end = (nap["end"] as? NSNumber)?.doubleValue,
+      end > Date().timeIntervalSince1970 * 1000 + 120_000
+    { return }
 
     // The nap is over: forget it first, so the re-apply below doesn't shield it again if
     // iOS calls this a few seconds early.
@@ -235,10 +257,19 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.eventDidReachThreshold(event, activity: activity)
     logger.log("eventDidReachThreshold: \(event.rawValue, privacy: .public)")
 
+    // stopMonitoring doesn't retract callbacks already queued by iOS. A threshold
+    // from before stand-down must not recreate usage marks that a renewal inherits.
+    if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true { return }
+
     // A daily limit is used up: remember the day, so it stays shielded until midnight. Unless
     // it's yesterday's, delivered late: N minutes can't be used in less than N minutes of today,
     // and taking it as today's would hold the apps asleep all day with nothing used.
     let isLimit = activity.rawValue.hasPrefix(LOCTURNE_LIMIT_PREFIX)
+    if isLimit {
+      let limits = userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]] ?? []
+      // A removed slot can be reused later for different apps and a different allowance.
+      guard limits.contains(where: { $0["id"] as? String == activity.rawValue }) else { return }
+    }
     let stale = isLimit && locturneLimitThresholdIsStale(activity.rawValue)
     if isLimit && !stale {
       userDefaults?.set(
@@ -477,7 +508,9 @@ func locturneWindowNight(_ now: Date = Date()) -> (evening: Date, outside: Bool,
   let sinceBedtime = (minute - bedtime + 1440) % 1440
   let early = sinceBedtime >= 1440 - 2
   if sinceBedtime < length || early {
-    let afterMidnight = minute < morningStart && !early
+    // An early callback after midnight still belongs to the preceding evening. Only
+    // an early callback before midnight (e.g. 23:59 for a 00:00 bedtime) uses today.
+    let afterMidnight = minute < morningStart
     let started = now.addingTimeInterval(early ? 0 : -Double(sinceBedtime) * 60)
     return (afterMidnight ? day(-1) : now, false, started)
   }
@@ -498,7 +531,10 @@ func locturneNightWindowRan(since: Date) -> Bool {
       let activity = entry["activity"] as? String,
       let at = (entry["at"] as? NSNumber)?.doubleValue
     else { return false }
-    return activity.hasPrefix(LOCTURNE_NIGHT_PREFIX) && entry["callback"] as? String == "intervalDidStart"
+    let callback = entry["callback"] as? String
+    // A committed handoff already decided whether this morning was held. A start
+    // skipped forward by DST must not replace that verdict with a phantom lock.
+    return activity.hasPrefix(LOCTURNE_NIGHT_PREFIX) && (callback == "intervalDidStart" || callback == "scheduleHandoff")
       && at >= after
   }
 }
@@ -707,4 +743,233 @@ func recordLocturneHeartbeat(activity: String, callback: String) {
     log.append(contentsOf: earlier.prefix(LOCTURNE_HEARTBEAT_KEEP - 1))
   }
   userDefaults?.set(log, forKey: LOCTURNE_HEARTBEAT_KEY)
+}
+
+// MARK: - Deferred changes between disjoint sleep periods
+
+private let LOCTURNE_NATIVE_ARMING_KEY = "locturne.nativeNightArmingAt"
+private let LOCTURNE_APP_ARMING_KEY = "locturne.nightArmingAt"
+private let LOCTURNE_NATIVE_WINDOW_PREFIX = "night-native-"
+
+/// Registration can immediately deliver a callback. During a native transaction neither
+/// generation may act; afterwards only its committed generation may act. App registrations
+/// deliberately use the original night-N names and replace the record when they finish.
+func locturneObsoleteNightCallback(_ activity: String) -> Bool {
+  guard activity.hasPrefix(LOCTURNE_NIGHT_PREFIX) else { return false }
+  if locturneArmingRecently(LOCTURNE_NATIVE_ARMING_KEY) { return true }
+  if locturneArmingRecently(LOCTURNE_APP_ARMING_KEY) {
+    return activity.hasPrefix(LOCTURNE_NATIVE_WINDOW_PREFIX)
+  }
+  let prefix = userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY)?["nativeWindowPrefix"] as? String
+  if let prefix { return !activity.hasPrefix(prefix) }
+  return activity.hasPrefix(LOCTURNE_NATIVE_WINDOW_PREFIX)
+}
+
+private func locturneArmingRecently(_ key: String, now: Date = Date()) -> Bool {
+  guard let at = (userDefaults?.object(forKey: key) as? NSNumber)?.doubleValue else { return false }
+  let age = now.timeIntervalSince1970 * 1000 - at
+  // A killed app/extension must not leave a permanent transaction guard.
+  return age >= 0 && age < 120_000
+}
+
+private func locturneDisjoint(_ a: (bedtime: Int, morningStart: Int), _ b: (bedtime: Int, morningStart: Int)) -> Bool {
+  let start: ((bedtime: Int, morningStart: Int)) -> Int = {
+    $0.bedtime < $0.morningStart ? $0.bedtime : $0.bedtime - 1440
+  }
+  return max(start(a), start(b)) >= min(a.morningStart, b.morningStart)
+}
+
+/// The same partition as src/lib/night-plan.ts, with the same 16-slot budget and 15-minute floor.
+func locturneNightEdges(bedtime: Int, morningStart: Int) -> [(start: Int, end: Int)] {
+  let length = (morningStart - bedtime + 1440) % 1440
+  guard length >= 15 else { return [] }
+  let count = min(16, max(1, length / 15), Int(ceil(Double(length) / 45)))
+  let edge: (Int) -> Int = { (bedtime + Int((Double($0 * length) / Double(count)).rounded())) % 1440 }
+  return (0..<count).map { (edge($0), edge($0 + 1)) }
+}
+
+private func locturneStopNightGeneration(_ prefix: String) {
+  let names = center.activities.filter { $0.rawValue.hasPrefix(prefix) }
+  if !names.isEmpty { center.stopMonitoring(names) }
+  // The last registration may have failed after its action was written.
+  let configured = Set(names.map(\.rawValue) + (0..<16).map { "\(prefix)\($0)" })
+  for name in configured {
+    for callback in ["intervalDidStart", "intervalDidEnd", "intervalWillStartWarning", "intervalWillEndWarning"] {
+      userDefaults?.removeObject(forKey: "actions_for_\(name)_\(callback)")
+      userDefaults?.removeObject(forKey: "events_\(name)_\(callback)")
+    }
+  }
+}
+
+private enum LocturneHandoffError: Error { case noRoom, cancelled }
+
+private func locturneHandoffStillOwned(_ before: [String: Any]) -> Bool {
+  guard let current = userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY) else { return false }
+  return NSDictionary(dictionary: current).isEqual(to: before)
+}
+
+private func locturneInstallNight(
+  times: (bedtime: Int, morningStart: Int), prefix: String, before: [String: Any], now: Date
+) throws {
+  let windows = locturneNightEdges(bedtime: times.bedtime, morningStart: times.morningStart)
+  if center.activities.count + windows.count > 20,
+    center.activities.contains(DeviceActivityName("locturne-settle"))
+  {
+    center.stopMonitoring([DeviceActivityName("locturne-settle")])
+    userDefaults?.removeObject(forKey: "locturne.settleAt")
+  }
+  guard center.activities.count + windows.count <= 20 else { throw LocturneHandoffError.noRoom }
+  for (index, window) in windows.enumerated() {
+    if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true || locturneArmingRecently(LOCTURNE_APP_ARMING_KEY) || !locturneHandoffStillOwned(before) {
+      throw LocturneHandoffError.cancelled
+    }
+    let name = "\(prefix)\(index)"
+    userDefaults?.set([
+      ["type": "blockSelection", "familyActivitySelectionId": "night", "shieldId": "locturne-night"]
+    ], forKey: "actions_for_\(name)_intervalDidStart")
+    try center.startMonitoring(
+      DeviceActivityName(name),
+      during: DeviceActivitySchedule(
+        intervalStart: DateComponents(hour: window.start / 60, minute: window.start % 60),
+        intervalEnd: DateComponents(hour: window.end / 60, minute: window.end % 60), repeats: true
+      ), events: [:]
+    )
+  }
+  if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true || locturneArmingRecently(LOCTURNE_APP_ARMING_KEY) || !locturneHandoffStillOwned(before) {
+    throw LocturneHandoffError.cancelled
+  }
+  var record = before
+  record["bedtime"] = times.bedtime
+  record["morningStart"] = times.morningStart
+  record["windows"] = windows.count
+  record["since"] = before["since"] ?? before["armedAt"] ?? now.ISO8601Format()
+  let changed = locturneTimes(before)?.bedtime != times.bedtime || locturneTimes(before)?.morningStart != times.morningStart
+  record["armedAt"] = changed ? now.ISO8601Format() : (before["armedAt"] ?? now.ISO8601Format())
+  if changed {
+    record["timesSince"] = now.ISO8601Format()
+  }
+  record["nativeWindowPrefix"] = prefix
+  userDefaults?.set(record, forKey: LOCTURNE_ARMED_KEY)
+}
+
+private func locturneArmedDate(_ text: String) -> Date? {
+  let formatter = ISO8601DateFormatter()
+  formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+  if let date = formatter.date(from: text) { return date }
+  formatter.formatOptions = [.withInternetDateTime]
+  return formatter.date(from: text)
+}
+
+/// iOS is allowed to deliver an ongoing interval's start during registration. Those
+/// callbacks were suppressed until commit, so apply an ongoing interval ourselves now.
+private func locturneApplyHandoffNight(now: Date) {
+  guard let times = locturneNightTimes(),
+    locturneInside(locturneMinute(now), bedtime: times.bedtime, morningStart: times.morningStart)
+  else { return }
+  let window = locturneWindowNight(now)
+  if locturneNightIsOn(evening: window.evening, now: now) && !locturneSubscriptionLapsed(before: window.evening) {
+    userDefaults?.set(true, forKey: LOCTURNE_NIGHT_HELD_KEY)
+    updateShield(shieldId: "locturne-night", triggeredBy: "locturne_nativeHandoff", activitySelectionId: "night")
+  } else {
+    userDefaults?.set(false, forKey: LOCTURNE_NIGHT_HELD_KEY)
+    if let night = getFamilyActivitySelectionById(id: "night") {
+      unblockSelection(removeSelection: night, triggeredBy: "locturne_nativeHandoff")
+    }
+    restoreLocturneFallbackShield(triggeredBy: "locturne_nativeHandoff")
+  }
+}
+
+/// The morning the replacement routine names may never have been locked under either
+/// routine (08–16 changing to 23–07 at 08). Release only that unrun morning. Otherwise keep
+/// an existing hold/proof exactly as it was. Mirrors routine.ts's nightRanUnder.
+private func locturneReleaseUnrunMorning(
+  target: (bedtime: Int, morningStart: Int), prior: [String: Any]?, from: Double, now: Date
+) {
+  let calendar = Calendar.current
+  let minute = locturneMinute(now)
+  let offset = target.bedtime < target.morningStart ? (minute >= target.bedtime ? 0 : -1) : (minute >= target.bedtime ? 1 : 0)
+  guard let day = calendar.date(byAdding: .day, value: offset, to: now),
+    let morning = calendar.date(bySettingHour: target.morningStart / 60, minute: target.morningStart % 60, second: 0, of: day),
+    morning.timeIntervalSince1970 * 1000 <= from
+  else { return }
+  if let old = locturneTimes(prior),
+    let evening = calendar.date(byAdding: .day, value: -1, to: day),
+    let nights = prior?["activeNights"] as? [NSNumber],
+    nights.contains(where: { $0.intValue == calendar.component(.weekday, from: evening) - 1 }),
+    let startDay = calendar.date(byAdding: .day, value: old.bedtime < old.morningStart ? 0 : -1, to: day),
+    let start = calendar.date(bySettingHour: old.bedtime / 60, minute: old.bedtime % 60, second: 0, of: startDay),
+    start.timeIntervalSince1970 * 1000 < from
+  { return }
+  userDefaults?.set(false, forKey: LOCTURNE_NIGHT_HELD_KEY)
+  if let night = getFamilyActivitySelectionById(id: "night") {
+    unblockSelection(removeSelection: night, triggeredBy: "locturne_unrunMorning")
+  }
+  restoreLocturneFallbackShield(triggeredBy: "locturne_unrunMorning")
+}
+
+/// Hands over only a due, disjoint routine change. Normal overlapping edits retain their
+/// existing rules. Every attempt and rollback uses a fresh name: registering the activity
+/// whose callback is executing can deadlock on affected iOS versions. Old names are stopped
+/// before new names are installed so the total never exceeds the app's 20-activity budget.
+func locturneHandoffNight(now: Date = Date()) -> Bool {
+  guard userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) != true,
+    !locturneArmingRecently(LOCTURNE_APP_ARMING_KEY, now: now),
+    !locturneArmingRecently(LOCTURNE_NATIVE_ARMING_KEY, now: now),
+    let before = userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY),
+    let old = locturneTimes(before),
+    let stored = userDefaults?.dictionary(forKey: LOCTURNE_ROUTINE_KEY)
+  else { return false }
+  let target: [String: Any]?
+  let prior: [String: Any]?
+  let from: Double
+  if let pending = stored["pending"] as? [String: Any] {
+    guard let due = (pending["from"] as? NSNumber)?.doubleValue,
+      due <= now.timeIntervalSince1970 * 1000 + 120_000
+    else { return false }
+    target = pending["routine"] as? [String: Any]
+    prior = stored["active"] as? [String: Any]
+    from = due
+  } else {
+    guard let since = (stored["since"] as? NSNumber)?.doubleValue,
+      let armedAt = before["armedAt"] as? String,
+      let armedDate = locturneArmedDate(armedAt),
+      armedDate.timeIntervalSince1970 * 1000 < since
+    else { return false }
+    target = stored["active"] as? [String: Any]
+    prior = stored["prior"] as? [String: Any]
+    from = since
+  }
+  guard let times = locturneTimes(target),
+    (0..<1440).contains(times.bedtime), (0..<1440).contains(times.morningStart),
+    locturneDisjoint(old, times),
+    !locturneNightEdges(bedtime: times.bedtime, morningStart: times.morningStart).isEmpty,
+    target?["activeNights"] as? [NSNumber] != nil
+  else { return false }
+
+  userDefaults?.set(now.timeIntervalSince1970 * 1000, forKey: LOCTURNE_NATIVE_ARMING_KEY)
+  defer { userDefaults?.removeObject(forKey: LOCTURNE_NATIVE_ARMING_KEY) }
+  locturneStopNightGeneration(LOCTURNE_NIGHT_PREFIX)
+  let prefix = "\(LOCTURNE_NATIVE_WINDOW_PREFIX)\(UUID().uuidString)-"
+  do {
+    try locturneInstallNight(times: times, prefix: prefix, before: before, now: now)
+    userDefaults?.removeObject(forKey: "locturne.nativeNightArmingError")
+    locturneReleaseUnrunMorning(target: times, prior: prior, from: from, now: now)
+    locturneApplyHandoffNight(now: now)
+  } catch {
+    locturneStopNightGeneration(prefix)
+    if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true || locturneArmingRecently(LOCTURNE_APP_ARMING_KEY) || !locturneHandoffStillOwned(before) { return true }
+    let rollbackPrefix = "\(LOCTURNE_NATIVE_WINDOW_PREFIX)\(UUID().uuidString)-"
+    do {
+      try locturneInstallNight(times: old, prefix: rollbackPrefix, before: before, now: now)
+      locturneApplyHandoffNight(now: now)
+    } catch {
+      locturneStopNightGeneration(rollbackPrefix)
+      if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true || locturneArmingRecently(LOCTURNE_APP_ARMING_KEY) || !locturneHandoffStillOwned(before) { return true }
+      // Retain the old record/hold: the app detects missing windows and retries.
+      userDefaults?.set(before, forKey: LOCTURNE_ARMED_KEY)
+      locturneApplyHandoffNight(now: now)
+    }
+    userDefaults?.set(now.timeIntervalSince1970 * 1000, forKey: "locturne.nativeNightArmingError")
+  }
+  return true
 }

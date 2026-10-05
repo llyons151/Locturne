@@ -17,8 +17,12 @@ import { AppState, Platform } from 'react-native';
 
 import {
   ONBOARDING_VERSION,
+  finishAnalyticsStartup,
   registerProperties,
+  redactAnalyticsUrls,
+  setAnalyticsEligibilityHandler,
   setAnalyticsSink,
+  stopForChild,
   track,
   trackScreen,
   type NightVerdictEvent,
@@ -42,6 +46,25 @@ export function postHogKey(raw: unknown): string | null {
 }
 
 export function startAnalytics(): void {
+  // An install with no age answer is unknown, including upgrades from older builds.
+  // Keep its early funnel in analytics.ts's bounded local queue until eligibility is known.
+  const key = 'locturne.analytics.eligible';
+  let initialized = false;
+  const initialize = () => {
+    if (initialized) return;
+    initialized = true;
+    initializeAnalytics();
+  };
+  setAnalyticsEligibilityHandler((allowed) => {
+    sharedSet(key, allowed);
+    if (allowed) initialize();
+  });
+  const allowed = sharedGet<boolean>(key);
+  if (allowed === true) initialize();
+  else if (allowed === false) stopForChild();
+}
+
+function initializeAnalytics(): void {
   const extra = Constants.expoConfig?.extra as
     | { posthog?: { apiKey?: unknown; host?: unknown; disableGeoip?: unknown } }
     | undefined;
@@ -56,8 +79,15 @@ export function startAnalytics(): void {
     personProfiles: 'always',
     disableGeoip: extra?.posthog?.disableGeoip === true,
     errorTracking: { autocapture: { uncaughtExceptions: true, unhandledRejections: true, console: false } },
+    before_send: redactAnalyticsUrls,
   });
 
+  const optOut = () => {
+    void client.optOut().catch(() => {});
+    client.setPersistedProperty(PostHogPersistedProperty.Queue, null);
+    // Unlink subscription events too; an empty attribute deletes the RevenueCat link.
+    setAttributes({ $posthogUserId: '' });
+  };
   setAnalyticsSink({
     capture: (event, properties) => void client.capture(event, properties),
     screen: (name) => void client.screen(name),
@@ -65,13 +95,7 @@ export function startAnalytics(): void {
     setPerson: (properties) => client.setPersonProperties(properties),
     // `optOut` only stops new events: what's already queued would still upload, and "nothing
     // more is sent" (privacy.html, under 13) has to hold for those too.
-    optOut: () => {
-      void client.optOut();
-      client.setPersistedProperty(PostHogPersistedProperty.Queue, null);
-      // Linked at launch, before the age question: unlink, or RevenueCat's server-side
-      // integration would still send this person's subscription events (an empty value deletes it).
-      setAttributes({ $posthogUserId: '' });
-    },
+    optOut,
   });
 
   registerProperties({
@@ -88,7 +112,12 @@ export function startAnalytics(): void {
   client
     .ready()
     .then(() => {
-      if (!client.optedOut) setAttributes({ $posthogUserId: client.getDistinctId() });
+      finishAnalyticsStartup({
+        optedOut: client.optedOut,
+        getDistinctId: () => client.getDistinctId(),
+        optOut,
+        link: (id) => setAttributes({ $posthogUserId: id }),
+      });
     })
     .catch(() => {});
 

@@ -82,6 +82,8 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   // A morning nothing holds (after a lapse's last paid one) is day here, as on Home.
   const phase = wakePhase(lock.phase, heldPhase(lock.phase));
+  // A success can remain mounted while the phone is put away until the next night.
+  const celebrating = unlocked !== null && phase === 'day' && unlocked.morningKey === lock.morningKey;
 
   const onMet = useCallback(
     (kind: WakeMethodShown) => {
@@ -107,7 +109,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   };
 
   let content;
-  if (unlocked) content = <Unlocked state={unlocked} onDone={close} />;
+  if (celebrating) content = <Unlocked state={lock} onDone={close} />;
   else if (phase !== 'morning') content = <NotMorning state={lock} onClose={close} />;
   else {
     const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
@@ -120,7 +122,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     // Steps can't be counted here at all: passes, the scan code and the emergency unlock.
     const stuck = <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />;
     content =
-      shown === 'downstairs' ? (
+      shown === 'downstairs' && routine.method === 'downstairs' ? (
         <DownstairsView goal={routine.stepGoal} onMet={onDownstairs} onSteps={() => switchTo('steps')} footer={scan} />
       ) : (
         <StepsView
@@ -146,8 +148,8 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + Space.l }]}
       showsVerticalScrollIndicator={false}
     >
-      {!unlocked && phase === 'morning' ? <StayAwake /> : null}
-      <TopBar label={wakeLabel(phase, !!unlocked)} onClose={close} />
+      {!celebrating && phase === 'morning' ? <StayAwake /> : null}
+      <TopBar label={wakeLabel(phase, celebrating)} onClose={close} />
       {content}
     </ScrollView>
   );

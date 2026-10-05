@@ -40,6 +40,27 @@ test('a limit used up stores the day and the moment (#124)', () => {
   assert.equal(d.state.store[`locturne.limitReachedAt.${LIMIT}`], t);
 });
 
+test('a threshold delivered while stood down leaves no mark for renewal', () => {
+  const d = phone();
+  d.state.store['locturne.stoodDown'] = true;
+  at(new Date(2026, 9, 6, 15).getTime(), () => d.fire(LIMIT, 'eventDidReachThreshold'));
+  assert.equal(d.state.store[`locturne.limitReached.${LIMIT}`], undefined);
+  assert.equal(d.state.store[`locturne.limitReachedAt.${LIMIT}`], undefined);
+  delete d.state.store['locturne.stoodDown'];
+  at(new Date(2026, 9, 6, 15, 1).getTime(), () => d.fire(LIMIT, 'intervalDidEnd'));
+  assert.equal(d.state.shielded.has('insta'), false);
+});
+
+test('a removed limit cannot leave a threshold mark for the next use of its slot', () => {
+  const d = phone();
+  d.state.store['locturne.limits'] = [];
+  at(new Date(2026, 9, 6, 15).getTime(), () => d.fire(LIMIT, 'eventDidReachThreshold'));
+  assert.equal(d.state.store[`locturne.limitReached.${LIMIT}`], undefined);
+  d.state.store['locturne.limits'] = [{ id: LIMIT, minutes: 60 }];
+  at(new Date(2026, 9, 6, 15, 1).getTime(), () => d.fire(LIMIT, 'intervalDidEnd'));
+  assert.equal(d.state.shielded.has('insta'), false);
+});
+
 test("the re-apply goes by the moment: a mark from a clock set forward isn't today's (#127)", () => {
   const d = phone();
   const t = new Date(2026, 9, 6, 15, 0).getTime();

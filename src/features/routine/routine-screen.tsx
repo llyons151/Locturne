@@ -16,7 +16,7 @@ import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
 import { ChoiceRow, Section, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
-import { armRoutine, inPendingFirstNight, routineAt, syncLock } from '@/lib/lock-controller';
+import { armRoutine, inPendingFirstNight, onLockChange, routineAt, syncLock } from '@/lib/lock-controller';
 import { nightsAround } from '@/lib/lock-state';
 import { MIN_WINDOW } from '@/lib/night-plan';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -163,6 +163,8 @@ export function RoutineScreen() {
   // Onboarding, or a bedtime passing, can change it while the tab is away, or while the app
   // sits in the background on this tab.
   useFocusEffect(useCallback(() => setLoaded(load()), []));
+  // Home keeps the boundary timer alive while this tab is open: reload when it settles edits.
+  useEffect(() => onLockChange(() => setLoaded(load())), []);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => state === 'active' && setLoaded(load()));
     return () => sub.remove();

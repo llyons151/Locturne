@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
+import { useLock } from '@/hooks/use-lock';
 import { DAY_OPENER, morningDoneToday } from '@/features/wake/morning-done';
 import { track } from '@/lib/analytics';
 import {
@@ -47,7 +48,7 @@ import { Voice } from './voice';
 
 type Exit = 'pass' | 'emergency';
 
-type Stage = { kind: 'menu'; notice?: string } | { kind: 'wait'; exit: Exit } | { kind: 'done'; exit: Exit };
+type Stage = { kind: 'menu'; notice?: string } | { kind: 'wait'; exit: Exit } | { kind: 'done'; exit: Exit; until: number };
 
 const timeOf = (ms: number) => {
   const d = new Date(ms);
@@ -101,15 +102,20 @@ function describe(plan: EmergencyPlan): string {
 export function ExitsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [stage, setStage] = useState<Stage>({ kind: 'menu' });
-  const [phase, setPhase] = useState<Phase>(() => readLock().phase);
-  const [left, setLeft] = useState(() => getPassesLeft());
-  const [plan, setPlan] = useState(() => previewEmergency());
+  const lock = useLock();
+  const [storedStage, setStage] = useState<Stage>({ kind: 'menu' });
+  // The route can remain mounted overnight; a completed exit describes only that window.
+  const stage: Stage = storedStage.kind === 'done' && lock.nextChange.getTime() !== storedStage.until ? { kind: 'menu' } : storedStage;
+  const phase = lock.phase;
+  const [storedLeft, setLeft] = useState(() => getPassesLeft());
+  const [storedPlan, setPlan] = useState(() => previewEmergency());
+  const left = stage.kind === 'menu' ? getPassesLeft() : storedLeft;
+  // Keep the exact effect frozen while confirming; the menu always reflects the live lock.
+  const plan = stage.kind === 'menu' ? previewEmergency() : storedPlan;
   const [wait, setWait] = useState(EMERGENCY_WAIT_SECONDS);
   const [confirming, setConfirming] = useState(false);
 
   const refresh = () => {
-    setPhase(readLock().phase);
     setLeft(getPassesLeft());
     setPlan(previewEmergency());
   };
@@ -148,6 +154,15 @@ export function ExitsScreen() {
       if (refusal) return setStage({ kind: 'menu', notice: PASS_REFUSALS[refusal] });
       track('pass_used', { passes_left: getPassesLeft() });
     } else {
+      const current = previewEmergency();
+      if (current && (!plan || current.pauseNight !== plan.pauseNight ||
+        current.unlockMorning !== plan.unlockMorning || current.endBlockNow !== plan.endBlockNow ||
+        current.resumesAt !== plan.resumesAt)) {
+        // A confirmation left open across bedtime must not silently unlock more than it said.
+        setPlan(current);
+        setStage({ kind: 'wait', exit: 'emergency' });
+        return;
+      }
       const use = emergencyUnlock();
       if (!use) return setStage({ kind: 'menu', notice: 'Nothing was asleep, so nothing changed.' });
       track('emergency_unlock', {
@@ -158,7 +173,7 @@ export function ExitsScreen() {
       });
     }
     haptic.done();
-    setStage({ kind: 'done', exit });
+    setStage({ kind: 'done', exit, until: readLock().nextChange.getTime() });
     // `plan` keeps describing what just happened; only the pass count moves.
     setLeft(getPassesLeft());
   };

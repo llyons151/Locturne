@@ -89,6 +89,17 @@ const QUEUE_MAX = 50;
 let sink: AnalyticsSink | null = null;
 let queue: ((s: AnalyticsSink) => void)[] = [];
 let stopped = false;
+let eligibilityHandler: ((allowed: boolean) => void) | null = null;
+
+function reportEligibility(allowed: boolean): void {
+  try { eligibilityHandler?.(allowed); } catch { /* Analytics startup must not interrupt onboarding. */ }
+}
+
+/** Startup waits for the existing age answer; nothing initializes a network SDK before it. */
+export function setAnalyticsEligibilityHandler(handler: (allowed: boolean) => void): void {
+  eligibilityHandler = handler;
+  if (stopped) reportEligibility(false);
+}
 
 function send(call: (s: AnalyticsSink) => void): void {
   if (stopped) return;
@@ -105,10 +116,24 @@ export function setAnalyticsSink(next: AnalyticsSink | null): void {
   sink = next;
   const waiting = queue;
   queue = [];
+  if (stopped) {
+    try {
+      next?.optOut();
+    } catch {
+      // Privacy remains stopped locally even if the SDK is unavailable.
+    }
+    return;
+  }
   if (next) waiting.forEach(send);
 }
 
 export function track<E extends EventName>(event: E, properties: Events[E]): void {
+  if (!stopped && event === 'onboarding_answered') {
+    const answer = properties as Events['onboarding_answered'];
+    if (answer.question === 'age_bracket' && ['13-17', '18-24', '25-34', '35+'].includes(String(answer.answer))) {
+      reportEligibility(true);
+    }
+  }
   send((s) => s.capture(event, properties as Record<string, Value>));
 }
 
@@ -129,9 +154,26 @@ export function setPersonProperties(properties: Record<string, Value>): void {
  * docs/TEEN_ACCOUNTS.md): PostHog keeps the opt-out across launches.
  */
 export function stopForChild(): void {
+  reportEligibility(false);
   send((s) => s.optOut());
   stopped = true;
   queue = [];
+}
+
+/** Finish SDK startup after storage loads, without racing an under-13 opt-out. */
+export function finishAnalyticsStartup(client: {
+  optedOut: boolean;
+  getDistinctId(): string;
+  optOut(): void;
+  link(id: string): void;
+}): void {
+  if (stopped) {
+    // The SDK may have queued optOut behind its ready callback, and storage loading may
+    // have restored an old event queue. Repeat the purge now that storage is ready.
+    client.optOut();
+  } else if (!client.optedOut) {
+    client.link(client.getDistinctId());
+  }
 }
 
 /** For tests. */
@@ -139,6 +181,15 @@ export function resetAnalytics(): void {
   sink = null;
   queue = [];
   stopped = false;
+  eligibilityHandler = null;
+}
+
+/** Lifecycle auto-capture includes arbitrary incoming deep links; those never leave the phone. */
+export function redactAnalyticsUrls<T extends { properties?: Record<string, unknown> }>(event: T | null): T | null {
+  if (!event?.properties) return event;
+  const properties = { ...event.properties };
+  for (const key of ['url', '$current_url', '$referrer']) delete properties[key];
+  return { ...event, properties };
 }
 
 export function ageBracket(age: number): AgeBracket | null {

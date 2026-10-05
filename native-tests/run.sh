@@ -25,8 +25,8 @@ if ! command -v swiftc >/dev/null; then
   exit 1
 fi
 
-build="${TMPDIR:-/tmp}/locturne-native-tests"
-rm -rf "$build" && mkdir -p "$build"
+# Independent reviewers and timezone checks may run concurrently.
+build="$(mktemp -d "${TMPDIR:-/tmp}/locturne-native-tests.XXXXXX")"
 
 for file in Shared.swift DeviceActivityMonitorExtension.swift; do
   { printf '#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n'

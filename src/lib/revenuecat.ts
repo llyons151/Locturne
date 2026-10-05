@@ -287,6 +287,7 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   const listeners = new Set<() => void>();
   // While `purchase` or `restore` runs, the update listener stays quiet: their callers arm.
   let inFlight = 0;
+  let deferredApproval = false;
 
   const cached = () => store.get<EntitlementRecord>(ENTITLEMENT_KEY);
   const time = (key: string) => {
@@ -304,6 +305,14 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   };
   const remember = (info: CustomerInfo) => {
     const served = Date.parse(info.requestDate);
+    // A request begun before a purchase/refund can finish after its listener update.
+    // Never let that older signed snapshot overwrite the newer server verdict.
+    const previous = cached();
+    if (info.entitlements.verification === SIGNED && !forged(info) && served < seenAt() && previous) {
+      const record = !behind() && cachedEntitlement(previous, judgedAt()) ? previous : { ...previous, active: false };
+      store.set(ENTITLEMENT_KEY, record);
+      return record;
+    }
     // A signed answer newer than any seen is the server's, just now. One no newer is the SDK's
     // cache, which it judges by its `requestDate` for three days past it (RevenueCat's
     // `requestDateGracePeriod`): a cancelled plan would read active up to three days past its end.
@@ -362,10 +371,23 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   // Every install carries its arm, so the arms compare per install, not per paywall view.
   tag({ [ATTRIBUTES.exitArm]: assignedArm() });
 
+  const finishOperation = (reportedPaid: boolean) => {
+    inFlight -= 1;
+    if (reportedPaid) deferredApproval = false;
+    if (!inFlight && deferredApproval) {
+      deferredApproval = false;
+      if (cached()?.active && cachedEntitlement(cached(), judgedAt())) listeners.forEach((listener) => listener());
+    }
+  };
+
   sdk.addCustomerInfoUpdateListener((info) => {
     const was = cached()?.active === true;
     const record = remember(info);
-    if (!inFlight && !was && record.active) listeners.forEach((listener) => listener());
+    if (!record.active) deferredApproval = false;
+    if (!was && record.active) {
+      if (inFlight) deferredApproval = true;
+      else listeners.forEach((listener) => listener());
+    }
   });
 
   return {
@@ -382,24 +404,28 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     },
     async purchase(target) {
       inFlight += 1;
+      let reportedPaid = false;
       try {
         const pkg = packageFor(await sdk.getOfferings(), target);
         if (!pkg) return { status: 'failed', message: 'That plan isn’t available right now.' };
         const { customerInfo } = await sdk.purchasePackage(pkg);
-        if (remember(customerInfo).active) return { status: 'purchased' };
+        reportedPaid = remember(customerInfo).active;
+        if (reportedPaid) return { status: 'purchased' };
         return { status: 'failed', message: 'The purchase went through but isn’t showing yet. Tap Restore in a moment.', retry: false };
       } catch (error) {
         return purchaseFailure(error);
       } finally {
-        inFlight -= 1;
+        finishOperation(reportedPaid);
       }
     },
     async restore() {
       inFlight += 1;
+      let reportedPaid = false;
       try {
-        return { entitled: remember(await sdk.restorePurchases()).active };
+        reportedPaid = remember(await sdk.restorePurchases()).active;
+        return { entitled: reportedPaid };
       } finally {
-        inFlight -= 1;
+        finishOperation(reportedPaid);
       }
     },
     async isEntitled() {

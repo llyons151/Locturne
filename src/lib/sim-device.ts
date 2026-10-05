@@ -22,7 +22,7 @@ import { assertPlist } from './fake-device-activity.ts';
 type Clock = { hour: number; minute: number; second?: number; year?: number; month?: number; day?: number };
 type Schedule = { intervalStart: Clock; intervalEnd: Clock; repeats?: boolean };
 type MonitorEvent = { familyActivitySelection: string; threshold: { hour: number; minute: number }; eventName: string };
-type Action = { type: string; familyActivitySelectionId?: string };
+type Action = { type: string; familyActivitySelectionId?: string; shieldId?: string };
 
 export type Monitored = {
   name: string;
@@ -98,6 +98,7 @@ export function simDevice() {
     cap: null as number | null,
     /** Registrations finish after a turn of the event loop, as the real bridge's do. */
     asyncRegistration: false,
+    nativeGeneration: 0,
   };
 
   const ids = (): Record<string, string> => (s.store[IDS_KEY] ??= {}) as Record<string, string>;
@@ -340,7 +341,7 @@ export function simDevice() {
         typeof e.activity === 'string' &&
         typeof e.at === 'number' &&
         e.activity.startsWith(NIGHT_PREFIX) &&
-        e.callback === 'intervalDidStart' &&
+        (e.callback === 'intervalDidStart' || e.callback === 'scheduleHandoff') &&
         e.at >= since
       );
     });
@@ -414,7 +415,8 @@ export function simDevice() {
     const since = (minute - times.bedtime + 1440) % 1440;
     const early = since >= 1440 - 2;
     if (since < length || early) {
-      const afterMidnight = minute < times.morningStart && !early;
+      // An early callback after midnight still belongs to the preceding evening.
+      const afterMidnight = minute < times.morningStart;
       return { evening: afterMidnight ? day(-1) : d, outside: false, bedtime: t - (early ? 0 : since * 60_000) };
     }
     const sinceMorning = (minute - times.morningStart + 1440) % 1440;
@@ -438,13 +440,151 @@ export function simDevice() {
     return dayKey(new Date(evening.getFullYear(), evening.getMonth(), evening.getDate() + 1)) > ended;
   }
 
+  const appArmingKey = 'locturne.nightArmingAt';
+  const nativeArmingKey = 'locturne.nativeNightArmingAt';
+  const nativePrefix = 'night-native-';
+  type NativeRoutine = { bedtime: number; morningStart: number; activeNights: number[] };
+  type NativeArmed = NativeRoutine & { armedAt: string; since?: string; timesSince?: string; nativeWindowPrefix?: string; windows: number };
+
+  function armingRecently(key: string) {
+    const at = get<number>(key);
+    return typeof at === 'number' && now() - at >= 0 && now() - at < 120_000;
+  }
+
+  function obsoleteNightCallback(activity: string) {
+    if (!activity.startsWith(NIGHT_PREFIX)) return false;
+    if (armingRecently(nativeArmingKey)) return true;
+    if (armingRecently(appArmingKey)) return activity.startsWith(nativePrefix);
+    const prefix = get<NativeArmed>(ARMED_KEY)?.nativeWindowPrefix;
+    return prefix ? !activity.startsWith(prefix) : activity.startsWith(nativePrefix);
+  }
+
+  function nightEdges(times: { bedtime: number; morningStart: number }) {
+    const length = (times.morningStart - times.bedtime + 1440) % 1440;
+    if (length < 15) return [];
+    const count = Math.min(16, Math.max(1, Math.floor(length / 15)), Math.ceil(length / 45));
+    const edge = (i: number) => (times.bedtime + Math.round(i * length / count)) % 1440;
+    return Array.from({ length: count }, (_, i) => ({ start: edge(i), end: edge(i + 1) }));
+  }
+
+  function stopGeneration(prefix: string) {
+    const names = [...s.monitored.keys()].filter((name) => name.startsWith(prefix));
+    exports.stopMonitoring(names);
+    for (const name of new Set([...names, ...Array.from({ length: 16 }, (_, i) => `${prefix}${i}`)])) {
+      for (const callback of ['intervalDidStart', 'intervalDidEnd', 'intervalWillStartWarning', 'intervalWillEndWarning']) {
+        s.actions.delete(`actions_for_${name}_${callback}`);
+        delete s.store[`events_${name}_${callback}`];
+      }
+    }
+  }
+
+  function installNativeNight(times: { bedtime: number; morningStart: number }, prefix: string, before: NativeArmed) {
+    const windows = nightEdges(times);
+    if (s.monitored.size + windows.length > 20 && s.monitored.has('locturne-settle')) {
+      s.monitored.delete('locturne-settle');
+      delete s.store['locturne.settleAt'];
+    }
+    if (s.monitored.size + windows.length > 20) throw new Error('noRoom');
+    const clock = (m: number) => ({ hour: Math.floor(m / 60), minute: m % 60 });
+    windows.forEach((window, i) => {
+      if (get(STOOD_DOWN_KEY) === true || armingRecently(appArmingKey) || !handoffStillOwned(before)) throw new Error('cancelled');
+      const name = `${prefix}${i}`;
+      s.actions.set(`actions_for_${name}_intervalDidStart`, [{ type: 'blockSelection', familyActivitySelectionId: 'night', shieldId: 'locturne-night' }]);
+      // Native DeviceActivityCenter is synchronous; the app bridge alone is async.
+      const monitored: Monitored = { name, schedule: { intervalStart: clock(window.start), intervalEnd: clock(window.end), repeats: true }, events: [], registeredAt: now() };
+      if (s.cap !== null && s.monitored.size >= s.cap) throw new Error('excessiveActivities');
+      s.monitored.set(name, monitored);
+      if (s.startsOnRegister && insideNow(monitored, now())) intervalDidStart(name);
+    });
+    if (get(STOOD_DOWN_KEY) === true || armingRecently(appArmingKey) || !handoffStillOwned(before)) throw new Error('cancelled');
+    const changed = before.bedtime !== times.bedtime || before.morningStart !== times.morningStart;
+    const at = new Date(now()).toISOString();
+    set(ARMED_KEY, { ...before, ...times, windows: windows.length, since: before.since ?? before.armedAt ?? at,
+      armedAt: changed ? at : before.armedAt ?? at,
+      ...(changed ? { timesSince: at } : {}), nativeWindowPrefix: prefix });
+  }
+
+  function handoffStillOwned(before: NativeArmed) {
+    return JSON.stringify(get(ARMED_KEY)) === JSON.stringify(before);
+  }
+
+  function releaseUnrunMorning(target: NativeRoutine, prior: NativeRoutine | undefined, from: number) {
+    const d = new Date(now());
+    const minute = minuteOf(d);
+    const offset = target.bedtime < target.morningStart ? (minute >= target.bedtime ? 0 : -1) : (minute >= target.bedtime ? 1 : 0);
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset);
+    const instant = (minute: number, offset = 0) => wallInstant(day.getFullYear(), day.getMonth(), day.getDate() + offset, Math.floor(minute / 60), minute % 60, 0);
+    if (instant(target.morningStart) > from) return;
+    const evening = new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1).getDay();
+    if (prior && prior.activeNights.includes(evening) && instant(prior.bedtime, prior.bedtime < prior.morningStart ? 0 : -1) < from) return;
+    set(NIGHT_HELD_KEY, false);
+    unblock('night');
+  }
+
+  function applyHandoffNight() {
+    const times = nightTimes();
+    if (!times || !inside(minuteOf(new Date(now())), times)) return;
+    const window = windowNight();
+    const held = nightIsOn(window.evening) && !subscriptionLapsed(window.evening);
+    set(NIGHT_HELD_KEY, held);
+    if (!held) unblock('night');
+  }
+
+  function handoffNight() {
+    const before = get<NativeArmed>(ARMED_KEY);
+    const stored = get<{ active: NativeRoutine; pending?: { routine: NativeRoutine; from: number }; since?: number; prior?: NativeRoutine }>(ROUTINE_KEY);
+    if (get(STOOD_DOWN_KEY) === true || armingRecently(appArmingKey) || armingRecently(nativeArmingKey) || !before || !stored) return false;
+    let target: NativeRoutine, prior: NativeRoutine | undefined, from: number;
+    if (stored.pending) {
+      if (!(stored.pending.from <= now() + 120_000)) return false;
+      ({ routine: target, from } = stored.pending);
+      prior = stored.active;
+    } else {
+      if (stored.since === undefined || !(Date.parse(before.armedAt) < stored.since)) return false;
+      target = stored.active; prior = stored.prior; from = stored.since;
+    }
+    const start = (t: { bedtime: number; morningStart: number }) => t.bedtime < t.morningStart ? t.bedtime : t.bedtime - 1440;
+    const disjoint = Math.max(start(before), start(target)) >= Math.min(before.morningStart, target.morningStart);
+    if (!disjoint || !nightEdges(target).length || !Array.isArray(target.activeNights)) return false;
+    set(nativeArmingKey, now());
+    const prefix = `${nativePrefix}${++s.nativeGeneration}-`;
+    try {
+      stopGeneration(NIGHT_PREFIX);
+      try {
+        installNativeNight(target, prefix, before);
+        delete s.store['locturne.nativeNightArmingError'];
+        releaseUnrunMorning(target, prior, from);
+        applyHandoffNight();
+      } catch {
+        stopGeneration(prefix);
+        if (get(STOOD_DOWN_KEY) === true || armingRecently(appArmingKey) || !handoffStillOwned(before)) return true;
+        const rollback = `${nativePrefix}${++s.nativeGeneration}-`;
+        try { installNativeNight(before, rollback, before); applyHandoffNight(); }
+        catch {
+          stopGeneration(rollback);
+          if (get(STOOD_DOWN_KEY) === true || armingRecently(appArmingKey) || !handoffStillOwned(before)) return true;
+          set(ARMED_KEY, before); applyHandoffNight();
+        }
+        set('locturne.nativeNightArmingError', now());
+      }
+    } finally { delete s.store[nativeArmingKey]; }
+    return true;
+  }
+
   // Shield words aren't modelled (`updateShield` is a no-op), so `restoreLocturneFallbackShield`
   // and the morning's `updateShield` are marked where the Swift calls them but do nothing.
   // `persistToUserDefaults` and `notifyAppWithName` are the library's and aren't modelled either.
 
   function intervalDidStart(activity: string) {
+    if (obsoleteNightCallback(activity)) { s.lastWindow = 'ignore'; return; }
     // First, so a bedtime window shields the edited list, not the old one.
     settleLists();
+    if (activity.startsWith(NIGHT_PREFIX) && handoffNight()) {
+      s.lastWindow = 'ignore';
+      reapply();
+      recordHeartbeat(activity, 'scheduleHandoff');
+      return;
+    }
 
     // A limit's day starting, maybe a few seconds before midnight: yesterday's mark goes now
     // (#128). An arm in the middle of the day keeps its mark.
@@ -496,6 +636,10 @@ export function simDevice() {
   }
 
   function intervalDidEnd(activity: string) {
+    if (obsoleteNightCallback(activity)) return;
+    // A delayed prior end must not finish a replacement nap under the same name.
+    const nap = get<{ end: number }>(NAP_KEY);
+    if (activity === NAP_ACTIVITY && nap && nap.end > now() + 120_000) return;
     // The nap is over: forget it first, so the re-apply doesn't shield it again.
     if (activity === NAP_ACTIVITY) delete s.store[NAP_KEY];
     execActions(activity, 'intervalDidEnd');
@@ -525,9 +669,11 @@ export function simDevice() {
   }
 
   function eventDidReachThreshold(activity: string) {
+    if (get<boolean>(STOOD_DOWN_KEY) === true) return;
     // A daily limit is used up: the day and the moment (#124). Unless it's yesterday's,
     // delivered late (`locturneLimitThresholdIsStale`).
     const isLimit = activity.startsWith(LIMIT_PREFIX);
+    if (isLimit && !(get<{ id: string }[]>(LIMITS_KEY) ?? []).some((limit) => limit.id === activity)) return;
     const stale = isLimit && limitThresholdIsStale(activity);
     if (isLimit && !stale) {
       set(`${LIMIT_REACHED_PREFIX}${activity}`, dayKey(new Date(now())));
@@ -602,6 +748,7 @@ export function simDevice() {
     s.lastWindow = null;
     s.cap = null;
     s.asyncRegistration = false;
+    s.nativeGeneration = 0;
   }
 
   return { state: s, exports, ids, appsOfId, fire, dueEvents, use, reset, get };

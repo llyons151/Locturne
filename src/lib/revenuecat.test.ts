@@ -368,6 +368,24 @@ test('attributes go to the customer record', () => {
   assert.equal(sdk.attributes.found, 'tiktok');
 });
 
+test('a slow entitlement read cannot overwrite a newer purchase or refund update', async () => {
+  for (const latestActive of [false, true]) {
+    const sdk = fakeSdk();
+    const store = memoryKeyValue();
+    const now = new Date(2026, 10, 1, 12);
+    const before = new Date(now.getTime() - 60_000);
+    const active = { productId: PRODUCT_IDS.annual, expiresAt: now.getTime() + DAY };
+    let resolve!: (info: CustomerInfo) => void;
+    sdk.getCustomerInfo = () => new Promise<CustomerInfo>((done) => { resolve = done; });
+    const rc = provider(sdk, store, 0.9, now);
+    const pending = rc.isEntitled();
+    sdk.push(signed(customer(latestActive ? active : null), now));
+    resolve(signed(customer(latestActive ? null : active), before));
+    assert.equal(await pending, latestActive);
+    assert.equal(store.get<EntitlementRecord>(ENTITLEMENT_KEY)?.active, latestActive);
+  }
+});
+
 test('a clock set back past expiry keeps nothing paid, from the store\'s cache or ours', async () => {
   const store = memoryKeyValue();
   const lapsed = new Date(2026, 10, 1);
@@ -547,4 +565,50 @@ test('a refund the server already reported stays unpaid when the SDK serves it f
   // The same answer again, now the SDK's cache: a minute and nearly three days later.
   assert.equal(await provider(sdk, store, 0.9, new Date(refunded.getTime() + 60_000)).isEntitled(), false);
   assert.equal(await provider(sdk, store, 0.9, new Date(refunded.getTime() + 2.9 * DAY)).isEntitled(), false);
+});
+
+test('an independent approval during a failed restore is delivered after the failed operation', async () => {
+  const sdk = fakeSdk();
+  let rejectRestore!: (error: unknown) => void;
+  sdk.restorePurchases = () => new Promise((_, reject) => { rejectRestore = reject; });
+  const rc = provider(sdk);
+  let approved = 0;
+  rc.onEntitled(() => { approved += 1; });
+  const restoring = rc.restore();
+  sdk.push(customer({ productId: PRODUCT_IDS.annual, expiresAt: null }));
+  assert.equal(approved, 0, 'defer while the store operation may still report success');
+  rejectRestore({ code: '10' });
+  await assert.rejects(restoring);
+  assert.equal(approved, 1, 'the failed caller cannot arm this independently approved subscription');
+});
+
+test('deferred SDK approvals survive cancellation, but neither refund nor successful restore emits twice', async () => {
+  for (const outcome of ['cancel', 'restore-success', 'refund'] as const) {
+    const sdk = fakeSdk();
+    let finish!: () => void;
+    let entered!: () => void;
+    const ready = new Promise<void>((resolve) => { entered = resolve; });
+    const approved = customer({ productId: PRODUCT_IDS.annual, expiresAt: null });
+    sdk.purchasePackage = () => new Promise((_, reject) => {
+      finish = () => reject({ code: '1', userCancelled: true });
+      entered();
+    });
+    sdk.restorePurchases = () => new Promise((resolve, reject) => {
+      finish = outcome === 'restore-success' ? () => resolve(approved) : () => reject({ code: '10' });
+      entered();
+    });
+    const rc = provider(sdk);
+    let fired = 0;
+    rc.onEntitled(() => { fired += 1; });
+    const operation = outcome === 'cancel' ? rc.purchase('annual') : rc.restore();
+    await ready;
+    sdk.push(approved);
+    if (outcome === 'refund') sdk.push(customer(null));
+    finish();
+    if (outcome === 'refund') await assert.rejects(operation);
+    else await operation;
+    assert.equal(fired, outcome === 'cancel' ? 1 : 0, outcome);
+    sdk.push(outcome === 'refund' ? customer(null) : approved);
+    assert.equal(fired, outcome === 'cancel' ? 1 : 0, `${outcome}: no duplicate callback`);
+  }
 });

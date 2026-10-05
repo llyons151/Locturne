@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
+import { useLock } from '@/hooks/use-lock';
 import { getNightPause, heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { lapseStillCovers, readLock, routineAt, subscriptionEnded } from '@/lib/lock-controller';
@@ -30,10 +31,12 @@ import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
+import { dayStatus } from '../wake/wake-words';
 import { awakeBody, savedBody, type NextMorning } from './next-morning';
 import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
 import { ShareCode } from './share-code';
+import { liveScanStage, type Stage } from './scan-stage';
 
 /**
  * Scan your code (GAME_PLAN, "Wake-up methods"), both halves:
@@ -49,17 +52,6 @@ import { ShareCode } from './share-code';
 export type ScanMode = 'setup' | 'morning';
 
 type Source = ScanCode['kind'];
-
-type Stage =
-  | { kind: 'morning'; miss?: boolean }
-  | { kind: 'unlocked' }
-  | { kind: 'notYet' }
-  | { kind: 'awake' }
-  | { kind: 'noCode' }
-  | { kind: 'asleep' }
-  | { kind: 'choose'; source: Source }
-  | { kind: 'register'; source: Source; expect?: string; miss?: boolean }
-  | { kind: 'saved' };
 
 /**
  * Night and day both refuse a scan, for different reasons. A night or morning with nothing
@@ -114,7 +106,7 @@ function words(stage: Stage): { line: string; body: string } {
         ? { line: 'Not that one.', body: "That isn't the code you set up. Find the real one." }
         : { line: 'Go find your code.', body: 'Scan it and your apps wake up. Only your code counts.' };
     case 'unlocked':
-      return { line: "I'm up. Don't talk to me yet.", body: 'Your apps are awake until bedtime.' };
+      return { line: "I'm up. Don't talk to me yet.", body: dayStatus(readLock().blockNowUntil, 'Your bedtime apps are awake until bedtime.') };
     case 'notYet':
       return {
         line: 'Shh. Still bedtime.',
@@ -158,7 +150,9 @@ function words(stage: Stage): { line: string; body: string } {
 export function ScanScreen({ mode }: { mode?: ScanMode }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [stage, setStage] = useState<Stage>(() => firstStage(mode));
+  const lock = useLock();
+  const [storedStage, setStage] = useState<Stage>(() => firstStage(mode));
+  const stage = liveScanStage(storedStage, firstStage(mode), lock, getScanEditRefusal() !== null);
   // Keep showing the code they already printed rather than a new one each visit.
   const [qr] = useState(() => {
     const code = getScanCode();
@@ -171,7 +165,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
     const result = submitScan(data);
     if (result === 'unlocked') {
       haptic.done();
-      setStage({ kind: 'unlocked' });
+      setStage({ kind: 'unlocked', morningKey: readLock().morningKey });
     } else if (result === 'notMorning') setStage(notMorning(readLock().phase) ?? { kind: 'awake' });
     else if (result === 'noCode') setStage({ kind: 'noCode' });
     else {

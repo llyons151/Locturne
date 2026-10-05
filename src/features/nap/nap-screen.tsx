@@ -4,13 +4,15 @@
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
 import { SymbolView } from 'expo-symbols';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { AccessibilityInfo, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
+import { useProtection } from '@/hooks/use-protection';
+import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
@@ -18,8 +20,7 @@ import { Segmented } from '@/components/segmented';
 import * as haptic from '@/lib/haptics';
 import { onLockChange, syncLock } from '@/lib/lock-controller';
 import {
-  endNap,
-  getAccess,
+  getProtection,
   getNap,
   hasSelection,
   isNightHeld,
@@ -84,7 +85,7 @@ type Nap = ActiveNap;
 /** Why a nap can't start right now, or null if it can. */
 function blocker(list: List): string | null {
   if (!isScreenTimeAvailable()) return 'Naps need Screen Time, which only iPhone has.';
-  if (getAccess() !== 'approved') return 'Turn on Screen Time access first.';
+  if (getProtection() !== 'on') return 'Turn on Screen Time access first.';
   if (isStoodDown()) return 'Block now needs a subscription. Subscribe from the You tab.';
   if (list === 'night' && !hasSelection('night')) {
     // An emergency unlock parks the picks until the next bedtime (`pauseNightUntil`): they're
@@ -115,6 +116,7 @@ const timeOf = (ms: number) => {
 export function NapScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
+  const [protection, recheckProtection] = useProtection();
 
   const [length, setLength] = useState(30);
   const [list, setList] = useState<List>('night');
@@ -127,7 +129,7 @@ export function NapScreen() {
   const [starting, setStarting] = useState(false);
   const [focused, setFocused] = useState(false);
   // Turning the phone on its side mid-nap shows the moon clock. Only listens while it could.
-  const side = useSideways(nap !== null && focused);
+  const side = useSideways(nap !== null && focused && protection === 'on');
 
   // A stand-down (a lapse found on return) or a pass ends the nap while this tab is open.
   useEffect(() => onLockChange(() => isScreenTimeAvailable() && setNap(peekNap())), []);
@@ -172,7 +174,7 @@ export function NapScreen() {
     setList(next);
     setNotice(null);
     // The first time, go straight to Apple's picker.
-    if (next === 'block' && isScreenTimeAvailable() && picks === 0) setPicking(true);
+    if (next === 'block' && isScreenTimeAvailable() && picks === 0 && !isPickerSettling('block')) setPicking(true);
   };
   const refreshPicks = () => setPicks(isScreenTimeAvailable() ? selectionSize('block') : 0);
 
@@ -183,6 +185,7 @@ export function NapScreen() {
   };
 
   const start = async () => {
+    if (isPickerSettling(list)) return refuse("Your app picks are still saving. Try again in a moment.");
     const why = blocker(list);
     setNotice(null);
     if (why) return refuse(why);
@@ -192,6 +195,7 @@ export function NapScreen() {
       // Loc's Block now words on the shield (shield-copy.ts), unless the night or morning
       // lock holds these apps too, whose words and morning tap matter more.
       syncLock();
+      recheckProtection();
       setNow(Date.now());
       setNap(started);
       setLine('napping');
@@ -201,25 +205,17 @@ export function NapScreen() {
       setStarting(false);
     }
   };
-  const wakeNow = () => {
-    haptic.tap();
-    endNap();
-    syncLock();
-    setNap(null);
-    setLine('woken');
-  };
-  // Deliberate, like every early exit (GAME_PLAN, "Humane exits"): the system alert asks first.
-  const wake = () => {
-    Alert.alert('Wake him early?', 'Your apps wake up now. Anything else keeping them asleep stays.', [
-      { text: 'Keep napping', style: 'cancel' },
-      { text: 'Wake him', style: 'destructive', onPress: wakeNow },
-    ]);
-  };
+  // Early exits use the same deliberate emergency/pass flow as every other lock.
+  const wake = () => router.push('/exits');
 
   // A pass, an emergency unlock or a lapse can end the nap with only `setNap` above.
   const shown = shownLine(line, nap !== null);
   const left = nap ? (nap.end - now) / 1000 : 0;
   const done = nap ? 1 - left / ((nap.end - nap.start) / 1000) : 0;
+  const napProtected = protection === 'on';
+  const napStatus = nap && napProtected
+    ? `Apps asleep until ${timeOf(nap.end)}`
+    : 'Screen Time protection is off.';
 
   return (
     <ScrollView
@@ -231,9 +227,9 @@ export function NapScreen() {
       </Text>
 
       <Animated.View key={shown} entering={FadeIn.duration(400)} style={styles.top}>
-        <Voice text={LINES[shown]} />
+        <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
         <Text style={styles.body}>
-          {nap
+          {nap && !napProtected ? 'Turn Screen Time access back on from the Apps tab.' : nap
             ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`
             : `${list === 'night' ? 'Your bedtime apps sleep' : 'The apps you pick sleep'} with him. Phone calls still get through.`}
         </Text>
@@ -246,21 +242,21 @@ export function NapScreen() {
           <View
             style={styles.timer}
             accessible
-            accessibilityLabel={`${plural(Math.ceil(left / 60), 'minute')} left. Apps asleep until ${timeOf(nap.end)}.`}
+            accessibilityLabel={`${plural(Math.max(0, Math.ceil(left / 60)), 'minute')} left. ${napStatus}.`}
           >
             <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
               {clock(left)}
             </Text>
             <View style={styles.statusRow}>
               <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={15} tintColor={Nocturne.text2} />
-              <Text style={styles.status}>Apps asleep until {timeOf(nap.end)}</Text>
+              <Text style={styles.status}>{napStatus}</Text>
             </View>
             <View style={styles.track}>
               <View style={[styles.fill, { width: `${Math.min(1, done) * 100}%` }]} />
             </View>
           </View>
           <TextButton label="Wake him early" onPress={wake} />
-          <NapClock side={side} progress={done} left={left} until={`Apps asleep until ${timeOf(nap.end)}`} />
+          <NapClock side={side} progress={done} left={left} until={napStatus} />
         </View>
       ) : (
         <View style={styles.bottom}>
@@ -272,7 +268,7 @@ export function NapScreen() {
                 title="Apps for naps"
                 value={picks ? countPicks(picks) : 'None yet'}
                 onPress={() =>
-                  isScreenTimeAvailable() ? setPicking(true) : refuse("Apple's app picker only opens on iPhone.")
+                  isScreenTimeAvailable() ? (!isPickerSettling('block') && setPicking(true)) : refuse("Apple's app picker only opens on iPhone.")
                 }
                 last
               />
@@ -294,7 +290,7 @@ export function NapScreen() {
             setPicking(false);
             refreshPicks();
             // The library saves the picks a moment after Done (see the Apps tab).
-            setTimeout(refreshPicks, 500);
+            settlePicker('block', refreshPicks);
           }}
         />
       )}

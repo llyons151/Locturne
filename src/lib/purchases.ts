@@ -397,6 +397,7 @@ export function setPurchasesProvider(next: PurchasesProvider): void {
 export const isStubbed = () => provider.stubbed;
 export const getOffers = () => provider.getOffers();
 let buying = false;
+let restoring = 0;
 /**
  * Buys `target`. A second call while one is still with the App Store (a double tap lands in
  * the same frame, before any busy state renders) resolves as `cancelled`, so it says nothing
@@ -411,9 +412,16 @@ export const purchase = async (target: PurchaseTarget): Promise<PurchaseResult> 
     buying = false;
   }
 };
-/** True while a `purchase` is with the App Store. Set synchronously, so a same-frame second tap sees it. */
-export const isPurchasing = () => buying;
-export const restore = () => provider.restore();
+/** True while a purchase or restore is with the store, before any React busy state renders. */
+export const isPurchasing = () => buying || restoring > 0;
+export const restore = async () => {
+  restoring++;
+  try {
+    return await provider.restore();
+  } finally {
+    restoring--;
+  }
+};
 export const isEntitled = () => provider.isEntitled();
 export const currentTrialEnd = () => provider.currentTrialEnd();
 export const currentPlan = () => provider.currentPlan();

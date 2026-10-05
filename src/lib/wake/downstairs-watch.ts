@@ -70,6 +70,8 @@ export function watchDownstairs(deps: DownstairsWatchDeps): DownstairsWatch {
 
   let disposed = false;
   let starting = false;
+  let generation = 0;
+  let pendingAway: Subscription | null = null;
   let session: DownstairsSession | null = null;
   let stopSession = () => {};
 
@@ -92,7 +94,12 @@ export function watchDownstairs(deps: DownstairsWatchDeps): DownstairsWatch {
     }
   })();
 
-  const stop = () => stopSession();
+  const stop = () => {
+    generation++;
+    pendingAway?.remove();
+    pendingAway = null;
+    stopSession();
+  };
 
   // Start waits on iOS's permission answer: a second tap, or leaving the screen meanwhile,
   // must not leave a listener running.
@@ -100,9 +107,15 @@ export function watchDownstairs(deps: DownstairsWatchDeps): DownstairsWatch {
     if (starting || disposed) return;
     starting = true;
     stop();
+    const started = generation;
+    pendingAway = deps.onAppState((state) => {
+      if (state === 'background') stop();
+    });
     const permission = await pedometer.requestPermissionsAsync().catch(() => null);
+    pendingAway?.remove();
+    pendingAway = null;
     starting = false;
-    if (disposed) return;
+    if (disposed || started !== generation) return;
     if (!permission?.granted) return access('denied');
     access('ready');
 

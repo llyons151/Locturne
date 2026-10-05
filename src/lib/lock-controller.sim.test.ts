@@ -443,7 +443,11 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const inTime =
       spec.armedSince !== null &&
       (prior ? spec.armedSince < ls.nightInto(morning.key, prior).end.getTime() : ls.armedInTime(now, settings, new Date(spec.armedSince)));
-    const free = spec.armedSince === null || under === 'none' || !inTime || spec.freeMorning === morning.key;
+    // An emergency parks the live picks until its absolute deadline. Flying west can
+    // change the morning key before that deadline; an empty list still needs no proof.
+    // Read the simulated device's picks, just as the shield oracle below does.
+    const empty = device.appsOfId('night').length === 0;
+    const free = empty || spec.armedSince === null || under === 'none' || !inTime || spec.freeMorning === morning.key;
     return ls.getLockState(now, judged, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
   const locked = (at: number) => {
@@ -1064,8 +1068,10 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   }
 
   async function advance(to: number) {
-    const due = device.dueEvents(t, to);
-    for (let i = 0; i < due.length; ) {
+    while (t < to) {
+      const due = device.dueEvents(t, to);
+      if (!due.length) break;
+      let i = 0;
       t = due[i].at;
       mock.timers.setTime(t);
       const settled: Settled = { released: [], tolerated: [] };

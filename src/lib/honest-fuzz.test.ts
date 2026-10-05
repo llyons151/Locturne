@@ -629,10 +629,16 @@ async function run(seed: number, zone: string): Promise<string | null> {
   /* ---------- Moving the clock ---------- */
 
   function runTo(to: number) {
-    for (const e of device.dueEvents(Date.now(), to)) {
-      mock.timers.setTime(e.at);
-      device.fire(e.activity, e.callback);
-      drain();
+    // Native handoff can replace schedules during a callback. Recompute after each instant.
+    while (Date.now() < to) {
+      const due = device.dueEvents(Date.now(), to);
+      if (!due.length) break;
+      const batch = due.filter((e) => e.at === due[0].at);
+      for (const e of batch) {
+        mock.timers.setTime(e.at);
+        device.fire(e.activity, e.callback);
+        drain();
+      }
     }
     mock.timers.setTime(to);
   }

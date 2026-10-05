@@ -5,6 +5,269 @@ import Foundation
 
 func registerTests() {
 
+  test("native night partitions cover every supported duration within the activity budget") {
+    for bedtime in [0, 1, 59, 480, 1380, 1439] {
+      for length in 0..<1440 {
+        let morning = (bedtime + length) % 1440
+        let edges = locturneNightEdges(bedtime: bedtime, morningStart: morning)
+        if length < 15 {
+          expect(edges.isEmpty, "unsupported short night")
+          continue
+        }
+        expect(!edges.isEmpty && edges.count <= 16, "activity budget")
+        expectEqual(edges.first?.start, bedtime)
+        expectEqual(edges.last?.end, morning)
+        var total = 0
+        for (index, edge) in edges.enumerated() {
+          let duration = (edge.end - edge.start + 1440) % 1440
+          expect(duration >= 15, "iOS minimum duration")
+          if length <= 720 { expect(duration <= 45, "ordinary-night recovery interval") }
+          if index > 0 { expectEqual(edges[index - 1].end, edge.start, "no gaps") }
+          total += duration
+        }
+        expectEqual(total, length, "each minute covered once")
+      }
+    }
+  }
+
+  test("a delayed prior nap end cannot finish its replacement nap") {
+    pick("block", ["youtube"])
+    pick("always", ["reddit"]); appShields("always")
+    at("2026-10-06 14:00"); startNap(list: "block", minutes: 15); appShields("block")
+    // The app tidies the expired first nap, then starts another before iOS delivers its end.
+    at("2026-10-06 14:15"); appUnshields("block"); set(LOCTURNE_NAP_KEY, nil)
+    harnessClock = harnessNow().addingTimeInterval(1)
+    startNap(list: "block", minutes: 15); appShields("block")
+    let replacementEnd = (get(LOCTURNE_NAP_KEY) as? [String: Any])?["end"] as? NSNumber
+    harnessClock = harnessNow().addingTimeInterval(1)
+    end(LOCTURNE_NAP_ACTIVITY)
+    expectEqual(shielded(), ["reddit", "youtube"], "old end must not wake the new nap")
+    expectEqual((get(LOCTURNE_NAP_KEY) as? [String: Any])?["end"] as? NSNumber, replacementEnd)
+    at("2026-10-06 14:30")
+    end(LOCTURNE_NAP_ACTIVITY)
+    expectEqual(shielded(), ["reddit"], "the replacement still ends at its own deadline")
+    expect(get(LOCTURNE_NAP_KEY) == nil, "finished nap is removed")
+  }
+
+  test("native handoff schedules a disjoint night and ignores obsolete callbacks") {
+    pick("night", ["tiktok"]); pick("always", ["reddit"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    at("2026-10-06 08:00")
+    start("night-0")
+    expectEqual(shielded(), ["reddit"], "the replacement names a morning no night ran into")
+    let record = get(LOCTURNE_ARMED_KEY) as? [String: Any]
+    expectEqual((record?["bedtime"] as? NSNumber)?.intValue, 1380)
+    expectEqual(DeviceActivityCenter.schedules.count, 11)
+    expect(DeviceActivityCenter.schedules.values.allSatisfy { $0.repeats }, "repeating windows")
+    let prefix = record?["nativeWindowPrefix"] as? String ?? "missing"
+    expect(DeviceActivityCenter.monitored.allSatisfy { $0.rawValue.hasPrefix(prefix) }, "only new generation remains")
+    start("night-1"); end("night-0")
+    expectEqual(shielded(), ["reddit"], "queued callbacks from the old schedule do nothing")
+    at("2026-10-06 23:00")
+    start("\(prefix)0")
+    expectEqual(shielded(), ["reddit", "tiktok"], "replacement bedtime runs without opening the app")
+  }
+
+  test("a skipped window delivered after handoff cannot lock an unrun morning") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 180, morningStart: 660), pending: (routine(bedtime: 1140, morningStart: 180), local("2026-03-08 03:00")))
+    armNight(bedtime: 180, morningStart: 660)
+    at("2026-03-08 03:00")
+    start("night-0")
+    expectEqual(shielded(), [], "neither routine ran a night into this morning")
+    let prefix = (get(LOCTURNE_ARMED_KEY) as? [String: Any])?["nativeWindowPrefix"] as? String ?? "missing"
+    // The spring gap can deliver the new generation's 02:16 start at 03:00.
+    harnessClock = harnessNow().addingTimeInterval(0.234)
+    start("\(prefix)10")
+    expectEqual(shielded(), [], "a callback outside the replacement night preserves the handoff")
+    expect(!nightHeld(), "no phantom morning hold")
+  }
+
+  test("native handoff preserves an unproven morning from the preceding routine") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(), pending: (routine(bedtime: 480, morningStart: 960), local("2026-10-06 23:00")))
+    armNight(); set(LOCTURNE_NIGHT_HELD_KEY, true); appShields("night")
+    at("2026-10-06 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"])
+    expect(nightHeld(), "yesterday's unproven morning still holds")
+    expectEqual((get(LOCTURNE_ARMED_KEY) as? [String: Any])?["bedtime"] as? NSNumber, NSNumber(value: 480))
+  }
+
+  test("native handoff with every new night off releases only the unrun morning") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(nights: []), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    set(LOCTURNE_NIGHT_HELD_KEY, true); appShields("night")
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(shielded(), [], "the replacement names a morning no night ran into")
+
+    resetWorld(); pick("night", ["tiktok"])
+    saveRoutine(routine(), pending: (routine(bedtime: 480, morningStart: 960, nights: []), local("2026-10-06 23:00")))
+    armNight(); set(LOCTURNE_NIGHT_HELD_KEY, true); appShields("night")
+    at("2026-10-06 23:00"); start("night-0")
+    expectEqual(shielded(), ["tiktok"], "the preceding routine's morning still needs proof")
+    let prefix = (get(LOCTURNE_ARMED_KEY) as? [String: Any])?["nativeWindowPrefix"] as? String ?? "missing"
+    at("2026-10-07 08:00"); start("\(prefix)0")
+    expectEqual(shielded(), [], "the replacement's first off bedtime releases that morning")
+  }
+
+  test("native handoff refuses a future edit and yields to app registration") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-07 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(DeviceActivityCenter.starts, 0, "edit not due")
+    at("2026-10-07 08:00"); set("locturne.nightArmingAt", ms(harnessNow())); start("night-0")
+    expectEqual(DeviceActivityCenter.starts, 0, "app owns the registration")
+  }
+
+  test("native handoff rolls back failed registration using a fresh generation") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    DeviceActivityCenter.refusedStarts = [3]
+    at("2026-10-06 08:00"); start("night-0")
+    let record = get(LOCTURNE_ARMED_KEY) as? [String: Any]
+    expectEqual((record?["bedtime"] as? NSNumber)?.intValue, 480, "old times restored")
+    let prefix = record?["nativeWindowPrefix"] as? String ?? "missing"
+    expect(DeviceActivityCenter.monitored.allSatisfy { $0.rawValue.hasPrefix(prefix) }, "no partial target generation")
+    expectEqual(DeviceActivityCenter.schedules.count, 11)
+    expectEqual(shielded(), ["tiktok"], "rollback still protects the old night")
+    expect(get("locturne.nativeNightArmingError") != nil, "failure recorded")
+  }
+
+  test("native handoff keeps the activity budget and suppresses immediate callbacks") {
+    pick("night", ["tiktok"])
+    // A 12-hour replacement uses every reserved night slot.
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(bedtime: 1200, morningStart: 480), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    for name in ["limit-0", "limit-1", "limit-2", "locturne-nap", "locturne-settle"] {
+      DeviceActivityCenter.monitored.append(DeviceActivityName(name))
+    }
+    DeviceActivityCenter.onStart = { activity in
+      start(activity.rawValue)
+      end("night-0")
+    }
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(DeviceActivityCenter.monitored.count, 20)
+    expect(DeviceActivityCenter.peakActivities <= 20, "never transiently exceeds the cap")
+    expect(!DeviceActivityCenter.monitored.contains(DeviceActivityName("locturne-settle")), "optional settle yields its slot")
+    expectEqual(shielded(), [], "immediate starts cannot apply a phantom night")
+  }
+
+  test("native handoff cannot restore protection after a concurrent stand down") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    DeviceActivityCenter.onStart = { _ in set(LOCTURNE_STOOD_DOWN_KEY, true); set(LOCTURNE_ARMED_KEY, nil) }
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(DeviceActivityCenter.monitored.count, 0)
+    expect(get(LOCTURNE_ARMED_KEY) == nil, "cancelled record stays removed")
+    expectEqual(shielded(), [])
+  }
+
+  test("native handoff preserves a cancelled registration across immediate renewal") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    DeviceActivityCenter.onStart = { _ in
+      set(LOCTURNE_STOOD_DOWN_KEY, true); set(LOCTURNE_ARMED_KEY, nil)
+      set(LOCTURNE_STOOD_DOWN_KEY, false)
+    }
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(DeviceActivityCenter.monitored.count, 0)
+    expect(get(LOCTURNE_ARMED_KEY) == nil, "renewal cannot resurrect an abandoned registration")
+    expectEqual(shielded(), [])
+  }
+
+  test("native handoff keeps a held night when both registration and rollback fail") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    DeviceActivityCenter.refusedStarts = [2, 4]
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(DeviceActivityCenter.monitored.count, 0, "no half-installed generation")
+    expectEqual((get(LOCTURNE_ARMED_KEY) as? [String: Any])?["bedtime"] as? NSNumber, NSNumber(value: 480))
+    expectEqual(shielded(), ["tiktok"], "failure cannot wake the old held night")
+    expect(get("locturne.nativeNightArmingError") != nil, "app can diagnose/retry missing windows")
+  }
+
+  test("native handoff rollback cannot resurrect a concurrent disarm") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    DeviceActivityCenter.refusedStarts = [2]
+    DeviceActivityCenter.onStart = { _ in
+      if DeviceActivityCenter.starts >= 3 { set(LOCTURNE_ARMED_KEY, nil) }
+    }
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual(DeviceActivityCenter.monitored.count, 0)
+    expect(get(LOCTURNE_ARMED_KEY) == nil, "rollback must yield to the concurrent disarm too")
+    expectEqual(shielded(), [])
+  }
+
+  test("native handoff works after the app has promoted the pending routine") {
+    pick("night", ["tiktok"])
+    let old = routine(bedtime: 480, morningStart: 960)
+    set(LOCTURNE_ROUTINE_KEY, ["active": routine(), "prior": old, "since": ms(local("2026-10-06 08:00"))])
+    armNight(bedtime: 480, morningStart: 960)
+    // App ISO dates include fractional seconds.
+    at("2026-10-06 08:00"); start("night-0")
+    expectEqual((get(LOCTURNE_ARMED_KEY) as? [String: Any])?["bedtime"] as? NSNumber, NSNumber(value: 1380))
+    expectEqual(shielded(), [])
+  }
+
+  test("native handoff callbacks yield to an app rollback using ordinary names") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(), local("2026-10-06 08:00")))
+    armNight(bedtime: 480, morningStart: 960)
+    at("2026-10-06 08:00"); start("night-0")
+    let prefix = (get(LOCTURNE_ARMED_KEY) as? [String: Any])?["nativeWindowPrefix"] as? String ?? "missing"
+    at("2026-10-06 23:00")
+    set("locturne.nightArmingAt", ms(harnessNow()))
+    start("\(prefix)0")
+    expectEqual(shielded(), [], "obsolete native start is suppressed while app registers")
+    armNight() // app rollback strips the old nativeWindowPrefix
+    set("locturne.nightArmingAt", nil)
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "ordinary callback works after app rollback")
+    set(LOCTURNE_NIGHT_HELD_KEY, false); appUnshields("night")
+    start("\(prefix)1")
+    expectEqual(shielded(), [], "retired native generation stays retired")
+  }
+
+  test("an early after-midnight bedtime window uses the previous evening") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 60, morningStart: 420, nights: [1]))
+    armNight(bedtime: 60, morningStart: 420)
+    at("2026-10-06 00:59")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "Tuesday's early window belongs to Monday evening")
+    resetWorld()
+    pick("night", ["tiktok"])
+    saveRoutine(routine(bedtime: 60, morningStart: 420, nights: [2]))
+    armNight(bedtime: 60, morningStart: 420)
+    at("2026-10-06 00:59")
+    start("night-0")
+    expectEqual(shielded(), [], "Monday evening off cannot borrow Tuesday's active night")
+  }
+
+  test("early bedtime attribution works across midnight and for daytime sleepers") {
+    for (bedtime, morning, time, evening) in [
+      (0, 420, "2026-10-05 23:59", "2026-10-05"),
+      (1, 420, "2026-10-05 23:59", "2026-10-05"),
+      (1, 420, "2026-10-06 00:00", "2026-10-05"),
+      (480, 960, "2026-10-06 07:59", "2026-10-05"),
+      (1380, 420, "2026-10-05 22:59", "2026-10-05")
+    ] {
+      armNight(bedtime: bedtime, morningStart: morning)
+      at(time)
+      expectEqual(locturneDayKey(locturneWindowNight().evening), evening, time)
+    }
+  }
+
   // MARK: Bedtime
 
   test("a limit's picks wait for the app: the extension doesn't swap them at bedtime") {
@@ -694,6 +957,31 @@ func registerTests() {
   }
 
   // MARK: No subscription
+
+  test("a removed limit's delayed threshold cannot poison its reused slot") {
+    set(LOCTURNE_LIMITS_KEY, [])
+    at("2026-10-05 14:00")
+    threshold("limit-0")
+    expect(get("\(LOCTURNE_LIMIT_REACHED_PREFIX)limit-0") == nil, "removed limit stays forgotten")
+    pick("limit-0", ["youtube"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 60]])
+    reapplyLocturneBlocks(triggeredBy: "newLimit")
+    expectEqual(shielded(), [], "new picks have not used their new allowance")
+  }
+
+  test("a delayed limit threshold while stood down cannot poison a renewal") {
+    pick("limit-0", ["youtube"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    set(LOCTURNE_STOOD_DOWN_KEY, true)
+    at("2026-10-05 14:00")
+    // standDown has already removed actions and marks; the stopped activity's
+    // queued callback must not recreate its old usage state.
+    threshold("limit-0")
+    expect(get("\(LOCTURNE_LIMIT_REACHED_PREFIX)limit-0") == nil, "no stale usage mark")
+    set(LOCTURNE_STOOD_DOWN_KEY, nil)
+    reapplyLocturneBlocks(triggeredBy: "renewal")
+    expectEqual(shielded(), [], "renewal waits for the newly registered allowance")
+  }
 
   test("stood down: no re-shield from any event") {
     pick("night", ["tiktok"])

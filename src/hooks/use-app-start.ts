@@ -68,9 +68,11 @@ export function armIfPaid(): void {
  * the trial is cancelled in Apple's sheet or refunded, back if auto-renew is turned on again.
  * Runs only after the store or the cache answered, so an offline open doesn't lose it.
  */
+let trialRequest = 0;
 function followTrial(): void {
+  const request = ++trialRequest;
   currentTrialEnd()
-    .then(syncTrialEnd)
+    .then((end) => request === trialRequest ? syncTrialEnd(end) : undefined)
     .catch(() => {});
 }
 

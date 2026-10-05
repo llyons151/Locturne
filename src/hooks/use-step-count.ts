@@ -20,6 +20,14 @@ export function useStepCount(enabled: boolean, morningStart: Date, goal: number)
   const [status, setStatus] = useState<StepStatus>('starting');
   const [count, setCount] = useState<StepCount | null>(null);
   const startMs = morningStart.getTime();
+  const [source, setSource] = useState({ enabled, startMs, goal });
+  // Reset during render: an effect reset would leave one committed render in which a
+  // new morning (or a lower goal) could be proved with the old watcher's steps.
+  if (source.enabled !== enabled || source.startMs !== startMs || source.goal !== goal) {
+    setSource({ enabled, startMs, goal });
+    setStatus('starting');
+    setCount(null);
+  }
 
   useEffect(() => {
     if (!enabled) return;
