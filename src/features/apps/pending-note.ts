@@ -16,9 +16,22 @@ export function startsLabel(from: Date, now: Date): string {
   return tomorrowEvening ? `tomorrow at ${clock(from)}` : `at ${clock(from)}`;
 }
 
-/** Removals wait for bedtime (GAME_PLAN): say they're still asleep, and when that ends. */
-export function removalNote(starts: Date, now: Date): string {
-  return `Apps you removed stay asleep. Your change starts ${startsLabel(starts, now)}.`;
+/**
+ * Removals wait for bedtime (GAME_PLAN). `asleep`: the list is shielded right now (the always
+ * list, or the bedtime list at night and through the morning), so they stay asleep until then.
+ * Otherwise (the bedtime list in the day) they're awake now, and the change lands before the
+ * next bedtime's shields, so they just won't sleep. `waitsForOpen`: nothing iOS runs starts at
+ * that time (no night armed, no daily limit), so only the next open applies it.
+ */
+export function removalNote(
+  starts: Date,
+  now: Date,
+  { asleep = true, waitsForOpen = false }: { asleep?: boolean; waitsForOpen?: boolean } = {},
+): string {
+  const label = startsLabel(starts, now);
+  const open = waitsForOpen ? ', when you next open Locturne' : '';
+  if (!asleep) return `Apps you removed won’t sleep from ${label.replace(/^at /, '')}${open}.`;
+  return `Apps you removed stay asleep. Your change starts ${label}${open}.`;
 }
 
 /**

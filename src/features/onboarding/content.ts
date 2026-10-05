@@ -337,13 +337,26 @@ type MethodCopy = (typeof METHOD_COPY)[WakeMethod];
  * `METHOD_COPY` for the step goal in use. The copy is written for onboarding's 200; a rerun
  * (See plans) keeps the goal saved in Routine, which can be 100, 300 or 500.
  */
-export function methodCopy(method: WakeMethod): MethodCopy {
+export function methodCopy(method: WakeMethod, { codeWaits = false }: { codeWaits?: boolean } = {}): MethodCopy {
   const saved = METHOD_COPY[method];
-  // A returning scan user already has a code: no "set up your code" today.
+  // A returning scan user already has a code: no "set up your code" today. Without one, a
+  // code can't be set while the apps are asleep (`getScanEditRefusal`), so one finishing
+  // setup at night (`codeWaits`) can't do it "today": the first morning falls back to steps
+  // (`methodInUse`) and the code waits for the day after it.
   const copy: MethodCopy =
-    method === 'scan' && getScanCode()
-      ? { ...saved, morning: [{ when: 'Morning', what: 'Walk to your code and scan it. That wakes them.' }] }
-      : saved;
+    method !== 'scan'
+      ? saved
+      : getScanCode()
+        ? { ...saved, morning: [{ when: 'Morning', what: 'Walk to your code and scan it. That wakes them.' }] }
+        : codeWaits
+          ? {
+              ...saved,
+              morning: [
+                { when: 'Morning', what: 'No code yet, so 200 steps wakes them.' },
+                { when: 'Then', what: 'In the day, set up your code in Routine and leave it in another room.' },
+              ],
+            }
+          : saved;
   // The routine tomorrow runs on: a Routine edit waiting for bedtime included (`saveSetup`).
   const goal = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()).stepGoal : 200;
   if (goal === 200) return copy;

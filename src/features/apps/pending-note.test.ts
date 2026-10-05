@@ -19,6 +19,22 @@ describe('removalNote', () => {
     assert.equal(line, `Apps you removed stay asleep. Your change starts tomorrow at ${clock(at(6, 23))}.`);
   });
 
+  test('the bedtime list in the day is awake: it just won’t sleep from bedtime', () => {
+    const line = removalNote(at(5, 23), at(5, 14), { asleep: false });
+    assert.equal(line, `Apps you removed won’t sleep from ${clock(at(5, 23))}.`);
+    assert.doesNotMatch(line, /stay asleep/);
+  });
+
+  test('awake, with the change tomorrow evening', () => {
+    const line = removalNote(at(6, 23), at(5, 23, 30), { asleep: false });
+    assert.equal(line, `Apps you removed won’t sleep from tomorrow at ${clock(at(6, 23))}.`);
+  });
+
+  test('nothing armed: it waits for the next open', () => {
+    const line = removalNote(at(6, 0), at(5, 20), { waitsForOpen: true });
+    assert.equal(line, `Apps you removed stay asleep. Your change starts at ${clock(at(6, 0))}, when you next open Locturne.`);
+  });
+
   test('an after-midnight bedtime reads as tonight', () => {
     assert.equal(startsLabel(at(6, 1), at(5, 14)), `at ${clock(at(6, 1))}`);
   });

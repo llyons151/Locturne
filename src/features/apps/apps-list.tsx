@@ -50,6 +50,7 @@ import {
   finishListEdit,
   getArmedNight,
   getLimits,
+  hasSelection,
   isScreenTimeAvailable,
   isStoodDown,
   limitUsedUpToday,
@@ -94,8 +95,8 @@ const LIVE_GROUPS: { key: 'night' | 'always'; label: string }[] = [
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
 /**
- * Removals wait for bedtime (GAME_PLAN), so say when, and that they're still asleep. Limits
- * say it in their header instead.
+ * Removals wait for bedtime (GAME_PLAN), so say when, and whether they're asleep until then.
+ * Limits say it in their header instead.
  */
 function PendingNote({ list }: { list: StandingList }) {
   const starts = listChangeStarts(list);
@@ -106,7 +107,16 @@ function PendingNote({ list }: { list: StandingList }) {
     const paused = getNightPause(now);
     if (paused) return <Text style={styles.footer}>{pauseNote(pauseWording(paused, now), readLock(now).phase === 'night')}</Text>;
   }
-  return <Text style={styles.footer}>{removalNote(starts, now)}</Text>;
+  // Asleep now: the always list (unless a lapse stood everything down), or the bedtime list
+  // at night and through the morning. The bedtime list in the day is awake, and its removals
+  // land before the next bedtime's shields, so they never sleep.
+  const phase = readLock(now).phase;
+  const asleep = !isStoodDown() && (list === 'always' || phase === 'night' || phase === 'morning');
+  // The extension applies removals when an iOS window starts: a night's, or a limit's at
+  // midnight. With neither armed, only the next open does (`settleListChanges`).
+  const waitsForOpen =
+    isStoodDown() || (!getArmedNight() && !getLimits().some((limit) => hasSelection(limit.id)));
+  return <Text style={styles.footer}>{removalNote(starts, now, { asleep, waitsForOpen })}</Text>;
 }
 
 function LiveAppsList() {

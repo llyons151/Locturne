@@ -46,6 +46,7 @@ import {
 } from '@/theme';
 
 import { NapClock } from './nap-clock';
+import { shownLine, type NapLine } from './nap-line';
 import { useSideways } from './use-sideways';
 
 /**
@@ -71,7 +72,7 @@ const LISTS: { value: List; label: string }[] = [
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
 /** Loc's lines (VOICE.md line bank). */
-const LINES = {
+const LINES: Record<NapLine, string> = {
   idle: 'Finally. A nap.',
   napping: 'Tucked in. Do not perceive me.',
   ended: "I'm up. Don't talk to me yet.",
@@ -120,7 +121,7 @@ export function NapScreen() {
   const [picking, setPicking] = useState(false);
   const [picks, setPicks] = useState(0);
   const [nap, setNap] = useState<Nap | null>(null);
-  const [line, setLine] = useState<keyof typeof LINES>('idle');
+  const [line, setLine] = useState<NapLine>('idle');
   const [now, setNow] = useState(Date.now);
   const [notice, setNotice] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -212,6 +213,8 @@ export function NapScreen() {
     ]);
   };
 
+  // A pass, an emergency unlock or a lapse can end the nap with only `setNap` above.
+  const shown = shownLine(line, nap !== null);
   const left = nap ? (nap.end - now) / 1000 : 0;
   const done = nap ? 1 - left / ((nap.end - nap.start) / 1000) : 0;
 
@@ -224,8 +227,8 @@ export function NapScreen() {
         Nap
       </Text>
 
-      <Animated.View key={line} entering={FadeIn.duration(400)} style={styles.top}>
-        <Voice text={LINES[line]} />
+      <Animated.View key={shown} entering={FadeIn.duration(400)} style={styles.top}>
+        <Voice text={LINES[shown]} />
         <Text style={styles.body}>
           {nap
             ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`

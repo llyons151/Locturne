@@ -15,6 +15,7 @@ import { AgeWheel, TimeWheel } from '@/components/time-wheel';
 import type { ArmFailure, ArmResult } from '@/lib/arm';
 import { BEDTIME_WARNING, type NotificationPermission } from '@/lib/notifications';
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
+import { getScanEditRefusal } from '@/lib/scan';
 import type { WakeMethod } from '@/lib/routine';
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
@@ -172,7 +173,9 @@ export function renderStep(ctx: StepContext): StepView {
   const wakeDay = lateNight && answers.wake > nowMinutes ? (answers.wake >= 12 * 60 ? 'Later today' : 'This morning') : 'Tomorrow';
   // Installed in the small hours with morning under an hour away: no "Go to sleep".
   const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
-  const method = methodCopy(answers.method ?? 'downstairs');
+  // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
+  // morning, it waits for the day after the first morning (`getScanEditRefusal`).
+  const method = methodCopy(answers.method ?? 'downstairs', { codeWaits: lateNight || getScanEditRefusal() !== null });
   // How many picks: the real count on an iPhone, the stand-in names in the preview.
   const pickCount = live ? live.count : answers.apps.length;
 
