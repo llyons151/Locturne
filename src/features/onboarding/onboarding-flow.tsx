@@ -28,7 +28,6 @@ import { armTonight, type ArmResult } from '@/lib/arm';
 import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
-import { settingsTakeEffectAt } from '@/lib/lock-state';
 import { askForNotifications, getNotificationPermission, rescheduleNotifications, type NotificationPermission } from '@/lib/notifications';
 import { isPurchasePending, markPurchasePending } from '@/lib/pending-purchase';
 import {
@@ -47,14 +46,10 @@ import {
   currentTrialEnd,
   trialEndsAt,
 } from '@/lib/purchases';
-import { getPendingRoutine, getRoutine, hasRoutine, toLockSettings } from '@/lib/routine';
+import { getPendingRoutine, getRoutine, hasRoutine } from '@/lib/routine';
 import {
-  beginListEdit,
-  finishListEdit,
   getAccess,
-  getArmedNight,
   isScreenTimeAvailable,
-  reapplyStandingBlocks,
   requestAccess,
   selectionSize,
   type ScreenTimeAccess,
@@ -66,6 +61,7 @@ import { initialAnswers, isNewYearWeek, PROGRESS_STEPS, STEPS, WALK_GOAL, type A
 import { estimate, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
+import { closeNightPicker, openNightPicker } from './night-picker';
 import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
@@ -399,8 +395,9 @@ export function OnboardingFlow({
   /* Apple's picker for the night list (the preview's stand-in off iOS). */
   const [picks, setPicks] = useState(() => (screenTimeHere ? selectionSize('night') : 0));
   const [pickRevision, setPickRevision] = useState(0);
-  // Which list the picker writes: the night list itself, or a draft of it when a night is
-  // already armed, so removals wait for bedtime like every other loosening.
+  // Which list the picker writes: the night list itself, or a draft of it while anything
+  // holds the list (an armed night, Block now…), so removals wait for bedtime and still wake
+  // (`openNightPicker`).
   const [pickerList, setPickerList] = useState<SelectionId | null>(null);
   const [previewPickerOpen, setPreviewPickerOpen] = useState(false);
   const openPicker = () => {
@@ -408,15 +405,12 @@ export function OnboardingFlow({
       setPreviewPickerOpen(true);
       return;
     }
-    setPickerList(getArmedNight() ? beginListEdit('night') : 'night');
+    setPickerList(openNightPicker());
   };
   const pickerClosed = (list: SelectionId) => {
     setPickerList(null);
     setTimeout(() => {
-      if (list !== 'night') {
-        finishListEdit('night', settingsTakeEffectAt(new Date(), toLockSettings(getRoutine())));
-        reapplyStandingBlocks();
-      }
+      closeNightPicker(list);
       setPicks(selectionSize('night'));
       setPickRevision((r) => r + 1);
       track('apps_picked', { count: selectionSize('night') });

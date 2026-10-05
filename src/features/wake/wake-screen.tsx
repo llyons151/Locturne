@@ -22,7 +22,7 @@ import { askForNotifications, shouldAskForNotifications } from '@/lib/notificati
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, nightAt, toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
-import { isStoodDown, nightLockArmed } from '@/lib/screen-time';
+import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
@@ -45,6 +45,7 @@ function awakeLine(bedtimeStart: Date): string {
     armed: nightLockArmed(),
     stoodDown: isStoodDown(),
     tonightAt: on ? formatPreset(start.getHours() * 60 + start.getMinutes()) : null,
+    alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
   });
   return line.endsWith('.') ? line : `${line}.`;
 }

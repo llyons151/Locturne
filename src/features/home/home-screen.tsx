@@ -22,7 +22,7 @@ import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
 import { getPendingRoutine, nightAt, type Routine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
-import { isScreenTimeAvailable, isStoodDown, nightLockArmed, shownSelection } from '@/lib/screen-time';
+import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize, shownSelection } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
 import { noOrphan } from '@/lib/text';
 import { trialNotice } from '@/lib/trial-notice';
@@ -313,6 +313,8 @@ function Status({
 }) {
   const bedtime = clockLabel(routine.bedtime);
   const wake = clockLabel(routine.morningStart);
+  // The always list sleeps only with apps in it and a subscription (previews show it).
+  const alwaysSleeps = !isStoodDown() && (!isScreenTimeAvailable() || selectionSize('always') > 0);
 
   if (view === 'unprotected') {
     return (
@@ -358,7 +360,7 @@ function Status({
       <View style={styles.statusRow}>
         <SymbolView name={sym('moon', 'bedtime')} size={15} tintColor={Nocturne.text2} />
         <Text style={[styles.status, styles.flex]}>
-          {isStoodDown() ? 'No lock tonight.' : 'No lock tonight. Always-asleep apps still sleep.'}
+          {alwaysSleeps ? 'No lock tonight. Always-asleep apps still sleep.' : 'No lock tonight.'}
         </Text>
       </View>
     );
@@ -377,7 +379,7 @@ function Status({
       <View style={styles.statusRow}>
         <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
         <Text style={[styles.status, styles.flex]}>
-          {isStoodDown() ? 'Apps awake. Nothing is asleep tonight.' : 'Bedtime apps awake tonight. Always-asleep apps still sleep.'}
+          {alwaysSleeps ? 'Bedtime apps awake tonight. Always-asleep apps still sleep.' : 'Apps awake. Nothing is asleep tonight.'}
         </Text>
       </View>
     );
@@ -389,6 +391,7 @@ function Status({
     armed: nightLockArmed(),
     stoodDown: isStoodDown(),
     tonightAt: tonightOn ? clockLabel(tonightStarts.getHours() * 60 + tonightStarts.getMinutes()) : null,
+    alwaysSleeps,
   });
   return (
     <View style={styles.statusRow}>
