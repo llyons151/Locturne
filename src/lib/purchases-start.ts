@@ -4,14 +4,17 @@
  * RevenueCat runs in a development or release build on iOS with a real key in app.json
  * (`expo.extra.revenueCat.appleApiKey`, docs/REVENUECAT_SETUP.md). With the placeholder key,
  * in Expo Go or on the web, the dev stub runs instead: nothing is charged and the paywall
- * says so. A production EAS build refuses to start without a real key (app.config.js). Both keep what they must remember in the App Group, so a paid user's lost night
- * is re-armed at launch even with no network (`useAppStart`).
+ * says so. A production EAS build refuses to start without a real key (app.config.js), and
+ * any other release build on iOS without one (an Xcode archive, say) sells nothing and
+ * unlocks nothing, except a preview build (`EXPO_PUBLIC_DEV_LABS`). Both keep what they must
+ * remember in the App Group, so a paid user's lost night is re-armed at launch even with no
+ * network (`useAppStart`).
  */
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
-import { createDevPurchases, setPurchasesProvider } from './purchases';
+import { createClosedPurchases, createDevPurchases, setPurchasesProvider } from './purchases';
 import { createRevenueCatPurchases, revenueCatKey } from './revenuecat';
 import { sharedGet, sharedSet } from './screen-time';
 
@@ -23,6 +26,10 @@ export function startPurchases(): void {
     | undefined;
   const apiKey = revenueCatKey(extra?.revenueCat?.appleApiKey, { allowTestStore: __DEV__ });
   const expoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  if (!apiKey && Platform.OS === 'ios' && !expoGo && !__DEV__ && process.env.EXPO_PUBLIC_DEV_LABS !== '1') {
+    setPurchasesProvider(createClosedPurchases());
+    return;
+  }
   if (!apiKey || Platform.OS !== 'ios' || expoGo) {
     setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: appGroup }));
     return;

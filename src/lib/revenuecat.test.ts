@@ -286,6 +286,10 @@ test('cachedEntitlement', () => {
   assert.equal(cachedEntitlement({ active: true, expiresAt: now.getTime() - OFFLINE_GRACE_MS, checkedAt: 0 }, now), false);
   // Cancelled: it won't renew, so there's no offline renewal to wait for.
   assert.equal(cachedEntitlement({ active: true, willRenew: false, expiresAt: now.getTime() - 1, checkedAt: 0 }, now), false);
+  // A clock set back before the last check doesn't keep a lapsed subscription paid offline.
+  const later = now.getTime() + 2 * 60 * 60 * 1000;
+  assert.equal(cachedEntitlement({ active: true, expiresAt: later + 1, checkedAt: later }, now), false);
+  assert.equal(cachedEntitlement({ active: true, expiresAt: later + 1, checkedAt: now.getTime() + 60_000 }, now), true);
 });
 
 test('entitlementRecord keeps only plist-safe fields', () => {

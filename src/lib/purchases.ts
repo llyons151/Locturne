@@ -335,6 +335,41 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
   };
 }
 
+/**
+ * A release build with no real store key: nothing can be bought, and nothing counts as
+ * paid, so a misconfigured build never gives the app away (purchases-start.ts).
+ */
+export function createClosedPurchases(): PurchasesProvider {
+  return {
+    stubbed: false,
+    async getOffers() {
+      throw new Error('No store key in this build.');
+    },
+    async purchase() {
+      return { status: 'failed', message: 'The App Store couldn’t complete the purchase.' };
+    },
+    async restore() {
+      return { entitled: false };
+    },
+    async isEntitled() {
+      return false;
+    },
+    async currentTrialEnd() {
+      return null;
+    },
+    async currentPlan() {
+      return null;
+    },
+    async manageSubscriptions() {
+      return false;
+    },
+    setAttributes() {},
+    onEntitled() {
+      return () => {};
+    },
+  };
+}
+
 /* The provider in use. */
 
 let provider: PurchasesProvider = createDevPurchases({ latencyMs: 400 });

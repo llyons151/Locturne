@@ -132,4 +132,28 @@ describe('planArming', () => {
     // Once the edit applies, it's armed.
     assert.equal(planArming(at(0, 1, 2), next, null, armedFor(active)).action, 'arm');
   });
+
+  test('an earlier bedtime that also switches tonight off waits: it never tightens', () => {
+    // Thursday 14:00: bedtime 21:30 and Thursday evening off, waiting for 23:00. The extension
+    // judges the 21:30 to 22:58 windows by the routine in force (Thursday on) and would shield
+    // them, while under both routines tonight is awake from 21:30 to 23:00.
+    const next = routine(21 * H + 30, 7 * H, [0, 1, 2, 3, 5, 6]);
+    const pending = { routine: next, from: at(23).getTime() };
+    const plan = planArming(at(14), usual, pending, armedFor(usual));
+    assert.equal(plan.action, 'defer');
+    if (plan.action === 'defer') assert.deepEqual(plan.until, at(23));
+  });
+
+  test('the same in two saves: windows armed for the earlier bedtime go back to the routine in force', () => {
+    // The bedtime save armed 21:30's windows; switching Thursday off keeps the same times, so
+    // they look current, but they'd shield tonight from 21:30.
+    const next = routine(21 * H + 30, 7 * H, [0, 1, 2, 3, 5, 6]);
+    const pending = { routine: next, from: at(23).getTime() };
+    const plan = planArming(at(14, 1), usual, pending, armedFor(next));
+    assert.equal(plan.action, 'arm');
+    if (plan.action === 'arm') assert.deepEqual(plan.times, usual);
+    // Then it waits for the edit, as if saved in one go.
+    assert.equal(planArming(at(14, 2), usual, pending, armedFor(usual)).action, 'defer');
+    assert.equal(planArming(at(23, 1), next, null, armedFor(usual)).action, 'arm');
+  });
 });

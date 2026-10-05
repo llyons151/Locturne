@@ -70,6 +70,10 @@ function extensionShields(t: Date, routine: ArmTimes): boolean {
  * judges with the routine in force, so a window on an evening that routine has off is
  * skipped, which wakes the bedtime apps: a morning not yet proven would unlock early, from
  * bed (found by lock-controller.sim.test.ts). Those wait until the edit applies.
+ *
+ * It also only tightens if the edit has that evening on. One that switches tonight off along
+ * with an earlier bedtime would otherwise shield from 21:30 (the routine in force says
+ * Thursday is on) while the app says tonight is off. Those wait too.
  */
 function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTimes, windows: NightWindow[]) {
   const moments = [now];
@@ -86,7 +90,7 @@ function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTime
     if (theirs.end.getTime() > from) {
       // The night the edit applies to, unless the extension would skip this window.
       const skipped = t.getTime() < from - EXTENSION_SLACK_MS && !extensionShields(t, active);
-      if (skipped && (!until || until.getTime() < from)) until = new Date(from);
+      if ((skipped || !extensionShields(t, target)) && (!until || until.getTime() < from)) until = new Date(from);
       continue;
     }
     const ours = nightsAround(t, asSettings(active)).latest;
@@ -119,20 +123,28 @@ export function planArming(
     return { action: 'disarm' };
   }
 
-  const current =
-    armed &&
-    armed.bedtime === target.bedtime &&
-    armed.morningStart === target.morningStart &&
-    armed.windows === windows.length &&
-    armed.live === windows.length;
-  if (current) return { action: 'keep' };
-
   // Without a pending edit the target is the routine in force, so its windows are its real
   // nights and nothing can be phantom.
-  if (pending && now.getTime() < pending.from) {
-    const until = phantomUntil(now, pending.from, active, target, windows);
-    if (until) return { action: 'defer', until };
-  }
+  const until = pending && now.getTime() < pending.from ? phantomUntil(now, pending.from, active, target, windows) : null;
+  if (!until) return isArmed(armed, target, windows) ? { action: 'keep' } : { action: 'arm', times: target, windows };
 
-  return { action: 'arm', times: target, windows };
+  // Waiting leaves the armed windows in place, which is only safe if they're the routine in
+  // force's. Ones armed for an edit that has changed since (an earlier bedtime, then tonight
+  // switched off: same times, so they look current) can shield the very phantom night this
+  // waits out, so the routine in force's go back first. Stopping them instead would free the
+  // night or morning under way.
+  const inForce = active.activeNights.length > 0 ? planNightWindows(active.bedtime, active.morningStart) : [];
+  if (inForce.length > 0 && !isArmed(armed, active, inForce)) return { action: 'arm', times: active, windows: inForce };
+  return { action: 'defer', until };
+}
+
+/** Is iOS monitoring exactly these windows for these times? */
+function isArmed(armed: ArmedNow, times: ArmTimes, windows: NightWindow[]): boolean {
+  return (
+    !!armed &&
+    armed.bedtime === times.bedtime &&
+    armed.morningStart === times.morningStart &&
+    armed.windows === windows.length &&
+    armed.live === windows.length
+  );
 }

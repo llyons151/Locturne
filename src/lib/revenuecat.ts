@@ -91,6 +91,9 @@ export const EXIT_ARM_KEY = 'locturne.exitArm';
  */
 export const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
+/** How far behind the last check the clock may be before the cache stops counting. */
+const CLOCK_SLACK_MS = 60 * 60 * 1000;
+
 const UNIT_DAYS: Record<string, number> = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 };
 
 /**
@@ -197,6 +200,8 @@ export function entitlementRecord(info: CustomerInfo, now: Date): EntitlementRec
 /** Whether a cached record still counts as paid when the store can't be asked. */
 export function cachedEntitlement(record: EntitlementRecord | undefined, now: Date): boolean {
   if (!record?.active) return false;
+  // A clock set back before the last check could hold a lapsed subscription forever offline.
+  if (now.getTime() < record.checkedAt - CLOCK_SLACK_MS) return false;
   // The grace covers a renewal the phone couldn't see offline. A cancelled one won't renew.
   const grace = record.willRenew === false ? 0 : OFFLINE_GRACE_MS;
   return record.expiresAt === undefined || now.getTime() < record.expiresAt + grace;

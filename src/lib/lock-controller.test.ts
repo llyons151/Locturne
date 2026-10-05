@@ -256,6 +256,18 @@ describe('the words for a waiting edit', () => {
     proveMorning('downstairs', at(7, 10, 1));
     assert.match(morningSubtitles.at(-1) ?? '', /steps/);
   });
+
+  test('a morning nobody proves gets the edit\'s words once the last window can no longer copy them', async () => {
+    await armYesterday();
+    nightHeld = true;
+    saveRoutine({ ...DEFAULT_ROUTINE, method: 'steps' }, at(7, 20)); // waits for tonight
+    syncLock(at(7, 20));
+    assert.match(morningSubtitles.at(-1) ?? '', /stairs/);
+    // Never proven, so the morning lasts until bedtime. With the app closed overnight,
+    // tomorrow's 07:00 copies whatever is written now, and tomorrow runs on the edit.
+    assert.equal(syncLock(at(15)).phase, 'morning');
+    assert.match(morningSubtitles.at(-1) ?? '', /steps/);
+  });
 });
 
 describe('an earlier bedtime saved in the day (#137)', () => {
@@ -294,7 +306,24 @@ describe('an earlier bedtime saved in the day (#137)', () => {
     await earlier({ activeNights: [0, 1, 2, 3, 5, 6] });
     assert.equal(armed?.bedtime, 23 * 60);
     assert.equal(readLock(at(21, 40)).phase, 'day');
+    assert.equal(+readLock(at(21)).nextChange, +at(23));
     assert.equal(readLock(at(23, 30)).phase, 'night', 'the edit applies at 23:00 as usual');
+  });
+
+  test('the open app re-syncs at 21:30, not the old bedtime', async () => {
+    // `useLock` sets its timer for `nextChange`.
+    await earlier();
+    assert.equal(+readLock(at(21)).nextChange, +at(21, 30));
+  });
+
+  test('switching tonight off as well, in a second save, puts the routine in force\'s windows back', async () => {
+    await earlier();
+    assert.equal(armed?.bedtime, 21 * 60 + 30);
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 21 * 60 + 30, activeNights: [0, 1, 2, 3, 5, 6] }, at(14, 1));
+    clock = at(14, 1).getTime();
+    await armRoutine(at(14, 1));
+    assert.equal(armed?.bedtime, 23 * 60, 'the 21:30 windows would shield a night that is off');
+    assert.equal(readLock(at(21, 40)).phase, 'off');
   });
 });
 

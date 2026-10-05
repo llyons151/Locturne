@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 import {
   annualSavingsPercent,
+  createClosedPurchases,
   createDevPurchases,
   DEV_CATALOG,
   formatPrice,
@@ -170,4 +171,12 @@ test('the stub reports the plan bought and keeps attributes', async () => {
   assert.equal(await stub.currentPlan(), 'annual');
   stub.setAttributes({ found: 'tiktok' });
   assert.deepEqual(stub.attributes, { found: 'tiktok' });
+});
+
+test('a release build with no store key sells nothing and unlocks nothing', async () => {
+  const closed = createClosedPurchases();
+  await assert.rejects(closed.getOffers());
+  assert.equal((await closed.purchase('annual')).status, 'failed');
+  assert.deepEqual(await closed.restore(), { entitled: false });
+  assert.equal(await closed.isEntitled(), false);
 });

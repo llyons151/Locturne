@@ -332,11 +332,15 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     return Math.min(...times);
   }
 
-  /** Inside a night of an edit still waiting, which runs past the moment it applies (arming.ts). */
+  /**
+   * Inside a night of an edit still waiting, which runs past the moment it applies (arming.ts).
+   * Only on an evening the edit has on: one that also switches tonight off never tightens.
+   */
   function earlyTightening(at: number): boolean {
     return spec.routines.some((w) => {
       if (w.from <= at) return false;
-      // The same on the wall clock, which differs from lock-state.ts on a spring clock change.
+      // The same on the wall clock, which differs from lock-state.ts on a spring clock change
+      // (`wallClockNight` checks the evening).
       if (wallClockNight(at, w.routine)) {
         const d = new Date(at);
         const minute = d.getHours() * 60 + d.getMinutes();
@@ -344,7 +348,10 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         if (ends.getTime() > w.from) return true;
       }
       const { latest } = ls.nightsAround(new Date(at), rt.toLockSettings(w.routine));
-      return at >= latest.start.getTime() && at < latest.end.getTime() && latest.end.getTime() > w.from;
+      const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
+      return (
+        at >= latest.start.getTime() && at < latest.end.getTime() && latest.end.getTime() > w.from && w.routine.activeNights.includes(evening)
+      );
     });
   }
 

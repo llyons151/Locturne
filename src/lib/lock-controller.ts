@@ -71,12 +71,23 @@ export function readLock(now = new Date()): LockState {
   const armed = getArmedNight();
   const free = !armedInTime(now, settings, armed ? armedSince(armed) : null);
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
-  return getLockState(
+  const state = getLockState(
     now,
     settings,
     { steps: 0, unlockedMorning: proof || free ? morning.key : null },
     readDaytime(now),
   );
+  // A waiting edit's early first night starts before the routine in force's bedtime, and
+  // `useLock` only re-syncs at `nextChange`: the open app would miss iOS shielding at 21:30.
+  const pending = state.phase === 'night' || state.phase === 'morning' ? null : getPendingRoutine(now);
+  if (pending) {
+    const { latest, next } = nightsAround(now, toLockSettings(pending.routine));
+    const start = now < latest.start ? latest.start : next.start;
+    // Asked of the routines as stored now: reading them at a later time would settle the edit.
+    const early = start > now && start < state.nextChange && start.getTime() < pending.from;
+    if (early && governsEarly(start, pending, getRoutine(now))) state.nextChange = start;
+  }
+  return state;
 }
 
 /**
@@ -99,12 +110,16 @@ export function routineAt(now: Date): Routine {
  */
 export function inPendingFirstNight(now: Date): boolean {
   const pending = getPendingRoutine(now);
-  if (!pending) return false;
-  const { latest } = nightsAround(now, toLockSettings(pending.routine));
-  const inside = now >= latest.start && now < latest.end && latest.end.getTime() > pending.from;
+  return !!pending && governsEarly(now, pending, getRoutine(now));
+}
+
+/** `inPendingFirstNight` for a given waiting edit and routine in force, at `at` before it applies. */
+function governsEarly(at: Date, pending: { routine: Routine; from: number }, inForce: Routine): boolean {
+  const { latest } = nightsAround(at, toLockSettings(pending.routine));
+  const inside = at >= latest.start && at < latest.end && latest.end.getTime() > pending.from;
   if (!inside) return false;
   const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
-  if (!getRoutine(now).activeNights.includes(evening)) return false;
+  if (!inForce.activeNights.includes(evening)) return false;
   return !subscriptionEnded() || underWayWhenEnded(dateKey(latest.end));
 }
 
@@ -324,6 +339,12 @@ async function arm(now: Date): Promise<ArmResult> {
 }
 
 /**
+ * How long after morning start the last window's end still copies the morning words: the
+ * monitor extension accepts it up to 30 whole minutes late (`showLocturneMorningShield`).
+ */
+const MORNING_COPY_SLACK_MS = 31 * 60_000;
+
+/**
  * Puts the right words on the block screen for `state` (shield-copy.ts), with a tap that
  * sends the open-Locturne notification in the morning, and refreshes the bedtime words the
  * monitor extension shows at the next window with the app closed.
@@ -338,11 +359,14 @@ function applyShieldText(state: LockState, now: Date): void {
   // The words for the next window and the next morning start: a waiting edit's, unless it's
   // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
   // coming morning still run on the routine in force). From morning start on, the night words
-  // are next night's; the morning words stay this morning's until it's unlocked, since the
-  // last window's end (accepted up to 30 minutes late) copies them after morning start.
+  // are next night's; the morning words stay this morning's while the last window's end
+  // (accepted up to 30 minutes late) can still copy them. After that, a morning nobody proves
+  // runs until bedtime, and the next copy is tomorrow's: the waiting edit's words.
   const pending = getPendingRoutine(now)?.routine;
   const next = pending && state.phase !== 'night' ? { ...pending, method: methodInUse(pending.method) } : routine;
-  const thisMorning = state.phase === 'night' || state.phase === 'morning';
+  const morningStart = currentMorning(now, toLockSettings(saved)).start.getTime();
+  const thisMorning =
+    state.phase === 'night' || (state.phase === 'morning' && now.getTime() < morningStart + MORNING_COPY_SLACK_MS);
   setNightShieldText(shieldCopy('night', next));
   setMorningShieldText(shieldCopy('morning', thisMorning ? routine : next), shieldTap('morning'));
   setAlwaysShieldText(shieldCopy('always', routine));
