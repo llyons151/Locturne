@@ -258,18 +258,46 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     allowedFlag: Object.fromEntries(LISTS.map((l) => [l, false])) as Record<ListName, boolean>,
   };
 
-  const routineAt = (at: number) => {
+  /** The routine in force: the last edit whose bedtime has passed. Edits wait for its next bedtime. */
+  const inForceAt = (at: number) => {
     let current = spec.routines[0]?.routine ?? rt.DEFAULT_ROUTINE;
     for (const r of spec.routines) if (r.from <= at) current = r.routine;
     return current;
+  };
+  /**
+   * The routine the lock runs on: the one in force, except inside a waiting edit's own first
+   * night, which starts early for an earlier bedtime (armed at once, it only tightens:
+   * arming.ts). From that night's start the edit governs (`routineAt` in lock-controller.ts).
+   * Only where iOS can hold it early: the routine in force has that evening on (the extension
+   * skips the early windows of an evening it has off, so arming waits). Once a lapse was
+   * noticed, only if that night was the one under way then: only it finishes.
+   */
+  const routineAt = (at: number) => {
+    const next = spec.routines.find((r) => r.from > at);
+    if (next) {
+      const { latest } = ls.nightsAround(new Date(at), rt.toLockSettings(next.routine));
+      const inside = at >= latest.start.getTime() && at < latest.end.getTime() && latest.end.getTime() > next.from;
+      const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
+      const held = inForceAt(at).activeNights.includes(evening);
+      if (inside && held && (!spec.lapse || spec.lapse.underWayKey === ls.dateKey(latest.end))) return next.routine;
+    }
+    return inForceAt(at);
   };
   const routineFrom = (at: number) => {
     let from = -Infinity;
     for (const r of spec.routines) if (r.from <= at) from = r.from;
     return from;
   };
-  /** The lock period: a routine taking over re-reads the morning, so it starts a new one. */
-  const period = (at: number) => `${phaseAt(at).morningKey}|${routineFrom(at)}`;
+  /**
+   * The lock period: a routine taking over re-reads the morning, so it starts a new one. So
+   * does a waiting edit's early first night, and an edit that replaces that edit (its night
+   * may start at another time, and the apps wake in between).
+   */
+  const period = (at: number) => {
+    const r = routineAt(at);
+    const early = r === inForceAt(at) ? '' : `|early ${r.bedtime}-${r.morningStart}`;
+    return `${phaseAt(at).morningKey}|${routineFrom(at)}${early}`;
+  };
   /** Inside the emergency pause, by its end time or by its morning (they differ only after a flight). */
   const pausedAbs = (at: number) => spec.pausedUntil !== null && at < spec.pausedUntil;
   const latestRoutine = () => spec.routines[spec.routines.length - 1]?.routine ?? rt.DEFAULT_ROUTINE;
@@ -297,7 +325,8 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   function nextBedtime(at: number): number {
     const now = new Date(at);
     if (spec.armedSince === null) return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-    const times = [ls.settingsTakeEffectAt(now, settingsAt(at)).getTime()];
+    // Limits and lists judge by the routine in force (or iOS's armed times), not the early night.
+    const times = [ls.settingsTakeEffectAt(now, rt.toLockSettings(inForceAt(at))).getTime()];
     const waiting = spec.routines.filter((r) => r.from > at);
     for (const w of waiting) times.push(ls.settingsTakeEffectAt(now, rt.toLockSettings(w.routine)).getTime());
     return Math.min(...times);
@@ -450,7 +479,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   }
 
   function specRoutineEdit(next: Routine) {
-    const from = spec.armedSince !== null ? ls.settingsTakeEffectAt(new Date(t), settingsAt(t)).getTime() : t;
+    // The next bedtime of the routine in force (`applyEdit` in routine.ts), even inside a waiting
+    // edit's early first night: the new edit replaces that one and applies when it would have.
+    const from = spec.armedSince !== null ? ls.settingsTakeEffectAt(new Date(t), rt.toLockSettings(inForceAt(t))).getTime() : t;
     spec.routines = spec.routines.filter((r) => r.from <= t);
     spec.routines.push({ routine: next, from });
   }

@@ -16,6 +16,8 @@ const { planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, g
   './emergency.ts'
 );
 const { getProof, recordProof } = await import('./morning-proof.ts');
+const { readLock } = await import('./lock-controller.ts');
+const rt = await import('./routine.ts');
 const st = await import('./screen-time.ts');
 
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
@@ -167,4 +169,21 @@ test('in the day with nothing asleep: nothing to lift, nothing logged', () => {
   awake();
   assert.equal(emergencyUnlock(at(10, 6, 14)), null);
   assert.equal(getEmergencyLog().length, 0);
+});
+
+test('in an earlier bedtime\'s first night: pauses until its next bedtime and unlocks its morning (#137)', () => {
+  // Saved in the day with the night armed: 21:30 waits for tonight's 23:00, but its windows
+  // are armed at once (it only tightens), so from 21:30 the night is the edit's.
+  rt.saveRoutine(rt.DEFAULT_ROUTINE, at(10, 1, 12));
+  awake();
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 }, at(10, 6, 14));
+  asleep();
+  assert.equal(readLock(at(10, 6, 21, 45)).phase, 'night');
+  const use = emergencyUnlock(at(10, 6, 21, 45));
+  assert.ok(use?.pauseNight, 'the apps the early window put to sleep can be woken');
+  assert.equal(use.morningKey, '2026-10-07');
+  assert.equal(use.resumesAt, at(10, 7, 21, 30).getTime(), 'back at the edit\'s next bedtime, not 23:00 tonight');
+  assert.equal(st.isNightHeld(), false);
+  assert.equal(getProof('2026-10-07')?.kind, 'emergency');
+  assert.equal(readLock(at(10, 7, 7, 30)).phase, 'day', 'the morning it leads into counts as unlocked');
 });

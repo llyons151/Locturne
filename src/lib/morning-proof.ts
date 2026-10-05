@@ -4,7 +4,7 @@
  * wakes the apps, so adding a method never touches the lock rules.
  */
 import { currentMorning, type Morning } from './lock-state.ts';
-import { getRoutine, toLockSettings, type WakeMethod } from './routine.ts';
+import { getRoutine, toLockSettings, type Routine, type WakeMethod } from './routine.ts';
 import { sharedGet, sharedSet } from './screen-time.ts';
 
 export type ProofKind = WakeMethod | 'pass' | 'emergency';
@@ -52,9 +52,11 @@ export function getProof(morningKey: string, morning?: Morning): MorningProof | 
  * in force at `proof.at` (a walk before morning start). Checking here, not only in the
  * screens, means no method can poison a morning by recording too early.
  */
-export function recordProof(proof: MorningProof): boolean {
+export function recordProof(proof: MorningProof, routine?: Routine): boolean {
   const at = new Date(proof.at);
-  const morning = currentMorning(at, toLockSettings(getRoutine(at)));
+  // The routine that governs `at`: in force, unless the caller knows a waiting edit's early
+  // first night governs it (`routineAt` in lock-controller.ts, which imports this file).
+  const morning = currentMorning(at, toLockSettings(routine ?? getRoutine(at)));
   if (!proofCounts(proof, morning)) return false;
   const all = getProofs();
   // Only a proof that still counts blocks another. One that stopped counting (made before a

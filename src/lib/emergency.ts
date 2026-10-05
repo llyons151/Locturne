@@ -14,9 +14,9 @@
  *
  * `planEmergency` and the log helpers are pure; `emergencyUnlock` applies the plan.
  */
-import { readLock, syncLock } from './lock-controller.ts';
+import { inPendingFirstNight, readLock, routineAt, syncLock } from './lock-controller.ts';
 import { dateKey, settingsTakeEffectAt, type Phase } from './lock-state.ts';
-import { recordProof } from './morning-proof.ts';
+import { recordProof, type MorningProof } from './morning-proof.ts';
 import { getPendingRoutine, getRoutine, nextNightOn, toLockSettings } from './routine.ts';
 import { endNap, getNap, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
 
@@ -88,12 +88,16 @@ export function getNightPause(now = new Date()): Date | null {
  * whichever comes first: the paused lock must be back by the first window that runs.
  */
 function nextBedtime(now: Date): Date {
-  const next = settingsTakeEffectAt(now, toLockSettings(getRoutine(now)));
   const pending = getPendingRoutine(now);
+  // Inside a waiting edit's own first night (an earlier bedtime, armed at once): the next
+  // bedtime is that routine's next one, not the old routine's later one tonight.
+  if (pending && inPendingFirstNight(now)) return settingsTakeEffectAt(now, toLockSettings(pending.routine));
+  const next = settingsTakeEffectAt(now, toLockSettings(getRoutine(now)));
   if (!pending) return next;
   const edited = settingsTakeEffectAt(now, toLockSettings(pending.routine));
   return edited < next ? edited : next;
 }
+
 
 /** What an emergency unlock would lift right now, for the exits screen's wording. */
 export function previewEmergency(now = new Date()): EmergencyPlan | null {
@@ -111,7 +115,12 @@ export function emergencyUnlock(now = new Date()): EmergencyUse | null {
   if (!plan) return null;
   if (plan.endBlockNow) endNap();
   if (plan.pauseNight && plan.resumesAt !== null) pauseNightUntil(new Date(plan.resumesAt), now);
-  if (plan.unlockMorning) recordProof({ morningKey: state.morningKey, kind: 'emergency', at: now.getTime() });
+  if (plan.unlockMorning) {
+    const proof: MorningProof = { morningKey: state.morningKey, kind: 'emergency', at: now.getTime() };
+    // Judged by the routine governing now: inside a waiting edit's early first night, the
+    // morning it leads into is the edit's.
+    recordProof(proof, routineAt(now));
+  }
   const use: EmergencyUse = { ...plan, at: now.getTime(), phase: state.phase, morningKey: state.morningKey };
   sharedSet(KEY, withUse(getEmergencyLog(), use));
   syncLock(now);

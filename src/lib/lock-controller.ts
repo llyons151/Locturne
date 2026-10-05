@@ -12,9 +12,9 @@
  *    the phase is now `day` and wakes the apps. Block now, used-up limits and the always
  *    list are re-shielded straight after (`wakeApps`), so a proof never lifts them.
  */
-import { armedInTime, currentMorning, dateKey, getLockState, type DaytimeFacts, type LockState } from './lock-state.ts';
+import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { getProof, recordProof, type ProofKind } from './morning-proof.ts';
-import { getPendingRoutine, getRoutine, toLockSettings } from './routine.ts';
+import { getPendingRoutine, getRoutine, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import {
   armedSince,
@@ -64,7 +64,7 @@ function readDaytime(now: Date): DaytimeFacts {
  * nothing is asleep and nothing should pretend to be.
  */
 export function readLock(now = new Date()): LockState {
-  const settings = toLockSettings(getRoutine(now));
+  const settings = toLockSettings(routineAt(now));
   const morning = currentMorning(now, settings);
   // Only a proof that counts for this morning (one made after morning start, or a pass).
   const proof = getProof(morning.key, morning);
@@ -77,6 +77,35 @@ export function readLock(now = new Date()): LockState {
     { steps: 0, unlockedMorning: proof || free ? morning.key : null },
     readDaytime(now),
   );
+}
+
+/**
+ * The routine that governs `now`: the one in force, or a waiting edit inside its own first
+ * night. An earlier bedtime is armed at once (it only tightens: `planArming`), so from 21:30
+ * the windows shield while the old routine still says it's day, and an open would wake them.
+ * The same night `nightAt` (routine.ts) shows and the arming plans.
+ */
+export function routineAt(now: Date): Routine {
+  const pending = getPendingRoutine(now);
+  return pending && inPendingFirstNight(now) ? pending.routine : getRoutine(now);
+}
+
+/**
+ * Is `now` inside a waiting edit's own first night, which `routineAt` then governs? Only when
+ * iOS holds that night early: the routine in force has its evening on (otherwise the monitor
+ * extension skips the early windows and arming waits for the edit: wake/arming.ts). Once the
+ * subscription was found ended, only if that night was the one under way then: a lapse lets
+ * only the night or morning under way finish, and an early first night after it is a new one.
+ */
+export function inPendingFirstNight(now: Date): boolean {
+  const pending = getPendingRoutine(now);
+  if (!pending) return false;
+  const { latest } = nightsAround(now, toLockSettings(pending.routine));
+  const inside = now >= latest.start && now < latest.end && latest.end.getTime() > pending.from;
+  if (!inside) return false;
+  const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
+  if (!getRoutine(now).activeNights.includes(evening)) return false;
+  return !subscriptionEnded() || underWayWhenEnded(dateKey(latest.end));
 }
 
 const listeners = new Set<(state: LockState) => void>();
@@ -300,19 +329,22 @@ async function arm(now: Date): Promise<ArmResult> {
  * monitor extension shows at the next window with the app closed.
  */
 function applyShieldText(state: LockState, now: Date): void {
-  // The shield names the method the wake screen will really ask for.
-  const saved = getRoutine(now);
+  // The shield names the method the wake screen will really ask for, under the routine that
+  // governs now (a waiting edit inside its early first night: `routineAt`).
+  const saved = routineAt(now);
   const routine = { ...saved, method: methodInUse(saved.method) };
   const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
   setShieldText(shieldTextFor(state, routine, now, limitReached), shieldTap(state.phase));
   // The words for the next window and the next morning start: a waiting edit's, unless it's
   // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
-  // coming morning still run on the routine in force). From morning start on, both are next
-  // night's.
+  // coming morning still run on the routine in force). From morning start on, the night words
+  // are next night's; the morning words stay this morning's until it's unlocked, since the
+  // last window's end (accepted up to 30 minutes late) copies them after morning start.
   const pending = getPendingRoutine(now)?.routine;
   const next = pending && state.phase !== 'night' ? { ...pending, method: methodInUse(pending.method) } : routine;
+  const thisMorning = state.phase === 'night' || state.phase === 'morning';
   setNightShieldText(shieldCopy('night', next));
-  setMorningShieldText(shieldCopy('morning', next), shieldTap('morning'));
+  setMorningShieldText(shieldCopy('morning', thisMorning ? routine : next), shieldTap('morning'));
   setAlwaysShieldText(shieldCopy('always', routine));
   setLimitShieldText(shieldCopy('limit', routine));
 }

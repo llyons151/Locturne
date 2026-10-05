@@ -237,12 +237,64 @@ describe('the words for a waiting edit', () => {
   test('an edit made in bed keeps tonight\'s shields on the routine in force', async () => {
     await armYesterday();
     nightHeld = true;
-    saveRoutine({ ...DEFAULT_ROUTINE, morningStart: 6 * 60 + 30 }, at(1, 0, 1)); // waits for tonight
+    saveRoutine({ ...DEFAULT_ROUTINE, morningStart: 6 * 60 + 30, method: 'steps' }, at(1, 0, 1)); // waits for tonight
     syncLock(at(1, 0, 1));
     assert.match(nightSubtitles.at(-1) ?? '', /after 7/);
-    // From morning start on (proven or not), the next window is the edit's.
+    // From morning start on (here unproven), the next window is the edit's.
     syncLock(at(7, 30, 1));
     assert.match(nightSubtitles.at(-1) ?? '', /after 6:30/);
+  });
+
+  test('the morning words stay this morning\'s until it is unlocked', async () => {
+    await armYesterday();
+    nightHeld = true;
+    saveRoutine({ ...DEFAULT_ROUTINE, method: 'steps' }, at(1, 0, 1)); // waits for tonight
+    // 07:00, unproven: the last window's end can copy these words up to 30 minutes later.
+    syncLock(at(7, 0, 1));
+    assert.match(morningSubtitles.at(-1) ?? '', /stairs/);
+    // Proven: the next morning's are the edit's.
+    proveMorning('downstairs', at(7, 10, 1));
+    assert.match(morningSubtitles.at(-1) ?? '', /steps/);
+  });
+});
+
+describe('an earlier bedtime saved in the day (#137)', () => {
+  // 23:00 to 07:00 armed; at 14:00 bedtime moves to 21:30. The edit waits for 23:00, but its
+  // windows are armed at once (an earlier bedtime only tightens: wake/arming.ts).
+  async function earlier(inForce: Partial<typeof DEFAULT_ROUTINE> = {}) {
+    saveRoutine({ ...DEFAULT_ROUTINE, ...inForce }, at(12, 0, 0)); // nothing armed yet: applies at once
+    await armYesterday();
+    recordProof({ morningKey: '2026-10-01', kind: 'steps', at: at(7, 30).getTime() });
+    saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 21 * 60 + 30 }, at(14));
+    clock = at(14).getTime();
+    await armRoutine(at(14));
+    calls = [];
+  }
+
+  test('an open in its first night keeps the apps the 21:30 window put to sleep asleep', async () => {
+    await earlier();
+    assert.equal(armed?.bedtime, 21 * 60 + 30);
+    nightHeld = true; // the 21:30 window fired
+    const state = syncLock(at(21, 40));
+    assert.equal(state.phase, 'night');
+    assert.equal(state.morningKey, '2026-10-02');
+    assert.ok(!calls.includes('wake:night'));
+    assert.ok(nightHeld);
+  });
+
+  test('a missed 21:30 window is put back on open', async () => {
+    await earlier();
+    syncLock(at(21, 40));
+    assert.ok(calls.includes('sleep:night'));
+  });
+
+  test('not on an evening the routine in force has off: iOS skips those early windows', async () => {
+    // Thursday evening is off in the routine in force; the edit turns it on. Arming waits for
+    // the edit, so nothing holds 21:30 and the app mustn't claim it does.
+    await earlier({ activeNights: [0, 1, 2, 3, 5, 6] });
+    assert.equal(armed?.bedtime, 23 * 60);
+    assert.equal(readLock(at(21, 40)).phase, 'day');
+    assert.equal(readLock(at(23, 30)).phase, 'night', 'the edit applies at 23:00 as usual');
   });
 });
 
