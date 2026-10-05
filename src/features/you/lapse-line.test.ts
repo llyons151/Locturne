@@ -20,4 +20,10 @@ describe('lapseLine', () => {
   test('in the day: nothing sleeps from the next bedtime', () => {
     assert.match(lapseLine('day'), /From the next bedtime, nothing sleeps\.$/);
   });
+
+  test('a night or morning after the last paid one: nothing sleeps now, no "still counts"', () => {
+    const line = lapseLine(null);
+    assert.match(line, /no subscription, so nothing sleeps\.$/);
+    assert.doesNotMatch(line, /still counts|next bedtime/);
+  });
 });

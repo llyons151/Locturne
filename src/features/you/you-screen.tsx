@@ -26,7 +26,7 @@ import {
   type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
-import { onLockChange, readLock, subscriptionEnded } from '@/lib/lock-controller';
+import { lapseStillCovers, onLockChange, readLock, subscriptionEnded } from '@/lib/lock-controller';
 import { getPassesLeft } from '@/lib/passes';
 import { getRoutine } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
@@ -188,7 +188,7 @@ export function YouScreen() {
       ? { ...STATUS.on, line: 'Screen Time access is on, but there’s no subscription, so nothing sleeps.' }
       : // A lapse found mid-night or mid-morning: that one finishes, nothing after it.
         status === 'on' && subscriptionEnded()
-        ? { ...STATUS.on, line: lapseLine(readLock().phase) }
+        ? { ...STATUS.on, line: lapseLine(lapseStillCovers() ?? (readLock().phase === 'day' ? 'day' : null)) }
       : status === 'on' && getRoutine().activeNights.length === 0
         ? { ...STATUS.on, line: 'Screen Time access is on. Every night is switched off in Routine.' }
         : status === 'on' && !getArmedNight()

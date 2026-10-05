@@ -14,7 +14,7 @@
  */
 import { armedInTime, currentMorning, dateKey, getLockState, nightsAround, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { getProof, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
-import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, toLockSettings, type Routine } from './routine.ts';
+import { armedForEdit, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, runsAs, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import {
   armedSince,
@@ -29,6 +29,7 @@ import {
   isScreenTimeAvailable,
   isStoodDown,
   limitUsedUpToday,
+  nightLockArmed,
   peekNap,
   reapplyStandingBlocks,
   selectionSize,
@@ -64,9 +65,17 @@ function readDaytime(now: Date): DaytimeFacts {
  * nothing is asleep and nothing should pretend to be.
  */
 export function readLock(now = new Date()): LockState {
-  const { routine, ran, free: unrun } = judgedAt(now);
-  const settings = toLockSettings(routine);
+  const { routine, ran, free: unrun, prior } = judgedAt(now);
+  let settings = toLockSettings(routine);
   const morning: JudgedMorning = { ...currentMorning(now, settings), ran };
+  // A morning the routine before the edit held (`nightRanUnder` says `prior`) stays locked until
+  // proven even if the edit has that evening off: the night already ran, and an open from bed
+  // must not free it.
+  if (prior) {
+    const [year, month, day] = morning.key.split('-').map(Number);
+    const evening = new Date(year, month - 1, day - 1).getDay();
+    if (!settings.activeNights.includes(evening)) settings = { ...settings, activeNights: [...settings.activeNights, evening] };
+  }
   // A proof saved for this morning since its night began here (`proofUnlocks`). Its timing
   // against morning start was judged when it was saved, so a flight west or a later morning
   // start since then doesn't take the morning back; a new night since then does. That night is
@@ -125,16 +134,20 @@ export function routineAt(now: Date): Routine {
 /**
  * `routineAt`, and how the night into the morning under way ran (`nightRanUnder`, routine.ts):
  * `ran` if under that routine (a waiting edit's early first night always is), `free` if under
- * none. `recordProof` takes it, so a proof is judged as `readLock` judges the morning.
+ * none, `prior` if under the routine before it (that morning's evening counts as on). `recordProof` takes it, so a proof is judged as `readLock` judges the morning.
  */
-export function judgedAt(now: Date): { routine: Routine; ran: boolean; free: boolean } {
+export function judgedAt(now: Date): { routine: Routine; ran: boolean; free: boolean; prior: boolean } {
   const pending = getPendingRoutine(now);
-  if (pending && inPendingFirstNight(now)) return { routine: pending.routine, ran: true, free: false };
+  if (pending && inPendingFirstNight(now)) return { routine: pending.routine, ran: true, free: false, prior: false };
   const inForce = getRoutine(now);
-  // While iOS registers new windows, they're the ones it runs.
-  const routine = pending ? inForce : asArmed(inForce, armingTimes ?? getArmedNight());
-  const under = nightRanUnder(currentMorning(now, toLockSettings(routine)), getRoutineChange(now));
-  return { routine, ran: under === 'routine', free: under === 'none' };
+  const change = getRoutineChange(now);
+  // As iOS runs it (`runsAs`), also while an edit waits outside its early first night: windows
+  // still armed for an older routine hold tonight from their bedtime, and a save from inside
+  // that night must not read day and wake them. While iOS registers new windows, they're the
+  // ones it runs.
+  const routine = runsAs(inForce, pending, armingTimes ?? getArmedNight(), change?.since);
+  const under = nightRanUnder(currentMorning(now, toLockSettings(routine)), change);
+  return { routine, ran: under === 'routine', free: under === 'none', prior: under === 'prior' };
 }
 
 /**
@@ -198,7 +211,10 @@ export function syncLock(now = new Date()): LockState {
   }
   const state = readLock(now);
   if (isScreenTimeAvailable()) {
-    const asleep = state.phase === 'night' || state.phase === 'morning';
+    // Not a night or morning after the last one a lapsed subscription covers: the extension
+    // skips it (nothing sleeps after a lapse), and the windows stay armed only until the store
+    // answers (`settleSubscription`).
+    const asleep = (state.phase === 'night' || state.phase === 'morning') && !pastLastPaid(state.morningKey);
     if (!asleep && isNightHeld()) wakeApps('night');
     // `readLock` only reports night or morning for a night armed in time, so a missed
     // window or lost shields are put back, but a night armed after it began isn't.
@@ -232,6 +248,27 @@ function underWayWhenEnded(morningKey: string): boolean {
   const ended = sharedGet<string>(ENDED_MORNING_KEY);
   // Recorded before this key existed: keep the old rule (finish whatever is under way).
   return ended === undefined || ended === morningKey;
+}
+
+/**
+ * Is `morningKey`'s night or morning after the last one a lapsed subscription covers? Nothing
+ * sleeps then: the monitor extension skips its windows, and the app never re-shields them.
+ */
+export function pastLastPaid(morningKey: string): boolean {
+  return subscriptionEnded() && !underWayWhenEnded(morningKey);
+}
+
+/**
+ * While a lapsed subscription's last night or morning still finishes (`settleSubscription`):
+ * which one is under way now, or null when none is (it's day, or a later night or morning,
+ * which nothing holds). For the words that say "tonight still counts" or "this morning still
+ * counts": only then are they true. Null while subscribed.
+ */
+export function lapseStillCovers(now = new Date()): 'night' | 'morning' | null {
+  if (!subscriptionEnded()) return null;
+  const { phase, morningKey } = readLock(now);
+  if (phase !== 'night' && phase !== 'morning') return null;
+  return underWayWhenEnded(morningKey) ? phase : null;
 }
 
 /** No active subscription was found at the last check (never bought, or it ended). */
@@ -317,12 +354,9 @@ export function armRetryAt(now = new Date()): Date | null {
 
 function planFor(now: Date): ArmPlan {
   const armed = getArmedNight();
-  return planArming(
-    now,
-    getRoutine(now),
-    getPendingRoutine(now) ?? null,
-    armed && { ...armed, live: armedWindowNames().length },
-  );
+  const pending = getPendingRoutine(now) ?? null;
+  const edit = !!armed && !!pending && armedForEdit(armed, pending.routine, getRoutineChange(now)?.since);
+  return planArming(now, getRoutine(now), pending, armed && { ...armed, live: armedWindowNames().length, edit });
 }
 
 export type ArmResult = 'armed' | 'kept' | 'disarmed' | 'deferred' | 'unavailable';
@@ -432,6 +466,16 @@ async function arm(now: Date): Promise<ArmResult> {
 }
 
 /**
+ * Is tonight's bedtime lock paused by an emergency unlock? `getNightPause` (emergency.ts), read
+ * here because emergency.ts imports this file: its log's latest night pause, until it resumes.
+ */
+function nightPaused(now: Date): boolean {
+  const log = sharedGet<{ pauseNight: boolean; resumesAt?: number | null }[]>('locturne.emergencyLog') ?? [];
+  const latest = log.find((use) => use.pauseNight && use.resumesAt != null);
+  return !!latest?.resumesAt && latest.resumesAt > now.getTime();
+}
+
+/**
  * How long after morning start the last window's end still copies the morning words: the
  * monitor extension accepts it up to 30 whole minutes late (`showLocturneMorningShield`).
  */
@@ -448,7 +492,15 @@ function applyShieldText(state: LockState, now: Date): void {
   const saved = routineAt(now);
   const routine = { ...saved, method: methodInUse(saved.method) };
   const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
-  setShieldText(shieldTextFor(state, routine, now, limitReached), shieldTap(state.phase));
+  // The app-wide fallback is what the always list, limits and Block now show, so it follows
+  // what's really asleep: a night or morning with no night lock, paused by an emergency unlock,
+  // or after the last one a lapsed subscription covers gets the day's rules (Block now, a limit,
+  // the always list), not "they wake up after 7 am" over apps that won't.
+  const locked = state.phase === 'night' || state.phase === 'morning';
+  const unheld =
+    locked && (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now))));
+  const held = unheld ? { ...state, phase: 'day' as const } : state;
+  setShieldText(shieldTextFor(held, routine, now, limitReached), shieldTap(held.phase));
   // The words for the next window and the next morning start: a waiting edit's, unless it's
   // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
   // coming morning still run on the routine in force). From morning start on, the night words

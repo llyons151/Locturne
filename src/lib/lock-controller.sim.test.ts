@@ -304,9 +304,20 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
       const armedInside = !!theirs && at >= theirs.start.getTime() && at < theirs.end.getTime();
       const held = armedInside && inForceAt(at).activeNights.includes(evening);
       if (inside && held && (!spec.lapse || spec.lapse.underWayKey === ls.dateKey(latest.end))) return next.routine;
-      return inForceAt(at);
+      // Otherwise the routine in force as iOS runs it, as with no edit waiting: windows still
+      // armed for an older routine hold its night from their bedtime, and an edit saved from
+      // inside that night doesn't hand it back. Not windows armed early for the edit itself.
+      return editsArmed(at, next.routine) ? inForceAt(at) : asRun(inForceAt(at));
     }
     return asRun(inForceAt(at));
+  };
+  /**
+   * Are the windows armed the waiting edit's own: its times, armed after the routine in force
+   * took over? Ones with its times armed before then are an older routine's (an edit back to it).
+   */
+  const editsArmed = (at: number, edit: Routine) => {
+    const armed = st.getArmedNight();
+    return !!armed && armed.bedtime === edit.bedtime && armed.morningStart === edit.morningStart && Date.parse(armed.armedAt) >= routineFrom(at);
   };
   /**
    * The routine in force as iOS runs it, with no edit waiting: windows still armed for older
@@ -398,10 +409,14 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     // A night that ran under the routine governing now and began after a walk takes the morning
     // back, whatever routine the walk was made under (a same-day night held early after it).
     const under = ranUnder(at, morning);
+    // A morning the routine before held stays locked until proven, even with that evening off now.
+    const [ky, km, kd] = morning.key.split('-').map(Number);
+    const kEvening = new Date(ky, km - 1, kd - 1).getDay();
+    const judged = under === 'prior' && !settings.activeNights.includes(kEvening) ? { ...settings, activeNights: [...settings.activeNights, kEvening] } : settings;
     const after = (p: Proof) => p.at >= (under === 'routine' ? morning.nightStart.getTime() : nightInto(p));
     const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || after(p)));
     const free = spec.armedSince === null || under === 'none' || !ls.armedInTime(now, settings, new Date(spec.armedSince));
-    return ls.getLockState(now, settings, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
+    return ls.getLockState(now, judged, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
   const locked = (at: number) => {
     const { phase } = phaseAt(at);
@@ -599,7 +614,11 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     if (spec.armedSince !== null && waiting >= 0 && routineAt(t) !== inForceAt(t)) {
       spec.routines[waiting] = { ...spec.routines[waiting], from: t };
     }
-    const from = spec.armedSince !== null ? ls.settingsTakeEffectAt(new Date(t), rt.toLockSettings(inForceAt(t))).getTime() : t;
+    // By the routine in force as iOS runs it: windows still armed for an older routine hold
+    // tonight from their bedtime, and an edit saved inside that night waits for the next one.
+    const still = spec.routines.find((r) => r.from > t);
+    const runs = still && editsArmed(t, still.routine) ? inForceAt(t) : asRun(inForceAt(t));
+    const from = spec.armedSince !== null ? ls.settingsTakeEffectAt(new Date(t), rt.toLockSettings(runs)).getTime() : t;
     spec.routines = spec.routines.filter((r) => r.from <= t);
     spec.routines.push({ routine: next, from });
   }
@@ -720,7 +739,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         const before = phaseAt(t);
         // By what's asleep (`heldPhase`): a night with nothing armed, or already paused, is day.
         const held = spec.armedSince !== null && !spec.stoodDown && !pausedAbs(t);
-        const plan = em.planEmergency(before.phase === 'night' && !held ? 'day' : before.phase, napRunning(t), new Date(t));
+        // After a lapse, a night or morning other than the one under way then holds nothing.
+        const lapsed = !!spec.lapse && (before.phase === 'night' || before.phase === 'morning') && !inUnderWay(t);
+        const plan = em.planEmergency(lapsed || (before.phase === 'night' && !held) ? 'day' : before.phase, napRunning(t), new Date(t));
         const use = em.previewEmergency() ? em.emergencyUnlock() : null;
         await flush();
         if (!!plan !== !!use || (plan && use && plan.pauseNight !== use.pauseNight)) {
@@ -729,11 +750,15 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         if (plan?.pauseNight) {
           spec.pausedKey = before.morningKey;
           // `nextBedtime` in emergency.ts: the routine's, armed or not.
+          // A waiting edit's bedtime inside tonight's night isn't a next bedtime: it waits.
           const now = new Date(t);
+          const tonightEnds = ls.nightsAround(now, settingsAt(t)).latest.end.getTime();
           spec.pausedUntil = Math.min(
-            ...[routineAt(t), ...spec.routines.filter((r) => r.from > t).map((r) => r.routine)].map((r) =>
-              ls.settingsTakeEffectAt(now, rt.toLockSettings(r)).getTime(),
-            ),
+            ls.settingsTakeEffectAt(now, settingsAt(t)).getTime(),
+            ...spec.routines
+              .filter((r) => r.from > t)
+              .map((r) => ls.settingsTakeEffectAt(now, rt.toLockSettings(r.routine)).getTime())
+              .filter((at) => at >= tonightEnds),
           );
           count('emergency-night');
         }

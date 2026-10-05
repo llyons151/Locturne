@@ -24,7 +24,7 @@ import { readNightChecks } from './heartbeat.ts';
 import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { wallClock } from './lock-state.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
-import { asArmed, getPendingRoutine, getRoutine, hasRoutine, holdsEarly, type Routine, type StoredRoutine } from './routine.ts';
+import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, hasRoutine, holdsEarly, runsAs, type ArmedTimes, type Routine, type StoredRoutine } from './routine.ts';
 import { armedSince, getArmedNight, getProtection, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
@@ -95,7 +95,9 @@ export type PlanFacts = {
    * The times iOS has armed (`getArmedNight`). A waiting edit's earlier bedtime only starts
    * early if they're its own (`holdsEarly`): arming can wait for a phantom night to pass.
    */
-  armedTimes?: { bedtime: number; morningStart: number } | null;
+  armedTimes?: ArmedTimes | null;
+  /** When the routine in force came into force (`getRoutineChange`): judges whose windows are armed (`runsAs`). */
+  routineSince?: number | null;
   /** When the armed night was first armed: a morning whose night ended before then is free. */
   armedSince?: Date | null;
   /**
@@ -140,10 +142,10 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
     const underPending = !!pending && start.getTime() >= pending.from;
     if (pending && underPending) r = pending.routine;
     // Windows still armed for other times run until Locturne re-arms them (`asArmed`): an edit
-    // whose arming waited out a phantom night sleeps the apps at the old bedtime. Not for a
-    // night of the routine in force while an edit waits: its windows are that routine's or the
-    // edit's early ones (`holdsEarly` below).
-    if (!pending || underPending) r = asArmed(r, facts.armedTimes ?? null);
+    // whose arming waited out a phantom night sleeps the apps at the old bedtime. For a night of
+    // the routine in force while an edit waits, not when they're the edit's early ones
+    // (`runsAs`; `holdsEarly` below judges those).
+    r = underPending ? asArmed(r, facts.armedTimes ?? null) : runsAs(r, pending ?? null, facts.armedTimes ?? null, facts.routineSince);
     ({ start, end } = pick(r));
     if (pending && underPending) {
       // An earlier bedtime only starts early if iOS holds it (`holdsEarly`, as
@@ -408,6 +410,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       protection: getProtection(),
       armed: armed !== null,
       armedTimes: armed,
+      routineSince: stored ? getRoutineChange()?.since : null,
       armedSince: armed ? armedSince(armed) : null,
       proofs: getProofs(),
       trialEnd: getTrialEnd(),

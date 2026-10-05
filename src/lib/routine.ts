@@ -79,7 +79,7 @@ export function applyEdit(
   stored: StoredRoutine | undefined,
   next: Routine,
   now: Date,
-  armed = true,
+  armed: boolean | ArmedTimes = true,
   early = false,
 ): StoredRoutine {
   if (!stored) return { active: next, since: now.getTime() };
@@ -89,7 +89,13 @@ export function applyEdit(
   const promoted = early && settled.pending;
   const active = promoted ? settled.pending!.routine : settled.active;
   const change = promoted ? { since: now.getTime(), prior: settled.active } : { since: settled.since, prior: settled.prior };
-  const from = settingsTakeEffectAt(now, toLockSettings(active)).getTime();
+  // The next bedtime as iOS runs the routine in force (`runsAs`): windows still armed for an
+  // older routine can hold tonight from their own bedtime, and an edit made inside that night
+  // is an edit from bed, which waits for the next one. By the routine's own bedtime it would
+  // apply later tonight, and one switching tonight off would free the night from bed.
+  const times = typeof armed === 'object' ? armed : null;
+  const runs = runsAs(active, promoted ? null : (settled.pending ?? null), times, change.since);
+  const from = settingsTakeEffectAt(now, toLockSettings(runs)).getTime();
   const result: StoredRoutine = { active, pending: { routine: next, from } };
   // Only defined fields: the App Group store takes property lists, which have no undefined.
   if (change.since !== undefined) result.since = change.since;
@@ -157,6 +163,40 @@ export function asArmed(routine: Routine, armed: { bedtime: number; morningStart
   return bedtime === null ? routine : { ...routine, bedtime };
 }
 
+/** The times iOS has armed (`getArmedNight`), and when, if known. */
+export type ArmedTimes = { bedtime: number; morningStart: number; armedAt?: string };
+
+/**
+ * Are the windows armed the waiting edit's own: its times, armed since the routine in force
+ * came into force (`since`)? An earlier bedtime is armed at once (`planArming`), and its early
+ * first night is `holdsEarly`'s to judge, not `asArmed`'s. Windows with the edit's times armed
+ * before then are an older routine's still running (an edit back to it from inside the night
+ * they hold). Without either time, the times decide.
+ */
+export function armedForEdit(armed: ArmedTimes, edit: Pick<Routine, 'bedtime' | 'morningStart'>, since: number | null | undefined): boolean {
+  if (armed.bedtime !== edit.bedtime || armed.morningStart !== edit.morningStart) return false;
+  const at = armed.armedAt === undefined ? Number.NaN : Date.parse(armed.armedAt);
+  return since === null || since === undefined || Number.isNaN(at) || at >= since;
+}
+
+/**
+ * The routine in force as iOS runs it (`asArmed`), also while an edit waits: windows still armed
+ * for an older routine hold a night of it from their own bedtime whether or not an edit was saved
+ * since, and an edit saved from inside that night mustn't hand it back to the routine's own later
+ * bedtime. Not when the windows are the waiting edit's own (`armedForEdit`). `since` is when the
+ * routine in force came into force (`getRoutineChange`). The one rule for `routineAt`
+ * (lock-controller.ts), `applyEdit`, `nightAt` and the notification planner.
+ */
+export function runsAs(
+  routine: Routine,
+  pending: { routine: Routine } | null | undefined,
+  armed: ArmedTimes | null,
+  since: number | null | undefined,
+): Routine {
+  if (!armed || (pending && armedForEdit(armed, pending.routine, since))) return routine;
+  return asArmed(routine, armed);
+}
+
 /** The edit waiting for bedtime, if any. */
 export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | null {
   return read(now)?.pending ?? null;
@@ -168,7 +208,7 @@ export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | 
  * waits for the next bedtime instead of ending tonight (`applyEdit`).
  */
 export function saveRoutine(next: Routine, now = new Date(), early = false): Date {
-  const stored = applyEdit(read(now), next, now, getArmedNight() !== null, early);
+  const stored = applyEdit(read(now), next, now, getArmedNight() ?? false, early);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;
 }
@@ -213,13 +253,12 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   const usePending = pending && pendingNight && (pending.from <= start.getTime() || pendingNight.end.getTime() > pending.from);
   const routine = usePending ? pending.routine : getRoutine(now);
   let night = usePending && pendingNight ? pendingNight : nightUnder(routine);
-  // Windows still armed for other times run until Locturne re-arms them (`asArmed`). Not for a
-  // night of the routine in force while an edit waits: the windows armed then are that
-  // routine's or the edit's early ones (`holdsEarly` below).
-  if (usePending || !pending) {
-    const runs = asArmed(routine, getArmedNight());
-    if (runs !== routine) night = nightInto(dateKey(night.end), runs);
-  }
+  // Windows still armed for other times run until Locturne re-arms them (`asArmed`). For a
+  // night of the routine in force while an edit waits, not when they're the edit's early ones
+  // (`runsAs`; `holdsEarly` below judges those).
+  const armed = getArmedNight();
+  const runs = usePending ? asArmed(routine, armed) : runsAs(routine, pending, armed, read(now)?.since);
+  if (runs !== routine) night = nightInto(dateKey(night.end), runs);
   const evening = new Date(night.end.getFullYear(), night.end.getMonth(), night.end.getDate() - 1).getDay();
   // An earlier start than `from` is only real if iOS holds it early (`holdsEarly`). Otherwise
   // the edit's night starts at `from`.

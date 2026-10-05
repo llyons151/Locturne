@@ -68,6 +68,12 @@ export type NightFacts = {
    * zone's clock but are rebuilt in this one, so they can't be judged: `unknown`.
    */
   zoneChangedAt?: number | null;
+  /**
+   * Mornings whose night an emergency unlock paused (`EmergencyUse.morningKey`). Their bedtime
+   * list is parked until the pause ends, so windows that ran meanwhile shielded nothing on
+   * purpose: not a `noShield`.
+   */
+  paused?: string[];
   now: Date;
   nights?: number;
 };
@@ -148,7 +154,7 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     if (facts.zoneChangedAt && start.getTime() < facts.zoneChangedAt) verdict = 'unknown';
     else if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
     // An empty bedtime list puts nothing to sleep, even with another list's shield up.
-    else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) verdict = 'noShield';
+    else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) verdict = facts.paused?.includes(dateKey(end)) ? 'unknown' : 'noShield';
     else verdict = first.at <= start.getTime() + ON_TIME_GRACE * MINUTE ? 'onTime' : 'late';
 
     checks.push({
@@ -201,12 +207,17 @@ export type HealthFacts = {
   purchasePending?: boolean;
   /** The last check found no subscription (never bought, or it ended). */
   unsubscribed?: boolean;
+  /**
+   * After a lapse, which of its last night or morning is under way now (`lapseStillCovers`),
+   * or null when neither is: nothing sleeps now. Left out, the clock decides (`inNight`).
+   */
+  lapseCovers?: 'night' | 'morning' | null;
   now: Date;
 };
 
 const JUST_A_RACCOON = 'Until then I’m just a raccoon.';
 
-export function rollUpHealth({ protection, access, armed, routine, nights, purchasePending, unsubscribed, now }: HealthFacts): Health {
+export function rollUpHealth({ protection, access, armed, routine, nights, purchasePending, unsubscribed, lapseCovers, now }: HealthFacts): Health {
   const lastNight = nights.find((n) => n.verdict !== 'unknown') ?? null;
   const base = { protection, lastNight, nights };
 
@@ -254,7 +265,18 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       detail: 'Once the purchase is approved, I’ll schedule bedtime. Nothing sleeps until then.',
     };
   }
-  if (!armed && unsubscribed) {
+  // Ended, with the windows still armed until the store answers, but the night or morning under
+  // way isn't the one the lapse lets finish: nothing sleeps now (the extension skips it).
+  const nothingCovered = !!armed && unsubscribed && lapseCovers === null;
+  if (nothingCovered && purchasePending) {
+    return {
+      ...base,
+      level: 'attention',
+      title: 'Waiting for approval.',
+      detail: 'Nothing sleeps until the purchase is approved.',
+    };
+  }
+  if ((!armed || nothingCovered) && unsubscribed) {
     return {
       ...base,
       level: 'attention',
@@ -271,7 +293,7 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       ...base,
       level: 'attention',
       title: 'Waiting for approval.',
-      detail: inNight(now, armed)
+      detail: (lapseCovers === undefined ? inNight(now, armed) : lapseCovers === 'night')
         ? 'Tonight still counts, and so does its morning. After that, nothing sleeps until the purchase is approved.'
         : 'This morning still counts until you’re up. From tonight, nothing sleeps until the purchase is approved.',
     };
@@ -282,7 +304,7 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       ...base,
       level: 'attention',
       title: 'Your subscription ended.',
-      detail: inNight(now, armed)
+      detail: (lapseCovers === undefined ? inNight(now, armed) : lapseCovers === 'night')
         ? 'Tonight still counts, and so does its morning. After that, nothing sleeps. Subscribe and I’ll keep going.'
         : 'This morning still counts until you’re up. From tonight, nothing sleeps. Subscribe and I’ll keep going.',
       needsSubscription: true,

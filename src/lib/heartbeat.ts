@@ -7,6 +7,7 @@
  * targets/ActivityMonitorExtension/DeviceActivityMonitorExtension.swift). Keep the key, the
  * entry shape and `HEARTBEAT_KEEP` in step with it.
  */
+import { getEmergencyLog } from './emergency.ts';
 import { checkNights, heartbeatCoverage, type NightCheck } from './health.ts';
 import { getRoutine } from './routine.ts';
 import { getArmedNight, isScreenTimeAvailable, sharedGet, sharedSet, windowStarts } from './screen-time.ts';
@@ -80,6 +81,9 @@ export function readNightChecks(now = new Date()): NightCheck[] {
     heartbeats: all,
     coverageStart: heartbeatCoverage(log, recovered, HEARTBEAT_KEEP, now),
     zoneChangedAt: zoneChangedAt(now),
+    paused: getEmergencyLog()
+      .filter((use) => use.pauseNight)
+      .map((use) => use.morningKey),
     now,
   });
 }

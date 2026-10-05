@@ -14,8 +14,8 @@
  *
  * `planEmergency` and the log helpers are pure; `emergencyUnlock` applies the plan.
  */
-import { inPendingFirstNight, judgedAt, readLock, routineAt, syncLock } from './lock-controller.ts';
-import { dateKey, settingsTakeEffectAt, type Phase } from './lock-state.ts';
+import { inPendingFirstNight, judgedAt, pastLastPaid, readLock, routineAt, subscriptionEnded, syncLock } from './lock-controller.ts';
+import { dateKey, nightsAround, settingsTakeEffectAt, type Phase } from './lock-state.ts';
 import { recordProof, type MorningProof } from './morning-proof.ts';
 import { getPendingRoutine, nextNightOn, toLockSettings } from './routine.ts';
 import { endNap, getNap, nightLockArmed, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
@@ -93,10 +93,15 @@ function nextBedtime(now: Date): Date {
   // bedtime is that routine's next one, not the old routine's later one tonight.
   if (pending && inPendingFirstNight(now)) return settingsTakeEffectAt(now, toLockSettings(pending.routine));
   // The routine in force as iOS runs it: windows still armed for an older bedtime (`routineAt`).
-  const next = settingsTakeEffectAt(now, toLockSettings(routineAt(now)));
+  const governing = toLockSettings(routineAt(now));
+  const next = settingsTakeEffectAt(now, governing);
   if (!pending) return next;
   const edited = settingsTakeEffectAt(now, toLockSettings(pending.routine));
-  return edited < next ? edited : next;
+  // An edit made from bed waits for the next bedtime: a bedtime of its that falls inside the
+  // night under way isn't one (a later bedtime saved at 23:20 for 23:45 applies tomorrow), and
+  // resuming there would put the paused night back to sleep tonight.
+  const tonightEnds = nightsAround(now, governing).latest.end;
+  return edited < next && edited >= tonightEnds ? edited : next;
 }
 
 
@@ -105,8 +110,11 @@ function nextBedtime(now: Date): Date {
  * nothing to wake reads as day. That's a night with no lock (`nightLockArmed`: never bought,
  * stood down, arming failed) or one an emergency already paused. A morning needs no check:
  * `readLock` reads one whose night wasn't armed as unlocked, and a paused night's is proved.
+ * Neither holds anything after the last night or morning a lapsed subscription covers
+ * (`pastLastPaid`): the extension skips it while the windows wait for the store's answer.
  */
 export function heldPhase(phase: Phase, now = new Date()): Phase {
+  if ((phase === 'night' || phase === 'morning') && subscriptionEnded() && pastLastPaid(readLock(now).morningKey)) return 'day';
   return phase === 'night' && (!nightLockArmed() || getNightPause(now) !== null) ? 'day' : phase;
 }
 

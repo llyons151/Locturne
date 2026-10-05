@@ -73,7 +73,9 @@ func registerTests() {
     pick("night-next", ["tiktok"]); appUnshields("night"); removeFamilyActivitySelectionById(id: "night")
     set(LOCTURNE_PENDING_LISTS_KEY, ["night": ["from": ms(local("2026-10-06 23:00"))]])
     set(LOCTURNE_NIGHT_HELD_KEY, false)
-    appSetShieldText("Shh. I’m sleeping.") // the phase is still night after the emergency
+    // The app now writes the day's words for a paused night (`applyShieldText`); a build from
+    // before that wrote the night's, and the extension must still let them go by itself.
+    appSetShieldText("Shh. I’m sleeping.")
     at("2026-10-06 01:40"); start("night-1")
     at("2026-10-06 04:20"); start("night-2")
     at("2026-10-06 07:00"); end("night-2")

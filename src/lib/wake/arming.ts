@@ -25,7 +25,14 @@ import { planNightWindows, type NightWindow } from '../night-plan.ts';
 export type ArmTimes = { bedtime: number; morningStart: number; activeNights: number[] };
 
 /** What iOS has now, from `getArmedNight` and `armedWindowNames`. */
-export type ArmedNow = { bedtime: number; morningStart: number; windows: number; live: number } | null;
+export type ArmedNow = {
+  bedtime: number;
+  morningStart: number;
+  windows: number;
+  live: number;
+  /** They're the waiting edit's own, armed early for it (`armedForEdit`, routine.ts). */
+  edit?: boolean;
+} | null;
 
 export type ArmPlan =
   /** Already monitoring the right windows. */
@@ -134,8 +141,12 @@ export function planArming(
   // nights and nothing can be phantom. But the windows armed may still be an older routine's
   // (arming waited out a phantom night, and nothing re-armed with Locturne closed), holding a
   // night from their earlier bedtime: re-arming now would hand it back to a later bedtime.
-  if (!pending || now.getTime() >= pending.from) {
-    const held = heldUntil(now, target, armed);
+  // The same while an edit waits, for the routine in force's night under way: a save from
+  // inside the night the old windows hold would otherwise re-arm them away from bed. Not for
+  // windows armed early for the edit itself, whose first night they already hold.
+  const applied = !pending || now.getTime() >= pending.from;
+  if (applied || !armed?.edit) {
+    const held = heldUntil(now, applied ? target : active, armed);
     if (held) return { action: 'defer', until: held };
   }
   const until = pending && now.getTime() < pending.from ? phantomUntil(now, pending.from, active, target, windows) : null;

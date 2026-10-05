@@ -47,6 +47,8 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     isScreenTimeAvailable: () => true,
     getAccess: () => 'approved',
     isNightHeld: () => nightHeld,
+    // As screen-time.ts: armed with a subscription, or bedtime apps asleep under one.
+    nightLockArmed: () => nightHeld || (armed !== null && !stoodDown),
     selectionSize: (id: string) => (id === 'night' ? nightPicks : 0),
     sleepApps: (id: string) => {
       calls.push(`sleep:${id}`);
