@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { nightsAround, settingsTakeEffectAt, type LockSettings } from '../../lib/lock-state.ts';
-import { startsWhen } from './starts-when.ts';
+import { pendingNote, startsWhen } from './starts-when.ts';
 
 // 2026-10-05 is a Monday.
 const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m);
@@ -92,4 +92,34 @@ test('startsWhen names the real day for every routine and time of day', () => {
       }
     }
   assert.deepEqual(bad.slice(0, 10), []);
+});
+
+describe('pendingNote', () => {
+  const inForce = (now: Date) => nightsAround(now, settings(23 * 60, 7 * 60)).latest;
+
+  test('names the bedtime the edit’s first night starts at, not the old one', () => {
+    assert.equal(
+      pendingNote({ start: at(5, 23, 30), on: true }, at(5, 15), inForce(at(5, 15))),
+      'Your changes apply from tonight’s bedtime, 11:30\u00a0pm. Until then, the old routine stays.',
+    );
+    assert.equal(
+      pendingNote({ start: at(5, 22), on: true }, at(5, 15), inForce(at(5, 15))),
+      'Your changes apply from tonight’s bedtime, 10\u00a0pm. Until then, the old routine stays.',
+    );
+  });
+
+  test('from bed: tomorrow night, at the new bedtime', () => {
+    assert.equal(
+      pendingNote({ start: at(6, 23, 45), on: true }, at(6, 1), inForce(at(6, 1))),
+      'Your changes apply from tomorrow night at 11:45\u00a0pm. Until then, the old routine stays.',
+    );
+  });
+
+  test('a first night that’s off says so', () => {
+    assert.equal(pendingNote({ start: at(5, 23), on: false }, at(5, 15), inForce(at(5, 15))), 'Your changes start tonight: it’s off.');
+    assert.equal(
+      pendingNote({ start: at(6, 23), on: false }, at(6, 1), inForce(at(6, 1))),
+      'Your changes start tomorrow night: it’s off. Until then, the old routine stays.',
+    );
+  });
 });

@@ -29,7 +29,7 @@ import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
-import { awakeBody } from './next-morning';
+import { awakeBody, savedBody } from './next-morning';
 import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
 import { ShareCode } from './share-code';
@@ -93,7 +93,10 @@ function nextLockedMorning(now: Date): Date | null {
   const from = readLock(now).phase === 'night' ? (getNightPause(now) ?? night.end) : now;
   const start = nextNightOn(from, now);
   if (!start) return null;
-  return nightsAround(start, toLockSettings(nightAt(start, now).routine)).latest.end;
+  // The night that starts there: a waiting edit's first night can start at `from`, after its
+  // own night of that day ended (a switch to a night shift, 08:00 to 16:00, saved in the day).
+  const { latest, next } = nightsAround(start, toLockSettings(nightAt(start, now).routine));
+  return start < latest.end || start.getTime() === latest.start.getTime() ? latest.end : next.end;
 }
 
 /** Loc's line and the plain sentence under it, per stage. */
@@ -141,7 +144,7 @@ function words(stage: Stage): { line: string; body: string } {
         ? { line: 'Now scan the printout.', body: "That's how we both know it works." }
         : { line: 'Scan it.', body: "Whatever you scan now is the only code I'll accept in the morning." };
     case 'saved':
-      return { line: "Fine. That's the one.", body: 'Tomorrow morning, scan it and your apps wake up.' };
+      return { line: "Fine. That's the one.", body: savedBody(nextLockedMorning(new Date()), new Date()) };
   }
 }
 

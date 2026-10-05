@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { awakeBody, morningName } from './next-morning.ts';
+import { awakeBody, morningName, savedBody } from './next-morning.ts';
 
 // 2026-10-05 is a Monday.
 const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m);
@@ -24,4 +24,11 @@ test('the next night off: the weekday of the morning that’s on', () => {
 
 test('every night off', () => {
   assert.equal(awakeBody(null, at(5, 14)), 'Every night is off, so there’s nothing to scan for.');
+});
+
+test('a saved code names the morning it’s first wanted', () => {
+  assert.equal(savedBody(at(6, 7), at(5, 14)), 'Tomorrow morning, scan it and your apps wake up.');
+  assert.equal(savedBody(at(6, 7), at(6, 0, 30)), 'This morning, scan it and your apps wake up.');
+  assert.equal(savedBody(at(8, 7), at(5, 14)), `${weekday(at(8, 7))} morning, scan it and your apps wake up.`);
+  assert.equal(savedBody(null, at(5, 14)), 'Every night is off. When one’s on, scan it to wake your apps.');
 });

@@ -31,6 +31,7 @@ import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
 import { Body, TopBar, Voice } from './parts';
 import { StepsView } from './steps-view';
+import { dayStatus, wakeLabel } from './wake-words';
 
 export type WakeMethodShown = 'downstairs' | 'steps';
 
@@ -38,17 +39,20 @@ const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinu
 
 /**
  * "Apps awake until 10:00 PM", from the routine that runs tonight (a waiting edit, a night
- * off), as on Home. A lapsed user proving the last paid morning has nothing scheduled after.
+ * off), as on Home; a Block now running leads instead (`dayStatus`). A lapsed user proving
+ * the last paid morning has nothing scheduled after.
  */
-function awakeLine(bedtimeStart: Date): string {
-  const { start, on } = nightAt(bedtimeStart);
-  const line = dayLine({
-    armed: nightLockArmed(),
-    stoodDown: isStoodDown(),
-    tonightAt: on ? formatPreset(start.getHours() * 60 + start.getMinutes()) : null,
-    alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
-  });
-  return line.endsWith('.') ? line : `${line}.`;
+function awakeLine(state: LockState): string {
+  const { start, on } = nightAt(state.nextChange);
+  return dayStatus(
+    state.blockNowUntil,
+    dayLine({
+      armed: nightLockArmed(),
+      stoodDown: isStoodDown(),
+      tonightAt: on ? formatPreset(start.getHours() * 60 + start.getMinutes()) : null,
+      alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
+    }),
+  );
 }
 
 /**
@@ -83,7 +87,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       haptic.done();
       setUnlocked(state);
       // The control VoiceOver was on goes away with the swap; say what happened.
-      AccessibilityInfo.announceForAccessibility(`I'm up. ${awakeLine(state.nextChange)}`);
+      AccessibilityInfo.announceForAccessibility(`I'm up. ${awakeLine(state)}`);
       // The first proven morning is the moment to ask (GAME_PLAN); iOS shows its own prompt once.
       shouldAskForNotifications()
         .then((ask) => (ask ? askForNotifications() : false))
@@ -140,7 +144,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       showsVerticalScrollIndicator={false}
     >
       {!unlocked && lock.phase === 'morning' ? <StayAwake /> : null}
-      <TopBar label={unlocked || lock.phase === 'day' ? 'Today' : 'This morning'} onClose={close} />
+      <TopBar label={wakeLabel(lock.phase, !!unlocked)} onClose={close} />
       {content}
     </ScrollView>
   );
@@ -157,7 +161,7 @@ function Unlocked({ state, onDone }: { state: LockState; onDone: () => void }) {
         <Voice text="I'm up. Don't talk to me yet." />
         <View style={styles.statusRow}>
           <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
-          <Text style={styles.status}>{awakeLine(state.nextChange)}</Text>
+          <Text style={styles.status}>{awakeLine(state)}</Text>
         </View>
       </View>
       <View style={styles.flex} />
@@ -181,7 +185,7 @@ function NotMorning({ state, onClose }: { state: LockState; onClose: () => void 
     ? 'Your bedtime apps are awake tonight, so there is no morning lock to lift.'
     : {
         night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
-        day: `${done ? DAY_OPENER.done : DAY_OPENER.notYet} ${awakeLine(state.nextChange)}`,
+        day: `${done ? DAY_OPENER.done : DAY_OPENER.notYet} ${awakeLine(state)}`,
         off: 'Tonight is switched off, so there is no morning lock to lift.',
       }[phase];
   return (

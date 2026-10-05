@@ -24,6 +24,7 @@ import {
   getPendingRoutine,
   getRoutine,
   hasRoutine,
+  nightAt,
   saveRoutine,
   toLockSettings,
   type Routine as StoredRoutine,
@@ -45,7 +46,7 @@ import {
 } from '@/theme';
 
 import { nightsToWeekdays, weekdaysToNights } from './nights';
-import { startsWhen } from './starts-when';
+import { pendingNote } from './starts-when';
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
@@ -146,9 +147,13 @@ function nightRefusal(bedtime: number, morningStart: number): string | null {
   return (morningStart - bedtime + 1440) % 1440 < MIN_WINDOW ? TOO_SHORT : null;
 }
 
-/** `startsWhen` against the night under the routine in force now: one made from bed waits a day. */
-const appliesWhen = (at: Date, now: Date) =>
-  startsWhen(at, now, nightsAround(now, toLockSettings(routineAt(now))).latest);
+/**
+ * The banner for a waiting edit: `pendingNote` for its first night as Home sees it
+ * (`nightAt(from)`, the bedtime the apps really sleep at, or a night off), judged against the
+ * night under the routine in force now, so one made from bed waits a day.
+ */
+const waitingNote = (from: Date, now: Date) =>
+  pendingNote(nightAt(from, now), now, nightsAround(now, toLockSettings(routineAt(now))).latest);
 
 export function RoutineScreen() {
   const insets = useSafeAreaInsets();
@@ -180,7 +185,7 @@ export function RoutineScreen() {
     setLoaded(loaded);
     // The note appears above the control VoiceOver is on, and iOS has no live regions.
     if (loaded.from && !wasWaiting) {
-      AccessibilityInfo.announceForAccessibility(`Your changes apply ${appliesWhen(loaded.from, new Date())}.`);
+      AccessibilityInfo.announceForAccessibility(waitingNote(loaded.from, new Date()));
     }
     // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
     // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
@@ -232,9 +237,9 @@ export function RoutineScreen() {
   // An earlier bedtime saved in the day governs its own first night once that starts (#137):
   // it already began, so don't say it waits for the old bedtime.
   const earlyNight = from !== null && inPendingFirstNight(now);
-  const pendingNote = earlyNight
+  const bannerNote = earlyNight
     ? `Your changes started at tonight’s new bedtime, ${formatPreset(saved.bedtime).replace(' ', '\u00a0')}.`
-    : `Your changes apply ${appliesWhen(from ?? now, now)}. Until then, the old routine stays.`;
+    : waitingNote(from ?? now, now);
 
   return (
     <ScrollView
@@ -255,7 +260,7 @@ export function RoutineScreen() {
         <View style={styles.pending} accessibilityLiveRegion="polite">
           <SymbolView name={sym('clock', 'schedule')} size={17} tintColor={Nocturne.text} style={styles.pendingIcon} />
           <Text style={styles.pendingText}>
-            {noOrphan(pendingNote)}
+            {noOrphan(bannerNote)}
           </Text>
           <Pressable
             onPress={() => {
