@@ -330,17 +330,24 @@ test('a clock set back past expiry keeps nothing paid, from the store\'s cache o
   const store = memoryKeyValue();
   const lapsed = new Date(2026, 10, 1);
   const expiresAt = lapsed.getTime() - 30 * DAY;
-  // Seen a month after a cancelled plan ended; then the clock goes back before the end.
-  provider(fakeSdk({ offline: true }), store, 0.9, lapsed);
+  // The server last answered a month after a cancelled plan ended; then the clock goes back.
   store.set(SEEN_AT_KEY, lapsed.getTime());
   const back = new Date(expiresAt - DAY);
   const sdk = fakeSdk();
-  sdk.info = customer({ productId: PRODUCT_IDS.annual, expiresAt, willRenew: false });
+  sdk.info = { ...customer({ productId: PRODUCT_IDS.annual, expiresAt, willRenew: false }), requestDate: back.toISOString() } as CustomerInfo;
   assert.equal(await provider(sdk, store, 0.9, back).isEntitled(), false);
-  const offline = fakeSdk({ offline: true });
   store.set(ENTITLEMENT_KEY, { active: true, expiresAt, willRenew: false, checkedAt: back.getTime() });
-  assert.equal(await provider(offline, store, 0.9, back).isEntitled(), false);
-  // The clock right: a running plan stays paid.
-  sdk.info = customer({ productId: PRODUCT_IDS.annual, expiresAt: lapsed.getTime() + DAY });
-  assert.equal(await provider(sdk, store, 0.9, lapsed).isEntitled(), true);
+  assert.equal(await provider(fakeSdk({ offline: true }), store, 0.9, back).isEntitled(), false);
+});
+
+test('a clock once set forward doesn\'t lock a paying user out', async () => {
+  const store = memoryKeyValue();
+  const today = new Date(2026, 10, 1);
+  const ahead = new Date(today.getTime() + 14 * DAY);
+  const sdk = fakeSdk();
+  sdk.info = { ...customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() - DAY }), requestDate: today.toISOString() } as CustomerInfo;
+  await provider(sdk, store, 0.9, ahead).isEntitled();
+  // Clock set right; a trial bought now runs 7 days.
+  sdk.info = { ...customer({ productId: PRODUCT_IDS.annual, expiresAt: today.getTime() + 7 * DAY }), requestDate: today.toISOString() } as CustomerInfo;
+  assert.equal(await provider(sdk, store, 0.9, today).isEntitled(), true);
 });

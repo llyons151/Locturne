@@ -92,13 +92,14 @@ export const EXIT_ARM_KEY = 'locturne.exitArm';
 export const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /**
- * The latest time this install has seen (ms), so a clock set back can't hold a lapsed
- * subscription: RevenueCat's own cache judges expiry by the clock too, and never goes stale
- * while the clock runs behind it.
+ * The latest server time RevenueCat has reported (ms, `CustomerInfo.requestDate`), so a clock
+ * set back can't hold a lapsed subscription: the SDK's own cache judges expiry by the device
+ * clock and never goes stale while it runs behind. Server time, not the device's, so a clock
+ * once set forward can't lock a paying user out.
  */
 export const SEEN_AT_KEY = 'locturne.entitlementSeenAt';
 
-/** How far behind the latest time seen the clock may be before answers are judged by that time. */
+/** How far behind the server time seen the clock may be before answers are judged by it. */
 const CLOCK_SLACK_MS = 60 * 60 * 1000;
 
 const UNIT_DAYS: Record<string, number> = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 };
@@ -237,14 +238,15 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
   let inFlight = 0;
 
   const cached = () => store.get<EntitlementRecord>(ENTITLEMENT_KEY);
-  /** Now, or the latest time seen when the clock has been set back behind it. */
+  /** Now, or the server time seen when the clock has been set back behind it. */
   const judgedAt = () => {
     const at = now().getTime();
-    const seen = Math.max(store.get<number>(SEEN_AT_KEY) ?? 0, at);
-    store.set(SEEN_AT_KEY, seen);
+    const seen = store.get<number>(SEEN_AT_KEY) ?? 0;
     return new Date(at < seen - CLOCK_SLACK_MS ? seen : at);
   };
   const remember = (info: CustomerInfo) => {
+    const served = Date.parse(info.requestDate);
+    if (served > (store.get<number>(SEEN_AT_KEY) ?? 0)) store.set(SEEN_AT_KEY, served);
     let record = entitlementRecord(info, now());
     const at = judgedAt();
     // The clock is behind: the store's answer may be its stale cache, judged by that clock.
