@@ -76,6 +76,9 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
       return null;
     },
     getLimits: () => [],
+    saveLimits: () => {},
+    delayListChanges: () => {},
+    settleListChanges: () => [],
     limitUsedUpToday: () => false,
     moveNightPause: () => {},
     setShieldText: (text: { title: string }, tap: unknown) => shieldTexts.push({ title: text.title, tap: tap !== null }),

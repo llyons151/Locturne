@@ -47,12 +47,11 @@ import {
   clearSelection,
   draftId,
   finishListEdit,
-  getArmedNight,
   getLimits,
-  hasSelection,
   isScreenTimeAvailable,
   isStoodDown,
   limitUsedUpToday,
+  listChangeLandsAt,
   listChangeStarts,
   reapplyStandingBlocks,
   requestAccess,
@@ -97,10 +96,12 @@ const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
  * Removals wait for bedtime (GAME_PLAN), so say when, and whether they're asleep until then.
  * Limits say it in their header instead.
  */
-function PendingNote({ list }: { list: StandingList }) {
-  const starts = listChangeStarts(list);
-  if (!starts) return null;
+function PendingNote({ list }: { list: 'night' | 'always' }) {
   const now = new Date();
+  // The moment the phone really swaps the list: the first iOS interval start at or after the
+  // change's `from` (a night window, or a limit's midnight), or the next open with neither armed.
+  const lands = listChangeLandsAt(list, now);
+  if (!lands) return null;
   if (list === 'night') {
     // Parked by an emergency unlock until the next night that's on (`pauseWording`).
     const paused = getNightPause(now);
@@ -108,14 +109,11 @@ function PendingNote({ list }: { list: StandingList }) {
   }
   // Asleep now: the always list (unless a lapse stood everything down), or the bedtime list
   // at night and through the morning. The bedtime list in the day is awake, and its removals
-  // land before the next bedtime's shields, so they never sleep.
+  // land before the next bedtime's shields, so they never sleep, unless a night window starts
+  // before the swap: then they sleep from it until the change starts.
   const phase = readLock(now).phase;
-  const asleep = !isStoodDown() && (list === 'always' || phase === 'night' || phase === 'morning');
-  // The extension applies removals when an iOS window starts: a night's, or a limit's at
-  // midnight. With neither armed, only the next open does (`settleListChanges`).
-  const waitsForOpen =
-    isStoodDown() || (!getArmedNight() && !getLimits().some((limit) => hasSelection(limit.id)));
-  return <Text style={styles.footer}>{removalNote(starts, now, { asleep, waitsForOpen })}</Text>;
+  const asleep = !isStoodDown() && (list === 'always' || phase === 'night' || phase === 'morning' || lands.sleepsFirst);
+  return <Text style={styles.footer}>{removalNote(lands.at, now, { asleep, waitsForOpen: lands.waitsForOpen })}</Text>;
 }
 
 function LiveAppsList() {
@@ -183,7 +181,8 @@ function LiveAppsList() {
   /** Stricter edits start now; looser ones wait for bedtime (`editLimit`). */
   const setMinutes = (id: LimitId, minutes: number | null) => {
     haptic.tap();
-    const next = editLimit(limits, id, minutes, looserEditsStartAt(new Date()));
+    const now = new Date();
+    const next = editLimit(limits, id, minutes, looserEditsStartAt(now), now);
     const after = next.find((l) => l.id === id);
     const before = limits.find((l) => l.id === id);
     saveAndArm(next, after && after.minutes !== before?.minutes ? after : undefined);
@@ -194,7 +193,7 @@ function LiveAppsList() {
    * bedtime (`finishListEdit`). Newly added apps may need shielding straight away.
    */
   const pickedList = (list: StandingList) => {
-    finishListEdit(list, looserEditsStartAt(new Date()));
+    finishListEdit(list, looserEditsStartAt(new Date(), list));
     if (isLimitId(list)) pickedLimit(list);
     reapplyStandingBlocks();
     refresh();

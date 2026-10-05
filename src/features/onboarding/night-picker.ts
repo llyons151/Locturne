@@ -35,6 +35,6 @@ export function openNightPicker(now = new Date()): SelectionId {
  */
 export function closeNightPicker(list: SelectionId, now = new Date()): void {
   if (list === 'night') return;
-  finishListEdit('night', looserEditsStartAt(now));
+  finishListEdit('night', looserEditsStartAt(now, 'night'));
   reapplyStandingBlocks();
 }

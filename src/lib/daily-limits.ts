@@ -17,8 +17,12 @@ export type DailyLimit = {
   id: LimitId;
   /** The limit iOS is enforcing now. */
   minutes: number;
-  /** A looser edit waiting for bedtime. `minutes: null` means the limit is being removed. */
-  pending?: { minutes: number | null; from: number };
+  /**
+   * A looser edit waiting for bedtime. `minutes: null` means the limit is being removed. `dated`:
+   * when `from` was worked out, so it can be worked out again if the windows or the waiting
+   * routine edit change (`redateLooserEdits` in lock-controller.ts).
+   */
+  pending?: { minutes: number | null; from: number; dated?: number };
 };
 
 export const LIMIT_CHOICES = [15, 30, 60, 120];
@@ -43,20 +47,28 @@ export function freeLimitId(limits: DailyLimit[]): LimitId | null {
 /**
  * Applies an edit. `minutes: null` removes the limit. A new or stricter limit replaces the
  * old one at once (and cancels any loosening that was waiting); a looser one waits until
- * `takeEffectAt`.
+ * `takeEffectAt`, or until the loosening already waiting was due if that's later: a second
+ * loosening never brings the first one forward (one that waits for midnight with nothing
+ * armed, then again once a night is armed for an earlier bedtime).
  */
 export function editLimit(
   limits: DailyLimit[],
   id: LimitId,
   minutes: number | null,
   takeEffectAt: Date,
+  editedAt?: Date,
 ): DailyLimit[] {
   const current = limits.find((l) => l.id === id);
   if (!current) return minutes === null ? limits : [...limits, { id, minutes }];
 
   let next: DailyLimit;
   if (minutes !== null && minutes <= current.minutes) next = { id, minutes };
-  else next = { id, minutes: current.minutes, pending: { minutes, from: takeEffectAt.getTime() } };
+  else {
+    const waiting = current.pending && current.pending.from > takeEffectAt.getTime() ? current.pending : null;
+    const from = waiting ? waiting.from : takeEffectAt.getTime();
+    const dated = waiting ? waiting.dated : editedAt?.getTime();
+    next = { id, minutes: current.minutes, pending: { minutes, from, ...(dated === undefined ? {} : { dated }) } };
+  }
   return limits.map((l) => (l.id === id ? next : l));
 }
 

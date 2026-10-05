@@ -39,7 +39,7 @@ import {
 } from 'react-native-device-activity';
 
 import { settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
-import { dateKey } from './lock-state.ts';
+import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 
 /**
@@ -77,6 +77,9 @@ export function getAccess(): ScreenTimeAccess {
   return toAccess(getAuthorizationStatus());
 }
 
+/** Whether Locturne is protecting anything (`getProtection`). */
+export type Protection = 'on' | 'off' | 'notSetUp' | 'unavailable';
+
 /**
  * Is Locturne actually protecting anything? `getAccess` alone can't say, because it keeps
  * answering "approved" after access is revoked in Settings, until the app restarts. When
@@ -84,8 +87,6 @@ export function getAccess(): ScreenTimeAccess {
  * checked too: an armed night with no windows left, or a list that should be asleep with no
  * shield up, means protection is off whatever the cached status says.
  */
-export type Protection = 'on' | 'off' | 'notSetUp' | 'unavailable';
-
 export function getProtection(): Protection {
   if (!isAvailable()) return 'unavailable';
   const access = getAccess();
@@ -644,7 +645,8 @@ export function getNap(): ActiveNap | null {
  * draft instead. On Done, apps that were added join the live list at once, since that only
  * tightens things. If any were removed, the live list keeps them until bedtime, when the
  * draft replaces it: here when the app next opens (`settleListChanges`), or in the monitor
- * extension's first window after bedtime (`settleLocturneLists` in
+ * extension at the first interval start of any activity at or after `from` (a night window, a
+ * daily limit's midnight or a nap's start: `settleLocturneLists` in
  * DeviceActivityMonitorExtension.swift), whichever comes first. Keep the two in step. A daily
  * limit's list waits for the app, which re-arms iOS's count with it (`settleLimitChanges`).
  */
@@ -656,9 +658,12 @@ export const draftId = (list: StandingList): DraftId => `${list}-next`;
 /**
  * `empty`: the edit removes every app. Only this flag means "empty the list" at bedtime; a
  * missing draft alone means another settle (the extension's, at the same moment) got there
- * first, and the list is left as it is.
+ * first, and the list is left as it is. `dated`: when `from` was worked out, so it can be
+ * worked out again for that moment if the windows or the waiting routine edit change
+ * (`delayListChanges`). The bedtime picks parked by an emergency unlock have none: they come
+ * back when the pause ends.
  */
-type PendingList = { from: number; empty?: boolean };
+type PendingList = { from: number; empty?: boolean; dated?: number };
 
 function getPendingLists(): Partial<Record<StandingList, PendingList>> {
   return sharedGet<Partial<Record<StandingList, PendingList>>>(PENDING_LISTS_KEY) ?? {};
@@ -729,8 +734,76 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
     return 'now';
   }
   if (selectionSize(draft) > 0) union(live, next, { persistAsActivitySelectionId: list, stripToken: true });
-  setPending(list, { from: takeEffectAt.getTime(), empty: selectionSize(draft) === 0 });
+  // Removals already waiting stay in the draft, so they now start with these: never earlier
+  // than they were due (a second edit once a night is armed would otherwise pull a change that
+  // waits for midnight forward to that bedtime).
+  const from = waiting ? Math.max(waiting.from, takeEffectAt.getTime()) : takeEffectAt.getTime();
+  const dated = waiting && waiting.from > takeEffectAt.getTime() ? waiting.dated : Date.now();
+  setPending(list, { from, empty: selectionSize(draft) === 0, ...(dated === undefined ? {} : { dated }) });
   return 'bedtime';
+}
+
+/**
+ * The monitor extension swaps in a waiting list at an interval start up to this long before its
+ * `from` (`settleLocturneLists`: iOS can start a bedtime window a little early).
+ */
+const SETTLE_SLACK_MS = 2 * 60_000;
+
+/**
+ * Moves waiting list changes later, never earlier: each to `dueAt(list, dated)` (worked out again
+ * for the moment it was dated) when that's later. For when a looser edit's start was worked out
+ * from windows or a routine edit that have changed since (`redateLooserEdits` in
+ * lock-controller.ts). One already due, or due within the extension's slack (it may have swapped
+ * it), is left alone, and so are the bedtime picks parked by an emergency unlock (no `dated`).
+ */
+export function delayListChanges(dueAt: (list: StandingList, dated: Date) => Date, now = new Date()): void {
+  for (const list of Object.keys(getPendingLists()) as StandingList[]) {
+    // Read again for each list: the monitor extension may have settled it a moment ago.
+    const pending = getPendingLists()[list];
+    if (!pending || pending.dated === undefined || pending.from <= now.getTime() + SETTLE_SLACK_MS) continue;
+    const due = dueAt(list, new Date(pending.dated));
+    if (due.getTime() > pending.from) setPending(list, { ...pending, from: due.getTime() });
+  }
+}
+
+/**
+ * When the phone really swaps in the bedtime or always list's waiting change: the first interval
+ * start of any activity at or after its `from` (less the extension's slack), which is a night
+ * window's start or a daily limit's midnight (`settleLocturneLists` runs at every one), or the
+ * next open of Locturne when neither is armed. Null with nothing waiting. A daily limit's own
+ * list isn't here: Locturne swaps it on the first open after `from` (`settleLimitChanges`).
+ * `sleepsFirst`: a night window starts before then, so an app removed from the bedtime list may
+ * sleep first, from that window until the swap.
+ */
+export function listChangeLandsAt(
+  list: 'night' | 'always',
+  now = new Date(),
+): { at: Date; waitsForOpen: boolean; sleepsFirst: boolean } | null {
+  const from = listChangeStarts(list);
+  if (!from) return null;
+  if (isStoodDown()) return { at: from, waitsForOpen: true, sleepsFirst: false };
+  const armed = getArmedNight();
+  const windows = armed && armedWindowNames().length > 0 ? planNightWindows(armed.bedtime, armed.morningStart) : [];
+  const limits = getLimits().some((limit) => hasSelection(limit.id));
+  const earliest = from.getTime() - SETTLE_SLACK_MS;
+  let at: number | null = null;
+  let sleepsFirst = false;
+  for (let day = -1; day <= 8; day++) {
+    for (const w of windows) {
+      const t = wallClock(from, w.start, day).getTime();
+      if (t >= earliest) at = at === null ? t : Math.min(at, t);
+    }
+    const midnight = wallClock(from, 0, day).getTime();
+    if (limits && midnight >= earliest) at = at === null ? midnight : Math.min(at, midnight);
+  }
+  if (at === null) return { at: from, waitsForOpen: true, sleepsFirst: false };
+  for (let day = -1; day <= 8; day++) {
+    for (const w of windows) {
+      const t = wallClock(now, w.start, day).getTime();
+      if (t > now.getTime() && t < at) sleepsFirst = true;
+    }
+  }
+  return { at: new Date(at), waitsForOpen: false, sleepsFirst };
 }
 
 /**

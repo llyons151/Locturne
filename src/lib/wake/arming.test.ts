@@ -196,3 +196,39 @@ describe('planArming: a phantom night on an evening the routine in force has off
     });
   });
 });
+
+describe('planArming: windows the extension would file under an evening that is off (round 51)', () => {
+  test('inside the night in force, a skipped window would wake it: wait for that night to end', () => {
+    // An edit from bed promoted inside its own first night (#179): Monday to Saturday, 01:35 to
+    // 01:25. At 01:40 Monday, Undo saves 23:00 to 07:00 every night, applying at 01:35 Tuesday.
+    // Its windows before 07:00 are filed under Sunday evening, which the routine in force has
+    // off: the extension would skip them and wake the night under way.
+    const active = routine(95, 85, [1, 2, 3, 4, 5, 6]);
+    const pending = { routine: usual, from: at(1, 35, 6).getTime() };
+    assert.deepEqual(planArming(at(1, 40, 5), active, pending, armedFor(active)), { action: 'defer', until: at(1, 25, 6) });
+  });
+
+  test("every night off, with an abandoned earlier bedtime's windows armed: the routine in force's go back", () => {
+    const pending = { routine: routine(23 * H, 7 * H, []), from: at(23).getTime() };
+    const plan = planArming(at(14), usual, pending, armedFor(routine(21 * H, 7 * H)));
+    assert.equal(plan.action, 'arm');
+    if (plan.action === 'arm') assert.deepEqual(plan.times, usual);
+    // Already the routine in force's: wait for the edit.
+    assert.deepEqual(planArming(at(14), usual, pending, armedFor(usual)), { action: 'defer', until: at(23) });
+  });
+
+  test('after a lapse, an early first night filed under an unpaid evening waits for the morning in force', () => {
+    // 00:30 to 08:00. At 06:22 Monday, from bed: 07:22 to 06:32, Mondays only, armed at once. At
+    // 06:26 the subscription is found ended, Monday's morning the last paid one: the 07:22 window
+    // would be filed under Monday evening (an unpaid night), skipped, and wake the morning.
+    const active = routine(30, 8 * H);
+    const target = routine(7 * H + 22, 6 * H + 32, [1]);
+    const pending = { routine: target, from: at(0, 30, 6).getTime() };
+    const armed = armedFor(target);
+    assert.equal(planArming(at(6, 26, 5), active, pending, armed).action, 'keep');
+    const plan = planArming(at(6, 26, 5), active, pending, armed, '2026-10-05');
+    assert.equal(plan.action, 'arm');
+    if (plan.action === 'arm') assert.deepEqual(plan.times, active);
+    assert.deepEqual(planArming(at(6, 26, 5), active, pending, armedFor(active), '2026-10-05'), { action: 'defer', until: at(8, 0, 5) });
+  });
+});

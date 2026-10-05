@@ -66,6 +66,12 @@ function extensionShields(t: Date, routine: ArmTimes): boolean {
   return routine.activeNights.includes(evening.getDay());
 }
 
+/** The morning a window starting at `t` leads into, as the extension files it by `morningStart`. */
+function filedMorning(t: Date, morningStart: number): Date {
+  const minute = t.getHours() * 60 + t.getMinutes();
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate() + (minute < morningStart ? 0 : 1));
+}
+
 /**
  * Every moment between now and the edit at which the new windows would shield: each window
  * start, plus now itself if now falls inside one (iOS may run a window's start as soon as it
@@ -81,8 +87,17 @@ function extensionShields(t: Date, routine: ArmTimes): boolean {
  * It also only tightens if the edit has that evening on. One that switches tonight off along
  * with an earlier bedtime would otherwise shield from 21:30 (the routine in force says
  * Thursday is on) while the app says tonight is off. Those wait too.
+ *
+ * The extension files a window under an evening by the times *armed* (`locturneWindowNight`:
+ * before their morning start, it belongs to the evening before), so each moment is judged
+ * with the routine in force's nights but the new windows' morning start. Inside the routine in
+ * force's own night that matters too: a window the extension skips there *unshields* the
+ * bedtime apps (`skipLocturneNight`), so the rest of that night waits for it to end. That's an
+ * earlier bedtime promoted inside its own first night (#179) and armed again (an Undo, a second
+ * edit, onboarding again) with a morning start that files the next window under an evening the
+ * routine in force has off.
  */
-function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTimes, windows: NightWindow[]) {
+function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTimes, windows: NightWindow[], lastPaid: string | null) {
   const moments = [now];
   for (const w of windows) {
     for (const day of [0, 1, 2]) {
@@ -90,18 +105,35 @@ function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTime
       if (t > now && t.getTime() < from) moments.push(t);
     }
   }
+  // How the extension judges a window of the new times before the edit is due: filed by their
+  // morning start, asked of the routine in force's nights.
+  const judged = { ...active, morningStart: target.morningStart };
   let until: Date | null = null;
   for (const t of moments) {
     const theirs = nightsAround(t, asSettings(target)).latest;
     if (t >= theirs.end) continue; // not inside a new night (only possible for `now`)
+    // After a lapse the extension skips every night after the last paid morning
+    // (`locturneSubscriptionLapsed`), filed by the times armed. Inside the routine in force's
+    // night, where the morning under way still finishes, that skip wakes it: an early first
+    // night starting at 07:22 before an 08:00 morning start is filed under tonight, after the
+    // last paid morning. Wait for that night to end.
+    const ours = nightsAround(t, asSettings(active)).latest;
+    if (lastPaid !== null && t >= ours.start && t < ours.end && dateKey(filedMorning(t, target.morningStart)) > lastPaid) {
+      if (!until || ours.end > until) until = ours.end;
+      continue;
+    }
     if (theirs.end.getTime() > from) {
       // The night the edit applies to, unless the extension would skip this window.
-      const skipped = t.getTime() < from - EXTENSION_SLACK_MS && !extensionShields(t, active);
+      const skipped = t.getTime() < from - EXTENSION_SLACK_MS && !extensionShields(t, judged);
       if ((skipped || !extensionShields(t, target)) && (!until || until.getTime() < from)) until = new Date(from);
       continue;
     }
-    const ours = nightsAround(t, asSettings(active)).latest;
-    if (t < ours.end) continue; // night under the routine in force anyway
+    if (t < ours.end) {
+      // Night under the routine in force anyway, unless the extension skips this window there,
+      // which wakes the night it holds: wait for that night to end.
+      if (t.getTime() < from - EXTENSION_SLACK_MS && !extensionShields(t, judged) && (!until || ours.end > until)) until = ours.end;
+      continue;
+    }
     // The extension places the window by the times armed (the edit's, once armed) and, until
     // just before the edit applies, asks the routine in force whether that evening is on. On an
     // evening that's off it skips the window, and outside that routine's night a skip changes
@@ -115,15 +147,18 @@ function phantomUntil(now: Date, from: number, active: ArmTimes, target: ArmTime
 }
 
 /**
- * @param active  the routine in force now
- * @param pending an edit waiting for bedtime, applying from `from` (ms), or null
- * @param armed   what iOS is monitoring now, or null if nothing is armed
+ * @param active   the routine in force now
+ * @param pending  an edit waiting for bedtime, applying from `from` (ms), or null
+ * @param armed    what iOS is monitoring now, or null if nothing is armed
+ * @param lastPaid the last morning a lapsed subscription covers (`lastPaidMorning`,
+ *                 lock-controller.ts), or null while subscribed
  */
 export function planArming(
   now: Date,
   active: ArmTimes,
   pending: { routine: ArmTimes; from: number } | null,
   armed: ArmedNow,
+  lastPaid: string | null = null,
 ): ArmPlan {
   const target = pending?.routine ?? active;
   const windows = target.activeNights.length > 0 ? planNightWindows(target.bedtime, target.morningStart) : [];
@@ -133,7 +168,18 @@ export function planArming(
     // Stopping the windows now would free the night or morning under way (an unarmed morning
     // reads as unlocked), so turning every night off waits for its bedtime like any edit.
     // The monitor extension skips that bedtime's windows on its own.
-    if (pending && now.getTime() < pending.from) return { action: 'defer', until: new Date(pending.from) };
+    if (pending && now.getTime() < pending.from) {
+      // Waiting leaves the armed windows in place, so they must be the routine in force's:
+      // ones left from an edit since abandoned (an earlier bedtime, then every night off) would
+      // shield from their own bedtime, and the lock would follow them as an older routine's
+      // (`runsAs`, routine.ts), pulling tonight and every looser edit forward. Unless the armed
+      // windows hold the night under way (`heldUntil`): re-arming would hand it to a later bedtime.
+      const inForce = active.activeNights.length > 0 ? planNightWindows(active.bedtime, active.morningStart) : [];
+      if (inForce.length > 0 && !isArmed(armed, active, inForce) && !heldUntil(now, active, armed)) {
+        return { action: 'arm', times: active, windows: inForce };
+      }
+      return { action: 'defer', until: new Date(pending.from) };
+    }
     return { action: 'disarm' };
   }
 
@@ -149,7 +195,7 @@ export function planArming(
     const held = heldUntil(now, applied ? target : active, armed);
     if (held) return { action: 'defer', until: held };
   }
-  const until = pending && now.getTime() < pending.from ? phantomUntil(now, pending.from, active, target, windows) : null;
+  const until = pending && now.getTime() < pending.from ? phantomUntil(now, pending.from, active, target, windows, lastPaid) : null;
   if (!until) return isArmed(armed, target, windows) ? { action: 'keep' } : { action: 'arm', times: target, windows };
 
   // Waiting leaves the armed windows in place, which is only safe if they're the routine in

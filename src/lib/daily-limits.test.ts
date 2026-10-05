@@ -48,6 +48,18 @@ describe('editing a limit', () => {
     assert.deepEqual(editLimit(loosened, 'limit-0', 30, bedtime), thirty);
   });
 
+  test('a second loosening never brings the first one forward', () => {
+    const midnight = at(0, 0, 2);
+    const once = editLimit(thirty, 'limit-0', 60, midnight, at(9));
+    assert.deepEqual(editLimit(once, 'limit-0', 120, at(21), at(20)), [
+      { id: 'limit-0', minutes: 30, pending: { minutes: 120, from: midnight.getTime(), dated: at(9).getTime() } },
+    ]);
+    // A later start wins, dated now.
+    assert.deepEqual(editLimit(once, 'limit-0', null, at(23, 0, 2), at(20)), [
+      { id: 'limit-0', minutes: 30, pending: { minutes: null, from: at(23, 0, 2).getTime(), dated: at(20).getTime() } },
+    ]);
+  });
+
   test('removing a limit that does not exist changes nothing', () => {
     assert.deepEqual(editLimit(thirty, 'limit-2', null, bedtime), thirty);
   });

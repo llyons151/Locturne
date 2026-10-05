@@ -21,6 +21,7 @@ import {
   armedSince,
   armedWindowNames,
   armNight,
+  delayListChanges,
   disarmNight,
   getAccess,
   getArmedNight,
@@ -34,12 +35,14 @@ import {
   nightLockArmed,
   peekNap,
   reapplyStandingBlocks,
+  saveLimits,
   selectionSize,
   setAlwaysShieldText,
   setLimitShieldText,
   setMorningShieldText,
   setNightShieldText,
   setShieldText,
+  settleListChanges,
   sharedGet,
   sharedRemove,
   sharedSet,
@@ -47,6 +50,7 @@ import {
   standDown,
   standUp,
   wakeApps,
+  type StandingList,
 } from './screen-time.ts';
 import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
@@ -124,12 +128,13 @@ export function currentProof(now = new Date()): MorningProof | null {
  * the windows shield while the old routine still says it's day, and an open would wake them.
  * The same night `nightAt` (routine.ts) shows and the arming plans.
  *
- * With no edit waiting, the routine in force as iOS runs it (`asArmed`, routine.ts): an edit
- * whose arming waited out a phantom night applies at its bedtime, but with Locturne closed
- * nothing re-arms, so the old windows shield from the old bedtime (a later one saved after the
- * walk) or not until it (an earlier one). The lock follows them until the app re-arms, so an
- * open from bed never wakes a night iOS really holds, and Home and the warning name the time
- * the apps really sleep.
+ * Otherwise the routine in force as iOS runs it (`runsAs`, routine.ts), with or without an
+ * edit waiting: an edit whose arming waited out a phantom night applies at its bedtime, but
+ * with Locturne closed nothing re-arms, so the old windows shield from the old bedtime (a later
+ * one saved after the walk) or not until it (an earlier one). The lock follows them until the
+ * app re-arms, so an open from bed never wakes a night iOS really holds, and Home and the
+ * warning name the time the apps really sleep. Not when the windows armed are the waiting
+ * edit's own (`armedForEdit`): its early first night is `inPendingFirstNight`'s to judge.
  */
 export function routineAt(now: Date): Routine {
   return judgedAt(now).routine;
@@ -173,6 +178,10 @@ function governsEarly(at: Date, pending: { routine: Routine; from: number }, inF
   const inside = at >= latest.start && at < latest.end && latest.end.getTime() > pending.from;
   if (!inside) return false;
   const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
+  // A first night the edit has off only loosens: governing it would read `off` under a night
+  // the routine in force holds (a long first night saved from bed, with tonight switched off)
+  // and wake the apps. Whatever iOS does with its windows, the routine in force governs it.
+  if (!pending.routine.activeNights.includes(evening)) return false;
   // While iOS registers new windows, it can run one's start at once (shielding the early
   // night) before `getArmedNight()` names them: judge by the times being armed too, or a sync
   // in that gap would read day and wake the apps until `arm` sleeps them again.
@@ -213,6 +222,7 @@ export function syncLock(now = new Date()): LockState {
       if (!getArmedNight() || (phase !== 'night' && phase !== 'morning')) standDown();
     }
   }
+  if (isScreenTimeAvailable()) redateLooserEdits(now);
   const state = readLock(now);
   if (isScreenTimeAvailable()) {
     // Not a night or morning after the last one a lapsed subscription covers: the extension
@@ -220,8 +230,9 @@ export function syncLock(now = new Date()): LockState {
     // answers (`settleSubscription`).
     const asleep = (state.phase === 'night' || state.phase === 'morning') && !pastLastPaid(state.morningKey);
     if (!asleep && isNightHeld()) wakeApps('night');
-    // `readLock` only reports night or morning for a night armed in time, so a missed
-    // window or lost shields are put back, but a night armed after it began isn't.
+    // `readLock` reports a morning as locked only when its night was armed in time
+    // (`armedInTime`: before the morning started), so a missed window or lost shields are put
+    // back, but a morning nothing held overnight (an install's first) stays awake.
     else if (asleep && !isNightHeld() && selectionSize('night') > 0 && getArmedNight()) {
       sleepApps('night');
       reapplyStandingBlocks();
@@ -285,7 +296,7 @@ export function lapseStillCovers(now = new Date()): 'night' | 'morning' | null {
   return underWayWhenEnded(morningKey) ? phase : null;
 }
 
-/** No active subscription was found at the last check (never bought, or it ended). */
+/** How many paid settles there have been this launch (`paidSettleCount`). */
 let paidSettles = 0;
 
 /**
@@ -306,6 +317,7 @@ export function lastPaidMorning(): string | null {
   return sharedGet<string>(ENDED_MORNING_KEY) ?? null;
 }
 
+/** No active subscription was found at the last check (never bought, or it ended). */
 export function subscriptionEnded(): boolean {
   return sharedGet<number>(SUBSCRIPTION_ENDED_KEY) !== undefined;
 }
@@ -376,7 +388,7 @@ function planFor(now: Date): ArmPlan {
   const armed = getArmedNight();
   const pending = getPendingRoutine(now) ?? null;
   const edit = !!armed && !!pending && armedForEdit(armed, pending.routine, getRoutineChange(now)?.since);
-  return planArming(now, getRoutine(now), pending, armed && { ...armed, live: armedWindowNames().length, edit });
+  return planArming(now, getRoutine(now), pending, armed && { ...armed, live: armedWindowNames().length, edit }, lastPaidMorning());
 }
 
 export type ArmResult = 'armed' | 'kept' | 'disarmed' | 'deferred' | 'unavailable';
@@ -480,6 +492,8 @@ async function arm(now: Date): Promise<ArmResult> {
     return 'disarmed';
   }
   endPauseAtNextBedtime(now);
+  // A pause that ended just now gives the bedtime picks back before they're put to sleep.
+  settleListChanges(now, { limits: false });
   if (readLock(now).phase === 'night' && selectionSize('night') > 0) sleepApps('night');
   syncLock(now);
   armChanged();
@@ -509,16 +523,93 @@ export function nextBedtime(now: Date): Date {
 }
 
 /**
- * When a looser edit saved now starts (removals from a standing list, a looser or removed daily
- * limit): the next bedtime of the routine in force as iOS runs it (`routineAt`), dated like a
- * routine edit saved now. Not the armed windows' next start: a throwaway edit (bedtime in five
- * minutes, armed at once because it only tightens) would pull every loosening forward to its
- * first window, even from bed, and an Undo doesn't take it back. With nothing armed there's no
- * bedtime, so it waits for midnight (`looserEditsStart` in daily-limits.ts).
+ * When a looser edit saved now starts: a removal from the bedtime or always list, or a looser or
+ * removed daily limit (`list` omitted, or the limit's own list). One rule, so nothing loosens
+ * before the next real bedtime (GAME_PLAN):
+ *
+ * - The next bedtime of the routine in force as iOS runs it (`runsAs`, routine.ts), like a
+ *   routine edit saved now. Never a waiting edit's earlier bedtime: a throwaway edit (bedtime in
+ *   five minutes, armed at once because it only tightens, then Undo) would pull every loosening
+ *   forward to its first window. From bed inside that edit's early first night, which governs
+ *   (`inPendingFirstNight`), its next bedtime: an edit made at night waits for the next one.
+ * - Never before the midnight after protection was first armed (`armedSince`): with every night
+ *   off, a night armed for five minutes from now and then switched off again would otherwise
+ *   settle an always-list removal in five minutes. With nothing armed there's no bedtime, so it
+ *   waits for midnight (`looserEditsStart` in daily-limits.ts).
+ * - The bedtime list while it's awake (the day, with no Block now on it): the first night iOS
+ *   really starts, a waiting edit's early first night included (`governsEarly`). A removed app
+ *   then simply never sleeps tonight, which is what it would do under the routine in force, and
+ *   doesn't sleep at 21:00 only to wake at 23:15 in the middle of a night iOS holds. No midnight
+ *   floor for the same reason: it would wake mid-night on the first night.
+ * - The bedtime list while it's asleep: as the other lists, but never inside a night iOS holds
+ *   early for a waiting edit (it ends with a proof, not at 23:00): the next bedtime after it.
+ *
+ * Kept up to date by `redateLooserEdits`, worked out again for the moment each change was saved:
+ * when the windows or the edit change, a waiting change moves later, never earlier, so an Undo
+ * can't bring one forward. The Apps tab names when the phone really swaps a list
+ * (`listChangeLandsAt`, screen-time.ts), which can be a window after this.
  */
-export function looserEditsStartAt(now = new Date()): Date {
-  if (!getArmedNight()) return looserEditsStart(now, null);
-  return settingsTakeEffectAt(now, toLockSettings(routineAt(now)));
+export function looserEditsStartAt(now = new Date(), list?: StandingList): Date {
+  const armed = getArmedNight();
+  if (!armed) return looserEditsStart(now, null);
+  const inForce = getRoutine(now);
+  const pending = getPendingRoutine(now);
+  const since = armedSince(armed);
+  const floor = new Date(since.getFullYear(), since.getMonth(), since.getDate() + 1);
+  const floored = (at: Date) => (at > floor ? at : floor);
+  // From bed in a waiting edit's early first night, which governs (`routineAt`): its next bedtime.
+  if (pending && governsEarly(now, pending, inForce)) return floored(settingsTakeEffectAt(now, toLockSettings(pending.routine)));
+  const runs = runsAs(inForce, pending, armingTimes ?? armed, getRoutineChange(now)?.since);
+  const next = settingsTakeEffectAt(now, toLockSettings(runs));
+  const early = pending ? earlyFirstNight(now, pending, inForce) : null;
+  if (list === 'night' && bedtimeListAwake(now)) return early && early.start < next ? early.start : next;
+  const from = floored(next);
+  if (list === 'night' && pending && early && from >= early.start && from < early.end) {
+    return floored(settingsTakeEffectAt(early.end, toLockSettings(pending.routine)));
+  }
+  return from;
+}
+
+/**
+ * A waiting edit's first night that iOS holds early (`governsEarly`): the one under way, or
+ * else the next one, or null. Only one that runs past the moment the edit applies.
+ */
+function earlyFirstNight(now: Date, pending: { routine: Routine; from: number }, inForce: Routine): { start: Date; end: Date } | null {
+  const { latest, next } = nightsAround(now, toLockSettings(pending.routine));
+  const night = now < latest.end ? latest : next;
+  if (night.start.getTime() >= pending.from || night.end.getTime() <= pending.from) return null;
+  const at = night.start > now ? night.start : now;
+  return governsEarly(at, pending, inForce) ? night : null;
+}
+
+/** Is the bedtime list awake: not held by a night or morning, nor by Block now? */
+function bedtimeListAwake(now: Date): boolean {
+  if (isNightHeld() || peekNap(now)?.list === 'night') return false;
+  const { phase } = readLock(now);
+  return phase !== 'night' && phase !== 'morning';
+}
+
+/**
+ * Keeps every waiting looser edit at or after `looserEditsStartAt` worked out for the moment it
+ * was saved (`dated`), with the windows and the waiting routine edit as they are now: after the
+ * windows are armed again or the edit is replaced, a change dated by the old ones may be due too
+ * early (a removal dated by an earlier bedtime's first night, then Undo). Only ever later; one
+ * already due is left, and so are the bedtime picks parked by an emergency unlock. While nothing
+ * changes the answer is the same, so it runs at every sync.
+ */
+function redateLooserEdits(now: Date): void {
+  delayListChanges((list, dated) => looserEditsStartAt(dated, list), now);
+  const limits = getLimits();
+  let changed = false;
+  const next = limits.map((limit) => {
+    const { pending } = limit;
+    if (!pending || pending.dated === undefined || pending.from <= now.getTime()) return limit;
+    const due = looserEditsStartAt(new Date(pending.dated)).getTime();
+    if (due <= pending.from) return limit;
+    changed = true;
+    return { ...limit, pending: { ...pending, from: due } };
+  });
+  if (changed) saveLimits(next);
 }
 
 /**
@@ -542,10 +633,23 @@ const EMERGENCY_LOG_KEY = 'locturne.emergencyLog';
  * list's `from`) forward to the next bedtime, when the armed windows really start then.
  */
 function endPauseAtNextBedtime(now: Date): void {
-  const log = sharedGet<{ pauseNight: boolean; resumesAt?: number | null }[]>(EMERGENCY_LOG_KEY) ?? [];
+  const log = sharedGet<{ pauseNight: boolean; resumesAt?: number | null; at?: number }[]>(EMERGENCY_LOG_KEY) ?? [];
   const i = log.findIndex((use) => use.pauseNight && use.resumesAt != null);
   const until = i >= 0 ? log[i].resumesAt : null;
   if (!until || until <= now.getTime()) return;
+  // Armed only once the edit's early first night had begun (arming waited out a phantom night,
+  // and Locturne opened after that bedtime): that night isn't the one the unlock paused, and the
+  // app already reads it as held. The pause ends now (`arm` then puts the picks back).
+  const pending = getPendingRoutine(now);
+  if (pending && inPendingFirstNight(now)) {
+    const started = nightsAround(now, toLockSettings(pending.routine)).latest.start.getTime();
+    const usedAt = log[i].at;
+    if (usedAt !== undefined && usedAt < started) {
+      sharedSet(EMERGENCY_LOG_KEY, log.map((use, j) => (j === i ? { ...use, resumesAt: now.getTime() } : use)));
+      moveNightPause(now);
+      return;
+    }
+  }
   const next = nextBedtime(now);
   const armed = getArmedNight();
   // Only to a time a window really starts: the windows iOS runs now.
