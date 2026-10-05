@@ -99,8 +99,8 @@ export type PlanFacts = {
   armedSince?: Date | null;
   /**
    * The saved proofs (stairs, steps, a scan, a pass, an emergency unlock). A morning one of
-   * them unlocks (`proofUnlocks`: made since its night began, or a pass or emergency for its key)
-   * is already free.
+   * them unlocks (`proofUnlocks`: made since its night began, under the routine it was made
+   * under, or a pass or emergency for its key) is already free.
    */
   proofs?: MorningProof[];
   /** When the trial first charges, if one is running and a reminder was asked for. */

@@ -110,13 +110,23 @@ export type Night = { start: Date; end: Date };
  * stays begun. A bedtime the clocks skip (02:30 when they jump to 03:00) moves forward the way
  * JavaScript dates do.
  */
-function nightBefore(now: Date, s: LockSettings, offsetDays: number): Night {
+function nightBefore(now: Date, s: Pick<LockSettings, 'bedtime' | 'morningStart'>, offsetDays: number): Night {
   const end = atMinute(now, s.morningStart, offsetDays);
   if (s.bedtime === s.morningStart) return { start: end, end };
   const start = atMinute(now, s.bedtime, s.bedtime < s.morningStart ? offsetDays : offsetDays - 1);
   // A skipped bedtime can land after morning start (02:30 to 03:00 on spring-forward day).
   // That night simply doesn't happen.
   return start > end ? { start: end, end } : { start, end };
+}
+
+/**
+ * The night leading into the morning keyed `key` (YYYY-MM-DD, `dateKey`) under these times,
+ * in the zone the phone is in now. `proofUnlocks` (morning-proof.ts) asks it with the times a
+ * proof was judged under, so a routine saved since then can't move that night.
+ */
+export function nightInto(key: string, times: Pick<LockSettings, 'bedtime' | 'morningStart'>): Night {
+  const [year, month, day] = key.split('-').map(Number);
+  return nightBefore(new Date(year, month - 1, day), times, 0);
 }
 
 /** Which morning `now` belongs to: the latest night that has already started. */

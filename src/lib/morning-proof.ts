@@ -3,7 +3,7 @@
  * the same way: a proof recorded for that morning's key. `lock-controller.ts` reads it and
  * wakes the apps, so adding a method never touches the lock rules.
  */
-import { currentMorning, type Morning } from './lock-state.ts';
+import { currentMorning, nightInto, type Morning } from './lock-state.ts';
 import { getRoutine, toLockSettings, type Routine, type WakeMethod } from './routine.ts';
 import { sharedGet, sharedSet } from './screen-time.ts';
 
@@ -15,6 +15,13 @@ export type MorningProof = {
   kind: ProofKind;
   /** When it was recorded, in ms. */
   at: number;
+  /**
+   * The bedtime and morning start of the routine `recordProof` judged it under, in minutes
+   * since midnight. `proofUnlocks` finds the night into `morningKey` from these, so a routine
+   * saved since can't move it. Missing on proofs saved before they were kept.
+   */
+  bedtime?: number;
+  morningStart?: number;
 };
 
 const KEY = 'locturne.morningProofs';
@@ -50,13 +57,24 @@ export function proofCounts(proof: MorningProof, morning: Morning): boolean {
  * whole new night, and that morning needs its own wake-up. A same-day flight west keeps the
  * proof: LA's night began at 02:00 New York time, before a 07:30 walk there.
  *
+ * That night is the one the proof was made under: its routine's times (saved by
+ * `recordProof`), in the zone of now. A switch to a night shift (08:00 to 16:00) that applies
+ * after the walk names the same morning again, with a night that started at 08:00 that day,
+ * after the 07:30 walk; that night was never slept under the new routine, so it doesn't take
+ * the morning back. A proof saved without the times goes by `morning.nightStart`.
+ *
  * A pass or an emergency unlock is tied to its morning, not to a moment after bedtime (a pass
  * used the evening before covers the morning), so it counts for its key whenever it was made.
  */
 export function proofUnlocks(proof: MorningProof, morning: Pick<Morning, 'key' | 'nightStart'>): boolean {
   if (proof.morningKey !== morning.key) return false;
   if (proof.kind === 'pass' || proof.kind === 'emergency') return true;
-  return proof.at >= morning.nightStart.getTime();
+  const { bedtime, morningStart } = proof;
+  const nightStart =
+    bedtime === undefined || morningStart === undefined
+      ? morning.nightStart
+      : nightInto(proof.morningKey, { bedtime, morningStart }).start;
+  return proof.at >= nightStart.getTime();
 }
 
 export function getProofs(): MorningProof[] {
@@ -81,13 +99,16 @@ export function recordProof(proof: MorningProof, routine?: Routine): boolean {
   const at = new Date(proof.at);
   // The routine that governs `at`: in force, unless the caller knows a waiting edit's early
   // first night governs it (`routineAt` in lock-controller.ts, which imports this file).
-  const morning = currentMorning(at, toLockSettings(routine ?? getRoutine(at)));
+  const judged = routine ?? getRoutine(at);
+  const morning = currentMorning(at, toLockSettings(judged));
   if (!proofCounts(proof, morning)) return false;
+  // Saved with the times it was judged under, for `proofUnlocks`.
+  const saved: MorningProof = { ...proof, bedtime: judged.bedtime, morningStart: judged.morningStart };
   const all = getProofs();
   // A saved proof that still unlocks this morning means it's already unlocked. One from before
   // this morning's night began (the date replayed after a flight west) doesn't block this one.
   if (all.some((p) => proofUnlocks(p, morning))) return false;
-  sharedSet(KEY, [proof, ...all].slice(0, KEEP));
+  sharedSet(KEY, [saved, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();
   return true;
 }

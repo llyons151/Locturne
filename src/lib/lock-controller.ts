@@ -68,7 +68,9 @@ export function readLock(now = new Date()): LockState {
   const morning = currentMorning(now, settings);
   // A proof saved for this morning since its night began here (`proofUnlocks`). Its timing
   // against morning start was judged when it was saved, so a flight west or a later morning
-  // start since then doesn't take the morning back; a new night since then does.
+  // start since then doesn't take the morning back; a new night since then does. That night is
+  // the one under the routine the proof was made under: a night shift saved after it names the
+  // same morning with a night that was never slept.
   const proof = getProof(morning);
   const armed = getArmedNight();
   const free = !armedInTime(now, settings, armed ? armedSince(armed) : null);

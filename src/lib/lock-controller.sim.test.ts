@@ -63,6 +63,23 @@ const nightLength = (b: number, m: number) => (((m - b) % 1440) + 1440) % 1440;
 const TIME_PAIRS = BEDTIMES.flatMap((b) => MORNINGS.map((m) => [b, m] as const)).filter(
   ([b, m]) => nightLength(b, m) >= 30 && nightLength(b, m) <= 12 * 60,
 );
+/**
+ * Shift work: sleep in the day after a night shift (08:00 to 16:00), or late after an evening
+ * one (03:00 to 11:00). A switch between these and an ordinary night can name a morning again
+ * that was already proven under the old routine.
+ */
+const SHIFT_PAIRS = [
+  [8 * 60, 16 * 60],
+  [7 * 60, 15 * 60],
+  [9 * 60 + 30, 17 * 60],
+  [6 * 60, 14 * 60],
+  [10 * 60, 13 * 60],
+  [14 * 60, 22 * 60],
+  [19 * 60, 3 * 60],
+  [3 * 60, 11 * 60],
+  [4 * 60, 12 * 60],
+] as const;
+const pickTimes = (r: ReturnType<typeof prng>) => (r.chance(0.25) ? r.pick(SHIFT_PAIRS) : r.pick(TIME_PAIRS));
 
 type Action =
   | { kind: 'open' }
@@ -114,7 +131,7 @@ function dstChanges(year: number): number[] {
 const DST_2026 = dstChanges(2026);
 
 function randomRoutine(r: ReturnType<typeof prng>): Routine {
-  const [bedtime, morningStart] = r.pick(TIME_PAIRS);
+  const [bedtime, morningStart] = pickTimes(r);
   return {
     bedtime,
     morningStart,
@@ -156,7 +173,7 @@ function scenario(seed: number, maxDays: number): Scenario {
       const which = r.int(0, 4);
       let patch: Partial<Routine>;
       if (which <= 1) {
-        const [b, m] = r.pick(TIME_PAIRS);
+        const [b, m] = pickTimes(r);
         patch = { bedtime: b, morningStart: m };
         bedtime = b;
         morningStart = m;
@@ -212,7 +229,8 @@ class SimFailure extends Error {
   }
 }
 
-type Proof = { key: string; kind: string; at: number };
+/** A proof the app accepted, with the bedtime and morning start of the routine it was made under. */
+type Proof = { key: string; kind: string; at: number; bedtime: number; morningStart: number };
 type LimitSpec = { strict: number; loosen?: { minutes: number | null; from: number } };
 type ListName = 'always' | 'night' | 'block' | LimitId;
 const LISTS: ListName[] = ['always', 'night', 'block', 'limit-0', 'limit-1', 'limit-2'];
@@ -308,6 +326,21 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
   const pausedAbs = (at: number) => spec.pausedUntil !== null && at < spec.pausedUntil;
   const latestRoutine = () => spec.routines[spec.routines.length - 1]?.routine ?? rt.DEFAULT_ROUTINE;
   const settingsAt = (at: number) => rt.toLockSettings(routineAt(at));
+  const timesAt = (at: number) => {
+    const { bedtime, morningStart } = routineAt(at);
+    return { bedtime, morningStart };
+  };
+  /**
+   * When the night into a proof's morning began, on the clock of now, under the times the proof
+   * was made under: bedtime on the morning's day if it comes before morning start, otherwise the
+   * day before; none (morning start) for equal times or a bedtime the clocks skip past it.
+   */
+  const nightInto = (p: Proof) => {
+    const [y, mo, d] = p.key.split('-').map(Number);
+    const end = new Date(y, mo - 1, d, 0, p.morningStart).getTime();
+    if (p.bedtime === p.morningStart) return end;
+    return Math.min(end, new Date(y, mo - 1, p.bedtime < p.morningStart ? d : d - 1, 0, p.bedtime).getTime());
+  };
 
   function phaseAt(at: number) {
     const settings = settingsAt(at);
@@ -317,9 +350,10 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     // or a later morning start doesn't take one back, but a new night does: a walk counts for
     // its morning only if no bedtime has begun here since (the night leading into this morning,
     // on this clock, started before it). Over the date line the same key comes round again
-    // after a whole night. A pass or an emergency unlock is tied to its morning's key.
-    const nightBegan = ls.nightsAround(now, settings).latest.start.getTime();
-    const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || p.at >= nightBegan));
+    // after a whole night. That night is the one under the routine the walk was made under: a
+    // night shift saved since names the same morning with a night nobody slept under it. A
+    // pass or an emergency unlock is tied to its morning's key.
+    const proven = spec.proofs.some((p) => p.key === morning.key && (p.kind === 'pass' || p.kind === 'emergency' || p.at >= nightInto(p)));
     const free = spec.armedSince === null || !ls.armedInTime(now, settings, new Date(spec.armedSince));
     return ls.getLockState(now, settings, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
   }
@@ -616,7 +650,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         const expect = before.phase === 'morning';
         if (expect !== (state?.phase === 'day')) fail('proof', `phase ${before.phase}, proof ${state ? state.phase : 'refused'}`);
         if (expect) {
-          spec.proofs.push({ key: before.morningKey, kind: a.method, at: t });
+          spec.proofs.push({ key: before.morningKey, kind: a.method, at: t, ...timesAt(t) });
           count('proof');
         } else count('proof-refused');
         break;
@@ -630,7 +664,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         if (expect !== (refusal === null)) fail('pass', `phase ${before.phase}, ${left} left, refusal ${refusal}`);
         if (expect) {
           spec.passes.push(before.morningKey);
-          spec.proofs.push({ key: before.morningKey, kind: 'pass', at: t });
+          spec.proofs.push({ key: before.morningKey, kind: 'pass', at: t, ...timesAt(t) });
           spec.nap = null;
           count('pass');
         }
@@ -657,7 +691,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
           );
           count('emergency-night');
         }
-        if (plan?.unlockMorning) spec.proofs.push({ key: before.morningKey, kind: 'emergency', at: t });
+        if (plan?.unlockMorning) spec.proofs.push({ key: before.morningKey, kind: 'emergency', at: t, ...timesAt(t) });
         if (plan?.endBlockNow) spec.nap = null;
         if (plan) count('emergency');
         break;
