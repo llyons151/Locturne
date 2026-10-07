@@ -3,7 +3,6 @@
 // React. The React Compiler would cache those reads from the first render (Home mounts under
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
-import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -12,10 +11,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { useProtection } from '@/hooks/use-protection';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
-import { OutlineButton, PrimaryButton } from '@/components/buttons';
-import { Section, sym, ValueRow } from '@/components/grouped-list';
+import { sym, type Symbol } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
-import { Segmented } from '@/components/segmented';
 import * as haptic from '@/lib/haptics';
 import { onLockChange, syncLock } from '@/lib/lock-controller';
 import {
@@ -36,7 +33,6 @@ import { formatPreset, noOrphan } from '@/lib/text';
 import {
   DisplayFont,
   italicOverhang,
-  Nocturne,
   NUMBER_FONT,
   Space,
   Type,
@@ -48,7 +44,6 @@ import { shownLine, type NapLine } from './nap-line';
 import { closeSleepSheet } from './sleep-sheet';
 import { useSideways } from './use-sideways';
 
-const SKY = require('@/assets/onboarding/night-sky-moonless.png');
 
 /**
  * The Sleep sheet, GAME_PLAN's "Block now": tuck him in for a while, and the bedtime apps (or
@@ -64,10 +59,6 @@ const lengthLabel = (minutes: number) => (minutes % 60 === 0 ? `${minutes / 60} 
 const LENGTHS = [15, 30, 60, 120, 240].map((minutes) => ({ value: minutes, label: lengthLabel(minutes) }));
 
 type List = ActiveNap['list'];
-const LISTS: { value: List; label: string }[] = [
-  { value: 'night', label: 'Bedtime apps' },
-  { value: 'block', label: 'Pick apps' },
-];
 
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
@@ -223,104 +214,103 @@ export function NapScreen() {
     setLength(next.value);
   };
 
-  // The pill under the picture, like the reference's address pill: what sleeps, until when.
+  // The reference's white address pill: what sleeps, until when.
   const pill = nap ? napStatus : `Apps asleep until ${timeOf(now + length * 60_000)}`;
+  const pickApps = () =>
+    isScreenTimeAvailable() ? !isPickerSettling('block') && setPicking(true) : refuse("Apple's app picker only opens on iPhone.");
 
   return (
     <View style={styles.sheet}>
+      {/* Copied from the user's references (sleep-sheet.png, and the wallet sheet's option
+          cards): white, dark type, one blue for actions and the chosen option. */}
       <Text style={styles.title} accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.4}>
         Sleep
       </Text>
+      <Animated.View key={shown} entering={FadeIn.duration(300)}>
+        <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
+      </Animated.View>
 
-      {/* The reference's map: here the night sky, with his line and the length on it. */}
-      <View style={styles.visual}>
-        <Image source={SKY} style={[StyleSheet.absoluteFill, styles.sky]} contentFit="cover" contentPosition="top right" accessible={false} />
-
-        <Animated.View key={shown} entering={FadeIn.duration(400)}>
-          <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
-        </Animated.View>
-
-        {nap ? (
-          <View
-            style={styles.timer}
-            accessible
-            accessibilityLabel={`${plural(Math.max(0, Math.ceil(left / 60)), 'minute')} left. ${napStatus}.`}
-          >
-            <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
-              {clock(left)}
-            </Text>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${Math.min(1, done) * 100}%` }]} />
-            </View>
-          </View>
-        ) : (
-          /* One adjustable control for VoiceOver: swipe up or down to change the length. */
-          <View
-            style={styles.stepper}
-            accessible
-            accessibilityRole="adjustable"
-            accessibilityLabel="Nap length"
-            accessibilityValue={{ text: `${lengthLabel(length)}, apps asleep until ${timeOf(now + length * 60_000)}` }}
-            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-            onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}
-          >
-            <StepButton icon="minus" onPress={() => step(-1)} disabled={at <= 0} />
-            <Animated.Text key={length} entering={FadeIn.duration(220)} style={styles.lengthValue} maxFontSizeMultiplier={1.2}>
-              {lengthLabel(length)}
-            </Animated.Text>
-            <StepButton icon="plus" onPress={() => step(1)} disabled={at >= LENGTHS.length - 1} />
-          </View>
-        )}
-
-        <View style={styles.pill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={15} tintColor={Nocturne.text} />
-          <Text style={styles.pillText} numberOfLines={1}>
-            {pill}
+      {nap ? (
+        <View
+          style={styles.timer}
+          accessible
+          accessibilityLabel={`${plural(Math.max(0, Math.ceil(left / 60)), 'minute')} left. ${napStatus}.`}
+        >
+          <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
+            {clock(left)}
           </Text>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${Math.min(1, done) * 100}%` }]} />
+          </View>
         </View>
-      </View>
-
-      <Text style={styles.body}>
-        {nap && !napProtected ? 'Turn Screen Time access back on from the Apps tab.' : nap
-          ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`
-          : `${list === 'night' ? 'Your bedtime apps sleep' : 'The apps you pick sleep'} with him. Phone calls still get through.`}
-      </Text>
-
-      {nap ? null : (
-        <View style={styles.choose}>
-          <Segmented label="Which apps sleep" value={list} options={LISTS} onChange={choose} />
-          {list === 'block' && (
-            <Section>
-              <ValueRow
-                icon={sym('square.grid.2x2', 'apps')}
-                title="Apps for naps"
-                value={picks ? countPicks(picks) : 'None yet'}
-                onPress={() =>
-                  isScreenTimeAvailable() ? (!isPickerSettling('block') && setPicking(true)) : refuse("Apple's app picker only opens on iPhone.")
-                }
-                last
-              />
-            </Section>
-          )}
+      ) : (
+        /* One adjustable control for VoiceOver: swipe up or down to change the length. */
+        <View
+          style={styles.stepper}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Nap length"
+          accessibilityValue={{ text: `${lengthLabel(length)}, apps asleep until ${timeOf(now + length * 60_000)}` }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}
+        >
+          <StepButton icon="minus" onPress={() => step(-1)} disabled={at <= 0} />
+          <Text style={styles.lengthValue} maxFontSizeMultiplier={1.2}>
+            {lengthLabel(length)}
+          </Text>
+          <StepButton icon="plus" onPress={() => step(1)} disabled={at >= LENGTHS.length - 1} />
         </View>
       )}
 
-      {/* The reference's two buttons: the main one filled, the other outlined. */}
+      <View style={styles.pill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={16} tintColor={BLUE} />
+        <Text style={styles.pillText} numberOfLines={1}>
+          {pill}
+        </Text>
+      </View>
+
+      {nap ? (
+        <Text style={styles.body}>
+          {!napProtected
+            ? 'Turn Screen Time access back on from the Apps tab.'
+            : `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`}
+        </Text>
+      ) : (
+        /* The wallet sheet's option cards: icon, title, a grey line, and a check on the chosen one. */
+        <View style={styles.options} accessibilityRole="radiogroup">
+          <Option
+            icon={sym('moon.zzz.fill', 'bedtime')}
+            title="Bedtime apps"
+            detail="The ones that sleep every night. Calls still get through."
+            selected={list === 'night'}
+            onPress={() => choose('night')}
+          />
+          <Option
+            icon={sym('square.grid.2x2.fill', 'apps')}
+            title="Pick apps"
+            detail={list === 'block' ? `${picks ? countPicks(picks) : 'None yet'}. Tap to change.` : 'Choose apps just for this nap.'}
+            selected={list === 'block'}
+            onPress={() => (list === 'block' ? pickApps() : choose('block'))}
+          />
+        </View>
+      )}
+
+      {/* The reference's two buttons: the main one filled blue, the other outlined. */}
       <View style={styles.actions}>
         {nap ? (
           <>
-            <PrimaryButton flex label="Done" onPress={closeSleepSheet} />
-            <OutlineButton flex label="Wake him early" onPress={wake} />
+            <SheetButton label="Done" onPress={closeSleepSheet} />
+            <SheetButton outline label="Wake him early" onPress={wake} />
           </>
         ) : (
           <>
-            <PrimaryButton flex icon={sym('moon.zzz.fill', 'bedtime')} label="Tuck him in" onPress={start} disabled={starting} />
-            <OutlineButton flex label="Cancel" onPress={closeSleepSheet} />
+            <SheetButton icon={sym('moon.zzz.fill', 'bedtime')} label="Tuck him in" onPress={start} disabled={starting} />
+            <SheetButton outline label="Cancel" onPress={closeSleepSheet} />
           </>
         )}
       </View>
       {/* Never imply protection is on when it isn't (GAME_PLAN, "Reliability"). */}
-      {notice && <Text style={styles.preview}>{notice}</Text>}
+      {notice && <Text style={styles.notice}>{notice}</Text>}
 
       {nap ? <NapClock side={side} progress={done} left={left} until={napStatus} /> : null}
 
@@ -340,6 +330,81 @@ export function NapScreen() {
   );
 }
 
+/** One of the wallet sheet's option cards. The chosen one gets a blue edge and check. */
+function Option({
+  icon,
+  title,
+  detail,
+  selected,
+  onPress,
+}: {
+  icon: Symbol;
+  title: string;
+  detail: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.tap();
+        onPress();
+      }}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={`${title}. ${detail}`}
+      style={({ pressed }) => [styles.option, selected && styles.optionOn, pressed && styles.pressed]}
+    >
+      <View style={[styles.optionIcon, selected && styles.optionIconOn]}>
+        <SymbolView name={icon} size={18} tintColor={selected ? '#FFFFFF' : INK2} />
+      </View>
+      <View style={styles.optionText}>
+        <Text style={styles.optionTitle}>{title}</Text>
+        <Text style={styles.optionDetail}>{detail}</Text>
+      </View>
+      {selected ? (
+        <View style={styles.check}>
+          <SymbolView name={sym('checkmark', 'check')} size={11} weight="bold" tintColor="#FFFFFF" />
+        </View>
+      ) : (
+        <View style={styles.radio} />
+      )}
+    </Pressable>
+  );
+}
+
+/** The reference's buttons: "Locate Me" filled blue with an icon, "Change" outlined in blue. */
+function SheetButton({
+  label,
+  onPress,
+  outline,
+  icon,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  outline?: boolean;
+  icon?: Symbol;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.tap();
+        onPress();
+      }}
+      disabled={disabled}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.button, outline && styles.buttonOutline, (pressed || disabled) && styles.pressed]}
+    >
+      {icon ? <SymbolView name={icon} size={17} weight="semibold" tintColor="#FFFFFF" /> : null}
+      <Text style={[styles.buttonLabel, outline && styles.buttonLabelOutline]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 /** The round − and + either side of the length, like a stepper. */
 function StepButton({ icon, onPress, disabled }: { icon: 'minus' | 'plus'; onPress: () => void; disabled: boolean }) {
   return (
@@ -350,7 +415,7 @@ function StepButton({ icon, onPress, disabled }: { icon: 'minus' | 'plus'; onPre
       importantForAccessibility="no"
       style={({ pressed }) => [styles.stepButton, disabled && styles.stepDisabled, pressed && styles.pressed]}
     >
-      <SymbolView name={sym(icon, icon === 'minus' ? 'remove' : 'add')} size={17} weight="semibold" tintColor={Nocturne.text} />
+      <SymbolView name={sym(icon, icon === 'minus' ? 'remove' : 'add')} size={17} weight="semibold" tintColor={INK} />
     </Pressable>
   );
 }
@@ -365,64 +430,100 @@ function Voice({ text }: { text: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  // Sized to its contents inside the floating card (sleep-sheet.tsx), which adds the bottom inset.
-  sheet: { paddingHorizontal: Space.l, paddingTop: Space.m, gap: Space.l },
-  pressed: { opacity: 0.6 },
-  title: { ...Type.body, fontWeight: '600', color: Nocturne.text, textAlign: 'center' },
+// The references' light palette, in the app's blue rather than their indigo.
+const INK = '#111827';
+const INK2 = '#6B7280';
+const LINE = '#E5E7EB';
+const BLUE = '#2F6FD6';
+const BLUE_SOFT = '#EEF4FD';
 
-  visual: {
-    borderRadius: 28,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    padding: Space.l,
-    gap: Space.l,
-    backgroundColor: Nocturne.bg,
-  },
-  // The app's sky, light from below, as behind the tabs.
-  sky: { transform: [{ scaleY: -1 }] },
+const styles = StyleSheet.create({
+  // Sized to its contents inside the white card (sleep-sheet.tsx), which adds the bottom inset.
+  sheet: { paddingHorizontal: Space.xl, paddingTop: Space.m, gap: Space.l },
+  pressed: { opacity: 0.7 },
+  title: { color: INK, fontSize: 20, lineHeight: 26, fontWeight: '700', textAlign: 'center', marginTop: Space.xs },
   voice: {
     ...DisplayFont,
     ...italicOverhang(VoiceSize.aside),
-    color: Nocturne.text,
-    fontSize: VoiceSize.aside,
-    lineHeight: VoiceSize.aside * 1.15,
+    color: INK2,
+    fontSize: 19,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginTop: -Space.s,
   },
   emphasis: { fontStyle: 'normal' },
-  body: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', paddingHorizontal: Space.s },
+  body: { ...Type.secondary, color: INK2, textAlign: 'center' },
 
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.m },
   stepButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(30, 31, 35, 0.85)',
+    backgroundColor: '#F3F4F6',
   },
   stepDisabled: { opacity: 0.35 },
-  lengthValue: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 48, lineHeight: 54, fontVariant: ['tabular-nums'] },
+  lengthValue: { ...NUMBER_FONT, color: INK, fontSize: 48, lineHeight: 54, fontVariant: ['tabular-nums'] },
 
+  // White, softly lifted, as in the reference. A neutral shadow, never a glow.
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s,
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: Space.l,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: LINE,
+  },
+  pillText: { flex: 1, ...Type.secondary, fontWeight: '600', color: INK },
+
+  options: { gap: Space.s },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.m,
+    padding: Space.m,
     borderRadius: 16,
     borderCurve: 'continuous',
-    backgroundColor: 'rgba(22, 22, 23, 0.82)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Nocturne.edge,
+    borderWidth: 1.5,
+    borderColor: LINE,
+    backgroundColor: '#FFFFFF',
   },
-  pillText: { flex: 1, ...Type.secondary, fontWeight: '500', color: Nocturne.text },
+  optionOn: { borderColor: BLUE, backgroundColor: BLUE_SOFT },
+  optionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
+  optionIconOn: { backgroundColor: BLUE },
+  optionText: { flex: 1, gap: 1 },
+  optionTitle: { color: INK, fontSize: 16, fontWeight: '600' },
+  optionDetail: { ...Type.caption, color: INK2 },
+  check: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#D1D5DB' },
 
-  choose: { gap: Space.m },
   actions: { flexDirection: 'row', gap: Space.m },
-  preview: { ...Type.caption, color: Nocturne.text3, textAlign: 'center' },
+  button: {
+    flex: 1,
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.s,
+    paddingHorizontal: Space.l,
+    borderRadius: 27,
+    backgroundColor: BLUE,
+  },
+  buttonOutline: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: BLUE },
+  buttonLabel: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
+  buttonLabelOutline: { color: BLUE },
+  notice: { ...Type.caption, color: INK2, textAlign: 'center' },
 
   timer: { gap: Space.m, alignItems: 'center' },
-  countdown: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 56, lineHeight: 62, fontVariant: ['tabular-nums'] },
-  track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
+  countdown: { ...NUMBER_FONT, color: INK, fontSize: 56, lineHeight: 62, fontVariant: ['tabular-nums'] },
+  track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: LINE, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 3, backgroundColor: BLUE },
 });

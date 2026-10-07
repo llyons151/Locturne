@@ -91,3 +91,20 @@ circle (Chrome won't clip moving layers to rounded views) and holds still with R
 - "remove the moon image thing you keep using it looks like shit": the moon photo is gone from
   the Apps and Routine status cards and the Sleep sheet picture. Don't use `moon.webp` as a
   decoration again.
+
+## Round 7: copy the references, smooth swipe-close (same day)
+
+"when you swipe off of it the animation to close is kinda janky, make everything buttery
+smooth, also the ui for it looks like shit... literly just copy this" (`sleep-sheet.png` and
+`option-cards-sheet.png`, a wallet app's "Where would you send the money?" sheet).
+
+- **Look:** a white sheet, dark type and one blue (#2F6FD6, the app's blue rather than the
+  references' indigo). Title, Loc's line small in grey serif, the − 30 min + stepper, the
+  white shadowed pill, the apps choice as the wallet sheet's option cards (icon, title, grey
+  line, blue edge and check on the chosen one; tapping "Pick apps" again opens Apple's
+  picker), and a filled blue "Tuck him in" beside an outlined blue "Cancel". The liquid glass
+  and the sky picture are gone.
+- **Motion:** one value, the card's offset. Open is a soft spring with no wobble; the drag
+  follows the finger 1:1 (up resists); letting go hands the finger's speed to a clamped spring,
+  so a flick carries on off the screen with no stall. The old close restarted from rest on an
+  ease-in curve, which is what stuttered. The drop-stretch effects are gone.
