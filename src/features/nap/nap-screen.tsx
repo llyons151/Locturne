@@ -49,7 +49,6 @@ import { closeSleepSheet } from './sleep-sheet';
 import { useSideways } from './use-sideways';
 
 const SKY = require('@/assets/onboarding/night-sky-moonless.png');
-const MOON = require('@/assets/onboarding/moon.webp');
 
 /**
  * The Sleep sheet, GAME_PLAN's "Block now": tuck him in for a while, and the bedtime apps (or
@@ -233,12 +232,11 @@ export function NapScreen() {
         Sleep
       </Text>
 
-      {/* The reference's map: here the night sky and the moon, with his line and the length on it. */}
+      {/* The reference's map: here the night sky, with his line and the length on it. */}
       <View style={styles.visual}>
         <Image source={SKY} style={[StyleSheet.absoluteFill, styles.sky]} contentFit="cover" contentPosition="top right" accessible={false} />
-        <Image source={MOON} style={styles.moon} contentFit="contain" accessible={false} />
 
-        <Animated.View key={shown} entering={FadeIn.duration(400)} style={styles.voiceWrap}>
+        <Animated.View key={shown} entering={FadeIn.duration(400)}>
           <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
         </Animated.View>
 
@@ -258,7 +256,7 @@ export function NapScreen() {
         ) : (
           /* One adjustable control for VoiceOver: swipe up or down to change the length. */
           <View
-            style={[styles.stepper, styles.stepperRoom]}
+            style={styles.stepper}
             accessible
             accessibilityRole="adjustable"
             accessibilityLabel="Nap length"
@@ -367,8 +365,6 @@ function Voice({ text }: { text: string }) {
   );
 }
 
-const MOON_SIZE = 112;
-
 const styles = StyleSheet.create({
   // Sized to its contents inside the floating card (sleep-sheet.tsx), which adds the bottom inset.
   sheet: { paddingHorizontal: Space.l, paddingTop: Space.m, gap: Space.l },
@@ -385,11 +381,6 @@ const styles = StyleSheet.create({
   },
   // The app's sky, light from below, as behind the tabs.
   sky: { transform: [{ scaleY: -1 }] },
-  // The real moon, half out of the corner, as on the Apps and Routine cards.
-  moon: { position: 'absolute', width: MOON_SIZE, height: MOON_SIZE, top: -MOON_SIZE * 0.4, right: -MOON_SIZE * 0.3 },
-  voiceWrap: { paddingRight: MOON_SIZE * 0.6 },
-  // Clear of the moon in the corner.
-  stepperRoom: { marginTop: Space.s },
   voice: {
     ...DisplayFont,
     ...italicOverhang(VoiceSize.aside),

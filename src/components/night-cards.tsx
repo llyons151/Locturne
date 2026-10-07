@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -8,13 +7,11 @@ import { Nocturne, Radius, Space, Type } from '@/theme';
 
 /**
  * The status card at the top of the Apps and Routine tabs (docs/UI_REDESIGN.md), after Sky
- * Guide's Calendar and Tonight cards: a small caps line, a bold title and one plain line,
- * with the real moon sitting in the card's right edge.
+ * Guide's Calendar and Tonight cards: a small caps line, a bold title and one plain line.
+ * (It had the moon photo in its right edge; the user didn't like it, so it's gone.)
  *
  * Neutral: a navy-to-charcoal fill and a hairline edge, never a glow.
  */
-
-const MOON = require('@/assets/onboarding/moon.webp');
 
 /** The card's fill, the sky's navy at the top left fading into the cards' charcoal. */
 function Fill({ id, dim }: { id: string; dim?: boolean }) {
@@ -31,10 +28,7 @@ function Fill({ id, dim }: { id: string; dim?: boolean }) {
   );
 }
 
-/**
- * Tonight at a glance: "TONIGHT · TUESDAY" / "11 pm – 7 am" / one line, with the moon in
- * the right edge. A night that's off dims the moon, so a glance tells on from off.
- */
+/** Tonight at a glance: "EVERY NIGHT" / "11 pm – 7 am" / one line. A night that's off fades its fill. */
 export function NightCard({
   eyebrow,
   title,
@@ -58,7 +52,6 @@ export function NightCard({
   const body = (
     <>
       <Fill id="night-card" dim={off} />
-      <Image source={MOON} style={[styles.moon, off && styles.moonOff]} contentFit="contain" accessibilityIgnoresInvertColors />
       <View style={styles.nightText}>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
         <Text style={styles.nightTitle} maxFontSizeMultiplier={1.3}>
@@ -91,8 +84,6 @@ export function NightCard({
   );
 }
 
-const MOON_SIZE = 112;
-
 const styles = StyleSheet.create({
   pressed: { opacity: 0.8 },
 
@@ -105,10 +96,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
   },
-  // Half in, half out of the right edge, like Sky Guide's calendar rows.
-  moon: { position: 'absolute', width: MOON_SIZE, height: MOON_SIZE, right: -MOON_SIZE * 0.28, top: '50%', marginTop: -MOON_SIZE / 2 },
-  moonOff: { opacity: 0.35 },
-  nightText: { gap: 2, paddingVertical: Space.l, paddingLeft: Space.l, paddingRight: MOON_SIZE * 0.72 + Space.s },
+  nightText: { gap: 2, padding: Space.l },
   eyebrow: { ...Type.label, fontSize: 11, color: Nocturne.text2 },
   nightTitle: { color: Nocturne.text, fontSize: 24, lineHeight: 30, fontWeight: '700', letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
   nightDetail: { ...Type.secondary, color: Nocturne.text2 },

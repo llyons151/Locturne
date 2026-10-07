@@ -78,3 +78,16 @@ pools of white, moon white and sky blue drifting on one slow 14 s clock over a s
 (made bluer after the user said it "still feels like indigo"),
 with a fixed gloss highlight and a darker rim so it reads as a sphere. It's clipped by an SVG
 circle (Chrome won't clip moving layers to rounded views) and holds still with Reduce Motion.
+
+## Round 6: liquid glass Sleep sheet, moon photo removed (same day)
+
+- "the popup should have that apple liquid glass popup feel": the card is Apple's liquid glass
+  (`GlassView`) on iOS 26, and a frosted pane that blurs the page elsewhere. One even hairline
+  edge (the brighter top rim "looks weird"). Cancel is a glass pill.
+- "the whole popup should have a liquid feel this extends to the animations": it rises from
+  the bottom on a soft spring, slightly tall like a drop on the way up, squashing a touch as
+  it settles; a pull down stretches it. A version that grew out of the Sleep orb was rejected:
+  "it should still appear from the bottom not corner".
+- "remove the moon image thing you keep using it looks like shit": the moon photo is gone from
+  the Apps and Routine status cards and the Sleep sheet picture. Don't use `moon.webp` as a
+  decoration again.

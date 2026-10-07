@@ -38,7 +38,7 @@ export function PrimaryButton({
   );
 }
 
-/** The outlined pill that sits beside a `PrimaryButton`: the other, quieter choice. */
+/** The glass pill that sits beside a `PrimaryButton`: the other, quieter choice. */
 export function OutlineButton({ label, onPress, flex }: { label: string; onPress: () => void; flex?: boolean }) {
   return (
     <Pressable
@@ -78,7 +78,13 @@ const styles = StyleSheet.create({
     gap: Space.s,
   },
   flex: { flex: 1 },
-  outline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Nocturne.progressTrack },
+  // A pill of glass: a faint fill with light catching its top edge, like iOS 26's glass buttons.
+  outline: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+  },
   outlineLabel: { color: Nocturne.text, fontSize: 17, fontWeight: '600' },
   ctaDisabled: { backgroundColor: Nocturne.raised },
   ctaLabel: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
