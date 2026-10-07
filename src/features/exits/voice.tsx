@@ -4,7 +4,7 @@ import { noOrphan } from '@/lib/text';
 import { DisplayFont, italicOverhang, Nocturne, VoiceSize } from '@/theme';
 
 /**
- * His line in the italic serif, as on the Nap tab. `*word*` is set in the upright cut for
+ * His line in the italic serif, as on the Sleep sheet. `*word*` is set in the upright cut for
  * emphasis ("Fine. *Fine.*"). Shared by the exits and scan screens.
  */
 export function Voice({ text }: { text: string }) {

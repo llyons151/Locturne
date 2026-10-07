@@ -11,9 +11,10 @@ import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
-import { type MenuOption } from '@/components/control-types';
+import { nightsLabel, type MenuOption } from '@/components/control-types';
 import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
-import { ChoiceRow, Section, sym, ValueRow } from '@/components/grouped-list';
+import { Card, ChoiceRow, sym, ValueRow } from '@/components/grouped-list';
+import { NightCard } from '@/components/night-cards';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
 import { armRoutine, inPendingFirstNight, onLockChange, routineAt, syncLock } from '@/lib/lock-controller';
@@ -171,9 +172,9 @@ export function RoutineScreen() {
   }, []);
 
   const commit = (next: Routine) => {
-    // Left onboarding before its setup was saved: a save here would be the first routine, and
-    // with one saved onboarding never opens again (`useAppStart`, `?resume=paywall`). The screen
-    // offers "Finish setup" instead; this only guards a stale render.
+    // Onboarding can't be left before its setup is saved, so a routine exists by the time this
+    // tab is reachable. Guarded anyway: a save here would be the first routine, and with one
+    // saved onboarding never opens again (`useAppStart`).
     if (!hasRoutine()) return;
     const wasWaiting = from !== null;
     // Inside a waiting edit's early first night, that edit governs tonight: this one waits
@@ -207,35 +208,6 @@ export function RoutineScreen() {
 
   const now = new Date();
 
-  if (!hasRoutine()) {
-    return (
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-            Routine
-          </Text>
-          <Text style={styles.summary}>No routine yet. You left setup before the end.</Text>
-        </View>
-        <View style={styles.wake}>
-          <Text style={styles.voice} maxFontSizeMultiplier={1.3}>
-            {noOrphan('We were in the middle of something.')}
-          </Text>
-        </View>
-        <Section footer="Bedtime, mornings and your wake-up all come from setup.">
-          <ValueRow
-            icon={sym('moon.fill', 'bedtime')}
-            title="Finish setup"
-            value=""
-            onPress={() => router.push('/onboarding')}
-            last
-          />
-        </Section>
-      </ScrollView>
-    );
-  }
-
   // An earlier bedtime saved in the day governs its own first night once that starts (#137):
   // it already began, so don't say it waits for the old bedtime.
   const earlyNight = from !== null && inPendingFirstNight(now);
@@ -251,12 +223,25 @@ export function RoutineScreen() {
         <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
           Routine
         </Text>
-        <Text style={styles.summary}>
-          {saved.nights.length === 0
-            ? 'Every night is off. Only the always-asleep apps stay asleep.'
-            : `Apps sleep at ${formatPreset(saved.bedtime)} and wake when you ${wakeVerb(saved)}.`}
-        </Text>
       </View>
+
+      {/* The night at a glance (Sky Guide's Tonight card), as set: a waiting edit included. */}
+      <NightCard
+        eyebrow={saved.nights.length === 0 ? 'Every night off' : nightsLabel(saved.nights)}
+        title={`${formatPreset(saved.bedtime)} – ${formatPreset(saved.morningStart)}`}
+        detail={
+          saved.nights.length === 0
+            ? 'Only the always-asleep apps stay asleep.'
+            : `Apps sleep ${hours(saved)}, until you ${wakeVerb(saved)}.`
+        }
+        off={saved.nights.length === 0}
+        style={styles.night}
+        accessibilityLabel={
+          saved.nights.length === 0
+            ? 'Every night is off. Only the always-asleep apps stay asleep.'
+            : `${nightsLabel(saved.nights)}. Apps sleep at ${formatPreset(saved.bedtime)} and wake after ${formatPreset(saved.morningStart)}, when you ${wakeVerb(saved)}.`
+        }
+      />
 
       {from ? (
         <View style={styles.pending} accessibilityLiveRegion="polite">
@@ -287,42 +272,39 @@ export function RoutineScreen() {
         </Animated.View>
       </LayoutAnimationConfig>
 
-      <Section label="Wake-up" footer={wakeFooter(saved)}>
-        {options.map((o, i) => (
+      {/* The You tab's cards (iOS Display & Brightness): heading inside, rows without icons. */}
+      <Card icon={sym('figure.stairs', 'stairs')} title="Wake-up" footer={wakeFooter(saved)}>
+        {options.map((o) => (
           <ChoiceRow
             key={o.value}
             title={o.title}
             detail={o.detail}
             selected={o.value === saved.method}
             onPress={() => set({ method: o.value })}
-            last={i === options.length - 1 && !offerCodeSetup}
           />
         ))}
         {offerCodeSetup ? (
           <ValueRow
-            icon={sym('qrcode', 'qr_code')}
             title="Set up your code"
             value=""
             onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
-            last
           />
         ) : null}
-      </Section>
-
-      <Section>
         <MenuRow
-          icon={sym('figure.walk', 'directions_walk')}
           title="Step target"
           value={saved.stepGoal}
           options={STEP_GOALS}
           onChange={(stepGoal) => set({ stepGoal })}
           last
         />
-      </Section>
+      </Card>
 
-      <Section label="Night" footer="Changes start from the next bedtime, so nothing gets loosened from bed.">
+      <Card
+        icon={sym('moon.fill', 'bedtime')}
+        title="Night"
+        footer="Changes start from the next bedtime, so nothing gets loosened from bed."
+      >
         <TimeRow
-          icon={sym('moon.fill', 'bedtime')}
           title="Bedtime"
           value={saved.bedtime}
           onChange={(bedtime) => set({ bedtime })}
@@ -330,15 +312,14 @@ export function RoutineScreen() {
           invalid={(m) => nightRefusal(m, saved.morningStart)}
         />
         <TimeRow
-          icon={sym('sunrise.fill', 'wb_twilight')}
           title="Morning start"
           value={saved.morningStart}
           onChange={(morningStart) => set({ morningStart })}
           presets={MORNING_PRESETS}
           invalid={(m) => nightRefusal(saved.bedtime, m)}
         />
-        <NightsRow icon={sym('calendar', 'calendar_month')} value={saved.nights} onChange={(nights) => set({ nights })} last />
-      </Section>
+        <NightsRow value={saved.nights} onChange={(nights) => set({ nights })} last />
+      </Card>
 
       {/* Off iPhone nothing can be armed, so never imply protection is on (GAME_PLAN, "Reliability"). */}
       {isScreenTimeAvailable() ? null : (
@@ -346,6 +327,14 @@ export function RoutineScreen() {
       )}
     </ScrollView>
   );
+}
+
+/** How long the night window runs: "8 hrs", "7½ hrs". */
+function hours(r: Routine) {
+  const minutes = (r.morningStart - r.bedtime + 1440) % 1440;
+  const whole = Math.floor(minutes / 60);
+  const half = minutes % 60 >= 30 ? '½' : '';
+  return `${whole}${half} ${whole === 1 && !half ? 'hr' : 'hrs'}`;
 }
 
 function wakeVerb(r: Routine) {
@@ -368,8 +357,8 @@ function wakeFooter(r: Routine) {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
   header: { gap: Gap.headline, marginBottom: Gap.block },
+  night: { marginBottom: Gap.section },
   title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
-  summary: { color: Nocturne.text2, ...Type.body },
 
   wake: { marginBottom: Gap.block },
   voice: {

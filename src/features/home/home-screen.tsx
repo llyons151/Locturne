@@ -9,11 +9,12 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
-import { HOME_HEADER, HOME_RISE_MS, homeMoonDisc } from '@/components/night-sky';
+import { HOME_HEADER, HOME_RISE_MS } from '@/components/night-sky';
 import { useHealth } from '@/hooks/use-health';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { firstLine, firstMoment, getFirstRunSeen, markFirstSeen, type FirstLine } from '@/lib/first-run';
@@ -31,6 +32,7 @@ import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@
 
 import { awakeLine, unheldLine } from './awake-line';
 import { MoonLock } from './moon-lock';
+import { ahead, bigClock, duration, NightMeter, useMinute, type Meter } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
 import { useHomeState } from './use-home-state';
 
@@ -40,7 +42,7 @@ import { useHomeState } from './use-home-state';
  *
  * The state is real (`useHomeState`): the lock's phase from `readLock`, this morning's
  * proof, and the routine. On his firsts (first night, first morning, first time up) his
- * script from `first-run.ts` takes the line. In development builds, tapping the state label
+ * script from `first-run.ts` takes the line. In development builds, long-pressing the gear
  * still cycles the looks for review.
  */
 type HomeView = 'night' | 'morning' | 'day' | 'off' | 'paused' | 'unprotected';
@@ -88,7 +90,7 @@ const sym = (ios: string, android: string): Symbol =>
   ({ ios, android, web: android }) as Symbol;
 
 export function HomeScreen() {
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
   const { lock, routine, proof } = useHomeState();
@@ -141,46 +143,41 @@ export function HomeScreen() {
   // The method the morning will really ask for (`methodInUse`), as everywhere on Home.
   const first = moment ? firstLine(moment, { ...routine, method: methodInUse(routine.method) }) : null;
 
-  const moon = homeMoonDisc(width, height, insets.top);
   const cycle = () => {
     tap();
     setPreview((p) => VIEWS[(VIEWS.indexOf(p ?? actual) + 1) % VIEWS.length]);
   };
+
+  // How much of the resting moon shows above the panel's edge (night-sky.tsx, risingMoon).
+  const moonArc = width * 0.9 * 0.36;
 
   const apps = isScreenTimeAvailable() ? shownSelection('night').size : 0;
   // A scan morning with no code set up yet falls back to steps until there is one.
   const method = methodInUse(routine.method);
   const asleep = view === 'night' || view === 'morning';
   const line = view === 'unprotected' ? health.title : (first?.line ?? LINES[view]);
+  const now = useMinute();
+  const unheld = phase !== lock.phase && (lock.phase === 'night' || lock.phase === 'morning');
+  const meter = homeMeter({ view, routine: { ...routine, method }, nextChange: lock.nextChange, pause, blockNowUntil: lock.blockNowUntil, unheld, now });
   // The paywall's "I remind you", kept even without notifications (B4). Re-read on each visit.
   const trial = preview ? null : trialNotice(getTrialEnd(), new Date());
 
   return (
     <View style={styles.container}>
+      <MoonLight />
       <View style={[styles.header, { marginTop: insets.top }]}>
-        <Text style={styles.wordmark} maxFontSizeMultiplier={1.2}>Locturne</Text>
-        {__DEV__ ? (
-          <Pressable
-            onPress={cycle}
-            hitSlop={8}
-            style={styles.day}
-            accessibilityRole="button"
-            accessibilityLabel={`${LABELS[view]}. Preview the next home state.`}
-          >
-            <Text style={[styles.dayLabel, view === 'unprotected' && { color: WARNING }]}>{LABELS[view]}</Text>
-            <SymbolView name={sym('chevron.down', 'expand_more')} size={13} weight="semibold" tintColor={Nocturne.text2} />
-          </Pressable>
-        ) : (
-          <View style={styles.day}>
-            <Text style={[styles.dayLabel, view === 'unprotected' && { color: WARNING }]}>{LABELS[view]}</Text>
-          </View>
-        )}
         <View style={styles.flex} />
         {/* No settings screen yet: this opens the onboarding preview, so it stays out of the
             App Store build (rerunning onboarding there would show a subscriber the paywall). */}
         {(__DEV__ || Platform.OS === 'web') && (
           <Link href="/onboarding" asChild>
-            <Pressable hitSlop={12} accessibilityRole="button" accessibilityLabel="Preview onboarding">
+            <Pressable
+              hitSlop={8}
+              style={styles.roundButton}
+              onLongPress={__DEV__ ? cycle : undefined}
+              accessibilityRole="button"
+              accessibilityLabel={`Preview onboarding${__DEV__ ? `. Long press to preview the next home state (now ${LABELS[view]}).` : ''}`}
+            >
               <SymbolView name={sym('gearshape', 'settings')} size={22} tintColor={Nocturne.text} />
             </Pressable>
           </Link>
@@ -191,7 +188,8 @@ export function HomeScreen() {
         style={styles.flex}
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: moon.cy + moon.r - insets.top - HOME_HEADER + Space.xxl, paddingBottom: tabInset },
+          // Room at the bottom for the moon's arc, poking up out of the panel's edge.
+          { paddingTop: Space.xl, paddingBottom: tabInset + moonArc * 0.7 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -230,6 +228,7 @@ export function HomeScreen() {
           entering={FadeIn.delay(CONTENT_DELAY_MS + 150).duration(450)}
           style={styles.bottom}
         >
+          {meter ? <NightMeter meter={meter} accessibilityLabel={meterLabel(meter)} /> : null}
           {view === 'morning' ? (
             <PrimaryButton
               label={MORNING_ACTION[method]}
@@ -285,6 +284,106 @@ export function HomeScreen() {
     </View>
   );
 }
+
+/**
+ * The moon's light rising from the panel's bottom edge into the black, as in the user's
+ * reference (rounded-panel-nav.png), in the night sky's blues instead of its violet. The
+ * user asked for this light on Home; it's not used anywhere else.
+ */
+function MoonLight() {
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
+      <Defs>
+        <LinearGradient id="moon-light" x1="0" y1="1" x2="0" y2="0">
+          {/* Light at the bottom so the moon's own disc and halo still read as the source. */}
+          <Stop offset="0" stopColor="#3B4FB0" stopOpacity={0.12} />
+          <Stop offset="0.3" stopColor="#3B4FB0" stopOpacity={0.3} />
+          <Stop offset="0.52" stopColor="#1A2462" stopOpacity={0.16} />
+          <Stop offset="0.75" stopColor="#000000" stopOpacity={0} />
+        </LinearGradient>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#moon-light)" />
+    </Svg>
+  );
+}
+
+/** The morning's task in a word or two, for the meter's corner. */
+const TASK: Record<WakeMethod, (r: Routine) => string> = {
+  downstairs: () => 'Downstairs',
+  steps: (r) => `${r.stepGoal} steps`,
+  scan: () => 'Scan',
+};
+
+const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
+
+/**
+ * The big time and the meter (night-meter.tsx): in the day, tonight's bedtime and how much of
+ * the day has gone; at night, the morning start and how much of the night has. Only what's
+ * true: nothing when protection is off, nothing is scheduled, or the clock's night isn't held.
+ */
+function homeMeter({
+  view,
+  routine,
+  nextChange,
+  pause,
+  blockNowUntil,
+  unheld,
+  now,
+}: {
+  view: HomeView;
+  routine: Routine;
+  nextChange: Date;
+  pause: Date | null;
+  blockNowUntil: Date | null;
+  unheld: boolean;
+  now: Date;
+}): Meter | null {
+  if (view === 'unprotected' || unheld) return null;
+  const t = minutesOf(now);
+  const { bedtime, morningStart } = routine;
+  if (view === 'night' || view === 'morning') {
+    const night = ahead(bedtime, morningStart) || 1;
+    return {
+      ...bigClock(morningStart),
+      label: ['Morning', 'start'],
+      progress: view === 'morning' ? 1 : Math.min(1, ahead(bedtime, t) / night),
+      since: `Asleep since ${clockLabel(bedtime)}`,
+      left:
+        view === 'morning'
+          ? { key: 'Wake-up', value: TASK[routine.method](routine) }
+          : { key: 'Morning in', value: duration(ahead(t, morningStart)) },
+    };
+  }
+  if (view === 'paused') {
+    const back = pause ? pauseWording(pause).resumes : null;
+    return back
+      ? { ...bigClock(minutesOf(back)), label: ['Asleep', 'again at'], progress: null }
+      : { value: 'Off', label: ['Every night', 'is off'], progress: null };
+  }
+  if (blockNowUntil) return { ...bigClock(minutesOf(blockNowUntil)), label: ['Block now', 'until'], progress: null };
+  // No bedtime is promised without a night lock (stood down, never bought, arming failed).
+  const unpaid = subscriptionEnded() && lapseStillCovers() === null;
+  if (isScreenTimeAvailable() && (!nightLockArmed() || isStoodDown() || unpaid)) return null;
+  const tonight = nightAt(nextChange);
+  const since = `Up since ${clockLabel(morningStart)}`;
+  if (view === 'off' || !tonight.on) {
+    return { value: 'Off', label: ['No lock', 'tonight'], progress: Math.min(1, ahead(morningStart, t) / (ahead(morningStart, bedtime) || 1)), since };
+  }
+  const start = minutesOf(tonight.start);
+  return {
+    ...bigClock(start),
+    label: ['Bedtime', 'tonight'],
+    progress: Math.min(1, ahead(morningStart, t) / (ahead(morningStart, start) || 1)),
+    since,
+    left: { key: 'Bedtime in', value: duration(ahead(t, start)) },
+  };
+}
+
+/** VoiceOver reads the meter as one sentence. */
+const meterLabel = (m: Meter) =>
+  [`${m.label[0]} ${m.label[1]}: ${m.value}${m.unit ? ` ${m.unit}` : ''}.`, m.since, m.left && `${m.left.key} ${m.left.value}.`]
+    .filter(Boolean)
+    .join(' ');
 
 /** What the morning asks for, in one plain line. */
 function morningTask(routine: Routine, wake: string) {
@@ -489,9 +588,6 @@ const styles = StyleSheet.create({
     gap: Space.m,
     paddingHorizontal: Space.xl,
   },
-  wordmark: { ...DisplayFont, color: Nocturne.text, fontSize: 26, lineHeight: 32 },
-  day: { flexDirection: 'row', alignItems: 'center', gap: Space.xs, marginTop: 3 },
-  dayLabel: { color: Nocturne.text2, fontSize: 17, fontWeight: '500' },
   scroll: { flexGrow: 1, paddingHorizontal: Space.xl },
   top: { gap: Space.l },
   voice: {
@@ -509,6 +605,8 @@ const styles = StyleSheet.create({
   statusSmall: { ...Type.secondary, color: Nocturne.text3 },
   noteTitle: { color: Nocturne.text2, fontWeight: '600' },
   bottom: { gap: Space.l, paddingTop: Space.xxl, paddingBottom: Space.s },
+  // The reference's round top buttons: a dark disc, no outline.
+  roundButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(30, 31, 35, 0.85)' },
   row: {
     minHeight: 60,
     flexDirection: 'row',

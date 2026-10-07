@@ -5,7 +5,7 @@ import { useAppStart } from '@/hooks/use-app-start';
 export default function TabsLayout() {
   useAppStart();
   return (
-    <AppBackground>
+    <AppBackground panel>
       <AppTabs />
     </AppBackground>
   );

@@ -14,5 +14,9 @@ module.exports = ({ config }) => {
   if (process.env.EAS_BUILD_PROFILE === 'production' && process.env.EXPO_PUBLIC_DEV_LABS) {
     throw new Error('Production build with EXPO_PUBLIC_DEV_LABS set: unset it (it belongs to the preview profile).');
   }
+  // Free testing makes everyone subscribed (src/lib/purchases-start.ts).
+  if (process.env.EAS_BUILD_PROFILE === 'production' && process.env.EXPO_PUBLIC_FREE_TESTING) {
+    throw new Error('Production build with EXPO_PUBLIC_FREE_TESTING set: unset it (it is for testing builds only).');
+  }
   return config;
 };

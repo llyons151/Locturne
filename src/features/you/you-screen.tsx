@@ -6,15 +6,14 @@
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
-import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
-import { MenuRow, SwitchRow } from '@/components/controls';
-import { Section, sym, ValueRow } from '@/components/grouped-list';
+import { SwitchRow } from '@/components/controls';
+import { Card, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
@@ -28,16 +27,17 @@ import {
   type NotificationPrefs,
 } from '@/lib/notifications';
 import { lapseStillCovers, onLockChange, readLock, subscriptionEnded, syncLock } from '@/lib/lock-controller';
-import { getTone, setTone, TONE_LABEL, TONES, type Tone } from '@/lib/tone';
+import { getTone, setTone, type Tone } from '@/lib/tone';
 import { getPassesLeft } from '@/lib/passes';
 import { nextNightOn } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { getScanCode } from '@/lib/scan';
 import { getArmedNight, isStoodDown, type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
-import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
+import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { lapseLine } from './lapse-line';
+import { TonePicker } from './tone-picker';
 
 /**
  * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up
@@ -49,8 +49,8 @@ import { lapseLine } from './lapse-line';
  *
  * Passes, the emergency unlock and the scan code open the exits and scan screens; the plan
  * and Restore are src/lib/purchases.ts; the notification switches are saved and redo the
- * plan in src/lib/notifications.ts. Beta diagnostics hide behind a long press on the version
- * line, so App Review never sees a "beta" row.
+ * plan in src/lib/notifications.ts. Beta diagnostics hide behind a long press on the You
+ * title, so App Review never sees a "beta" row.
  */
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
@@ -205,146 +205,92 @@ export function YouScreen() {
         : status === 'on' && !getArmedNight()
           ? { ...STATUS.on, line: 'Screen Time access is on, but bedtime isn’t scheduled yet.' }
         : STATUS[status];
-  const version = Constants.expoConfig?.version;
-
   return (
     <ScrollView
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
     >
-      <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-        You
-      </Text>
+      {/* Long press for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
+      <Pressable onLongPress={() => router.push('/diagnostics')} delayLongPress={800} style={styles.titleWrap}>
+        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+          You
+        </Text>
+      </Pressable>
 
-      <View style={[styles.status, (status === 'off' || status === 'notSetUp') && styles.statusOff]} accessibilityLiveRegion="polite">
-        <View style={styles.statusRow}>
-          <SymbolView name={sym(s.icon, s.android)} size={18} tintColor={Nocturne.text} style={styles.statusIcon} />
+      <Card icon={sym(s.icon, s.android)} title="Screen Time" warn={status === 'off' || status === 'notSetUp'}>
+        <View style={styles.status} accessibilityLiveRegion="polite">
           <Text style={styles.statusText}>{noOrphan(s.line)}</Text>
+          {status === 'off' ? <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
         </View>
-        {status === 'off' ? <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
-      </View>
+      </Card>
 
-      <Section label="Ways out" footer={`Passes refill on ${refillDate(new Date())}. For sick days, travel, or a baby asleep in the room.`}>
-        <ValueRow
-          icon={sym('ticket.fill', 'confirmation_number')}
-          title="Passes"
-          value={`${passesLeft} left`}
-          onPress={() => router.push('/exits')}
-        />
-        <ValueRow icon={sym('lock.open.fill', 'lock_open')} title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
-        <ValueRow
-          icon={sym('figure.roll', 'accessible')}
-          title="Can’t walk or use stairs"
-          value=""
-          onPress={cantWalk}
-          last
-        />
-      </Section>
+      <Card
+        icon={sym('door.left.hand.open', 'door_open')}
+        title="Ways out"
+        footer={`Passes refill on ${refillDate(new Date())}. For sick days, travel, or a baby asleep in the room.`}
+      >
+        <ValueRow title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} />
+        <ValueRow title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
+        <ValueRow title="Can’t walk or use stairs" value="" onPress={cantWalk} last />
+      </Card>
 
-      <Section label="Loc" footer="How he talks on the block screen and in notifications. It changes his words, never the rules, so it applies straight away.">
-        <MenuRow
-          icon={sym('theatermasks.fill', 'theater_comedy')}
-          title="How grumpy"
-          value={tone}
-          options={TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }))}
-          onChange={changeTone}
-          last
-        />
-      </Section>
+      <Card
+        icon={sym('theatermasks.fill', 'theater_comedy')}
+        title="How grumpy Loc is"
+        footer="How he talks on the block screen and in notifications. It changes his words, never the rules, so it applies straight away."
+      >
+        <TonePicker value={tone} onChange={changeTone} />
+      </Card>
 
-      <Section
-        label="Notifications"
+      <Card
+        icon={sym('bell.fill', 'notifications')}
+        title="Notifications"
         footer={
           permission === 'denied'
             ? 'Notifications are off for Locturne in Settings, so these stay quiet until you turn them on there.'
             : 'He keeps it short. No streaks, no guilt.'
         }
       >
-        <SwitchRow icon={sym('moon.fill', 'bedtime')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
-        <SwitchRow
-          icon={sym('sunrise.fill', 'wb_twilight')}
-          title="Morning nudge"
-          value={alerts.morning}
-          onChange={toggle('morning')}
-          last={!inTrial}
-        />
-        {inTrial ? (
-          <SwitchRow icon={sym('calendar', 'calendar_month')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last />
-        ) : null}
-      </Section>
+        <SwitchRow title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
+        <SwitchRow title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} last={!inTrial} />
+        {inTrial ? <SwitchRow title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last /> : null}
+      </Card>
 
-      <Section label="Subscription">
+      <Card icon={sym('creditcard.fill', 'credit_card')} title="Subscription">
         {plan === null ? (
           // Left at the paywall, or the subscription ended: the plans, with the saved setup.
-          <ValueRow
-            icon={sym('creditcard.fill', 'credit_card')}
-            title="Subscribe"
-            value=""
-            onPress={() => router.push('/onboarding?resume=paywall')}
-          />
+          <ValueRow title="Subscribe" value="" onPress={() => router.push('/onboarding?resume=paywall')} />
         ) : (
-          <ValueRow
-            icon={sym('creditcard.fill', 'credit_card')}
-            title="Manage subscription"
-            value={plan ? PLAN_LABEL[plan] : ''}
-            onPress={manage}
-          />
+          <ValueRow title="Manage subscription" value={plan ? PLAN_LABEL[plan] : ''} onPress={manage} />
         )}
-        <ValueRow
-          icon={sym('arrow.clockwise', 'refresh')}
-          title="Restore purchases"
-          value={restoring ? 'Checking…' : ''}
-          onPress={restorePurchases}
-          last
-        />
-      </Section>
+        <ValueRow title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} last />
+      </Card>
 
-      <Section label="Help">
-        <ValueRow icon={sym('questionmark.circle.fill', 'help')} title="Help" value="" onPress={() => open(LEGAL_URLS.support)} />
-        <ValueRow icon={sym('envelope.fill', 'mail')} title="Send feedback" value="" onPress={sendFeedback} />
-        <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={rate} />
-        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
-        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
-      </Section>
+      <Card icon={sym('questionmark.circle.fill', 'help')} title="Help">
+        <ValueRow title="Help" value="" onPress={() => open(LEGAL_URLS.support)} />
+        <ValueRow title="Send feedback" value="" onPress={sendFeedback} />
+        <ValueRow title="Rate Locturne" value="" onPress={rate} />
+        <ValueRow title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
+        <ValueRow title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
+      </Card>
 
       {__DEV__ ? (
-        <Section label="Developer">
-          <ValueRow
-            icon={sym('hammer.fill', 'build')}
-            title="Screen Time lab"
-            value=""
-            onPress={() => router.push('/screen-time-lab')}
-            last
-          />
-        </Section>
+        <Card icon={sym('hammer.fill', 'build')} title="Developer">
+          <ValueRow title="Screen Time lab" value="" onPress={() => router.push('/screen-time-lab')} last />
+        </Card>
       ) : null}
 
-      {/* Long press for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
-      <Pressable onLongPress={() => router.push('/diagnostics')} delayLongPress={800} accessibilityRole="text">
-        <Text style={styles.footer}>Locturne{version ? ` ${version}` : ''}</Text>
-      </Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
-  title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3, marginBottom: Gap.block },
+  title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
+  // Only as wide as the word, so a long press elsewhere up top does nothing.
+  titleWrap: { alignSelf: 'flex-start', marginBottom: Gap.block },
 
-  status: {
-    gap: Space.l,
-    padding: Space.l,
-    marginBottom: Gap.section,
-    borderRadius: Radius.card,
-    borderCurve: 'continuous',
-    backgroundColor: Nocturne.raised,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-  },
-  statusOff: { borderColor: Nocturne.text2 },
-  statusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Space.m },
-  // Centres the icon on the first line of text.
-  statusIcon: { marginTop: 2 },
-  statusText: { flex: 1, color: Nocturne.text, ...Type.secondary },
+  // Lined up with the card's header, like the rows under it.
+  status: { gap: Space.l, paddingHorizontal: Space.l, paddingTop: Space.xs, paddingBottom: Space.l },
+  statusText: { color: Nocturne.text, ...Type.secondary },
 
-  footer: { ...Type.caption, color: Nocturne.text3, textAlign: 'center' },
 });

@@ -24,8 +24,20 @@ native parts) and what not to (its layout).
    control).
 5. **Ways out** (passes, emergency unlock): findable, never prominent.
 
-Not on Home: stats, charts, streaks, countdown numbers. History belongs in the You tab or
-the morning share card.
+Not on Home: stats, charts or streaks. History belongs in the You tab or the morning share
+card.
+
+**Update, October 6, 2026.** The user sent `docs/design-references/rounded-panel-nav.png`
+and asked for Home to look like it, in Locturne's style. So Home now has one big time
+(tonight's bedtime in the day, the morning start at night) with a two-line label, a
+monochrome stripe meter for how far through the day or night it is, and "Bedtime in 1h 22m"
+under it (`night-meter.tsx`). That is still status: one time, not a stats row. The meter
+hides whenever it would imply protection that isn't there (access off, nothing armed, a
+lapse, or a clock night that isn't held). The tabs became round buttons on a black strip
+under a panel with rounded bottom corners (`app-tabs.tsx`, `app-background.tsx`), and the
+Sleep button is a moonlight gradient disc. Later the same day the user moved the Home moon to
+the bottom: it pokes up out of the panel's edge, and a blue light (`MoonLight`) rises from it
+into the black. The text starts at the top. The resting moon now rises out of the panel's edge (`NightSky floor`), so its light shows the rounded corners.
 
 ## States
 

@@ -94,7 +94,7 @@ export function NapClock({
   const [woken, setWoken] = useState(0);
 
   // 0 = gone, 1 = in: the black behind it, and everything on it. Leaving, everything on it
-  // fades first and the black after, so the Nap tab comes back from a clean black.
+  // fades first and the black after, so the Sleep sheet comes back from a clean black.
   const shown = useSharedValue(0);
   const stage = useSharedValue(0);
   // Where the moon is along its path, in nap progress (below 0 is below the horizon).

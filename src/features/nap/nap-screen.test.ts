@@ -43,7 +43,6 @@ test('an active nap reports revoked protection and recovers its status when acce
     'react-native': { StyleSheet: { create: (s: any) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text' },
     'react-native-reanimated': { __esModule: true, default: { View: 'Animated' }, FadeIn: { duration() {} } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
-    '@/components/app-tabs': { useTabBarInset: () => 0 },
     '@/hooks/use-protection': { useProtection: () => [protection, () => {}] },
     '@/components/buttons': { PrimaryButton: 'Button', TextButton: 'Button' },
     '@/components/grouped-list': { sym: (s: string) => s },

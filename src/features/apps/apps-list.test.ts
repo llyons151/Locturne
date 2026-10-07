@@ -80,7 +80,7 @@ test('same-limit taps cannot race two native registrations and can retry after c
 
 test('denying the Apps permission repair settles safely and refreshes actual protection', async () => {
   const source = readFileSync(new URL('./apps-list.tsx', import.meta.url), 'utf8');
-  const handler = source.slice(source.indexOf('  const allow ='), source.indexOf("  const access = protection"));
+  const handler = source.slice(source.indexOf('  const askAccess ='), source.indexOf('  const allow ='));
   let refreshed = false;
   let error: string | null = null;
   const context = {
@@ -91,7 +91,10 @@ test('denying the Apps permission repair settles safely and refreshes actual pro
     setLimitError: (next: string | null) => { error = next; },
     invoke: undefined as unknown as () => Promise<void>,
   };
-  runInNewContext(`${handler}\nglobalThis.invoke = allow;`, context);
+  const code = babel.transformSync(`${handler}\nglobalThis.invoke = askAccess;`, {
+    filename: 'handlers.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+  }).code;
+  runInNewContext(code!, context);
   await context.invoke();
   assert.equal(refreshed, true);
   assert.match(error!, /wasn't turned on/);
@@ -106,7 +109,7 @@ test('reopening a picker while its native save settles cannot replace the draft 
   const timers: (() => void)[] = [];
   const settling = new Set();
   const context = {
-    editing: 'night', haptic: { tap() {} }, isLimitId: () => false,
+    editing: 'night', protection: 'on', haptic: { tap() {} }, isLimitId: () => false,
     armingLimits: { current: new Set() }, setLimitError() {}, setEditing() {}, refresh() {},
     beginListEdit: () => { draft = [...live]; },
     pickedList: () => { live = [...draft]; },

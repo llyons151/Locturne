@@ -26,6 +26,10 @@ import {
 } from '@/components/app-icons';
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { useTabBarInset } from '@/components/app-tabs';
+import { Card, sym, type Symbol } from '@/components/grouped-list';
+import { NightCard } from '@/components/night-cards';
+import { getPendingRoutine, getRoutine } from '@/lib/routine';
+import { formatPreset } from '@/lib/text';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useProtection } from '@/hooks/use-protection';
 import {
@@ -85,10 +89,39 @@ export function AppsList() {
   return isScreenTimeAvailable() ? <LiveAppsList /> : <PreviewAppsList />;
 }
 
-const LIVE_GROUPS: { key: 'night' | 'always'; label: string }[] = [
-  { key: 'night', label: 'Sleep at bedtime' },
-  { key: 'always', label: 'Always asleep' },
+const LIVE_GROUPS: { key: 'night' | 'always'; label: string; icon: Symbol }[] = [
+  { key: 'night', label: 'Sleep at bedtime', icon: sym('moon.zzz.fill', 'bedtime') },
+  { key: 'always', label: 'Always asleep', icon: sym('lock.fill', 'lock') },
 ];
+
+const LIMIT_ICON = sym('hourglass', 'hourglass_empty');
+
+/**
+ * What sleeps, as one status card (the Routine tab's): when the bedtime list goes to sleep,
+ * how many picks it holds, and what else is asleep. A status, not a stats row (HOME_SPEC).
+ */
+function Summary({ bedtime, always, limits, noun }: { bedtime: number; always: number; limits: number; noun: 'app' | 'pick' }) {
+  // As set, a change waiting for bedtime included, like the Routine tab and Home's row.
+  const routine = getPendingRoutine()?.routine ?? getRoutine();
+  const off = routine.activeNights.length === 0;
+  const count = (n: number) => `${n} ${n === 1 ? noun : `${noun}s`}`;
+  const title = bedtime === 0 ? `No ${noun}s yet` : `${count(bedtime)} ${bedtime === 1 ? 'sleeps' : 'sleep'}`;
+  const extra = [
+    always > 0 ? `${count(always)} asleep all day` : null,
+    limits > 0 ? `${limits} daily ${limits === 1 ? 'limit' : 'limits'}` : null,
+  ].filter(Boolean);
+  const detail = extra.length ? `Plus ${extra.join(' and ')}.` : 'Nothing is asleep all day.';
+  const eyebrow = off ? 'Every night off' : `At bedtime · ${formatPreset(routine.bedtime)}`;
+  return (
+    <NightCard
+      eyebrow={eyebrow}
+      title={title}
+      detail={detail}
+      off={off}
+      accessibilityLabel={`${eyebrow}. ${title}. ${detail}`}
+    />
+  );
+}
 
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
@@ -222,8 +255,11 @@ function LiveAppsList() {
   };
 
   /** Opens Apple's picker on a draft of the list. Only here, never on render. */
-  const edit = (list: StandingList) => {
+  const edit = async (list: StandingList) => {
     haptic.tap();
+    // Onboarding always gets access, so this is only a revoke (or a stale first launch):
+    // ask again first, since Apple's picker needs it.
+    if (protection !== 'on' && !(await askAccess())) return;
     if (isPickerSettling(list) || (isLimitId(list) && armingLimits.current.has(list))) {
       setLimitError("Still saving this limit. Try again in a moment.");
       return;
@@ -237,22 +273,30 @@ function LiveAppsList() {
     if (id) edit(id);
   };
 
-  // Also the repair path when protection is off: once access is back, put the shields back.
-  const allow = async () => {
-    haptic.tap();
+  // The repair path when protection is off: once access is back, put the shields back.
+  const askAccess = async (): Promise<boolean> => {
     setLimitError(null);
     try {
-      if ((await requestAccess()) === 'approved') reapplyStandingBlocks();
+      if ((await requestAccess()) !== 'approved') throw new Error('refused');
+      reapplyStandingBlocks();
+      return true;
     } catch {
       setLimitError("Screen Time access wasn't turned on. You can try again when you're ready.");
+      return false;
     } finally {
       refresh();
     }
   };
+  const allow = () => {
+    haptic.tap();
+    askAccess();
+  };
 
-  const access = protection === 'on' ? 'approved' : 'off';
+  // Onboarding can't be finished without access, so the page is always the finished one.
+  // Only a revoke in Settings (`off`) adds the row to turn it back on.
+  const revoked = protection === 'off';
   // No subscription: picks and limits are kept, but nothing sleeps (standDown).
-  const unpaid = access === 'approved' && isStoodDown();
+  const unpaid = !revoked && isStoodDown();
 
   return (
     <>
@@ -263,85 +307,77 @@ function LiveAppsList() {
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
             Apps
           </Text>
-          <Text style={styles.summary}>
-            {unpaid
-              ? 'No subscription, so nothing here sleeps. Your picks and limits are kept for when you’re back.'
-              : access === 'approved'
-                ? `${countPicks(sizes.night.size)} sleep at bedtime, ${countPicks(sizes.always.size)} stay asleep all day.`
-                : protection === 'off'
-                  ? "Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again."
-                  : 'Locturne needs Screen Time access to put apps to sleep.'}
-          </Text>
+          {unpaid || revoked ? (
+            <Text style={styles.summary}>
+              {unpaid
+                ? 'No subscription, so nothing here sleeps. Your picks and limits are kept for when you’re back.'
+                : 'Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again.'}
+            </Text>
+          ) : (
+            <Summary bedtime={sizes.night.size} always={sizes.always.size} limits={limits.length} noun="pick" />
+          )}
         </View>
 
-        {access !== 'approved' ? (
+        {revoked ? (
           <View style={styles.group}>
-            <EditRow
-              label={protection === 'off' ? 'Turn Screen Time access back on' : 'Set up Screen Time access'}
-              onPress={allow}
-            />
+            <EditRow label="Turn Screen Time access back on" onPress={allow} />
             {limitError ? <Text style={styles.footer}>{limitError}</Text> : null}
           </View>
-        ) : (
-          <>
-            {unpaid ? (
-              <View style={styles.group}>
-                <EditRow label="See plans" onPress={() => router.push('/onboarding?resume=paywall')} />
-              </View>
-            ) : null}
-            {LIVE_GROUPS.map((group) => (
-              <View key={group.key} style={styles.section}>
-                <Text style={styles.sectionLabel}>{group.label}</Text>
-                <View style={styles.group}>
-                  {sizes[group.key].size > 0 && !isBlockedAppsViewAvailable && (
-                    // A build from before modules/blocked-apps existed can't draw the rows.
-                    <View style={[styles.rowBody, styles.separator, styles.note]}>
-                      <Text style={styles.noteText}>
-                        {countPicks(sizes[group.key].size)}. Install the latest build to see them.
-                      </Text>
-                    </View>
-                  )}
-                  {isBlockedAppsViewAvailable && (
-                    <PickedRows selectionId={sizes[group.key].id} count={sizes[group.key].size} revision={revision} />
-                  )}
-                  <EditRow
-                    label={sizes[group.key].size ? 'Add or remove apps' : 'Add apps'}
-                    onPress={() => edit(group.key)}
-                  />
-                </View>
-                <PendingNote list={group.key} />
-              </View>
-            ))}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Daily limits</Text>
-              {limits.map((limit) => (
-                <View key={limit.id} style={[styles.group, styles.limitGroup]}>
-                  <LimitHeader
-                    limit={limit}
-                    usedUp={limitUsedUpToday(limit.id)}
-                    appsChangeAt={listChangeStarts(limit.id)}
-                    onChange={(m) => setMinutes(limit.id, m)}
-                    onRemove={() => setMinutes(limit.id, null)}
-                  />
-                  {isBlockedAppsViewAvailable && (
-                    <PickedRows selectionId={limit.id} count={selectionSize(limit.id)} revision={revision} />
-                  )}
-                  <EditRow label="Add or remove apps" onPress={() => edit(limit.id)} />
-                </View>
-              ))}
-              {freeLimitId(limits) && (
-                <View style={styles.group}>
-                  <EditRow label="Add a daily limit" onPress={addLimit} />
+        ) : null}
+        {unpaid ? (
+          <View style={styles.group}>
+            <EditRow label="See plans" onPress={() => router.push('/onboarding?resume=paywall')} />
+          </View>
+        ) : null}
+        {LIVE_GROUPS.map((group) => (
+          <View key={group.key} style={styles.section}>
+            <Card icon={group.icon} title={group.label}>
+              {sizes[group.key].size > 0 && !isBlockedAppsViewAvailable && (
+                // A build from before modules/blocked-apps existed can't draw the rows.
+                <View style={[styles.rowBody, styles.separator, styles.note]}>
+                  <Text style={styles.noteText}>
+                    {countPicks(sizes[group.key].size)}. Install the latest build to see them.
+                  </Text>
                 </View>
               )}
-              <Text style={styles.footer}>
-                {limitError ??
-                  "Once the time's used up, those apps sleep until midnight. A tighter limit starts now; a looser one waits for bedtime (or midnight, with no bedtime scheduled)."}
-              </Text>
+              {isBlockedAppsViewAvailable && (
+                <PickedRows selectionId={sizes[group.key].id} count={sizes[group.key].size} revision={revision} />
+              )}
+              <EditRow
+                label={sizes[group.key].size ? 'Add or remove apps' : 'Add apps'}
+                onPress={() => edit(group.key)}
+              />
+            </Card>
+            <PendingNote list={group.key} />
+          </View>
+        ))}
+
+        <View style={styles.section}>
+          {limits.map((limit) => (
+            <Card key={limit.id} icon={LIMIT_ICON} title="Daily limit">
+              <LimitHeader
+                limit={limit}
+                usedUp={limitUsedUpToday(limit.id)}
+                appsChangeAt={listChangeStarts(limit.id)}
+                onChange={(m) => setMinutes(limit.id, m)}
+                onRemove={() => setMinutes(limit.id, null)}
+              />
+              {isBlockedAppsViewAvailable && (
+                <PickedRows selectionId={limit.id} count={selectionSize(limit.id)} revision={revision} />
+              )}
+              <EditRow label="Add or remove apps" onPress={() => edit(limit.id)} />
+            </Card>
+          ))}
+          {freeLimitId(limits) && (
+            <View style={styles.group}>
+              <EditRow label="Add a daily limit" onPress={addLimit} />
             </View>
-          </>
-        )}
+          )}
+          <Text style={styles.footer}>
+            {(!revoked && limitError) ||
+              "Once the time's used up, those apps sleep until midnight. A tighter limit starts now; a looser one waits for bedtime (or midnight, with no bedtime scheduled)."}
+          </Text>
+        </View>
       </ScrollView>
 
       {editing && (
@@ -440,7 +476,7 @@ function LimitHeader({
       <View style={[styles.rowBody, styles.separator]}>
         <View style={styles.limitText}>
           <Text style={styles.rowLabel} numberOfLines={1}>
-            Daily limit
+            Time per day
           </Text>
           {status ? <Text style={styles.limitStatus}>{status}</Text> : null}
         </View>
@@ -458,15 +494,17 @@ function LimitHeader({
 
 type Group = 'bedtime' | 'always';
 
-const GROUPS: { key: Group; label: string; picker: string }[] = [
+const GROUPS: { key: Group; label: string; icon: Symbol; picker: string }[] = [
   {
     key: 'bedtime',
     label: 'Sleep at bedtime',
+    icon: sym('moon.zzz.fill', 'bedtime'),
     picker: 'Pick the apps that keep you up. They sleep at bedtime and wake after your walk.',
   },
   {
     key: 'always',
     label: 'Always asleep',
+    icon: sym('lock.fill', 'lock'),
     picker: 'Pick the apps you never want to open. They stay asleep all day and night.',
   },
 ];
@@ -476,9 +514,6 @@ const initial = (group: Group) =>
   APPS.filter((app) => app.rule === group)
     .map((app) => app.name)
     .sort((a, b) => a.localeCompare(b));
-
-/** "1 app sleeps", "3 apps sleep". */
-const countApps = (n: number, verb: string) => (n === 1 ? `1 app ${verb}s` : `${n} apps ${verb}`);
 
 function PreviewAppsList() {
   const insets = useSafeAreaInsets();
@@ -528,15 +563,12 @@ function PreviewAppsList() {
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
             Apps
           </Text>
-          <Text style={styles.summary}>
-            {countApps(picks.bedtime.length, 'sleep')} at bedtime, {countApps(picks.always.length, 'stay')} asleep all day.
-          </Text>
+          <Summary bedtime={picks.bedtime.length} always={picks.always.length} limits={limits.length} noun="app" />
         </View>
 
         {GROUPS.map((group) => (
           <View key={group.key} style={styles.section}>
-            <Text style={styles.sectionLabel}>{group.label}</Text>
-            <View style={styles.group}>
+            <Card icon={group.icon} title={group.label}>
               {picks[group.key].map((name) => (
                 <AppRow key={name} name={name} />
               ))}
@@ -547,14 +579,13 @@ function PreviewAppsList() {
                   setEditing(group.key);
                 }}
               />
-            </View>
+            </Card>
           </View>
         ))}
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Daily limits</Text>
           {limits.map((limit, index) => (
-            <View key={index} style={[styles.group, styles.limitGroup]}>
+            <Card key={index} icon={LIMIT_ICON} title="Daily limit">
               <LimitHeader
                 limit={limit}
                 usedUp={false}
@@ -571,7 +602,7 @@ function PreviewAppsList() {
                   setEditingLimit(index);
                 }}
               />
-            </View>
+            </Card>
           ))}
           {limits.length < MAX_LIMITS && (
             <View style={styles.group}>
@@ -671,7 +702,6 @@ const styles = StyleSheet.create({
   summary: { color: Nocturne.text2, ...Type.body },
 
   section: { marginBottom: Gap.section },
-  sectionLabel: { ...Type.label, marginLeft: Space.l, marginBottom: Space.s },
   group: {
     borderRadius: Radius.card,
     backgroundColor: Nocturne.surface,
@@ -680,7 +710,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   rowsClip: { overflow: 'hidden' },
-  limitGroup: { marginBottom: Space.m },
   // Screen Time's own App Limits tile: an hourglass on system orange.
   limitTile: { backgroundColor: '#FF9F0A' },
   limitText: { flex: 1, paddingVertical: Space.s },

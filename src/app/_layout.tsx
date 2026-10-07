@@ -36,6 +36,16 @@ export default function RootLayout() {
             options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
           />
           <Stack.Screen name="exits" options={{ presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
+          {/* Short, like a system action sheet: it floats above the tabs at the height of its contents. */}
+          <Stack.Screen
+            name="sleep"
+            // The sheet draws its own floating card and slide (features/nap/sleep-sheet.tsx).
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
         </Stack>

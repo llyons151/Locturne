@@ -37,7 +37,8 @@ type ShellProps = PropsWithChildren<{
   /** Null hides the bar. */
   progress: Progress | null;
   onBack?: () => void;
-  onExit: () => void;
+  /** Missing hides Exit: a first setup can't be left before it's saved. */
+  onExit?: () => void;
   footer?: ReactNode;
 }>;
 
@@ -67,7 +68,15 @@ export function Shell({ progress, onBack, onExit, footer, children }: ShellProps
           />
         </Pressable>
         {progress === null ? <View style={styles.progress} /> : <ChapterBar progress={progress} />}
-        <Pressable onPress={onExit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exit" style={styles.exitButton}>
+        <Pressable
+          onPress={onExit}
+          disabled={!onExit}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Exit"
+          accessibilityElementsHidden={!onExit}
+          style={[styles.exitButton, !onExit && styles.hidden]}
+        >
           <Text style={styles.exit}>Exit</Text>
         </Pressable>
       </View>

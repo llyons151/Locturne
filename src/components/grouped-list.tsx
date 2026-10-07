@@ -27,6 +27,37 @@ export function Section({ label, footer, children }: { label?: string; footer?: 
 }
 
 /**
+ * A Settings card in the style of iOS's Display & Brightness: the heading sits inside the
+ * card with its icon, the rows follow without icons of their own, and the grey note that
+ * explains them closes the card instead of hanging under it.
+ */
+export function Card({
+  icon,
+  title,
+  footer,
+  warn,
+  children,
+}: {
+  icon: Symbol;
+  title: string;
+  footer?: string;
+  /** An edge in grey instead of the hairline: something here needs fixing. */
+  warn?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <View style={[styles.card, warn && styles.cardWarn]}>
+      <View style={styles.cardHeader} accessible accessibilityRole="header">
+        <SymbolView name={icon} size={15} weight="semibold" tintColor={Nocturne.accent ?? Nocturne.text} />
+        <Text style={styles.cardTitle}>{title}</Text>
+      </View>
+      {children}
+      {footer ? <Text style={styles.cardFooter}>{footer}</Text> : null}
+    </View>
+  );
+}
+
+/**
  * A row whose trailing side is a control (a native time button, a pull-down menu). The
  * control handles its own taps, so the row itself doesn't.
  */
@@ -36,14 +67,14 @@ export function ControlRow({
   children,
   last,
 }: {
-  icon: Symbol;
+  icon?: Symbol;
   title: string;
   children: ReactNode;
   last?: boolean;
 }) {
   return (
     <View style={styles.row}>
-      <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} />
+      {icon ? <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} /> : null}
       <View style={[styles.rowBody, !last && styles.separator]}>
         <Text style={styles.title} numberOfLines={2}>
           {title}
@@ -63,7 +94,8 @@ export function ValueRow({
   hint,
   last,
 }: {
-  icon: Symbol;
+  /** Left out inside a `Card`, whose header carries the icon. */
+  icon?: Symbol;
   title: string;
   value: string;
   onPress: () => void;
@@ -82,7 +114,7 @@ export function ValueRow({
       accessibilityHint={hint}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} />
+      {icon ? <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} /> : null}
       <View style={[styles.rowBody, !last && styles.separator]}>
         <Text style={styles.title} numberOfLines={2}>
           {title}
@@ -193,6 +225,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   footer: { ...Type.caption, color: Nocturne.text2, marginHorizontal: Space.l, marginTop: Space.s },
+
+  card: {
+    marginBottom: Space.l,
+    borderRadius: Radius.card,
+    borderCurve: 'continuous',
+    backgroundColor: Nocturne.surface,
+    borderWidth: 1,
+    borderColor: Nocturne.edge,
+    overflow: 'hidden',
+  },
+  cardWarn: { borderColor: Nocturne.text2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l, paddingTop: Space.l, paddingBottom: Space.xs },
+  cardTitle: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
+  cardFooter: { ...Type.caption, color: Nocturne.text2, paddingHorizontal: Space.l, paddingBottom: Space.l },
 
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: Space.l },
   rowPressed: { backgroundColor: Nocturne.raised },

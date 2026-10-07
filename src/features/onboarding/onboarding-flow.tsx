@@ -354,6 +354,10 @@ export function OnboardingFlow({
   // Leaving the paywall lands on one honest "Fair." screen, once (unless the test arm has
   // no offer). A second exit really exits.
   const leave = PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
+  // A first run must reach the saved setup: the app's tabs only ever show a finished one.
+  // A rerun (See plans, Redo setup) already has one, so it can always be left. Dev builds
+  // can always leave too, to get between onboarding and the tabs while working on either.
+  const canLeave = __DEV__ || rerun || finished || history.some((s) => SETUP_DONE.includes(s));
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
     dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
@@ -815,7 +819,7 @@ export function OnboardingFlow({
         <Shell
           progress={progressFor(step)}
           onBack={back}
-          onExit={leave}
+          onExit={canLeave ? leave : undefined}
           footer={
             screen.footer && !moonMoving ? (
               <FooterEnter key={`${step}-${history.length}`} secondary={screen.secondary}>

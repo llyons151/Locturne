@@ -2,25 +2,13 @@
 // Reads the navigation state during render (`navigation.getState()`), which changes outside its
 // props. The React Compiler could cache that read, so it stays out here, like the screens (#130).
 
+import { router } from 'expo-router';
 import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  View,
-  type LayoutChangeEvent,
-  type ViewStyle,
-} from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
-  interpolate,
+  interpolateColor,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -30,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MoonWater } from '@/components/moon-water';
 import { tap } from '@/lib/haptics';
 import { Nocturne, Space } from '@/theme';
 
@@ -48,11 +37,6 @@ const TABS: Record<string, { label: string; icon: SymbolName; size: number }> = 
     icon: { ios: 'square.grid.2x2.fill', android: 'apps', web: 'apps' },
     size: 20,
   },
-  nap: {
-    label: 'Nap',
-    icon: { ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' },
-    size: 21,
-  },
   routine: {
     label: 'Routine',
     icon: { ios: 'alarm.fill', android: 'alarm', web: 'alarm' },
@@ -65,23 +49,33 @@ const TABS: Record<string, { label: string; icon: SymbolName; size: number }> = 
   },
 };
 
-const BAR_HEIGHT = 62;
-const BAR_PADDING = 4;
-// How far the bar dips into the bottom safe area, toward the home indicator.
-const BAR_DROP = 14;
+/**
+ * The nav from the user's reference (docs/design-references/rounded-panel-nav.png): the
+ * screens sit on a panel with rounded bottom corners, and under it a black strip holds one
+ * round button per tab, the current one filled white, with the Sleep button (the moon)
+ * apart at the right.
+ */
+const BUTTON = 52;
+const STRIP_TOP = 14;
+/** The panel's bottom corners, close to the phone's own. */
+export const PANEL_RADIUS = 44;
 
 // Quick and settled: premium motion is fast, with no wobble at rest.
-const SLIDE = { damping: 24, stiffness: 320, mass: 0.8 };
 const PRESS = { damping: 18, stiffness: 420 };
 const FADE = { duration: 180 };
 
-/** Space a scrolling tab screen should leave at the bottom so content clears the bar. */
-export function useTabBarInset() {
-  const insets = useSafeAreaInsets();
-  return barBottom(insets.bottom) + BAR_HEIGHT + Space.l;
+/** The strip's height under the panel: the buttons, with the home indicator below them. */
+export function tabStripHeight(safeBottom: number) {
+  return STRIP_TOP + BUTTON + Math.max(safeBottom, Space.l);
 }
 
-const barBottom = (safeBottom: number) => Math.max(safeBottom - BAR_DROP, Space.l);
+/**
+ * Space a scrolling tab screen should leave at the bottom. The bar no longer floats over
+ * the screen, so this is only breathing room above the panel's rounded edge.
+ */
+export function useTabBarInset() {
+  return Space.xxl;
+}
 
 const isCurrentTab = (state: { index: number; routes: { key: string }[] } | undefined, key: string) =>
   !state || state.routes[state.index]?.key === key;
@@ -95,6 +89,10 @@ export default function AppTabs() {
         transitionSpec: { animation: 'timing', config: FADE },
         sceneStyle: {
           backgroundColor: 'transparent',
+          // The panel: content scrolls under its rounded bottom edge, not under the strip.
+          borderBottomLeftRadius: PANEL_RADIUS,
+          borderBottomRightRadius: PANEL_RADIUS,
+          overflow: 'hidden',
           // Web keeps visited tabs mounted; hide their content behind the shared backdrop.
           // Native detaches inactive tabs by itself. Compare against this navigator's own
           // state, not `isFocused()`: that is also false while a screen sits on top of the
@@ -108,7 +106,6 @@ export default function AppTabs() {
     >
       <Tabs.Screen name='index' />
       <Tabs.Screen name='apps' />
-      <Tabs.Screen name='nap' />
       <Tabs.Screen name='routine' />
       <Tabs.Screen name='profile' />
     </Tabs>
@@ -118,86 +115,84 @@ export default function AppTabs() {
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const [rowWidth, setRowWidth] = useState(0);
 
-  const tabWidth = rowWidth / state.routes.length;
-  const capsuleX = useSharedValue(0);
-  const stretch = useSharedValue(1);
-  const placed = useRef(false);
-
-  // The capsule glides to the new tab and stretches a little on the way, like a drop
-  // of liquid. The first placement is instant so it doesn't fly in on launch.
-  useEffect(() => {
-    if (!tabWidth) return;
-    const x = state.index * tabWidth;
-    if (!placed.current || reduced) {
-      placed.current = true;
-      capsuleX.set(x);
-      return;
-    }
-    capsuleX.set(withSpring(x, SLIDE));
-    stretch.set(withSequence(
-      withTiming(1.12, { duration: 110 }),
-      withSpring(1, SLIDE),
-    ));
-  }, [state.index, tabWidth, reduced, capsuleX, stretch]);
-
-  const capsuleStyle = useAnimatedStyle(() => ({
-    width: tabWidth,
-    transform: [{ translateX: capsuleX.value }, { scaleX: stretch.value }],
-  }));
-
-  const onRowLayout = (event: LayoutChangeEvent) =>
-    setRowWidth(event.nativeEvent.layout.width);
-
-  // Floats over the scene like the iOS 26 tab bar: it sits just above the home
-  // indicator, and its corners follow the device's.
   return (
-    <View style={[styles.dock, { bottom: barBottom(insets.bottom) }]}>
-      <View style={styles.barShape}>
-        <Glass style={styles.barShape}>
-          <View style={styles.row} onLayout={onRowLayout}>
-            {rowWidth > 0 && (
-              <Animated.View
-                pointerEvents='none'
-                style={[styles.capsule, capsuleStyle]}
-              />
-            )}
-            {state.routes.map((route, index) => {
-              const tab = TABS[route.name];
-              if (!tab) return null;
+    <View style={[styles.strip, { height: tabStripHeight(insets.bottom) }]}>
+      <View style={styles.row}>
+        {state.routes.map((route, index) => {
+          const tab = TABS[route.name];
+          if (!tab) return null;
 
-              const focused = state.index === index;
+          const focused = state.index === index;
 
-              const onPress = () => {
-                const event = navigation.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!focused && !event.defaultPrevented) {
-                  tap();
-                  navigation.navigate(route.name, route.params);
-                }
-              };
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!focused && !event.defaultPrevented) {
+              tap();
+              navigation.navigate(route.name, route.params);
+            }
+          };
 
-              return (
-                <TabButton
-                  key={route.key}
-                  tab={tab}
-                  focused={focused}
-                  reduced={reduced}
-                  onPress={onPress}
-                />
-              );
-            })}
-          </View>
-        </Glass>
+          return (
+            <TabButton
+              key={route.key}
+              tab={tab}
+              focused={focused}
+              reduced={reduced}
+              onPress={onPress}
+            />
+          );
+        })}
+        <View style={styles.spacer} />
+        <SleepButton reduced={reduced} />
       </View>
     </View>
   );
 }
 
+/**
+ * Sleep sits apart from the tabs, like the separate search button in iOS 26's tab bar,
+ * because it's an action rather than a place: it opens the Sleep sheet to put the apps
+ * to sleep now. Where the reference has its colourful logo button, this is moonlight moving
+ * like light on water (`MoonWater`, which the user asked for), kept inside the circle.
+ */
+function SleepButton({ reduced }: { reduced: boolean }) {
+  const press = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
+  return (
+    <Pressable
+      onPress={() => {
+        tap();
+        router.push('/sleep');
+      }}
+      onPressIn={() => {
+        if (!reduced) press.set(withSpring(0.9, PRESS));
+      }}
+      onPressOut={() => {
+        press.set(withSpring(1, PRESS));
+      }}
+      accessibilityRole='button'
+      accessibilityLabel='Sleep'
+      accessibilityHint='Puts your apps to sleep now'
+    >
+      <Animated.View style={[styles.sleep, style]}>
+        <MoonWater size={BUTTON} reduced={reduced} />
+        <SymbolView
+          name={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}
+          size={22}
+          weight='semibold'
+          tintColor='#FFFFFF'
+        />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+/** One round button: dark grey, or filled white with a dark icon when it's the current tab. */
 function TabButton({
   tab,
   focused,
@@ -226,8 +221,8 @@ function TabButton({
     mounted.current = true;
   }, [focused, reduced, active, bounce]);
 
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(active.value, [0, 1], [0.62, 1]),
+  const circleStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(active.value, [0, 1], [IDLE, Nocturne.cta]),
     transform: [{ scale: press.value }],
   }));
 
@@ -247,102 +242,54 @@ function TabButton({
       accessibilityRole='tab'
       accessibilityLabel={tab.label}
       accessibilityState={{ selected: focused }}
-      style={styles.tab}
+      hitSlop={4}
     >
-      <Animated.View style={[styles.tabContent, contentStyle]}>
-        <Animated.View style={[styles.icon, iconStyle]}>
+      <Animated.View style={[styles.circle, circleStyle]}>
+        <Animated.View style={iconStyle}>
           <SymbolView
             name={tab.icon}
-            size={tab.size}
+            size={tab.size - 2}
             weight='semibold'
-            tintColor={Nocturne.text}
+            tintColor={focused ? Nocturne.onCta : Nocturne.text}
           />
         </Animated.View>
-        {/* Capped like iOS's own tab bar: the largest text sizes don't fit the 62 pt bar. */}
-        <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={styles.label}>
-          {tab.label}
-        </Animated.Text>
       </Animated.View>
     </Pressable>
   );
 }
 
-/** Real liquid glass on iOS 26; a frosted translucent fill everywhere else. */
-function Glass({ style, children }: { style: ViewStyle; children: ReactNode }) {
-  if (isLiquidGlassAvailable()) {
-    return (
-      <GlassView
-        glassEffectStyle='regular'
-        colorScheme='dark'
-        isInteractive
-        style={[style, styles.fill]}
-      >
-        {children}
-      </GlassView>
-    );
-  }
-  return <View style={[style, styles.fill, styles.frost]}>{children}</View>;
-}
+/** The resting buttons: a neutral dark grey on the black strip. */
+const IDLE = '#1E1F23';
 
 const styles = StyleSheet.create({
-  dock: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+  // Black under the panel, as in the reference; the sky stops at the panel's edge.
+  strip: {
+    backgroundColor: '#000000',
+    paddingTop: STRIP_TOP,
     paddingHorizontal: 20,
   },
-  barShape: {
+  row: {
     width: '100%',
     maxWidth: 520,
-    height: BAR_HEIGHT,
-    borderRadius: BAR_HEIGHT / 2,
-    overflow: 'hidden',
-  },
-  fill: {
-    flex: 1,
-    padding: BAR_PADDING,
-  },
-  // The top edge is a touch brighter, like light catching the rim of the glass.
-  // Neutral white only; never a tinted glow.
-  frost: {
-    backgroundColor: 'rgba(40, 44, 58, 0.55)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
-    borderTopColor: 'rgba(255, 255, 255, 0.24)',
-    ...Platform.select({
-      web: { backdropFilter: 'blur(24px) saturate(160%)' } as ViewStyle,
-    }),
-  },
-  row: {
-    flex: 1,
+    alignSelf: 'center',
     flexDirection: 'row',
-  },
-  capsule: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    borderRadius: BAR_HEIGHT / 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.13)',
-  },
-  tab: {
-    flex: 1,
-  },
-  tabContent: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
+    gap: Space.s,
   },
-  icon: {
-    height: 24,
+  spacer: { flex: 1 },
+  circle: {
+    width: BUTTON,
+    height: BUTTON,
+    borderRadius: BUTTON / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    color: Nocturne.text,
-    fontSize: 10,
-    fontWeight: '600',
+  sleep: {
+    width: BUTTON,
+    height: BUTTON,
+    borderRadius: BUTTON / 2,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

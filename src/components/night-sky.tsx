@@ -146,9 +146,15 @@ export function NightSky({
   opening = false,
   quiz = false,
   home = false,
+  floor = 0,
 }: {
   opening?: boolean;
   quiz?: boolean;
+  /**
+   * How far above the screen's bottom the sky ends (the tabs' panel stops above the tab
+   * strip): the resting moon rises out of that edge instead, so its light stays in view.
+   */
+  floor?: number;
   /** The home screen: the moon rises out of the bottom into full view. */
   home?: boolean;
 }) {
@@ -184,7 +190,7 @@ export function NightSky({
   }, [home, reduced, homed]);
 
   const from = heroMoon(width, height);
-  const to = MOON_REST === 'bottom' ? risingMoon(width, height) : bakedMoon(width, height);
+  const to = MOON_REST === 'bottom' ? risingMoon(width, height - floor) : bakedMoon(width, height);
   const up = quizMoon(width, height, insets.top);
   const high = homeMoon(width, height, insets.top);
 

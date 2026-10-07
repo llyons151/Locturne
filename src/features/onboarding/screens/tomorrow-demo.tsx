@@ -486,7 +486,8 @@ function Phone({
   });
   const bannerStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, banner.value * 1.5),
-    transform: [{ translateY: (banner.value - 1) * pt(120) }, { scale: bannerPress.value }],
+    // `k`, not `pt`: a plain function called on the UI thread throws, and kills a release build.
+    transform: [{ translateY: (banner.value - 1) * 120 * k }, { scale: bannerPress.value }],
   }));
 
   return (

@@ -3,7 +3,8 @@ import type { Symbol } from '@/components/grouped-list';
 /** Shared by `controls.tsx` (web preview) and `controls.ios.tsx` (iPhone). */
 
 export type TimeRowProps = {
-  icon: Symbol;
+  /** Left out inside a `Card`, whose header carries the icon. */
+  icon?: Symbol;
   title: string;
   value: number;
   onChange: (minutes: number) => void;
@@ -16,7 +17,8 @@ export type TimeRowProps = {
 export type MenuOption<T extends string | number> = { value: T; label: string };
 
 export type MenuRowProps<T extends string | number> = {
-  icon: Symbol;
+  /** Left out inside a `Card`, whose header carries the icon. */
+  icon?: Symbol;
   title: string;
   value: T;
   options: MenuOption<T>[];
@@ -25,7 +27,8 @@ export type MenuRowProps<T extends string | number> = {
 };
 
 export type NightsRowProps = {
-  icon: Symbol;
+  /** Left out inside a `Card`, whose header carries the icon. */
+  icon?: Symbol;
   value: number[];
   onChange: (nights: number[]) => void;
   last?: boolean;
@@ -38,7 +41,8 @@ export function nightsLabel(nights: number[]) {
 }
 
 export type SwitchRowProps = {
-  icon: Symbol;
+  /** Left out inside a `Card`, whose header carries the icon. */
+  icon?: Symbol;
   title: string;
   value: boolean;
   onChange: (on: boolean) => void;

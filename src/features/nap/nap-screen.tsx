@@ -3,17 +3,16 @@
 // React. The React Compiler would cache those reads from the first render (Home mounts under
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
+import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTabBarInset } from '@/components/app-tabs';
 import { useProtection } from '@/hooks/use-protection';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
-import { PrimaryButton, TextButton } from '@/components/buttons';
+import { OutlineButton, PrimaryButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { Segmented } from '@/components/segmented';
@@ -35,9 +34,7 @@ import {
 } from '@/lib/screen-time';
 import { formatPreset, noOrphan } from '@/lib/text';
 import {
-  DISPLAY_MAX_SCALE,
   DisplayFont,
-  Gap,
   italicOverhang,
   Nocturne,
   NUMBER_FONT,
@@ -48,10 +45,14 @@ import {
 
 import { NapClock } from './nap-clock';
 import { shownLine, type NapLine } from './nap-line';
+import { closeSleepSheet } from './sleep-sheet';
 import { useSideways } from './use-sideways';
 
+const SKY = require('@/assets/onboarding/night-sky-moonless.png');
+const MOON = require('@/assets/onboarding/moon.webp');
+
 /**
- * The Nap tab, GAME_PLAN's "Block now": tuck him in for a while, and the bedtime apps (or
+ * The Sleep sheet, GAME_PLAN's "Block now": tuck him in for a while, and the bedtime apps (or
  * apps picked just for naps) sleep with him. Phone calls always get through. It starts at
  * once because it only tightens things; waking him early takes a deliberate confirmation.
  *
@@ -114,8 +115,6 @@ const timeOf = (ms: number) => {
 };
 
 export function NapScreen() {
-  const insets = useSafeAreaInsets();
-  const bottom = useTabBarInset();
   const [protection, recheckProtection] = useProtection();
 
   const [length, setLength] = useState(30);
@@ -131,17 +130,17 @@ export function NapScreen() {
   // Turning the phone on its side mid-nap shows the moon clock. Only listens while it could.
   const side = useSideways(nap !== null && focused && protection === 'on');
 
-  // A stand-down (a lapse found on return) or a pass ends the nap while this tab is open.
+  // A stand-down (a lapse found on return) or a pass ends the nap while this sheet is open.
   useEffect(() => onLockChange(() => isScreenTimeAvailable() && setNap(peekNap())), []);
 
-  // Pick up a nap started earlier (or one iOS already ended) whenever the tab comes back.
+  // Pick up a nap started earlier (or one iOS already ended) whenever the sheet opens or comes back.
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
       if (isScreenTimeAvailable()) {
         const found = getNap();
         setNap(found);
-        // One running already reads as this tab's own, so ending it some other way reads as ended.
+        // One running already reads as this sheet's own, so ending it some other way reads as ended.
         if (found) setLine('napping');
         setNow(Date.now());
         setPicks(selectionSize('block'));
@@ -217,28 +216,33 @@ export function NapScreen() {
     ? `Apps asleep until ${timeOf(nap.end)}`
     : 'Screen Time protection is off.';
 
+  const at = LENGTHS.findIndex((l) => l.value === length);
+  const step = (by: 1 | -1) => {
+    const next = LENGTHS[at + by];
+    if (!next) return;
+    haptic.tap();
+    setLength(next.value);
+  };
+
+  // The pill under the picture, like the reference's address pill: what sleeps, until when.
+  const pill = nap ? napStatus : `Apps asleep until ${timeOf(now + length * 60_000)}`;
+
   return (
-    <ScrollView
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-        Nap
+    <View style={styles.sheet}>
+      <Text style={styles.title} accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.4}>
+        Sleep
       </Text>
 
-      <Animated.View key={shown} entering={FadeIn.duration(400)} style={styles.top}>
-        <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
-        <Text style={styles.body}>
-          {nap && !napProtected ? 'Turn Screen Time access back on from the Apps tab.' : nap
-            ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`
-            : `${list === 'night' ? 'Your bedtime apps sleep' : 'The apps you pick sleep'} with him. Phone calls still get through.`}
-        </Text>
-      </Animated.View>
+      {/* The reference's map: here the night sky and the moon, with his line and the length on it. */}
+      <View style={styles.visual}>
+        <Image source={SKY} style={[StyleSheet.absoluteFill, styles.sky]} contentFit="cover" contentPosition="top right" accessible={false} />
+        <Image source={MOON} style={styles.moon} contentFit="contain" accessible={false} />
 
-      <View style={styles.flex} />
+        <Animated.View key={shown} entering={FadeIn.duration(400)} style={styles.voiceWrap}>
+          <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
+        </Animated.View>
 
-      {nap ? (
-        <View style={styles.bottom}>
+        {nap ? (
           <View
             style={styles.timer}
             accessible
@@ -247,19 +251,45 @@ export function NapScreen() {
             <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
               {clock(left)}
             </Text>
-            <View style={styles.statusRow}>
-              <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={15} tintColor={Nocturne.text2} />
-              <Text style={styles.status}>{napStatus}</Text>
-            </View>
             <View style={styles.track}>
               <View style={[styles.fill, { width: `${Math.min(1, done) * 100}%` }]} />
             </View>
           </View>
-          <TextButton label="Wake him early" onPress={wake} />
-          <NapClock side={side} progress={done} left={left} until={napStatus} />
+        ) : (
+          /* One adjustable control for VoiceOver: swipe up or down to change the length. */
+          <View
+            style={[styles.stepper, styles.stepperRoom]}
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel="Nap length"
+            accessibilityValue={{ text: `${lengthLabel(length)}, apps asleep until ${timeOf(now + length * 60_000)}` }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}
+          >
+            <StepButton icon="minus" onPress={() => step(-1)} disabled={at <= 0} />
+            <Animated.Text key={length} entering={FadeIn.duration(220)} style={styles.lengthValue} maxFontSizeMultiplier={1.2}>
+              {lengthLabel(length)}
+            </Animated.Text>
+            <StepButton icon="plus" onPress={() => step(1)} disabled={at >= LENGTHS.length - 1} />
+          </View>
+        )}
+
+        <View style={styles.pill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={15} tintColor={Nocturne.text} />
+          <Text style={styles.pillText} numberOfLines={1}>
+            {pill}
+          </Text>
         </View>
-      ) : (
-        <View style={styles.bottom}>
+      </View>
+
+      <Text style={styles.body}>
+        {nap && !napProtected ? 'Turn Screen Time access back on from the Apps tab.' : nap
+          ? `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`
+          : `${list === 'night' ? 'Your bedtime apps sleep' : 'The apps you pick sleep'} with him. Phone calls still get through.`}
+      </Text>
+
+      {nap ? null : (
+        <View style={styles.choose}>
           <Segmented label="Which apps sleep" value={list} options={LISTS} onChange={choose} />
           {list === 'block' && (
             <Section>
@@ -274,13 +304,27 @@ export function NapScreen() {
               />
             </Section>
           )}
-          <Segmented label="Nap length" value={length} options={LENGTHS} onChange={setLength} />
-          <Text style={styles.until}>Apps asleep until {timeOf(now + length * 60_000)}</Text>
-          <PrimaryButton label="Tuck him in" onPress={start} disabled={starting} />
-          {/* Never imply protection is on when it isn't (GAME_PLAN, "Reliability"). */}
-          {notice && <Text style={styles.preview}>{notice}</Text>}
         </View>
       )}
+
+      {/* The reference's two buttons: the main one filled, the other outlined. */}
+      <View style={styles.actions}>
+        {nap ? (
+          <>
+            <PrimaryButton flex label="Done" onPress={closeSleepSheet} />
+            <OutlineButton flex label="Wake him early" onPress={wake} />
+          </>
+        ) : (
+          <>
+            <PrimaryButton flex icon={sym('moon.zzz.fill', 'bedtime')} label="Tuck him in" onPress={start} disabled={starting} />
+            <OutlineButton flex label="Cancel" onPress={closeSleepSheet} />
+          </>
+        )}
+      </View>
+      {/* Never imply protection is on when it isn't (GAME_PLAN, "Reliability"). */}
+      {notice && <Text style={styles.preview}>{notice}</Text>}
+
+      {nap ? <NapClock side={side} progress={done} left={left} until={napStatus} /> : null}
 
       {picking && (
         <ScreenTimePicker
@@ -294,7 +338,22 @@ export function NapScreen() {
           }}
         />
       )}
-    </ScrollView>
+    </View>
+  );
+}
+
+/** The round − and + either side of the length, like a stepper. */
+function StepButton({ icon, onPress, disabled }: { icon: 'minus' | 'plus'; onPress: () => void; disabled: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={8}
+      importantForAccessibility="no"
+      style={({ pressed }) => [styles.stepButton, disabled && styles.stepDisabled, pressed && styles.pressed]}
+    >
+      <SymbolView name={sym(icon, icon === 'minus' ? 'remove' : 'add')} size={17} weight="semibold" tintColor={Nocturne.text} />
+    </Pressable>
   );
 }
 
@@ -308,30 +367,71 @@ function Voice({ text }: { text: string }) {
   );
 }
 
+const MOON_SIZE = 112;
+
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, paddingHorizontal: Gap.gutter },
-  flex: { flex: 1, minHeight: Space.xxxl },
-  title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
-  top: { gap: Space.l, marginTop: Space.xxxl },
+  // Sized to its contents inside the floating card (sleep-sheet.tsx), which adds the bottom inset.
+  sheet: { paddingHorizontal: Space.l, paddingTop: Space.m, gap: Space.l },
+  pressed: { opacity: 0.6 },
+  title: { ...Type.body, fontWeight: '600', color: Nocturne.text, textAlign: 'center' },
+
+  visual: {
+    borderRadius: 28,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    padding: Space.l,
+    gap: Space.l,
+    backgroundColor: Nocturne.bg,
+  },
+  // The app's sky, light from below, as behind the tabs.
+  sky: { transform: [{ scaleY: -1 }] },
+  // The real moon, half out of the corner, as on the Apps and Routine cards.
+  moon: { position: 'absolute', width: MOON_SIZE, height: MOON_SIZE, top: -MOON_SIZE * 0.4, right: -MOON_SIZE * 0.3 },
+  voiceWrap: { paddingRight: MOON_SIZE * 0.6 },
+  // Clear of the moon in the corner.
+  stepperRoom: { marginTop: Space.s },
   voice: {
     ...DisplayFont,
-    ...italicOverhang(VoiceSize.headline),
+    ...italicOverhang(VoiceSize.aside),
     color: Nocturne.text,
-    fontSize: VoiceSize.headline,
-    lineHeight: VoiceSize.headline * 1.08,
+    fontSize: VoiceSize.aside,
+    lineHeight: VoiceSize.aside * 1.15,
   },
   emphasis: { fontStyle: 'normal' },
-  body: { ...Type.body, color: Nocturne.text2 },
+  body: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', paddingHorizontal: Space.s },
 
-  bottom: { gap: Space.l, paddingBottom: Space.s },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.m },
+  stepButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30, 31, 35, 0.85)',
+  },
+  stepDisabled: { opacity: 0.35 },
+  lengthValue: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 48, lineHeight: 54, fontVariant: ['tabular-nums'] },
 
-  until: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s,
+    minHeight: 44,
+    paddingHorizontal: Space.l,
+    borderRadius: 16,
+    borderCurve: 'continuous',
+    backgroundColor: 'rgba(22, 22, 23, 0.82)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Nocturne.edge,
+  },
+  pillText: { flex: 1, ...Type.secondary, fontWeight: '500', color: Nocturne.text },
+
+  choose: { gap: Space.m },
+  actions: { flexDirection: 'row', gap: Space.m },
   preview: { ...Type.caption, color: Nocturne.text3, textAlign: 'center' },
 
-  timer: { gap: Space.m },
-  countdown: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 72, lineHeight: 80, fontVariant: ['tabular-nums'] },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
-  status: { ...Type.body, color: Nocturne.text2 },
-  track: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
+  timer: { gap: Space.m, alignItems: 'center' },
+  countdown: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 56, lineHeight: 62, fontVariant: ['tabular-nums'] },
+  track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
 });
