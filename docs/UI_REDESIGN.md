@@ -108,3 +108,11 @@ smooth, also the ui for it looks like shit... literly just copy this" (`sleep-sh
   follows the finger 1:1 (up resists); letting go hands the finger's speed to a clamped spring,
   so a flick carries on off the screen with no stall. The old close restarted from rest on an
   ease-in curve, which is what stuttered. The drop-stretch effects are gone.
+
+## Round 8: the reference layout on liquid glass, in the app's colours (same day)
+
+"it should still be liquid glass and have the color scheme of my app". Kept round 7's layout
+and motion; the card is liquid glass again (frosted pane off iOS 26) with one hairline edge.
+Content uses the moonrise palette: moon-white type, grey-blue secondary text, glass panes for
+the pill, stepper and option cards, the moon-white accent edge and check on the chosen option,
+and the app's white main button beside a glass Cancel pill. No blue or white-sheet colours.

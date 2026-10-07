@@ -32,6 +32,7 @@ import {
 import { formatPreset, noOrphan } from '@/lib/text';
 import {
   DisplayFont,
+  Nocturne,
   italicOverhang,
   NUMBER_FONT,
   Space,
@@ -221,8 +222,8 @@ export function NapScreen() {
 
   return (
     <View style={styles.sheet}>
-      {/* Copied from the user's references (sleep-sheet.png, and the wallet sheet's option
-          cards): white, dark type, one blue for actions and the chosen option. */}
+      {/* Laid out like the user's references (sleep-sheet.png, and the wallet sheet's option
+          cards), in the app's colours on liquid glass: moon-white type, the white main button. */}
       <Text style={styles.title} accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.4}>
         Sleep
       </Text>
@@ -263,7 +264,7 @@ export function NapScreen() {
       )}
 
       <View style={styles.pill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={16} tintColor={BLUE} />
+        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={16} tintColor={ACCENT} />
         <Text style={styles.pillText} numberOfLines={1}>
           {pill}
         </Text>
@@ -356,7 +357,7 @@ function Option({
       style={({ pressed }) => [styles.option, selected && styles.optionOn, pressed && styles.pressed]}
     >
       <View style={[styles.optionIcon, selected && styles.optionIconOn]}>
-        <SymbolView name={icon} size={18} tintColor={selected ? '#FFFFFF' : INK2} />
+        <SymbolView name={icon} size={18} tintColor={selected ? Nocturne.onCta : INK2} />
       </View>
       <View style={styles.optionText}>
         <Text style={styles.optionTitle}>{title}</Text>
@@ -364,7 +365,7 @@ function Option({
       </View>
       {selected ? (
         <View style={styles.check}>
-          <SymbolView name={sym('checkmark', 'check')} size={11} weight="bold" tintColor="#FFFFFF" />
+          <SymbolView name={sym('checkmark', 'check')} size={11} weight="bold" tintColor={Nocturne.onCta} />
         </View>
       ) : (
         <View style={styles.radio} />
@@ -373,7 +374,7 @@ function Option({
   );
 }
 
-/** The reference's buttons: "Locate Me" filled blue with an icon, "Change" outlined in blue. */
+/** The reference's pair of buttons, in the app's style: the white main pill, and a glass one. */
 function SheetButton({
   label,
   onPress,
@@ -397,7 +398,7 @@ function SheetButton({
       accessibilityRole="button"
       style={({ pressed }) => [styles.button, outline && styles.buttonOutline, (pressed || disabled) && styles.pressed]}
     >
-      {icon ? <SymbolView name={icon} size={17} weight="semibold" tintColor="#FFFFFF" /> : null}
+      {icon ? <SymbolView name={icon} size={17} weight="semibold" tintColor={Nocturne.onCta} /> : null}
       <Text style={[styles.buttonLabel, outline && styles.buttonLabelOutline]} numberOfLines={1}>
         {label}
       </Text>
@@ -430,12 +431,14 @@ function Voice({ text }: { text: string }) {
   );
 }
 
-// The references' light palette, in the app's blue rather than their indigo.
-const INK = '#111827';
-const INK2 = '#6B7280';
-const LINE = '#E5E7EB';
-const BLUE = '#2F6FD6';
-const BLUE_SOFT = '#EEF4FD';
+// The app's own colours on dark glass (theme/colors.ts, moonrise).
+const INK = Nocturne.text;
+const INK2 = Nocturne.text2;
+const LINE = 'rgba(255, 255, 255, 0.12)';
+const ACCENT = Nocturne.accent ?? Nocturne.text;
+const ACCENT_SOFT = 'rgba(207, 230, 247, 0.1)';
+/** A pane of glass inside the glass: a faint white fill. */
+const GLASS = 'rgba(255, 255, 255, 0.07)';
 
 const styles = StyleSheet.create({
   // Sized to its contents inside the white card (sleep-sheet.tsx), which adds the bottom inset.
@@ -461,12 +464,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: GLASS,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: LINE,
   },
   stepDisabled: { opacity: 0.35 },
   lengthValue: { ...NUMBER_FONT, color: INK, fontSize: 48, lineHeight: 54, fontVariant: ['tabular-nums'] },
 
-  // White, softly lifted, as in the reference. A neutral shadow, never a glow.
+  // The reference's address pill, as a pane of glass.
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -474,11 +479,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: Space.l,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
+    backgroundColor: GLASS,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: LINE,
   },
@@ -494,16 +495,16 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: LINE,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: GLASS,
   },
-  optionOn: { borderColor: BLUE, backgroundColor: BLUE_SOFT },
-  optionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
-  optionIconOn: { backgroundColor: BLUE },
+  optionOn: { borderColor: ACCENT, backgroundColor: ACCENT_SOFT },
+  optionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: GLASS },
+  optionIconOn: { backgroundColor: ACCENT },
   optionText: { flex: 1, gap: 1 },
   optionTitle: { color: INK, fontSize: 16, fontWeight: '600' },
   optionDetail: { ...Type.caption, color: INK2 },
-  check: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#D1D5DB' },
+  check: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: Nocturne.text3 },
 
   actions: { flexDirection: 'row', gap: Space.m },
   button: {
@@ -515,15 +516,15 @@ const styles = StyleSheet.create({
     gap: Space.s,
     paddingHorizontal: Space.l,
     borderRadius: 27,
-    backgroundColor: BLUE,
+    backgroundColor: Nocturne.cta,
   },
-  buttonOutline: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: BLUE },
-  buttonLabel: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
-  buttonLabelOutline: { color: BLUE },
+  buttonOutline: { backgroundColor: GLASS, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.22)' },
+  buttonLabel: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
+  buttonLabelOutline: { color: INK },
   notice: { ...Type.caption, color: INK2, textAlign: 'center' },
 
   timer: { gap: Space.m, alignItems: 'center' },
   countdown: { ...NUMBER_FONT, color: INK, fontSize: 56, lineHeight: 62, fontVariant: ['tabular-nums'] },
   track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: LINE, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: BLUE },
+  fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
 });

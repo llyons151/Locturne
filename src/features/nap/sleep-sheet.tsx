@@ -1,6 +1,7 @@
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
@@ -16,9 +17,10 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Space } from '@/theme';
 
 /**
- * The Sleep sheet's frame, copied from the user's reference (docs/design-references/sleep-sheet.png,
- * the white "Set Location" sheet): a white card floating just inside the screen's edges with
- * the phone's round corners, a grabber, and the page dimmed behind it.
+ * The Sleep sheet's frame, the shape of the user's reference (docs/design-references/sleep-sheet.png):
+ * a card floating just inside the screen's edges with the phone's round corners, a grabber, and
+ * the page dimmed behind it. In liquid glass and the app's colours, as the user asked ("it
+ * should still be liquid glass and have the color scheme of my app").
  *
  * Motion is one value, `offset`: how far below its resting place the card sits, in points.
  * Opening springs it up from below; dragging moves it with the finger; letting go hands the
@@ -122,6 +124,12 @@ export function SleepSheet({ children }: { children: ReactNode }) {
           accessibilityViewIsModal
           onAccessibilityEscape={() => close()}
         >
+          {/* Apple's liquid glass on iOS 26; elsewhere a frosted pane that blurs the page behind. */}
+          {isLiquidGlassAvailable() ? (
+            <GlassView glassEffectStyle="regular" colorScheme="dark" style={StyleSheet.absoluteFill} />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, styles.frost]} />
+          )}
           <View style={styles.grabber} />
           {children}
         </Animated.View>
@@ -132,7 +140,8 @@ export function SleepSheet({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
-  scrim: { backgroundColor: 'rgba(0, 0, 0, 0.45)' },
+  // Light enough that the glass has the page to blur.
+  scrim: { backgroundColor: 'rgba(0, 0, 0, 0.3)' },
   card: {
     position: 'absolute',
     left: INSET,
@@ -141,10 +150,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: RADIUS,
     borderCurve: 'continuous',
-    backgroundColor: '#FFFFFF',
+    // One even, faint edge all round, like iOS's glass sheets.
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
     // A neutral lift off the page, never a tinted glow.
     shadowColor: '#000000',
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.4,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 8 },
     overflow: 'hidden',
@@ -155,6 +166,10 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 3,
     marginTop: 8,
-    backgroundColor: '#D5D9E0',
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  frost: {
+    backgroundColor: 'rgba(22, 28, 44, 0.66)',
+    ...Platform.select({ web: { backdropFilter: 'blur(36px) saturate(180%)' } as ViewStyle }),
   },
 });
