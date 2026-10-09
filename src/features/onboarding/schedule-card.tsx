@@ -1,5 +1,6 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 
 import { AppTile } from '@/components/app-icons';
 import { countPicks } from '@/components/app-picker';

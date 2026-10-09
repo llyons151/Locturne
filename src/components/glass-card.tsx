@@ -13,28 +13,42 @@ export const GLASS_RADIUS = 26;
  * and a faint diagonal sheen, so it still reads as a box over the black part of the sky.
  * The rim and sheen are neutral white; never a tinted glow.
  */
-export function GlassCard({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function GlassCard({
+  children,
+  style,
+  dark,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  /**
+   * Darkened glass (user's ask, 2026-10-08, for the app lists): the same liquid glass with a
+   * black tint, so it still refracts and catches the light but reads as smoked glass. The
+   * sheen and rim are quieter to match.
+   */
+  dark?: boolean;
+}) {
+  const sheenTop = dark ? 0.07 : 0.16;
   const sheen = (
     <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
       <Defs>
-        <LinearGradient id="glass-sheen" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.16} />
-          <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity={0.04} />
-          <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0.02} />
+        <LinearGradient id={dark ? 'glass-sheen-dark' : 'glass-sheen'} x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={sheenTop} />
+          <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity={dark ? 0.015 : 0.04} />
+          <Stop offset="1" stopColor="#FFFFFF" stopOpacity={dark ? 0 : 0.02} />
         </LinearGradient>
       </Defs>
-      <Rect width="100%" height="100%" fill="url(#glass-sheen)" />
+      <Rect width="100%" height="100%" fill={dark ? 'url(#glass-sheen-dark)' : 'url(#glass-sheen)'} />
     </Svg>
   );
   // The rim goes over the content (pressed rows) so it never gets covered.
-  const rim = <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.rim]} />;
+  const rim = <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.rim, dark && styles.rimDark]} />;
 
   if (isLiquidGlassAvailable()) {
     return (
       <GlassView
         glassEffectStyle="regular"
         colorScheme="dark"
-        tintColor="rgba(255, 255, 255, 0.08)"
+        tintColor={dark ? 'rgba(4, 7, 14, 0.55)' : 'rgba(255, 255, 255, 0.08)'}
         style={[styles.shape, style]}
       >
         {sheen}
@@ -44,7 +58,7 @@ export function GlassCard({ children, style }: { children: ReactNode; style?: St
     );
   }
   return (
-    <View style={[styles.shape, styles.pane, style]}>
+    <View style={[styles.shape, dark ? styles.paneDark : styles.pane, style]}>
       {sheen}
       {children}
       {rim}
@@ -60,11 +74,22 @@ const styles = StyleSheet.create({
       web: { backdropFilter: 'blur(28px) saturate(170%)' } as ViewStyle,
     }),
   },
+  paneDark: {
+    backgroundColor: 'rgba(4, 7, 14, 0.55)',
+    ...Platform.select({
+      web: { backdropFilter: 'blur(28px) saturate(140%)' } as ViewStyle,
+    }),
+  },
   rim: {
     borderRadius: GLASS_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.16)',
     borderTopColor: 'rgba(255, 255, 255, 0.36)',
     borderLeftColor: 'rgba(255, 255, 255, 0.24)',
+  },
+  rimDark: {
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderTopColor: 'rgba(255, 255, 255, 0.20)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.12)',
   },
 });

@@ -12,6 +12,9 @@
       ],
       "blocked-apps": [
         "./modules/blocked-apps"
+      ],
+      "moon-orb": [
+        "./modules/moon-orb"
       ]
     }
   },

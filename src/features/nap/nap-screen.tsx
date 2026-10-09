@@ -6,7 +6,8 @@
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { useProtection } from '@/hooks/use-protection';

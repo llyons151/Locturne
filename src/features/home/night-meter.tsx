@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '@/components/text';
 
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 

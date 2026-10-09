@@ -533,6 +533,26 @@ test('protection is off when iOS dropped the armed schedule, even if access stil
   assert.equal(st.getProtection(), 'off');
 });
 
+test('protection is off when even one bedtime window is missing', async () => {
+  status = 2;
+  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  activities.pop();
+  assert.equal(st.getProtection(), 'off');
+});
+
+test('obsolete native windows cannot stand in for the committed bedtime generation', async () => {
+  status = 2;
+  const windows = planNightWindows(TIMES.bedtime, TIMES.morningStart);
+  await st.armNight(windows, 'night', TIMES);
+  st.sharedSet('locturne.armedNight', { ...st.getArmedNight(), nativeWindowPrefix: 'night-native-current-' });
+  activities = windows.map((_, i) => `night-native-old-${i}`);
+  assert.deepEqual(st.currentNightWindowNames(), []);
+  assert.equal(st.getProtection(), 'off');
+  activities = windows.map((_, i) => `night-native-current-${i}`);
+  assert.equal(st.currentNightWindowNames().length, windows.length);
+  assert.equal(st.getProtection(), 'on');
+});
+
 test('protection is off when a list should be asleep but no shield is up', () => {
   status = 2;
   saved = { always: 'apps:tiktok' };

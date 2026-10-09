@@ -1,0 +1,5 @@
+name: loc-peek
+main: Preview
+logs:
+  file: build/rive.log
+  problems: build/problems.log

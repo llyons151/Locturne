@@ -1,5 +1,10 @@
 # Device test script (v1, one iPhone)
 
+Current readiness and corrections to this script's historical discrepancies are
+in the [October 7 launch audit](../LAUNCH_READINESS_AUDIT_2026-10-07.md).
+In particular, development and preview builds now enable free testing; disable
+that flag when testing the real purchase flow. Section 5 describes older code.
+
 Written October 3, 2026 from the code as it stands, not from the per-feature docs. It
 replaces the scattered checklists in [INTEGRATION.md](INTEGRATION.md),
 [morning-engine.md](morning-engine.md), [exits-and-scan.md](exits-and-scan.md),

@@ -40,6 +40,7 @@ test('an active nap reports revoked protection and recovers its status when acce
   };
   const mocks: Record<string, any> = {
     react, 'expo-router': { router: {}, useFocusEffect() {} }, 'expo-symbols': { SymbolView: 'Symbol' },
+    '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': { StyleSheet: { create: (s: any) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text' },
     'react-native-reanimated': { __esModule: true, default: { View: 'Animated' }, FadeIn: { duration() {} } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },

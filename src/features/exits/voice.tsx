@@ -1,4 +1,5 @@
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Text } from '@/components/text';
 
 import { noOrphan } from '@/lib/text';
 import { DisplayFont, italicOverhang, Nocturne, VoiceSize } from '@/theme';

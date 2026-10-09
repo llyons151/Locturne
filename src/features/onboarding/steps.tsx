@@ -3,7 +3,8 @@
 // which changes outside React: the React Compiler would cache it (#130), so it stays out here.
 
 import type { ReactNode } from 'react';
-import { Linking, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppsCard, type LivePicks } from '@/components/app-picker';

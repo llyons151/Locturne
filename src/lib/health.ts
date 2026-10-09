@@ -163,12 +163,17 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     if (facts.lastPaidMorning && dateKey(end) > facts.lastPaidMorning) continue;
 
     const ran = starts.filter((h) => h.at >= start.getTime() - EARLY_SLACK && h.at <= end.getTime());
-    const first = ran[0];
+    // A callback alone doesn't prove the block applied. An empty list or an
+    // explicitly absent shield cannot mark bedtime on time when a later window
+    // is the first one that actually protected anything. Older library entries
+    // have no shield evidence and keep their existing callback-only semantics.
+    const protectedStarts = ran.filter((h) => h.nightPicked !== false && h.shielded !== false);
+    const first = protectedStarts[0] ?? ran[0];
     let verdict: NightVerdict;
     if (facts.zoneChangedAt && start.getTime() < facts.zoneChangedAt) verdict = 'unknown';
     else if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
     // An empty bedtime list puts nothing to sleep, even with another list's shield up.
-    else if (ran.every((h) => (h.nightPicked ?? h.shielded) === false)) {
+    else if (protectedStarts.length === 0) {
       const inPause = (at: number) => facts.pauses?.some((p) => at >= p.from && at < p.until) ?? false;
       verdict = facts.paused?.includes(dateKey(end)) || ran.every((h) => inPause(h.at)) ? 'unknown' : 'noShield';
     }

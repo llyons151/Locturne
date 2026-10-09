@@ -102,7 +102,9 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
       const permission = await pedometer.requestPermissionsAsync();
       if (stopped) return;
       if (!permission.granted) return status('denied');
-      const steps = await readHistory();
+      // A query can fail even with a working, authorized motion chip. Start live
+      // counting anyway; the regular history poll catches up when queries recover.
+      const steps = await readHistory().catch(() => 0);
       if (stopped) return;
       update(startCount(goal, steps, now()));
       status('counting');

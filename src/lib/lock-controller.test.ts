@@ -60,7 +60,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     },
     reapplyStandingBlocks: () => calls.push('reapply'),
     getArmedNight: () => armed,
-    armedWindowNames: () => Array.from({ length: live }, (_, i) => `night-${i}`),
+    currentNightWindowNames: () => Array.from({ length: live }, (_, i) => `night-${i}`),
     armNight: async (windows: unknown[], list: string, times: { bedtime: number; morningStart: number }) => {
       calls.push(`arm:${list}:${windows.length}`);
       if (armGate) await armGate;

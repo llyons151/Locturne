@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Track } from '@/components/meter';

@@ -1,17 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
-import {
-  AccessibilityInfo,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-  type StyleProp,
-  type TextStyle,
-} from 'react-native';
+import { AccessibilityInfo, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type StyleProp, type TextStyle } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,

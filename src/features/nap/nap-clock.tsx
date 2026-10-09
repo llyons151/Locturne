@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, {
   Easing,
   useAnimatedProps,

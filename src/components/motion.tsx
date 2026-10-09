@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type PropsWithChildren } from 'rea
 import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 
-import { italicOverhang } from '@/theme';
+import { APP_FONT, italicOverhang } from '@/theme';
 
 /**
  * How text arrives on an onboarding page. Picked per page in onboarding-flow.tsx
@@ -130,7 +130,7 @@ export function WordsIn({
   if (entrance.motion === 'moonrise' || reduced) {
     return (
       <Animated.Text
-        style={[style, overhang, !reduced && animation(entrance.motion, size, entrance.delay)]}
+        style={[APP_FONT, style, overhang, !reduced && animation(entrance.motion, size, entrance.delay)]}
         maxFontSizeMultiplier={maxFontSizeMultiplier}
         accessibilityRole={role}
       >
@@ -150,7 +150,7 @@ export function WordsIn({
       {words.map((word, i) => (
         <Animated.Text
           key={i}
-          style={[style, overhang, animation(entrance.motion, size, entrance.delay + i * WORD_STAGGER_MS)]}
+          style={[APP_FONT, style, overhang, animation(entrance.motion, size, entrance.delay + i * WORD_STAGGER_MS)]}
           maxFontSizeMultiplier={maxFontSizeMultiplier}
         >
           {word}

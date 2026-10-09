@@ -19,7 +19,7 @@ import { armedForEdit, bringEditForward, getPendingRoutine, getRoutine, getRouti
 import { methodInUse } from './scan-code.ts';
 import {
   armedSince,
-  armedWindowNames,
+  currentNightWindowNames,
   armNight,
   delayListChanges,
   disarmNight,
@@ -424,7 +424,7 @@ function planFor(now: Date): ArmPlan {
   // still holding a night of it (`runsAs`, routine.ts).
   const at = armed ? Date.parse(armed.armedAt) : Number.NaN;
   const older = !(since !== undefined && !Number.isNaN(at) && at >= since);
-  return planArming(now, getRoutine(now), pending, armed && { ...armed, live: armedWindowNames().length, edit, older }, lastPaidMorning());
+  return planArming(now, getRoutine(now), pending, armed && { ...armed, live: currentNightWindowNames().length, edit, older }, lastPaidMorning());
 }
 
 export type ArmResult = 'armed' | 'kept' | 'disarmed' | 'deferred' | 'unavailable';

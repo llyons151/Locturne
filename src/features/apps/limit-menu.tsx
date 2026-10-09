@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
+import { Text } from '@/components/text';
 
 import { ChoiceRow, EditSheet, Section } from '@/components/grouped-list';
 import { limitLabel } from '@/lib/daily-limits';

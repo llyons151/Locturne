@@ -145,3 +145,45 @@ test('a fresh limit whose past usage reaches its threshold during registration s
   assert.ok(st.limitUsedUpToday('limit-0'));
   assert.ok(fake.shielded('blockSelection').includes('limit-0'), 'registration must preserve the new threshold shield');
 });
+
+test('a saved limit whose monitoring disappeared is recovered on open without clearing its reached mark', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  await st.armLimit(st.getLimits()[0]);
+  fake.state.activities = []; // iOS dropped monitoring, but the picks and settings survived.
+  fake.state.store['locturne.limitReached.limit-0'] = dateKey(new Date());
+  fake.state.calls.length = 0;
+  await st.settleLimitChanges();
+  assert.ok(fake.state.activities.includes('limit-0'));
+  assert.ok(st.limitUsedUpToday('limit-0'));
+  assert.ok(fake.shielded('blockSelection').includes('limit-0'));
+});
+
+test('a never-registered saved limit retries on open, then leaves healthy monitoring alone', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  refuse = true;
+  await assert.rejects(st.settleLimitChanges());
+  refuse = false;
+  await st.settleLimitChanges();
+  assert.ok(fake.state.activities.includes('limit-0'));
+  fake.state.calls.length = 0;
+  await st.settleLimitChanges();
+  assert.ok(!fake.state.calls.some(([call]) => call === 'startMonitoring'));
+});
+
+test('a stood-down limit is not recovered by the foreground settle', async () => {
+  st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+  st.standDown();
+  await st.settleLimitChanges();
+  assert.deepEqual(fake.state.activities, []);
+});
+
+test('a refused limit re-arm still restores overlapping standing shields after a list swap', async () => {
+  fake.ids().always = 'always-picks';
+  fake.ids()['always-next'] = 'new-always-picks';
+  fake.state.store['locturne.pendingLists'] = { always: { from: Date.now() - 1000 } };
+  st.saveLimits([{ id: 'limit-0', minutes: 30, pending: { minutes: 60, from: Date.now() - 1000 } }]);
+  refuse = true;
+  await assert.rejects(st.settleLimitChanges());
+  assert.ok(fake.shielded('unblockSelection').includes('always'));
+  assert.ok(fake.shielded('blockSelection').includes('always'), 'a failed await must not leave the swapped always list awake');
+});

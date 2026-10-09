@@ -59,6 +59,19 @@ test('windows that ran with no shield up are flagged', () => {
   assert.equal(nights[0].verdict, 'noShield');
 });
 
+test('an unshielded bedtime callback followed by a shielded window is late, not on time', () => {
+  const night = check([start(at(3, 23), false), start(at(3, 23, 45), true, 'night-1')], at(4, 8))[0];
+  assert.equal(night.verdict, 'late');
+  assert.equal(night.firstStart?.getTime(), at(3, 23, 45).getTime());
+  assert.equal(night.lateBy, 45);
+});
+
+test('a picked bedtime list with no shield up is not a successful night', () => {
+  const night = check([{ ...start(at(3, 23), false), nightPicked: true }], at(4, 8))[0];
+  assert.equal(night.verdict, 'noShield');
+  assert.equal(hadSuccessfulNight([night]), false);
+});
+
 test('an empty bedtime list is flagged even while the always list keeps a shield up', () => {
   const empty = (when: Date): Heartbeat => ({ ...start(when, true), nightPicked: false });
   assert.equal(check([empty(at(3, 23))], at(4, 8))[0].verdict, 'noShield');

@@ -84,7 +84,7 @@ export type Protection = 'on' | 'off' | 'notSetUp' | 'unavailable';
  * Is Locturne actually protecting anything? `getAccess` alone can't say, because it keeps
  * answering "approved" after access is revoked in Settings, until the app restarts. When
  * access goes, iOS also stops every monitored schedule and lifts every shield, so those are
- * checked too: an armed night with no windows left, or a list that should be asleep with no
+ * checked too: an armed night missing any committed window, or a list that should be asleep with no
  * shield up, means protection is off whatever the cached status says.
  */
 export function getProtection(): Protection {
@@ -92,7 +92,8 @@ export function getProtection(): Protection {
   const access = getAccess();
   if (access === 'notDetermined') return 'notSetUp';
   if (access === 'denied') return 'off';
-  if (getArmedNight() && armedWindowNames().length === 0) return 'off';
+  const armed = getArmedNight();
+  if (armed && currentNightWindowNames().length !== armed.windows) return 'off';
   if (heldLists().length > 0 && !isShieldActive()) return 'off';
   return 'on';
 }
@@ -542,6 +543,19 @@ export function armedWindowNames(): string[] {
   return getActivities().filter((name) => name.startsWith(WINDOW_PREFIX));
 }
 
+/**
+ * The committed night generation's expected windows that iOS actually monitors.
+ * An obsolete generation cannot protect the night: the extension ignores its
+ * callbacks. Keep `armedWindowNames` broad so disarming still stops all of them.
+ */
+export function currentNightWindowNames(): string[] {
+  const armed = getArmedNight();
+  if (!armed) return [];
+  const prefix = armed.nativeWindowPrefix ?? WINDOW_PREFIX;
+  const expected = new Set(planNightWindows(armed.bedtime, armed.morningStart).map((_, i) => `${prefix}${i}`));
+  return armedWindowNames().filter((name) => expected.has(name));
+}
+
 export function getArmedNight(): ArmedNight | null {
   return sharedGet<ArmedNight>(ARMED_KEY) ?? null;
 }
@@ -755,6 +769,19 @@ export function shownSelection(list: StandingList): { id: SelectionId; size: num
   return { id: list, size };
 }
 
+/**
+ * The picks as the person last chose them, for the Apps tab's rows: the draft while a
+ * change waits, else the list. Removed apps sleep until the change lands (the pending note
+ * says so), but they're gone from the rows at once, so a swiped-away row stays away.
+ */
+export function editedSelection(list: StandingList): { id: SelectionId; size: number } {
+  const pending = getPendingLists()[list];
+  if (pending && (pending.empty || hasSelection(draftId(list)))) {
+    return { id: draftId(list), size: selectionSize(draftId(list)) };
+  }
+  return { id: list, size: selectionSize(list) };
+}
+
 /** The picks after a pending handoff, including an empty edit or an emergency restoration. */
 export function selectionSizeAfterChange(list: StandingList): number {
   const pending = getPendingLists()[list];
@@ -767,7 +794,10 @@ export function selectionSizeAfterChange(list: StandingList): number {
  * waiting, the draft still holds them, so the picker opens on the list as it will be.
  */
 export function beginListEdit(list: StandingList): DraftId {
-  if (!getPendingLists()[list]) copySelection(list, draftId(list));
+  // Also when a change is waiting but its draft is gone: `editedSelection` shows the live list
+  // then, so the edit starts from it too (a swipe would otherwise find nothing to remove).
+  const pending = getPendingLists()[list];
+  if (!pending || (!pending.empty && !hasSelection(draftId(list)))) copySelection(list, draftId(list));
   return draftId(list);
 }
 
@@ -1223,29 +1253,41 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
   // Picks that moved on from what iOS counts with no waiting edit left for `lists` to show
   // (a re-arm iOS refused, or a swap an older build's extension made at bedtime).
   const swapped = settled.limits.filter((l) => armedPicksStale(l.id)).map((l) => l.id);
-  if (!lists.length && !swapped.length && !settled.rearm.length && !settled.removed.length) return;
-  for (const id of settled.removed) removeLimit(id);
-  saveLimits(getLimits().filter((l) => !settled.removed.includes(l.id)));
-  // Each looser limit is saved only once iOS has it. If iOS refuses, it stays pending, the
-  // stricter one keeps being enforced (the safe side), and the next open tries again.
-  for (const limit of settled.rearm) {
-    await armLimit(limit, { fresh: true });
-    saveLimits(getLimits().map((l) => (l.id === limit.id ? limit : l)));
-  }
-  // A limit whose apps changed at bedtime: hand iOS the new picks.
-  for (const limit of settled.limits) {
-    if (!(lists.includes(limit.id) || swapped.includes(limit.id)) || settled.rearm.includes(limit)) continue;
-    // Emptied at bedtime: nothing to count, so stop counting the old picks.
-    if (!getFamilyActivitySelectionId(limit.id)) {
-      stopMonitoring([limit.id]);
-      forgetUsedUp(limit.id);
-      sharedRemove(`${LIMIT_ARMED_PICKS_PREFIX}${limit.id}`);
+  // A saved limit can outlive its native activity: registration failed, iOS
+  // dropped monitoring, or access was revoked and restored. Unchanged picks
+  // alone are no evidence that iOS still counts them.
+  const missing = isAvailable() && !isStoodDown()
+    ? settled.limits.filter((l) => hasSelection(l.id) && !hasActivity(l.id)).map((l) => l.id)
+    : [];
+  if (!lists.length && !swapped.length && !missing.length && !settled.rearm.length && !settled.removed.length) return;
+  try {
+    for (const id of settled.removed) removeLimit(id);
+    saveLimits(getLimits().filter((l) => !settled.removed.includes(l.id)));
+    // Each looser limit is saved only once iOS has it. If iOS refuses, it stays pending, the
+    // stricter one keeps being enforced (the safe side), and the next open tries again.
+    for (const limit of settled.rearm) {
+      await armLimit(limit, { fresh: true });
+      saveLimits(getLimits().map((l) => (l.id === limit.id ? limit : l)));
     }
-    // Fresh: a used-up mark earned on the old picks (iOS counted them until now) mustn't hold
-    // the new ones. iOS fires again at once if the new picks really are over (past activity counts).
-    else await armLimit(limit, { fresh: true });
+    // A limit whose apps changed at bedtime: hand iOS the new picks.
+    for (const limit of settled.limits) {
+      const changed = lists.includes(limit.id) || swapped.includes(limit.id);
+      if ((!changed && !missing.includes(limit.id)) || settled.rearm.includes(limit)) continue;
+      // Emptied at bedtime: nothing to count, so stop counting the old picks.
+      if (!getFamilyActivitySelectionId(limit.id)) {
+        stopMonitoring([limit.id]);
+        forgetUsedUp(limit.id);
+        sharedRemove(`${LIMIT_ARMED_PICKS_PREFIX}${limit.id}`);
+      }
+      // Changed picks start fresh; merely restoring missing monitoring keeps
+      // today's reached mark, so recovery cannot grant a second allowance.
+      else await armLimit(limit, { fresh: changed });
+    }
+  } finally {
+    // List swaps unshield the old picks before awaiting registration. Restore
+    // every surviving rule even if a native registration rejects.
+    reapplyStandingBlocks();
   }
-  reapplyStandingBlocks();
 }
 
 /*

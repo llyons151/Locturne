@@ -3,10 +3,10 @@
 // props. The React Compiler could cache that read, so it stays out here, like the screens (#130).
 
 import { router } from 'expo-router';
-import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
+import { Tabs, type BottomTabBarProps, type BottomTabNavigationOptions } from 'expo-router/js-tabs';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useEffect, useRef } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Easing, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
@@ -17,6 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 
 import { MoonWater } from '@/components/moon-water';
 import { tap } from '@/lib/haptics';
@@ -62,7 +63,36 @@ export const PANEL_RADIUS = 44;
 
 // Quick and settled: premium motion is fast, with no wobble at rest.
 const PRESS = { damping: 18, stiffness: 420 };
+/** The selected button's fill. */
 const FADE = { duration: 180 };
+
+/**
+ * Switching tabs: a quiet "fade through" (docs/PAGE_TRANSITIONS.md). The sky, the moon and
+ * the strip never move; only the page on the panel changes. The old page is gone within the
+ * first ~40 ms, then the new one fades in and settles from 98% to full size on a long, soft
+ * ease-out. Short, because tabs are switched often (HIG: no lingering motion on frequent
+ * interactions), and a tap mid-transition simply retargets it.
+ */
+const SWITCH: BottomTabNavigationOptions['transitionSpec'] = {
+  animation: 'timing',
+  config: { duration: 260, easing: Easing.out(Easing.cubic) },
+};
+
+/** `progress` is 0 for the shown tab and ±1 for the others (React Navigation). */
+const fadeThrough: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
+  sceneStyle: {
+    // Out by 40% of the way, so the two pages barely overlap: no double image on the sky.
+    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [0, 0, 1, 0, 0] }),
+    transform: [{ scale: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1, 0.98] }) }],
+  },
+});
+
+/** Reduce Motion: the same timing as a plain fade, nothing scales. */
+const fadeOnly: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
+  sceneStyle: {
+    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [0, 0, 1, 0, 0] }),
+  },
+});
 
 /** The strip's height under the panel: the buttons, with the home indicator below them. */
 export function tabStripHeight(safeBottom: number) {
@@ -77,31 +107,27 @@ export function useTabBarInset() {
   return Space.xxl;
 }
 
-const isCurrentTab = (state: { index: number; routes: { key: string }[] } | undefined, key: string) =>
-  !state || state.routes[state.index]?.key === key;
-
 export default function AppTabs() {
+  const reduced = useReducedMotion();
   return (
     <Tabs
-      screenOptions={({ navigation, route }) => ({
+      screenOptions={{
         headerShown: false,
+        // `animation` turns on the navigator's transition handling; the interpolator draws it.
         animation: 'fade',
-        transitionSpec: { animation: 'timing', config: FADE },
+        transitionSpec: SWITCH,
+        sceneStyleInterpolator: reduced ? fadeOnly : fadeThrough,
         sceneStyle: {
           backgroundColor: 'transparent',
           // The panel: content scrolls under its rounded bottom edge, not under the strip.
           borderBottomLeftRadius: PANEL_RADIUS,
           borderBottomRightRadius: PANEL_RADIUS,
           overflow: 'hidden',
-          // Web keeps visited tabs mounted; hide their content behind the shared backdrop.
-          // Native detaches inactive tabs by itself. Compare against this navigator's own
-          // state, not `isFocused()`: that is also false while a screen sits on top of the
-          // tabs, and those stale options left a tab blank when you came back to it.
-          ...(Platform.OS === 'web' && {
-            display: isCurrentTab(navigation.getState(), route.key) ? 'flex' : 'none',
-          }),
+          // No `display: none` for hidden tabs on web any more: the navigator already fades
+          // them to nothing and detaches them, and toggling `display` cut the fade off and
+          // replayed Reanimated entrances out of place (October 8, 2026).
         },
-      })}
+      }}
       tabBar={(props) => <TabBar {...props} />}
     >
       <Tabs.Screen name='index' />
@@ -157,11 +183,13 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 /**
  * Sleep sits apart from the tabs, like the separate search button in iOS 26's tab bar,
  * because it's an action rather than a place: it opens the Sleep sheet to put the apps
- * to sleep now. Where the reference has its colourful logo button, this is moonlight moving
- * like light on water (`MoonWater`, which the user asked for), kept inside the circle.
+ * to sleep now. Where the reference has its colourful logo button, this is the "Moonwell"
+ * orb the user picked (2026-10-06), drawn natively with Metal (`moon-orb`). Builds without
+ * that module, and web, fall back to the SVG `MoonWater`.
  */
 function SleepButton({ reduced }: { reduced: boolean }) {
   const press = useSharedValue(1);
+  const [pressed, setPressed] = useState(false);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
   return (
     <Pressable
@@ -170,9 +198,11 @@ function SleepButton({ reduced }: { reduced: boolean }) {
         router.push('/sleep');
       }}
       onPressIn={() => {
+        setPressed(true);
         if (!reduced) press.set(withSpring(0.9, PRESS));
       }}
       onPressOut={() => {
+        setPressed(false);
         press.set(withSpring(1, PRESS));
       }}
       accessibilityRole='button'
@@ -180,7 +210,11 @@ function SleepButton({ reduced }: { reduced: boolean }) {
       accessibilityHint='Puts your apps to sleep now'
     >
       <Animated.View style={[styles.sleep, style]}>
-        <MoonWater size={BUTTON} reduced={reduced} />
+        {isMoonOrbViewAvailable ? (
+          <MoonOrbView style={StyleSheet.absoluteFill} pressed={pressed} paused={reduced} />
+        ) : (
+          <MoonWater size={BUTTON} reduced={reduced} />
+        )}
         <SymbolView
           name={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}
           size={22}

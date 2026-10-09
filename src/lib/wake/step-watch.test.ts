@@ -140,6 +140,22 @@ describe('step watch', () => {
     assert.ok(!t.world.statuses.includes('unavailable'));
   });
 
+  test('a failed initial history read still starts live counting and retries history', async () => {
+    const t = setup((w) => void (w.historyFails = true));
+    await settle();
+    assert.deepEqual(t.world.statuses, ['counting']);
+    assert.equal(t.live().length, 1);
+    t.walk(12, 6);
+    assert.equal(t.steps(), 12);
+    t.world.historyFails = false;
+    t.world.history = 50;
+    t.world.clock += HISTORY_EVERY_MS;
+    t.poll();
+    await settle();
+    assert.equal(t.steps(), 50, 'recovered history includes steps walked before opening');
+    t.stop();
+  });
+
   test('back from the background: listens again and banks what was walked away', async () => {
     const t = setup();
     await settle();

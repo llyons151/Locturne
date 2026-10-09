@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 
 import { fakeDeviceActivity } from './fake-device-activity.ts';
+import { planNightWindows } from './night-plan.ts';
 
 type Scheduled = {
   identifier: string;
@@ -98,14 +99,21 @@ const foreign = (identifier: string): Scheduled => ({ identifier, content: { tit
 const ours = () => [...ios.scheduled.keys()].filter((id) => id.startsWith(n.ID_PREFIX)).sort();
 const tap = (identifier: string): Response => ({ notification: { request: { identifier } } });
 
+function monitoredNight(bedtime = DEFAULT_ROUTINE.bedtime) {
+  const windows = planNightWindows(bedtime, DEFAULT_ROUTINE.morningStart);
+  fake.state.store['locturne.armedNight'] = {
+    ...fake.armedNight(new Date(2026, 8, 1)), bedtime, windows: windows.length,
+  };
+  fake.state.activities = windows.map((w) => w.name);
+}
+
 beforeEach(() => {
   mock.timers.reset();
   mock.timers.enable({ apis: ['Date'], now: NOW });
   fake.reset();
   // Armed, with its windows monitored: protection reads as on.
-  fake.arm(new Date(2026, 8, 1));
+  monitoredNight();
   fake.ids().night = 'selected-apps';
-  fake.state.activities = ['night-0'];
   ios.scheduled.clear();
   ios.log.length = 0;
   ios.settings = { granted: true, status: 'granted', ios: { status: IOS.AUTHORIZED } };
@@ -241,7 +249,7 @@ test('a reschedule that fails doesn’t block the next one', async () => {
 test('before onboarding has saved a routine, the one passed in is planned', async () => {
   const late = { ...DEFAULT_ROUTINE, bedtime: 23 * 60 + 30 };
   // Whatever is armed is armed for it (windows armed for other times would decide: `asArmed`).
-  fake.state.store['locturne.armedNight'] = { ...fake.armedNight(new Date(2026, 8, 1)), bedtime: late.bedtime };
+  monitoredNight(late.bedtime);
   await n.rescheduleNotifications(late);
   assert.equal(+fireAt(ios.scheduled.get('locturne.bedtime.2026-10-04')!.trigger), +new Date(2026, 9, 3, 23, 15));
 });

@@ -31,7 +31,10 @@ export function startPurchases(): void {
     | undefined;
   const apiKey = revenueCatKey(extra?.revenueCat?.appleApiKey, { allowTestStore: __DEV__ });
   const expoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-  if (process.env.EXPO_PUBLIC_FREE_TESTING === '1') {
+  // Build-profile checks do not run for every archive (for example, local Xcode
+  // builds). A leftover free-testing flag must not bypass the real store in an
+  // ordinary release; only development and explicitly enabled previews use it.
+  if (process.env.EXPO_PUBLIC_FREE_TESTING === '1' && (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1')) {
     setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: appGroup, entitled: true }));
     return;
   }

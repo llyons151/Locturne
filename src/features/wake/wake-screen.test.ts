@@ -24,6 +24,7 @@ function harness() {
   };
   const mocks: Record<string, unknown> = {
     react,
+    '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': { StyleSheet: { create: (s: unknown) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text', AccessibilityInfo: { announceForAccessibility() {} } },
     'expo-router': { router: {} },
     'expo-symbols': {},

@@ -120,8 +120,10 @@ Guardrails:
   bedtime chain first. Limits and sessions get whatever is left, and the app says
   so plainly if a new limit doesn't fit.
 - The nightly self-check and the revocation warnings also cover these controls.
-- **Out of scope:** multiple custom daytime schedules, website-only rules and usage
-  stats.
+- **Out of scope:** multiple custom daytime schedules and website-only rules.
+  Home includes a compact blue-gradient screen-time chart with a seven-day trend line
+  (user reference, October 7). Usage is a dedicated page opened from Home, with screen-time totals, a bar chart
+  and all reported apps ranked by time used (user request, October 7).
 - The App Store listing and paywall still sell a sleep app that also blocks, not a
   general blocker.
 
@@ -160,7 +162,7 @@ How to keep the brand from reading as generated:
 - **Visual direction: "Nocturne"** ([docs/COLOR_RESEARCH.md](docs/COLOR_RESEARCH.md),
   section 5).
   - A monochrome interface with white pill buttons and frosted chips.
-  - A heavy italic serif for his lines. No brand accent color.
+  - One typeface, SF Pro Rounded, for everything (chosen 2026-10-06); his lines are its heavy italic. No brand accent color.
   - Color comes from imagery. The references are the user's three screenshots
     (the art-events app, the travel app, Opal).
 - **The voice is the mascot.** v1 has no illustrated art: his lines, set big, carry
@@ -385,7 +387,9 @@ From [docs/DESIRE_VALIDATION.md](docs/DESIRE_VALIDATION.md), September 24, 2026.
 - Money stakes or escrow, punishments, guilt mechanics, or a pet that suffers.
 - Timed earned unlocks (walk to buy 10–15 minutes of access) or AI/photo
   verification of goals.
-- Stats dashboards, sleep scores, soundscapes, or sleep tracking.
+- Detailed stats dashboards, sleep scores, soundscapes, or sleep tracking.
+  Exception (October 7 user request): a compact Home screen-time chart with total
+  usage and daily average over 7 or 30 days. Remove the Home mascot illustration.
 - Android, squads or leaderboards, a cosmetic economy, NFC.
 - Illustrated mascot art for v1.
 - Weekly pricing.

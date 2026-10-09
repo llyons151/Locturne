@@ -1,15 +1,7 @@
 import { Image } from 'expo-image';
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  AccessibilityInfo,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-  type LayoutChangeEvent,
-  type StyleProp,
-  type TextStyle,
-} from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from 'react-native';
+import { Text } from '@/components/text';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {

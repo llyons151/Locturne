@@ -31,6 +31,7 @@ export default function RootLayout() {
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="usage" options={{ headerShown: true, title: 'Usage', headerBackTitle: 'Home' }} />
           <Stack.Screen
             name="onboarding"
             options={{ presentation: 'fullScreenModal', gestureEnabled: false }}

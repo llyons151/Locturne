@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { StyleSheet, Switch, Text } from 'react-native';
+import { StyleSheet, Switch } from 'react-native';
+import { Text } from '@/components/text';
 
 import { DayPicker } from '@/components/day-picker';
 import { ChoiceRow, ControlRow, EditSheet, Section, ValueRow } from '@/components/grouped-list';

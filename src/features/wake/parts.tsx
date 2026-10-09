@@ -1,6 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import type { ReactNode } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { PrimaryButton } from '@/components/buttons';

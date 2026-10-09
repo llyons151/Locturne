@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { GlassCard } from '@/components/glass-card';
+import { Text } from '@/components/text';
 
 import * as haptic from '@/lib/haptics';
 import { Nocturne, Radius } from '@/theme';
@@ -12,7 +14,8 @@ import type { SegmentedProps } from './segmented-types';
 
 export function Segmented<T extends string | number>({ value, options, onChange, label }: SegmentedProps<T>) {
   return (
-    <View style={styles.track} accessibilityRole="radiogroup" accessibilityLabel={label}>
+    <GlassCard style={styles.track}>
+      <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -30,19 +33,21 @@ export function Segmented<T extends string | number>({ value, options, onChange,
           </Pressable>
         );
       })}
-    </View>
+      </View>
+    </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
-  track: {
-    flexDirection: 'row',
-    padding: 2,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(118,118,128,0.24)',
+  // iOS 26's glass segmented control: a glass track, the chosen side a brighter pane of glass.
+  track: { borderRadius: Radius.pill },
+  row: { flexDirection: 'row', padding: 4 },
+  segment: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.pill },
+  segmentOn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  segment: { flex: 1, minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.pill },
-  segmentOn: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  label: { color: Nocturne.text, fontSize: 14, fontWeight: '500' },
-  labelOn: { fontWeight: '600' },
+  label: { color: Nocturne.text2, fontSize: 15, fontWeight: '600' },
+  labelOn: { color: Nocturne.text },
 });

@@ -1,0 +1,364 @@
+<title>Locturne Sleep Orbs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a night-black contact sheet. Each study shows the orb large, then honestly at 52pt in the real tab strip. */
+:root {
+  --night: #050608;
+  --panel: #0C0E13;
+  --line: #1B1F29;
+  --tab: #24262C;
+  --ink: #F2F4F8;
+  --ink-2: #9AA1B2;
+  --ink-3: #626A7C;
+  --moon: #DCE8FF;
+  --display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --body: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--night); color: var(--ink); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; }
+
+header { display: grid; gap: 18px; margin-bottom: 36px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 84px); line-height: .95; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+h1 em { color: var(--moon); }
+.lede { max-width: 62ch; color: var(--ink-2); margin: 0; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding-top: 6px; }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.seg button { font: 500 13px var(--body); color: var(--ink-2); background: none; border: 0; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--night); }
+.seg button:focus-visible, .star:focus-visible, .copy:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+.ctl-label { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+.ctl { display: inline-flex; align-items: center; gap: 8px; }
+.picks { font-family: var(--mono); font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 10px; align-items: center; }
+.picks b { color: var(--ink); font-weight: 500; }
+.copy { font: 500 12px var(--body); background: var(--panel); color: var(--ink-2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.stage { position: relative; aspect-ratio: 1 / 1; max-width: 100%; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; }
+.stage canvas { width: 72%; height: 72%; display: block; }
+.glyph { position: absolute; inset: 0; margin: auto; pointer-events: none; color: var(--g, #fff); }
+.stage .glyph { width: 30%; height: 30%; }
+
+.meta { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 12px; align-items: baseline; padding: 0 18px 14px; }
+.id { font-family: var(--mono); font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.meta h2 { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.1; margin: 0; }
+.meta p { grid-column: 2 / 4; margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.star { background: none; border: 0; padding: 4px; cursor: pointer; color: var(--ink-3); line-height: 0; border-radius: 8px; }
+.star svg { width: 20px; height: 20px; }
+.star[aria-pressed="true"] { color: var(--ink); }
+.star[aria-pressed="true"] path { fill: currentColor; }
+
+/* The real tab strip, at real size: 52pt buttons on black. */
+.strip { background: #000; border-top: 1px solid var(--line); padding: 14px 16px 16px; display: flex; align-items: center; gap: 8px; margin-top: auto; }
+.tab { width: 52px; height: 52px; border-radius: 50%; background: var(--tab); display: grid; place-items: center; flex: none; color: #fff; }
+.tab.on { background: #fff; color: #000; }
+.tab svg { width: 21px; height: 21px; }
+.strip .sp { flex: 1; }
+.mini { position: relative; width: 52px; height: 52px; flex: none; border-radius: 50%; }
+.mini canvas { width: 52px; height: 52px; display: block; }
+.mini .glyph { width: 22px; height: 22px; }
+.strip-label { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+
+.blink { animation: blink 5.5s infinite; transform-origin: 50% 50%; transform-box: fill-box; }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(.1); } }
+
+footer { margin-top: 40px; color: var(--ink-3); font-size: 13px; max-width: 70ch; }
+@media (prefers-reduced-motion: reduce) { .blink { animation: none; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="g-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M10.36 4.02A8.5 8.5 0 1 0 19.13 14.98A7.2 7.2 0 0 1 10.36 4.02Z"/></symbol>
+    <symbol id="g-eyes" viewBox="0 0 24 24"><g class="blink" fill="currentColor"><rect x="6.2" y="7.4" width="3.8" height="9.2" rx="1.9"/><rect x="14" y="7.4" width="3.8" height="9.2" rx="1.9"/></g></symbol>
+    <symbol id="g-sleepy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M5.2 11.2c1.2 2 4 2 5.2 0"/><path d="M13.6 11.2c1.2 2 4 2 5.2 0"/></g></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M11.3 3.3a1 1 0 0 1 1.4 0l8 7.4c.5.5.2 1.3-.5 1.3H19v7.5c0 .8-.7 1.5-1.5 1.5H15v-5.5h-6V21H6.5C5.7 21 5 20.3 5 19.5V12H3.8c-.7 0-1-.8-.5-1.3l8-7.4Z"/></symbol>
+    <symbol id="i-apps" viewBox="0 0 24 24"><g fill="currentColor"><rect x="3.5" y="3.5" width="7.4" height="7.4" rx="2"/><rect x="13.1" y="3.5" width="7.4" height="7.4" rx="2"/><rect x="3.5" y="13.1" width="7.4" height="7.4" rx="2"/><rect x="13.1" y="13.1" width="7.4" height="7.4" rx="2"/></g></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="12" cy="12" r="4.4"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.5 1.5M17.2 17.2l1.5 1.5M5.3 18.7l1.5-1.5M17.2 6.8l1.5-1.5"/></g></g></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="m12 3.6 2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 16.5l-5.1 2.8L8 13.6l-4.3-4 5.8-.7L12 3.6Z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Locturne · Sleep button studies · 20 orbs</span>
+    <h1>Twenty ways to put the <em>apps to sleep</em></h1>
+    <p class="lede">Each orb is drawn live with a shader: liquid colour under a glass skin, with a rim light and a fine highlight. Below each one is the same orb at its real 52pt size, in the real tab strip. Hold or hover an orb to see its press state. Star the ones you like and copy the list back to me.</p>
+    <div class="controls">
+      <span class="ctl"><span class="ctl-label">Face</span>
+        <span class="seg" role="group" aria-label="Glyph on the orb">
+          <button type="button" id="g-btn-moon" data-g="moon" aria-pressed="true">Moon</button>
+          <button type="button" id="g-btn-sleepy" data-g="sleepy" aria-pressed="false">Sleepy Loc</button>
+          <button type="button" id="g-btn-eyes" data-g="eyes" aria-pressed="false">Awake Loc</button>
+          <button type="button" id="g-btn-none" data-g="none" aria-pressed="false">Bare</button>
+        </span>
+      </span>
+      <span class="ctl"><span class="ctl-label">Motion</span>
+        <span class="seg" role="group" aria-label="Animation">
+          <button type="button" id="m-on" data-m="on" aria-pressed="true">Live</button>
+          <button type="button" id="m-off" data-m="off" aria-pressed="false">Paused</button>
+        </span>
+      </span>
+      <span class="picks" aria-live="polite">Starred: <b id="picks">none yet</b> <button type="button" class="copy" id="copy">Copy</button></span>
+    </div>
+  </header>
+
+  <main class="grid" id="grid"></main>
+
+  <footer>Every effect stays inside the circle: no outer glow, halo or particles around the button. References are saved in docs/design-references/orbs. Colours come from the app's night palettes, plus a few dawn ones because Locturne is about the morning too.</footer>
+</div>
+
+<script>
+// Each study is one set of numbers fed to the same shader.
+// c: four colours (deep, mid, light, accent). warp: how liquid. swirl: twist. core: dark centre.
+// glass: rim light. irid: rainbow in the rim. ribbons: sharp folded sheets. milk: frosted white.
+// wobble: soft edge. ring: a bright ring just inside the edge. spec: highlight. shade: 3D shading.
+const ORBS = [
+  { name: "Locturne Blue", note: "The signature. App blues and moon white folding slowly, with a clean glass rim.", c: ["#0A1233", "#2C5BC7", "#8CC4F5", "#FFFFFF"], warp: .8, swirl: .3, core: 0, glass: .7, irid: .1, ribbons: .45, milk: 0, wobble: 0, ring: 0, spec: .9, shade: .35, speed: .6, g: "#fff" },
+  { name: "Moonwell", note: "Moonlight sinking into deep water. A pale band drifts under a dark surface.", c: ["#040A1F", "#123C8C", "#5E9BEA", "#E9F3FF"], warp: 1.1, swirl: .15, core: .25, glass: .55, irid: 0, ribbons: .2, milk: 0, wobble: 0, ring: 0, spec: .8, shade: .5, speed: .45, g: "#fff" },
+  { name: "Nightglass", note: "A hollow glass bubble: dark centre, colour pooled in the rim.", c: ["#020514", "#0D2F9E", "#3FA0FF", "#9EF0FF"], warp: .9, swirl: .6, core: 1, glass: 1.1, irid: .7, ribbons: .3, milk: 0, wobble: .25, ring: 0, spec: 1, shade: .2, speed: .7, g: "#fff" },
+  { name: "Pearl Hour", note: "Frosted and soft, like the orb in your light reference. Blue heart, mint and pink edges.", c: ["#1E3BFF", "#19A6FF", "#F5B8F0", "#9BF2D2"], warp: 1, swirl: .2, core: 0, glass: .6, irid: .2, ribbons: 0, milk: .55, wobble: 0, ring: 0, spec: .5, shade: .1, speed: .5, g: "#0A1233" },
+  { name: "Halo Drift", note: "Iridescent swirl spinning around a milky centre.", c: ["#28C8F0", "#6D7BFF", "#E79BFF", "#FFFFFF"], warp: .7, swirl: 2.2, core: 0, glass: .9, irid: .9, ribbons: .15, milk: .35, wobble: 0, ring: 0, spec: .6, shade: .1, speed: .8, g: "#0A1233" },
+  { name: "Lilac Ring", note: "Violet liquid held inside a bright, slightly wavering inner ring.", c: ["#3A0FB8", "#8A3CF0", "#F08AF5", "#FFFFFF"], warp: .9, swirl: .5, core: 0, glass: .6, irid: .2, ribbons: .5, milk: 0, wobble: .15, ring: 1, spec: .7, shade: .3, speed: .7, g: "#fff" },
+  { name: "First Light", note: "Night blue folding into sunrise orange. Built from the colours of your first reference.", c: ["#0B5BFF", "#7A3CF0", "#FF4B2B", "#FFE2D2"], warp: .9, swirl: .25, core: 0, glass: .8, irid: .1, ribbons: .75, milk: 0, wobble: 0, ring: 0, spec: 1, shade: .35, speed: .55, g: "#fff" },
+  { name: "Snooze Silk", note: "Indigo silk sheets sliding over each other, slow and heavy.", c: ["#0E0A3A", "#3B2AA8", "#8C7CFF", "#DCD6FF"], warp: .6, swirl: .4, core: 0, glass: .5, irid: 0, ribbons: 1, milk: 0, wobble: 0, ring: 0, spec: .8, shade: .5, speed: .35, g: "#fff" },
+  { name: "Aurora Night", note: "Green and teal light rippling through a navy sky.", c: ["#030B26", "#0E3A7A", "#1FD6A8", "#B9FFE9"], warp: 1.3, swirl: .3, core: .2, glass: .5, irid: .2, ribbons: .35, milk: 0, wobble: 0, ring: 0, spec: .7, shade: .45, speed: .5, g: "#fff" },
+  { name: "Ink & Moon", note: "Monochrome. Black ink and silver folds, for a quieter, more grown-up brand.", c: ["#050507", "#2A2D36", "#9AA3B5", "#FFFFFF"], warp: .8, swirl: .3, core: 0, glass: .7, irid: 0, ribbons: .8, milk: 0, wobble: 0, ring: 0, spec: 1, shade: .45, speed: .4, g: "#fff" },
+  { name: "Deep Current", note: "A slow whirlpool of navy and electric blue around a shadowed middle.", c: ["#020824", "#0A2C8A", "#2D7BFF", "#A8D4FF"], warp: .7, swirl: 2.8, core: .45, glass: .7, irid: .2, ribbons: .4, milk: 0, wobble: 0, ring: 0, spec: .8, shade: .4, speed: .6, g: "#fff" },
+  { name: "Frost Bead", note: "Ice white with a cold blue core, like a bead of frozen glass.", c: ["#2E6BFF", "#7FC2FF", "#E6F4FF", "#FFFFFF"], warp: .8, swirl: .3, core: 0, glass: 1, irid: .3, ribbons: .2, milk: .45, wobble: 0, ring: 0, spec: .9, shade: .2, speed: .5, g: "#0A1233" },
+  { name: "Ember Dawn", note: "The morning breaking in: coral and gold rising from the bottom of the night.", c: ["#0A0F35", "#4B1E8C", "#FF6A3D", "#FFC98A"], warp: 1, swirl: .2, core: 0, glass: .6, irid: 0, ribbons: .5, milk: 0, wobble: 0, ring: 0, spec: .8, shade: .4, speed: .5, g: "#fff" },
+  { name: "Opal", note: "Full iridescence. Every colour shows at the rim as it turns.", c: ["#5A8CFF", "#9F7BFF", "#FFB3D9", "#B8FFF0"], warp: .9, swirl: .6, core: 0, glass: 1.1, irid: 1, ribbons: .3, milk: .25, wobble: 0, ring: 0, spec: .9, shade: .2, speed: .6, g: "#0A1233" },
+  { name: "Lull", note: "The most restrained. Barely moving blue on blue, for when less is more.", c: ["#081538", "#163A7E", "#3D6CC0", "#9DBBE8"], warp: .5, swirl: .1, core: 0, glass: .45, irid: 0, ribbons: 0, milk: 0, wobble: 0, ring: 0, spec: .6, shade: .5, speed: .25, g: "#fff" },
+  { name: "Riptide", note: "A softly wobbling edge, cyan pulled through deep blue.", c: ["#00103D", "#004BD6", "#14C8FF", "#D8FBFF"], warp: 1.2, swirl: .7, core: .15, glass: .8, irid: .3, ribbons: .4, milk: 0, wobble: .8, ring: 0, spec: .9, shade: .35, speed: .75, g: "#fff" },
+  { name: "Dusk Bloom", note: "Magenta and violet opening into blue, the loudest of the set.", c: ["#1238FF", "#8B2BE2", "#FF3D9A", "#FFD1F0"], warp: 1, swirl: .4, core: 0, glass: .8, irid: .2, ribbons: .65, milk: 0, wobble: 0, ring: 0, spec: 1, shade: .35, speed: .6, g: "#fff" },
+  { name: "Starless", note: "Almost all dark, with a thin cold ring of light at the edge.", c: ["#01030C", "#0B1650", "#3448C8", "#B7C4FF"], warp: .7, swirl: .5, core: .75, glass: .9, irid: .3, ribbons: .2, milk: 0, wobble: .1, ring: .45, spec: .9, shade: .2, speed: .5, g: "#fff" },
+  { name: "Morning Milk", note: "Peach and sky blue under frosted glass. The orb after you get out of bed.", c: ["#3E7BFF", "#8FC7FF", "#FFB89A", "#FFF1E6"], warp: .9, swirl: .3, core: 0, glass: .7, irid: .15, ribbons: .1, milk: .5, wobble: 0, ring: 0, spec: .6, shade: .1, speed: .5, g: "#0A1233" },
+  { name: "Tidepool", note: "Teal and cyan sloshing in a glass, the edge giving slightly as it moves.", c: ["#021A26", "#06607A", "#22D3E6", "#E2FDFF"], warp: 1.4, swirl: .2, core: .1, glass: .7, irid: .1, ribbons: .3, milk: 0, wobble: .4, ring: 0, spec: .9, shade: .4, speed: .6, g: "#fff" },
+];
+
+const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0., 1.); }`;
+const FRAG = `
+precision highp float;
+uniform vec2 R; uniform float T;
+uniform vec3 C0, C1, C2, C3;
+uniform float warp, swirl, core, glass, irid, ribbons, milk, wobble, ring, spec, shade, press;
+
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+}
+float fbm(vec2 p){
+  float v = 0., a = .5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p = m * p; a *= .5; }
+  return v / .9375;
+}
+
+void main(){
+  vec2 p = (gl_FragCoord.xy / R) * 2. - 1.;
+  float ang = atan(p.y, p.x);
+  float rad = .94 * (1. + .035 * press);
+  rad *= 1. + wobble * .035 * (sin(ang * 3. + T * 1.1) + .6 * sin(ang * 5. - T * .8));
+  float r = length(p) / rad;
+  float aa = 2. / (R.x * rad * .5);
+  float mask = 1. - smoothstep(1. - aa, 1., r);
+  if (mask <= 0.) { gl_FragColor = vec4(0.); return; }
+
+  vec2 q = p / rad;
+  float z = sqrt(max(0., 1. - min(dot(q, q), 1.)));
+  vec3 n = vec3(q, z);
+
+  // Lensing: the liquid bulges toward the viewer like it sits behind curved glass.
+  vec2 uv = q * (1. - .38 * (1. - z));
+  float a = swirl * (1. - r) * 1.6 + T * .12 * swirl;
+  uv = mat2(cos(a), -sin(a), sin(a), cos(a)) * uv;
+  uv *= 1.35;
+
+  vec2 w1 = vec2(fbm(uv * 1.1 + vec2(0., T * .13)), fbm(uv * 1.1 + vec2(5.2, 1.3) - T * .11));
+  vec2 w2 = vec2(fbm(uv + warp * 2. * w1 + vec2(1.7, 9.2) + T * .09), fbm(uv + warp * 2. * w1 + vec2(8.3, 2.8) - T * .07));
+  float f = fbm(uv + warp * 2. * w2);
+
+  vec3 col = mix(C0, C1, smoothstep(.25, .75, w2.x));
+  col = mix(col, C2, smoothstep(.4, .85, f));
+  col = mix(col, C3, smoothstep(.62, .95, w1.y * .6 + f * .5) * .85);
+
+  // Folded sheets: stepped layers with a bright edge where one sheet passes over another.
+  float layer = .5 + .5 * sin(6.2832 * (f * 2.2 + w2.y * .7 + T * .03));
+  col *= mix(1., .8 + .32 * layer, ribbons);
+  col += ribbons * .2 * pow(layer, 10.) * (C3 * .6 + .4);
+
+  col = mix(col, vec3(1.), milk * (.25 + .55 * (1. - z)));
+  col *= mix(1., smoothstep(.05, .92, r), core);
+
+  vec3 L = normalize(vec3(-.45, .6, .75));
+  col *= mix(1., .55 + .6 * max(dot(n, L), 0.), shade);
+
+  float fres = pow(1. - z, 2.6);
+  vec3 rimc = .5 + .5 * cos(6.2832 * (vec3(0., .33, .67) + ang / 6.2832 + fres * .6 + T * .04));
+  rimc = mix(vec3(1.), rimc, irid);
+  col += glass * fres * rimc * .85;
+
+  float ringD = abs(r - (.9 + .015 * sin(ang * 3. + T * 1.3) + .01 * sin(ang * 7. - T)));
+  col += ring * (smoothstep(.035, 0., ringD) * .9 + smoothstep(.12, 0., ringD) * .25) * mix(vec3(1.), C3, .3);
+
+  vec3 H = normalize(L + vec3(0., 0., 1.));
+  col += spec * .9 * pow(max(dot(n, H), 0.), 90.);
+  float edge = smoothstep(.84, .965, r) * (1. - smoothstep(.965, 1., r));
+  col += spec * .28 * edge * smoothstep(-.1, .9, q.y * .9 - q.x * .4);
+
+  col *= 1. + .18 * press;
+  col += (hash(gl_FragCoord.xy + fract(T * 7.)) - .5) / 128.;
+  col = clamp(col, 0., 1.);
+  gl_FragColor = vec4(col * mask, mask);
+}`;
+
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let glyph = "moon";
+let live = !reduced;
+
+function load(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } }
+function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch {} }
+let stars = new Set(load("locturne-orb-stars", []));
+
+const grid = document.getElementById("grid");
+const cards = ORBS.map((o, i) => {
+  const id = String(i + 1).padStart(2, "0");
+  const el = document.createElement("article");
+  el.className = "card";
+  el.style.setProperty("--g", o.g);
+  el.innerHTML = `
+    <div class="stage" role="img" aria-label="${o.name} orb, study ${id}">
+      <canvas></canvas><svg class="glyph" aria-hidden="true"><use href="#g-moon"></use></svg>
+    </div>
+    <div class="meta">
+      <span class="id">${id}</span><h2>${o.name}</h2>
+      <button type="button" class="star" id="star-${id}" aria-pressed="${stars.has(id)}" aria-label="Star ${o.name}"><svg><use href="#i-star"></use></svg></button>
+      <p>${o.note}</p>
+    </div>
+    <div class="strip" aria-label="Preview in the tab strip at 52pt">
+      <span class="tab on"><svg><use href="#i-home"></use></svg></span>
+      <span class="tab"><svg><use href="#i-apps"></use></svg></span>
+      <span class="tab"><svg><use href="#i-sun"></use></svg></span>
+      <span class="sp"></span><span class="strip-label">52pt</span>
+      <span class="mini"><canvas></canvas><svg class="glyph" aria-hidden="true"><use href="#g-moon"></use></svg></span>
+    </div>`;
+  grid.appendChild(el);
+  const [big, mini] = el.querySelectorAll("canvas");
+  const state = { o, id, el, big, mini, bctx: big.getContext("2d"), mctx: mini.getContext("2d"), t: i * 7.3, press: 0, target: 0, visible: true, uni: { C: o.c.map(hex) } };
+  const stage = el.querySelector(".stage");
+  const on = () => { state.target = 1; kick(); }, off = () => { state.target = 0; kick(); };
+  stage.addEventListener("pointerenter", on); stage.addEventListener("pointerleave", off);
+  stage.addEventListener("pointerdown", on); stage.addEventListener("pointerup", off); stage.addEventListener("pointercancel", off);
+  el.querySelector(".star").addEventListener("click", (e) => {
+    const b = e.currentTarget; const now = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", now); now ? stars.add(id) : stars.delete(id);
+    save("locturne-orb-stars", [...stars]); showPicks();
+  });
+  return state;
+});
+
+function showPicks() {
+  const list = [...stars].sort();
+  document.getElementById("picks").textContent = list.length ? list.map((id) => `${id} ${ORBS[+id - 1].name}`).join(", ") : "none yet";
+}
+showPicks();
+document.getElementById("copy").addEventListener("click", (e) => {
+  const text = "Starred orbs: " + document.getElementById("picks").textContent;
+  const btn = e.currentTarget;
+  navigator.clipboard?.writeText(text).then(() => { btn.textContent = "Copied"; setTimeout(() => (btn.textContent = "Copy"), 1400); })
+    .catch(() => { const s = getSelection(); const r = document.createRange(); r.selectNodeContents(document.getElementById("picks")); s.removeAllRanges(); s.addRange(r); });
+});
+
+document.querySelectorAll("[data-g]").forEach((b) => b.addEventListener("click", () => {
+  glyph = b.dataset.g;
+  document.querySelectorAll("[data-g]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  document.querySelectorAll(".glyph").forEach((s) => { s.style.display = glyph === "none" ? "none" : ""; s.querySelector("use").setAttribute("href", "#g-" + (glyph === "none" ? "moon" : glyph)); });
+}));
+document.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => {
+  live = b.dataset.m === "on";
+  document.querySelectorAll("[data-m]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  kick();
+}));
+
+// One WebGL context draws every orb in turn; each card copies the result into its own canvas.
+const glc = document.createElement("canvas");
+const SIZE = Math.min(480, Math.round(240 * Math.min(devicePixelRatio || 1, 2)));
+glc.width = glc.height = SIZE;
+const gl = glc.getContext("webgl", { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false });
+let prog, U = {};
+if (gl) {
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; };
+  prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  ["R", "T", "C0", "C1", "C2", "C3", "warp", "swirl", "core", "glass", "irid", "ribbons", "milk", "wobble", "ring", "spec", "shade", "press"].forEach((k) => (U[k] = gl.getUniformLocation(prog, k)));
+  gl.viewport(0, 0, SIZE, SIZE);
+  gl.uniform2f(U.R, SIZE, SIZE);
+}
+
+function sizeCanvases() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cards.forEach((c) => {
+    const w = Math.round(c.big.clientWidth * dpr) || SIZE;
+    if (c.big.width !== w) { c.big.width = c.big.height = w; }
+    const m = Math.round(52 * dpr);
+    if (c.mini.width !== m) { c.mini.width = c.mini.height = m; }
+  });
+}
+
+function draw(c) {
+  const o = c.o, C = c.uni.C;
+  gl.uniform1f(U.T, c.t);
+  gl.uniform3fv(U.C0, C[0]); gl.uniform3fv(U.C1, C[1]); gl.uniform3fv(U.C2, C[2]); gl.uniform3fv(U.C3, C[3]);
+  for (const k of ["warp", "swirl", "core", "glass", "irid", "ribbons", "milk", "wobble", "ring", "spec", "shade"]) gl.uniform1f(U[k], o[k]);
+  gl.uniform1f(U.press, c.press);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  c.bctx.clearRect(0, 0, c.big.width, c.big.height);
+  c.bctx.drawImage(glc, 0, 0, c.big.width, c.big.height);
+  c.mctx.clearRect(0, 0, c.mini.width, c.mini.height);
+  c.mctx.imageSmoothingQuality = "high";
+  c.mctx.drawImage(glc, 0, 0, c.mini.width, c.mini.height);
+}
+
+const io = new IntersectionObserver((entries) => entries.forEach((e) => { const c = cards.find((x) => x.el === e.target); if (c) { c.visible = e.isIntersecting; if (c.visible) kick(); } }), { rootMargin: "120px" });
+cards.forEach((c) => io.observe(c.el));
+
+let last = performance.now(), raf = 0;
+function frame(now) {
+  raf = 0;
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  let busy = false;
+  for (const c of cards) {
+    const p0 = c.press;
+    c.press += (c.target - c.press) * Math.min(1, dt * 9);
+    const pressing = Math.abs(c.target - c.press) > .002;
+    if (!c.visible) continue;
+    if (live) c.t += dt * c.o.speed * (1 + c.press * 1.6);
+    if (live || pressing || p0 !== c.press || !c.drawn) { draw(c); c.drawn = true; }
+    busy = busy || pressing;
+  }
+  if (live || busy) raf = requestAnimationFrame(frame);
+}
+function kick() { if (!raf && gl) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+
+if (gl) {
+  sizeCanvases();
+  addEventListener("resize", () => { sizeCanvases(); cards.forEach((c) => (c.drawn = false)); kick(); });
+  kick();
+  if (reduced) { document.getElementById("m-on").setAttribute("aria-pressed", "false"); document.getElementById("m-off").setAttribute("aria-pressed", "true"); }
+} else {
+  grid.insertAdjacentHTML("beforebegin", '<p class="lede">This browser has WebGL turned off, so the orbs can\'t be drawn. Try Chrome or Safari with hardware acceleration on.</p>');
+}
+</script>

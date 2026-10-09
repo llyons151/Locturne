@@ -1,7 +1,8 @@
 import { CameraView, useCameraPermissions, type BarcodeType } from 'expo-camera';
 import { useEffect, useRef } from 'react';
 import { useIsFocused } from 'expo-router';
-import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 
 import { PrimaryButton } from '@/components/buttons';
 import { Nocturne, Radius, Space, Type } from '@/theme';

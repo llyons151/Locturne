@@ -5,8 +5,9 @@
 
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,7 +16,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlockedAppsView, isBlockedAppsViewAvailable } from 'blocked-apps';
+import { BlockedAppsView, isBlockedAppsViewAvailable, removePick, type RemovedPick } from 'blocked-apps';
 
 import {
   AppTile,
@@ -25,9 +26,10 @@ import {
   type SystemName,
 } from '@/components/app-icons';
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
+import { GlassCard } from '@/components/glass-card';
 import { useTabBarInset } from '@/components/app-tabs';
-import { Card, sym, type Symbol } from '@/components/grouped-list';
-import { NightCard } from '@/components/night-cards';
+import { sym } from '@/components/grouped-list';
+import { Segmented } from '@/components/segmented';
 import { getPendingRoutine, getRoutine } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
@@ -50,6 +52,7 @@ import {
   beginListEdit,
   clearSelection,
   draftId,
+  editedSelection,
   finishListEdit,
   getLimits,
   isScreenTimeAvailable,
@@ -61,11 +64,10 @@ import {
   requestAccess,
   saveLimits,
   selectionSize,
-  shownSelection,
   type SelectionId,
   type StandingList,
 } from '@/lib/screen-time';
-import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
+import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { APPS, type AppEntry } from './catalog';
 import { LimitMenu } from './limit-menu';
@@ -73,53 +75,184 @@ import { isPickerSettling, settlePicker } from './picker-settle';
 import { pauseNote, removalNote, startsLabel } from './pending-note';
 
 /**
- * The Apps tab: the picked apps in Settings-style rows, one group per Screen Time
- * selection. Each group ends in an edit row that reopens Apple's FamilyActivityPicker.
+ * The Apps tab: a Bedtime / Daily limit switcher, + and Edit buttons top right, then the
+ * state first and the list second (docs/UI_INSPIRATION.md): the Bedtime tab opens on the
+ * schedule (when apps sleep, when the wake-up starts, which nights), and each list is a
+ * titled section with its count, whose rows are just icon and name, as in Settings. The
+ * time isn't repeated on every row. Rows swipe to delete, as in any iOS list; removals
+ * still wait for bedtime. The + and the cards' edit rows open Apple's FamilyActivityPicker.
  *
  * On an iPhone the rows are the real picks, drawn natively by `BlockedAppsView`. Off iOS
  * (the web preview) there is no Screen Time, so a stand-in list from `catalog.ts` shows
  * the same layout.
  */
 
-const ICON = 30;
+const ICON = 36;
 const ROW_PAD = 16;
-const ROW_HEIGHT = 52;
+const ROW_HEIGHT = 56;
+
+type Tab = 'bedtime' | 'limit';
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'bedtime', label: 'Bedtime' },
+  { value: 'limit', label: 'Daily limit' },
+];
 
 export function AppsList() {
   return isScreenTimeAvailable() ? <LiveAppsList /> : <PreviewAppsList />;
 }
 
-const LIVE_GROUPS: { key: 'night' | 'always'; label: string; icon: Symbol }[] = [
-  { key: 'night', label: 'Sleep at bedtime', icon: sym('moon.zzz.fill', 'bedtime') },
-  { key: 'always', label: 'Always asleep', icon: sym('lock.fill', 'lock') },
+const LIVE_GROUPS: { key: 'night' | 'always'; label: string; about: string }[] = [
+  { key: 'night', label: 'Sleep at bedtime', about: 'Asleep from bedtime until your wake-up is done.' },
+  { key: 'always', label: 'Always asleep', about: 'Asleep all day, every day.' },
 ];
 
-const LIMIT_ICON = sym('hourglass', 'hourglass_empty');
+/** "11:30 pm" as its digits and a smaller "PM", the way Clock and Health set a time. */
+function clockParts(minutes: number): { digits: string; suffix: string } {
+  const [digits, suffix] = formatPreset(minutes).split(' ');
+  return { digits, suffix: suffix.toUpperCase() };
+}
+
+/** Monday first, as in the night picker. `night` is its `Date.getDay()`. */
+const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((letter, i) => ({ letter, night: (i + 1) % 7 }));
+
+function ClockTime({ minutes, label, align }: { minutes: number; label: string; align: 'left' | 'right' }) {
+  const { digits, suffix } = clockParts(minutes);
+  return (
+    <View style={[styles.clock, align === 'right' && styles.clockRight]}>
+      <Text style={styles.clockLabel}>{label}</Text>
+      <Text style={styles.clockDigits} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+        {digits}
+        <Text style={styles.clockSuffix}> {suffix}</Text>
+      </Text>
+    </View>
+  );
+}
 
 /**
- * What sleeps, as one status card (the Routine tab's): when the bedtime list goes to sleep,
- * how many picks it holds, and what else is asleep. A status, not a stats row (HOME_SPEC).
+ * The Bedtime tab's first card: when the apps sleep, when the wake-up starts, and on which
+ * nights (a waiting edit included, since that's what the list will follow). Taps through to
+ * the routine, where the schedule is edited. Health's sleep schedule card and the Days
+ * Active circles, in the app's colours.
  */
-function Summary({ bedtime, always, limits, noun }: { bedtime: number; always: number; limits: number; noun: 'app' | 'pick' }) {
-  // As set, a change waiting for bedtime included, like the Routine tab and Home's row.
+function ScheduleCard() {
   const routine = getPendingRoutine()?.routine ?? getRoutine();
-  const off = routine.activeNights.length === 0;
-  const count = (n: number) => `${n} ${n === 1 ? noun : `${noun}s`}`;
-  const title = bedtime === 0 ? `No ${noun}s yet` : `${count(bedtime)} ${bedtime === 1 ? 'sleeps' : 'sleep'}`;
-  const extra = [
-    always > 0 ? `${count(always)} asleep all day` : null,
-    limits > 0 ? `${limits} daily ${limits === 1 ? 'limit' : 'limits'}` : null,
-  ].filter(Boolean);
-  const detail = extra.length ? `Plus ${extra.join(' and ')}.` : 'Nothing is asleep all day.';
-  const eyebrow = off ? 'Every night off' : `At bedtime · ${formatPreset(routine.bedtime)}`;
+  const nights = routine.activeNights.length;
+  const when = nights === 0 ? 'No nights on' : nights === 7 ? 'Every night' : `${nights} ${nights === 1 ? 'night' : 'nights'} a week`;
+  const label =
+    nights === 0
+      ? 'Schedule: no nights on. Edit schedule.'
+      : `Schedule: apps sleep at ${formatPreset(routine.bedtime)}, wake-up from ${formatPreset(routine.morningStart)}, ${when.toLowerCase()}. Edit schedule.`;
+
   return (
-    <NightCard
-      eyebrow={eyebrow}
-      title={title}
-      detail={detail}
-      off={off}
-      accessibilityLabel={`${eyebrow}. ${title}. ${detail}`}
-    />
+    <Pressable
+      onPress={() => {
+        haptic.tap();
+        router.push('/routine');
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.scheduleOuter, pressed && styles.pressed]}
+    >
+      <GlassCard style={styles.schedule}>
+        <View style={styles.clocks} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <ClockTime minutes={routine.bedtime} label="Apps sleep" align="left" />
+          <View style={styles.moon}>
+            <SymbolView name={sym('moon.fill', 'bedtime')} size={13} tintColor={Nocturne.text3} />
+          </View>
+          <ClockTime minutes={routine.morningStart} label="Wake-up from" align="right" />
+        </View>
+        <View style={styles.week} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {WEEK.map(({ letter, night }) => {
+            const on = routine.activeNights.includes(night);
+            return (
+              <View key={night} style={[styles.day, on && styles.dayOn]}>
+                <Text style={[styles.dayLetter, on && styles.dayLetterOn]} maxFontSizeMultiplier={1.3}>
+                  {letter}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.scheduleFooter}>
+          <Text style={styles.scheduleWhen} numberOfLines={1}>
+            {when}
+          </Text>
+          <Text style={styles.scheduleEdit}>Edit schedule</Text>
+          <SymbolView name={sym('chevron.right', 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.text3} />
+        </View>
+      </GlassCard>
+    </Pressable>
+  );
+}
+
+/** A round button in the title row (user's reference): + to add, … to edit. */
+function HeaderButton({ icon, label, onPress }: { icon: ReturnType<typeof sym>; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={4}
+      style={({ pressed }) => pressed && styles.pressed}
+    >
+      <GlassCard style={styles.headerButton}>
+        <SymbolView name={icon} size={17} weight="semibold" tintColor={Nocturne.text} />
+      </GlassCard>
+    </Pressable>
+  );
+}
+
+const PLUS = sym('plus', 'add');
+const MORE = sym('ellipsis', 'more_horiz');
+const DONE = sym('checkmark', 'check');
+
+/** The title row: "Apps", then + and Edit (a checkmark while editing). */
+function TitleRow({ editing, onAdd, onEdit }: { editing: boolean; onAdd?: () => void; onEdit: () => void }) {
+  return (
+    <View style={styles.titleRow}>
+      <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+        Apps
+      </Text>
+      <View style={styles.flex} />
+      {onAdd ? <HeaderButton icon={PLUS} label="Add" onPress={onAdd} /> : null}
+      <HeaderButton icon={editing ? DONE : MORE} label={editing ? 'Done' : 'Edit'} onPress={onEdit} />
+    </View>
+  );
+}
+
+/**
+ * One list: an optional title with its count (Mercury's and GitHub's section headers) and
+ * a line saying what the list does, above a single rounded card, then any note.
+ */
+function ListCard({
+  label,
+  count,
+  about,
+  children,
+  note,
+}: {
+  label?: string;
+  count?: number;
+  about?: string;
+  children: ReactNode;
+  note?: ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      {label ? (
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle} accessibilityRole="header">
+              {label}
+            </Text>
+            {count ? <Text style={styles.sectionCount}>{count}</Text> : null}
+          </View>
+          {about ? <Text style={styles.sectionAbout}>{about}</Text> : null}
+        </View>
+      ) : null}
+      <GlassCard dark>{children}</GlassCard>
+      {note}
+    </View>
   );
 }
 
@@ -157,6 +290,8 @@ function LiveAppsList() {
   // Not just the cached access flag: iOS keeps reporting "approved" after a revoke.
   const [protection, recheckProtection] = useProtection();
   const [editing, setEditing] = useState<StandingList | null>(null);
+  const [tab, setTab] = useState<Tab>('bedtime');
+  const [listEditing, setListEditing] = useState(false);
   // Bumped whenever the picks may have changed, so counts and native rows re-read them.
   const [revision, setRevision] = useState(0);
   const [limits, setLimits] = useState(getLimits);
@@ -177,8 +312,8 @@ function LiveAppsList() {
   }, [refresh]);
 
   const sizes = useMemo(
-    // The bedtime list reads from its draft during an emergency pause (`shownSelection`).
-    () => ({ night: shownSelection('night'), always: shownSelection('always') }),
+    // The lists as last chosen, a waiting change included (`editedSelection`).
+    () => ({ night: editedSelection('night'), always: editedSelection('always') }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read on every revision
     [revision],
   );
@@ -273,6 +408,30 @@ function LiveAppsList() {
     if (id) edit(id);
   };
 
+  /**
+   * A row swiped away (or deleted in Edit mode). The same path as the picker: the draft
+   * loses the pick, then `pickedList` saves it, so the removal still waits for bedtime.
+   */
+  const removed = (list: StandingList, pick: RemovedPick) => {
+    haptic.tap();
+    if (isPickerSettling(list) || (isLimitId(list) && armingLimits.current.has(list))) {
+      setLimitError('Still saving this limit. Try again in a moment.');
+      refresh();
+      return;
+    }
+    beginListEdit(list);
+    if (!removePick(draftId(list), pick)) {
+      refresh();
+      return;
+    }
+    pickedList(list);
+  };
+
+  const toggleEditing = () => {
+    haptic.tap();
+    setListEditing((e) => !e);
+  };
+
   // The repair path when protection is off: once access is back, put the shields back.
   const askAccess = async (): Promise<boolean> => {
     setLimitError(null);
@@ -304,80 +463,99 @@ function LiveAppsList() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
       >
         <View style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-            Apps
-          </Text>
+          <TitleRow
+            editing={listEditing}
+            onAdd={tab === 'bedtime' ? () => edit('night') : freeLimitId(limits) ? addLimit : undefined}
+            onEdit={toggleEditing}
+          />
           {unpaid || revoked ? (
             <Text style={styles.summary}>
               {unpaid
                 ? 'No subscription, so nothing here sleeps. Your picks and limits are kept for when you’re back.'
                 : 'Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again.'}
             </Text>
-          ) : (
-            <Summary bedtime={sizes.night.size} always={sizes.always.size} limits={limits.length} noun="pick" />
-          )}
+          ) : null}
+          <Segmented value={tab} options={TABS} onChange={setTab} label="Which apps" />
         </View>
 
         {revoked ? (
-          <View style={styles.group}>
+          <ListCard note={limitError ? <Text style={styles.footer}>{limitError}</Text> : null}>
             <EditRow label="Turn Screen Time access back on" onPress={allow} />
-            {limitError ? <Text style={styles.footer}>{limitError}</Text> : null}
-          </View>
+          </ListCard>
         ) : null}
         {unpaid ? (
-          <View style={styles.group}>
+          <ListCard>
             <EditRow label="See plans" onPress={() => router.push('/onboarding?resume=paywall')} />
-          </View>
+          </ListCard>
         ) : null}
-        {LIVE_GROUPS.map((group) => (
-          <View key={group.key} style={styles.section}>
-            <Card icon={group.icon} title={group.label}>
-              {sizes[group.key].size > 0 && !isBlockedAppsViewAvailable && (
-                // A build from before modules/blocked-apps existed can't draw the rows.
-                <View style={[styles.rowBody, styles.separator, styles.note]}>
-                  <Text style={styles.noteText}>
-                    {countPicks(sizes[group.key].size)}. Install the latest build to see them.
-                  </Text>
-                </View>
-              )}
-              {isBlockedAppsViewAvailable && (
-                <PickedRows selectionId={sizes[group.key].id} count={sizes[group.key].size} revision={revision} />
-              )}
-              <EditRow
-                label={sizes[group.key].size ? 'Add or remove apps' : 'Add apps'}
-                onPress={() => edit(group.key)}
-              />
-            </Card>
-            <PendingNote list={group.key} />
-          </View>
-        ))}
 
-        <View style={styles.section}>
-          {limits.map((limit) => (
-            <Card key={limit.id} icon={LIMIT_ICON} title="Daily limit">
-              <LimitHeader
-                limit={limit}
-                usedUp={limitUsedUpToday(limit.id)}
-                appsChangeAt={listChangeStarts(limit.id)}
-                onChange={(m) => setMinutes(limit.id, m)}
-                onRemove={() => setMinutes(limit.id, null)}
-              />
-              {isBlockedAppsViewAvailable && (
-                <PickedRows selectionId={limit.id} count={selectionSize(limit.id)} revision={revision} />
-              )}
-              <EditRow label="Add or remove apps" onPress={() => edit(limit.id)} />
-            </Card>
-          ))}
-          {freeLimitId(limits) && (
-            <View style={styles.group}>
-              <EditRow label="Add a daily limit" onPress={addLimit} />
-            </View>
-          )}
-          <Text style={styles.footer}>
-            {(!revoked && limitError) ||
-              "Once the time's used up, those apps sleep until midnight. A tighter limit starts now; a looser one waits for bedtime (or midnight, with no bedtime scheduled)."}
-          </Text>
-        </View>
+        {tab === 'bedtime' && !revoked && !unpaid ? <ScheduleCard /> : null}
+
+        {tab === 'bedtime' &&
+          LIVE_GROUPS.map((group) => {
+            const size = sizes[group.key].size;
+            return (
+              <ListCard
+                key={group.key}
+                label={group.label}
+                count={size}
+                about={group.about}
+                note={<PendingNote list={group.key} />}
+              >
+                <EditRow
+                  label={size ? 'Add or remove apps' : 'Add apps'}
+                  onPress={() => edit(group.key)}
+                  divided={size > 0}
+                />
+                {size > 0 && !isBlockedAppsViewAvailable && (
+                  // A build from before modules/blocked-apps existed can't draw the rows.
+                  <View style={[styles.rowBody, styles.separator, styles.note]}>
+                    <Text style={styles.noteText}>{countPicks(size)}. Install the latest build to see them.</Text>
+                  </View>
+                )}
+                {isBlockedAppsViewAvailable && (
+                  <PickedRows
+                    selectionId={sizes[group.key].id}
+                    count={size}
+                    revision={revision}
+                    editing={listEditing}
+                    onRemove={(pick) => removed(group.key, pick)}
+                  />
+                )}
+              </ListCard>
+            );
+          })}
+
+        {tab === 'limit' && (
+          <View style={styles.section}>
+            {limits.map((limit) => {
+              const usedUp = limitUsedUpToday(limit.id);
+              return (
+                <ListCard key={limit.id}>
+                  <LimitHeader
+                    limit={limit}
+                    usedUp={usedUp}
+                    appsChangeAt={listChangeStarts(limit.id)}
+                    onChange={(m) => setMinutes(limit.id, m)}
+                    onRemove={() => setMinutes(limit.id, null)}
+                  />
+                  <EditRow label="Add or remove apps" onPress={() => edit(limit.id)} divided={editedSelection(limit.id).size > 0} />
+                  {isBlockedAppsViewAvailable && (
+                    <PickedRows
+                      selectionId={editedSelection(limit.id).id}
+                      count={editedSelection(limit.id).size}
+                      revision={revision}
+                      editing={listEditing}
+                      onRemove={(pick) => removed(limit.id, pick)}
+                    />
+                  )}
+                </ListCard>
+              );
+            })}
+          </View>
+        )}
+        {/* Both tabs: the bedtime lists can fail to save or need access too. */}
+        {!revoked && limitError ? <Text style={styles.footer}>{limitError}</Text> : null}
       </ScrollView>
 
       {editing && (
@@ -409,7 +587,19 @@ const RESIZE = { duration: 350, easing: Easing.bezier(0.2, 0.9, 0.3, 1) };
  * snapping, while the native view, already at its full height underneath, fades the changed
  * rows. Stays mounted at zero picks so the first pick animates in too.
  */
-function PickedRows({ selectionId, count, revision }: { selectionId: SelectionId; count: number; revision: number }) {
+function PickedRows({
+  selectionId,
+  count,
+  revision,
+  editing,
+  onRemove,
+}: {
+  selectionId: SelectionId;
+  count: number;
+  revision: number;
+  editing: boolean;
+  onRemove: (pick: RemovedPick) => void;
+}) {
   const reduceMotion = useReducedMotion();
   const target = count * ROW_HEIGHT;
   const height = useSharedValue(target);
@@ -425,8 +615,14 @@ function PickedRows({ selectionId, count, revision }: { selectionId: SelectionId
       <BlockedAppsView
         selectionId={selectionId}
         revision={revision}
+        detailed
+        removable
+        editing={editing}
+        onRemove={(event) => onRemove(event.nativeEvent)}
         rowHeight={ROW_HEIGHT}
+        iconSize={ICON}
         textColor={Nocturne.text}
+        secondaryColor={Nocturne.text2}
         separatorColor={Nocturne.edge}
         style={{ height: target }}
       />
@@ -494,17 +690,17 @@ function LimitHeader({
 
 type Group = 'bedtime' | 'always';
 
-const GROUPS: { key: Group; label: string; icon: Symbol; picker: string }[] = [
+const GROUPS: { key: Group; label: string; about: string; picker: string }[] = [
   {
     key: 'bedtime',
     label: 'Sleep at bedtime',
-    icon: sym('moon.zzz.fill', 'bedtime'),
+    about: LIVE_GROUPS[0].about,
     picker: 'Pick the apps that keep you up. They sleep at bedtime and wake after your walk.',
   },
   {
     key: 'always',
     label: 'Always asleep',
-    icon: sym('lock.fill', 'lock'),
+    about: LIVE_GROUPS[1].about,
     picker: 'Pick the apps you never want to open. They stay asleep all day and night.',
   },
 ];
@@ -524,6 +720,8 @@ function PreviewAppsList() {
     always: initial('always'),
   }));
   const [editing, setEditing] = useState<Group | null>(null);
+  const [tab, setTab] = useState<Tab>('bedtime');
+  const [listEditing, setListEditing] = useState(false);
   const editingGroup = GROUPS.find((g) => g.key === editing);
 
   // Limits in the preview apply at once: there's no bedtime to wait for.
@@ -560,66 +758,86 @@ function PreviewAppsList() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
       >
         <View style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-            Apps
-          </Text>
-          <Summary bedtime={picks.bedtime.length} always={picks.always.length} limits={limits.length} noun="app" />
+          <TitleRow
+            editing={listEditing}
+            onAdd={
+              tab === 'bedtime'
+                ? () => {
+                    haptic.tap();
+                    setEditing('bedtime');
+                  }
+                : limits.length < MAX_LIMITS
+                  ? () => {
+                      haptic.tap();
+                      setEditingLimit(limits.length);
+                    }
+                  : undefined
+            }
+            onEdit={() => {
+              haptic.tap();
+              setListEditing((e) => !e);
+            }}
+          />
+          <Segmented value={tab} options={TABS} onChange={setTab} label="Which apps" />
         </View>
 
-        {GROUPS.map((group) => (
-          <View key={group.key} style={styles.section}>
-            <Card icon={group.icon} title={group.label}>
-              {picks[group.key].map((name) => (
-                <AppRow key={name} name={name} />
-              ))}
-              <EditRow
-                label={picks[group.key].length ? 'Add or remove apps' : 'Add apps'}
-                onPress={() => {
-                  haptic.tap();
-                  setEditing(group.key);
-                }}
-              />
-            </Card>
+        {tab === 'bedtime' && <ScheduleCard />}
+
+        {tab === 'bedtime' &&
+          GROUPS.map((group) => {
+            const apps = picks[group.key];
+            return (
+              <ListCard key={group.key} label={group.label} count={apps.length} about={group.about}>
+                <EditRow
+                  label={apps.length ? 'Add or remove apps' : 'Add apps'}
+                  onPress={() => {
+                    haptic.tap();
+                    setEditing(group.key);
+                  }}
+                  divided={apps.length > 0}
+                />
+                {apps.map((name, i) => (
+                  <AppRow
+                    key={name}
+                    name={name}
+                    last={i === apps.length - 1}
+                    onRemove={listEditing ? () => save(group.key, apps.filter((a) => a !== name)) : undefined}
+                  />
+                ))}
+              </ListCard>
+            );
+          })}
+
+        {tab === 'limit' && (
+          <View style={styles.section}>
+            {limits.map((limit, index) => (
+              <ListCard key={index}>
+                <LimitHeader
+                  limit={limit}
+                  usedUp={false}
+                  onChange={(minutes) => setLimits((ls) => ls.map((l, i) => (i === index ? { ...l, minutes } : l)))}
+                  onRemove={() => setLimits((ls) => ls.filter((_, i) => i !== index))}
+                />
+                <EditRow
+                  label="Add or remove apps"
+                  onPress={() => {
+                    haptic.tap();
+                    setEditingLimit(index);
+                  }}
+                  divided
+                />
+                {limit.apps.map((name, i) => (
+                  <AppRow
+                    key={name}
+                    name={name}
+                    last={i === limit.apps.length - 1}
+                    onRemove={listEditing ? () => saveLimit(index, limit.apps.filter((a) => a !== name)) : undefined}
+                  />
+                ))}
+              </ListCard>
+            ))}
           </View>
-        ))}
-
-        <View style={styles.section}>
-          {limits.map((limit, index) => (
-            <Card key={index} icon={LIMIT_ICON} title="Daily limit">
-              <LimitHeader
-                limit={limit}
-                usedUp={false}
-                onChange={(minutes) => setLimits((ls) => ls.map((l, i) => (i === index ? { ...l, minutes } : l)))}
-                onRemove={() => setLimits((ls) => ls.filter((_, i) => i !== index))}
-              />
-              {limit.apps.map((name) => (
-                <AppRow key={name} name={name} />
-              ))}
-              <EditRow
-                label="Add or remove apps"
-                onPress={() => {
-                  haptic.tap();
-                  setEditingLimit(index);
-                }}
-              />
-            </Card>
-          ))}
-          {limits.length < MAX_LIMITS && (
-            <View style={styles.group}>
-              <EditRow
-                label="Add a daily limit"
-                onPress={() => {
-                  haptic.tap();
-                  setEditingLimit(limits.length);
-                }}
-              />
-            </View>
-          )}
-          <Text style={styles.footer}>
-            Once the time&apos;s used up, those apps sleep until midnight. A tighter limit starts now; a looser one
-            waits for bedtime.
-          </Text>
-        </View>
+        )}
       </ScrollView>
 
       <AppPickerSheet
@@ -641,13 +859,32 @@ function PreviewAppsList() {
   );
 }
 
-function AppRow({ name }: { name: string }) {
+/** The web preview's version of the native `detailed` rows. */
+function AppRow({
+  name,
+  last,
+  onRemove,
+}: {
+  name: string;
+  /** The card's last row: no separator under it, as in Settings. */
+  last: boolean;
+  /** Edit mode: iOS's red delete button before the icon. */
+  onRemove?: () => void;
+}) {
   const app = byName.get(name);
   return (
-    <View style={styles.row} accessible accessibilityLabel={name}>
-      {app ? <AppIconView app={app} /> : <AppTile name={name} size={ICON} />}
-      <View style={[styles.rowBody, styles.separator]}>
-        <Text style={styles.rowLabel} numberOfLines={1}>
+    <View style={styles.row}>
+      {onRemove ? (
+        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${name}`} hitSlop={8}>
+          <SymbolView name={sym('minus.circle.fill', 'do_not_disturb_on')} size={22} tintColor="#FF3B30" />
+        </Pressable>
+      ) : null}
+      <View style={styles.roundIcon}>
+        {app ? <AppIconView app={app} /> : <AppTile name={name} size={ICON} />}
+        <View style={styles.iconRing} pointerEvents="none" />
+      </View>
+      <View style={[styles.rowBody, !last && styles.separator]} accessible accessibilityLabel={name}>
+        <Text style={[styles.rowLabel, styles.flex]} numberOfLines={1}>
           {name}
         </Text>
       </View>
@@ -655,8 +892,11 @@ function AppRow({ name }: { name: string }) {
   );
 }
 
-/** The last row of each group, like "Add or remove apps" on the onboarding card. */
-function EditRow({ label, onPress }: { label: string; onPress: () => void }) {
+/**
+ * The first row of each list, so adding or removing apps is never below the fold (user's
+ * ask, October 8, 2026). `divided` draws the separator above the rows that follow.
+ */
+function EditRow({ label, onPress, divided }: { label: string; onPress: () => void; divided?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
@@ -664,8 +904,10 @@ function EditRow({ label, onPress }: { label: string; onPress: () => void }) {
       accessibilityLabel={label}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <AddTile size={ICON} />
-      <View style={styles.rowBody}>
+      <View style={styles.roundIcon}>
+        <AddTile size={ICON} />
+      </View>
+      <View style={[styles.rowBody, divided && styles.separator]}>
         <Text style={[styles.rowLabel, styles.editLabel]} numberOfLines={1}>
           {label}
         </Text>
@@ -702,12 +944,71 @@ const styles = StyleSheet.create({
   summary: { color: Nocturne.text2, ...Type.body },
 
   section: { marginBottom: Gap.section },
-  group: {
-    borderRadius: Radius.card,
-    backgroundColor: Nocturne.surface,
-    borderWidth: 1,
+  sectionHeader: { gap: 2, marginHorizontal: Space.xs, marginBottom: Space.m },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: Space.s },
+  sectionTitle: { color: Nocturne.text, fontSize: 20, lineHeight: 25, fontWeight: '600', letterSpacing: -0.2 },
+  sectionCount: { color: Nocturne.text3, fontSize: 17, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  sectionAbout: { ...Type.caption, color: Nocturne.text2 },
+
+  scheduleOuter: { marginBottom: Gap.section },
+  schedule: { padding: Space.l, gap: Space.l, borderCurve: 'continuous' },
+  pressed: { opacity: 0.7 },
+  clocks: { flexDirection: 'row', alignItems: 'flex-end' },
+  clock: { flex: 1, gap: 2 },
+  clockRight: { alignItems: 'flex-end' },
+  clockLabel: { ...Type.caption, color: Nocturne.text2 },
+  clockDigits: {
+    color: Nocturne.text,
+    fontSize: 40,
+    lineHeight: 46,
+    fontWeight: '300',
+    letterSpacing: -0.8,
+    fontVariant: ['tabular-nums'],
+  },
+  clockSuffix: { fontSize: 17, fontWeight: '400', letterSpacing: 0, color: Nocturne.text2 },
+  // The moon between the two times: the night they span.
+  moon: { paddingHorizontal: Space.s, paddingBottom: 12 },
+  week: { flexDirection: 'row', justifyContent: 'space-between' },
+  // Home's week rings (home-top.tsx): a faint ring, white when the night is on.
+  day: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: Nocturne.edge,
-    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayOn: { borderColor: Nocturne.text },
+  dayLetter: { fontSize: 13, fontWeight: '600', color: Nocturne.text3 },
+  dayLetterOn: { color: Nocturne.text },
+  scheduleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s,
+    paddingTop: Space.m,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Nocturne.edge,
+  },
+  scheduleWhen: { ...Type.secondary, flex: 1, color: Nocturne.text },
+  scheduleEdit: { ...Type.secondary, color: Nocturne.text2 },
+
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  flex: { flex: 1 },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roundIcon: { width: ICON, height: ICON, borderRadius: ICON / 2, overflow: 'hidden' },
+  // A faint edge, so black icons (Netflix, X, Threads) keep their shape on the black card.
+  iconRing: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: ICON / 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   rowsClip: { overflow: 'hidden' },
   // Screen Time's own App Limits tile: an hourglass on system orange.
@@ -716,7 +1017,7 @@ const styles = StyleSheet.create({
   limitStatus: { ...Type.caption, color: Nocturne.text2 },
   footer: { ...Type.caption, color: Nocturne.text2, marginHorizontal: Space.l, marginTop: Space.s },
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: ROW_PAD, gap: 14 },
-  rowPressed: { backgroundColor: Nocturne.raised },
+  rowPressed: { backgroundColor: 'rgba(255, 255, 255, 0.06)' },
   // The separator starts at the label, not the icon, as in Settings.
   rowBody: {
     flex: 1,
@@ -727,14 +1028,14 @@ const styles = StyleSheet.create({
     paddingRight: ROW_PAD,
   },
   separator: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Nocturne.edge },
-  rowLabel: { flex: 1, color: Nocturne.text, fontSize: 17 },
-  editLabel: { fontWeight: '600' },
+  rowLabel: { color: Nocturne.text, fontSize: 17, fontWeight: '500' },
+  editLabel: { flex: 1, fontWeight: '600' },
   note: { paddingLeft: ROW_PAD },
   noteText: { flex: 1, color: Nocturne.text2, ...Type.body },
   symbolTile: {
     width: ICON,
     height: ICON,
-    borderRadius: ICON * 0.225,
+    borderRadius: ICON / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

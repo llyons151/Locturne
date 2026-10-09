@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, useWindowDimensions, View, type ViewSt
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -14,6 +15,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { recede } from '@/components/recede';
 import { Space } from '@/theme';
 
 /**
@@ -25,7 +27,8 @@ import { Space } from '@/theme';
  * Motion is one value, `offset`: how far below its resting place the card sits, in points.
  * Opening springs it up from below; dragging moves it with the finger; letting go hands the
  * finger's speed to the spring, so a flick carries straight on off the screen with no stall
- * ("when you swipe off of it the animation to close is kinda janky"). The dimming follows it.
+ * ("when you swipe off of it the animation to close is kinda janky"). The dimming follows it,
+ * and so does the page behind, which shrinks back a little as the card rises (components/recede.tsx).
  *
  * Built here rather than as a native form sheet so it looks the same in the web preview.
  */
@@ -92,6 +95,13 @@ export function SleepSheet({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open
   }, []);
+
+  // The page behind steps back as the card comes up, and forward as it goes.
+  useAnimatedReaction(
+    () => interpolate(offset.value, [0, hidden], [1, 0], 'clamp'),
+    (open) => recede.set(open),
+  );
+  useEffect(() => () => recede.set(0), []);
 
   const pan = Gesture.Pan()
     .activeOffsetY(6)

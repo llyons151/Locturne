@@ -51,6 +51,7 @@ function screenHarness() {
   };
   const mocks: Record<string, any> = {
     react, 'expo-router': { useRouter: () => ({}) },
+    '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': { StyleSheet: { create: (s: any) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text' },
     'react-native-reanimated': { __esModule: true, default: { View: 'Animated' }, FadeIn: { duration() {} } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },

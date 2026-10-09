@@ -1,5 +1,6 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
+import { Text } from '@/components/text';
 
 import { tap } from '@/lib/haptics';
 import { CTA_HEIGHT, Nocturne, Radius, Space } from '@/theme';

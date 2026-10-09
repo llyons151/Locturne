@@ -23,6 +23,7 @@ function harness(source: string) {
   };
   const mocks: Record<string, unknown> = {
     react, 'expo-router': { useRouter: () => ({}) },
+    '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': { StyleSheet: { create: (s: unknown) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text' },
     'react-native-reanimated': { default: { View: 'Animated' }, __esModule: true, FadeIn: { duration() {} } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },

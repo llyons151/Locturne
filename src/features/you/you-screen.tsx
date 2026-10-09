@@ -7,7 +7,8 @@ import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';

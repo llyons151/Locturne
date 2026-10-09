@@ -3,6 +3,42 @@
 Screenshots the user has saved as references. Each file is a spec to match, not a
 loose mood (see the "match reference images" rule).
 
+## preferred-hours-schedule.png
+
+Saved October 8, 2026, at the user's request as UI inspiration.
+
+![Preferred hours schedule](preferred-hours-schedule.png)
+
+A clean white "Preferred hours" settings screen from an AI-receptionist app. Top to
+bottom: a round back button with a centred bold title; a row of seven circular day
+toggles (M T W T F filled black for selected, S S outlined grey for off); one soft
+grey rounded card with two rows, "From" and "To", each with a grey pill time chip
+(9:00 AM, 5:00 PM); a short grey footnote explaining what the hours do; lots of empty
+space; a full-width pale grey pill "Save" button pinned at the bottom.
+
+What's worth taking from it:
+
+- **Day circles.** Filled for on, outlined for off, all seven in one even row. A
+  direct fit for Locturne's schedule day picker.
+- **Two-row time card.** Label left, compact time pill right, one grey container,
+  no dividers or icons. Fits bedtime and wake-time editing (the pill opens the native
+  time picker; see the native iOS controls rule).
+- **Footnote under the card** that says in one sentence what the setting does.
+- **One quiet action pinned at the bottom.**
+
+This is inspiration for layout and hierarchy, not a change to Locturne's dark palette.
+
+## study-smarter-onboarding.png
+
+Saved October 7, 2026, at the user's request as UI inspiration.
+
+![Study Smarter onboarding](study-smarter-onboarding.png)
+
+An airy study-app onboarding screen with floating white cards, a warm pastel
+background, generous whitespace, a large editorial headline and a black pill CTA.
+Reference for restrained hierarchy, soft card edges and a premium finish. This is
+inspiration, not a change to Locturne's dark palette or rounded type direction.
+
 ## lavender-glass-health-ring.png
 
 Saved September 26, 2026. The user said: "this is good."

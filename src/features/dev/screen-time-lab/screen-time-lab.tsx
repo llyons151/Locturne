@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { Pedometer } from 'expo-sensors';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';

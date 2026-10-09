@@ -127,7 +127,7 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "Locturne checks your steps and stairs each morning to wake your apps. That’s all it uses motion for."
+          "motionPermission": "Locturne checks your steps and stairs each morning to wake your apps. That\u2019s all it uses motion for."
         }
       ],
       [
@@ -187,6 +187,13 @@
                     "com.apple.security.application-groups": [
                       "group.com.lukelyons.locturne"
                     ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.lukelyons.locturne.ScreenTimeReport",
+                  "targetName": "ScreenTimeReport",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true
                   }
                 }
               ]

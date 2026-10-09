@@ -25,6 +25,7 @@ test('scanner refreshes denied camera access after Settings and removes its fore
       CameraView: 'camera',
       useCameraPermissions: () => [permission, async () => {}, async () => { reads++; permission = { granted: true, canAskAgain: false }; }],
     },
+    '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': {
       View: 'view', Text: 'text', Linking: {},
       StyleSheet: { create: (styles: unknown) => styles },

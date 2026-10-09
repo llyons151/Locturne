@@ -3,7 +3,8 @@
 // would cache those reads, #130): kept out with it, so nothing here is cached across them.
 
 import { SymbolView } from 'expo-symbols';
-import { Linking, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Text } from '@/components/text';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';

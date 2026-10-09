@@ -36,16 +36,23 @@ export const italicOverhang = (fontSize: number) => {
   return { paddingRight: room, marginRight: -room };
 };
 
-/** Loc's voice: a heavy italic serif. The licensed face is still to be chosen. */
+/**
+ * The app's one typeface: SF Pro, the iOS system font (user's pick, October 8, 2026;
+ * replaced SF Pro Rounded). Every RN Text gets it through `@/components/text`; the web
+ * preview falls back to Inter.
+ */
+export const APP_FONT = { fontFamily: Fonts?.sans } as const;
+
+/** Loc's voice: the app font, heavy and italic. */
 export const DisplayFont = {
-  fontFamily: Fonts?.serif,
+  fontFamily: Fonts?.sans,
   fontStyle: 'italic',
   fontWeight: '800',
   // Sized for the largest body-level voice lines (~26pt); WordsIn sizes its own per line.
   ...italicOverhang(26),
 } as const;
 
-/** Numbers use the serif upright. Italic serif always means Loc is talking. */
+/** Numbers use the display font upright. Italic always means Loc is talking. */
 export const NUMBER_FONT = { ...DisplayFont, fontStyle: 'normal', paddingRight: 0, marginRight: 0 } as const;
 
 /** Display type is already large; let it grow a little with Dynamic Type, not 3x. */
