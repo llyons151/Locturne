@@ -13,7 +13,12 @@ export type Settler<T> = {
   flush: () => void;
 };
 
-export const SETTLE_MS = 800;
+/**
+ * Long enough for a person to move from the hour wheel to the minute wheel: at 800 ms, a
+ * normal one-second pause between them saved the hour's in-between time (bug sweep
+ * 2026-10-09). Leaving the row or the app saves at once (`flush`).
+ */
+export const SETTLE_MS = 3000;
 
 export function settler<T>(onSettle: (value: T) => void, delay = SETTLE_MS): Settler<T> {
   let held: { value: T } | null = null;

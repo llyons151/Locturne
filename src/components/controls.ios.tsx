@@ -29,7 +29,7 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 
 import { ControlRow, ValueRow } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
@@ -79,8 +79,15 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
       Alert.alert(problem);
     });
     pending.current = s;
+    // Leaving the app mid-edit saves at once: its timers pause in the background.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') s.flush();
+    });
     // Leaving the tab mid-edit still saves the time on the wheels.
-    return () => s.flush();
+    return () => {
+      subscription.remove();
+      s.flush();
+    };
   }, []);
   return (
     <ControlRow icon={icon} title={title} last={last}>
