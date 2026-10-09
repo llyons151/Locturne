@@ -161,6 +161,26 @@ describe('step watch', () => {
     t.stop();
   });
 
+  test('a failed initial read: steps walked before opening come back at once, not at walking pace', async () => {
+    // 250 steps to the kitchen, then the screen opens and the first query fails.
+    const t = setup((w) => void (w.historyFails = true));
+    await settle();
+    assert.equal(t.steps(), 0);
+    t.world.historyFails = false;
+    t.world.history = 250;
+    t.world.clock += HISTORY_EVERY_MS;
+    t.poll();
+    await settle();
+    assert.equal(t.steps(), 250, 'not 48, the cadence cap 10 s after opening');
+    // From here the cap applies again, from the recovered base.
+    t.world.history = 2000;
+    t.world.clock += HISTORY_EVERY_MS;
+    t.poll();
+    await settle();
+    assert.equal(t.steps(), 250 + 4 * 20 + 8);
+    t.stop();
+  });
+
   test('back from the background: listens again and banks what was walked away', async () => {
     const t = setup();
     await settle();

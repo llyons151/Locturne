@@ -104,10 +104,14 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
   /** Permission granted: read history, start counting, listen live and poll. */
   const begin = async () => {
     // A query can fail even with a working, authorized motion chip. Start live
-    // counting anyway; the regular history poll catches up when queries recover.
-    const steps = await readHistory().catch(() => 0);
+    // counting anyway; the first history poll that works sets the steps from before opening.
+    let known = true;
+    const steps = await readHistory().catch(() => {
+      known = false;
+      return 0;
+    });
     if (stopped) return;
-    update(startCount(goal, steps, now()));
+    update(startCount(goal, steps, now(), known));
     status('counting');
     subscribe();
     poll = every(refresh, HISTORY_EVERY_MS);
