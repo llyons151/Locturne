@@ -61,15 +61,22 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
   // SwiftUI's picker keeps its own copy of the date and only takes `selection` when it
   // changes, so a refused time would stay on the wheel. A new key remounts it at `value`.
   const [shown, setShown] = useState(0);
+  // The time on the wheels while it waits to be saved. The picker is handed this, not the
+  // saved time: it reports no change to a time equal to `selection`, so a wheel moved away
+  // and back to the saved time would leave the in-between time held, and saved.
+  const [held, setHeld] = useState<number | null>(null);
   // The picker reports each wheel as it settles (the hour, then the minutes): only the time
   // left on the wheels is saved, never one on the way to it (`settle.ts`).
-  const latest = useRef({ onChange, invalid });
+  const latest = useRef({ value, onChange, invalid });
   useEffect(() => {
-    latest.current = { onChange, invalid };
+    latest.current = { value, onChange, invalid };
   });
   const pending = useRef<Settler<number> | null>(null);
   useEffect(() => {
     const s = settler<number>((minutes) => {
+      setHeld(null);
+      // Back where it started: nothing to save.
+      if (minutes === latest.current.value) return;
       // A time that can't work (equal times, a night iOS won't schedule) is refused,
       // with the reason, and the picker goes back to the saved time.
       const problem = latest.current.invalid?.(minutes);
@@ -93,9 +100,13 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
     <ControlRow icon={icon} title={title} last={last}>
       <Host matchContents colorScheme="dark" key={shown}>
         <DatePicker
-          selection={timeAsDate(value)}
+          selection={timeAsDate(held ?? value)}
           displayedComponents={['hourAndMinute']}
-          onDateChange={(date) => pending.current?.push(date.getHours() * 60 + date.getMinutes())}
+          onDateChange={(date) => {
+            const minutes = date.getHours() * 60 + date.getMinutes();
+            setHeld(minutes);
+            pending.current?.push(minutes);
+          }}
           modifiers={[datePickerStyle('compact'), labelsHidden(), tint(Nocturne.text), accessibilityLabel(title)]}
         />
       </Host>
