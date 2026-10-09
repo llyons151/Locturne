@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
+import * as unheldWords from './unheld-words.ts';
 const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
 
@@ -35,7 +36,7 @@ test('a nap-only confirmation cannot silently pause a bedtime that began while t
   assert.equal(applied, 1);
 });
 
-function screenHarness(awakeLine = 'Apps awake until 10:00 PM.', emergency: any = null) {
+function screenHarness(awakeLine = 'Apps awake until 10:00 PM.', emergency: any = null, screenTime: Record<string, any> = {}) {
   let index = 0;
   const state: any[] = [];
   let now = new Date(2026, 9, 5, 22).getTime();
@@ -72,10 +73,11 @@ function screenHarness(awakeLine = 'Apps awake until 10:00 PM.', emergency: any 
       lock = { phase: 'day', nextChange: new Date(2026, 9, 6, 22) }; return null;
     } },
     '@/lib/scan': { getScanCode: () => true },
-    '@/lib/screen-time': { peekNap: () => null },
+    '@/lib/text': { formatPreset: (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` },
+    '@/lib/screen-time': { peekNap: () => null, isStoodDown: () => false, isScreenTimeAvailable: () => true, selectionSize: () => 0, ...screenTime },
     '@/lib/haptics': { done() {} }, '@/lib/analytics': { track() {} },
     '@/theme': { Type: {}, Space: {}, Gap: {}, Nocturne: {} },
-    './voice': { Voice: 'Voice' }, './confirm': { Confirm: 'Confirm' },
+    './voice': { Voice: 'Voice' }, './confirm': { Confirm: 'Confirm' }, './unheld-words': unheldWords,
   };
   const code = babel.transformSync(readFileSync(new URL('./exits-screen.tsx', import.meta.url), 'utf8'), {
     filename: 'exits-screen.tsx', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
@@ -135,4 +137,25 @@ test('a pass or a morning emergency unlock before a night off never promises a b
     assert.doesNotMatch(textOf(tree), /bedtime/, exit);
     assert.match(textOf(tree), /Tonight is off/, exit);
   }
+});
+
+test('a night off never says nothing is locked while the always list or a Block now sleeps', () => {
+  const night = new Date(2026, 9, 9, 23, 30);
+  // The always list has apps: they're still shielded on a night off.
+  const always = screenHarness(undefined, null, { selectionSize: (id: string) => (id === 'always' ? 2 : 0) });
+  always.change('off', night);
+  let body = textOf(always.render());
+  assert.doesNotMatch(body, /Nothing is locked/);
+  assert.match(body, /Bedtime apps awake tonight\. Always-asleep apps still sleep\./);
+  // Stood down, the always list wakes too: nothing is locked.
+  const stood = screenHarness(undefined, null, { isStoodDown: () => true, selectionSize: () => 2 });
+  stood.change('off', night);
+  assert.match(textOf(stood.render()), /Nothing is locked tonight/);
+  // A Block now started at 22:30 that night keeps its apps asleep until it ends.
+  const end = new Date(2026, 9, 10, 0, 30).getTime();
+  const nap = screenHarness(undefined, null, { peekNap: () => ({ list: 'always', end }) });
+  nap.change('off', night);
+  body = textOf(nap.render());
+  assert.doesNotMatch(body, /Nothing is locked/);
+  assert.match(body, /Block now: apps asleep until 0:30\./);
 });

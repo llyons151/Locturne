@@ -14,6 +14,21 @@ export function unheldBody(phase: 'night' | 'morning', stoodDown: boolean): stri
   return `Your bedtime apps are awake ${when(phase)}. The emergency unlock can still end a Block now session.`;
 }
 
+/**
+ * The sentence under his line on a night that's switched off (phase 'off'). Only the bedtime
+ * apps are off: the always list still sleeps unless it's empty or stood down (as Home's
+ * `offHero`), and a Block now running keeps its apps asleep until its end (`napUntil`, a clock
+ * label). "Nothing is locked" only when that's true.
+ */
+export function offBody({ alwaysSleeps, napUntil }: { alwaysSleeps: boolean; napUntil: string | null }): string {
+  if (!alwaysSleeps && !napUntil) return 'Nothing is locked tonight. The emergency unlock can still end a Block now session.';
+  const always = alwaysSleeps ? ' Always-asleep apps still sleep.' : '';
+  const nap = napUntil
+    ? ` Block now: apps asleep until ${napUntil}. The emergency unlock can end it.`
+    : ' The emergency unlock can still end a Block now session.';
+  return `Bedtime apps awake tonight.${always}${nap}`;
+}
+
 /** "I can't walk this morning" with no code: it can't be set up from bed, and isn't needed. */
 export function unheldNoCode(phase: 'night' | 'morning'): string {
   return `No code yet, and it can’t be set up from bed. Your bedtime apps are awake ${when(phase)} anyway.`;

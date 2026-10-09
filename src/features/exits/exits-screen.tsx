@@ -30,12 +30,12 @@ import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, spendPass, type PassRefusal } from '@/lib/passes';
 import { toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
-import { isStoodDown, peekNap } from '@/lib/screen-time';
+import { isScreenTimeAvailable, isStoodDown, peekNap, selectionSize } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { Confirm } from './confirm';
-import { unheldBody, unheldNoCode } from './unheld-words';
+import { offBody, unheldBody, unheldNoCode } from './unheld-words';
 import { Voice } from './voice';
 
 /**
@@ -253,6 +253,12 @@ export function ExitsScreen() {
       if (!morningDoneToday(now, toLockSettings(routineAt(now)), currentProof(now))) {
         return { ...OPENERS.day, body: `${DAY_OPENER.notYet} The emergency unlock can still end a Block now session.` };
       }
+    }
+    if (phase === 'off') {
+      // Only the bedtime apps are off: the always list and a Block now still sleep.
+      const nap = peekNap();
+      const alwaysSleeps = !isStoodDown() && (!isScreenTimeAvailable() || selectionSize('always') > 0);
+      return { ...OPENERS.off, body: offBody({ alwaysSleeps, napUntil: nap ? timeOf(nap.end) : null }) };
     }
     return OPENERS[phase];
   })();
