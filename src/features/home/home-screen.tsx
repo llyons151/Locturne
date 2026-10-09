@@ -179,7 +179,9 @@ function pausedHero(pause: Date, now: Date) {
   const back = words.resumes ? clockAt(words.resumes) : null;
   return {
     title: 'Awake tonight',
-    body: !back
+    body: !back && words.ended
+      ? `Emergency unlock: your apps are awake tonight and ${words.morning}. There’s no subscription, so nothing sleeps after that.`
+      : !back
       ? `Emergency unlock: your apps are awake tonight and ${words.morning}. Every night is switched off, so they stay awake.`
       : `Emergency unlock: your apps are awake tonight and ${words.morning}. They sleep again at ${words.weekday ? `${back} on ${words.weekday}` : back}.`,
   };

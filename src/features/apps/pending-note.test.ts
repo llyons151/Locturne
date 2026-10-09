@@ -74,6 +74,12 @@ describe('pauseNote', () => {
     assert.match(line, /Every night is switched off, so they stay awake\.$/);
     assert.doesNotMatch(line, /sleep again/);
   });
+
+  test('after a lapse: nothing sleeps after this, and no night switched off', () => {
+    const line = pauseNote({ morning: 'tomorrow morning', resumes: null, weekday: null, ended: true }, true);
+    assert.match(line, /no subscription, so nothing sleeps after that\.$/);
+    assert.doesNotMatch(line, /switched off|sleep again/);
+  });
 });
 
 // Every bedtime and morning start on a 30-minute grid, edited every 15 minutes of a day: never

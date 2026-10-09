@@ -90,12 +90,14 @@ const PASS_REFUSALS: Record<PassRefusal, string> = {
 function describe(plan: EmergencyPlan, awake: string): string {
   const parts: string[] = [];
   if (plan.pauseNight && plan.resumesAt) {
-    const { morning, resumes, weekday } = pauseWording(new Date(plan.resumesAt));
+    const { morning, resumes, weekday, ended } = pauseWording(new Date(plan.resumesAt));
     const when = resumes && (weekday ? `${timeOf(resumes.getTime())} on ${weekday}` : timeOf(resumes.getTime()));
     parts.push(
       when
         ? `Your bedtime apps wake for the rest of tonight and ${morning}. They go back to sleep at ${when} on their own.`
-        : `Your bedtime apps wake for the rest of tonight and ${morning}. Every night is switched off, so they stay awake.`,
+        : ended
+          ? `Your bedtime apps wake for the rest of tonight and ${morning}. There’s no subscription, so nothing sleeps after that.`
+          : `Your bedtime apps wake for the rest of tonight and ${morning}. Every night is switched off, so they stay awake.`,
     );
   }
   else if (plan.unlockMorning) parts.push(`Your apps wake this morning. ${awake}`);

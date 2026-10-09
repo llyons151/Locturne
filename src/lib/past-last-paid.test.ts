@@ -108,6 +108,31 @@ test('the last paid morning itself can still be proved', async () => {
   assert.equal(lc.proveMorning('steps')?.phase, 'day');
 });
 
+test('an emergency unlock in the last paid night promises no bedtime after it', async () => {
+  await setUp(at(5, 12));
+  advance(at(5, 23, 30));
+  // Lapse found Monday 23:30: Monday night and Tuesday morning finish, Tuesday night doesn't.
+  lc.settleSubscription(false);
+  const use = em.emergencyUnlock();
+  assert.equal(use?.pauseNight, true);
+  const words = em.pauseWording(new Date(use!.resumesAt!));
+  assert.equal(words.resumes, null, 'Tuesday 23:00 never sleeps, so nothing names it');
+  assert.equal(words.ended, true);
+  assert.equal(words.weekday, null);
+  advance(at(6, 23, 30));
+  lc.syncLock();
+  assert.ok(!asleep(), 'and indeed nothing sleeps Tuesday night');
+});
+
+test('an emergency unlock while subscribed still names the next bedtime', async () => {
+  await setUp(at(5, 12));
+  advance(at(5, 23, 30));
+  const use = em.emergencyUnlock();
+  const words = em.pauseWording(new Date(use!.resumesAt!));
+  assert.equal(words.resumes?.getTime(), at(6, 23));
+  assert.equal(words.ended, false);
+});
+
 test('the self-check skips nights after the last paid morning', async () => {
   await setUp(at(5, 12));
   advance(at(5, 23, 30));
