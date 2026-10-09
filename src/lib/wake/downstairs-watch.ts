@@ -7,6 +7,9 @@
  * A session only listens between Start and its end, and stops if the app goes to the
  * background: iOS pauses the altimeter then, so it would be judging a gap. Coming back shows
  * Start again rather than pretending.
+ *
+ * Coming back to the foreground also reads Motion & Fitness again, so turning it on from the
+ * denied screen's Open Settings brings Start back without reopening the wake screen.
  */
 import { addSample, isOver, startDownstairs, tick, type DownstairsSession } from './downstairs.ts';
 
@@ -74,9 +77,12 @@ export function watchDownstairs(deps: DownstairsWatchDeps): DownstairsWatch {
   let pendingAway: Subscription | null = null;
   let session: DownstairsSession | null = null;
   let stopSession = () => {};
+  let current: BarometerAccess = 'checking';
 
   const access = (next: BarometerAccess) => {
-    if (!disposed) deps.onAccess(next);
+    if (disposed) return;
+    current = next;
+    deps.onAccess(next);
   };
   const update = (next: DownstairsSession | null) => {
     session = next;
@@ -93,6 +99,22 @@ export function watchDownstairs(deps: DownstairsWatchDeps): DownstairsWatch {
       access('unavailable');
     }
   })();
+
+  // Back from Settings (or anywhere): read the permission again. Not while Start is asking,
+  // and not before the first check has settled or when there's no barometer at all.
+  const foreground = deps.onAppState((state) => {
+    if (state !== 'active' || disposed || starting) return;
+    if (current !== 'ready' && current !== 'denied') return;
+    const asked = generation;
+    pedometer
+      .getPermissionsAsync()
+      .then((permission) => {
+        if (starting || asked !== generation) return;
+        const next = permission.granted || permission.canAskAgain ? 'ready' : 'denied';
+        if (next !== current) access(next);
+      })
+      .catch(() => {});
+  });
 
   const stop = () => {
     generation++;
@@ -148,6 +170,7 @@ export function watchDownstairs(deps: DownstairsWatchDeps): DownstairsWatch {
     stop,
     dispose: () => {
       disposed = true;
+      foreground.remove();
       stop();
     },
   };

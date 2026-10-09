@@ -77,6 +77,12 @@ function setup(before: (world: World) => void = () => {}, overrides: Partial<Dow
     clearInterval: (id) => void world.timers.delete(id as number),
     ...overrides,
   });
+  let disposed = false;
+  const dispose = watch.dispose;
+  watch.dispose = () => {
+    disposed = true;
+    dispose();
+  };
   return {
     world,
     watch,
@@ -91,7 +97,8 @@ function setup(before: (world: World) => void = () => {}, overrides: Partial<Dow
     },
     appState: (state: string) => [...world.appState].forEach((listener) => listener(state)),
     session: () => world.sessions.at(-1) ?? null,
-    listening: () => world.listeners.size + world.timers.size + world.appState.size,
+    /** What a session leaves running; the watch's own foreground check (until dispose) isn't counted. */
+    listening: () => world.listeners.size + world.timers.size + world.appState.size - (disposed ? 0 : 1),
   };
 }
 
@@ -121,6 +128,52 @@ describe('checking for a barometer', () => {
     ];
     await settle();
     for (const t of cases) assert.deepEqual(t.world.access, ['unavailable']);
+  });
+
+  test('turning Motion & Fitness on in Settings and coming back gives ready', async () => {
+    const t = setup((w) => void (w.permission = { granted: false, canAskAgain: false }));
+    await settle();
+    assert.deepEqual(t.world.access, ['denied']);
+    t.world.permission = { granted: true, canAskAgain: false };
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.access, ['denied', 'ready']);
+    await t.watch.start();
+    assert.equal(t.session()?.status, 'waiting');
+  });
+
+  test('turning it off while away gives denied; an unchanged answer says nothing new', async () => {
+    const t = setup((w) => void (w.permission = { granted: true, canAskAgain: false }));
+    await settle();
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.access, ['ready']);
+    t.world.permission = { granted: false, canAskAgain: false };
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.access, ['ready', 'denied']);
+  });
+
+  test('coming back never turns a missing barometer into ready', async () => {
+    const t = setup((w) => {
+      w.available = false;
+      w.permission = { granted: true, canAskAgain: false };
+    });
+    await settle();
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.access, ['unavailable']);
+  });
+
+  test('a screen gone stops checking on return', async () => {
+    const t = setup((w) => void (w.permission = { granted: false, canAskAgain: false }));
+    await settle();
+    t.watch.dispose();
+    assert.equal(t.world.appState.size, 0);
+    t.world.permission = { granted: true, canAskAgain: false };
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.access, ['denied']);
   });
 
   test('a screen gone before the answer hears nothing', async () => {
@@ -198,7 +251,7 @@ describe('a session', () => {
     await t.watch.start();
     assert.equal(t.world.listeners.size, 1);
     assert.equal(t.world.timers.size, 1);
-    assert.equal(t.world.appState.size, 1);
+    assert.equal(t.world.appState.size, 2, 'the session’s, and the watch’s own foreground check');
   });
 
   test('a second tap while iOS’s prompt is up is ignored', async () => {
