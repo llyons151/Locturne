@@ -41,6 +41,10 @@ type Setup = {
   armed?: boolean;
   /** An emergency unlock paused the night until then (`getNightPause`). */
   pause?: Date | null;
+  /** Apps on the bedtime list now (`selectionSize('night')`). */
+  night?: number;
+  /** A waiting bedtime-list change: when it lands and how many apps it leaves. */
+  change?: { at: Date; size: number } | null;
 };
 
 /** Renders Home once and returns what it hands HomeContent. */
@@ -55,6 +59,8 @@ function home({
   nextOn,
   pause = null,
   armed = true,
+  night = 3,
+  change = null,
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
@@ -92,7 +98,9 @@ function home({
       isScreenTimeAvailable: () => true,
       isStoodDown: () => false,
       nightLockArmed: () => armed,
-      selectionSize: (list: string) => (list === 'always' ? always : 0),
+      selectionSize: (list: string) => (list === 'always' ? always : list === 'night' ? night : 0),
+      listChangeLandsAt: () => (change ? { at: change.at, waitsForOpen: false, sleepsFirst: false } : null),
+      selectionSizeAfterChange: () => (change ? change.size : night),
     },
     '@/lib/shield-copy': { clockLabel },
     '@/lib/trial-notice': { trialNotice },
@@ -235,5 +243,31 @@ describe('Home on a night an emergency unlock paused', () => {
   test('with no Block now, it says the apps are awake tonight', () => {
     const { hero } = home({ now, phase: 'night', pause });
     assert.equal(hero.title, 'Awake tonight');
+  });
+});
+
+describe('Home with an armed night and an empty bedtime list', () => {
+  test('by day, a removal waiting for bedtime: no "Bedtime in", and the action opens the Apps tab', () => {
+    const { hero, action } = home({ now: new Date(2026, 9, 9, 14), change: { at: new Date(2026, 9, 9, 23), size: 0 }, always: 2 });
+    assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in|go to sleep/);
+    assert.equal(hero.body, 'No bedtime apps picked, so nothing sleeps at bedtime. Always-asleep apps still sleep.');
+    assert.equal(action.label, 'Pick bedtime apps');
+  });
+
+  test('at 23:30, after the empty list applied: not "Your apps are asleep"', () => {
+    const { hero, action } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', night: 0 });
+    assert.notEqual(hero.title, 'Your apps are asleep');
+    assert.equal(hero.body, 'No bedtime apps picked, so nothing sleeps at bedtime.');
+    assert.equal(action.label, 'Pick bedtime apps');
+  });
+
+  test('apps added back before bedtime: the countdown returns', () => {
+    const { hero } = home({ now: new Date(2026, 9, 9, 14), night: 0, change: { at: new Date(2026, 9, 9, 23), size: 2 } });
+    assert.match(hero.title, /^Bedtime in/);
+  });
+
+  test('a night with bedtime apps still says they are asleep', () => {
+    const { hero } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night' });
+    assert.equal(hero.title, 'Your apps are asleep');
   });
 });

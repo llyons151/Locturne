@@ -16,7 +16,14 @@ import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
 import { nextNightOn, nightAt } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
-import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
+import {
+  isScreenTimeAvailable,
+  isStoodDown,
+  listChangeLandsAt,
+  nightLockArmed,
+  selectionSize,
+  selectionSizeAfterChange,
+} from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
 import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
@@ -59,9 +66,6 @@ export function HomeScreen() {
   const unprotected = health.protection === 'off' || health.protection === 'notSetUp';
   // An emergency unlock paused tonight: the windows still run, so the clock says night.
   const pause = getNightPause(now);
-  // Nothing is asleep on a night that isn't held (never bought, stood down, arming failed,
-  // paused, or past a lapse's last paid night), so `heldPhase` reads it as day.
-  const phase = heldPhase(lock.phase, now);
   const method = methodInUse(routine.method);
   // Mornings you got up: a wake-up method's proof. Passes and emergencies neither count nor
   // subtract (HOME_10.md #7). The store keeps the last 30 proofs, enough for this week's dots;
@@ -75,6 +79,18 @@ export function HomeScreen() {
   // window during an unheld night, and the start of a night that's switched off by day.
   const next = nextNightOn(pause ?? nextBedtime(now), now);
   const sleepsAt = next && pause && next < pause ? pause : next;
+  // The bedtime list as it stands at the next bedtime (or now, during a night under way): a
+  // change that lands first counts, as `rescheduleNotifications` judges it. With it empty,
+  // nothing sleeps at bedtime and the morning is free (`readLock`), so no bedtime is promised.
+  const handoff = listChangeLandsAt('night', now);
+  const bedtimeAt = lock.phase === 'night' && !pause ? now : sleepsAt;
+  const bedtimeApps =
+    !isScreenTimeAvailable() ||
+    (handoff && !handoff.waitsForOpen && bedtimeAt && handoff.at <= bedtimeAt ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
+  // Nothing is asleep on a night that isn't held (never bought, stood down, arming failed,
+  // paused, past a lapse's last paid night, or an empty bedtime list), so it reads as day.
+  const held = heldPhase(lock.phase, now);
+  const phase = held === 'night' && !bedtimeApps ? 'day' : held;
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
   // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
@@ -112,10 +128,11 @@ export function HomeScreen() {
         : phase === 'day'
           ? dayHero({
               attention: attention ? health : null,
-              scheduled: armed && !stoodDown,
+              scheduled: armed && !stoodDown && bedtimeApps,
               line: awakeLine({
                 armed,
                 stoodDown,
+                noBedtimeApps: !bedtimeApps,
                 tonightAt: sleepsAt && !offTonight ? clockAt(sleepsAt) : null,
                 alwaysSleeps,
               }),
@@ -135,7 +152,9 @@ export function HomeScreen() {
         ? { label: 'Manage subscription', onPress: manageTrial }
         : phase === 'morning'
           ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
-          : { label: 'Edit schedule', onPress: () => router.push('/routine') };
+          : !bedtimeApps && !stoodDown
+            ? { label: 'Pick bedtime apps', onPress: () => router.push('/apps') }
+            : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;

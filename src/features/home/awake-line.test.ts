@@ -42,6 +42,12 @@ describe('awakeLine', () => {
   });
 });
 
+test('awakeLine: an armed night with no bedtime apps names no bedtime', () => {
+  const line = awakeLine({ armed: true, stoodDown: false, tonightAt: '11 pm', alwaysSleeps: false, noBedtimeApps: true });
+  assert.equal(line, 'No bedtime apps picked, so nothing sleeps at bedtime.');
+  assert.doesNotMatch(line, /until/);
+});
+
 describe('unheldLine', () => {
   test('a night nothing holds says tonight', () => {
     assert.equal(

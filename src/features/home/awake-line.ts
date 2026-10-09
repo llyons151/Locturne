@@ -14,6 +14,7 @@ export function awakeLine({
   stoodDown,
   tonightAt,
   alwaysSleeps,
+  noBedtimeApps = false,
 }: {
   /** `nightLockArmed()`: a night lock is scheduled (or holding). */
   armed: boolean;
@@ -23,6 +24,8 @@ export function awakeLine({
   tonightAt: string | null;
   /** The always-asleep list has apps in it (`selectionSize('always') > 0`), so they sleep now. */
   alwaysSleeps: boolean;
+  /** The bedtime list is empty at the next bedtime, so nothing on it sleeps then. */
+  noBedtimeApps?: boolean;
 }): string {
   if (stoodDown) return 'Apps awake. Nothing is scheduled to sleep.';
   if (!tonightAt) return alwaysSleeps ? 'Bedtime apps awake. Tonight is off. Always-asleep apps still sleep.' : 'Apps awake. Tonight is off.';
@@ -30,6 +33,11 @@ export function awakeLine({
     return alwaysSleeps
       ? 'Bedtime apps awake. Nothing is scheduled to sleep. Always-asleep apps still sleep.'
       : 'Apps awake. Nothing is scheduled to sleep.';
+  }
+  if (noBedtimeApps) {
+    return alwaysSleeps
+      ? 'No bedtime apps picked, so nothing sleeps at bedtime. Always-asleep apps still sleep.'
+      : 'No bedtime apps picked, so nothing sleeps at bedtime.';
   }
   return `Apps awake until ${tonightAt}`;
 }
