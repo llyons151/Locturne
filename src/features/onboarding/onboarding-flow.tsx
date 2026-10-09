@@ -59,9 +59,9 @@ import {
 import { getTone } from '@/lib/tone';
 import { Nocturne } from '@/theme';
 
-import { firstEnabledNight } from './schedule-copy';
+import { firstEnabledNight, scheduleCopy } from './schedule-copy';
 import { CHAPTERS, initialAnswers, isNewYearWeek, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
-import { estimate, formatWhen, isInsideBedtime } from './estimate';
+import { estimate, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
@@ -638,8 +638,10 @@ export function OnboardingFlow({
       if (notifications === 'undetermined') {
         const granted = await askForNotifications().catch(() => false);
         setNotifications(granted ? 'granted' : 'denied');
-        // The first thing they hear from him is what tonight's will look like.
-        if (granted) sendFirstNote(formatWhen(answers.bedtime)).catch(() => {});
+        // The first thing they hear from him is what the first night's will look like, on the
+        // day the armed screen names. Nothing to sample with every night off or one already started.
+        const when = scheduleCopy(scheduledNight, new Date()).note;
+        if (granted && when) sendFirstNote(when).catch(() => {});
       }
       if (asksMotion) {
         const access = await requestMotion();

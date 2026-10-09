@@ -41,3 +41,18 @@ test('completed mornings plan the next enabled night instead of promising an imm
   assert.equal(night.start.getTime(), at(12, 23).getTime());
   assert.equal(scheduleCopy(night, now).when, 'Monday');
 });
+
+test('the sample bedtime note names the first night armed shows, not always tonight', () => {
+  // Night shift (bed 8:00 AM, up 3:00 PM) finished in the afternoon: the first night is tomorrow morning.
+  const now = at(5, 16);
+  const night = firstEnabledNight(8 * 60, 15 * 60, [0, 1, 2, 3, 4, 5, 6], now)!;
+  const copy = scheduleCopy(night, now);
+  assert.equal(copy.note, 'Tomorrow at 8:00 AM');
+  assert.match(copy.armed, new RegExp(copy.note!));
+  // An evening setup names today's bedtime.
+  assert.equal(scheduleCopy(firstEnabledNight(23 * 60, 7 * 60, [1], now), now).note, 'Today at 11:00 PM');
+  // Every night off, or a night already started: no sample.
+  assert.equal(scheduleCopy(null, now).note, null);
+  const late = at(5, 23, 30);
+  assert.equal(scheduleCopy(firstEnabledNight(23 * 60, 7 * 60, [1], late), late).note, null);
+});

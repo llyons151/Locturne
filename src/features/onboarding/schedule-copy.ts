@@ -28,6 +28,7 @@ export function scheduleCopy(night: Night | null, now: Date) {
   if (!night) return {
     when: 'Schedule', sleep: 'Every night is switched off in Routine.',
     armed: 'No nights scheduled.', morning: 'Turn on a night in Routine to set a wake-up.',
+    note: null,
   };
   const started = night.start <= now && now < night.end;
   const when = started ? 'Now' : day(night.start, now);
@@ -38,5 +39,7 @@ export function scheduleCopy(night: Night | null, now: Date) {
     sleep: started ? 'Your apps sleep as soon as you’re in.' : `Your apps sleep ${at}.`,
     armed: started ? 'Armed. Starting now. Put it down.' : `Armed. ${day(night.start, now)} at ${clock(night.start)}.`,
     morning: `${day(night.end, now)} ${clock(night.end)}. Your apps stay asleep until you’re up.`,
+    // When the sample bedtime note says the real one comes; none once the night has started.
+    note: started ? null : `${day(night.start, now)} at ${clock(night.start)}`,
   };
 }
