@@ -113,10 +113,26 @@ export function heldPhase(phase: Phase, now = new Date()): Phase {
  * as Home judges it. Off iOS there's no list to read, so it's taken as picked.
  */
 function bedtimeAppsNow(now: Date): boolean {
+  return bedtimeAppsAt(now, now);
+}
+
+/** Whether the bedtime list as it will stand at `at` has apps (a change landing first counts). */
+function bedtimeAppsAt(at: Date | null, now: Date): boolean {
   if (!isScreenTimeAvailable()) return true;
   const handoff = listChangeLandsAt('night', now);
-  const landed = handoff && !handoff.waitsForOpen && handoff.at <= now;
+  const landed = handoff && !handoff.waitsForOpen && at && handoff.at <= at;
   return (landed ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
+}
+
+/**
+ * Whether anything sleeps at the next bedtime that will really lock (or now, during a night
+ * under way): false when the bedtime list as it stands then is empty, as Home words it.
+ */
+export function bedtimeAppsAhead(now = new Date()): boolean {
+  const pause = getNightPause(now);
+  const next = nextNightOn(pause ?? nextBedtime(now), now);
+  const sleepsAt = next && pause && next < pause ? pause : next;
+  return bedtimeAppsAt(readLock(now).phase === 'night' && !pause ? now : sleepsAt, now);
 }
 
 /** What an emergency unlock would lift right now, for the exits screen's wording. */

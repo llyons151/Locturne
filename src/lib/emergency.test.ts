@@ -12,7 +12,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity();
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause, heldPhase, previewEmergency } = await import(
+const { bedtimeAppsAhead, planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause, heldPhase, previewEmergency } = await import(
   './emergency.ts'
 );
 const { recordProof } = await import('./morning-proof.ts');
@@ -56,6 +56,21 @@ test('a removal of every bedtime app that landed at bedtime leaves the night unh
   st.settleListChanges(BEDTIME, { limits: false });
   assert.equal(st.selectionSize('night'), 0);
   assert.equal(heldPhase('night', now), 'day', 'swapped in');
+});
+
+test('bedtimeAppsAhead: the bedtime list as it stands at the next bedtime', () => {
+  fake.state.activities = ['night-0'];
+  const afternoon = at(10, 6, 14);
+  assert.equal(bedtimeAppsAhead(afternoon), true);
+  // Every app swiped away by day: the removal lands at bedtime, so nothing sleeps then.
+  st.beginListEdit('night');
+  st.clearSelection('night-next');
+  assert.equal(st.finishListEdit('night', BEDTIME), 'bedtime');
+  assert.ok(st.selectionSize('night') > 0);
+  assert.equal(bedtimeAppsAhead(afternoon), false);
+  assert.equal(bedtimeAppsAhead(at(10, 6, 23, 30)), false);
+  st.settleListChanges(BEDTIME, { limits: false });
+  assert.equal(bedtimeAppsAhead(at(10, 7, 14)), false, 'all the next day too');
 });
 
 /** An earlier bedtime's windows armed at once, as `armRoutine` does (it only tightens). */

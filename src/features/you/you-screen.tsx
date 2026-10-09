@@ -33,7 +33,8 @@ import { getPassesLeft } from '@/lib/passes';
 import { nextNightOn } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { getScanCode } from '@/lib/scan';
-import { getArmedNight, isStoodDown, type Protection } from '@/lib/screen-time';
+import { bedtimeAppsAhead } from '@/lib/emergency';
+import { getArmedNight, isStoodDown, selectionSize, type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
@@ -205,6 +206,12 @@ export function YouScreen() {
         ? { ...STATUS.on, line: 'Screen Time access is on. Every night is switched off in Routine.' }
         : status === 'on' && !getArmedNight()
           ? { ...STATUS.on, line: 'Screen Time access is on, but bedtime isn’t scheduled yet.' }
+        : // An emptied bedtime list (as it stands at the next bedtime): nothing sleeps then.
+          status === 'on' && !bedtimeAppsAhead()
+          ? {
+              ...STATUS.on,
+              line: `Screen Time access is on, but no bedtime apps are picked, so nothing sleeps at bedtime.${selectionSize('always') > 0 ? ' Always-asleep apps still sleep.' : ''}`,
+            }
         : STATUS[status];
   return (
     <ScrollView
