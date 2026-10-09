@@ -506,6 +506,9 @@ export function OnboardingFlow({
   // Event-only holder, like SleepDrop's view map: read only when the store answers.
   const [latestAnswers] = useState(() => new Map([['value', answers]]));
   useEffect(() => { latestAnswers.set('value', answers); }, [answers, latestAnswers]);
+  // The screen showing now, for an answer that arrives after they've moved on (restore).
+  const [latestStep] = useState(() => new Map([['value', step]]));
+  useEffect(() => { latestStep.set('value', step); }, [step, latestStep]);
   const [finishLatest] = useState(() => new Map([['complete', finishSetup]]));
   useEffect(() => { finishLatest.set('complete', finishSetup); });
   const buy = async (target: PurchaseTarget) => {
@@ -555,7 +558,8 @@ export function OnboardingFlow({
     }
   };
   const restorePurchases = async () => {
-    if (busy) return;
+    // Same-frame double tap, as in `buy`: one restore, one alert.
+    if (busy || isPurchasing()) return;
     setBusy(true);
     let found: boolean;
     try {
@@ -588,8 +592,10 @@ export function OnboardingFlow({
       return;
     }
     // From the first screen: set up the nights, then arm without a paywall.
+    // `step` is from the tap; they may have tapped on since. Only move them if still on `hello`
+    // (`entitled` and `restored` are set, so wherever they are ends without a paywall).
     say('You’re subscribed', 'Set up your nights and I’ll arm them. No paywall.', () => {
-      if (step === 'hello') go('bedtime');
+      if (latestStep.get('value') === 'hello') go('bedtime');
     });
   };
   // A purchase waiting for Ask to Buy can be approved while the paywall is still open: move

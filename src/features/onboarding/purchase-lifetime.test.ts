@@ -150,3 +150,62 @@ test('Ask to Buy approved on the paywall still finishes setup', () => {
   assert.deepEqual(calls.entitled, [true]);
   assert.deepEqual(calls.finished, ['purchase']);
 });
+
+function restoreHarness(startStep: string) {
+  const source = readFileSync(new URL('./onboarding-flow.tsx', import.meta.url), 'utf8');
+  const handler = source.slice(source.indexOf('  const restorePurchases ='), source.indexOf('  // A purchase waiting for Ask to Buy'));
+  const answers: ((result: { entitled: boolean }) => void)[] = [];
+  const alerts: (() => void)[] = [];
+  const went: string[] = [];
+  let restoring = 0;
+  const context = {
+    busy: false, setBusy() {}, track() {}, setEntitled() {}, setRestored() {},
+    isPurchasing: () => restoring > 0,
+    restore: () => {
+      restoring++;
+      return new Promise<{ entitled: boolean }>((done) => answers.push(done)).finally(() => { restoring--; });
+    },
+    step: startStep, PAYWALL: ['plans', 'trial'], latestStep: new Map([['value', startStep]]),
+    flowActive: new Set(['active']),
+    say: (_title: string, _message: string, then?: () => void) => { if (then) alerts.push(then); },
+    go: (to: string) => { went.push(to); },
+    invoke: undefined as unknown as () => Promise<void>,
+  };
+  const code = babel.transformSync(`${handler}\nglobalThis.invoke = restorePurchases;`, {
+    filename: 'handler.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+  }).code;
+  runInNewContext(code, context);
+  return { context, answers, alerts, went };
+}
+
+test('Restore from hello that answers after they tapped on leaves them where they are', async () => {
+  const { context, answers, alerts, went } = restoreHarness('hello');
+  const restoring = context.invoke();
+  context.latestStep.set('value', 'voice');
+  answers[0]({ entitled: true });
+  await restoring;
+  assert.equal(alerts.length, 1);
+  alerts[0]();
+  assert.deepEqual(went, []);
+});
+
+test('Restore from hello still goes to bedtime when they are still on hello', async () => {
+  const { context, answers, alerts, went } = restoreHarness('hello');
+  const restoring = context.invoke();
+  answers[0]({ entitled: true });
+  await restoring;
+  alerts[0]();
+  assert.deepEqual(went, ['bedtime']);
+});
+
+test('a same-frame double tap on Restore starts one restore and shows one alert', async () => {
+  const { context, answers, alerts, went } = restoreHarness('hello');
+  const first = context.invoke();
+  const second = context.invoke();
+  assert.equal(answers.length, 1);
+  answers[0]({ entitled: true });
+  await Promise.all([first, second]);
+  assert.equal(alerts.length, 1);
+  alerts[0]();
+  assert.deepEqual(went, ['bedtime']);
+});
