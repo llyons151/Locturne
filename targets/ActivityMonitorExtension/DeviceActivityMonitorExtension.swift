@@ -69,7 +69,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
         return
       }
-      userDefaults?.set(true, forKey: LOCTURNE_NIGHT_HELD_KEY)
+      // Held only with something to hold. An empty list (an emergency pause, or every pick
+      // removed) holding the night would stop `restoreLocturneFallbackShield` taking a nap's
+      // or a used-up limit's words off the always list until morning start. The lists were
+      // settled above, so picks an emergency parked until this bedtime count.
+      userDefaults?.set(locturneHasPicks("night"), forKey: LOCTURNE_NIGHT_HELD_KEY)
     }
 
     self.executeActionsForEvent(
