@@ -39,6 +39,7 @@ const em = await import('./emergency.ts');
 const nt = await import('./notifications.ts');
 const { readNightChecks } = await import('./heartbeat.ts');
 const { armTonight } = await import('./arm.ts');
+const { pendingLine, waitingNote } = await import('../features/routine/pending-line.ts');
 
 type Routine = import('./routine.ts').Routine;
 
@@ -178,6 +179,26 @@ test('an earlier bedtime saved in the day still starts early, armed for the edit
   await edit({ stepGoal: 300 });
   assert.equal(lc.readLock().phase, 'night');
   assert.ok(asleep());
+});
+
+test('an earlier bedtime whose night has begun is announced as started, as the banner says', async () => {
+  await setUp(at(4, 12));
+  advance(at(5, 7, 30));
+  assert.ok(lc.proveMorning('steps'));
+  advance(at(5, 21, 20));
+  // The Routine tab's save. Its sync starts arming the 21:00 windows, but iOS hasn't named them
+  // yet: the bare waiting note (what VoiceOver used to hear) still names the old 23:00 start.
+  const now = new Date();
+  rt.saveRoutine({ ...rt.getRoutine(now), bedtime: 21 * 60 }, now, lc.inPendingFirstNight(now));
+  lc.syncLock();
+  const from = new Date(rt.getPendingRoutine(now)!.from);
+  assert.match(waitingNote(from, new Date()), /bedtime, 11\u00a0?pm|11 pm/);
+  const started = 'Your changes started at tonight’s new bedtime, 9\u00a0pm.';
+  assert.equal(pendingLine(from, 21 * 60, new Date()), started);
+  await lc.armRoutine();
+  await flush();
+  assert.ok(asleep(), 'the 21:00 windows shield at once');
+  assert.equal(pendingLine(from, 21 * 60, new Date()), started, 'and once arming settles');
 });
 
 test('an emergency after a later bedtime saved from bed pauses until the next bedtime', async () => {

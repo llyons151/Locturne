@@ -19,23 +19,20 @@ import { DayStrip } from '@/components/day-picker';
 import { Card, ChoiceRow, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
-import { armRoutine, inPendingFirstNight, onLockChange, routineAt, syncLock } from '@/lib/lock-controller';
-import { nightsAround } from '@/lib/lock-state';
+import { armRoutine, inPendingFirstNight, onLockChange, syncLock } from '@/lib/lock-controller';
 import { MIN_WINDOW } from '@/lib/night-plan';
 import { rescheduleNotifications } from '@/lib/notifications';
 import {
   getPendingRoutine,
   getRoutine,
   hasRoutine,
-  nightAt,
   saveRoutine,
-  toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
 } from '@/lib/routine';
 import { getArmedNight, isScreenTimeAvailable } from '@/lib/screen-time';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
-import { formatPreset, noOrphan } from '@/lib/text';
+import { noOrphan } from '@/lib/text';
 import {
   DisplayFont,
   Gap,
@@ -49,7 +46,7 @@ import {
 
 import { NightDial } from './night-dial';
 import { nightsToWeekdays, weekdaysToNights } from './nights';
-import { pendingNote } from './starts-when';
+import { pendingLine } from './pending-line';
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
@@ -150,14 +147,6 @@ function nightRefusal(bedtime: number, morningStart: number): string | null {
   return (morningStart - bedtime + 1440) % 1440 < MIN_WINDOW ? TOO_SHORT : null;
 }
 
-/**
- * The banner for a waiting edit: `pendingNote` for its first night as Home sees it
- * (`nightAt(from)`, the bedtime the apps really sleep at, or a night off), judged against the
- * night under the routine in force now, so one made from bed waits a day.
- */
-const waitingNote = (from: Date, now: Date) =>
-  pendingNote(nightAt(from, now), now, nightsAround(now, toLockSettings(routineAt(now))).latest);
-
 export function RoutineScreen() {
   const insets = useSafeAreaInsets();
   const scroll = useRef<ScrollView>(null);
@@ -189,17 +178,26 @@ export function RoutineScreen() {
     syncLock();
     const loaded = load();
     setLoaded(loaded);
-    // The note appears above the control VoiceOver is on, and iOS has no live regions.
-    if (loaded.from && !wasWaiting) {
-      AccessibilityInfo.announceForAccessibility(waitingNote(loaded.from, new Date()));
-    }
+    // The note appears above the control VoiceOver is on, and iOS has no live regions. Said in
+    // the banner's words once arming settles: an earlier bedtime whose night has begun shields
+    // at once, and the bare waiting note would still name the old bedtime.
+    const announce = loaded.from !== null && !wasWaiting;
+    const sayNote = () => {
+      const latest = load();
+      if (latest.from) AccessibilityInfo.announceForAccessibility(pendingLine(latest.from, latest.saved.bedtime, new Date()));
+    };
     // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
     // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
     // Nothing armed yet means nothing was bought yet (or the night was lost): only a
     // subscription arms it, or leaving onboarding at the paywall and saving here would lock
     // tonight for free.
-    if (getArmedNight()) armRoutine().catch(() => {});
-    else armIfPaid();
+    if (getArmedNight()) {
+      const armed = armRoutine().catch(() => {});
+      if (announce) armed.finally(sayNote);
+    } else {
+      armIfPaid();
+      if (announce) sayNote();
+    }
     rescheduleNotifications().catch(() => {});
   };
   const set = (patch: Partial<Routine>) => commit({ ...saved, ...patch });
@@ -211,12 +209,8 @@ export function RoutineScreen() {
 
   const now = new Date();
 
-  // An earlier bedtime saved in the day governs its own first night once that starts (#137):
-  // it already began, so don't say it waits for the old bedtime.
-  const earlyNight = from !== null && inPendingFirstNight(now);
-  const bannerNote = earlyNight
-    ? `Your changes started at tonight’s new bedtime, ${formatPreset(saved.bedtime).replace(' ', '\u00a0')}.`
-    : waitingNote(from ?? now, now);
+  // An earlier bedtime saved in the day governs its own first night once that starts (#137).
+  const bannerNote = pendingLine(from ?? now, saved.bedtime, now);
 
   return (
     <ScrollView
