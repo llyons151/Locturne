@@ -702,10 +702,30 @@ function looserStart(now: Date, list: StandingList | undefined, awake?: boolean)
  */
 function earlyFirstNight(now: Date, pending: { routine: Routine; from: number }, inForce: Routine): { start: Date; end: Date } | null {
   const { latest, next } = nightsAround(now, toLockSettings(pending.routine));
-  const night = now < latest.end ? latest : next;
-  if (night.start.getTime() >= pending.from || night.end.getTime() <= pending.from) return null;
+  // The one under way only if it's that night: an earlier night of the edit's times that ends
+  // before it applies (from bed at 23:40 in a 21:00 to 07:00 night, the edit due Thu 23:00)
+  // isn't, and the next one is.
+  const straddles = (n: { start: Date; end: Date }) => n.start.getTime() < pending.from && n.end.getTime() > pending.from;
+  const night = now < latest.end && straddles(latest) ? latest : next;
+  if (!straddles(night)) return null;
   const at = night.start > now ? night.start : now;
   return governsEarly(at, pending, inForce) ? night : null;
+}
+
+/**
+ * `at`, or the next bedtime after the night of the waiting edit it falls inside: its early first
+ * night if iOS holds it (`governsEarly`), or a later night it has on. A bedtime-list removal from
+ * bed swapped in there would wake the app in the middle of a night the rest of the list sleeps.
+ */
+function pastEditNight(at: Date, now: Date): Date {
+  const pending = getPendingRoutine(now);
+  if (!pending) return at;
+  const settings = toLockSettings(pending.routine);
+  const { latest } = nightsAround(at, settings);
+  if (at <= latest.start || at >= latest.end || latest.end.getTime() <= pending.from) return at;
+  const evening = new Date(latest.end.getFullYear(), latest.end.getMonth(), latest.end.getDate() - 1).getDay();
+  const held = latest.start.getTime() < pending.from ? governsEarly(at, pending, getRoutine(now)) : settings.activeNights.includes(evening);
+  return held ? settingsTakeEffectAt(latest.end, settings) : at;
 }
 
 /**
@@ -743,9 +763,12 @@ function redateLooserEdits(now: Date): void {
   // With nothing armed there's no bedtime to judge them by (a lapse stood everything down, or
   // every night is off): midnight would move a change dated by tonight's bedtime past it.
   if (!getArmedNight()) return;
-  const dueNow = delayListChanges((list, dated, awake) => {
+  const dueNow = delayListChanges((list, dated, awake, from) => {
     const due = looserStart(dated, list, awake);
-    return { at: due.at, earlier: awake === true && due.early };
+    if (list !== 'night' || due.awake) return { at: due.at, earlier: awake === true && due.early };
+    // From bed: also never inside a night of a waiting edit saved since `from` was set (an even
+    // earlier bedtime replacing the one it was dated by), which redating alone leaves it in.
+    return { at: pastEditNight(due.at > from ? due.at : from, now) };
   }, now);
   // Moved earlier to now (the night it waited for began before this sync: protection armed again
   // after a renewal, say): due, and the window start that would swap it in has passed, so it lands

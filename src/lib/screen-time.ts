@@ -913,9 +913,9 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
 const SETTLE_SLACK_MS = 2 * 60_000;
 
 /**
- * Moves waiting list changes later, never earlier: each to `dueAt(list, dated, awake)` (worked
- * out again for the moment it was dated, and whether the bedtime list was awake then) when that's
- * later. For when a looser edit's start was worked out from windows or a routine edit that have
+ * Moves waiting list changes later, never earlier: each to `dueAt(list, dated, awake, from)`
+ * (worked out again for the moment it was dated, and whether the bedtime list was awake then, or
+ * past a night its current `from` now lands inside) when that's later. For when a looser edit's start was worked out from windows or a routine edit that have
  * changed since (`redateLooserEdits` in lock-controller.ts). With `earlier` it may move earlier
  * too, never before now: a removal made by day, when an earlier bedtime saved since starts a
  * night it would otherwise sleep through and wake in the middle of. One already due, or due
@@ -925,7 +925,7 @@ const SETTLE_SLACK_MS = 2 * 60_000;
  * Returns the lists moved earlier to now: due, with no window start left to swap them in.
  */
 export function delayListChanges(
-  dueAt: (list: StandingList, dated: Date, awake: boolean | undefined) => { at: Date; earlier?: boolean },
+  dueAt: (list: StandingList, dated: Date, awake: boolean | undefined, from: Date) => { at: Date; earlier?: boolean },
   now = new Date(),
 ): StandingList[] {
   const dueNow: StandingList[] = [];
@@ -934,7 +934,7 @@ export function delayListChanges(
     const pending = getPendingLists()[list];
     if (!pending || pending.dated === undefined || pending.from <= now.getTime() + SETTLE_SLACK_MS) continue;
     if (selectionSize(list) === 0) continue;
-    const due = dueAt(list, new Date(pending.dated), pending.awake);
+    const due = dueAt(list, new Date(pending.dated), pending.awake, new Date(pending.from));
     const at = due.earlier ? Math.max(due.at.getTime(), now.getTime()) : due.at.getTime();
     if (at > pending.from || (due.earlier && at < pending.from)) {
       setPending(list, { ...pending, from: at });

@@ -536,3 +536,71 @@ test('an emergency at 23:30, then a long first night saved from bed and re-armed
   await open();
   assert.ok(!asleep('tiktok'), `paused night re-shielded at ${hhmm()} (pause until ${em.getNightPause()})`);
 });
+
+test("a removal from bed while an earlier bedtime waits never lands inside that bedtime's early first night", async () => {
+  // Armed since Monday. Wed 23:30, held: bedtime 21:00 (waits for Thu 23:00, armed at once).
+  // 23:40: tiktok off the bedtime list. Thu 21:00 to Fri's proof is held early; tiktok must not
+  // wake at 23:00 while insta stays asleep.
+  await setUp(at(5, 12));
+  await proveAt(at(6, 7, 10));
+  await proveAt(at(7, 7, 10));
+  runTo(at(7, 23, 30));
+  await open();
+  await edit({ bedtime: 21 * 60 });
+  runTo(at(7, 23, 40));
+  await open();
+  editList('night', ['insta']);
+  const from = st.listChangeStarts('night');
+  await proveAt(at(8, 7, 30));
+  runChecking(at(9, 6, 50), () =>
+    assert.ok(!asleep('insta') || asleep('tiktok'), `tiktok awake in a held night at ${hhmm()} (removal due ${from})`),
+  );
+});
+
+test('a removal from bed waiting for a bedtime an even earlier edit replaced moves past that night', async () => {
+  // As above, then on Thursday the waiting 21:00 is replaced by 20:30: the removal, due Fri 21:00,
+  // would land half an hour into Friday's night.
+  await setUp(at(5, 12));
+  await proveAt(at(6, 7, 10));
+  await proveAt(at(7, 7, 10));
+  runTo(at(7, 23, 30));
+  await open();
+  await edit({ bedtime: 21 * 60 });
+  runTo(at(7, 23, 40));
+  await open();
+  editList('night', ['insta']);
+  await proveAt(at(8, 7, 30));
+  runTo(at(8, 12));
+  await open();
+  await edit({ bedtime: 20 * 60 + 30 });
+  await open();
+  const from = st.listChangeStarts('night');
+  const check = () =>
+    assert.ok(!asleep('insta') || asleep('tiktok'), `tiktok awake in a held night at ${hhmm()} (removal due ${from})`);
+  runChecking(at(9, 7, 30), check);
+  await proveAt(at(9, 7, 30));
+  runChecking(at(10, 6, 50), check);
+});
+
+test('a by-day removal after an earlier bedtime and later morning saved from bed never sleeps in their first night', async () => {
+  // Wed 23:30 from bed: bedtime 21:00, morning 09:00. Proved Thu 07:30; tiktok removed at 07:40
+  // while the list is awake. An open after 09:00 arms the 21:00 windows: tiktok never sleeps
+  // tonight rather than sleeping at 21:00 and waking at 23:15.
+  await setUp(at(5, 12));
+  await proveAt(at(6, 7, 10));
+  await proveAt(at(7, 7, 10));
+  runTo(at(7, 23, 30));
+  await open();
+  await edit({ bedtime: 21 * 60, morningStart: 9 * 60 });
+  await proveAt(at(8, 7, 30));
+  runTo(at(8, 7, 40));
+  await open();
+  editList('night', ['insta']);
+  runTo(at(8, 9, 30));
+  await open();
+  await lc.armRoutine().catch(() => {});
+  await flush();
+  drain();
+  const from = st.listChangeStarts('night');
+  runChecking(at(9, 6, 50), () => assert.ok(!asleep('tiktok'), `tiktok asleep at ${hhmm()} (removal due ${from})`));
+});
