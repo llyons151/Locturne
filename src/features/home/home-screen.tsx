@@ -12,13 +12,16 @@ import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
 import { getMorningsWon, getProofs } from '@/lib/morning-proof';
+import { getTrialEnd } from '@/lib/notifications';
+import { manageSubscriptions } from '@/lib/purchases';
 import { nextNightOn } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
+import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
-import { awakeLine, dayHero, napHero } from './awake-line';
+import { awakeLine, dayHero, napHero, trialHero } from './awake-line';
 import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -85,11 +88,16 @@ export function HomeScreen() {
   // A Block now running by day is what's asleep, so it leads over the countdown to bedtime
   // (a status that needs attention still comes first).
   const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
+  // The trial's last days (B4): the paywall's "I remind you", kept even without notifications.
+  // Leads by day, behind anything that needs fixing.
+  const trial = !unprotected && !attention && !paused && phase === 'day' ? trialNotice(getTrialEnd(), now) : null;
   const hero = unprotected
     ? { title: health.title, body: health.detail }
     : pause && lock.phase === 'night'
       ? pausedHero(pause, now)
-      : phase === 'day' && napping
+      : trial
+        ? trialHero(trial)
+        : phase === 'day' && napping
         ? napHero(clockAt(napping))
         : phase === 'day'
           ? dayHero({
@@ -111,9 +119,11 @@ export function HomeScreen() {
       : { label: 'Open Settings', onPress: () => Linking.openSettings() }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
-      : phase === 'morning'
-        ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
-        : { label: 'Edit schedule', onPress: () => router.push('/routine') };
+      : trial
+        ? { label: 'Manage subscription', onPress: manageTrial }
+        : phase === 'morning'
+          ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
+          : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;
@@ -131,6 +141,14 @@ export function HomeScreen() {
       />
     </View>
   );
+}
+
+/** Apple's sheet (cancel, or switch plans); its web page where there's no sheet. Same as the You tab. */
+function manageTrial() {
+  const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
+  manageSubscriptions()
+    .then((shown) => (shown ? null : page()))
+    .catch(page);
 }
 
 /** Night, morning and a night off; the day is `dayHero`. */

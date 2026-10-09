@@ -94,3 +94,12 @@ export function dayHero({
 export function napHero(until: string): { title: string; body: string } {
   return { title: 'Your apps are asleep', body: `Block now: apps asleep until ${until}.` };
 }
+
+/**
+ * The trial's last days (B4, `trialNotice`): the paywall promises a reminder before the
+ * charge, and a notification can't keep it for someone with notifications off, so Home says
+ * it too. Leads over the day's hero; the caller keeps it behind anything that needs fixing.
+ */
+export function trialHero(trial: { title: string; detail: string }): { title: string; body: string } {
+  return { title: trial.title, body: trial.detail };
+}
