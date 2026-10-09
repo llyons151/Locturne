@@ -78,9 +78,11 @@ export function HomeScreen() {
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
   // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
-  // name that night's weekday rather than count down as if it were tonight's.
+  // name that night's weekday rather than count down as if it were tonight's. A pause still
+  // pending by day (the day after a night-time emergency) doesn't change that; only the paused
+  // night itself has its own hero.
   const offTonight =
-    !pause && sleepsAt && !nightAt(nextBedtime(now), now).on ? sleepsAt.toLocaleDateString('en-US', { weekday: 'long' }) : null;
+    !(pause && lock.phase === 'night') && sleepsAt && !nightAt(nextBedtime(now), now).on ? sleepsAt.toLocaleDateString('en-US', { weekday: 'long' }) : null;
 
   // By day (or a night nothing holds), never name a bedtime that won't lock: no subscription,
   // Ask to Buy waiting, arming failed or a lapse say so instead, and offer the plans when

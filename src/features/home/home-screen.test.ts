@@ -183,6 +183,19 @@ describe('Home by day when tonight is switched off', () => {
     assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in/);
   });
 
+  test('the day after an emergency unlock, a pause still pending until tonight doesn’t hide that tonight is off', () => {
+    // 01:00 Friday's emergency unlock resumes at Friday 23:00 (the next calendar bedtime),
+    // but Friday and Saturday nights are off: Sunday 23:00 is the next night that sleeps.
+    const { hero } = home({
+      now: new Date(2026, 9, 9, 10),
+      pause: new Date(2026, 9, 9, 23),
+      tonightOn: false,
+      nextOn: new Date(2026, 9, 11, 23),
+    });
+    assert.equal(hero.title, 'Tonight is off');
+    assert.equal(hero.body, `Your next bedtime is ${clockLabel(23 * 60)} on Sunday.`);
+  });
+
   test('a night that’s on still counts down', () => {
     const { hero } = home({ now: new Date(2026, 9, 9, 10) });
     assert.match(hero.title, /^Bedtime in/);
