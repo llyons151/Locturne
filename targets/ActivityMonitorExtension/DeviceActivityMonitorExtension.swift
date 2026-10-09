@@ -562,6 +562,18 @@ func locturneSubscriptionLapsed(before evening: Date) -> Bool {
   return locturneDayKey(morning) > ended
 }
 
+/// Whether a selection holds no apps, categories or sites.
+func locturneIsEmpty(_ selection: FamilyActivitySelection) -> Bool {
+  selection.applicationTokens.isEmpty && selection.categoryTokens.isEmpty
+    && selection.webDomainTokens.isEmpty
+}
+
+/// Whether a saved list has any picks. A saved but empty selection counts as none.
+func locturneHasPicks(_ id: String) -> Bool {
+  guard let selection = getFamilyActivitySelectionById(id: id) else { return false }
+  return !locturneIsEmpty(selection)
+}
+
 /// The last night window ends at morning start. With the night still held, the bedtime apps
 /// now show the morning's words, whose button sends the notification that opens the wake-up
 /// screen, even if Locturne stayed closed all night. Nothing is shielded here: a night that
@@ -578,7 +590,7 @@ func showLocturneMorningShield(activity: String, now: Date = Date()) {
   // iOS may call a little early or late; earlier windows end at least 15 minutes before.
   let sinceMorning = (minute - morningStart + 1440) % 1440
   guard sinceMorning <= 30 || sinceMorning >= 1440 - 5 else { return }
-  if getFamilyActivitySelectionById(id: "night") == nil {
+  if !locturneHasPicks("night") {
     // No bedtime picks (an emergency pause, or a list emptied at bedtime): nothing to prove.
     // Let go of any hold the windows set on the empty list and put the day's words back, or
     // the night's would stay all day. Held or not: an emergency after the last window starts
@@ -697,7 +709,9 @@ func settleLocturneLists(triggeredBy: String) {
 
     // Only an explicit `empty` empties the list. A missing draft alone means the app settled
     // it a moment ago, and the list is already right (`settleListChanges` in screen-time.ts).
-    let next = getFamilyActivitySelectionById(id: "\(list)-next")
+    // An emptied draft (an older build saved one when the last pick was swiped away) is no
+    // picks: the list is removed, not set to nothing, so it reads as empty everywhere.
+    let next = getFamilyActivitySelectionById(id: "\(list)-next").flatMap { locturneIsEmpty($0) ? nil : $0 }
     if next != nil || (entry["empty"] as? Bool) == true {
       if let old = getFamilyActivitySelectionById(id: list) {
         unblockSelection(removeSelection: old, triggeredBy: triggeredBy)

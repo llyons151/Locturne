@@ -51,7 +51,7 @@ test('an active nap reports revoked protection and recovers its status when acce
     '@/lib/lock-controller': { syncLock() {} },
     '@/lib/screen-time': {
       isScreenTimeAvailable: () => true, getProtection: () => protection,
-      isStoodDown: () => false, hasSelection: () => true, isNightHeld: () => false,
+      isStoodDown: () => false, hasSelection: () => true, selectionSize: () => 2, isNightHeld: () => false,
       startNap: async () => nap,
     },
     '@/lib/text': { formatPreset: () => '3:00 PM' },

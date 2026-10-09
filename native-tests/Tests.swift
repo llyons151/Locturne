@@ -883,6 +883,36 @@ func registerTests() {
     expect(picks("night") == nil, "list emptied")
   }
 
+  test("a draft saved empty (the last pick swiped away) empties the list, and the morning holds nothing") {
+    pick("night", ["instagram"]); pick("always", ["tiktok"])
+    saveRoutine(routine()); armNight(); appWritesNamed()
+    appSetShieldText("Always words")
+    at("2026-10-05 14:00")
+    pick("night-next", [])  // what `removePick` saved before it removed an emptied list
+    set(LOCTURNE_PENDING_LISTS_KEY, ["night": ["from": ms(local("2026-10-05 23:00")), "empty": true]])
+    at("2026-10-05 23:00"); start("night-0")
+    expect(picks("night") == nil, "list removed, not set empty")
+    expect(picks("night-next") == nil, "draft gone")
+    at("2026-10-06 01:40"); start("night-1")
+    at("2026-10-06 04:20"); start("night-2")
+    at("2026-10-06 07:00"); end("night-2")
+    expect(shown("tiktok").title != "Morning words", "no morning words on the always app")
+    expect(!shown("tiktok").tap, "no wake-up tap")
+    expect(!nightHeld(), "no hold on an empty list")
+  }
+
+  test("a bedtime list saved empty counts as no picks at morning start") {
+    pick("night", ["instagram"]); pick("always", ["tiktok"])
+    saveRoutine(routine()); armNight(); appWritesNamed()
+    appSetShieldText("Always words")
+    at("2026-10-05 23:00"); start("night-0")
+    pick("night", [])
+    at("2026-10-06 04:20"); start("night-2")
+    at("2026-10-06 07:00"); end("night-2")
+    expect(shown("tiktok").title != "Morning words", "no morning words on the always app")
+    expect(!nightHeld(), "the hold is let go")
+  }
+
   test("a missing draft without `empty` means the app already settled: the list is kept") {
     pick("night", ["tiktok"])
     saveRoutine(routine())

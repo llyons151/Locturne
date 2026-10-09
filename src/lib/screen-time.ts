@@ -802,7 +802,8 @@ export function listChangeStarts(list: StandingList): Date | null {
 /** Points `to` at `from`'s picks, or empties it when `from` has none. */
 function copySelection(from: SelectionId, to: SelectionId): void {
   const token = getFamilyActivitySelectionId(from);
-  if (token) setFamilyActivitySelectionId({ id: to, familyActivitySelection: token });
+  // An empty selection is no picks: clear the list rather than save nothing as picks.
+  if (token && selectionSize(from) > 0) setFamilyActivitySelectionId({ id: to, familyActivitySelection: token });
   else clearSelection(to);
 }
 

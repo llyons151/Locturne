@@ -35,6 +35,13 @@ public class BlockedAppsModule: Module {
       default:
         return false
       }
+      // The last pick gone: forget the selection, as the library's own picker does, rather
+      // than save an empty one. The extension and the app read a missing list as no picks.
+      if selection.applicationTokens.isEmpty && selection.categoryTokens.isEmpty
+        && selection.webDomainTokens.isEmpty
+      {
+        return removeSelection(id: selectionId)
+      }
       return saveSelection(selection, id: selectionId)
     }
 
@@ -118,6 +125,15 @@ private func saveSelection(_ selection: FamilyActivitySelection, id: String) -> 
   else { return false }
   var all = defaults.dictionary(forKey: selectionsKey) ?? [:]
   all[id] = data.base64EncodedString()
+  defaults.set(all, forKey: selectionsKey)
+  return true
+}
+
+/// `removeFamilyActivitySelectionById`, as the library's picker calls it for an emptied list.
+private func removeSelection(id: String) -> Bool {
+  guard let defaults = UserDefaults(suiteName: appGroup) else { return false }
+  var all = defaults.dictionary(forKey: selectionsKey) ?? [:]
+  all.removeValue(forKey: id)
   defaults.set(all, forKey: selectionsKey)
   return true
 }

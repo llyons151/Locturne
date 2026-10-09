@@ -518,6 +518,16 @@ test('emptying a list waits for bedtime too, then forgets the picks', () => {
   assert.equal(ids().night, undefined);
 });
 
+test('a draft saved empty settles as no picks, not an empty list', () => {
+  saved = { night: 'apps:tiktok' };
+  st.beginListEdit('night');
+  ids()['night-next'] = 'apps:';
+  assert.equal(st.finishListEdit('night', BEDTIME), 'bedtime');
+  assert.deepEqual(st.settleListChanges(BEDTIME), ['night']);
+  assert.equal(ids().night, undefined);
+  assert.equal(st.hasSelection('night'), false);
+});
+
 test("a limit's removed apps leave it at bedtime, and iOS gets the new picks", async () => {
   status = 2;
   saved = { 'limit-0': 'apps:tiktok,instagram' };
