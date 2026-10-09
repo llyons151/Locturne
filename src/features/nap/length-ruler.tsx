@@ -35,16 +35,28 @@ const SETTLE = { damping: 32, stiffness: 300, mass: 1 };
 
 const indexOf = (minutes: number) => Math.round((Math.min(NAP_MAX, Math.max(NAP_MIN, minutes)) - NAP_MIN) / NAP_STEP);
 
-export function LengthRuler({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
+export function LengthRuler({
+  value,
+  onChange,
+  valueText,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+  /** What VoiceOver reads as the ruler's value, e.g. "30 min, apps asleep until 3:12 PM". */
+  valueText: string;
+}) {
   const [width, setWidth] = useState(0);
   // How far along the ruler the middle mark sits, in points.
   const offset = useSharedValue(indexOf(value) * GAP);
+  // The tick it's settling on, so two quick VoiceOver swipes move two ticks, not one.
+  const goal = useSharedValue(indexOf(value));
   const start = useSharedValue(0);
   const end = (COUNT - 1) * GAP;
 
   const snapTo = (index: number, velocity = 0) => {
     'worklet';
     const i = Math.min(COUNT - 1, Math.max(0, index));
+    goal.set(i);
     offset.set(withSpring(i * GAP, { ...SETTLE, velocity }));
   };
 
@@ -77,7 +89,7 @@ export function LengthRuler({ value, onChange }: { value: number; onChange: (min
 
   const track = useAnimatedStyle(() => ({ transform: [{ translateX: width / 2 - GAP / 2 - offset.value }] }));
 
-  const step = (by: 1 | -1) => snapTo(indexOf(value) + by);
+  const step = (by: 1 | -1) => snapTo(goal.get() + by);
 
   return (
     <View
@@ -86,6 +98,7 @@ export function LengthRuler({ value, onChange }: { value: number; onChange: (min
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel="Nap length"
+      accessibilityValue={{ text: valueText }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}
     >

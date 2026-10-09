@@ -83,3 +83,80 @@ test('an active nap reports revoked protection and recovers its status when acce
   protection = 'on';
   assert.match(texts(render()), /Apps asleep until/);
 });
+
+const compile = (file: string) => babel.transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+  filename: file, configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+  plugins: [['@babel/plugin-transform-react-jsx', { runtime: 'classic' }], '@babel/plugin-transform-modules-commonjs'],
+}).code;
+
+test('VoiceOver hears the nap length and when the apps wake on the ruler', () => {
+  let index = 0;
+  const state: any[] = [];
+  const react = {
+    createElement: (type: any, props: any, ...children: any[]) => ({ type, props, children }),
+    useState(initial: any) {
+      const at = index++;
+      if (!(at in state)) state[at] = typeof initial === 'function' ? initial() : initial;
+      return [state[at], (value: any) => { state[at] = typeof value === 'function' ? value(state[at]) : value; }];
+    },
+    useCallback: (cb: any) => cb, useEffect() {},
+  };
+  const mocks: Record<string, any> = {
+    react, 'expo-router': { router: {}, useFocusEffect() {} }, 'expo-symbols': { SymbolView: 'Symbol' },
+    '@/components/text': { Text: 'text' },
+    'react-native': { StyleSheet: { create: (s: any) => s }, View: 'View' },
+    'react-native-reanimated': { __esModule: true, default: { View: 'Animated' }, FadeIn: { duration() {} } },
+    '@/hooks/use-protection': { useProtection: () => ['on', () => {}] },
+    '@/components/grouped-list': { sym: (s: string) => s },
+    '@/lib/screen-time': { isScreenTimeAvailable: () => true },
+    '@/lib/text': { formatPreset: (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` },
+    '@/theme': { Type: {}, Space: {}, Nocturne: {}, VoiceSize: {}, italicOverhang: () => ({}) },
+    '@/lib/haptics': { tap() {} },
+    './length-ruler': { LengthRuler: 'LengthRuler' },
+    './use-sideways': { useSideways: () => false },
+    './nap-line': { shownLine: (line: string) => line },
+  };
+  const exports: any = {};
+  runInNewContext(compile('./nap-screen.tsx'), { exports, require: (id: string) => mocks[id] ?? {}, React: react });
+  const nodes = (tree: any): any[] => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree)
+    ? tree.flatMap(nodes) : [tree, ...nodes(tree.children)];
+  const render = () => { index = 0; return nodes(exports.NapScreen()).find((n) => n.type === 'LengthRuler'); };
+  const at = (minutes: number) => {
+    const d = new Date(state[6] + minutes * 60_000);
+    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const ruler = render();
+  assert.equal(ruler.props.valueText, `30 min, apps asleep until ${at(30)}`);
+  ruler.props.onChange(75);
+  assert.equal(render().props.valueText, `1 hr 15 min, apps asleep until ${at(75)}`);
+});
+
+test('the ruler is an adjustable control with that value, and two quick swipes move two ticks', () => {
+  const shared = (v: any) => ({ value: v, get() { return this.value; }, set(n: any) { this.value = n; } });
+  let hooks = 0;
+  const values: any[] = [];
+  const pan: any = new Proxy({}, { get: () => () => pan });
+  const mocks: Record<string, any> = {
+    react: { useState: (v: any) => [v, () => {}] },
+    'react-native': { StyleSheet: { create: (s: any) => s }, View: 'View' },
+    'react-native-gesture-handler': { Gesture: { Pan: () => pan }, GestureDetector: 'GestureDetector' },
+    'react-native-reanimated': {
+      __esModule: true, default: { View: 'Animated' }, cancelAnimation() {}, interpolate() {},
+      useAnimatedReaction() {}, useAnimatedStyle: () => ({}), withSpring: (v: number) => v,
+      useSharedValue: (v: any) => (values[hooks++] ??= shared(v)),
+    },
+    'react-native-worklets': { scheduleOnRN() {} },
+    '@/theme': { Nocturne: {} },
+  };
+  const react = { createElement: (type: any, props: any, ...children: any[]) => ({ type, props, children }) };
+  const exports: any = {};
+  runInNewContext(compile('./length-ruler.tsx'), { exports, require: (id: string) => mocks[id] ?? {}, React: react });
+  const view = exports.LengthRuler({ value: 30, onChange() {}, valueText: '30 min, apps asleep until 3:12' });
+  assert.equal(view.props.accessibilityRole, 'adjustable');
+  assert.equal(view.props.accessibilityValue.text, '30 min, apps asleep until 3:12');
+  // Two swipes up before the new length has come back through onChange: `value` still says 30.
+  view.props.onAccessibilityAction({ nativeEvent: { actionName: 'increment' } });
+  view.props.onAccessibilityAction({ nativeEvent: { actionName: 'increment' } });
+  const offset = values[0];
+  assert.equal(offset.get() / 12, (40 - exports.NAP_MIN) / exports.NAP_STEP);
+});

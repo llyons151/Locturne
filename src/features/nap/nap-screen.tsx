@@ -252,7 +252,11 @@ export function NapScreen() {
           <Text style={styles.lengthValue} maxFontSizeMultiplier={1.2} importantForAccessibility="no" accessibilityElementsHidden>
             {lengthLabel(length)}
           </Text>
-          <LengthRuler value={length} onChange={changeLength} />
+          <LengthRuler
+            value={length}
+            onChange={changeLength}
+            valueText={`${lengthLabel(length)}, apps asleep until ${timeOf(now + length * 60_000)}`}
+          />
         </View>
       )}
 
