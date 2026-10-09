@@ -593,8 +593,11 @@ export function OnboardingFlow({
     });
   };
   // A purchase waiting for Ask to Buy can be approved while the paywall is still open: move
-  // on as if it had just gone through.
+  // on as if it had just gone through. Approved anywhere else in the flow (Back to `commit`,
+  // or a relaunch that synced late), remember it so `commit` finishes instead of re-selling.
   const approvedLater = useEffectEvent(() => {
+    setEntitled(true);
+    setNoMoreExitOffer(true);
     if (!PAYWALL.includes(step) && step !== 'declined') return;
     // The insights start from `purchase_result = purchased`: an approval is one too.
     track('purchase_result', { target: 'approved', page: step, status: 'purchased' });

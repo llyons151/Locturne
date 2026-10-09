@@ -114,3 +114,39 @@ test('Ask to Buy resolving while an edited flow remains open saves its latest co
   await buying;
   assert.deepEqual(saved, newerAnswers);
 });
+
+function approval(step: string) {
+  const source = readFileSync(new URL('./onboarding-flow.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf('  const approvedLater = useEffectEvent(');
+  const handler = source.slice(start, source.indexOf('  useEffect(() => onEntitled(approvedLater)', start))
+    .replace('useEffectEvent(', '(');
+  const calls = { entitled: [] as boolean[], noOffer: [] as boolean[], finished: [] as string[] };
+  const context = {
+    step, PAYWALL: ['offer', 'plans'], track() {},
+    setEntitled: (value: boolean) => { calls.entitled.push(value); },
+    setNoMoreExitOffer: (value: boolean) => { calls.noOffer.push(value); },
+    finishSetup: (via: string) => { calls.finished.push(via); },
+    invoke: undefined as unknown as () => void,
+  };
+  const code = babel.transformSync(`${handler}\nglobalThis.invoke = approvedLater;`, {
+    filename: 'handler.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+  }).code;
+  runInNewContext(code, context);
+  context.invoke();
+  return calls;
+}
+
+test('Ask to Buy approved while off the paywall marks the flow entitled so commit finishes instead of re-selling', () => {
+  for (const step of ['commit', 'hello']) {
+    const calls = approval(step);
+    assert.deepEqual(calls.entitled, [true]);
+    assert.deepEqual(calls.noOffer, [true]);
+    assert.deepEqual(calls.finished, []);
+  }
+});
+
+test('Ask to Buy approved on the paywall still finishes setup', () => {
+  const calls = approval('plans');
+  assert.deepEqual(calls.entitled, [true]);
+  assert.deepEqual(calls.finished, ['purchase']);
+});
