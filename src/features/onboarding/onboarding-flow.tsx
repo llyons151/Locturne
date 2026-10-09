@@ -480,10 +480,10 @@ export function OnboardingFlow({
     // StoreKit can finish after this modal closes. Keep any Routine edits made since then;
     // a first setup lost through an external dismissal still needs to be saved once.
     if (!flowActive.has('active')) {
-      if (!hasRoutine()) {
-        saveSetup(answers);
-        saveTrialReminder(answers.remindTrial);
-      }
+      if (!hasRoutine()) saveSetup(answers);
+      // Not a Routine edit: leaving the paywall mid-purchase (its X stays live) already saved
+      // the setup, and the reminder they left on must still follow this trial.
+      saveTrialReminder(answers.remindTrial);
       armIfPaid();
       return;
     }
@@ -528,10 +528,8 @@ export function OnboardingFlow({
       finishLatest.get('complete')!('purchase');
     } else if (result.status === 'pending') {
       if (!flowActive.has('active')) {
-        if (!hasRoutine()) {
-          saveSetup(latestAnswers.get('value')!);
-          saveTrialReminder(latestAnswers.get('value')!.remindTrial);
-        }
+        if (!hasRoutine()) saveSetup(latestAnswers.get('value')!);
+        saveTrialReminder(latestAnswers.get('value')!.remindTrial);
         markPurchasePending();
         return;
       }

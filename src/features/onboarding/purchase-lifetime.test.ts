@@ -13,6 +13,7 @@ function completion(saved: boolean) {
   let redirected = 0;
   let armed = 0;
   let paid = false;
+  const reminders: boolean[] = [];
   const context = {
     flowActive: new Set<string>(),
     hasRoutine: () => saved,
@@ -21,7 +22,7 @@ function completion(saved: boolean) {
     takePendingApproval() {},
     settleSubscription: (value: boolean) => { paid = value; },
     saveSetup: () => { overwritten++; },
-    saveTrialReminder() {}, track() {}, setFinished() {}, setEntitled() {}, setTrialEnds() {},
+    saveTrialReminder: (on: boolean) => { reminders.push(on); }, track() {}, setFinished() {}, setEntitled() {}, setTrialEnds() {},
     currentTrialEnd: async () => null,
     dispatch: () => { redirected++; },
     runArm: () => { armed++; }, armIfPaid: () => { armed++; },
@@ -32,7 +33,7 @@ function completion(saved: boolean) {
   }).code;
   runInNewContext(code, context);
   context.invoke();
-  return { overwritten, redirected, armed, paid };
+  return { overwritten, redirected, armed, paid, reminders };
 }
 
 test('late purchase success after closing onboarding keeps newer saved Routine edits', () => {
@@ -41,6 +42,8 @@ test('late purchase success after closing onboarding keeps newer saved Routine e
   assert.equal(result.overwritten, 0);
   assert.equal(result.redirected, 0);
   assert.equal(result.armed, 1);
+  // Closing the paywall mid-purchase already saved the setup: the reminder must still be kept.
+  assert.deepEqual(result.reminders, [true]);
 });
 
 test('late purchase success still keeps a complete first setup when no routine was ever saved', () => {
@@ -49,6 +52,7 @@ test('late purchase success still keeps a complete first setup when no routine w
   assert.equal(result.overwritten, 1);
   assert.equal(result.redirected, 0);
   assert.equal(result.armed, 1);
+  assert.deepEqual(result.reminders, [true]);
 });
 
 test('Ask to Buy resolving after exit records approval state without overwriting a newer routine or reopening UI', async () => {
@@ -58,12 +62,14 @@ test('Ask to Buy resolving after exit records approval state without overwriting
   let pending = false;
   let saved = 0;
   let messages = 0;
+  const reminders: boolean[] = [];
   const context = {
     busy: false, isPurchasing: () => false, setBusy() {}, track() {},
     step: 'plans', purchase: () => new Promise((done) => { resolve = done; }),
     flowActive: new Set(['active']), hasRoutine: () => true,
     answers: { bedtime: 1380, remindTrial: true },
-    saveSetup: () => { saved++; }, saveTrialReminder() {},
+    latestAnswers: new Map([['value', { bedtime: 1380, remindTrial: true }]]),
+    saveSetup: () => { saved++; }, saveTrialReminder: (on: boolean) => { reminders.push(on); },
     markPurchasePending: () => { pending = true; }, setNoMoreExitOffer() {},
     say: () => { messages++; },
     invoke: undefined as unknown as (target: string) => Promise<void>,
@@ -79,6 +85,7 @@ test('Ask to Buy resolving after exit records approval state without overwriting
   assert.equal(pending, true);
   assert.equal(saved, 0);
   assert.equal(messages, 0);
+  assert.deepEqual(reminders, [true]);
 });
 
 test('Ask to Buy resolving while an edited flow remains open saves its latest committed answers', async () => {
