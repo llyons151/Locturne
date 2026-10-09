@@ -95,6 +95,24 @@ test('nights switched off are not checked', () => {
   assert.ok(!nights.some((n) => n.morningKey === '2026-10-04'));
 });
 
+test('a night turned on since is judged by the nights in force when it ran', () => {
+  // Fri Oct 9 and Sat Oct 10 nights off. On Saturday, Friday is turned on, from Sat 23:00.
+  // The extension still logs an unshielded start on the off nights it skips.
+  const change = { since: at(10, 23).getTime(), prior: { activeNights: [0, 1, 2, 3, 4] } };
+  const heartbeats = [start(at(8, 23)), start(at(9, 23), false), start(at(10, 23), false)];
+  const more = { routine: { activeNights: [0, 1, 2, 3, 4, 5] }, nights: 3 };
+  const before = check(heartbeats, at(11, 10), more);
+  assert.equal(before[0].morningKey, '2026-10-10');
+  assert.equal(before[0].verdict, 'noShield');
+  const nights = check(heartbeats, at(11, 10), { ...more, change });
+  assert.deepEqual(nights.map((n) => [n.morningKey, n.verdict]), [['2026-10-09', 'onTime']]);
+  // A night that ends after the change is the routine in force's: Friday Oct 16 is checked.
+  const later = check([...heartbeats, start(at(16, 23), false)], at(17, 10), { ...more, change, nights: 1 });
+  assert.deepEqual(later.map((n) => [n.morningKey, n.verdict]), [['2026-10-17', 'noShield']]);
+  // No routine before it: nights that ended before it came into force aren't checked.
+  assert.deepEqual(check(heartbeats, at(11, 10), { ...more, change: { ...change, prior: null } }), []);
+});
+
 test('a bedtime after midnight belongs to the evening before', () => {
   // 01:00 to 07:00. The night into Sunday Oct 4 starts 01:00 Oct 4 and is Saturday's.
   const late = armed(1 * H, 7 * H);

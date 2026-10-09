@@ -55,6 +55,12 @@ export type NightFacts = {
   armed: ArmedNight | null;
   /** Only `activeNights` is read: which evenings should have been locked. */
   routine: Pick<Routine, 'activeNights'>;
+  /**
+   * When `routine` came into force and the one before it (`getRoutineChange`). A night that
+   * ended by then ran under `prior` (`nightRanUnder`), so it's judged by `prior`'s nights: one
+   * that was off then isn't checked, even if it's on now. Null or left out: `routine` judges all.
+   */
+  change?: { since: number; prior: Pick<Routine, 'activeNights'> | null } | null;
   /** Newest first or in any order. */
   heartbeats: Heartbeat[];
   /**
@@ -159,7 +165,10 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     if (start >= end) continue;
     if (start.getTime() + ON_TIME_GRACE * MINUTE > now.getTime()) continue;
     if (!Number.isNaN(armedAt) && start.getTime() < armedAt) continue;
-    if (!routine.activeNights.includes(eveningOf(end))) continue;
+    // The nights setting in force when this night ran: an off night turned on since was
+    // skipped by the extension (it still logs its start, unshielded), so it isn't a noShield.
+    const ranUnder = facts.change && end.getTime() <= facts.change.since ? facts.change.prior : routine;
+    if (!ranUnder || !ranUnder.activeNights.includes(eveningOf(end))) continue;
     if (facts.lastPaidMorning && dateKey(end) > facts.lastPaidMorning) continue;
 
     const ran = starts.filter((h) => h.at >= start.getTime() - EARLY_SLACK && h.at <= end.getTime());

@@ -10,7 +10,7 @@
 import { getEmergencyLog } from './emergency.ts';
 import { lastPaidMorning } from './lock-controller.ts';
 import { checkNights, heartbeatCoverage, type NightCheck } from './health.ts';
-import { getRoutine } from './routine.ts';
+import { getRoutine, getRoutineChange } from './routine.ts';
 import { getArmedNight, isScreenTimeAvailable, sharedGet, sharedSet, windowStarts } from './screen-time.ts';
 
 export type Heartbeat = {
@@ -79,6 +79,7 @@ export function readNightChecks(now = new Date()): NightCheck[] {
   return checkNights({
     armed: getArmedNight(),
     routine: getRoutine(now),
+    change: getRoutineChange(now),
     heartbeats: all,
     coverageStart: heartbeatCoverage(log, recovered, HEARTBEAT_KEEP, now),
     zoneChangedAt: zoneChangedAt(now),
