@@ -2,8 +2,7 @@
 // Reads the App Group stores during render (the morning proofs), which change outside
 // React, so the React Compiler stays out of here.
 
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router } from 'expo-router';
 import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +10,7 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { useHealth } from '@/hooks/use-health';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
+import { dateKey } from '@/lib/lock-state';
 import { getProofs } from '@/lib/morning-proof';
 import { nextNightOn } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
@@ -22,6 +22,7 @@ import { awakeLine, dayHero } from './awake-line';
 import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
+import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { weekDays } from './week';
 
@@ -45,9 +46,9 @@ export function HomeScreen() {
   const { lock, routine, proof } = useHomeState();
   useReviewPrompt(lock, proof);
   const now = useMinute();
-  // Bumped each time Home opens, so today's screen time redraws.
-  const [visit, setVisit] = useState(0);
-  useFocusEffect(useCallback(() => setVisit((v) => v + 1), []));
+  // Bumped each time Home opens, the app returns to the foreground or the day rolls over, so
+  // today's screen time redraws.
+  const visit = useVisit(dateKey(now));
 
   // Honest status (health.ts): access off or never given replaces everything. Also keeps the
   // notifications in line when protection changes while Home is open.
