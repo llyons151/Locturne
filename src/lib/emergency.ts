@@ -17,7 +17,7 @@
 import { judgedAt, nextBedtime, pastLastPaid, readLock, subscriptionEnded, syncLock } from './lock-controller.ts';
 import { dateKey, type Phase } from './lock-state.ts';
 import { recordProof, type MorningProof } from './morning-proof.ts';
-import { nextNightOn } from './routine.ts';
+import { nextNightOn, nightAt } from './routine.ts';
 import {
   endNap,
   getNap,
@@ -178,8 +178,10 @@ export function pauseWording(
   // bedtime saved during the pause, still waiting to be armed, starts a night before it).
   const next = nextNightOn(resumesAt, now);
   const on = next && next < resumesAt ? resumesAt : next;
-  // The extension skips a night leading into a morning after the last paid one.
-  const ended = on !== null && pastLastPaid(readLock(on).morningKey);
+  // The extension skips a night leading into a morning after the last paid one. Its morning as
+  // `nightAt` names it, never `readLock(on)`: reading the lock at that later time would settle a
+  // routine edit waiting for it, and apply an edit made from bed tonight.
+  const ended = on !== null && subscriptionEnded() && pastLastPaid(dateKey(nightAt(on, now).end));
   const resumes = ended ? null : on;
   const sameDay = resumes?.toDateString() === resumesAt.toDateString();
   return {

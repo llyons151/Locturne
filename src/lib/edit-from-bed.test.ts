@@ -220,6 +220,46 @@ test('an emergency after a later bedtime saved from bed pauses until the next be
   assert.ok(readNightChecks().every((n) => n.verdict !== 'noShield'), JSON.stringify(readNightChecks()));
 });
 
+test("the emergency wait screen's wording never applies an earlier morning saved from bed", async () => {
+  // Proved Tuesday 07:30. At 23:30, held: morning start 23:45 (waits for Wednesday 23:00).
+  // Exits renders the pause wording, then "Go back to sleep": nothing unlocked.
+  await setUp(at(5, 12));
+  advance(at(6, 7, 30));
+  lc.syncLock();
+  assert.ok(lc.proveMorning('steps'));
+  advance(at(6, 23, 30));
+  lc.syncLock();
+  assert.ok(asleep());
+  await edit({ morningStart: 23 * 60 + 45 });
+  const plan = em.previewEmergency();
+  assert.ok(plan?.resumesAt);
+  em.pauseWording(new Date(plan.resumesAt));
+  assert.ok(rt.getPendingRoutine(), 'the edit still waits');
+  advance(at(6, 23, 50));
+  lc.syncLock();
+  assert.equal(lc.readLock().phase, 'night');
+  assert.ok(st.isNightHeld());
+  assert.ok(asleep());
+  assert.equal(em.getEmergencyLog().length, 0);
+});
+
+test("the emergency wait screen's wording never applies tonight switched off from bed", async () => {
+  // Monday 23:10, held: Monday night off (waits for Tuesday 23:00). Exits renders the wording.
+  await setUp(at(5, 12));
+  advance(at(5, 23, 10));
+  lc.syncLock();
+  assert.ok(asleep());
+  await edit({ activeNights: [0, 2, 3, 4, 5, 6] });
+  const plan = em.previewEmergency();
+  assert.ok(plan?.resumesAt);
+  em.pauseWording(new Date(plan.resumesAt));
+  assert.ok(rt.getPendingRoutine(), 'the edit still waits');
+  advance(at(5, 23, 50));
+  assert.ok(asleep(), 'the next window keeps the night');
+  advance(at(6, 7, 30));
+  assert.ok(asleep(), 'and the morning');
+});
+
 test('the shield fallback during a paused night is the always list’s, not the bedtime words', async () => {
   await setUp(at(5, 12));
   advance(at(5, 23, 30));

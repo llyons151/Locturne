@@ -108,7 +108,10 @@ function read(now: Date): StoredRoutine | undefined {
   const stored = sharedGet<StoredRoutine>(KEY);
   if (!stored) return undefined;
   const settled = settleRoutine(stored, now);
-  if (settled !== stored) sharedSet(KEY, settled);
+  // Saved only once the clock really reached the edit's bedtime: a read at a later time (the
+  // emergency wording naming the night the pause ends) must not apply a waiting edit early, or
+  // the extension and the next sync run it from now.
+  if (settled !== stored && now.getTime() <= Date.now()) sharedSet(KEY, settled);
   return settled;
 }
 
@@ -278,7 +281,7 @@ export function holdsEarly(
  * starts under that routine, and whether it's on. Its evening is the day before its morning,
  * as in lock-state.ts. For "Apps awake until …" wherever it's shown.
  */
-export function nightAt(start: Date, now = new Date()): { routine: Routine; start: Date; on: boolean } {
+export function nightAt(start: Date, now = new Date()): { routine: Routine; start: Date; end: Date; on: boolean } {
   const pending = getPendingRoutine(now);
   const nightUnder = (r: Routine) => {
     const { latest, next } = nightsAround(start, toLockSettings(r));
@@ -311,7 +314,7 @@ export function nightAt(start: Date, now = new Date()): { routine: Routine; star
   const underWay = usePending && pending && pendingNight && pendingNight.start.getTime() < pending.from;
   if (underWay && !held && !on && night.end > start) return nightAt(night.end, now);
   const begins = early && pending && !held ? new Date(pending.from) : night.start;
-  return { routine, start: begins, on };
+  return { routine, start: begins, end: night.end, on };
 }
 
 /** The start of the first night at or after `from` that's on, a week out at most. Null when every night is off. */
