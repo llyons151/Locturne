@@ -19,3 +19,10 @@ test('setup hides the printable code when bedtime starts and resumes only when e
   assert.equal(liveScanStage(draft, { kind: 'asleep' }, { phase: 'night', morningKey: '2026-10-06' }, true).kind, 'asleep');
   assert.equal(liveScanStage(draft, { kind: 'choose', source: 'qr' }, { phase: 'day', morningKey: '2026-10-06' }, false), draft);
 });
+
+test('a code saved just before bedtime stays saved, not "Not from bed"', () => {
+  const saved: Stage = { kind: 'saved' };
+  assert.equal(liveScanStage(saved, { kind: 'choose', source: 'qr' }, { phase: 'day', morningKey: '2026-10-05' }, false), saved);
+  assert.equal(liveScanStage(saved, { kind: 'asleep' }, { phase: 'night', morningKey: '2026-10-06' }, true), saved);
+  assert.equal(liveScanStage(saved, { kind: 'asleep' }, { phase: 'morning', morningKey: '2026-10-06' }, true), saved);
+});

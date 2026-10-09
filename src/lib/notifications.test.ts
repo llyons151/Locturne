@@ -59,6 +59,7 @@ const {
   planNotifications,
   planTrialReminder,
   shieldTapNotification,
+  setupScanShowing,
   wakeScreenShowing,
 } =
   await import('./notifications.ts');
@@ -261,6 +262,16 @@ test('a wake-up notification tap leaves an open wake or scan screen alone, so co
   // Exits is a sheet over the wake or scan screen: navigating would push another copy over it.
   assert.equal(wakeScreenShowing('/exits'), true);
   assert.equal(wakeScreenShowing('/onboarding'), false);
+  assert.equal(wakeScreenShowing('/scan', 'morning'), true);
+});
+
+test('a wake-up notification tap over the code setup screen opens the wake-up instead', () => {
+  // Setup from bed only says "Not from bed", with no way to get up from there.
+  assert.equal(wakeScreenShowing('/scan', 'setup'), false);
+  assert.equal(setupScanShowing('/scan', 'setup'), true);
+  assert.equal(setupScanShowing('/scan', 'morning'), false);
+  assert.equal(setupScanShowing('/scan'), false);
+  assert.equal(setupScanShowing('/wake', 'setup'), false);
 });
 
 test('the tone changes the bedtime and morning notes, and nothing about when they come', () => {

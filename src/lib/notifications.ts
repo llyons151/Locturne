@@ -251,10 +251,17 @@ export function opensWakeScreen(identifier: string): boolean {
  * those notifications leaves it be: `/wake` turns into `/scan` for a scan routine, so
  * navigating again would stack another copy, and would drop a walk's `?method=steps`.
  * `/exits` counts too: it's a sheet over the wake or scan screen, and `navigate` only reuses
- * the top route, so a tap there would push a second wake screen over the sheet.
+ * the top route, so a tap there would push a second wake screen over the sheet. A scan
+ * screen opened to set up the code (`mode` 'setup') isn't one: from bed it only says "Not
+ * from bed", so the tap replaces it with the wake-up (`setupScanShowing`).
  */
-export function wakeScreenShowing(pathname: string): boolean {
-  return pathname === '/wake' || pathname === '/scan' || pathname === '/exits';
+export function wakeScreenShowing(pathname: string, mode?: string): boolean {
+  return pathname === '/wake' || (pathname === '/scan' && mode !== 'setup') || pathname === '/exits';
+}
+
+/** The scan screen is in front to set up or change the code, not to scan it. */
+export function setupScanShowing(pathname: string, mode?: string): boolean {
+  return pathname === '/scan' && mode === 'setup';
 }
 
 /**

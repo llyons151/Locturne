@@ -1,4 +1,4 @@
-import { router, usePathname } from 'expo-router';
+import { router, useGlobalSearchParams, usePathname } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
@@ -13,6 +13,7 @@ import {
   rescheduleNotifications,
   shouldAskForNotifications,
   syncTrialEnd,
+  setupScanShowing,
   wakeScreenShowing,
 } from '@/lib/notifications';
 import { takePendingApproval } from '@/lib/pending-purchase';
@@ -95,10 +96,12 @@ function followTrial(): void {
 export function useAppStart(): void {
   // At launch: where a cold deep link put the app. After that: what's in front, for a tap.
   const pathname = usePathname();
-  const shown = useRef(pathname);
+  // `/scan` sets up the code or scans it: only the scan is a wake-up screen.
+  const { mode } = useGlobalSearchParams<{ mode?: string }>();
+  const shown = useRef({ pathname, mode });
   useEffect(() => {
-    shown.current = pathname;
-  }, [pathname]);
+    shown.current = { pathname, mode };
+  }, [pathname, mode]);
   useEffect(() => {
     if (!hasRoutine()) {
       // Not when a link already opened it (`/onboarding?…` on a fresh install): a second copy
@@ -137,7 +140,11 @@ export function useAppStart(): void {
       onNotificationTap((identifier) => {
         // Not while a wake or scan screen is already open: `/wake` becomes `/scan` for a scan
         // routine, so navigating would stack another copy (and drop a walk's `?method=steps`).
-        if (opensWakeScreen(identifier) && hasRoutine() && !wakeScreenShowing(shown.current)) router.navigate('/wake');
+        // A code setup screen left open is replaced: from bed it can't do anything.
+        if (!opensWakeScreen(identifier) || !hasRoutine()) return;
+        const { pathname: path, mode: shownMode } = shown.current;
+        if (setupScanShowing(path, shownMode)) router.replace('/wake');
+        else if (!wakeScreenShowing(path, shownMode)) router.navigate('/wake');
       }),
     [],
   );
