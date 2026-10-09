@@ -424,19 +424,21 @@ final class NightDialView: ExpoView {
     let clamp = { (s: Double) in min(Self.day - Self.snap, max(self.minWindow, s)) }
     let snapped = { (s: Double) in (s / Self.snap).rounded() * Self.snap }
     var bed: Double, wake: Double
+    // Under half a step of movement changes nothing, so a touch that barely moves saves nothing.
+    let still = abs(d.moved) < Self.snap / 2
     switch d.part {
     case .bed:
       let s = clamp(startSpan - d.moved)
       shownBed = d.startWake - s
       shownWake = d.startWake
-      bed = d.startWake - clamp(snapped(s))
+      bed = still ? d.startBed : d.startWake - Self.endSnapped(d.startWake, s, -1, minWindow)
       wake = d.startWake
     case .wake:
       let s = clamp(startSpan + d.moved)
       shownBed = d.startBed
       shownWake = d.startBed + s
       bed = d.startBed
-      wake = d.startBed + clamp(snapped(s))
+      wake = still ? d.startWake : d.startBed + Self.endSnapped(d.startBed, s, 1, minWindow)
     case .night:
       shownBed = d.startBed + d.moved
       shownWake = d.startWake + d.moved
@@ -581,6 +583,20 @@ final class NightDialView: ExpoView {
   static func wrap(_ m: Double) -> Double {
     let r = m.truncatingRemainder(dividingBy: day)
     return r < 0 ? r + day : r
+  }
+
+  /**
+   The span from a fixed handle to a dragged one (`dir` -1 for bedtime before it, 1 for the
+   morning after it) with the dragged handle's time on a quarter hour, not the span, so a
+   routine set off the grid still lands on the times the dial offers. Kept between `minWindow`
+   and a day less a step.
+   */
+  static func endSnapped(_ fixed: Double, _ s: Double, _ dir: Double, _ minWindow: Double) -> Double {
+    let end = ((fixed + dir * s) / snap).rounded() * snap
+    var span = (end - fixed) * dir
+    while span < minWindow, span + snap <= day - snap { span += snap }
+    while span > day - snap, span - snap >= minWindow { span -= snap }
+    return min(day - snap, max(minWindow, span))
   }
 
   /** Minutes from `a` forward to `b`. */
