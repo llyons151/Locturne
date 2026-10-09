@@ -671,6 +671,41 @@ export function endNap(): void {
   }
 }
 
+/**
+ * Hands a running nap's end back to iOS if iOS dropped it (Screen Time access turned off and
+ * on, say). Every sync shields the nap's apps again (`reapplyStandingBlocks`), and with no
+ * `intervalDidEnd` coming nothing would wake them at the end with the app closed. Registers a
+ * one-off window to the nap's end: from now, or, under iOS's 15-minute floor, from 15 minutes
+ * before the end, a start already past that iOS begins at once.
+ */
+export async function rearmNap(now = new Date()): Promise<void> {
+  const nap = peekNap(now);
+  if (!nap || napStarting || isStoodDown() || getAccess() !== 'approved' || hasActivity(NAP_ACTIVITY)) return;
+  napStarting = true;
+  const generation = napGeneration;
+  try {
+    makeRoomFor(NAP_ACTIVITY);
+    configureActions({
+      activityName: NAP_ACTIVITY,
+      callbackName: 'intervalDidEnd',
+      actions: [{ type: 'unblockSelection', familyActivitySelectionId: nap.list }],
+    });
+    const start = Math.min(now.getTime(), nap.end - NAP_SHORTEST * 60_000);
+    await startMonitoring(
+      NAP_ACTIVITY,
+      { intervalStart: clockOf(start), intervalEnd: clockOf(nap.end), repeats: false },
+      [],
+    );
+    // Ended, replaced or stood down while iOS registered it: this window is no one's now.
+    if (generation !== napGeneration || isStoodDown() || readNap()?.end !== nap.end) {
+      stopMonitoring([NAP_ACTIVITY]);
+      cleanUpAfterActivity(NAP_ACTIVITY);
+    }
+  } finally {
+    napStarting = false;
+  }
+}
+
 function readNap(): ActiveNap | null {
   return sharedGet<ActiveNap>(NAP_KEY) ?? null;
 }

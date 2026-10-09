@@ -36,6 +36,7 @@ import {
   nightLockArmed,
   peekNap,
   reapplyStandingBlocks,
+  rearmNap,
   saveLimits,
   scheduleListSettle,
   selectionSize,
@@ -253,6 +254,10 @@ export function syncLock(now = new Date()): LockState {
       sleepApps('night');
       reapplyStandingBlocks();
     } else reapplyStandingBlocks();
+    // The shields above include a running Block now: make sure iOS still ends it.
+    rearmNap(now).catch(() => {
+      // iOS refused. The next sync tries again.
+    });
 
     if (getArmedNight() && planFor(now).action !== 'keep') {
       armRoutine(now).catch(() => {

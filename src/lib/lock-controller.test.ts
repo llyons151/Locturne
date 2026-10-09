@@ -59,6 +59,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
       if (id === 'night') nightHeld = false;
     },
     reapplyStandingBlocks: () => calls.push('reapply'),
+    rearmNap: async () => {},
     getArmedNight: () => armed,
     currentNightWindowNames: () => Array.from({ length: live }, (_, i) => `night-${i}`),
     armNight: async (windows: unknown[], list: string, times: { bedtime: number; morningStart: number }) => {
