@@ -380,6 +380,22 @@ export function lastPaidMorning(): string | null {
   return sharedGet<string>(ENDED_MORNING_KEY) ?? null;
 }
 
+/**
+ * Nights a lapse skipped, kept once a renewal clears it: mornings after `after` (the last paid
+ * one) whose nights started before `until` (the renewal). The extension skipped their windows,
+ * so the self-check mustn't judge them once `lastPaidMorning` is gone (`checkNights`).
+ */
+const LAPSE_SKIPPED_KEY = 'locturne.lapseSkipped';
+/** Older gaps are past anything the self-check looks at. */
+const LAPSE_SKIPPED_KEEP_MS = 14 * 86_400_000;
+
+export type LapseGap = { after: string; until: number };
+
+/** The nights earlier lapses skipped (`LapseGap`), oldest first. */
+export function lapseGaps(): LapseGap[] {
+  return sharedGet<LapseGap[]>(LAPSE_SKIPPED_KEY) ?? [];
+}
+
 /** No active subscription was found at the last check (never bought, or it ended). */
 export function subscriptionEnded(): boolean {
   return sharedGet<number>(SUBSCRIPTION_ENDED_KEY) !== undefined;
@@ -402,6 +418,12 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
     if (lapsed.phase === 'morning' && pastLastPaid(lapsed.morningKey)) {
       sharedSet(FREE_MORNING_KEY, lapsed.morningKey);
       sharedSet(FREE_MORNING_AT_KEY, now.getTime());
+    }
+    // The nights it skipped stay skipped in the self-check once the lapse keys are gone.
+    const ended = sharedGet<string>(ENDED_MORNING_KEY);
+    if (subscriptionEnded() && ended !== undefined) {
+      const kept = lapseGaps().filter((g) => g.until > now.getTime() - LAPSE_SKIPPED_KEEP_MS);
+      sharedSet(LAPSE_SKIPPED_KEY, [...kept, { after: ended, until: now.getTime() }]);
     }
     sharedRemove(SUBSCRIPTION_ENDED_KEY);
     sharedRemove(ENDED_MORNING_KEY);

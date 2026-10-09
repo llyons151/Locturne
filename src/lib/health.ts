@@ -91,6 +91,11 @@ export type NightFacts = {
    * Nights after it aren't locked (the extension skips them), so they aren't checked.
    */
   lastPaidMorning?: string | null;
+  /**
+   * Nights earlier lapses skipped, kept after a renewal (`lapseGaps`): mornings after `after`
+   * whose night started before `until`. The extension skipped their windows: not checked.
+   */
+  lapses?: { after: string; until: number }[];
   now: Date;
   nights?: number;
 };
@@ -170,6 +175,7 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     const ranUnder = facts.change && end.getTime() <= facts.change.since ? facts.change.prior : routine;
     if (!ranUnder || !ranUnder.activeNights.includes(eveningOf(end))) continue;
     if (facts.lastPaidMorning && dateKey(end) > facts.lastPaidMorning) continue;
+    if (facts.lapses?.some((g) => dateKey(end) > g.after && start.getTime() < g.until)) continue;
 
     const ran = starts.filter((h) => h.at >= start.getTime() - EARLY_SLACK && h.at <= end.getTime());
     // A callback alone doesn't prove the block applied. An empty list or an

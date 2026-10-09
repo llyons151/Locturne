@@ -164,6 +164,31 @@ test('a renewal in a morning whose night the lapse skipped keeps it free', async
   assert.equal(lc.readLock().phase, 'night');
 });
 
+for (const always of [false, true]) {
+  test(`after a renewal, the night the lapse skipped stays out of the self-check${always ? ' (always list up)' : ''}`, async () => {
+    await setUp(at(4, 12));
+    if (always) device.exports.setFamilyActivitySelectionId({ id: 'always', familyActivitySelection: token(['reddit']) });
+    advance(at(5, 3));
+    // Lapse found inside Sunday night; Monday night is skipped by the extension.
+    lc.settleSubscription(false);
+    advance(at(6, 7, 30));
+    // Billing retry renewed it before this open: the lapse keys go.
+    lc.settleSubscription(true);
+    assert.equal(lc.lastPaidMorning(), null);
+    const checks = readNightChecks();
+    assert.equal(checks.find((c) => c.morningKey === '2026-10-05')?.verdict, 'onTime', 'the last paid night is still judged');
+    assert.equal(
+      checks.find((c) => c.morningKey === '2026-10-06'),
+      undefined,
+      'the skipped night is neither a noShield ("nothing slept") nor an onTime',
+    );
+    // The first night after the renewal is judged as usual.
+    advance(at(7, 7, 30));
+    assert.equal(readNightChecks().find((c) => c.morningKey === '2026-10-07')?.verdict, 'onTime');
+    assert.equal(readNightChecks().find((c) => c.morningKey === '2026-10-06'), undefined);
+  });
+}
+
 test('a renewal at night after a skipped bedtime re-shields at once', async () => {
   await setUp(at(4, 12));
   advance(at(5, 3));
