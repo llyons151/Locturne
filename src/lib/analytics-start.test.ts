@@ -47,31 +47,30 @@ function startup(store = new Map<string, unknown>(), ready: Promise<void> = Prom
   return { start: () => exports.startAnalytics!(), clients, store, links };
 }
 
-test('no analytics SDK or early uploaded funnel exists before eligibility, including next child launch', () => {
+test('a fresh install with no age answer starts analytics and sends its funnel', () => {
   const h = startup();
   h.start();
+  assert.equal(h.clients.length, 1, 'onboarding no longer asks age, so nothing else would start it');
   analytics.track('onboarding_started', { rerun: false, entry_step: 'hello' });
   analytics.track('onboarding_answered', { question: 'nightMinutes', answer: 45 });
-  assert.equal(h.clients.length, 0);
-  analytics.stopForChild();
-  assert.equal(h.clients.length, 0);
-  analytics.resetAnalytics();
-  const reopened = startup(h.store);
-  reopened.start();
+  assert.equal(h.clients[0].captures.length, 2);
+});
+
+test('a stored under-13 answer from an older build stays stopped on every launch', () => {
+  const h = startup(new Map([['locturne.analytics.eligible', false]]));
+  h.start();
+  analytics.track('onboarding_started', { rerun: false, entry_step: 'hello' });
   analytics.track('onboarding_answered', { question: 'age_bracket', answer: '18-24' });
-  assert.equal(reopened.clients.length, 0, 'the persisted child opt-out cannot be reversed on a later launch');
+  assert.equal(h.clients.length, 0, 'the persisted child opt-out cannot be reversed on a later launch');
   assert.equal(h.store.get('locturne.analytics.eligible'), false);
 });
 
-test('valid age initializes once and releases only the locally buffered adult funnel', () => {
-  const h = startup();
+test('an older adult age answer initializes once', () => {
+  const h = startup(new Map([['locturne.analytics.eligible', true]]));
   h.start();
-  analytics.track('onboarding_started', { rerun: false, entry_step: 'hello' });
-  analytics.track('onboarding_answered', { question: 'age_bracket', answer: '18-24' });
   analytics.track('onboarding_answered', { question: 'age_bracket', answer: '18-24' });
   assert.equal(h.clients.length, 1);
-  assert.equal(h.store.get('locturne.analytics.eligible'), true);
-  assert.equal(h.clients[0].captures.length, 3);
+  assert.equal(h.clients[0].captures.length, 1);
 });
 
 test('actual installed SDK lifecycle method cannot export an incoming personal deep link', async () => {
@@ -105,14 +104,12 @@ test('actual installed SDK lifecycle method cannot export an incoming personal d
 });
 
 
-test('unknown eligibility stays private and a child answer wins over delayed SDK readiness', async () => {
+test('anything but a stored false starts analytics, and a child answer wins over delayed SDK readiness', async () => {
   for (const persisted of [undefined, null, 'true', 1, {}]) {
     analytics.resetAnalytics();
     const h = startup(new Map([['locturne.analytics.eligible', persisted]]));
     h.start();
-    analytics.track('onboarding_answered', { question: 'age_bracket', answer: 'unknown' });
-    analytics.trackScreen('/scan');
-    assert.equal(h.clients.length, 0);
+    assert.equal(h.clients.length, 1);
   }
   analytics.resetAnalytics();
   let finish!: () => void;

@@ -46,8 +46,8 @@ export function postHogKey(raw: unknown): string | null {
 }
 
 export function startAnalytics(): void {
-  // An install with no age answer is unknown, including upgrades from older builds.
-  // Keep its early funnel in analytics.ts's bounded local queue until eligibility is known.
+  // Onboarding stopped asking age on 2026-10-05, so no answer means allowed. Only an install
+  // from before that said it was under 13 (stored `false`) stays stopped.
   const key = 'locturne.analytics.eligible';
   let initialized = false;
   const initialize = () => {
@@ -59,9 +59,8 @@ export function startAnalytics(): void {
     sharedSet(key, allowed);
     if (allowed) initialize();
   });
-  const allowed = sharedGet<boolean>(key);
-  if (allowed === true) initialize();
-  else if (allowed === false) stopForChild();
+  if (sharedGet<boolean>(key) === false) stopForChild();
+  else initialize();
 }
 
 function initializeAnalytics(): void {
