@@ -260,3 +260,25 @@ test('F2b: as F2 with one registration refused, a removal at 20:30, then the app
   runTo(at(5, 21, 30));
   assert.equal(asleep('reddit'), true, `always app awake at 21:30 with the app closed`);
 });
+
+test('F5: bedtime apps added on the Apps tab with nothing armed (an emptied list, a lapse and renewal) sleep at bedtime without a reopen', async () => {
+  const R0: Routine = { ...rt.DEFAULT_ROUTINE, bedtime: 22 * 60, morningStart: 6 * 60 + 30 };
+  await setup(at(4, 12), R0);
+  runTo(at(4, 13));
+  await listEdit('night', []); // every bedtime app removed (waits for 22:00)
+  runTo(at(5, 12));
+  await open();
+  paid = false;
+  await open(); // lapse found in the day: everything stands down
+  assert.equal(st.isStoodDown(), true);
+  paid = true;
+  await open(); // renewed, but an empty bedtime list arms nothing
+  assert.equal(st.getArmedNight(), null);
+  runTo(at(5, 21, 30));
+  // The Apps tab's `pickedList`: an unarmed night is armed when bedtime apps are added.
+  await listEdit('night', NIGHT0);
+  if (!st.getArmedNight()) await armIfPaid();
+  // Locturne isn't opened again.
+  runTo(at(5, 22, 30));
+  assert.equal(asleep('tiktok'), true, `22:30 awake; armed ${JSON.stringify(st.getArmedNight())}`);
+});

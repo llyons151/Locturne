@@ -33,6 +33,7 @@ import { Segmented } from '@/components/segmented';
 import { getPendingRoutine, getRoutine } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
+import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
 import {
   editLimit,
@@ -54,6 +55,7 @@ import {
   draftId,
   editedSelection,
   finishListEdit,
+  getArmedNight,
   getLimits,
   isScreenTimeAvailable,
   isStoodDown,
@@ -375,6 +377,9 @@ function LiveAppsList() {
     finishListEdit(list, looserEditsStartAt(new Date(), list));
     if (isLimitId(list)) pickedLimit(list);
     reapplyStandingBlocks();
+    // An empty bedtime list left the night unarmed (`armIfPaid` skips it): arm it now, as the
+    // Routine tab's save does, or the apps just added stay awake until Locturne is reopened.
+    if (list === 'night' && !getArmedNight()) armIfPaid();
     refresh();
   };
 
