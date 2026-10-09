@@ -13,7 +13,8 @@ import UIKit
  exactly (no stepping); the times snap to quarter hours with a selection tick, and on release the
  band springs onto the snapped time. Everything is Core Animation on the main thread, so there's
  no bridge between the finger and the ring. The result goes back to JS once, on release, because
- every save re-arms the lock (`RoutineScreen.commit`).
+ every save re-arms the lock (`RoutineScreen.commit`); VoiceOver's steps likewise go back once
+ the swiping stops.
  */
 public class NightDialModule: Module {
   public func definition() -> ModuleDefinition {
@@ -101,6 +102,14 @@ final class NightDialView: ExpoView {
     var moved: Double
   }
   private var drag: Drag?
+  /**
+   VoiceOver's quarter-hour steps, held until the swiping stops (`stepSettle`): each send is a
+   save that re-arms the lock, so an overshot step on the way to an earlier bedtime could
+   already shield tonight and push the time actually chosen to tomorrow (bug sweep 2026-10-09).
+   */
+  private var heldStep: DispatchWorkItem?
+  /** Matches `SETTLE_MS` in src/lib/settle.ts, the time pickers' wait. */
+  private static let stepSettle: TimeInterval = 3
 
   // MARK: Layers and views
 
@@ -190,6 +199,12 @@ final class NightDialView: ExpoView {
     wakeElement.accessibilityLabel = "Morning start"
     bedElement.onStep = { [weak self] dir in self?.nudge(.bed, by: Double(dir) * Self.snap) }
     wakeElement.onStep = { [weak self] dir in self?.nudge(.wake, by: Double(dir) * Self.snap) }
+    // Moving on to the other handle, or away from the dial, saves the held step at once.
+    bedElement.onLeave = { [weak self] in self?.flushStep() }
+    wakeElement.onLeave = { [weak self] in self?.flushStep() }
+    // So does leaving the app: a held step's timer won't run in the background.
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(appWillResign), name: UIApplication.willResignActiveNotification, object: nil)
     accessibilityElements = [bedElement, wakeElement]
 
     applyColors()
@@ -198,6 +213,8 @@ final class NightDialView: ExpoView {
 
   deinit {
     link?.invalidate()
+    heldStep?.cancel()
+    NotificationCenter.default.removeObserver(self)
   }
 
   // MARK: Props
@@ -208,13 +225,13 @@ final class NightDialView: ExpoView {
     case .bed:
       let first = !hasBed
       hasBed = true
-      guard drag == nil, first || m != targetBed else { return }
+      guard drag == nil, heldStep == nil, first || m != targetBed else { return }
       targetBed = m
       if first || UIAccessibility.isReduceMotionEnabled { shownBed = m }
     case .wake:
       let first = !hasWake
       hasWake = true
-      guard drag == nil, first || m != targetWake else { return }
+      guard drag == nil, heldStep == nil, first || m != targetWake else { return }
       targetWake = m
       if first || UIAccessibility.isReduceMotionEnabled { shownWake = m }
     }
@@ -451,7 +468,7 @@ final class NightDialView: ExpoView {
     } else {
       startLink()
     }
-    if targetBed != d.startBed || targetWake != d.startWake { send() }
+    if targetBed != d.startBed || targetWake != d.startWake || heldStep != nil { send() }
   }
 
   /** VoiceOver's swipe up and down: a quarter hour each way. */
@@ -462,10 +479,25 @@ final class NightDialView: ExpoView {
     selection.selectionChanged()
     refreshText()
     startLink()
-    send()
+    // Only the time the swiping stops on is saved, never one on the way to it.
+    heldStep?.cancel()
+    let item = DispatchWorkItem { [weak self] in self?.send() }
+    heldStep = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.stepSettle, execute: item)
+  }
+
+  /** Saves a held VoiceOver step now, if there is one. */
+  private func flushStep() {
+    if heldStep != nil { send() }
+  }
+
+  @objc private func appWillResign() {
+    flushStep()
   }
 
   private func send() {
+    heldStep?.cancel()
+    heldStep = nil
     onTimesChange(["bedtime": Int(targetBed), "morningStart": Int(targetWake)])
   }
 
@@ -519,7 +551,10 @@ final class NightDialView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    if window == nil { stopLink() }
+    if window == nil {
+      stopLink()
+      flushStep()
+    }
   }
 
   fileprivate func step() {
@@ -650,6 +685,7 @@ private final class TimeColumn: UIView {
 /** A handle as VoiceOver sees it: adjustable, a quarter hour per swipe. */
 private final class KnobElement: UIAccessibilityElement {
   var onStep: ((Int) -> Void)?
+  var onLeave: (() -> Void)?
 
   override init(accessibilityContainer container: Any) {
     super.init(accessibilityContainer: container)
@@ -659,6 +695,7 @@ private final class KnobElement: UIAccessibilityElement {
 
   override func accessibilityIncrement() { onStep?(1) }
   override func accessibilityDecrement() { onStep?(-1) }
+  override func accessibilityElementDidLoseFocus() { onLeave?() }
 }
 
 /** The press's delegate, kept off the view so it never clashes with what ExpoView adopts. */
