@@ -350,6 +350,19 @@ test('a nap under 15 minutes is refused before iOS sees it (intervalTooShort)', 
   st.endNap();
 });
 
+test('a nap window is pinned to the zone it started in, so a flight cannot move its end', async () => {
+  status = 2;
+  saved = { always: 't', night: 't' };
+  calls.length = 0;
+  await st.startNap('block', 120);
+  const [, , schedule] = calls.find(([n, name]) => n === 'startMonitoring' && name === 'locturne-nap')!;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const { intervalStart, intervalEnd } = schedule as { intervalStart: { timeZoneIdentifier?: string }; intervalEnd: { timeZoneIdentifier?: string } };
+  assert.equal(intervalStart.timeZoneIdentifier, zone);
+  assert.equal(intervalEnd.timeZoneIdentifier, zone);
+  st.endNap();
+});
+
 test('armLimit: a daily window that shields once the minutes are used, and wakes at midnight', async () => {
   saved = { 'limit-0': 'opaque' };
   await st.armLimit({ id: 'limit-0', minutes: 90 });

@@ -607,6 +607,16 @@ function clockOf(ms: number) {
 }
 
 /**
+ * A nap end's clock time, pinned to the zone it was worked out in. Unpinned, iOS reads the
+ * clock times in whatever zone the phone is in when they come round: after a flight east the
+ * end comes early, which the extension ignores (the stored `end` hasn't passed), and the apps
+ * stay asleep until Locturne is opened. Flying west, it comes hours late.
+ */
+function napClockOf(ms: number) {
+  return { ...clockOf(ms), timeZoneIdentifier: Intl.DateTimeFormat().resolvedOptions().timeZone };
+}
+
+/**
  * Shields `list` now and hands the wake-up to iOS: a one-off window from now to the end,
  * whose `intervalDidEnd` unshields the list in the monitor extension, even with the app
  * closed. iOS refuses windows under 15 minutes (`NAP_SHORTEST`), so shorter ones never start.
@@ -635,7 +645,7 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
     });
     await startMonitoring(
       NAP_ACTIVITY,
-      { intervalStart: clockOf(nap.start), intervalEnd: clockOf(nap.end), repeats: false },
+      { intervalStart: napClockOf(nap.start), intervalEnd: napClockOf(nap.end), repeats: false },
       [],
     );
     // A lapse or an exit may have cancelled this request while the native bridge
@@ -693,7 +703,7 @@ export async function rearmNap(now = new Date()): Promise<void> {
     const start = Math.min(now.getTime(), nap.end - NAP_SHORTEST * 60_000);
     await startMonitoring(
       NAP_ACTIVITY,
-      { intervalStart: clockOf(start), intervalEnd: clockOf(nap.end), repeats: false },
+      { intervalStart: napClockOf(start), intervalEnd: napClockOf(nap.end), repeats: false },
       [],
     );
     // Ended, replaced or stood down while iOS registered it: this window is no one's now.
