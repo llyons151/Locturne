@@ -17,6 +17,7 @@ import { looserEditsStart } from './daily-limits.ts';
 import { getProof, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
 import { armedForEdit, bringEditForward, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, runsAs, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
+import { clearPurchasePending } from './pending-purchase.ts';
 import {
   armedSince,
   currentNightWindowNames,
@@ -375,6 +376,9 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
     }
     sharedRemove(SUBSCRIPTION_ENDED_KEY);
     sharedRemove(ENDED_MORNING_KEY);
+    // A purchase that was waiting for approval has come through, even if tonight can't arm
+    // (too short, refused, no picks): Home says that, not "Waiting for approval".
+    clearPurchasePending();
     standUp().catch(() => {
       // iOS refused a limit. It's saved, and the next open with a subscription tries again.
     });

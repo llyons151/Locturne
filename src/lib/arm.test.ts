@@ -95,3 +95,14 @@ test('a renewal found on foreground tells the screens, even with nothing to arm'
   stop();
   assert.ok(calls > 0);
 });
+
+test('an approved purchase clears "Waiting for approval" even when tonight cannot arm', async () => {
+  const pp = await import('./pending-purchase.ts');
+  // Ask to Buy, then approved with a night too short to schedule (23:30 to 23:40).
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, bedtime: 23 * 60 + 30, morningStart: 23 * 60 + 40 });
+  pp.markPurchasePending(at(5, 15).getTime());
+  assert.equal(pp.isPurchasePending(at(5, 15).getTime()), true);
+  lc.settleSubscription(true, at(5, 15));
+  assert.deepEqual(await armTonight(), { status: 'failed', reason: 'too-short' });
+  assert.equal(pp.isPurchasePending(at(5, 15).getTime()), false);
+});

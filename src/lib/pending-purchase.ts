@@ -29,7 +29,7 @@ const REPORTED_KEY = 'locturne.purchasePendingReported';
  * `purchase_result` for an approval that landed after the paywall closed is sent once
  * (docs/ANALYTICS.md, `page: later`). Onboarding takes it too when it finishes a purchase or
  * restore itself, so the same approval isn't counted twice. Doesn't clear the waiting note:
- * arming does that (arm.ts).
+ * finding the subscription does that (`settleSubscription`), so take this first.
  */
 export function takePendingApproval(now = Date.now()): boolean {
   const at = sharedGet<number>(KEY);
