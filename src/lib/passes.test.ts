@@ -17,6 +17,7 @@ const passes = await import('./passes.ts');
 const { currentProof } = await import('./lock-controller.ts');
 const { currentMorning } = await import('./lock-state.ts');
 const { sharedRemove, sharedSet } = await import('./screen-time.ts');
+const { getMorningsWon, recordProof } = await import('./morning-proof.ts');
 const { toLockSettings, DEFAULT_ROUTINE } = await import('./routine.ts');
 
 const { PASSES_PER_MONTH, passesLeft, passRefusal, withSpent, spendPass, getPassesLeft } = passes;
@@ -28,6 +29,7 @@ beforeEach(() => {
   sharedSet('locturne.armedNight', fake.armedNight());
   sharedRemove('locturne.passes');
   sharedRemove('locturne.morningProofs');
+  sharedRemove('locturne.morningsWon');
 });
 
 test('a month starts with the full allowance', () => {
@@ -88,4 +90,25 @@ test('spendPass: the allowance runs out, then comes back on the 1st', () => {
   assert.equal(getPassesLeft(at(10, 31, 12)), 0);
   assert.equal(spendPass(at(11, 1, 8)), null);
   assert.equal(getPassesLeft(at(11, 1, 12)), PASSES_PER_MONTH - 1);
+});
+
+test('mornings you got up: past 30, and a pass never takes one away', () => {
+  // 30 real mornings in September, saved before the counter existed.
+  const september = Array.from({ length: 30 }, (_, i) => ({
+    morningKey: `2026-09-${String(30 - i).padStart(2, '0')}`,
+    kind: 'steps' as const,
+    at: at(9, 30 - i, 7, 30).getTime(),
+  }));
+  sharedSet('locturne.morningProofs', september);
+  assert.equal(getMorningsWon(), 30);
+  // A pass joins the capped list and pushes the oldest real proof out: still 30.
+  assert.equal(spendPass(at(10, 5, 8)), null);
+  assert.equal(getMorningsWon(), 30);
+  // A real morning after that is the 31st.
+  const morning = currentMorning(at(10, 6, 7, 30), toLockSettings(DEFAULT_ROUTINE));
+  assert.equal(recordProof({ morningKey: morning.key, kind: 'steps', at: at(10, 6, 7, 30).getTime() }), true);
+  assert.equal(getMorningsWon(), 31);
+  // The same morning can't be counted twice.
+  assert.equal(recordProof({ morningKey: morning.key, kind: 'scan', at: at(10, 6, 7, 45).getTime() }), false);
+  assert.equal(getMorningsWon(), 31);
 });

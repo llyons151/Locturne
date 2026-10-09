@@ -109,6 +109,26 @@ export function getProofs(): MorningProof[] {
   return sharedGet<MorningProof[]>(KEY) ?? [];
 }
 
+/** A real wake-up (a method's proof): passes and emergencies don't count (HOME_10.md #7). */
+const isWin = (proof: MorningProof) => proof.kind !== 'pass' && proof.kind !== 'emergency';
+
+const WON_KEY = 'locturne.morningsWon';
+
+/** Pure: the mornings with a real wake-up among `proofs`, counted once each. */
+function winsIn(proofs: MorningProof[]): Set<string> {
+  return new Set(proofs.filter(isWin).map((p) => p.morningKey));
+}
+
+/**
+ * Mornings you got up, ever: Home's count, which never resets. The proofs list keeps only the
+ * last 30, and a pass or emergency joining it would push a real one out, so the count lives
+ * in its own counter that only a real wake-up adds to. Before the counter existed, the proofs
+ * on hand are the count.
+ */
+export function getMorningsWon(): number {
+  return sharedGet<number>(WON_KEY) ?? winsIn(getProofs()).size;
+}
+
 /**
  * The proof that unlocked `morning` (`currentMorning` under the routine governing now), or
  * null. `currentProof` (lock-controller.ts) asks it for the morning under way.
@@ -138,6 +158,11 @@ export function recordProof(proof: MorningProof, governing?: { routine: Routine;
   // A saved proof that still unlocks this morning means it's already unlocked. One from before
   // this morning's night began (the date replayed after a flight west) doesn't block this one.
   if (all.some((p) => proofUnlocks(p, morning))) return false;
+  // Counted, and saved, before the list drops its oldest (a pass too, so it can't drop the
+  // count the first time the counter is written): once per morning key, as a key replayed
+  // after a flight west is still one morning.
+  const won = isWin(saved) && !winsIn(all).has(saved.morningKey) ? 1 : 0;
+  sharedSet(WON_KEY, getMorningsWon() + won);
   sharedSet(KEY, [saved, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();
   return true;

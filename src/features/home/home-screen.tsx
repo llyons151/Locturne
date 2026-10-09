@@ -11,7 +11,7 @@ import { useHealth } from '@/hooks/use-health';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
-import { getProofs } from '@/lib/morning-proof';
+import { getMorningsWon, getProofs } from '@/lib/morning-proof';
 import { nextNightOn } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
@@ -61,13 +61,13 @@ export function HomeScreen() {
   const phase = heldPhase(lock.phase, now);
   const method = methodInUse(routine.method);
   // Mornings you got up: a wake-up method's proof. Passes and emergencies neither count nor
-  // subtract (HOME_10.md #7). The store keeps the last 30 proofs, so a lifetime count still
-  // needs its own counter.
+  // subtract (HOME_10.md #7). The store keeps the last 30 proofs, enough for this week's dots;
+  // the lifetime count is its own counter (`getMorningsWon`).
   const won = new Set(getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency').map((p) => p.morningKey));
   // MOCK (dev only, remove when done looking): every day this week counts as got up, so the
   // week strip shows the mist dots without real mornings.
   if (MOCK_WEEK) for (const day of weekDays(lock.morningKey, won)) won.add(day.key);
-  const mornings = won.size;
+  const mornings = MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon();
   // The next night that will really sleep: not `lock.nextChange`, which is the end of the
   // window during an unheld night, and the start of a night that's switched off by day.
   const next = nextNightOn(pause ?? nextBedtime(now), now);
