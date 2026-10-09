@@ -56,3 +56,33 @@ export function unheldLine({
   if (!alwaysSleeps) return `Apps awake. Nothing is asleep ${when}.`;
   return unpaid ? `Bedtime apps awake ${when}.` : `Bedtime apps awake ${when}. Always-asleep apps still sleep.`;
 }
+
+/**
+ * Home's hero by day, including a night or morning nothing holds (`heldPhase` reads it as
+ * day). Never names a bedtime that won't lock (GAME_PLAN): when the status needs attention
+ * (no subscription, Ask to Buy waiting, arming failed, a lapse) its own words lead, and with
+ * no night lock scheduled the line says nothing is scheduled instead of "Bedtime in".
+ */
+export function dayHero({
+  attention,
+  scheduled,
+  line,
+  until,
+  sleepsAt,
+}: {
+  /** `rollUpHealth` said `attention`: its title and detail, or null. */
+  attention: { title: string; detail: string } | null;
+  /** A night lock is armed and nothing is stood down, so the next bedtime will sleep. */
+  scheduled: boolean;
+  /** `awakeLine` for now, used when nothing is scheduled. */
+  line: string;
+  /** How long until the next bedtime (`duration`), or null. */
+  until: string | null;
+  /** The next bedtime as a clock label, or null when every night is off. */
+  sleepsAt: string | null;
+}): { title: string; body: string } {
+  if (attention) return { title: attention.title, body: attention.detail };
+  if (!sleepsAt || !until) return { title: 'No bedtime scheduled', body: 'Every night is switched off, so nothing sleeps.' };
+  if (!scheduled) return { title: 'No bedtime scheduled', body: line };
+  return { title: `Bedtime in ${until}`, body: `Your apps go to sleep at ${sleepsAt}. Start winding down before then.` };
+}

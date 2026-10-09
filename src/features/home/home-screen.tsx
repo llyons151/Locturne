@@ -10,13 +10,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTabBarInset } from '@/components/app-tabs';
 import { useHealth } from '@/hooks/use-health';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
-import { nextBedtime } from '@/lib/lock-controller';
+import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
 import { getProofs } from '@/lib/morning-proof';
 import { nextNightOn } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
+import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
 import { Gap, Space } from '@/theme';
 
+import { awakeLine, dayHero } from './awake-line';
 import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -72,18 +74,40 @@ export function HomeScreen() {
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
 
+  // By day (or a night nothing holds), never name a bedtime that won't lock: no subscription,
+  // Ask to Buy waiting, arming failed or a lapse say so instead, and offer the plans when
+  // that's the fix.
+  const paused = !!pause && lock.phase === 'night';
+  const attention = !unprotected && !paused && phase === 'day' && health.level === 'attention';
+  const armed = nightLockArmed();
+  const stoodDown = isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null);
   const hero = unprotected
     ? { title: health.title, body: health.detail }
     : pause && lock.phase === 'night'
       ? pausedHero(pause, now)
-      : heroFor(phase, minutes === null ? null : duration(minutes), sleepsAt, clockLabel(routine.morningStart));
+      : phase === 'day'
+        ? dayHero({
+            attention: attention ? health : null,
+            scheduled: armed && !stoodDown,
+            line: awakeLine({
+              armed,
+              stoodDown,
+              tonightAt: sleepsAt ? clockAt(sleepsAt) : null,
+              alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
+            }),
+            until: minutes === null ? null : duration(minutes),
+            sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
+          })
+        : heroFor(phase, clockLabel(routine.morningStart));
   const action = unprotected
     ? health.protection === 'notSetUp'
       ? { label: 'Set up Screen Time', onPress: () => router.push('/apps') }
       : { label: 'Open Settings', onPress: () => Linking.openSettings() }
-    : phase === 'morning'
-      ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
-      : { label: 'Edit schedule', onPress: () => router.push('/routine') };
+    : attention && health.needsSubscription
+      ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
+      : phase === 'morning'
+        ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
+        : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;
@@ -103,17 +127,15 @@ export function HomeScreen() {
   );
 }
 
-function heroFor(phase: string, until: string | null, sleepsAt: Date | null, wake: string) {
+/** Night, morning and a night off; the day is `dayHero`. */
+function heroFor(phase: string, wake: string) {
   switch (phase) {
     case 'night':
       return { title: 'Your apps are asleep', body: `They wake at ${wake}, once you're up and moving. Phone down.` };
     case 'morning':
       return { title: 'Time to get up', body: 'Your apps stay asleep until you get out of bed.' };
-    case 'off':
-      return { title: 'Night off', body: "Nothing sleeps tonight. I'm sleeping anyway." };
     default:
-      if (!sleepsAt || !until) return { title: 'No bedtime scheduled', body: 'Every night is switched off, so nothing sleeps.' };
-      return { title: `Bedtime in ${until}`, body: `Your apps go to sleep at ${clockAt(sleepsAt)}. Start winding down before then.` };
+      return { title: 'Night off', body: "Nothing sleeps tonight. I'm sleeping anyway." };
   }
 }
 

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { awakeLine, unheldLine } from './awake-line.ts';
+import { awakeLine, dayHero, unheldLine } from './awake-line.ts';
 
 describe('awakeLine', () => {
   test('an armed night names its bedtime', () => {
@@ -62,5 +62,37 @@ describe('unheldLine', () => {
       // said to be awake either.
       assert.equal(unheldLine({ phase, alwaysSleeps: true, unpaid: true }), `Bedtime apps awake ${phase === 'morning' ? 'this morning' : 'tonight'}.`);
     }
+  });
+});
+
+describe('dayHero', () => {
+  const base = { scheduled: true, line: 'Apps awake until 11:00 PM', until: '8h', sleepsAt: '11:00 PM' };
+
+  test('armed and paid: counts down to bedtime', () => {
+    assert.deepEqual(dayHero({ ...base, attention: null }), {
+      title: 'Bedtime in 8h',
+      body: 'Your apps go to sleep at 11:00 PM. Start winding down before then.',
+    });
+  });
+
+  test('no subscription (stood down, never bought): his status leads, no bedtime named', () => {
+    const hero = dayHero({
+      ...base,
+      scheduled: false,
+      attention: { title: 'No subscription, so nothing sleeps.', detail: 'Your setup is saved.' },
+    });
+    assert.equal(hero.title, 'No subscription, so nothing sleeps.');
+    assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in|go to sleep at/);
+  });
+
+  test('nothing scheduled without a health warning: says so instead of a bedtime', () => {
+    const line = awakeLine({ armed: false, stoodDown: true, tonightAt: '11:00 PM', alwaysSleeps: true });
+    const hero = dayHero({ ...base, scheduled: false, line, attention: null });
+    assert.equal(hero.body, 'Apps awake. Nothing is scheduled to sleep.');
+    assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in|11:00 PM/);
+  });
+
+  test('every night off', () => {
+    assert.equal(dayHero({ ...base, sleepsAt: null, until: null, attention: null }).title, 'No bedtime scheduled');
   });
 });
