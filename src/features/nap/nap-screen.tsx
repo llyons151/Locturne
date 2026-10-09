@@ -270,19 +270,20 @@ export function NapScreen() {
             : `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`}
         </Text>
       ) : (
-        /* The wallet sheet's option cards: icon, title, a grey line, and a check on the chosen one. */
-        <View style={styles.options} accessibilityRole="radiogroup">
-          <Option
+        /* TIDE's split row (user's reference, 2026-10-08): one pill, two halves, each an icon,
+           a title and a short grey line. The chosen half sits on a lighter pane, like a segmented control. */
+        <View style={styles.split} accessibilityRole="radiogroup">
+          <Half
             icon={sym('moon.zzz.fill', 'bedtime')}
             title="Bedtime apps"
-            detail="The ones that sleep every night. Calls still get through."
+            detail="Every night"
             selected={list === 'night'}
             onPress={() => choose('night')}
           />
-          <Option
+          <Half
             icon={sym('square.grid.2x2.fill', 'apps')}
             title="Pick apps"
-            detail={list === 'block' ? `${picks ? countPicks(picks) : 'None yet'}. Tap to change.` : 'Choose apps just for this nap.'}
+            detail={list === 'block' ? (picks ? countPicks(picks) : 'None yet') : 'Just this nap'}
             selected={list === 'block'}
             onPress={() => (list === 'block' ? pickApps() : choose('block'))}
           />
@@ -331,8 +332,8 @@ export function NapScreen() {
   );
 }
 
-/** One of the wallet sheet's option cards. The chosen one gets a blue edge and check. */
-function Option({
+/** One half of the split row: a round icon, then the title over a grey line. */
+function Half({
   icon,
   title,
   detail,
@@ -354,22 +355,15 @@ function Option({
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
       accessibilityLabel={`${title}. ${detail}`}
-      style={({ pressed }) => [styles.option, selected && styles.optionOn, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.half, selected && styles.halfOn, pressed && styles.pressed]}
     >
-      <View style={[styles.optionIcon, selected && styles.optionIconOn]}>
-        <SymbolView name={icon} size={18} tintColor={selected ? Nocturne.onCta : INK2} />
+      <View style={[styles.halfIcon, selected && styles.halfIconOn]}>
+        <SymbolView name={icon} size={13} tintColor={selected ? Nocturne.onCta : INK2} />
       </View>
-      <View style={styles.optionText}>
-        <Text style={styles.optionTitle}>{title}</Text>
-        <Text style={styles.optionDetail}>{detail}</Text>
+      <View style={styles.halfText}>
+        <Text style={[styles.halfTitle, !selected && styles.halfTitleOff]} numberOfLines={1}>{title}</Text>
+        <Text style={styles.halfDetail} numberOfLines={1}>{detail}</Text>
       </View>
-      {selected ? (
-        <View style={styles.check}>
-          <SymbolView name={sym('checkmark', 'check')} size={11} weight="bold" tintColor={Nocturne.onCta} />
-        </View>
-      ) : (
-        <View style={styles.radio} />
-      )}
     </Pressable>
   );
 }
@@ -421,14 +415,13 @@ const INK = Nocturne.text;
 const INK2 = Nocturne.text2;
 const LINE = 'rgba(255, 255, 255, 0.12)';
 const ACCENT = Nocturne.accent ?? Nocturne.text;
-const ACCENT_SOFT = 'rgba(207, 230, 247, 0.1)';
 /** A pane of glass inside the glass: a faint white fill. */
 const GLASS = 'rgba(255, 255, 255, 0.07)';
 
 const styles = StyleSheet.create({
   // Sized to its contents inside the card (sleep-sheet.tsx). The side padding matches the
   // card's bottom padding, so the button's round ends sit concentric with its corners.
-  sheet: { paddingHorizontal: SHEET_PADDING, paddingTop: Space.m, gap: Space.l },
+  sheet: { paddingHorizontal: SHEET_PADDING, paddingTop: Space.m, gap: Space.xl },
   pressed: { opacity: 0.7 },
   // His line in the title's place, in his voice (italic means Loc is talking).
   voice: {
@@ -443,31 +436,37 @@ const styles = StyleSheet.create({
   emphasis: { fontStyle: 'normal' },
   body: { ...Type.secondary, color: INK2, textAlign: 'center' },
 
-  length: { alignItems: 'center', gap: Space.s, marginTop: Space.s },
+  length: { alignItems: 'center', gap: Space.m, marginTop: Space.s },
   lengthValue: { color: INK, fontSize: 40, lineHeight: 46, fontWeight: '500', fontVariant: ['tabular-nums'] },
-  until: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -Space.s },
+  until: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -Space.m },
   untilText: { ...Type.caption, fontWeight: '500', color: INK2 },
 
-  options: { gap: Space.s },
-  option: {
+  split: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Space.m,
-    padding: Space.m,
-    borderRadius: 16,
+    padding: 4,
+    borderRadius: 22,
     borderCurve: 'continuous',
-    borderWidth: 1.5,
-    borderColor: LINE,
     backgroundColor: GLASS,
   },
-  optionOn: { borderColor: ACCENT, backgroundColor: ACCENT_SOFT },
-  optionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: GLASS },
-  optionIconOn: { backgroundColor: ACCENT },
-  optionText: { flex: 1, gap: 1 },
-  optionTitle: { color: INK, fontSize: 16, fontWeight: '600' },
-  optionDetail: { ...Type.caption, color: INK2 },
-  check: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: Nocturne.text3 },
+  half: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.s,
+    paddingVertical: Space.m,
+    paddingHorizontal: Space.s,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+  },
+  halfOn: { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+  halfIcon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: GLASS },
+  halfIconOn: { backgroundColor: ACCENT },
+  halfText: { flexShrink: 1 },
+  halfTitle: { color: INK, fontSize: 15, fontWeight: '600' },
+  halfTitleOff: { color: INK2 },
+  halfDetail: { ...Type.caption, color: INK2 },
 
   actions: { flexDirection: 'row', gap: Space.m },
   button: {

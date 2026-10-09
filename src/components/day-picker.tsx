@@ -95,4 +95,57 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   letter: { color: Nocturne.text2, fontSize: 17, fontWeight: '600' },
   letterOn: { color: Nocturne.onCta },
+
+  strip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: Space.s,
+    borderRadius: 999,
+    backgroundColor: Nocturne.surface,
+    borderWidth: 1,
+    borderColor: Nocturne.edge,
+  },
+  stripDay: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Nocturne.raised,
+  },
+  stripLetter: { color: Nocturne.text2, fontSize: 15, fontWeight: '600' },
 });
+
+/**
+ * The same seven nights as one pill-shaped strip (user's reference, 2026-10-08): every day a
+ * circle, picked ones filled. Sits under the Routine tab's dial and saves on each tap.
+ */
+export function DayStrip({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
+  const toggle = (day: number) => {
+    haptic.tap();
+    onChange(value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort((a, b) => a - b));
+  };
+
+  return (
+    <View style={styles.strip} accessibilityLabel="Nights">
+      {DAYS.map((day, i) => {
+        const on = value.includes(i);
+        return (
+          <Pressable
+            key={day.name}
+            onPress={() => toggle(i)}
+            accessibilityRole="checkbox"
+            accessibilityLabel={`${day.name} night`}
+            accessibilityState={{ checked: on }}
+            hitSlop={4}
+            style={({ pressed }) => [styles.stripDay, on && styles.dayOn, pressed && styles.pressed]}
+          >
+            <Text style={[styles.stripLetter, on && styles.letterOn]} maxFontSizeMultiplier={1.2}>
+              {day.letter}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}

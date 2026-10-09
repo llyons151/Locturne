@@ -14,7 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { nightsLabel, type MenuOption } from '@/components/control-types';
-import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
+import { MenuRow, TimeRow } from '@/components/controls';
+import { DayStrip } from '@/components/day-picker';
 import { Card, ChoiceRow, sym, ValueRow } from '@/components/grouped-list';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
@@ -232,6 +233,7 @@ export function RoutineScreen() {
           onChange={(times) => set(times)}
           scrollRef={scroll}
         />
+        <DayStrip value={saved.nights} onChange={(nights) => set({ nights })} />
       </View>
 
       {from ? (
@@ -308,8 +310,8 @@ export function RoutineScreen() {
           onChange={(morningStart) => set({ morningStart })}
           presets={MORNING_PRESETS}
           invalid={(m) => nightRefusal(saved.bedtime, m)}
+          last
         />
-        <NightsRow value={saved.nights} onChange={(nights) => set({ nights })} last />
       </Card>
 
       {/* Off iPhone nothing can be armed, so never imply protection is on (GAME_PLAN, "Reliability"). */}
@@ -332,7 +334,7 @@ function wakeFooter(r: Routine) {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
-  night: { marginBottom: Gap.section },
+  night: { marginBottom: Gap.section, gap: Space.l },
 
   wake: { marginBottom: Gap.block },
   voice: {

@@ -28,21 +28,24 @@ private struct ReportContent: View {
   let days: Int
   var compact = false
   var pill = false
-  let refreshID = UUID()
+  /// When the report reads up to. A new end re-queries the extension in place, so the report keeps its
+  /// view and can animate its numbers; a new identity would tear the remote view down and flash it.
+  var end = Date()
   var body: some View {
     let calendar = Calendar.current
-    let today = calendar.startOfDay(for: Date())
+    let today = calendar.startOfDay(for: end)
     let start = calendar.date(byAdding: .day, value: 1 - days, to: today)!
+    let context = "Locturne.\(pill ? "pill" : compact ? "compact" : "usage").\(days)"
     // All apps and categories, not just the bedtime selection. Usage stays inside Apple's
     // report extension; it is never copied to JS, shared defaults, or analytics.
     DeviceActivityReport(
-      DeviceActivityReport.Context("Locturne.\(pill ? "pill" : compact ? "compact" : "usage").\(days)"),
+      DeviceActivityReport.Context(context),
       filter: DeviceActivityFilter(
-        segment: .daily(during: DateInterval(start: start, end: Date())),
+        segment: .daily(during: DateInterval(start: start, end: end)),
         users: .all, devices: .init([.iPhone])
       )
     )
-    .id(refreshID)
+    .id(context)
     .environment(\.colorScheme, .dark)
   }
 }

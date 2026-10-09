@@ -5,6 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { NativeNightDial, NIGHT_DIAL_ROW, isNightDialAvailable } from '../../../modules/night-dial';
 import { Text } from '@/components/text';
 import { sym } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
@@ -75,14 +76,7 @@ function length(minutes: number) {
   return `${whole}${half} ${whole === 1 && !half ? 'hr' : 'hrs'}`;
 }
 
-export function NightDial({
-  bedtime,
-  morningStart,
-  nightsLabel,
-  off,
-  onChange,
-  scrollRef,
-}: {
+type Props = {
   bedtime: number;
   morningStart: number;
   /** "Every night", "Weeknights": under the length in the middle. */
@@ -92,7 +86,39 @@ export function NightDial({
   onChange: (next: { bedtime: number; morningStart: number }) => void;
   /** The screen's (gesture handler) scroll view, held still while the dial is dragged. */
   scrollRef?: Parameters<ReturnType<typeof Gesture.Pan>['blocksExternalGesture']>[0];
-}) {
+};
+
+/** On iOS the dial is Swift (modules/night-dial): Core Animation under the finger, no bridge. */
+export function NightDial(props: Props) {
+  return isNightDialAvailable ? <SwiftNightDial {...props} /> : <JsNightDial {...props} />;
+}
+
+function SwiftNightDial({ bedtime, morningStart, nightsLabel, off, onChange }: Props) {
+  const [size, setSize] = useState(300);
+  return (
+    <View style={styles.wrap} onLayout={(e) => setSize(Math.min(300, Math.round(e.nativeEvent.layout.width)) || 300)}>
+      <NativeNightDial
+        bedtime={bedtime}
+        morningStart={morningStart}
+        nightsLabel={nightsLabel}
+        off={off}
+        minWindow={MIN_WINDOW}
+        bandColor={off ? Nocturne.progressTrack : (Nocturne.accent ?? Nocturne.text)}
+        trackColor={Nocturne.frost}
+        iconColor={Nocturne.onCta}
+        textColor={Nocturne.text}
+        text2Color={Nocturne.text2}
+        text3Color={Nocturne.text3}
+        onChange={onChange}
+        style={{ alignSelf: 'stretch', height: size + NIGHT_DIAL_ROW }}
+      />
+      <Text style={styles.hint}>Drag the moon or sun to change a time, or the night to move both.</Text>
+    </View>
+  );
+}
+
+/** Web, Android, and dev builds made before the Swift dial: the same dial in SVG. */
+function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scrollRef }: Props) {
   // As wide as the column allows, up to 300 (measured: the window can read 0 on web's first render).
   const [size, setSize] = useState(300);
   const c = size / 2;

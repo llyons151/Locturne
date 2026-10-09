@@ -33,15 +33,15 @@ const TABS: Record<string, { label: string; icon: SymbolName; size: number }> = 
     icon: { ios: 'house.fill', android: 'home', web: 'home' },
     size: 22,
   },
-  apps: {
-    label: 'Apps',
-    icon: { ios: 'square.grid.2x2.fill', android: 'apps', web: 'apps' },
-    size: 20,
-  },
   routine: {
     label: 'Routine',
     icon: { ios: 'alarm.fill', android: 'alarm', web: 'alarm' },
     size: 21,
+  },
+  apps: {
+    label: 'Apps',
+    icon: { ios: 'square.grid.2x2.fill', android: 'apps', web: 'apps' },
+    size: 20,
   },
   profile: {
     label: 'You',
@@ -138,8 +138,8 @@ export default function AppTabs() {
       tabBar={(props) => <TabBar {...props} />}
     >
       <Tabs.Screen name='index' />
-      <Tabs.Screen name='apps' />
       <Tabs.Screen name='routine' />
+      <Tabs.Screen name='apps' />
       <Tabs.Screen name='profile' />
     </Tabs>
   );

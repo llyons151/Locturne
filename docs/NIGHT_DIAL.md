@@ -21,3 +21,18 @@ track) read as messy. Researched circular sleep/schedule dials on Mobbin:
 Moon-white (`accent`) band on a `frost` track, 34pt wide; handles are 34pt discs in the band
 colour with dark icons; 12/2/4/6am… inside in `text3`, quarters in `text2`; centre uses
 `NUMBER_FONT`. Labels are RN `Text`, not SVG text (SVG text fell back to a serif font on iOS).
+
+## v4: Swift (2026-10-08)
+
+User picked the [Calm Sleep](https://mobbin.com/screens/29b16116-6164-45aa-9d24-077805f32feb)
+dial and asked for it "swift ios native super smooth and clean". `modules/night-dial` draws the
+whole thing (ring, handles, numbers, centre, and the Bedtime / Morning start columns with icons)
+in Core Animation:
+
+- The band follows the finger with no stepping; the times snap to 15 min with a selection tick,
+  and on release the band eases onto the snapped time (display link, up to 120 Hz).
+- Handles are band-coloured discs with a neutral drop shadow (no glow), lifting to 1.14x while held.
+- A drag only starts on a handle or the band; scroll views around it wait, then pause for the drag.
+- JS gets `onChange` once per drag, on release. VoiceOver: each handle is adjustable by 15 min.
+- `night-dial.tsx` keeps the SVG version for web, Android and dev builds without the module.
+  The native view needs a new `eas build` before it shows up.

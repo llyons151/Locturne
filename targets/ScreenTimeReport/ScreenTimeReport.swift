@@ -290,6 +290,23 @@ struct CompactUsageChart: View {
 /// Home's top-row pill, "2h 18m today", drawn to match the mornings pill beside it
 /// (home-screen.tsx): the app can't read the number, so the extension draws the whole pill.
 /// Right-aligned in its frame, since the host can't know how wide the text will be.
+/// `.smooth` is iOS 17; the extension still runs on 16.4, which gets a plain ease.
+private var pillAnimation: Animation {
+  if #available(iOS 17.0, *) { return .smooth(duration: 0.45) }
+  return .easeInOut(duration: 0.45)
+}
+
+private extension View {
+  /// Rolls only the changed digits on iOS 17+; on 16.4 the text just changes.
+  @ViewBuilder func rollingDigits(_ value: Double) -> some View {
+    if #available(iOS 17.0, *) {
+      contentTransition(.numericText(value: value))
+    } else {
+      self
+    }
+  }
+}
+
 struct TodayPill: View {
   let configuration: UsageConfiguration
   private let text = Color(red: 0xF2 / 255, green: 0xF8 / 255, blue: 0xFC / 255)
@@ -300,12 +317,18 @@ struct TodayPill: View {
       Image(systemName: "hourglass").font(.system(size: 14, weight: .semibold)).foregroundStyle(text)
       if configuration.reported.isEmpty {
         Text("No data yet").font(.system(size: 15)).foregroundStyle(text2)
+          .transition(.opacity)
       } else {
+        // Only the digits that changed roll over, the way the system clock does.
         Text(duration(configuration.total)).font(.system(size: 16, weight: .heavy)).foregroundStyle(text)
           .monospacedDigit()
+          .rollingDigits(configuration.total)
         Text("today").font(.system(size: 15)).foregroundStyle(text2)
+          .transition(.opacity)
       }
     }
+    .animation(pillAnimation, value: configuration.total)
+    .animation(pillAnimation, value: configuration.reported.isEmpty)
     .padding(.horizontal, 14)
     .frame(height: 36)
     .background(Capsule().fill(.white.opacity(0.08)))
