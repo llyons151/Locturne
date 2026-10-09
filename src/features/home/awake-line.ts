@@ -25,7 +25,7 @@ export function awakeLine({
   alwaysSleeps: boolean;
 }): string {
   if (stoodDown) return 'Apps awake. Nothing is scheduled to sleep.';
-  if (!tonightAt) return 'Apps awake. Tonight is off.';
+  if (!tonightAt) return alwaysSleeps ? 'Bedtime apps awake. Tonight is off. Always-asleep apps still sleep.' : 'Apps awake. Tonight is off.';
   if (!armed) {
     return alwaysSleeps
       ? 'Bedtime apps awake. Nothing is scheduled to sleep. Always-asleep apps still sleep.'
@@ -70,6 +70,7 @@ export function dayHero({
   until,
   sleepsAt,
   offTonight = null,
+  alwaysSleeps = false,
 }: {
   /** `rollUpHealth` said `attention`: its title and detail, or null. */
   attention: { title: string; detail: string } | null;
@@ -86,9 +87,19 @@ export function dayHero({
    * isn't tonight, so the countdown would read as tonight's bedtime. Null when tonight is on.
    */
   offTonight?: string | null;
+  /**
+   * The always list has apps in it and isn't stood down, so it sleeps even with every night
+   * off (as `offHero`).
+   */
+  alwaysSleeps?: boolean;
 }): { title: string; body: string } {
   if (attention) return { title: attention.title, body: attention.detail };
-  if (!sleepsAt || !until) return { title: 'No bedtime scheduled', body: 'Every night is switched off, so nothing sleeps.' };
+  if (!sleepsAt || !until) {
+    return {
+      title: 'No bedtime scheduled',
+      body: alwaysSleeps ? 'Every night is switched off. Always-asleep apps still sleep.' : 'Every night is switched off, so nothing sleeps.',
+    };
+  }
   if (!scheduled) return { title: 'No bedtime scheduled', body: line };
   if (offTonight) return { title: 'Tonight is off', body: `Your next bedtime is ${sleepsAt} on ${offTonight}.` };
   return { title: `Bedtime in ${until}`, body: `Your apps go to sleep at ${sleepsAt}. Start winding down before then.` };

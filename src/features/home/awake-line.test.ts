@@ -11,7 +11,14 @@ describe('awakeLine', () => {
   });
 
   test('a night off says so', () => {
-    assert.equal(awakeLine({ armed: true, stoodDown: false, tonightAt: null, alwaysSleeps: true }), 'Apps awake. Tonight is off.');
+    assert.equal(awakeLine({ armed: true, stoodDown: false, tonightAt: null, alwaysSleeps: false }), 'Apps awake. Tonight is off.');
+  });
+
+  test('a night off with always-asleep apps says they still sleep', () => {
+    assert.equal(
+      awakeLine({ armed: true, stoodDown: false, tonightAt: null, alwaysSleeps: true }),
+      'Bedtime apps awake. Tonight is off. Always-asleep apps still sleep.',
+    );
   });
 
   test('stood down (lapsed, never bought, Ask to Buy waiting): nothing is scheduled, always list included', () => {

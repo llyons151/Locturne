@@ -36,7 +36,9 @@ type Setup = {
   /** Tonight's night is switched on in the routine. */
   tonightOn?: boolean;
   /** The next night that's on (`nextNightOn`), when it isn't tonight. */
-  nextOn?: Date;
+  nextOn?: Date | null;
+  /** A night lock is scheduled (`nightLockArmed`). */
+  armed?: boolean;
   /** An emergency unlock paused the night until then (`getNightPause`). */
   pause?: Date | null;
 };
@@ -52,6 +54,7 @@ function home({
   tonightOn = true,
   nextOn,
   pause = null,
+  armed = true,
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
@@ -83,12 +86,12 @@ function home({
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { nextNightOn: (d: Date) => nextOn ?? d, nightAt: () => ({ on: tonightOn }) },
+    '@/lib/routine': { nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
       isScreenTimeAvailable: () => true,
       isStoodDown: () => false,
-      nightLockArmed: () => true,
+      nightLockArmed: () => armed,
       selectionSize: (list: string) => (list === 'always' ? always : 0),
     },
     '@/lib/shield-copy': { clockLabel },
@@ -194,6 +197,23 @@ describe('Home by day when tonight is switched off', () => {
     });
     assert.equal(hero.title, 'Tonight is off');
     assert.equal(hero.body, `Your next bedtime is ${clockLabel(23 * 60)} on Sunday.`);
+  });
+
+  test('every night off with apps on the always list: Home says they still sleep', () => {
+    const { hero } = home({ now: new Date(2026, 9, 9, 10), tonightOn: false, nextOn: null, always: 2 });
+    assert.equal(hero.title, 'No bedtime scheduled');
+    assert.equal(hero.body, 'Every night is switched off. Always-asleep apps still sleep.');
+  });
+
+  test('every night off and nothing on the always list: nothing sleeps', () => {
+    const { hero } = home({ now: new Date(2026, 9, 9, 10), tonightOn: false, nextOn: null });
+    assert.equal(hero.body, 'Every night is switched off, so nothing sleeps.');
+  });
+
+  test('tonight off, no night lock armed, apps on the always list: they still sleep', () => {
+    const { hero } = home({ now: new Date(2026, 9, 9, 10), tonightOn: false, nextOn: new Date(2026, 9, 11, 23), armed: false, always: 2 });
+    assert.equal(hero.title, 'No bedtime scheduled');
+    assert.equal(hero.body, 'Bedtime apps awake. Tonight is off. Always-asleep apps still sleep.');
   });
 
   test('a night that’s on still counts down', () => {

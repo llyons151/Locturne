@@ -122,6 +122,7 @@ export function HomeScreen() {
               until: minutes === null ? null : duration(minutes),
               sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
               offTonight,
+              alwaysSleeps: alwaysSleeps && !stoodDown,
             })
           : heroFor(phase, clockLabel(routine.morningStart));
   const action = unprotected
