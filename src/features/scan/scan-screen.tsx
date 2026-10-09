@@ -32,7 +32,7 @@ import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
-import { dayStatus } from '../wake/wake-words';
+import { awakeStatus } from '../wake/awake-status';
 import { awakeBody, savedBody, type NextMorning } from './next-morning';
 import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
@@ -107,7 +107,7 @@ function words(stage: Stage): { line: string; body: string } {
         ? { line: 'Not that one.', body: "That isn't the code you set up. Find the real one." }
         : { line: 'Go find your code.', body: 'Scan it and your apps wake up. Only your code counts.' };
     case 'unlocked':
-      return { line: "I'm up. Don't talk to me yet.", body: dayStatus(readLock().blockNowUntil, 'Your bedtime apps are awake until bedtime.') };
+      return { line: "I'm up. Don't talk to me yet.", body: awakeStatus(readLock()) };
     case 'notYet':
       return {
         line: 'Shh. Still bedtime.',

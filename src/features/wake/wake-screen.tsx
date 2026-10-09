@@ -14,48 +14,28 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
-import { awakeLine as dayLine } from '@/features/home/awake-line';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { currentProof, lapseStillCovers, proveMorning, readLock, routineAt, subscriptionEnded } from '@/lib/lock-controller';
+import { currentProof, proveMorning, readLock, routineAt } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
-import { getRoutine, nightAt, toLockSettings } from '@/lib/routine';
+import { getRoutine, toLockSettings } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
-import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
+import { awakeStatus } from './awake-status';
 import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
 import { Body, TopBar, Voice } from './parts';
 import { StepsView } from './steps-view';
-import { dayStatus, unheldWakeBody, wakeLabel, wakePhase } from './wake-words';
+import { unheldWakeBody, wakeLabel, wakePhase } from './wake-words';
 
 export type WakeMethodShown = 'downstairs' | 'steps';
 
 const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinutes());
-
-/**
- * "Apps awake until 10:00 PM", from the routine that runs tonight (a waiting edit, a night
- * off), as on Home; a Block now running leads instead (`dayStatus`). A lapsed user proving
- * the last paid morning has nothing scheduled after.
- */
-function awakeLine(state: LockState): string {
-  const { start, on } = nightAt(state.nextChange);
-  return dayStatus(
-    state.blockNowUntil,
-    dayLine({
-      armed: nightLockArmed(),
-      // Past a lapse's last paid morning nothing is scheduled either, stood down or not yet.
-      stoodDown: isStoodDown() || (subscriptionEnded() && lapseStillCovers() === null),
-      tonightAt: on ? formatPreset(start.getHours() * 60 + start.getMinutes()) : null,
-      alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
-    }),
-  );
-}
 
 /**
  * The morning: prove you're up and the apps wake (GAME_PLAN, "Core loop" and "Wake-up
@@ -93,7 +73,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
       haptic.done();
       setUnlocked(state);
       // The control VoiceOver was on goes away with the swap; say what happened.
-      AccessibilityInfo.announceForAccessibility(`I'm up. ${awakeLine(state)}`);
+      AccessibilityInfo.announceForAccessibility(`I'm up. ${awakeStatus(state)}`);
       // The first proven morning is the moment to ask (GAME_PLAN); iOS shows its own prompt once.
       shouldAskForNotifications()
         .then((ask) => (ask ? askForNotifications() : false))
@@ -167,7 +147,7 @@ function Unlocked({ state, onDone }: { state: LockState; onDone: () => void }) {
         <Voice text="I'm up. Don't talk to me yet." />
         <View style={styles.statusRow}>
           <SymbolView name={sym('lock.open.fill', 'lock_open')} size={15} tintColor={Nocturne.text2} />
-          <Text style={styles.status}>{awakeLine(state)}</Text>
+          <Text style={styles.status}>{awakeStatus(state)}</Text>
         </View>
       </View>
       <View style={styles.flex} />
@@ -193,7 +173,7 @@ function NotMorning({ state, onClose }: { state: LockState; onClose: () => void 
     ? unheldWakeBody(unheld)
     : {
         night: `Bedtime wins. Stairs and steps start counting at ${clockOf(state.nextChange)}.`,
-        day: `${done ? DAY_OPENER.done : DAY_OPENER.notYet} ${awakeLine(state)}`,
+        day: `${done ? DAY_OPENER.done : DAY_OPENER.notYet} ${awakeStatus(state)}`,
         off: 'Tonight is switched off, so there is no morning lock to lift.',
       }[phase];
   return (

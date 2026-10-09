@@ -46,6 +46,7 @@ function harness() {
     '@/lib/text': { formatPreset: () => '11:00 PM' },
     '@/lib/wake/lines': {},
     '@/theme': { Type: {}, Space: {}, Gap: {}, Nocturne: {} },
+    './awake-status': { awakeStatus: () => 'Apps awake.' },
     './downstairs-view': { DownstairsView: 'DownstairsView' },
     './steps-view': { StepsView: 'StepsView' },
     './morning-done': {},
