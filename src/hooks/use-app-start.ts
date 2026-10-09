@@ -1,5 +1,5 @@
 import { router, usePathname } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { track } from '@/lib/analytics';
@@ -13,6 +13,7 @@ import {
   rescheduleNotifications,
   shouldAskForNotifications,
   syncTrialEnd,
+  wakeScreenShowing,
 } from '@/lib/notifications';
 import { takePendingApproval } from '@/lib/pending-purchase';
 import { currentTrialEnd, isEntitled, isPurchasing, onEntitled } from '@/lib/purchases';
@@ -92,8 +93,12 @@ function followTrial(): void {
  *   button can't open the app; its notification can).
  */
 export function useAppStart(): void {
-  // Read once, at launch: where a cold deep link put the app.
+  // At launch: where a cold deep link put the app. After that: what's in front, for a tap.
   const pathname = usePathname();
+  const shown = useRef(pathname);
+  useEffect(() => {
+    shown.current = pathname;
+  }, [pathname]);
   useEffect(() => {
     if (!hasRoutine()) {
       // Not when a link already opened it (`/onboarding?…` on a fresh install): a second copy
@@ -130,8 +135,9 @@ export function useAppStart(): void {
   useEffect(
     () =>
       onNotificationTap((identifier) => {
-        // navigate, not push: a second tap while the wake screen is open doesn't stack another.
-        if (opensWakeScreen(identifier) && hasRoutine()) router.navigate('/wake');
+        // Not while a wake or scan screen is already open: `/wake` becomes `/scan` for a scan
+        // routine, so navigating would stack another copy (and drop a walk's `?method=steps`).
+        if (opensWakeScreen(identifier) && hasRoutine() && !wakeScreenShowing(shown.current)) router.navigate('/wake');
       }),
     [],
   );

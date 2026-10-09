@@ -52,7 +52,15 @@ mock.module('react-native-device-activity', {
   ),
 });
 
-const { BEDTIME_WARNING, isGoodMomentToAsk, opensWakeScreen, planNotifications, planTrialReminder, shieldTapNotification } =
+const {
+  BEDTIME_WARNING,
+  isGoodMomentToAsk,
+  opensWakeScreen,
+  planNotifications,
+  planTrialReminder,
+  shieldTapNotification,
+  wakeScreenShowing,
+} =
   await import('./notifications.ts');
 const { DEFAULT_ROUTINE } = await import('./routine.ts');
 
@@ -242,6 +250,16 @@ test('the shield-tap and morning notifications open the wake-up screen; the rest
   assert.equal(opensWakeScreen('locturne.bedtime.2026-10-04'), false);
   assert.equal(opensWakeScreen('locturne.trial'), false);
   assert.equal(opensWakeScreen('someone-else'), false);
+});
+
+test('a wake-up notification tap leaves an open wake or scan screen alone, so copies don’t stack', () => {
+  // A scan routine's /wake replaces itself with /scan: navigating to /wake from there pushes a
+  // second one each tap. And from /wake?method=steps it would wipe the method mid-walk.
+  assert.equal(wakeScreenShowing('/scan'), true);
+  assert.equal(wakeScreenShowing('/wake'), true);
+  assert.equal(wakeScreenShowing('/'), false);
+  assert.equal(wakeScreenShowing('/exits'), false);
+  assert.equal(wakeScreenShowing('/onboarding'), false);
 });
 
 test('the tone changes the bedtime and morning notes, and nothing about when they come', () => {

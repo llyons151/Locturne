@@ -247,6 +247,15 @@ export function opensWakeScreen(identifier: string): boolean {
 }
 
 /**
+ * Is a wake-up screen already in front (`pathname` from expo-router)? Then a tap on one of
+ * those notifications leaves it be: `/wake` turns into `/scan` for a scan routine, so
+ * navigating again would stack another copy, and would drop a walk's `?method=steps`.
+ */
+export function wakeScreenShowing(pathname: string): boolean {
+  return pathname === '/wake' || pathname === '/scan';
+}
+
+/**
  * Calls `open` with each notification the person taps, including the one that launched the
  * app. Returns the unsubscribe. A no-op off iPhone.
  */
