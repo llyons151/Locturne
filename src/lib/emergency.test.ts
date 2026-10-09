@@ -16,7 +16,7 @@ const { bedtimeAppsAhead, planEmergency, pausedUntil, withUse, emergencyUnlock, 
   './emergency.ts'
 );
 const { recordProof } = await import('./morning-proof.ts');
-const { currentProof, readLock } = await import('./lock-controller.ts');
+const { currentProof, looserEditsStartAt, readLock } = await import('./lock-controller.ts');
 const rt = await import('./routine.ts');
 const st = await import('./screen-time.ts');
 
