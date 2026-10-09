@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { useLock } from '@/hooks/use-lock';
+import { awakeStatus } from '@/features/wake/awake-status';
 import { DAY_OPENER, morningDoneToday } from '@/features/wake/morning-done';
 import { track } from '@/lib/analytics';
 import {
@@ -82,8 +83,11 @@ const PASS_REFUSALS: Record<PassRefusal, string> = {
   alreadyUsed: 'This morning is already covered.',
 };
 
-/** What an emergency unlock wakes, in plain words. Never vague (VOICE.md, "Clear when it matters"). */
-function describe(plan: EmergencyPlan): string {
+/**
+ * What an emergency unlock wakes, in plain words. Never vague (VOICE.md, "Clear when it matters").
+ * `awake` is `awakeStatus` for the day after: tonight may be off, or nothing sleeps again.
+ */
+function describe(plan: EmergencyPlan, awake: string): string {
   const parts: string[] = [];
   if (plan.pauseNight && plan.resumesAt) {
     const { morning, resumes, weekday } = pauseWording(new Date(plan.resumesAt));
@@ -94,7 +98,7 @@ function describe(plan: EmergencyPlan): string {
         : `Your bedtime apps wake for the rest of tonight and ${morning}. Every night is switched off, so they stay awake.`,
     );
   }
-  else if (plan.unlockMorning) parts.push('Your apps wake until bedtime.');
+  else if (plan.unlockMorning) parts.push(`Your apps wake this morning. ${awake}`);
   if (plan.endBlockNow) parts.push('Your Block now session ends.');
   parts.push('The always-blocked list stays asleep.');
   return parts.join(' ');
@@ -205,22 +209,26 @@ export function ExitsScreen() {
     router.push('/scan?mode=setup');
   };
 
+  // What the day holds once the morning is woken, as the wake and scan screens say it: tonight
+  // may be off, or nothing sleeps again after a lapse's last morning. Both exits end a Block now.
+  const awake = stage.kind === 'menu' ? '' : awakeStatus({ ...lock, blockNowUntil: null });
+
   const words = (() => {
     if (stage.kind === 'wait') {
       return stage.exit === 'pass'
         ? {
             line: 'A pass. Sure.',
-            body: `It wakes your apps until bedtime, no walking.${endsNap ? ' Your Block now session ends.' : ''} You have ${passesLabel(left)} this month.`,
+            body: `It wakes your apps this morning, no walking. ${awake}${endsNap ? ' Your Block now session ends.' : ''} You have ${passesLabel(left)} this month.`,
           }
-        : { line: 'Is it an emergency.', body: plan ? describe(plan) : '' };
+        : { line: 'Is it an emergency.', body: plan ? describe(plan, awake) : '' };
     }
     if (stage.kind === 'done') {
       return stage.exit === 'pass'
         ? {
             line: 'Fine. *Fine.*',
-            body: `Your apps are awake until bedtime.${endsNap ? ' Your Block now session ended.' : ''} ${passesLabel(left)} left this month.`,
+            body: `${awake}${endsNap ? ' Your Block now session ended.' : ''} ${passesLabel(left)} left this month.`,
           }
-        : { line: "I'll allow it. This once. Maybe.", body: plan ? describe(plan) : '' };
+        : { line: "I'll allow it. This once. Maybe.", body: plan ? describe(plan, awake) : '' };
     }
     // The clock says night or morning, but nothing is asleep to wake: don't say bedtime wins.
     if (unheld) return { line: AWAKE_LINE, body: unheldBody(unheld, isStoodDown()) };
@@ -304,7 +312,7 @@ export function ExitsScreen() {
           <Confirm
             open={confirming}
             title={stage.exit === 'pass' ? 'Use a pass?' : 'Unlock now?'}
-            message={stage.exit === 'pass' ? 'Your apps wake until bedtime.' : plan ? describe(plan) : ''}
+            message={stage.exit === 'pass' ? `It wakes your apps this morning. ${awake}` : plan ? describe(plan, awake) : ''}
             confirmLabel={stage.exit === 'pass' ? 'Use the pass' : 'Unlock'}
             cancelLabel="Go back to sleep"
             onConfirm={() => unlock(stage.exit)}
