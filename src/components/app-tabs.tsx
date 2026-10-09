@@ -78,11 +78,18 @@ const SWITCH: BottomTabNavigationOptions['transitionSpec'] = {
   config: { duration: 260, easing: Easing.out(Easing.cubic) },
 };
 
+/**
+ * A hidden page's opacity. Not 0: at opacity 0 iOS stops drawing liquid glass in the page
+ * (expo-glass-effect's known issue), and it stays flat after the page fades back in, which is
+ * what left the Apps list's glass cards plain on device. 1% is invisible.
+ */
+const HIDDEN = 0.01;
+
 /** `progress` is 0 for the shown tab and ±1 for the others (React Navigation). */
 const fadeThrough: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
   sceneStyle: {
     // Out by 40% of the way, so the two pages barely overlap: no double image on the sky.
-    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [0, 0, 1, 0, 0] }),
+    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [HIDDEN, HIDDEN, 1, HIDDEN, HIDDEN] }),
     transform: [{ scale: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1, 0.98] }) }],
   },
 });
@@ -90,7 +97,7 @@ const fadeThrough: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ cur
 /** Reduce Motion: the same timing as a plain fade, nothing scales. */
 const fadeOnly: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
   sceneStyle: {
-    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [0, 0, 1, 0, 0] }),
+    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [HIDDEN, HIDDEN, 1, HIDDEN, HIDDEN] }),
   },
 });
 

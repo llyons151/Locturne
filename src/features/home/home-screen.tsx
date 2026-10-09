@@ -21,6 +21,10 @@ import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
 import { useHomeState } from './use-home-state';
+import { weekDays } from './week';
+
+/** Dev only: fill the whole week with won days to preview the mist. */
+const MOCK_WEEK = __DEV__;
 
 /**
  * Home, mocked up after Oura's "Bedtime's approaching" (docs/design-references/home-moon,
@@ -57,6 +61,9 @@ export function HomeScreen() {
   // subtract (HOME_10.md #7). The store keeps the last 30 proofs, so a lifetime count still
   // needs its own counter.
   const won = new Set(getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency').map((p) => p.morningKey));
+  // MOCK (dev only, remove when done looking): every day this week counts as got up, so the
+  // week strip shows the mist dots without real mornings.
+  if (MOCK_WEEK) for (const day of weekDays(lock.morningKey, won)) won.add(day.key);
   const mornings = won.size;
   // The next night that will really sleep: not `lock.nextChange`, which is the end of the
   // window during an unheld night, and the start of a night that's switched off by day.

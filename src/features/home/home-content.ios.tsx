@@ -39,6 +39,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { HOME_RISE_MS } from '@/components/night-sky';
 import { getAccess } from '@/lib/screen-time';
 import { Nocturne, Space } from '@/theme';
+import { isMistDotViewAvailable, MistDotView } from '../../../modules/mist-dot';
 import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/screen-time-report';
 
 import type { HomeContentProps } from './home-content';
@@ -139,7 +140,13 @@ export function HomeContent(props: HomeContentProps) {
                 {day.letter}
               </Text>
               <ZStack modifiers={[frame({ width: DOT, height: DOT }), opacity(day.future ? 0.4 : 1)]}>
-                {day.done ? (
+                {day.done && isMistDotViewAvailable ? (
+                  // A won day holds a little of the moon's mist, which sloshes as the phone moves.
+                  <RNHostView matchContents>
+                    <MistDotView paused={reduced} style={{ width: DOT, height: DOT }} />
+                  </RNHostView>
+                ) : null}
+                {day.done && !isMistDotViewAvailable ? (
                   <Circle modifiers={[foregroundStyle(Nocturne.text)]} />
                 ) : (
                   <Circle
@@ -153,7 +160,7 @@ export function HomeContent(props: HomeContentProps) {
                     ]}
                   />
                 )}
-                {day.done ? <Image systemName="checkmark" color={Nocturne.bg} modifiers={[font({ size: 12, weight: 'bold' })]} /> : null}
+                {day.done && !isMistDotViewAvailable ? <Image systemName="checkmark" color={Nocturne.bg} modifiers={[font({ size: 12, weight: 'bold' })]} /> : null}
               </ZStack>
             </VStack>,
           ])}

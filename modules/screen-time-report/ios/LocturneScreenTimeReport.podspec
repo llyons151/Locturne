@@ -1,5 +1,7 @@
 Pod::Spec.new do |s|
-  s.name = 'ScreenTimeReport'
+  # Not 'ScreenTimeReport': that's the report extension target's module name, and the clash
+  # made ExpoModulesProvider import the extension and miss ScreenTimeReportModule.
+  s.name = 'LocturneScreenTimeReport'
   s.version = '1.0.0'
   s.summary = 'Privacy-preserving Screen Time report on Home.'
   s.author = 'Locturne'
@@ -10,5 +12,6 @@ Pod::Spec.new do |s|
   s.source = { git: '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.source_files = '**/*.swift'
 end

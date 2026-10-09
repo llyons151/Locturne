@@ -10,15 +10,15 @@ export type WeekDay = {
   future: boolean;
 };
 
-const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 /**
- * This week, Monday to Sunday, around the morning `today` (`LockState.morningKey`):
+ * This week, Sunday to Saturday (user's ask, October 8, 2026), around the morning `today` (`LockState.morningKey`):
  * which mornings were won, which is today, which are still to come.
  */
 export function weekDays(today: string, won: Set<string>): WeekDay[] {
   const [y, m, d] = today.split('-').map(Number);
-  const back = (new Date(y, m - 1, d).getDay() + 6) % 7;
+  const back = new Date(y, m - 1, d).getDay();
   return LETTERS.map((letter, i) => {
     const day = new Date(y, m - 1, d - back + i);
     const key = dateKey(day);

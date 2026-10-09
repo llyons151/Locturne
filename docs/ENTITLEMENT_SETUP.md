@@ -15,6 +15,12 @@ match by meaning if a label differs slightly.
 
 ## IDs
 
+> **Gotcha (2026-10-08):** EAS dev builds are *ad hoc*, which counts as distribution
+> signing. Every target ID needs **Family Controls (Distribution)** ticked, not just
+> Development, or the build fails with "profile doesn't include the Family Controls
+> (Development) capability". After ticking it, delete that target's old profile so
+> EAS generates a new one.
+
 Bundle IDs are permanent: they can't be renamed or deleted. Capabilities on an
 ID can be changed at any time; the provisioning profile just gets regenerated on
 the next EAS build.
@@ -25,6 +31,7 @@ the next EAS build.
 | `com.lukelyons.locturne.DeviceActivityMonitor` | Applies and removes blocks on schedule |
 | `com.lukelyons.locturne.ShieldConfiguration` | Look of the block screen |
 | `com.lukelyons.locturne.ShieldAction` | Block-screen buttons (morning step check) |
+| `com.lukelyons.locturne.ScreenTimeReport` | Screen time report on Home (added 2026-10-08; EAS auto-registered it with a hash name) |
 | `group.com.lukelyons.locturne` | App Group: shared storage between the app and the extensions |
 
 All four App IDs have **App Groups** (linked to `group.com.lukelyons.locturne`)

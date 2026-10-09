@@ -10,20 +10,27 @@ import Foundation
  pool at the bottom, slosh when tilted and fling when shaken. Vorticity confinement keeps the
  small curls that make it read as mist instead of syrup.
 
- Plain Foundation, no UIKit or Metal, so it runs (and is checked) off-device too.
+ Plain Foundation, no UIKit or Metal, so it runs (and is checked) off-device too. The fields
+ are raw buffers rather than arrays: no bounds checks or copy-on-write in the inner loops, which
+ is most of the cost when the pod is built without optimisation.
+
+ Not thread-safe: one owner steps and reads it, on one queue.
  */
 final class MistFluid {
+  typealias Field = UnsafeMutablePointer<Float>
   let n: Int
   /// 1 inside the jar, 0 for wall cells.
-  private(set) var fluid: [Float]
-  private(set) var density: [Float]
-  private var u: [Float]
-  private var v: [Float]
-  private var scratchA: [Float]
-  private var scratchB: [Float]
-  private var pressure: [Float]
-  private var divergence: [Float]
-  private var curl: [Float]
+  let fluid: Field
+  /// The mist, row by row from the top, 0 to 1.
+  private(set) var density: Field
+  private var u: Field
+  private var v: Field
+  private var scratchA: Field
+  private var scratchB: Field
+  private let pressure: Field
+  private let divergence: Field
+  private let curl: Field
+  private let fields: [Field]
   /// The total mist the jar holds; advection leaks a little, so each step tops it back up.
   private var mass: Float = 0
   private var fluidCells: Float = 0
@@ -45,21 +52,27 @@ final class MistFluid {
   var pressureIterations = 20
 
   /// How fast the mist's droplets drift down through the air on their own, in cells a second per g.
-  var settling: Float = 5
+  var settling: Float = 11
 
   init(size: Int = 32, fill: Float = 0.38, seed: Float = Float.random(in: 0..<100)) {
     n = size
     self.seed = seed
     let count = size * size
-    fluid = Array(repeating: 0, count: count)
-    density = Array(repeating: 0, count: count)
-    u = Array(repeating: 0, count: count)
-    v = Array(repeating: 0, count: count)
-    scratchA = Array(repeating: 0, count: count)
-    scratchB = Array(repeating: 0, count: count)
-    pressure = Array(repeating: 0, count: count)
-    divergence = Array(repeating: 0, count: count)
-    curl = Array(repeating: 0, count: count)
+    let make = { () -> Field in
+      let f = Field.allocate(capacity: count)
+      f.initialize(repeating: 0, count: count)
+      return f
+    }
+    fluid = make()
+    density = make()
+    u = make()
+    v = make()
+    scratchA = make()
+    scratchB = make()
+    pressure = make()
+    divergence = make()
+    curl = make()
+    fields = [fluid, density, u, v, scratchA, scratchB, pressure, divergence, curl]
 
     let c = Float(size) / 2
     let r = c - 1
@@ -83,6 +96,10 @@ final class MistFluid {
     }
   }
 
+  deinit {
+    fields.forEach { $0.deallocate() }
+  }
+
   @inline(__always) private func smooth(_ a: Float, _ b: Float, _ x: Float) -> Float {
     let t = min(1, max(0, (x - a) / (b - a)))
     return t * t * (3 - 2 * t)
@@ -101,6 +118,7 @@ final class MistFluid {
     let dt = min(dt, 1 / 30)
     time += dt
     let count = n * n
+    let n = self.n, fluid = self.fluid, density = self.density, u = self.u, v = self.v
     let avg = mass / max(fluidCells, 1)
     let push = gravity * sink - shake * fling
     let c = Float(n) / 2
@@ -113,8 +131,9 @@ final class MistFluid {
       var fx = push.x * excess
       var fy = push.y * excess
       // Spinning the jar leaves the mist behind: it turns the opposite way, slowest at the centre.
-      fx += turn * spin * y
-      fy -= turn * spin * x
+      // (With y down, (-y, x) runs clockwise on screen.)
+      fx -= turn * spin * y
+      fy += turn * spin * x
       let s = seed + time * 0.35
       fx += breath * (sin(y * 0.31 + s * 1.7) + 0.6 * sin(x * 0.23 - s * 1.1)) * density[k]
       fy += breath * 0.5 * sin(x * 0.27 + s * 1.3) * density[k]
@@ -130,10 +149,10 @@ final class MistFluid {
     }
 
     // Move velocity and mist along the flow.
-    advect(u, into: &scratchA, dt: dt)
-    advect(v, into: &scratchB, dt: dt)
-    swap(&u, &scratchA)
-    swap(&v, &scratchB)
+    advect(u, into: scratchA, dt: dt)
+    advect(v, into: scratchB, dt: dt)
+    swap(&self.u, &scratchA)
+    swap(&self.v, &scratchB)
     // Make it incompressible before the mist rides it.
     project()
     advectSharp(dt: dt)
@@ -141,22 +160,23 @@ final class MistFluid {
 
     // Keep the same amount of mist, and keep it in [0, 1].
     var total: Float = 0
-    for k in 0..<count where fluid[k] > 0 { total += density[k] }
+    for k in 0..<count where fluid[k] > 0 { total += self.density[k] }
     let scale = total > 0 ? mass / total : 1
     var fastest: Float = 0
+    let su = self.u, sv = self.v, sd = self.density
     for k in 0..<count {
-      density[k] = min(1, density[k] * scale) * fluid[k]
-      fastest = max(fastest, u[k] * u[k] + v[k] * v[k])
+      sd[k] = min(1, sd[k] * scale) * fluid[k]
+      fastest = max(fastest, su[k] * su[k] + sv[k] * sv[k])
     }
     speed = fastest.squareRoot()
   }
 
-  @inline(__always) private func at(_ field: [Float], _ i: Int, _ j: Int) -> Float {
+  @inline(__always) private func at(_ field: Field, _ i: Int, _ j: Int) -> Float {
     field[min(n - 1, max(0, j)) * n + min(n - 1, max(0, i))]
   }
 
   /// Bilinear sample at a point in cell units, where cell (i, j) is centred on (i + 0.5, j + 0.5).
-  private func sample(_ field: [Float], _ x: Float, _ y: Float) -> Float {
+  @inline(__always) private func sample(_ field: Field, _ x: Float, _ y: Float) -> Float {
     let fx = x - 0.5, fy = y - 0.5
     let i = Int(floor(fx)), j = Int(floor(fy))
     let tx = fx - Float(i), ty = fy - Float(j)
@@ -166,7 +186,8 @@ final class MistFluid {
   }
 
   /// Semi-Lagrangian: each cell takes the value from where its flow came from, kept inside the jar.
-  private func advect(_ field: [Float], into out: inout [Float], dt: Float) {
+  private func advect(_ field: Field, into out: Field, dt: Float) {
+    let n = self.n, fluid = self.fluid, u = self.u, v = self.v
     let c = Float(n) / 2
     let r = c - 1.5
     for j in 0..<n {
@@ -189,8 +210,9 @@ final class MistFluid {
    wash within seconds; this keeps the pool's surface soft but there.
    */
   private func advectSharp(dt: Float) {
-    advect(density, into: &scratchA, dt: dt)
-    advect(scratchA, into: &scratchB, dt: -dt)
+    advect(density, into: scratchA, dt: dt)
+    advect(scratchA, into: scratchB, dt: -dt)
+    let density = self.density, scratchA = self.scratchA, scratchB = self.scratchB, fluid = self.fluid
     for k in 0..<n * n where fluid[k] > 0 {
       density[k] = min(1, max(0, scratchA[k] + 0.5 * (density[k] - scratchB[k])))
     }
@@ -202,6 +224,7 @@ final class MistFluid {
    below and the amount never changes.
    */
   private func settle(gravity: SIMD2<Float>, dt: Float) {
+    let n = self.n, fluid = self.fluid, density = self.density, scratchA = self.scratchA
     for k in 0..<n * n { scratchA[k] = 0 }
     let sx = gravity.x * settling * dt
     let sy = gravity.y * settling * dt
@@ -231,6 +254,8 @@ final class MistFluid {
 
   /// Make the flow incompressible: solve for pressure (Jacobi, walls are zero-gradient) and subtract its gradient.
   private func project() {
+    let n = self.n, fluid = self.fluid, u = self.u, v = self.v
+    let pressure = self.pressure, divergence = self.divergence, scratchB = self.scratchB
     for j in 0..<n {
       for i in 0..<n {
         let k = j * n + i
@@ -272,6 +297,7 @@ final class MistFluid {
 
   /// Push each little eddy to keep spinning, so the numerical blur doesn't smooth the mist into syrup.
   private func confineVorticity(dt: Float) {
+    let n = self.n, fluid = self.fluid, density = self.density, u = self.u, v = self.v, curl = self.curl
     for j in 1..<n - 1 {
       for i in 1..<n - 1 {
         let k = j * n + i

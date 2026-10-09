@@ -5,8 +5,9 @@
 
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useEffect, useState } from 'react';
-import { AccessibilityInfo, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, AppState, Pressable, StyleSheet, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Text } from '@/components/text';
 import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +16,6 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { nightsLabel, type MenuOption } from '@/components/control-types';
 import { MenuRow, NightsRow, TimeRow } from '@/components/controls';
 import { Card, ChoiceRow, sym, ValueRow } from '@/components/grouped-list';
-import { NightCard } from '@/components/night-cards';
 import { armIfPaid } from '@/hooks/use-app-start';
 import * as haptic from '@/lib/haptics';
 import { armRoutine, inPendingFirstNight, onLockChange, routineAt, syncLock } from '@/lib/lock-controller';
@@ -36,7 +36,6 @@ import { getArmedNight, isScreenTimeAvailable } from '@/lib/screen-time';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 import { formatPreset, noOrphan } from '@/lib/text';
 import {
-  DISPLAY_MAX_SCALE,
   DisplayFont,
   Gap,
   italicOverhang,
@@ -47,6 +46,7 @@ import {
   VoiceSize,
 } from '@/theme';
 
+import { NightDial } from './night-dial';
 import { nightsToWeekdays, weekdaysToNights } from './nights';
 import { pendingNote } from './starts-when';
 
@@ -159,6 +159,7 @@ const waitingNote = (from: Date, now: Date) =>
 
 export function RoutineScreen() {
   const insets = useSafeAreaInsets();
+  const scroll = useRef<ScrollView>(null);
   const bottom = useTabBarInset();
 
   const [{ active, saved, from }, setLoaded] = useState<Loaded>(load);
@@ -218,31 +219,20 @@ export function RoutineScreen() {
 
   return (
     <ScrollView
+      ref={scroll}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
     >
-      <View style={styles.header}>
-        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-          Routine
-        </Text>
+      {/* The night on a 24-hour dial, as set (a waiting edit included), edited by dragging. */}
+      <View style={styles.night}>
+        <NightDial
+          bedtime={saved.bedtime}
+          morningStart={saved.morningStart}
+          nightsLabel={saved.nights.length === 0 ? 'Every night off' : nightsLabel(saved.nights)}
+          off={saved.nights.length === 0}
+          onChange={(times) => set(times)}
+          scrollRef={scroll}
+        />
       </View>
-
-      {/* The night at a glance (Sky Guide's Tonight card), as set: a waiting edit included. */}
-      <NightCard
-        eyebrow={saved.nights.length === 0 ? 'Every night off' : nightsLabel(saved.nights)}
-        title={`${formatPreset(saved.bedtime)} – ${formatPreset(saved.morningStart)}`}
-        detail={
-          saved.nights.length === 0
-            ? 'Only the always-asleep apps stay asleep.'
-            : `Apps sleep ${hours(saved)}, until you ${wakeVerb(saved)}.`
-        }
-        off={saved.nights.length === 0}
-        style={styles.night}
-        accessibilityLabel={
-          saved.nights.length === 0
-            ? 'Every night is off. Only the always-asleep apps stay asleep.'
-            : `${nightsLabel(saved.nights)}. Apps sleep at ${formatPreset(saved.bedtime)} and wake after ${formatPreset(saved.morningStart)}, when you ${wakeVerb(saved)}.`
-        }
-      />
 
       {from ? (
         <View style={styles.pending} accessibilityLiveRegion="polite">
@@ -330,21 +320,6 @@ export function RoutineScreen() {
   );
 }
 
-/** How long the night window runs: "8 hrs", "7½ hrs". */
-function hours(r: Routine) {
-  const minutes = (r.morningStart - r.bedtime + 1440) % 1440;
-  const whole = Math.floor(minutes / 60);
-  const half = minutes % 60 >= 30 ? '½' : '';
-  return `${whole}${half} ${whole === 1 && !half ? 'hr' : 'hrs'}`;
-}
-
-function wakeVerb(r: Routine) {
-  if (r.method === 'downstairs') return 'get downstairs';
-  // Until a code is saved, the morning asks for steps (`methodInUse`), so say that.
-  if (r.method === 'scan') return getScanCode() ? 'scan your code' : `walk ${r.stepGoal} steps, until your code is set up`;
-  return `walk ${r.stepGoal} steps`;
-}
-
 /** The steps fallback for the chosen method. */
 function wakeFooter(r: Routine) {
   if (r.method === 'downstairs') return `No stairs that morning, like in a hotel? Walk ${r.stepGoal} steps instead.`;
@@ -357,9 +332,7 @@ function wakeFooter(r: Routine) {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
-  header: { gap: Gap.headline, marginBottom: Gap.block },
   night: { marginBottom: Gap.section },
-  title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
 
   wake: { marginBottom: Gap.block },
   voice: {
