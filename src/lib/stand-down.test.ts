@@ -90,6 +90,47 @@ test('a Block now across the autumn clock change is refused, not handed to iOS a
   assert.deepEqual(fake.state.activities, []);
 });
 
+/** When the clocks go back in each zone, and what the clock read just before. */
+const AUTUMN: Record<string, [change: string, before: string]> = {
+  'America/New_York': ['2026-11-01T06:00:00Z', '2 am'], // 02:00 EDT → 01:00 EST
+  'Europe/London': ['2026-10-25T01:00:00Z', '2 am'], // 02:00 BST → 01:00 GMT
+  'Europe/Berlin': ['2026-10-25T01:00:00Z', '3 am'], // 03:00 CEST → 02:00 CET
+  'Europe/Helsinki': ['2026-10-25T01:00:00Z', '4 am'], // 04:00 EEST → 03:00 EET
+  'Australia/Sydney': ['2026-04-04T16:00:00Z', '3 am'], // 03:00 AEDT → 02:00 AEST
+  'Pacific/Chatham': ['2026-04-04T14:00:00Z', '3:45 am'], // 03:45 → 02:45
+  'America/Santiago': ['2026-04-05T03:00:00Z', '12 am'], // 00:00 → 23:00 the night before
+};
+
+test("a refused Block now names this zone's clock change, not the US one", { skip: !AUTUMN[process.env.TZ ?? ''] }, async () => {
+  const [change, before] = AUTUMN[process.env.TZ!];
+  for (const minutesBefore of [20, 5]) {
+    // A 30-minute nap starting this long before the change runs across it.
+    mock.timers.enable({ apis: ['Date'], now: new Date(Date.parse(change) - minutesBefore * 60_000) });
+    try {
+      await assert.rejects(st.startNap('block', 30), (error: Error) => {
+        assert.ok(error instanceof st.NapClockChangeError);
+        assert.equal(
+          error.message,
+          `The clocks go back at ${before} during that nap. Pick one that ends before ${before}, or start it after the clocks change.`,
+        );
+        return true;
+      });
+    } finally {
+      mock.timers.reset();
+    }
+  }
+  // Ending before the change, or starting after it, as the message says, is allowed.
+  for (const [offset, minutes] of [[-31, 30], [1, 30]]) {
+    mock.timers.enable({ apis: ['Date'], now: new Date(Date.parse(change) + offset * 60_000) });
+    try {
+      await st.startNap('block', minutes);
+    } finally {
+      mock.timers.reset();
+    }
+    st.endNap();
+  }
+});
+
 test('Block now in spring, across the hour that is skipped, is allowed', { skip: process.env.TZ !== 'America/New_York' }, async () => {
   // 2026-03-08 01:50 EST; 15 real minutes later the clock reads 03:05 EDT.
   mock.timers.enable({ apis: ['Date'], now: new Date('2026-03-08T06:50:00Z') });

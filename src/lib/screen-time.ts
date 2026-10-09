@@ -41,6 +41,7 @@ import {
 import { MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
+import { formatPreset } from './text.ts';
 
 /**
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
@@ -594,11 +595,38 @@ export const NAP_SHORTEST = 15;
 let napStarting = false;
 let napGeneration = 0;
 
-/** A Block now that would run across the clock going back an hour. */
+/**
+ * A Block now that would run across the clock going back an hour. `at` is the clock time
+ * the change happens at, before it ("3 am" in Berlin, "2 am" in New York), when known.
+ */
 export class NapClockChangeError extends Error {
-  constructor() {
-    super('The clocks go back during that nap. Try a time that ends before 1 AM or starts after 2 AM.');
+  constructor(at?: string) {
+    super(
+      at
+        ? `The clocks go back at ${at} during that nap. Pick one that ends before ${at}, or start it after the clocks change.`
+        : 'The clocks go back during that nap. Pick one that ends before they change, or start it after.',
+    );
   }
+}
+
+/**
+ * Where the clocks go back between `from` and `to`, as the clock read just before the
+ * change ("3 am" in Berlin, which then reads 2 am), or undefined if they don't.
+ */
+function clockGoesBack(from: number, to: number): string | undefined {
+  const before = new Date(from).getTimezoneOffset();
+  const after = new Date(to).getTimezoneOffset();
+  if (after <= before) return undefined;
+  // The first instant on the later offset.
+  let lo = from;
+  let hi = to;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (new Date(mid).getTimezoneOffset() === before) lo = mid;
+    else hi = mid;
+  }
+  const c = clockOf(hi);
+  return formatPreset(c.hour * 60 + c.minute + after - before);
 }
 
 function clockOf(ms: number) {
@@ -633,7 +661,7 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
   // as the first one, ending early. (In spring the clock span is an hour longer, which is fine.)
   const wall = (c: { hour: number; minute: number }) => c.hour * 60 + c.minute;
   const span = (wall(clockOf(nap.end)) - wall(clockOf(start)) + 1440) % 1440;
-  if (span < minutes || span > minutes + 60) throw new NapClockChangeError();
+  if (span < minutes || span > minutes + 60) throw new NapClockChangeError(clockGoesBack(start, nap.end));
   napStarting = true;
   const generation = ++napGeneration;
   try {
