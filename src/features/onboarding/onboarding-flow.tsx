@@ -623,6 +623,17 @@ export function OnboardingFlow({
   useEffect(() => {
     if (step === 'armed') checkPermissions();
   }, [step]);
+  // Turned on from `first-morning`'s Open Settings: say so once they're back, as the wake
+  // screens do. Only a yes counts, so a failed read can't hide the "it's off" row.
+  const recheckMotion = useEffectEvent(() => {
+    if (motion === 'denied') checkMotion().then((m) => m === 'granted' && setMotion(m), () => {});
+  });
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') recheckMotion();
+    });
+    return () => sub.remove();
+  }, []);
   // A second tap while iOS's prompts are up would `next` twice.
   const [asking, setAsking] = useState(false);
   /** iOS's prompts, then `then`. With every night off there are no mornings, so no Motion. */
