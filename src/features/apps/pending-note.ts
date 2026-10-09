@@ -43,18 +43,19 @@ export function removalNote(
 
 /**
  * The bedtime list during an emergency pause, from `pauseWording`: the next night that's on
- * (with its weekday when it isn't the next evening), or none when every night is off or a lapse
- * has `ended` them. "Tonight" only while it's still the night the unlock was used; after that
- * they're just awake.
+ * (with its weekday when it isn't the next evening), or none when every night is off, a lapse
+ * has `ended` them, or the list is empty by then (`noApps`). "Tonight" only while it's still
+ * the night the unlock was used; after that they're just awake.
  */
 export function pauseNote(
-  words: { morning: string; resumes: Date | null; weekday: string | null; ended?: boolean },
+  words: { morning: string; resumes: Date | null; weekday: string | null; ended?: boolean; noApps?: boolean },
   night: boolean,
 ): string {
   const awake = night
     ? `Awake tonight and ${words.morning} after an emergency unlock.`
     : 'Awake after an emergency unlock.';
   if (!words.resumes && words.ended) return `${awake} There’s no subscription, so nothing sleeps after that.`;
+  if (!words.resumes && words.noApps) return `${awake} No bedtime apps are picked, so nothing sleeps after that.`;
   if (!words.resumes) return `${awake} Every night is switched off, so they stay awake.`;
   const at = clock(words.resumes);
   return `${awake} They sleep again at ${words.weekday ? `${at} on ${words.weekday}` : at}.`;

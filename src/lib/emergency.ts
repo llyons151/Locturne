@@ -168,12 +168,13 @@ export function emergencyUnlock(now = new Date()): EmergencyUse | null {
  * when the bedtime apps really sleep again. `resumesAt` is the next bedtime, and if that night
  * is off they stay awake until the next night that's on, so its weekday is named. After a
  * lapse's last paid night (`pastLastPaid`) nothing sleeps again: `resumes` is null and `ended`
- * says why.
+ * says why. So it is when the bedtime list as it stands then is empty (every app removed, or
+ * every parked pick): `resumes` is null and `noApps` says why.
  */
 export function pauseWording(
   resumesAt: Date,
   now = new Date(),
-): { morning: string; resumes: Date | null; weekday: string | null; ended: boolean } {
+): { morning: string; resumes: Date | null; weekday: string | null; ended: boolean; noApps: boolean } {
   // Never a time before the pause ends: the parked picks come back only then (an earlier
   // bedtime saved during the pause, still waiting to be armed, starts a night before it).
   const next = nextNightOn(resumesAt, now);
@@ -182,7 +183,9 @@ export function pauseWording(
   // `nightAt` names it, never `readLock(on)`: reading the lock at that later time would settle a
   // routine edit waiting for it, and apply an edit made from bed tonight.
   const ended = on !== null && subscriptionEnded() && pastLastPaid(dateKey(nightAt(on, now).end));
-  const resumes = ended ? null : on;
+  // The parked picks come back at `on`, with any change saved since (`bedtimeAppsAt`).
+  const noApps = on !== null && !ended && !bedtimeAppsAt(on, now);
+  const resumes = ended || noApps ? null : on;
   const sameDay = resumes?.toDateString() === resumesAt.toDateString();
   return {
     // The morning this night leads into: today's once past midnight, or a shift worker's.
@@ -190,5 +193,6 @@ export function pauseWording(
     resumes,
     weekday: resumes && !sameDay ? resumes.toLocaleDateString('en-US', { weekday: 'long' }) : null,
     ended,
+    noApps,
   };
 }

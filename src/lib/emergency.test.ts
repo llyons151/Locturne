@@ -12,7 +12,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity();
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { bedtimeAppsAhead, planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause, heldPhase, previewEmergency } = await import(
+const { bedtimeAppsAhead, planEmergency, pausedUntil, withUse, emergencyUnlock, getEmergencyLog, getNightPause, heldPhase, pauseWording, previewEmergency } = await import(
   './emergency.ts'
 );
 const { recordProof } = await import('./morning-proof.ts');
@@ -308,6 +308,48 @@ test('a second emergency in an earlier bedtime\'s paused first night (#137): not
   assert.ok(emergencyUnlock(at(10, 6, 21, 45))?.pauseNight);
   assert.equal(previewEmergency(at(10, 6, 23, 30)), null, 'still paused past the old 23:00 bedtime');
   assert.equal(getEmergencyLog().length, 1);
+});
+
+test('pauseWording: an emergency after every bedtime app was removed from bed names no time', () => {
+  fake.state.activities = ['night-0'];
+  asleep();
+  const bed = at(10, 6, 23, 30);
+  st.beginListEdit('night');
+  st.clearSelection('night-next');
+  assert.equal(st.finishListEdit('night', looserEditsStartAt(bed, 'night')), 'bedtime');
+  // Still held (the live list has its apps), so the unlock is offered.
+  const now = at(10, 6, 23, 45);
+  const plan = previewEmergency(now);
+  assert.ok(plan?.pauseNight);
+  assert.equal(plan.resumesAt, at(10, 7, 23).getTime());
+  const words = pauseWording(new Date(plan.resumesAt!), now);
+  assert.equal(words.resumes, null, 'nothing sleeps at 23:00');
+  assert.equal(words.noApps, true);
+  assert.equal(words.ended, false);
+  assert.ok(emergencyUnlock(now)?.pauseNight);
+  const after = pauseWording(getNightPause(at(10, 7, 14))!, at(10, 7, 14));
+  assert.equal(after.resumes, null);
+  assert.equal(after.noApps, true);
+  st.settleListChanges(at(10, 7, 23), { limits: false });
+  assert.equal(st.selectionSize('night'), 0);
+});
+
+test('pauseWording: every parked pick removed after an emergency names no time', () => {
+  fake.state.activities = ['night-0'];
+  asleep();
+  assert.ok(emergencyUnlock(at(10, 7, 1))?.pauseNight);
+  const day = at(10, 7, 14);
+  const before = pauseWording(getNightPause(day)!, day);
+  assert.equal(before.resumes?.getTime(), at(10, 7, 23).getTime(), 'the parked picks come back at 23:00');
+  assert.equal(before.noApps, false);
+  st.beginListEdit('night');
+  st.clearSelection('night-next');
+  assert.equal(st.finishListEdit('night', looserEditsStartAt(day, 'night')), 'bedtime');
+  const words = pauseWording(getNightPause(day)!, day);
+  assert.equal(words.resumes, null);
+  assert.equal(words.noApps, true);
+  st.settleListChanges(at(10, 7, 23), { limits: false });
+  assert.equal(st.selectionSize('night'), 0);
 });
 
 test('pauseNightUntil while stood down parks nothing', () => {

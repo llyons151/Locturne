@@ -80,6 +80,11 @@ describe('pauseNote', () => {
     assert.match(line, /no subscription, so nothing sleeps after that\.$/);
     assert.doesNotMatch(line, /switched off|sleep again/);
   });
+
+  test('an empty bedtime list by then: nothing sleeps after this, and no time named', () => {
+    const line = pauseNote({ morning: 'tomorrow morning', resumes: null, weekday: null, noApps: true }, false);
+    assert.equal(line, 'Awake after an emergency unlock. No bedtime apps are picked, so nothing sleeps after that.');
+  });
 });
 
 // Every bedtime and morning start on a 30-minute grid, edited every 15 minutes of a day: never
