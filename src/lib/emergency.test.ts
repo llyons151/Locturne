@@ -73,6 +73,17 @@ test('bedtimeAppsAhead: the bedtime list as it stands at the next bedtime', () =
   assert.equal(bedtimeAppsAhead(at(10, 7, 14)), false, 'all the next day too');
 });
 
+test('bedtimeAppsAhead: every bedtime app removed from bed is already false that morning', () => {
+  // Removed at 23:30 the night before: the removal waits for the next bedtime, so this
+  // morning stays held, but the wake and scan successes mustn't promise "until 11:00 PM".
+  fake.state.activities = ['night-0'];
+  st.beginListEdit('night');
+  st.clearSelection('night-next');
+  assert.equal(st.finishListEdit('night', BEDTIME), 'bedtime');
+  assert.equal(readLock(at(10, 6, 7, 30)).phase, 'morning');
+  assert.equal(bedtimeAppsAhead(at(10, 6, 7, 30)), false);
+});
+
 /** An earlier bedtime's windows armed at once, as `armRoutine` does (it only tightens). */
 const armEarlier = () => {
   fake.state.store['locturne.armedNight'] = { ...fake.armedNight(), bedtime: 21 * 60 + 30 };

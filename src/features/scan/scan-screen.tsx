@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
 import { useLock } from '@/hooks/use-lock';
-import { getNightPause, heldPhase } from '@/lib/emergency';
+import { bedtimeAppsAhead, getNightPause, heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { lapseStillCovers, readLock, routineAt, subscriptionEnded } from '@/lib/lock-controller';
 import { nightsAround, type Phase } from '@/lib/lock-state';
@@ -84,11 +84,14 @@ const SOURCES: { value: Source; label: string }[] = [
 /**
  * The next morning the lock holds, or null when every night is off. A night under way here
  * holds nothing (no lock, or an emergency paused it), so its morning is free: look past it.
- * With nothing scheduled to sleep at all (no night lock, stood down, or no subscription past
- * the night or morning a lapse still covers), no morning wants the code: 'unscheduled'.
+ * With nothing scheduled to sleep at all (no night lock, stood down, no subscription past
+ * the night or morning a lapse still covers, or a bedtime list empty at the next bedtime,
+ * which `readLock` reads as a free morning), no morning wants the code: 'unscheduled'.
  */
 function nextLockedMorning(now: Date): NextMorning {
-  if (!nightLockArmed() || isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null)) return 'unscheduled';
+  if (!nightLockArmed() || isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null) || !bedtimeAppsAhead(now)) {
+    return 'unscheduled';
+  }
   const night = nightsAround(now, toLockSettings(routineAt(now))).latest;
   const from = readLock(now).phase === 'night' ? (getNightPause(now) ?? night.end) : now;
   const start = nextNightOn(from, now);

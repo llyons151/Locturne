@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
+import { awakeBody, savedBody } from './next-morning.ts';
 import { liveScanStage } from './scan-stage.ts';
 import { awakeLine } from '../home/awake-line.ts';
 import { dayStatus } from '../wake/wake-words.ts';
@@ -15,7 +16,7 @@ function harness(source: string) {
   const state: any[] = [];
   let lock = { phase: 'night', morningKey: '2026-10-06', blockNowUntil: null as Date | null, nextChange: new Date(2026, 9, 6, 22) };
   // What tonight and the subscription look like after the scan (the shared success line reads them).
-  const world = { tonightOn: true, ended: false, lapseCovers: null as string | null };
+  const world = { tonightOn: true, ended: false, lapseCovers: null as string | null, bedtimeApps: true };
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree['children']) => ({ type, props, children }),
     useState(initial: any) {
@@ -32,7 +33,7 @@ function harness(source: string) {
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@/components/buttons': { PrimaryButton: 'Button', TextButton: 'Button' }, '@/components/segmented': {},
     '@/hooks/use-lock': { useLock: () => lock },
-    '@/lib/emergency': { heldPhase: (phase: string) => phase },
+    '@/lib/emergency': { heldPhase: (phase: string) => phase, bedtimeAppsAhead: () => world.bedtimeApps },
     '@/lib/haptics': { done() {} },
     '@/lib/lock-controller': {
       readLock: () => lock, routineAt: () => ({ morningStart: 420 }),
@@ -51,7 +52,7 @@ function harness(source: string) {
     '@/lib/screen-time': { nightLockArmed: () => true, isStoodDown: () => false, isScreenTimeAvailable: () => true, selectionSize: () => 0 },
     '@/lib/text': { formatPreset: () => '7:00 AM' }, '@/features/home/awake-line': { awakeLine }, './wake-words': { dayStatus },
     '@/theme': { Type: {}, Space: {}, Gap: {}, Nocturne: {} },
-    '../exits/voice': { Voice: 'Voice' }, './next-morning': { awakeBody: () => 'Awake' },
+    '../exits/voice': { Voice: 'Voice' }, './next-morning': { awakeBody, savedBody },
     './qr': {}, './scanner': { Scanner: 'Scanner' }, './share-code': {}, './scan-stage': { liveScanStage },
   };
   const load = (text: string, filename: string) => {
@@ -129,4 +130,23 @@ test('successful scan does not promise a bedtime when tonight is off or a lapse 
   lapsed.world({ ended: true, lapseCovers: null });
   find(lapsed.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
   assert.match(texts(lapsed.render()), /Apps awake\. Nothing is scheduled to sleep\./);
+});
+
+test('an emptied bedtime list: no bedtime promised after the scan, and no morning named to scan for', () => {
+  // Every bedtime app removed from bed: the removal waits for the next bedtime, so this
+  // morning is still held and the scan works, but nothing sleeps at the next bedtime.
+  const source = readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8');
+  const h = harness(source);
+  h.phase('morning');
+  h.world({ bedtimeApps: false });
+  find(h.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
+  assert.doesNotMatch(texts(h.render()), /until/);
+  assert.match(texts(h.render()), /No bedtime apps picked, so nothing sleeps at bedtime\./);
+
+  // Opened again later in the day: tomorrow morning is free, so it isn't named.
+  const later = harness(source);
+  later.phase('day');
+  later.world({ bedtimeApps: false });
+  assert.match(texts(later.render()), /Nothing is scheduled to sleep, so there’s nothing to scan for\./);
+  assert.doesNotMatch(texts(later.render()), /tomorrow/);
 });
