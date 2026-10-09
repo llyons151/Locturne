@@ -86,3 +86,11 @@ export function dayHero({
   if (!scheduled) return { title: 'No bedtime scheduled', body: line };
   return { title: `Bedtime in ${until}`, body: `Your apps go to sleep at ${sleepsAt}. Start winding down before then.` };
 }
+
+/**
+ * Home's hero while a Block now runs by day: what's asleep, and until when, leads over the
+ * countdown to bedtime (the night and morning heroes already say the apps are asleep).
+ */
+export function napHero(until: string): { title: string; body: string } {
+  return { title: 'Your apps are asleep', body: `Block now: apps asleep until ${until}.` };
+}

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { awakeLine, dayHero, unheldLine } from './awake-line.ts';
+import { awakeLine, dayHero, napHero, unheldLine } from './awake-line.ts';
 
 describe('awakeLine', () => {
   test('an armed night names its bedtime', () => {
@@ -94,5 +94,14 @@ describe('dayHero', () => {
 
   test('every night off', () => {
     assert.equal(dayHero({ ...base, sleepsAt: null, until: null, attention: null }).title, 'No bedtime scheduled');
+  });
+});
+
+describe('napHero', () => {
+  test('a Block now by day says the apps are asleep and until when, not the bedtime countdown', () => {
+    const hero = napHero('3:12 PM');
+    assert.equal(hero.title, 'Your apps are asleep');
+    assert.match(hero.body, /until 3:12 PM\./);
+    assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in|go to sleep at/);
   });
 });

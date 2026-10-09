@@ -18,7 +18,7 @@ import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } fro
 import { clockLabel } from '@/lib/shield-copy';
 import { Gap, Space } from '@/theme';
 
-import { awakeLine, dayHero } from './awake-line';
+import { awakeLine, dayHero, napHero } from './awake-line';
 import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -82,24 +82,29 @@ export function HomeScreen() {
   const attention = !unprotected && !paused && phase === 'day' && health.level === 'attention';
   const armed = nightLockArmed();
   const stoodDown = isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null);
+  // A Block now running by day is what's asleep, so it leads over the countdown to bedtime
+  // (a status that needs attention still comes first).
+  const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
   const hero = unprotected
     ? { title: health.title, body: health.detail }
     : pause && lock.phase === 'night'
       ? pausedHero(pause, now)
-      : phase === 'day'
-        ? dayHero({
-            attention: attention ? health : null,
-            scheduled: armed && !stoodDown,
-            line: awakeLine({
-              armed,
-              stoodDown,
-              tonightAt: sleepsAt ? clockAt(sleepsAt) : null,
-              alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
-            }),
-            until: minutes === null ? null : duration(minutes),
-            sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
-          })
-        : heroFor(phase, clockLabel(routine.morningStart));
+      : phase === 'day' && napping
+        ? napHero(clockAt(napping))
+        : phase === 'day'
+          ? dayHero({
+              attention: attention ? health : null,
+              scheduled: armed && !stoodDown,
+              line: awakeLine({
+                armed,
+                stoodDown,
+                tonightAt: sleepsAt ? clockAt(sleepsAt) : null,
+                alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
+              }),
+              until: minutes === null ? null : duration(minutes),
+              sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
+            })
+          : heroFor(phase, clockLabel(routine.morningStart));
   const action = unprotected
     ? health.protection === 'notSetUp'
       ? { label: 'Set up Screen Time', onPress: () => router.push('/apps') }
