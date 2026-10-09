@@ -47,6 +47,7 @@ import {
 } from '@/lib/daily-limits';
 import { getNightPause, pauseWording } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
+import { rescheduleNotifications } from '@/lib/notifications';
 import { looserEditsStartAt, onLockChange, readLock } from '@/lib/lock-controller';
 import {
   armLimit,
@@ -380,6 +381,9 @@ function LiveAppsList() {
     // An empty bedtime list left the night unarmed (`armIfPaid` skips it): arm it now, as the
     // Routine tab's save does, or the apps just added stay awake until Locturne is reopened.
     if (list === 'night' && !getArmedNight()) armIfPaid();
+    // Tonight's bedtime warning and the morning note only come when apps will sleep: re-plan
+    // them for the list as it stands at bedtime (an emptied or refilled list changes that).
+    if (list === 'night') rescheduleNotifications().catch(() => {});
     refresh();
   };
 

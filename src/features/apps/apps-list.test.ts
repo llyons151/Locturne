@@ -130,3 +130,23 @@ test('reopening a picker while its native save settles cannot replace the draft 
   timers.forEach((run) => run());
   assert.deepEqual(live, ['old', 'new']);
 });
+
+test('a bedtime list edit re-plans tonight’s bedtime warning and morning note; a limit edit does not', () => {
+  const source = readFileSync(new URL('./apps-list.tsx', import.meta.url), 'utf8');
+  const handler = source.slice(source.indexOf('  const pickedList ='), source.indexOf("  // A limit's list changed"));
+  let replans = 0;
+  const context = {
+    finishListEdit() {}, looserEditsStartAt: () => new Date(), isLimitId: (l: string) => l.startsWith('limit-'),
+    pickedLimit() {}, reapplyStandingBlocks() {}, getArmedNight: () => ({}), armIfPaid() {}, refresh() {},
+    rescheduleNotifications: async () => { replans += 1; },
+    picked: undefined as unknown as (list: string) => void,
+  };
+  const code = babel.transformSync(`${handler}\nglobalThis.picked = pickedList;`, {
+    filename: 'handlers.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+  }).code;
+  runInNewContext(code!, context);
+  context.picked('night');
+  assert.equal(replans, 1);
+  context.picked('limit-0');
+  assert.equal(replans, 1);
+});
