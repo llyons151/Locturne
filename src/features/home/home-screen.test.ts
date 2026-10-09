@@ -127,3 +127,29 @@ describe('Home in the trial’s last days (B4)', () => {
     assert.equal(action.label, 'Start walking');
   });
 });
+
+describe('Home on a night that’s switched off', () => {
+  const now = new Date(2026, 9, 9, 22, 30);
+
+  test('a Block now running leads, not "Nothing sleeps tonight"', () => {
+    const { hero } = home({ now, phase: 'off', blockNowUntil: new Date(2026, 9, 9, 23, 30) });
+    assert.equal(hero.title, 'Your apps are asleep');
+    assert.match(hero.body, /Block now: apps asleep until 11:30 pm/);
+  });
+
+  test('apps on the always list still sleep, and Home says so', () => {
+    const { hero } = home({ now, phase: 'off', always: 3 });
+    assert.equal(hero.title, 'Night off');
+    assert.equal(hero.body, 'Bedtime apps awake tonight. Always-asleep apps still sleep.');
+  });
+
+  test('nothing on the always list and no Block now: nothing sleeps', () => {
+    const { hero } = home({ now, phase: 'off' });
+    assert.match(hero.body, /Nothing sleeps tonight/);
+  });
+
+  test('a Block now that ended no longer leads', () => {
+    const { hero } = home({ now, phase: 'off', blockNowUntil: new Date(2026, 9, 9, 22) });
+    assert.equal(hero.title, 'Night off');
+  });
+});

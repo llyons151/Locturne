@@ -103,3 +103,14 @@ export function napHero(until: string): { title: string; body: string } {
 export function trialHero(trial: { title: string; detail: string }): { title: string; body: string } {
   return { title: trial.title, body: trial.detail };
 }
+
+/**
+ * Home's hero on a night that's switched off (phase 'off'). The bedtime apps stay awake, but
+ * the always list still sleeps unless it's empty or stood down (round 7 #46), so "nothing
+ * sleeps" is only said when that's true. A Block now running leads over this (`napHero`).
+ */
+export function offHero(alwaysSleeps: boolean): { title: string; body: string } {
+  return alwaysSleeps
+    ? { title: 'Night off', body: 'Bedtime apps awake tonight. Always-asleep apps still sleep.' }
+    : { title: 'Night off', body: "Nothing sleeps tonight. I'm sleeping anyway." };
+}

@@ -21,7 +21,7 @@ import { clockLabel } from '@/lib/shield-copy';
 import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
-import { awakeLine, dayHero, napHero, trialHero } from './awake-line';
+import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -85,9 +85,10 @@ export function HomeScreen() {
   const attention = !unprotected && !paused && phase === 'day' && health.level === 'attention';
   const armed = nightLockArmed();
   const stoodDown = isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null);
-  // A Block now running by day is what's asleep, so it leads over the countdown to bedtime
-  // (a status that needs attention still comes first).
+  // A Block now running by day or on a night off is what's asleep, so it leads over the
+  // countdown to bedtime (a status that needs attention still comes first).
   const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
+  const alwaysSleeps = !isScreenTimeAvailable() || selectionSize('always') > 0;
   // The trial's last days (B4): the paywall's "I remind you", kept even without notifications.
   // Leads by day, behind anything that needs fixing.
   const trial = !unprotected && !attention && !paused && phase === 'day' ? trialNotice(getTrialEnd(), now) : null;
@@ -97,8 +98,10 @@ export function HomeScreen() {
       ? pausedHero(pause, now)
       : trial
         ? trialHero(trial)
-        : phase === 'day' && napping
+        : (phase === 'day' || phase === 'off') && napping
         ? napHero(clockAt(napping))
+        : phase === 'off'
+        ? offHero(alwaysSleeps && !stoodDown)
         : phase === 'day'
           ? dayHero({
               attention: attention ? health : null,
@@ -107,7 +110,7 @@ export function HomeScreen() {
                 armed,
                 stoodDown,
                 tonightAt: sleepsAt ? clockAt(sleepsAt) : null,
-                alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
+                alwaysSleeps,
               }),
               until: minutes === null ? null : duration(minutes),
               sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
@@ -151,15 +154,13 @@ function manageTrial() {
     .catch(page);
 }
 
-/** Night, morning and a night off; the day is `dayHero`. */
+/** Night and morning; the day is `dayHero`, a night off `offHero`. */
 function heroFor(phase: string, wake: string) {
   switch (phase) {
     case 'night':
       return { title: 'Your apps are asleep', body: `They wake at ${wake}, once you're up and moving. Phone down.` };
-    case 'morning':
-      return { title: 'Time to get up', body: 'Your apps stay asleep until you get out of bed.' };
     default:
-      return { title: 'Night off', body: "Nothing sleeps tonight. I'm sleeping anyway." };
+      return { title: 'Time to get up', body: 'Your apps stay asleep until you get out of bed.' };
   }
 }
 
