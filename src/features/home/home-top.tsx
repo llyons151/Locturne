@@ -15,6 +15,8 @@ export type HomeTopProps = {
   today: string;
   /** Morning keys you got up on. */
   won: Set<string>;
+  /** Past morning keys no night locked (`WeekDay.free`). */
+  free: Set<string>;
   /** Bumped to redraw the screen time report. */
   revision: number;
   /** Home's staggered entrance (entrance.ts): the pills are step 0, the week step 1. */
@@ -28,8 +30,8 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  * The web and Android top section (iOS draws it in SwiftUI, home-content.ios.tsx). Screen time can only be
  * drawn by Apple's report extension, so the web preview shows a sample.
  */
-export function HomeTop({ mornings, today, won, enter }: HomeTopProps) {
-  const days = weekDays(today, won);
+export function HomeTop({ mornings, today, won, free, enter }: HomeTopProps) {
+  const days = weekDays(today, won, free);
   return (
     <View style={styles.top}>
       <Animated.View style={[styles.row, enter(0)]}>

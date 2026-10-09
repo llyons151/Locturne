@@ -14,7 +14,7 @@ import { dateKey } from '@/lib/lock-state';
 import { getMorningsWon, getProofs } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { nextNightOn, nightAt } from '@/lib/routine';
+import { getRoutineChange, nextNightOn, nightAt, nightWasOn } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import {
   isScreenTimeAvailable,
@@ -74,6 +74,13 @@ export function HomeScreen() {
   // MOCK (dev only, remove when done looking): every day this week counts as got up, so the
   // week strip shows the mist dots without real mornings.
   if (MOCK_WEEK) for (const day of weekDays(lock.morningKey, won)) won.add(day.key);
+  // Past mornings this week no night locked (off, or before the first save): not "missed".
+  const change = getRoutineChange(now);
+  const free = new Set(
+    weekDays(lock.morningKey, won)
+      .filter((day) => day.key < lock.morningKey && !day.done && !nightWasOn(day.key, routine, change))
+      .map((day) => day.key),
+  );
   const mornings = MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon();
   // The next night that will really sleep: not `lock.nextChange`, which is the end of the
   // window during an unheld night, and the start of a night that's switched off by day.
@@ -165,6 +172,7 @@ export function HomeScreen() {
         mornings={mornings}
         today={lock.morningKey}
         won={won}
+        free={free}
         revision={visit}
         hero={hero}
         heroKey={minutes ?? 0}

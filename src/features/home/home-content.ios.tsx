@@ -71,7 +71,7 @@ const BLUR = 8;
  */
 export function HomeContent(props: HomeContentProps) {
   'use no memo';
-  const { mornings, today, won, revision, hero, heroKey, action } = props;
+  const { mornings, today, won, free, revision, hero, heroKey, action } = props;
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
 
@@ -85,7 +85,7 @@ export function HomeContent(props: HomeContentProps) {
     ];
   };
 
-  const days = weekDays(today, won);
+  const days = weekDays(today, won, free);
   const showUsage = isScreenTimeReportAvailable && getAccess() === 'approved';
 
   return (

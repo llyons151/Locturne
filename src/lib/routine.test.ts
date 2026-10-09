@@ -9,7 +9,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity({ available: false });
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, nextNightOn, nightAt, nightRanUnder, saveRoutine } = await import('./routine.ts');
+const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, nextNightOn, nightAt, nightRanUnder, nightWasOn, saveRoutine } = await import('./routine.ts');
 const { sharedSet } = await import('./screen-time.ts');
 
 /** Thursday 2026-10-01 at hh:mm, local time. Default routine: 23:00 to 07:00. */
@@ -115,6 +115,21 @@ test('nightRanUnder: which routine the night into a morning really ran under', (
   assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, { ...later, prior: { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 4, 5, 6] } }), 'none');
   assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, { since: at(23).getTime(), prior: null }), 'none');
   assert.equal(nightRanUnder({ key: '2026-10-01', start: at(9) }, null), 'unknown');
+});
+
+test('nightWasOn: a past morning had something to get up for only if its night was on', () => {
+  const weekdays = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 4] };
+  const change = { since: at(12, 0, 1).getTime(), prior: null };
+  // Saved on Thursday the 1st: the mornings before it had no lock.
+  assert.equal(nightWasOn('2026-10-01', weekdays, change), false);
+  // Thursday night into Friday the 2nd: on.
+  assert.equal(nightWasOn('2026-10-02', weekdays, change), true);
+  // Friday and Saturday nights off: Saturday and Sunday mornings were free.
+  assert.equal(nightWasOn('2026-10-03', weekdays, change), false);
+  assert.equal(nightWasOn('2026-10-04', weekdays, change), false);
+  assert.equal(nightWasOn('2026-10-05', weekdays, change), true);
+  // No record of when it was saved: judged by the routine's nights alone.
+  assert.equal(nightWasOn('2026-10-01', weekdays, null), true);
 });
 
 test('asArmed: a routine runs from the armed bedtime while older windows overlap its night', () => {

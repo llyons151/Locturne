@@ -16,6 +16,8 @@ export type HomeContentProps = {
   today: string;
   /** Morning keys you got up on. */
   won: Set<string>;
+  /** Past morning keys no night locked (`WeekDay.free`). */
+  free: Set<string>;
   /** Bumped to redraw the screen time report. */
   revision: number;
   hero: { title: string; body: string };
@@ -31,12 +33,12 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  * The web and Android stand-in for home-content.ios.tsx (SwiftUI): the same layout, with the
  * same entrance in Reanimated (entrance.ts).
  */
-export function HomeContent({ mornings, today, won, revision, hero, action }: HomeContentProps) {
+export function HomeContent({ mornings, today, won, free, revision, hero, action }: HomeContentProps) {
   const { group, piece: enter } = useEntrance();
   return (
     <View style={styles.flex}>
       {/* The top only fades in, where it sits; only the middle rises (`group`). */}
-      <HomeTop mornings={mornings} today={today} won={won} revision={revision} enter={enter} />
+      <HomeTop mornings={mornings} today={today} won={won} free={free} revision={revision} enter={enter} />
       <Animated.View style={[styles.hero, group]}>
         <Animated.View style={enter(2)}>
           <SymbolView name={sym('moon.fill', 'bedtime')} size={18} tintColor={Nocturne.text2} />

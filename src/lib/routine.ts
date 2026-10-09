@@ -153,6 +153,20 @@ export function nightRanUnder(
 }
 
 /**
+ * Pure: was the night into the morning keyed `key` (a past one) on, so that morning had
+ * something to get up for? Judged by the routine that night ran under (`nightRanUnder`): none
+ * (before the first save, or a switch no night ran into) means it was free. For Home's week
+ * strip, which says "missed" only for a morning that was locked.
+ */
+export function nightWasOn(key: string, routine: Routine, change: { since: number; prior: Routine | null } | null): boolean {
+  const ran = nightRanUnder({ key, start: nightInto(key, routine).end }, change);
+  if (ran === 'none') return false;
+  if (ran === 'prior') return true;
+  const [year, month, day] = key.split('-').map(Number);
+  return routine.activeNights.includes(new Date(year, month - 1, day - 1).getDay());
+}
+
+/**
  * The routine a night under `routine` really runs on while iOS still has windows armed for
  * other times (`armed`, from `getArmedNight`): the same, starting at the armed bedtime when the
  * two nights overlap (`armedBedtime`, lock-state.ts). The one rule for `routineAt`

@@ -92,7 +92,7 @@ function home({
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
+    '@/lib/routine': { getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
       isScreenTimeAvailable: () => true,
