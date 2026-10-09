@@ -28,11 +28,12 @@ import {
   tag,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { ControlRow, ValueRow } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
+import { settler, type Settler } from '@/lib/settle';
 import { Nocturne } from '@/theme';
 
 import {
@@ -60,22 +61,34 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
   // SwiftUI's picker keeps its own copy of the date and only takes `selection` when it
   // changes, so a refused time would stay on the wheel. A new key remounts it at `value`.
   const [shown, setShown] = useState(0);
+  // The picker reports each wheel as it settles (the hour, then the minutes): only the time
+  // left on the wheels is saved, never one on the way to it (`settle.ts`).
+  const latest = useRef({ onChange, invalid });
+  useEffect(() => {
+    latest.current = { onChange, invalid };
+  });
+  const pending = useRef<Settler<number> | null>(null);
+  useEffect(() => {
+    const s = settler<number>((minutes) => {
+      // A time that can't work (equal times, a night iOS won't schedule) is refused,
+      // with the reason, and the picker goes back to the saved time.
+      const problem = latest.current.invalid?.(minutes);
+      if (!problem) return latest.current.onChange(minutes);
+      haptic.thud();
+      setShown((n) => n + 1);
+      Alert.alert(problem);
+    });
+    pending.current = s;
+    // Leaving the tab mid-edit still saves the time on the wheels.
+    return () => s.flush();
+  }, []);
   return (
     <ControlRow icon={icon} title={title} last={last}>
       <Host matchContents colorScheme="dark" key={shown}>
         <DatePicker
           selection={timeAsDate(value)}
           displayedComponents={['hourAndMinute']}
-          onDateChange={(date) => {
-            const minutes = date.getHours() * 60 + date.getMinutes();
-            // A time that can't work (equal times, a night iOS won't schedule) is refused,
-            // with the reason, and the picker goes back to the saved time.
-            const problem = invalid?.(minutes);
-            if (!problem) return onChange(minutes);
-            haptic.thud();
-            setShown((n) => n + 1);
-            Alert.alert(problem);
-          }}
+          onDateChange={(date) => pending.current?.push(date.getHours() * 60 + date.getMinutes())}
           modifiers={[datePickerStyle('compact'), labelsHidden(), tint(Nocturne.text), accessibilityLabel(title)]}
         />
       </Host>
