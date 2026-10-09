@@ -33,6 +33,7 @@ import {
   isStoodDown,
   judgeListAwakeWith,
   limitUsedUpToday,
+  listChangeStarts,
   moveNightPause,
   nightLockArmed,
   peekNap,
@@ -112,7 +113,9 @@ export function readLock(now = new Date()): LockState {
   // The extension has nothing to keep asleep after a bedtime-list removal lands.
   // Asking for proof here would consume a scarce pass without waking any apps.
   // Read live picks, not the pending picker draft: removals still wait for bedtime.
-  const empty = isScreenTimeAvailable() && selectionSize('night') === 0;
+  // Once a morning has read free this way it stays free (`noteEmptyMorning`): apps added back
+  // during it join the live list at once, but no night held them, so they sleep from tonight.
+  const empty = (isScreenTimeAvailable() && selectionSize('night') === 0) || emptyMorning(morning);
   const free = unrun || !inTime || renewedFree || empty;
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
   const state = getLockState(
@@ -241,6 +244,7 @@ export function syncLock(now = new Date()): LockState {
     }
   }
   if (isScreenTimeAvailable()) redateLooserEdits(now);
+  if (isScreenTimeAvailable()) noteEmptyMorning(now);
   const state = readLock(now);
   if (isScreenTimeAvailable()) {
     // Not a night or morning after the last one a lapsed subscription covers: the extension
@@ -272,6 +276,31 @@ export function syncLock(now = new Date()): LockState {
   }
   for (const listener of listeners) listener(state);
   return state;
+}
+
+/**
+ * A morning under way whose bedtime list was empty with nothing held (`readLock` reads it as
+ * free). Kept with its night's start, so a later real night reusing the key isn't freed.
+ */
+const EMPTY_MORNING_KEY = 'locturne.emptyMorning';
+
+/**
+ * Records the morning under way as free when its bedtime list is empty and nothing is held. Not
+ * while picks wait to come back (an emergency unlock parks them until a bedtime that a flight
+ * can move past this morning's start): the night they return for still holds them.
+ */
+function noteEmptyMorning(now: Date): void {
+  if (selectionSize('night') > 0 || isNightHeld() || listChangeStarts('night')) return;
+  const morning = currentMorning(now, toLockSettings(judgedAt(now).routine));
+  // Only once the morning has started: apps added during the night are held by it.
+  if (now < morning.start) return;
+  sharedSet(EMPTY_MORNING_KEY, { key: morning.key, nightStart: morning.nightStart.getTime() });
+}
+
+/** Did `noteEmptyMorning` record `morning` as free? */
+function emptyMorning(morning: { key: string; nightStart: Date }): boolean {
+  const noted = sharedGet<{ key: string; nightStart: number }>(EMPTY_MORNING_KEY);
+  return !!noted && noted.key === morning.key && noted.nightStart === morning.nightStart.getTime();
 }
 
 /** The most night windows the routine in force or a waiting edit will have iOS monitor. */

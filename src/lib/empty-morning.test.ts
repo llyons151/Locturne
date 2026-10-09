@@ -10,7 +10,9 @@ const rt = await import('./routine.ts');
 const passes = await import('./passes.ts');
 
 const now = new Date(2026, 9, 6, 8);
-beforeEach(() => {
+beforeEach(async () => {
+  // A sync's background re-arm from the test before would otherwise land on this one's records.
+  for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
   fake.reset();
   mock.timers.reset();
   mock.timers.enable({ apis: ['Date'], now });
@@ -37,4 +39,21 @@ test('a removal waiting for bedtime does not free the current morning', () => {
   st.finishListEdit('night', new Date(2026, 9, 6, 23));
   assert.ok(st.selectionSize('night') > 0);
   assert.equal(lc.readLock(now).phase, 'morning');
+});
+
+test('apps added back during a morning the empty list freed sleep from tonight, not mid-day', () => {
+  lc.syncLock(now);
+  assert.equal(lc.readLock(now).phase, 'day');
+  const afternoon = new Date(2026, 9, 6, 14);
+  mock.timers.setTime(afternoon.getTime());
+  st.beginListEdit('night');
+  fake.ids()['night-next'] = 'night-picks';
+  assert.equal(st.finishListEdit('night', new Date(2026, 9, 6, 23)), 'now');
+  assert.ok(st.selectionSize('night') > 0);
+  fake.state.calls = [];
+  assert.equal(lc.syncLock(afternoon).phase, 'day');
+  assert.ok(!fake.shielded('blockSelection').includes('night'), 'no night held the added apps');
+  assert.equal(st.isNightHeld(), false);
+  // Tonight's night holds them, so the next morning asks for the wake-up again.
+  assert.equal(lc.readLock(new Date(2026, 9, 7, 8)).phase, 'morning');
 });
