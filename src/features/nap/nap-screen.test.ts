@@ -58,6 +58,7 @@ test('an active nap reports revoked protection and recovers its status when acce
     '@/theme': { Type: {}, Space: {}, Gap: {}, Nocturne: {}, VoiceSize: {}, italicOverhang: () => ({}) },
     './use-sideways': { useSideways: () => false },
     './nap-line': { shownLine: (line: string) => line }, './nap-clock': { NapClock: 'NapClock' },
+    './sleep-sheet': { closeSleepSheet() {}, SHEET_PADDING: 18 },
   };
   const code = babel.transformSync(readFileSync(new URL('./nap-screen.tsx', import.meta.url), 'utf8'), {
     filename: 'nap-screen.tsx', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
@@ -70,7 +71,7 @@ test('an active nap reports revoked protection and recovers its status when acce
     ? tree.flatMap(nodes) : [tree, ...nodes(tree.children)];
   const texts = (tree: any): string => typeof tree === 'string' ? tree : !tree || typeof tree !== 'object' ? ''
     : Array.isArray(tree) ? tree.map(texts).join(' ') : texts(tree.children);
-  await nodes(render()).find((n) => n.props?.label === 'Tuck him in').props.onPress();
+  await nodes(render()).find((n) => n.props?.label === 'Hold to tuck him in').props.onComplete();
   assert.match(texts(render()), /Apps asleep until/);
   protection = 'off';
   const revoked = render();

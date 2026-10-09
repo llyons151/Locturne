@@ -41,9 +41,11 @@ import {
   VoiceSize,
 } from '@/theme';
 
+import { HoldButton } from '../../../modules/hold-button';
+import { LengthRuler } from './length-ruler';
 import { NapClock } from './nap-clock';
 import { shownLine, type NapLine } from './nap-line';
-import { closeSleepSheet } from './sleep-sheet';
+import { closeSleepSheet, SHEET_PADDING } from './sleep-sheet';
 import { useSideways } from './use-sideways';
 
 
@@ -57,8 +59,13 @@ import { useSideways } from './use-sideways';
  * always list, the night lock, a used-up limit) stay asleep when it ends.
  */
 
-const lengthLabel = (minutes: number) => (minutes % 60 === 0 ? `${minutes / 60} hr` : `${minutes} min`);
-const LENGTHS = [15, 30, 60, 120, 240].map((minutes) => ({ value: minutes, label: lengthLabel(minutes) }));
+/** 25 → "25 min", 60 → "1 hr", 75 → "1 hr 15 min". */
+const lengthLabel = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
+};
 
 type List = ActiveNap['list'];
 
@@ -208,26 +215,21 @@ export function NapScreen() {
     ? `Apps asleep until ${timeOf(nap.end)}`
     : 'Screen Time protection is off.';
 
-  const at = LENGTHS.findIndex((l) => l.value === length);
-  const step = (by: 1 | -1) => {
-    const next = LENGTHS[at + by];
-    if (!next) return;
+  const changeLength = (minutes: number) => {
     haptic.tap();
-    setLength(next.value);
+    setLength(minutes);
   };
 
-  // The reference's white address pill: what sleeps, until when.
-  const pill = nap ? napStatus : `Apps asleep until ${timeOf(now + length * 60_000)}`;
+  // Under the time, where the reference has its "Focus ›": what sleeps, until when.
+  const until = nap ? napStatus : `Apps asleep until ${timeOf(now + length * 60_000)}`;
   const pickApps = () =>
     isScreenTimeAvailable() ? !isPickerSettling('block') && setPicking(true) : refuse("Apple's app picker only opens on iPhone.");
 
   return (
     <View style={styles.sheet}>
-      {/* Laid out like the user's references (sleep-sheet.png, and the wallet sheet's option
-          cards), in the app's colours on liquid glass: moon-white type, the white main button. */}
-      <Text style={styles.title} accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.4}>
-        Sleep
-      </Text>
+      {/* Laid out like the user's reference (TIDE's focus card, 2026-10-08): his line as the
+          title, the time over a ruler, the choice, and one white hold button. In the app's
+          colours on liquid glass. */}
       <Animated.View key={shown} entering={FadeIn.duration(300)}>
         <Voice text={nap && !napProtected ? "I can’t confirm they’re asleep." : LINES[shown]} />
       </Animated.View>
@@ -246,28 +248,18 @@ export function NapScreen() {
           </View>
         </View>
       ) : (
-        /* One adjustable control for VoiceOver: swipe up or down to change the length. */
-        <View
-          style={styles.stepper}
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel="Nap length"
-          accessibilityValue={{ text: `${lengthLabel(length)}, apps asleep until ${timeOf(now + length * 60_000)}` }}
-          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-          onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}
-        >
-          <StepButton icon="minus" onPress={() => step(-1)} disabled={at <= 0} />
-          <Text style={styles.lengthValue} maxFontSizeMultiplier={1.2}>
+        <View style={styles.length}>
+          <Text style={styles.lengthValue} maxFontSizeMultiplier={1.2} importantForAccessibility="no" accessibilityElementsHidden>
             {lengthLabel(length)}
           </Text>
-          <StepButton icon="plus" onPress={() => step(1)} disabled={at >= LENGTHS.length - 1} />
+          <LengthRuler value={length} onChange={changeLength} />
         </View>
       )}
 
-      <View style={styles.pill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={16} tintColor={ACCENT} />
-        <Text style={styles.pillText} numberOfLines={1}>
-          {pill}
+      <View style={styles.until} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={13} tintColor={INK2} />
+        <Text style={styles.untilText} numberOfLines={1}>
+          {until}
         </Text>
       </View>
 
@@ -297,20 +289,27 @@ export function NapScreen() {
         </View>
       )}
 
-      {/* The reference's two buttons: the main one filled blue, the other outlined. */}
-      <View style={styles.actions}>
-        {nap ? (
-          <>
-            <SheetButton label="Done" onPress={closeSleepSheet} />
-            <SheetButton outline label="Wake him early" onPress={wake} />
-          </>
-        ) : (
-          <>
-            <SheetButton icon={sym('moon.zzz.fill', 'bedtime')} label="Tuck him in" onPress={start} disabled={starting} />
-            <SheetButton outline label="Cancel" onPress={closeSleepSheet} />
-          </>
-        )}
-      </View>
+      {nap ? (
+        <View style={styles.actions}>
+          <SheetButton label="Done" onPress={closeSleepSheet} />
+          <SheetButton outline label="Wake him early" onPress={wake} />
+        </View>
+      ) : (
+        /* Held, not tapped (user's ask): the fill sweeps across and he's tucked in at the end.
+           Swiping the sheet down is the cancel. */
+        <HoldButton
+          label="Hold to tuck him in"
+          symbol="moon.zzz.fill"
+          duration={1200}
+          disabled={starting}
+          color={Nocturne.cta}
+          fillColor={Nocturne.onCta}
+          textColor={Nocturne.onCta}
+          filledTextColor={Nocturne.cta}
+          onComplete={start}
+          style={styles.hold}
+        />
+      )}
       {/* Never imply protection is on when it isn't (GAME_PLAN, "Reliability"). */}
       {notice && <Text style={styles.notice}>{notice}</Text>}
 
@@ -407,26 +406,11 @@ function SheetButton({
   );
 }
 
-/** The round − and + either side of the length, like a stepper. */
-function StepButton({ icon, onPress, disabled }: { icon: 'minus' | 'plus'; onPress: () => void; disabled: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      hitSlop={8}
-      importantForAccessibility="no"
-      style={({ pressed }) => [styles.stepButton, disabled && styles.stepDisabled, pressed && styles.pressed]}
-    >
-      <SymbolView name={sym(icon, icon === 'minus' ? 'remove' : 'add')} size={17} weight="semibold" tintColor={INK} />
-    </Pressable>
-  );
-}
-
 /** His line in the italic serif. `*word*` is set in the upright cut for emphasis. */
 function Voice({ text }: { text: string }) {
   const parts = noOrphan(text).split('*');
   return (
-    <Text style={styles.voice} maxFontSizeMultiplier={1.3}>
+    <Text style={styles.voice} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
       {parts.map((part, i) => (i % 2 ? <Text key={i} style={styles.emphasis}>{part}</Text> : part))}
     </Text>
   );
@@ -442,49 +426,27 @@ const ACCENT_SOFT = 'rgba(207, 230, 247, 0.1)';
 const GLASS = 'rgba(255, 255, 255, 0.07)';
 
 const styles = StyleSheet.create({
-  // Sized to its contents inside the white card (sleep-sheet.tsx), which adds the bottom inset.
-  sheet: { paddingHorizontal: Space.xl, paddingTop: Space.m, gap: Space.l },
+  // Sized to its contents inside the card (sleep-sheet.tsx). The side padding matches the
+  // card's bottom padding, so the button's round ends sit concentric with its corners.
+  sheet: { paddingHorizontal: SHEET_PADDING, paddingTop: Space.m, gap: Space.l },
   pressed: { opacity: 0.7 },
-  title: { color: INK, fontSize: 20, lineHeight: 26, fontWeight: '700', textAlign: 'center', marginTop: Space.xs },
+  // His line in the title's place, in his voice (italic means Loc is talking).
   voice: {
     ...DisplayFont,
     ...italicOverhang(VoiceSize.aside),
-    color: INK2,
+    color: INK,
     fontSize: 19,
     lineHeight: 24,
     textAlign: 'center',
-    marginTop: -Space.s,
+    marginTop: Space.xs,
   },
   emphasis: { fontStyle: 'normal' },
   body: { ...Type.secondary, color: INK2, textAlign: 'center' },
 
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.m },
-  stepButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: GLASS,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: LINE,
-  },
-  stepDisabled: { opacity: 0.35 },
-  lengthValue: { ...NUMBER_FONT, color: INK, fontSize: 48, lineHeight: 54, fontVariant: ['tabular-nums'] },
-
-  // The reference's address pill, as a pane of glass.
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.s,
-    minHeight: 48,
-    paddingHorizontal: Space.l,
-    borderRadius: 24,
-    backgroundColor: GLASS,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: LINE,
-  },
-  pillText: { flex: 1, ...Type.secondary, fontWeight: '600', color: INK },
+  length: { alignItems: 'center', gap: Space.s, marginTop: Space.s },
+  lengthValue: { color: INK, fontSize: 40, lineHeight: 46, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  until: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -Space.s },
+  untilText: { ...Type.caption, fontWeight: '500', color: INK2 },
 
   options: { gap: Space.s },
   option: {
@@ -510,18 +472,19 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: Space.m },
   button: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Space.s,
     paddingHorizontal: Space.l,
-    borderRadius: 27,
+    borderRadius: 28,
     backgroundColor: Nocturne.cta,
   },
   buttonOutline: { backgroundColor: GLASS, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.22)' },
   buttonLabel: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
   buttonLabelOutline: { color: INK },
+  hold: { height: 56, marginTop: Space.xs },
   notice: { ...Type.caption, color: INK2, textAlign: 'center' },
 
   timer: { gap: Space.m, alignItems: 'center' },

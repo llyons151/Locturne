@@ -12,11 +12,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { recede } from '@/components/recede';
-import { Space } from '@/theme';
 
 /**
  * The Sleep sheet's frame, the shape of the user's reference (docs/design-references/sleep-sheet.png):
@@ -35,8 +33,13 @@ import { Space } from '@/theme';
 
 /** Gap between the card and the screen's edges. */
 const INSET = 8;
-/** Close to the phone's own corners, minus the inset, so the two curves run parallel. */
-const RADIUS = 44;
+/**
+ * Inside padding at the sides and bottom, the same both ways as in the user's reference (TIDE's
+ * focus card): the 56pt button's round ends then sit concentric with the card's corners.
+ */
+export const SHEET_PADDING = 18;
+/** Close to the phone's own corners, minus the inset; and the button's radius plus the padding. */
+const RADIUS = 28 + SHEET_PADDING;
 
 /** Up: a soft spring that settles without a wobble. */
 const OPEN = { damping: 28, stiffness: 240, mass: 1 };
@@ -58,7 +61,6 @@ export function closeSleepSheet() {
 
 export function SleepSheet({ children }: { children: ReactNode }) {
   const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   // The card's height once laid out: "fully closed" is this far down, plus the gap.
   const [cardHeight, setCardHeight] = useState(height * 0.7);
@@ -130,7 +132,7 @@ export function SleepSheet({ children }: { children: ReactNode }) {
       <GestureDetector gesture={pan}>
         <Animated.View
           onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
-          style={[styles.card, { bottom: INSET, paddingBottom: Math.max(insets.bottom - INSET, Space.l) }, card]}
+          style={[styles.card, { bottom: INSET, paddingBottom: SHEET_PADDING }, card]}
           accessibilityViewIsModal
           onAccessibilityEscape={() => close()}
         >
