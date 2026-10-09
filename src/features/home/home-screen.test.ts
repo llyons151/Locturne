@@ -188,3 +188,19 @@ describe('Home by day when tonight is switched off', () => {
     assert.match(hero.title, /^Bedtime in/);
   });
 });
+
+describe('Home on a night an emergency unlock paused', () => {
+  const now = new Date(2026, 9, 9, 23, 45);
+  const pause = new Date(2026, 9, 10, 23);
+
+  test('a Block now started after the unlock leads, not "Awake tonight"', () => {
+    const { hero } = home({ now, phase: 'night', pause, blockNowUntil: new Date(2026, 9, 10, 0, 45) });
+    assert.equal(hero.title, 'Your apps are asleep');
+    assert.match(hero.body, /Block now: apps asleep until 12:45 am/);
+  });
+
+  test('with no Block now, it says the apps are awake tonight', () => {
+    const { hero } = home({ now, phase: 'night', pause });
+    assert.equal(hero.title, 'Awake tonight');
+  });
+});

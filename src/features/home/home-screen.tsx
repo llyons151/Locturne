@@ -89,8 +89,9 @@ export function HomeScreen() {
   const attention = !unprotected && !paused && phase === 'day' && health.level === 'attention';
   const armed = nightLockArmed();
   const stoodDown = isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null);
-  // A Block now running by day or on a night off is what's asleep, so it leads over the
-  // countdown to bedtime (a status that needs attention still comes first).
+  // A Block now running by day, on a night off or on a night an emergency paused is what's
+  // asleep, so it leads over the countdown to bedtime and the paused night's "Awake tonight"
+  // (a status that needs attention still comes first).
   const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
   const alwaysSleeps = !isScreenTimeAvailable() || selectionSize('always') > 0;
   // The trial's last days (B4): the paywall's "I remind you", kept even without notifications.
@@ -98,7 +99,7 @@ export function HomeScreen() {
   const trial = !unprotected && !attention && !paused && phase === 'day' ? trialNotice(getTrialEnd(), now) : null;
   const hero = unprotected
     ? { title: health.title, body: health.detail }
-    : pause && lock.phase === 'night'
+    : pause && lock.phase === 'night' && !napping
       ? pausedHero(pause, now)
       : trial
         ? trialHero(trial)
