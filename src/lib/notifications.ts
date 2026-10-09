@@ -250,9 +250,11 @@ export function opensWakeScreen(identifier: string): boolean {
  * Is a wake-up screen already in front (`pathname` from expo-router)? Then a tap on one of
  * those notifications leaves it be: `/wake` turns into `/scan` for a scan routine, so
  * navigating again would stack another copy, and would drop a walk's `?method=steps`.
+ * `/exits` counts too: it's a sheet over the wake or scan screen, and `navigate` only reuses
+ * the top route, so a tap there would push a second wake screen over the sheet.
  */
 export function wakeScreenShowing(pathname: string): boolean {
-  return pathname === '/wake' || pathname === '/scan';
+  return pathname === '/wake' || pathname === '/scan' || pathname === '/exits';
 }
 
 /**

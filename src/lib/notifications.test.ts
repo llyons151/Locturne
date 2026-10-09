@@ -258,7 +258,8 @@ test('a wake-up notification tap leaves an open wake or scan screen alone, so co
   assert.equal(wakeScreenShowing('/scan'), true);
   assert.equal(wakeScreenShowing('/wake'), true);
   assert.equal(wakeScreenShowing('/'), false);
-  assert.equal(wakeScreenShowing('/exits'), false);
+  // Exits is a sheet over the wake or scan screen: navigating would push another copy over it.
+  assert.equal(wakeScreenShowing('/exits'), true);
   assert.equal(wakeScreenShowing('/onboarding'), false);
 });
 
