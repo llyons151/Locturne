@@ -186,7 +186,7 @@ export function ExitsScreen() {
   };
 
   // A night or morning by the clock with nothing asleep to wake: no lock armed, already paused
-  // tonight, or after a lapse's last paid morning. No pass, no "Rough morning".
+  // tonight, an empty bedtime list, or after a lapse's last paid morning. No pass, no "Rough morning".
   const unheld = (phase === 'night' || phase === 'morning') && heldPhase(phase) !== phase ? phase : null;
   const heldMorning = phase === 'morning' && !unheld;
 

@@ -18,7 +18,18 @@ import { judgedAt, nextBedtime, pastLastPaid, readLock, subscriptionEnded, syncL
 import { dateKey, type Phase } from './lock-state.ts';
 import { recordProof, type MorningProof } from './morning-proof.ts';
 import { nextNightOn } from './routine.ts';
-import { endNap, getNap, nightLockArmed, pauseNightUntil, sharedGet, sharedSet } from './screen-time.ts';
+import {
+  endNap,
+  getNap,
+  isScreenTimeAvailable,
+  listChangeLandsAt,
+  nightLockArmed,
+  pauseNightUntil,
+  selectionSize,
+  selectionSizeAfterChange,
+  sharedGet,
+  sharedSet,
+} from './screen-time.ts';
 
 /** Seconds the exits screen waits before the unlock button works. */
 export const EMERGENCY_WAIT_SECONDS = 10;
@@ -90,10 +101,22 @@ export function getNightPause(now = new Date()): Date | null {
  * `readLock` reads one whose night wasn't armed as unlocked, and a paused night's is proved.
  * Neither holds anything after the last night or morning a lapsed subscription covers
  * (`pastLastPaid`): the extension skips it while the windows wait for the store's answer.
+ * A night whose bedtime list is empty holds nothing either (`readLock` frees its morning).
  */
 export function heldPhase(phase: Phase, now = new Date()): Phase {
   if ((phase === 'night' || phase === 'morning') && subscriptionEnded() && pastLastPaid(readLock(now).morningKey)) return 'day';
-  return phase === 'night' && (!nightLockArmed() || getNightPause(now) !== null) ? 'day' : phase;
+  return phase === 'night' && (!nightLockArmed() || getNightPause(now) !== null || !bedtimeAppsNow(now)) ? 'day' : phase;
+}
+
+/**
+ * Whether the bedtime list as it stands now has apps: a change that has already landed counts,
+ * as Home judges it. Off iOS there's no list to read, so it's taken as picked.
+ */
+function bedtimeAppsNow(now: Date): boolean {
+  if (!isScreenTimeAvailable()) return true;
+  const handoff = listChangeLandsAt('night', now);
+  const landed = handoff && !handoff.waitsForOpen && handoff.at <= now;
+  return (landed ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
 }
 
 /** What an emergency unlock would lift right now, for the exits screen's wording. */

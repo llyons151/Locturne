@@ -33,18 +33,29 @@ beforeEach(() => {
 /** This morning was already proven, so it's daytime until bedtime. */
 const awake = () => recordProof({ morningKey: '2026-10-06', kind: 'steps', at: at(10, 6, 7, 30).getTime() });
 
-test('an emergency pause of an empty bedtime list also parks apps added during that pause', () => {
+test('a night with an empty bedtime list holds nothing: no unlock, nothing logged', () => {
   st.clearSelection('night');
   const now = at(10, 6, 23, 30);
-  const use = emergencyUnlock(now);
-  assert.equal(use?.pauseNight, true);
+  assert.equal(readLock(now).phase, 'night');
+  assert.equal(heldPhase('night', now), 'day');
+  assert.equal(previewEmergency(now), null);
+  assert.equal(emergencyUnlock(now), null);
+  assert.deepEqual(getEmergencyLog(), []);
+});
+
+test('a removal of every bedtime app that landed at bedtime leaves the night unheld', () => {
+  fake.state.activities = ['night-0'];
   st.beginListEdit('night');
-  fake.ids()['night-next'] = 'new-night-picks';
-  assert.equal(st.finishListEdit('night', new Date(use!.resumesAt!)), 'bedtime');
+  st.clearSelection('night-next');
+  assert.equal(st.finishListEdit('night', BEDTIME), 'bedtime');
+  // By day the list still holds its picks, so tonight is still coming.
+  assert.equal(heldPhase('day', at(10, 6, 14)), 'day');
+  const now = at(10, 6, 23, 30);
+  assert.equal(heldPhase('night', now), 'day', 'landed but not yet swapped in');
+  assert.equal(previewEmergency(now), null);
+  st.settleListChanges(BEDTIME, { limits: false });
   assert.equal(st.selectionSize('night'), 0);
-  assert.equal(st.listChangeStarts('night')?.getTime(), use!.resumesAt);
-  st.settleListChanges(new Date(use!.resumesAt!), { limits: false });
-  assert.ok(st.selectionSize('night') > 0);
+  assert.equal(heldPhase('night', now), 'day', 'swapped in');
 });
 
 /** An earlier bedtime's windows armed at once, as `armRoutine` does (it only tightens). */
