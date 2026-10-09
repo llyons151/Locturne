@@ -338,6 +338,18 @@ test('ending Block now early re-shields the night lock it overlapped', async () 
   assert.equal(st.getNap(), null);
 });
 
+test('a nap under 15 minutes is refused before iOS sees it (intervalTooShort)', async () => {
+  status = 2;
+  saved = { always: 't', night: 't' };
+  calls.length = 0;
+  for (const minutes of [5, 10]) await assert.rejects(st.startNap('night', minutes), /at least 15 minutes/);
+  assert.equal(calls.some(([n]) => n === 'startMonitoring'), false);
+  assert.equal(st.getNap(), null);
+  const nap = await st.startNap('night', st.NAP_SHORTEST);
+  assert.equal(nap.end - nap.start, 15 * 60_000);
+  st.endNap();
+});
+
 test('armLimit: a daily window that shields once the minutes are used, and wakes at midnight', async () => {
   saved = { 'limit-0': 'opaque' };
   await st.armLimit({ id: 'limit-0', minutes: 90 });

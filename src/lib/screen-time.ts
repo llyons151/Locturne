@@ -589,6 +589,8 @@ export type ActiveNap = { start: number; end: number; list: 'night' | 'block' };
 
 const NAP_KEY = 'locturne.nap';
 const NAP_ACTIVITY = 'locturne-nap';
+/** iOS refuses DeviceActivity windows under 15 minutes (`intervalTooShort`): the shortest nap. */
+export const NAP_SHORTEST = 15;
 let napStarting = false;
 let napGeneration = 0;
 
@@ -607,9 +609,10 @@ function clockOf(ms: number) {
 /**
  * Shields `list` now and hands the wake-up to iOS: a one-off window from now to the end,
  * whose `intervalDidEnd` unshields the list in the monitor extension, even with the app
- * closed. iOS refuses windows under 15 minutes, which the shortest nap already meets.
+ * closed. iOS refuses windows under 15 minutes (`NAP_SHORTEST`), so shorter ones never start.
  */
 export async function startNap(list: ActiveNap['list'], minutes: number): Promise<ActiveNap> {
+  if (minutes < NAP_SHORTEST) throw new Error(`A nap needs at least ${NAP_SHORTEST} minutes.`);
   if (isStoodDown()) throw new Error('Block now needs a subscription.');
   if (napStarting) throw new Error('A nap is already starting.');
   const start = Date.now();

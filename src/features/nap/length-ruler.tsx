@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { NAP_SHORTEST } from '@/lib/screen-time';
 import { Nocturne } from '@/theme';
 
 /**
@@ -24,7 +25,8 @@ import { Nocturne } from '@/theme';
  */
 
 export const NAP_STEP = 5;
-export const NAP_MIN = 5;
+/** iOS's floor for a nap window: shorter ones are always refused. */
+export const NAP_MIN = NAP_SHORTEST;
 export const NAP_MAX = 240;
 const COUNT = (NAP_MAX - NAP_MIN) / NAP_STEP + 1;
 /** Points between ticks. */
