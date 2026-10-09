@@ -33,10 +33,26 @@ type Setup = {
   blockNowUntil?: Date | null;
   always?: number;
   health?: Record<string, unknown>;
+  /** Tonight's night is switched on in the routine. */
+  tonightOn?: boolean;
+  /** The next night that's on (`nextNightOn`), when it isn't tonight. */
+  nextOn?: Date;
+  /** An emergency unlock paused the night until then (`getNightPause`). */
+  pause?: Date | null;
 };
 
 /** Renders Home once and returns what it hands HomeContent. */
-function home({ now, phase = 'day', trialEnd = null, blockNowUntil = null, always = 0, health = {} }: Setup) {
+function home({
+  now,
+  phase = 'day',
+  trialEnd = null,
+  blockNowUntil = null,
+  always = 0,
+  health = {},
+  tonightOn = true,
+  nextOn,
+  pause = null,
+}: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
   };
@@ -53,7 +69,11 @@ function home({ now, phase = 'day', trialEnd = null, blockNowUntil = null, alway
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@/components/app-tabs': { useTabBarInset: () => 0 },
     '@/hooks/use-health': { useHealth: () => [{ protection: 'on', level: 'ok', title: '', detail: '', ...health }] },
-    '@/lib/emergency': { getNightPause: () => null, heldPhase: (p: string) => p, pauseWording: () => ({}) },
+    '@/lib/emergency': {
+      getNightPause: () => pause,
+      heldPhase: (p: string) => (p === 'night' && pause ? 'day' : p),
+      pauseWording: () => ({ morning: 'tomorrow morning', resumes: new Date(2026, 9, 10, 23), weekday: null }),
+    },
     '@/lib/lock-controller': {
       lapseStillCovers: () => null,
       nextBedtime: () => new Date(2026, 9, 9, 23),
@@ -63,7 +83,7 @@ function home({ now, phase = 'day', trialEnd = null, blockNowUntil = null, alway
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { nextNightOn: (d: Date | null) => d },
+    '@/lib/routine': { nextNightOn: (d: Date) => nextOn ?? d, nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
       isScreenTimeAvailable: () => true,
@@ -151,5 +171,20 @@ describe('Home on a night that’s switched off', () => {
   test('a Block now that ended no longer leads', () => {
     const { hero } = home({ now, phase: 'off', blockNowUntil: new Date(2026, 9, 9, 22) });
     assert.equal(hero.title, 'Night off');
+  });
+});
+
+describe('Home by day when tonight is switched off', () => {
+  test('says tonight is off and names the next night, not "Bedtime in" as if it were tonight', () => {
+    // Friday 10:00, Friday and Saturday nights off: the next night that sleeps is Sunday 23:00.
+    const { hero } = home({ now: new Date(2026, 9, 9, 10), tonightOn: false, nextOn: new Date(2026, 9, 11, 23) });
+    assert.equal(hero.title, 'Tonight is off');
+    assert.equal(hero.body, `Your next bedtime is ${clockLabel(23 * 60)} on Sunday.`);
+    assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in/);
+  });
+
+  test('a night that’s on still counts down', () => {
+    const { hero } = home({ now: new Date(2026, 9, 9, 10) });
+    assert.match(hero.title, /^Bedtime in/);
   });
 });

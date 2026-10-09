@@ -69,6 +69,7 @@ export function dayHero({
   line,
   until,
   sleepsAt,
+  offTonight = null,
 }: {
   /** `rollUpHealth` said `attention`: its title and detail, or null. */
   attention: { title: string; detail: string } | null;
@@ -80,10 +81,16 @@ export function dayHero({
   until: string | null;
   /** The next bedtime as a clock label, or null when every night is off. */
   sleepsAt: string | null;
+  /**
+   * Tonight is switched off: the weekday of the next night that's on (`sleepsAt`), which
+   * isn't tonight, so the countdown would read as tonight's bedtime. Null when tonight is on.
+   */
+  offTonight?: string | null;
 }): { title: string; body: string } {
   if (attention) return { title: attention.title, body: attention.detail };
   if (!sleepsAt || !until) return { title: 'No bedtime scheduled', body: 'Every night is switched off, so nothing sleeps.' };
   if (!scheduled) return { title: 'No bedtime scheduled', body: line };
+  if (offTonight) return { title: 'Tonight is off', body: `Your next bedtime is ${sleepsAt} on ${offTonight}.` };
   return { title: `Bedtime in ${until}`, body: `Your apps go to sleep at ${sleepsAt}. Start winding down before then.` };
 }
 

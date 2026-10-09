@@ -14,7 +14,7 @@ import { dateKey } from '@/lib/lock-state';
 import { getMorningsWon, getProofs } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { nextNightOn } from '@/lib/routine';
+import { nextNightOn, nightAt } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import { isScreenTimeAvailable, isStoodDown, nightLockArmed, selectionSize } from '@/lib/screen-time';
 import { clockLabel } from '@/lib/shield-copy';
@@ -77,6 +77,10 @@ export function HomeScreen() {
   const sleepsAt = next && pause && next < pause ? pause : next;
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
+  // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
+  // name that night's weekday rather than count down as if it were tonight's.
+  const offTonight =
+    !pause && sleepsAt && !nightAt(nextBedtime(now), now).on ? sleepsAt.toLocaleDateString('en-US', { weekday: 'long' }) : null;
 
   // By day (or a night nothing holds), never name a bedtime that won't lock: no subscription,
   // Ask to Buy waiting, arming failed or a lapse say so instead, and offer the plans when
@@ -109,11 +113,12 @@ export function HomeScreen() {
               line: awakeLine({
                 armed,
                 stoodDown,
-                tonightAt: sleepsAt ? clockAt(sleepsAt) : null,
+                tonightAt: sleepsAt && !offTonight ? clockAt(sleepsAt) : null,
                 alwaysSleeps,
               }),
               until: minutes === null ? null : duration(minutes),
               sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
+              offTonight,
             })
           : heroFor(phase, clockLabel(routine.morningStart));
   const action = unprotected

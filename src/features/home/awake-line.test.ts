@@ -92,6 +92,11 @@ describe('dayHero', () => {
     assert.doesNotMatch(`${hero.title} ${hero.body}`, /Bedtime in|11:00 PM/);
   });
 
+  test('tonight off: says so and names the next night, no countdown that reads as tonight', () => {
+    const hero = dayHero({ ...base, until: '61h', attention: null, offTonight: 'Sunday' });
+    assert.deepEqual(hero, { title: 'Tonight is off', body: 'Your next bedtime is 11:00 PM on Sunday.' });
+  });
+
   test('every night off', () => {
     assert.equal(dayHero({ ...base, sleepsAt: null, until: null, attention: null }).title, 'No bedtime scheduled');
   });
