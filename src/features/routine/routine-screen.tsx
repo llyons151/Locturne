@@ -168,7 +168,7 @@ export function RoutineScreen() {
     // tab is reachable. Guarded anyway: a save here would be the first routine, and with one
     // saved onboarding never opens again (`useAppStart`).
     if (!hasRoutine()) return;
-    const wasWaiting = from !== null;
+    const wasWaiting = load().from !== null;
     // Inside a waiting edit's early first night, that edit governs tonight: this one waits
     // for its next bedtime rather than handing tonight back to the old, later bedtime.
     const savedAt = new Date();
@@ -200,7 +200,9 @@ export function RoutineScreen() {
     }
     rescheduleNotifications().catch(() => {});
   };
-  const set = (patch: Partial<Routine>) => commit({ ...saved, ...patch });
+  // From the store, not this render's `saved`: leaving the app mid-edit saves both time rows in
+  // one AppState event, before React renders again, and the second would undo the first.
+  const set = (patch: Partial<Routine>) => commit({ ...load().saved, ...patch });
 
   const options = methods(saved.stepGoal);
   // Scan picked with no code saved: the setup, offered only when it's allowed (not from bed).
@@ -296,14 +298,14 @@ export function RoutineScreen() {
           value={saved.bedtime}
           onChange={(bedtime) => set({ bedtime })}
           presets={BEDTIME_PRESETS}
-          invalid={(m) => nightRefusal(m, saved.morningStart)}
+          invalid={(m) => nightRefusal(m, load().saved.morningStart)}
         />
         <TimeRow
           title="Morning start"
           value={saved.morningStart}
           onChange={(morningStart) => set({ morningStart })}
           presets={MORNING_PRESETS}
-          invalid={(m) => nightRefusal(saved.bedtime, m)}
+          invalid={(m) => nightRefusal(load().saved.bedtime, m)}
           last
         />
       </Card>
