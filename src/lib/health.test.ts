@@ -137,6 +137,25 @@ test('nights before the log is complete are unknown, never missed or on time', (
   );
 });
 
+test('a night the full log cut off partway through is unknown, never late or noShield', () => {
+  // The log kept only what came after 02:38 on Oct 3: that night's 23:00 to 02:38 starts are gone.
+  const coverageStart = at(3, 2, 38).getTime();
+  const kept = [start(at(3, 2, 38), true, 'night-5'), start(at(3, 23)), start(at(3, 23, 45), true, 'night-1')];
+  const nights = check(kept, at(4, 8), { coverageStart });
+  assert.deepEqual(
+    nights.map((n) => [n.morningKey, n.verdict]),
+    [
+      ['2026-10-04', 'onTime'],
+      ['2026-10-03', 'unknown'],
+      ['2026-10-02', 'unknown'],
+    ],
+  );
+  // Only unshielded windows survived: the dropped ones may have held, so not noShield either.
+  assert.equal(check([start(at(3, 2, 38), false, 'night-5')], at(4, 8), { coverageStart })[1].verdict, 'unknown');
+  // A cut that kept the on-time bedtime start still proves the night.
+  assert.equal(check([start(at(2, 23)), ...kept], at(4, 8), { coverageStart: at(2, 23).getTime() })[1].verdict, 'onTime');
+});
+
 test('heartbeatCoverage', () => {
   const now = at(4, 8);
   const full = Array.from({ length: 3 }, (_, i) => start(at(3, 20 + i)));

@@ -178,15 +178,18 @@ export function checkNights(facts: NightFacts): NightCheck[] {
     // have no shield evidence and keep their existing callback-only semantics.
     const protectedStarts = ran.filter((h) => h.nightPicked !== false && h.shielded !== false);
     const first = protectedStarts[0] ?? ran[0];
+    const onTime = protectedStarts.length > 0 && protectedStarts[0].at <= start.getTime() + ON_TIME_GRACE * MINUTE;
     let verdict: NightVerdict;
     if (facts.zoneChangedAt && start.getTime() < facts.zoneChangedAt) verdict = 'unknown';
-    else if (!first) verdict = coverageStart !== null && start.getTime() < coverageStart ? 'unknown' : 'missed';
+    // The log may have dropped this night's first windows: only an on-time start it kept proves anything.
+    else if (coverageStart !== null && start.getTime() - EARLY_SLACK < coverageStart && !onTime) verdict = 'unknown';
+    else if (!first) verdict = 'missed';
     // An empty bedtime list puts nothing to sleep, even with another list's shield up.
     else if (protectedStarts.length === 0) {
       const inPause = (at: number) => facts.pauses?.some((p) => at >= p.from && at < p.until) ?? false;
       verdict = facts.paused?.includes(dateKey(end)) || ran.every((h) => inPause(h.at)) ? 'unknown' : 'noShield';
     }
-    else verdict = first.at <= start.getTime() + ON_TIME_GRACE * MINUTE ? 'onTime' : 'late';
+    else verdict = onTime ? 'onTime' : 'late';
 
     checks.push({
       morningKey: dateKey(end),
