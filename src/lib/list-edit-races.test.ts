@@ -57,3 +57,17 @@ test('an edit that removes every app does empty the list at bedtime', () => {
   st.settleListChanges(new Date(Date.now() + 2000));
   assert.equal(fake.ids().night, undefined);
 });
+
+test('a waiting removal that settles while the picker is open is not read as an emptied list', () => {
+  // A removal saved earlier waits for bedtime in the draft...
+  const bedtime = Date.now() + 60_000;
+  fake.ids()['night-next'] = 'fewer-picks';
+  fake.state.store['locturne.pendingLists'] = { night: { from: bedtime } };
+  // ...the picker opens on it, bedtime starts and swaps it in, then the picker closes unchanged.
+  st.beginListEdit('night');
+  assert.deepEqual(st.settleListChanges(new Date(bedtime)), ['night']);
+  assert.equal(fake.ids()['night-next'], undefined);
+  assert.equal(st.finishListEdit('night', new Date(bedtime + 24 * 3600_000)), 'now');
+  assert.equal(st.listChangeStarts('night'), null, 'nothing waits to empty the list');
+  assert.equal(fake.ids().night, 'fewer-picks');
+});

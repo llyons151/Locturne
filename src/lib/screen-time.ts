@@ -838,6 +838,14 @@ export function selectionSizeAfterChange(list: StandingList): number {
 }
 
 /**
+ * Whether each list's open edit started while a change was waiting. If that change settles
+ * mid-edit (bedtime starts with the picker open), the swap removes the draft, and a picker
+ * closed without a change writes nothing back: the missing draft must not read as "removed
+ * everything" (`finishListEdit`).
+ */
+const editBegunOnWaiting: Partial<Record<StandingList, boolean>> = {};
+
+/**
  * Gets the draft ready and returns its id, for Apple's picker. If removals are already
  * waiting, the draft still holds them, so the picker opens on the list as it will be.
  */
@@ -845,6 +853,7 @@ export function beginListEdit(list: StandingList): DraftId {
   // Also when a change is waiting but its draft is gone: `editedSelection` shows the live list
   // then, so the edit starts from it too (a swipe would otherwise find nothing to remove).
   const pending = getPendingLists()[list];
+  editBegunOnWaiting[list] = !!pending;
   if (!pending || (!pending.empty && !hasSelection(draftId(list)))) copySelection(list, draftId(list));
   return draftId(list);
 }
@@ -859,6 +868,12 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
   const live = { activitySelectionId: list };
   const next = { activitySelectionId: draft };
   const waiting = getPendingLists()[list];
+  const begunOnWaiting = editBegunOnWaiting[list];
+  delete editBegunOnWaiting[list];
+  // The change this edit opened on settled while the picker was open: it took the draft live
+  // and removed it. With no draft written since, the picker closed unchanged, so the list
+  // already is the edit; don't take the missing draft as an emptied pick.
+  if (begunOnWaiting && !waiting && !hasSelection(draft)) return 'now';
   // The live list is empty because an emergency unlock parked its picks in the draft for the
   // rest of tonight (`pauseNightUntil`). Copying the draft live now would put the bedtime
   // apps back to sleep in a paused night; it stays the list from the end of the pause
