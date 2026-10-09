@@ -9,6 +9,8 @@
  * - Back from the background: live updates stopped while away, so listen again (the watcher
  *   counts from zero; `restartLive` keeps what was credited) and read history to bank the
  *   steps walked meanwhile.
+ * - Back while Motion & Fitness is off: read the permission again, so turning it on from the
+ *   denied screen's Open Settings starts counting without reopening the screen.
  * - Stopped: everything is removed, and nothing reports after that, even a read in flight.
  */
 import { addHistory, addLive, restartLive, startCount, type StepCount } from './steps.ts';
@@ -30,6 +32,7 @@ type Subscription = { remove: () => void };
 export type StepSensor = {
   isAvailableAsync: () => Promise<boolean>;
   requestPermissionsAsync: () => Promise<{ granted: boolean }>;
+  getPermissionsAsync: () => Promise<{ granted: boolean }>;
   getStepCountAsync: (start: Date, end: Date) => Promise<{ steps: number }>;
   watchStepCount: (callback: (result: { steps: number }) => void) => Subscription;
 };
@@ -64,6 +67,9 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
   let count: StepCount | null = null;
   let watch: Subscription | null = null;
   let poll: unknown = null;
+  let denied = false;
+  /** A permission re-read on return is in flight, so a second 'active' doesn't start another. */
+  let rechecking = false;
 
   const update = (next: StepCount) => {
     count = next;
@@ -95,29 +101,58 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
     });
   };
 
+  /** Permission granted: read history, start counting, listen live and poll. */
+  const begin = async () => {
+    // A query can fail even with a working, authorized motion chip. Start live
+    // counting anyway; the regular history poll catches up when queries recover.
+    const steps = await readHistory().catch(() => 0);
+    if (stopped) return;
+    update(startCount(goal, steps, now()));
+    status('counting');
+    subscribe();
+    poll = every(refresh, HISTORY_EVERY_MS);
+  };
+
   (async () => {
     try {
       if (!deps.isIOS || !(await pedometer.isAvailableAsync())) return status('unavailable');
       if (stopped) return;
       const permission = await pedometer.requestPermissionsAsync();
       if (stopped) return;
-      if (!permission.granted) return status('denied');
-      // A query can fail even with a working, authorized motion chip. Start live
-      // counting anyway; the regular history poll catches up when queries recover.
-      const steps = await readHistory().catch(() => 0);
-      if (stopped) return;
-      update(startCount(goal, steps, now()));
-      status('counting');
-      subscribe();
-      poll = every(refresh, HISTORY_EVERY_MS);
+      if (!permission.granted) {
+        denied = true;
+        return status('denied');
+      }
+      await begin();
     } catch {
       status('unavailable');
     }
   })();
 
+  // Back from Settings with Motion & Fitness now on: start counting as on open.
+  const recheck = async () => {
+    rechecking = true;
+    try {
+      const permission = await pedometer.getPermissionsAsync();
+      if (stopped || !denied || !permission.granted) return;
+      denied = false;
+      status('starting');
+      await begin();
+    } catch {
+      // Still denied as far as anyone can tell; the next return asks again.
+    } finally {
+      rechecking = false;
+    }
+  };
+
   // Live updates stop in the background; on return, catch up from history and listen again.
   const appState = onAppState((state) => {
-    if (state !== 'active' || !count || stopped) return;
+    if (state !== 'active' || stopped) return;
+    if (denied && !rechecking) {
+      recheck();
+      return;
+    }
+    if (!count) return;
     subscribe();
     refresh();
   });

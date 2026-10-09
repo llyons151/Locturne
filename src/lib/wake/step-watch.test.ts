@@ -25,6 +25,7 @@ function makeWorld() {
     available: true as boolean | Error,
     granted: true,
     prompts: 0,
+    permissionReads: 0,
     /** Steps since morning start that the motion chip reports. */
     history: 50,
     historyFails: false,
@@ -52,6 +53,10 @@ function setup(before: (world: World) => void = () => {}, overrides: Partial<Ste
       },
       requestPermissionsAsync: async () => {
         world.prompts++;
+        return { granted: world.granted };
+      },
+      getPermissionsAsync: async () => {
+        world.permissionReads++;
         return { granted: world.granted };
       },
       getStepCountAsync: async (start, end) => {
@@ -229,6 +234,42 @@ describe('step watch', () => {
     await settle();
     assert.deepEqual(t.world.statuses, ['denied']);
     assert.equal(t.world.watchers.length, 0);
+  });
+
+  test('turned on from Settings while denied: counting starts on return, once', async () => {
+    const t = setup((w) => void (w.granted = false));
+    await settle();
+    t.appState('background');
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.statuses, ['denied'], 'still off: stays denied');
+    assert.equal(t.world.watchers.length, 0);
+
+    t.world.granted = true;
+    t.appState('background');
+    t.appState('active');
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.statuses, ['denied', 'starting', 'counting']);
+    assert.equal(t.world.prompts, 1, 'reads the permission again, never prompts again');
+    assert.equal(t.world.watchers.length, 1, 'two quick returns start one watcher');
+    assert.equal(t.world.timers.size, 1);
+    assert.equal(t.steps(), 50);
+
+    t.walk(10, 5);
+    assert.equal(t.steps(), 60);
+  });
+
+  test('stopped while re-reading the permission: nothing starts', async () => {
+    const t = setup((w) => void (w.granted = false));
+    await settle();
+    t.world.granted = true;
+    t.appState('active');
+    t.stop();
+    await settle();
+    assert.deepEqual(t.world.statuses, ['denied']);
+    assert.equal(t.world.watchers.length, 0);
+    assert.equal(t.world.timers.size, 0);
   });
 });
 
