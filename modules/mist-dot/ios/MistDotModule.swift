@@ -103,8 +103,10 @@ final class MistDotView: ExpoView {
       center.addObserver(
         forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
       ) { [weak self] _ in self?.updateRunning() },
+      // Not willEnterForeground: the app still reads as .background there, so the loop would
+      // stay stopped. By didBecomeActive the state is .active.
       center.addObserver(
-        forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
+        forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
       ) { [weak self] _ in self?.updateRunning() },
     ]
     updateRunning()
