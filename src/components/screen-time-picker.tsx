@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { DeviceActivitySelectionSheetViewPersisted } from 'react-native-device-activity';
 
-import type { SelectionId } from '@/lib/screen-time';
+import { notePickerSelection, type SelectionId } from '@/lib/screen-time';
 
 /**
  * Apple's own app picker, as a native sheet with Cancel/Done. The UI half of
@@ -38,7 +38,9 @@ export function ScreenTimePicker({
       style={styles.anchor}
       onDismissRequest={onClose}
       onSelectionChange={(event) => {
-        const { applicationCount, categoryCount } = event.nativeEvent;
+        const { applicationCount, categoryCount, webDomainCount } = event.nativeEvent;
+        // An emptied draft is removed rather than saved: `finishListEdit` needs to hear it.
+        notePickerSelection(list, applicationCount + categoryCount + webDomainCount);
         onPicked?.({ apps: applicationCount, categories: categoryCount });
       }}
     />

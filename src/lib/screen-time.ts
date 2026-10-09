@@ -847,6 +847,19 @@ export function selectionSizeAfterChange(list: StandingList): number {
 const editBegunOnWaiting: Partial<Record<StandingList, boolean>> = {};
 
 /**
+ * How many picks Apple's picker last reported for each list's open edit, or none if it reported
+ * nothing (closed unchanged). An emptied pick is written as a missing draft, the same as nothing
+ * written, so only this tells them apart once a waiting change settled mid-edit.
+ */
+const editPicked: Partial<Record<StandingList, number>> = {};
+
+/** Apple's picker reported `picks` (apps, categories and sites) for `id`: the draft of an open edit. */
+export function notePickerSelection(id: SelectionId, picks: number): void {
+  const list = (Object.keys(editBegunOnWaiting) as StandingList[]).find((open) => draftId(open) === id);
+  if (list) editPicked[list] = picks;
+}
+
+/**
  * Gets the draft ready and returns its id, for Apple's picker. If removals are already
  * waiting, the draft still holds them, so the picker opens on the list as it will be.
  */
@@ -855,6 +868,7 @@ export function beginListEdit(list: StandingList): DraftId {
   // then, so the edit starts from it too (a swipe would otherwise find nothing to remove).
   const pending = getPendingLists()[list];
   editBegunOnWaiting[list] = !!pending;
+  delete editPicked[list];
   if (!pending || (!pending.empty && !hasSelection(draftId(list)))) copySelection(list, draftId(list));
   return draftId(list);
 }
@@ -870,11 +884,14 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
   const next = { activitySelectionId: draft };
   const waiting = getPendingLists()[list];
   const begunOnWaiting = editBegunOnWaiting[list];
+  const picked = editPicked[list];
   delete editBegunOnWaiting[list];
+  delete editPicked[list];
   // The change this edit opened on settled while the picker was open: it took the draft live
   // and removed it. With no draft written since, the picker closed unchanged, so the list
-  // already is the edit; don't take the missing draft as an emptied pick.
-  if (begunOnWaiting && !waiting && !hasSelection(draft)) return 'now';
+  // already is the edit; don't take the missing draft as an emptied pick. Unless the picker
+  // reported zero picks: every app deselected, which waits for bedtime like any removal.
+  if (begunOnWaiting && !waiting && !hasSelection(draft) && picked !== 0) return 'now';
   // The live list is empty because an emergency unlock parked its picks in the draft for the
   // rest of tonight (`pauseNightUntil`). Copying the draft live now would put the bedtime
   // apps back to sleep in a paused night; it stays the list from the end of the pause
