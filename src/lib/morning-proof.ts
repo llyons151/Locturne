@@ -129,6 +129,20 @@ export function getMorningsWon(): number {
   return sharedGet<number>(WON_KEY) ?? winsIn(getProofs()).size;
 }
 
+const FIRST_KEY = 'locturne.firstMorning';
+
+/**
+ * The morning key of the first morning you got up (the You tab's "since"), or null before
+ * one. Kept on its own like the count: the proofs list drops its oldest. Before it was kept,
+ * the oldest real wake-up on hand.
+ */
+export function getFirstMorning(): string | null {
+  const saved = sharedGet<string>(FIRST_KEY);
+  if (saved) return saved;
+  const keys = [...winsIn(getProofs())].sort();
+  return keys[0] ?? null;
+}
+
 /**
  * The proof that unlocked `morning` (`currentMorning` under the routine governing now), or
  * null. `currentProof` (lock-controller.ts) asks it for the morning under way.
@@ -162,6 +176,7 @@ export function recordProof(proof: MorningProof, governing?: { routine: Routine;
   // count the first time the counter is written): once per morning key, as a key replayed
   // after a flight west is still one morning.
   const won = isWin(saved) && !winsIn(all).has(saved.morningKey) ? 1 : 0;
+  if (won && !sharedGet<string>(FIRST_KEY)) sharedSet(FIRST_KEY, getFirstMorning() ?? saved.morningKey);
   sharedSet(WON_KEY, getMorningsWon() + won);
   sharedSet(KEY, [saved, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();

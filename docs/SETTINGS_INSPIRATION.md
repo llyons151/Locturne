@@ -32,3 +32,45 @@ every card looks the same, so nothing comes first.
 2. A small Stats group (Not Boring Camera) — the never-reset count lives well here.
 3. "Loc's tone" with sample lines (Bevel / Wispr), via a native picker or sheet.
 4. Remaining groups as plain native grouped rows with descriptions (Halide, Oura).
+
+## Round 2 — 2026-10-10: the page works, it just has no point of view
+
+The 10-09 pattern is already built (plan card, grouped rows, tone menu), so it reads
+like every settings screen. What's missing is the *you* in "You", and Loc.
+
+Diagnosis of the current screen:
+- The loudest thing on the page is the light-blue Help & Feedback banner. Help should be quiet.
+- Two long grey footers (Ways out, General) read as legal text. Cut each to one short line.
+- Nothing on the page is about the person or their record. It's controls only.
+
+Ideas, best first:
+
+1. **One big number at the top** — Brink "You've listened for 25 min"
+   (https://mobbin.com/screens/cd9a656d-8142-48df-90ed-f38bc7f36c53), Abode stat strip
+   (https://mobbin.com/screens/9822c6c1-3fa7-4815-9cc0-da057fba14b2). Locturne: "14 mornings out of bed"
+   (never-reset count) + "since Sep 30", tap for a small stats sheet (best run, nights slept, passes used).
+   Plan card moves under it.
+2. **Give Loc his own page** — CARROT Weather has a whole personality screen: a slider from
+   briefcase to bomb with a live description (https://mobbin.com/screens/068a5a5c-dcc3-4319-9f9e-ce455bf3169c)
+   and a CARROT tab with achievements (https://mobbin.com/screens/af6d9695-1f27-48ef-9362-3b387f3fad7e).
+   Locturne: "Loc" row → page with the silhouette saying a sample line at the chosen grumpiness, then
+   the level picker. "How grumpy Loc is" stops being a dropdown nobody understands.
+3. **Easter-egg rows** — CARROT's "Self-Destruct" answers with "Oh Meatbag, did you really think you
+   could get rid of me that easily?" (https://mobbin.com/screens/01673da2-49b3-4eb6-b69d-c09dbb62da90).
+   Locturne: a "Fire Loc" row whose alert is an unhinged Loc line, and a footer like
+   "Locturne 1.0 · Loc has not slept since 2019". Free, on-brand, screenshot-able for videos.
+4. **App icons** — Bevel special icons (https://mobbin.com/screens/22feee3e-2ecb-4b8c-b7c0-62d6fc9f3b88),
+   Me+ mascot icons (https://mobbin.com/screens/66d03e78-5d84-4ef2-bf16-517f100335c1). Loc asleep /
+   Loc awake / plain moon; optionally earned at mornings 7, 30, 100 (rewards, not punishments).
+5. **"Put Loc on your phone" tiles** — Vocabulary's illustrated 2×2 "Customize the app" grid
+   (https://mobbin.com/screens/7ead708d-8087-4e0c-855a-f651612b197b): Widgets, Lock Screen, StandBy,
+   App icon. Lands once WIDGETS.md ships; until then just App icon.
+
+Suggested order on the page: big number → plan → Loc → Ways out → Wake-up (steps) → Notifications →
+quiet Help/legal group → joke footer.
+
+**Built 2026-10-10:** ideas 1–3. The record number + "since" date (new `getFirstMorning` in
+morning-proof.ts), the Loc card (src/features/you/loc-card.tsx: his line in a bubble, native
+segmented tone control), Help as a plain row, shorter footers, "Fire Loc" + sign-off
+(src/features/you/fire-loc.ts). Not built: app icons (needs icon art + a native alternate-icons
+module) and the widget tiles (wait for widgets).

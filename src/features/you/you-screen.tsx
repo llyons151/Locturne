@@ -12,7 +12,6 @@ import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTabBarInset } from '@/components/app-tabs';
 import { type MenuOption } from '@/components/control-types';
 import { MenuRow, SwitchRow } from '@/components/controls';
 import { Card, sym, ValueRow } from '@/components/grouped-list';
@@ -30,22 +29,28 @@ import {
   type NotificationPrefs,
 } from '@/lib/notifications';
 import { onLockChange, readLock, syncLock } from '@/lib/lock-controller';
-import { getTone, setTone, TONE_LABEL, TONES, type Tone } from '@/lib/tone';
+import { getFirstMorning, getMorningsWon } from '@/lib/morning-proof';
+import { getTone, setTone, type Tone } from '@/lib/tone';
 import { getPassesLeft } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { getScanCode } from '@/lib/scan';
-import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
+import { DISPLAY_MAX_SCALE, Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
 
+import { morningsLabel } from '@/features/home/week';
 import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
+
+import { refusal, SIGN_OFF } from './fire-loc';
+import { LocCard } from './loc-card';
 
 /**
  * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up
  * method, Apps holds both lists, and Home says whether he's working, so this is where you
- * find the ways out, set the step target once, and manage notifications and the subscription.
+ * find your record, Loc, the ways out, the step target, notifications and the subscription.
  *
- * Laid out like Jomo's Settings (user's reference, 2026-10-09): the plan card, a Help &
- * Feedback banner, then titled groups of rows, the humane exits before account things.
- * No stats or charts; history lives on the morning share card.
+ * Round 2 (docs/SETTINGS_INSPIRATION.md, 2026-10-10): your record first, one big number like
+ * Brink's profile; then the plan card (Jomo); then Loc, whose tone you set by hearing him
+ * (CARROT Weather); then titled groups of rows, the humane exits before account things. Help
+ * is a quiet row now, and the page ends on a joke: "Fire Loc" (CARROT's Self-Destruct).
  *
  * Passes, the emergency unlock and the scan code open the exits and scan screens; the plan
  * and Restore are src/lib/purchases.ts; the notification switches are saved and redo the
@@ -54,8 +59,6 @@ import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
  */
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
-
-const TONE_OPTIONS: MenuOption<Tone>[] = TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }));
 
 const STEP_GOALS: MenuOption<number>[] = [100, 200, 300, 500].map((n) => ({ value: n, label: `${n} steps` }));
 
@@ -87,6 +90,30 @@ function helpOrFeedback() {
   );
 }
 
+/** "Sep 30", or "Sep 30, 2025" from another year, for a `morningKey`. */
+function dayOf(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const sameYear = year === new Date().getFullYear();
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+}
+
+/** Asks, then he refuses. Changes nothing (fire-loc.ts). */
+function fireLoc() {
+  Alert.alert('Fire Loc?', 'He’ll be removed from Locturne and from your life.', [
+    { text: 'Keep him', style: 'cancel' },
+    {
+      text: 'Fire him',
+      style: 'destructive',
+      onPress: () => {
+        haptic.thud();
+        const r = refusal();
+        Alert.alert(r.title, r.line, [{ text: r.ok }]);
+      },
+    },
+  ]);
+}
+
 const trialDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 /**
@@ -101,7 +128,6 @@ function rate() {
 
 export function YouScreen() {
   const insets = useSafeAreaInsets();
-  const bottom = useTabBarInset();
   const scroll = useRef<ScrollView>(null);
   useTopOnLeave(scroll);
 
@@ -136,8 +162,10 @@ export function YouScreen() {
     passesLeft: getPassesLeft(),
     // As set, a waiting edit included: Routine's banner says when it starts.
     stepGoal: getSetRoutine().stepGoal,
+    mornings: getMorningsWon(),
+    first: getFirstMorning(),
   });
-  const [{ inTrial, trialEnd, passesLeft, stepGoal }, setFacts] = useState(read);
+  const [{ inTrial, trialEnd, passesLeft, stepGoal, mornings, first }, setFacts] = useState(read);
   const setStepGoal = (goal: number) => {
     applyRoutineEdit({ ...getSetRoutine(), stepGoal: goal });
     setFacts(read());
@@ -198,13 +226,22 @@ export function YouScreen() {
   return (
     <ScrollView
       ref={scroll}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: Gap.gutter }]}
     >
-      {/* Long press for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
-      <Pressable onLongPress={() => router.push('/diagnostics')} delayLongPress={800} style={styles.titleWrap}>
-        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-          You
+      {/* No page title (user, 2026-10-10: "remove the you"); the record leads. Long press it for
+          beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
+      <Pressable
+        onLongPress={() => router.push('/diagnostics')}
+        delayLongPress={800}
+        style={styles.record}
+        accessible
+        accessibilityLabel={`${mornings} ${morningsLabel(mornings)} out of bed${first ? `, since ${dayOf(first)}` : ''}`}
+      >
+        <Text style={styles.recordNumber} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+          {mornings}
         </Text>
+        <Text style={styles.recordLabel}>{morningsLabel(mornings)} out of bed</Text>
+        <Text style={styles.recordSince}>{first ? `Since ${dayOf(first)}. Never resets.` : 'Your first one is the next morning.'}</Text>
       </Pressable>
 
       <Card>
@@ -240,37 +277,25 @@ export function YouScreen() {
         </View>
       </Card>
 
-      <Pressable
-        onPress={() => {
-          haptic.tap();
-          helpOrFeedback();
-        }}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
-      >
-        <SymbolView name={sym('exclamationmark.bubble.fill', 'feedback')} size={22} tintColor={Nocturne.onCta} />
-        <View style={styles.bannerText}>
-          <Text style={styles.bannerTitle}>Help & Feedback</Text>
-          <Text style={styles.bannerLine}>Get help or tell me what’s broken.</Text>
-        </View>
-        <SymbolView name={sym('chevron.right', 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.onCta} />
-      </Pressable>
+      <Text style={styles.heading} accessibilityRole="header">
+        Loc
+      </Text>
+      <LocCard tone={tone} onChange={changeTone} />
 
       <Text style={styles.heading} accessibilityRole="header">
         Ways out
       </Text>
-      <Card footer={`Passes refill on ${refillDate(new Date())}. For sick days, travel, or a baby asleep in the room.`}>
+      <Card footer={`For sick days and travel. Passes refill on ${refillDate(new Date())}.`}>
         <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} />
         <ValueRow icon={sym('light.beacon.max.fill', 'emergency')} title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
         <ValueRow icon={sym('figure.roll', 'accessible')} title="Can’t walk or use stairs" value="" onPress={cantWalk} last />
       </Card>
 
       <Text style={styles.heading} accessibilityRole="header">
-        General
+        Wake-up
       </Text>
-      <Card footer="Steps count for the walking wake-up and the fallback; a new target starts from the next bedtime. Loc’s tone changes his words, never the rules, so it applies now.">
-        <MenuRow icon={sym('figure.walk', 'directions_walk')} title="Step target" value={stepGoal} options={STEP_GOALS} onChange={setStepGoal} />
-        <MenuRow icon={sym('theatermasks.fill', 'theater_comedy')} title="How grumpy Loc is" value={tone} options={TONE_OPTIONS} onChange={changeTone} last />
+      <Card footer="A new target starts from the next bedtime.">
+        <MenuRow icon={sym('figure.walk', 'directions_walk')} title="Step target" value={stepGoal} options={STEP_GOALS} onChange={setStepGoal} last />
       </Card>
 
       <Text style={styles.heading} accessibilityRole="header">
@@ -292,6 +317,7 @@ export function YouScreen() {
         About
       </Text>
       <Card>
+        <ValueRow icon={sym('questionmark.bubble.fill', 'help')} title="Help & feedback" value="" onPress={helpOrFeedback} />
         <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={rate} />
         <ValueRow icon={sym('arrow.clockwise', 'restore')} title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} />
         <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
@@ -299,19 +325,41 @@ export function YouScreen() {
       </Card>
 
       {__DEV__ ? (
-        <Card icon={sym('hammer.fill', 'build')} title="Developer">
-          <ValueRow title="Screen Time lab" value="" onPress={() => router.push('/screen-time-lab')} last />
-        </Card>
+        <>
+          <Text style={styles.heading} accessibilityRole="header">
+            Developer
+          </Text>
+          <Card>
+            <ValueRow icon={sym('hammer.fill', 'build')} title="Screen Time lab" value="" onPress={() => router.push('/screen-time-lab')} last />
+          </Card>
+        </>
       ) : null}
+
+      <Text style={styles.signOff}>
+        Locturne {Constants.expoConfig?.version ?? ''}
+        {'\n'}
+        {SIGN_OFF}
+      </Text>
+
+      <Card style={styles.fire}>
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            fireLoc();
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.fireRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.fireText}>Fire Loc</Text>
+        </Pressable>
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
-  title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
   // Only as wide as the word, so a long press elsewhere up top does nothing.
-  titleWrap: { alignSelf: 'flex-start', marginBottom: Gap.block },
 
   plan: { flexDirection: 'row', alignItems: 'center', gap: Space.m, padding: Space.l },
   planText: { flex: 1, gap: 2 },
@@ -329,20 +377,18 @@ const styles = StyleSheet.create({
   pillText: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
   pressed: { opacity: 0.7 },
 
-  // The one filled card on the tab, as in the reference: help is always one tap away.
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.m,
-    padding: Space.l,
-    marginBottom: Gap.section,
-    borderRadius: Radius.card,
-    borderCurve: 'continuous',
-    backgroundColor: Nocturne.accent ?? Nocturne.cta,
-  },
-  bannerText: { flex: 1, gap: 2 },
-  bannerTitle: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
-  bannerLine: { color: Nocturne.onCta, ...Type.secondary, opacity: 0.75 },
+  // Your record, centered under the title: the one big number on the tab.
+  record: { alignItems: 'center', marginBottom: Gap.section },
+  recordNumber: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 72, lineHeight: 78 },
+  recordLabel: { color: Nocturne.text, fontSize: 17, fontWeight: '600' },
+  recordSince: { color: Nocturne.text2, ...Type.caption, marginTop: 4 },
+
+  // The last thing on the page, as far from the panel's bottom edge as from its sides.
+  fire: { marginBottom: 0 },
+  fireRow: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  fireText: { color: '#FF453A', fontSize: 17 },
+  // The version and his line, a section's gap either side (cards keep Space.l under them), then Fire Loc last.
+  signOff: { color: Nocturne.text3, ...Type.caption, textAlign: 'center', marginTop: Gap.section - Space.l, marginBottom: Gap.section },
 
   // Title-case group headings outside the cards, like the reference's "General".
   heading: { color: Nocturne.text2, fontSize: 20, fontWeight: '700', marginLeft: Space.xs, marginTop: Space.s, marginBottom: Space.s },
