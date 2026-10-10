@@ -27,8 +27,8 @@ import {
 } from '@/components/app-icons';
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { GlassCard } from '@/components/glass-card';
+import { appsMoonRoom } from '@/components/night-sky';
 import { sym } from '@/components/grouped-list';
-import { Segmented } from '@/components/segmented';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { freeLimitId, limitLabel, MAX_LIMITS, type DailyLimit } from '@/lib/daily-limits';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
@@ -44,7 +44,7 @@ import {
   listChangeStarts,
   type SelectionId,
 } from '@/lib/screen-time';
-import { Gap, Nocturne, Space, Type } from '@/theme';
+import { APP_FONT, DISPLAY_MAX_SCALE, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { APPS, type AppEntry } from './catalog';
 import { useListActions } from './list-actions';
@@ -75,15 +75,53 @@ const ROW_PAD = 16;
 const ROW_HEIGHT = 56;
 
 type Tab = 'bedtime' | 'limit';
+/** Limits that still leave room under them for the raised moon (`appsMoonRoom`). */
+const MOON_ROOM_LIMITS = 2;
+
+/** Tells the sky whether this tab leaves room under its tiles for the raised moon. */
+function useMoonRoom(tab: Tab, limits: number) {
+  const room = tab === 'bedtime' || limits <= MOON_ROOM_LIMITS;
+  useEffect(() => appsMoonRoom.set(room), [room]);
+  useEffect(() => () => appsMoonRoom.set(true), []);
+}
+
+/** How many icons a tile shows before its "+N". */
+const TILE_ICONS = 4;
+
 const TABS: { value: Tab; label: string }[] = [
   { value: 'bedtime', label: 'Bedtime' },
-  { value: 'limit', label: 'Daily limit' },
+  { value: 'limit', label: 'Limits' },
 ];
-/** The tab switcher: a plain segmented control at the top of both tabs (docs/DAILY_LIMITS_LAYOUTS.md). */
+/**
+ * The page title is the tab switcher: both tabs' names in Routine's large, light title, the
+ * chosen one white and the other dimmed, a tap away, with a faint rule between them so it
+ * reads as a switch (user's pick, 2026-10-10; it replaced a segmented control under no title).
+ */
 function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
   return (
-    <View style={styles.switcher}>
-      <Segmented value={tab} options={TABS} onChange={onChange} label="Which apps" />
+    <View style={styles.switcher} accessibilityRole="tablist">
+      {TABS.map((t, i) => {
+        const on = t.value === tab;
+        return [
+          i > 0 ? <View key="rule" style={styles.switchRule} /> : null,
+          <Pressable
+            key={t.value}
+            style={[styles.switchSide, i === 0 ? styles.switchLeft : styles.switchRight]}
+            onPress={() => {
+              if (on) return;
+              haptic.tap();
+              onChange(t.value);
+            }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            hitSlop={Space.s}
+          >
+            <Text style={[styles.switchLabel, !on && styles.switchOff]} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+              {t.label}
+            </Text>
+          </Pressable>,
+        ];
+      })}
     </View>
   );
 }
@@ -156,6 +194,7 @@ function LiveAppsList() {
   const actions = useListActions();
   const { revision, limits, limitError, revoked, unpaid } = actions;
   const [tab, setTab] = useState<Tab>('bedtime');
+  useMoonRoom(tab, limits.length);
 
   const sizes = useMemo(
     // The lists as last chosen, a waiting change included (`editedSelection`).
@@ -165,10 +204,10 @@ function LiveAppsList() {
   );
 
   /**
-   * A list's first two picks (three crowd the title on a small phone), or its own symbol while
-   * it has none. The limit popup has the room for `most`.
+   * A list's first picks on their own row of the tile (four and a "+N" fit a small phone), or
+   * its own symbol while it has none. The limit popup has the room for `most`.
    */
-  const icons = (id: SelectionId, size: number, empty: ReactNode, most = 2) => {
+  const icons = (id: SelectionId, size: number, empty: ReactNode, most = TILE_ICONS) => {
     const shown = Math.min(most, size);
     return isBlockedAppsViewAvailable && shown > 0 ? (
       <BlockedAppsView
@@ -181,6 +220,9 @@ function LiveAppsList() {
       empty
     );
   };
+  const tileIcons = (id: SelectionId, size: number, empty: ReactNode) => (
+    <IconStrip more={size - TILE_ICONS}>{icons(id, size, empty)}</IconStrip>
+  );
 
   return (
     <>
@@ -212,13 +254,12 @@ function LiveAppsList() {
 
         {tab === 'bedtime' && (
           <View style={styles.tiles}>
-            <PageHeading title="Bedtime" about="Tap one to see all its apps." />
             {LIVE_GROUPS.map((group) => {
               const size = sizes[group.key].size;
               return (
                 <ListTile
                   key={group.key}
-                  icons={icons(sizes[group.key].id, size, <ListSymbol list={group.key} />)}
+                  icons={tileIcons(sizes[group.key].id, size, <ListSymbol list={group.key} />)}
                   title={group.label}
                   detail={size ? `${countPicks(size)} · ${group.when}` : 'No apps yet'}
                   status={listStatus(group.key, size)}
@@ -231,14 +272,7 @@ function LiveAppsList() {
 
         {tab === 'limit' && (
           <View style={styles.tiles}>
-            <PageHeading
-              title="Daily limits"
-              about={
-                limits.length === 0
-                  ? 'Give apps a time a day. Once it’s used up, they sleep until midnight.'
-                  : 'Tap one to change it.'
-              }
-            />
+            {limits.length === 0 ? <Text style={styles.empty}>{LIMITS_ABOUT}</Text> : null}
             {limits.map((limit) => {
               const usedUp = limitUsedUpToday(limit.id);
               const picks = editedSelection(limit.id);
@@ -247,7 +281,7 @@ function LiveAppsList() {
               return (
                 <ListTile
                   key={limit.id}
-                  icons={icons(picks.id, picks.size, <ListSymbol list="limit" />)}
+                  icons={tileIcons(picks.id, picks.size, <ListSymbol list="limit" />)}
                   // Named, the time moves down into the detail.
                   title={limit.name ?? daily}
                   // Screen Time only tells the app when a limit is used up, not the minutes so
@@ -373,14 +407,19 @@ export function limitNote(limit: Pick<DailyLimit, 'pending'>, usedUp: boolean, a
 export const liveLimitNote = (limit: DailyLimit) =>
   limitNote(limit, limitUsedUpToday(limit.id), listChangeStarts(limit.id));
 
-/** A tab's title, and what to do with the tiles under it. */
-function PageHeading({ title, about }: { title: string; about: string }) {
+/** The limit tab with no limits yet: what one does, above the New limit button. */
+const LIMITS_ABOUT = 'Give apps a time a day. Once it’s used up, they sleep until midnight.';
+
+/** A tile's icons, then a "+N" chip for the picks that don't fit. */
+function IconStrip({ more, children }: { more: number; children: ReactNode }) {
   return (
-    <View style={styles.pageHeading}>
-      <Text style={styles.pageTitle} accessibilityRole="header">
-        {title}
-      </Text>
-      <Text style={styles.pageAbout}>{about}</Text>
+    <View style={styles.strip}>
+      {children}
+      {more > 0 ? (
+        <View style={styles.more}>
+          <Text style={styles.moreLabel}>+{more}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -427,27 +466,27 @@ function ListTile({
     >
       <GlassCard dark>
         <View style={styles.tile}>
-          <View style={styles.tileRow}>
+          <View style={styles.tileTop}>
             {icons}
-            <View style={styles.tileText}>
-              <Text style={styles.tileTitle} numberOfLines={1}>
-                {title}
-              </Text>
-              <Text style={styles.tileDetail} numberOfLines={2}>
-                {detail}
-              </Text>
-            </View>
             <SymbolView
               name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-              size={14}
+              size={15}
               weight="semibold"
               tintColor={Nocturne.text3}
             />
           </View>
+          <View style={styles.tileText}>
+            <Text style={styles.tileTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            <Text style={styles.tileDetail} numberOfLines={2}>
+              {detail}
+            </Text>
+          </View>
           {status ? (
             <View style={styles.status}>
-              <SymbolView name={status.icon} size={13} tintColor={Nocturne.text2} />
-              <Text style={styles.tileDetail}>{status.text}</Text>
+              <SymbolView name={status.icon} size={14} tintColor={Nocturne.text2} />
+              <Text style={styles.statusText}>{status.text}</Text>
             </View>
           ) : null}
           {used != null ? (
@@ -474,21 +513,14 @@ function NewLimitButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-const STACK_STEP = 24;
-
-/** The preview's first two apps, the second tucked behind the first, as on the live tiles. */
-function StackedIcons({ names }: { names: string[] }) {
-  const shown = names.slice(0, 2);
+/** The preview's first apps in a row, then a "+N", as on the live tiles. */
+function PreviewIcons({ names }: { names: string[] }) {
   return (
-    <View style={[styles.stack, { width: ICON + Math.max(0, shown.length - 1) * STACK_STEP }]}>
-      {shown
-        .map((name, i) => (
-          <View key={name} style={[styles.stacked, { left: i * STACK_STEP }]}>
-            <AppIcon name={name} />
-          </View>
-        ))
-        .reverse()}
-    </View>
+    <IconStrip more={names.length - TILE_ICONS}>
+      {names.slice(0, TILE_ICONS).map((name) => (
+        <AppIcon key={name} name={name} />
+      ))}
+    </IconStrip>
   );
 }
 
@@ -527,6 +559,7 @@ function PreviewAppsList() {
 
   const { picks, limits } = usePreviewLists();
   const [tab, setTab] = useState<Tab>('bedtime');
+  useMoonRoom(tab, limits.length);
   // A new limit starts with its apps, as on an iPhone: the picker first, then its tile.
   const [adding, setAdding] = useState(false);
 
@@ -539,13 +572,12 @@ function PreviewAppsList() {
         <TabSwitch tab={tab} onChange={setTab} />
         {tab === 'bedtime' && (
           <View style={styles.tiles}>
-            <PageHeading title="Bedtime" about="Tap one to see all its apps." />
             {PREVIEW_GROUPS.map((group) => {
               const apps = picks[group.key];
               return (
                 <ListTile
                   key={group.key}
-                  icons={apps.length ? <StackedIcons names={apps} /> : <ListSymbol list={group.key === 'bedtime' ? 'night' : 'always'} />}
+                  icons={apps.length ? <PreviewIcons names={apps} /> : <ListSymbol list={group.key === 'bedtime' ? 'night' : 'always'} />}
                   title={group.label}
                   detail={apps.length ? `${countApps(apps.length)} · ${group.when}` : 'No apps yet'}
                   status={previewStatus(group.key, apps.length)}
@@ -558,20 +590,13 @@ function PreviewAppsList() {
 
         {tab === 'limit' && (
           <View style={styles.tiles}>
-            <PageHeading
-              title="Daily limits"
-              about={
-                limits.length === 0
-                  ? 'Give apps a time a day. Once it’s used up, they sleep until midnight.'
-                  : 'Tap one to change it.'
-              }
-            />
+            {limits.length === 0 ? <Text style={styles.empty}>{LIMITS_ABOUT}</Text> : null}
             {limits.map((limit, index) => {
               const usedUp = limit.used >= limit.minutes;
               return (
                 <ListTile
                   key={index}
-                  icons={<StackedIcons names={limit.apps} />}
+                  icons={<PreviewIcons names={limit.apps} />}
                   title={limit.name ?? namedBy(limit.apps)}
                   detail={`${limitLabel(limit.minutes)} a day · ${usedUp ? 'asleep until midnight' : `${limitLabel(limit.minutes - limit.used)} left`}`}
                   used={limit.used / limit.minutes}
@@ -715,23 +740,46 @@ const styles = StyleSheet.create({
   // the panel's bottom edge: the same distance as from its sides.
   content: { paddingHorizontal: Gap.gutter, paddingBottom: Gap.gutter, gap: Gap.section },
   header: { gap: Gap.headline },
-  tiles: { gap: Space.m },
-  switcher: { alignSelf: 'center', width: '100%', maxWidth: 340 },
-  pageHeading: { gap: Space.xs, alignItems: 'center', marginBottom: Space.s },
-  pageTitle: { color: Nocturne.text, fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.4, textAlign: 'center' },
-  pageAbout: { ...Type.body, color: Nocturne.text2, textAlign: 'center' },
-  tile: { padding: ROW_PAD, gap: 14 },
-  tileRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  tileText: { flex: 1, gap: 2 },
-  tileTitle: { color: Nocturne.text, fontSize: 17, lineHeight: 22, fontWeight: '600' },
-  tileDetail: { ...Type.caption, color: Nocturne.text2 },
-  status: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  tiles: { gap: Space.l },
+  // Each name takes half the row and hugs the rule, so the rule sits at the screen's centre.
+  switcher: { flexDirection: 'row', alignItems: 'center', gap: Space.l + Space.xs },
+  switchSide: { flex: 1 },
+  switchLeft: { alignItems: 'flex-end' },
+  switchRight: { alignItems: 'flex-start' },
+  switchRule: { width: StyleSheet.hairlineWidth * 2, height: 28, borderRadius: 1, backgroundColor: Nocturne.edge },
+  // Routine's title: large and light.
+  switchLabel: { ...APP_FONT, color: Nocturne.text, fontSize: 36, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6 },
+  switchOff: { color: Nocturne.text3 },
+  empty: { ...Type.body, color: Nocturne.text2, textAlign: 'center', marginHorizontal: Space.l },
+  tile: { padding: Space.l + Space.xs, gap: Space.l },
+  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.m },
+  strip: { flexDirection: 'row', alignItems: 'center', gap: Space.xs + 2 },
+  more: {
+    minWidth: ICON,
+    height: ICON,
+    paddingHorizontal: Space.s,
+    borderRadius: ICON / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  moreLabel: { ...Type.caption, color: Nocturne.text2, fontWeight: '600' },
+  tileText: { gap: Space.xs },
+  tileTitle: { color: Nocturne.text, fontSize: 21, lineHeight: 26, fontWeight: '700', letterSpacing: -0.3 },
+  tileDetail: { ...Type.secondary, color: Nocturne.text2 },
+  // How it stands now, set off from what it is by a hairline.
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s,
+    paddingTop: Space.m,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Nocturne.edge,
+  },
+  statusText: { ...Type.secondary, flex: 1, color: Nocturne.text },
   // Moon white on the palette's progress track, like the rest of the app's meters.
-  meter: { height: 4, borderRadius: 2, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
-  meterFill: { height: 4, borderRadius: 2, backgroundColor: Nocturne.accent ?? Nocturne.cta },
-  stack: { height: ICON },
-  // Each icon ringed in the card's colour, so the one behind reads as tucked under it.
-  stacked: { position: 'absolute', top: -2, padding: 2, borderRadius: ICON / 2 + 2, backgroundColor: '#0B0E16' },
+  meter: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
+  meterFill: { height: 6, borderRadius: 3, backgroundColor: Nocturne.accent ?? Nocturne.cta },
   newLimit: {
     alignSelf: 'center',
     minHeight: 48,

@@ -4,6 +4,7 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
+  Extrapolation,
   interpolate,
   makeMutable,
   useAnimatedStyle,
@@ -82,7 +83,8 @@ export function restingMoonDisc(width: number, height: number) {
 }
 
 /**
- * How far the resting moon has sunk into the floor, 0 (resting) to 1 (sunk). A tab with a
+ * How far the resting moon has sunk into the floor, 0 (resting) to 1 (sunk), or below 0 to
+ * raise it (MOON_RAISED). A tab with a
  * card over the bottom of the page sinks it, so the card sits on calm, dark sky instead of
  * having moonlight leak round its corners (user's ask, 2026-10-09; every tab but Home since
  * 2026-10-10). Set by useMoonSink in Home.
@@ -91,6 +93,27 @@ export const moonSink = makeMutable(0);
 /** How much of the moon's width it drops when sunk, and how much of its glow stays. */
 const SINK_DEPTH = 0.3;
 const SUNK_GLOW = 0.25;
+/** The Apps tab's moon: risen above its resting place, into the sky under the tiles. */
+export const MOON_RAISED = -0.35;
+
+/**
+ * Whether the Apps tab has room under its tiles for the raised moon. Its page says (a third
+ * limit fills that room, user 2026-10-10); useMoonSink sinks the moon when it doesn't.
+ */
+let appsRoom = true;
+const appsRoomListeners = new Set<() => void>();
+export const appsMoonRoom = {
+  get: () => appsRoom,
+  set(room: boolean) {
+    if (room === appsRoom) return;
+    appsRoom = room;
+    appsRoomListeners.forEach((listener) => listener());
+  },
+  subscribe(listener: () => void) {
+    appsRoomListeners.add(listener);
+    return () => void appsRoomListeners.delete(listener);
+  },
+};
 
 /** How long the moon takes to rise over the home screen, or sink back when leaving it. */
 export const HOME_RISE_MS = 1100;
@@ -241,7 +264,7 @@ export function NightSky({
       top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
       width: d.size * GLOW_PAD,
       height: d.size * GLOW_PAD,
-      opacity: progress.value * interpolate(moonSink.value, [0, 1], [1, SUNK_GLOW]),
+      opacity: progress.value * interpolate(moonSink.value, [0, 1], [1, SUNK_GLOW], Extrapolation.CLAMP),
     };
   });
 
