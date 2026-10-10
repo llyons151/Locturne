@@ -68,6 +68,9 @@ function screen(initial: Stored) {
     '@/components/day-picker': { DayStrip: 'DayStrip' },
     '@/components/grouped-list': { Card: 'Card', ChoiceRow: 'ChoiceRow', ValueRow: 'ValueRow', sym: () => '' },
     '@/hooks/use-app-start': { armIfPaid() {} },
+    '@/hooks/use-top-on-leave': { useTopOnLeave() {} },
+    '@/components/glass-card': { GlassCard: 'GlassCard' },
+    './apply-edit': { applyRoutineEdit: () => Promise.resolve() },
     '@/lib/haptics': { tap() {}, thud() {} },
     '@/lib/lock-controller': {
       armRoutine: async () => {},
@@ -79,6 +82,8 @@ function screen(initial: Stored) {
     '@/lib/notifications': { rescheduleNotifications: async () => {} },
     '@/lib/routine': {
       getRoutine: () => stored,
+      PUSHUP_GOALS: [10, 15, 20],
+      pushupGoalOf: (r: { pushupGoal?: number }) => r.pushupGoal ?? 10,
       getPendingRoutine: () => null,
       hasRoutine: () => true,
       saveRoutine(r: Stored) {
@@ -88,6 +93,7 @@ function screen(initial: Stored) {
     },
     '@/lib/screen-time': { getArmedNight: () => ({}), isScreenTimeAvailable: () => true },
     '@/lib/scan': { getScanCode: () => null, getScanEditRefusal: () => null },
+    '@/lib/place': { getMorningPlace: () => null, getPlaceEditRefusal: () => null },
     '@/lib/text': { noOrphan: (s: string) => s },
     '@/theme': { DisplayFont: {}, Gap: {}, italicOverhang: () => ({}), Nocturne: {}, Radius: {}, Space: {}, Type: {}, VoiceSize: { aside: 0 } },
     './night-dial': { NightDial: 'NightDial' },

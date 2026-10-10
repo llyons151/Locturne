@@ -24,7 +24,8 @@ import type { WakeMethod } from '@/lib/routine';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
 import type { Tone } from '@/lib/tone';
 import { DOWNSTAIRS } from '@/lib/wake/downstairs';
-import { downstairsLine, PHASE_LINES, stepsLine } from '@/lib/wake/lines';
+import { downstairsLine, PHASE_LINES, pushupsLine, stepsLine } from '@/lib/wake/lines';
+import { PUSHUPS } from '@/lib/wake/pushups';
 import { DisplayFont, Nocturne, NUMBER_FONT, VoiceSize } from '@/theme';
 
 import { Eyebrow, Title } from '../ui';
@@ -123,6 +124,27 @@ const METHOD_DEMO: Record<
     appLine: () => 'Point me at your code.',
     start: false,
     done: 'Code scanned.',
+  },
+  place: {
+    count: (tick) =>
+      tick >= STEP_GOAL ? { value: 'Here', unit: '' } : { value: String(STEP_GOAL - tick), unit: ' steps to your place' },
+    go: 'Out the door. I’m coming, apparently.',
+    midway: 'Fresh air. I hate it.',
+    appLine: () => 'Get to your place, then check in.',
+    start: false,
+    done: 'Checked in at your place.',
+  },
+  pushups: {
+    // The same rep meter as the real wake-up screen (pushups-view.tsx).
+    count: (tick) => ({ value: String(Math.floor((tick / STEP_GOAL) * PUSHUPS.reps)), unit: ` / ${PUSHUPS.reps} push-ups` }),
+    go: 'Start. Then the floor.',
+    midway: 'Down. Up. I’m counting. Out loud.',
+    appLine: (tick) => {
+      const reps = Math.floor((tick / STEP_GOAL) * PUSHUPS.reps);
+      return tick === 0 ? pushupsLine('idle', 0, PUSHUPS.reps, null) : pushupsLine('counting', reps, PUSHUPS.reps, null).replace(/\*/g, '');
+    },
+    start: true,
+    done: 'Ten push-ups.',
   },
 };
 
@@ -307,7 +329,7 @@ export function TomorrowDemo({
     if (awake) onPayoff?.();
   }, [awake, onPayoff]);
   const count = copy.count(steps);
-  // "Fine. *Fine.*": the whole line is already italic, so the emphasis is an underline.
+  // "Fine. *Fine.*": the second one in italic.
   const line =
     phase === 'home' ? null : phase === 'shield' ? (
       `${shield.title} Tap ${shield.button.replace(/\.$/, '')}.`
@@ -878,5 +900,5 @@ const styles = StyleSheet.create({
   // Same size and 1.08 line height as every other Loc aside (Voice in ui.tsx).
   walkLine: { ...DisplayFont, color: Nocturne.text, fontSize: VoiceSize.aside, lineHeight: 24, minHeight: 48 },
   walkLineCompact: { fontSize: 19, lineHeight: 23, minHeight: 46 },
-  emphasis: { textDecorationLine: 'underline' },
+  emphasis: { fontStyle: 'italic' },
 });

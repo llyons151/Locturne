@@ -34,7 +34,6 @@ import { formatPreset, noOrphan } from '@/lib/text';
 import {
   DisplayFont,
   Nocturne,
-  italicOverhang,
   NUMBER_FONT,
   Space,
   Type,
@@ -404,7 +403,7 @@ function SheetButton({
   );
 }
 
-/** His line in the italic serif. `*word*` is set in the upright cut for emphasis. */
+/** His line in the display font. `*word*` is set in italic for emphasis. */
 function Voice({ text }: { text: string }) {
   const parts = noOrphan(text).split('*');
   return (
@@ -427,17 +426,16 @@ const styles = StyleSheet.create({
   // card's bottom padding, so the button's round ends sit concentric with its corners.
   sheet: { paddingHorizontal: SHEET_PADDING, paddingTop: Space.m, gap: Space.xl },
   pressed: { opacity: 0.7 },
-  // His line in the title's place, in his voice (italic means Loc is talking).
+  // His line in the title's place, in his voice.
   voice: {
     ...DisplayFont,
-    ...italicOverhang(VoiceSize.aside),
     color: INK,
     fontSize: 19,
     lineHeight: 24,
     textAlign: 'center',
     marginTop: Space.xs,
   },
-  emphasis: { fontStyle: 'normal' },
+  emphasis: { fontStyle: 'italic' },
   body: { ...Type.secondary, color: INK2, textAlign: 'center' },
 
   length: { alignItems: 'center', gap: Space.m, marginTop: Space.s },

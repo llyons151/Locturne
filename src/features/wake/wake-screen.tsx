@@ -20,7 +20,8 @@ import * as haptic from '@/lib/haptics';
 import { currentProof, proveMorning, readLock, routineAt } from '@/lib/lock-controller';
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
-import { getRoutine, toLockSettings } from '@/lib/routine';
+import { getRoutine, pushupGoalOf, toLockSettings } from '@/lib/routine';
+import { getMorningPlace } from '@/lib/place-spot';
 import { getScanCode } from '@/lib/scan';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
@@ -30,10 +31,11 @@ import { awakeStatus } from './awake-status';
 import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
 import { Body, TopBar, Voice } from './parts';
+import { PushupsView } from './pushups-view';
 import { StepsView } from './steps-view';
 import { unheldWakeBody, wakeLabel, wakePhase } from './wake-words';
 
-export type WakeMethodShown = 'downstairs' | 'steps';
+export type WakeMethodShown = 'downstairs' | 'steps' | 'pushups';
 
 const clockOf = (date: Date) => formatPreset(date.getHours() * 60 + date.getMinutes());
 
@@ -57,7 +59,9 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   const lock = useLock();
   // Read each render: left open across a bedtime, the next morning uses the routine then in force.
   const routine = getRoutine();
-  const [shown, setShown] = useState<WakeMethodShown>(method ?? (routine.method === 'steps' ? 'steps' : 'downstairs'));
+  const [shown, setShown] = useState<WakeMethodShown>(
+    method ?? (routine.method === 'steps' ? 'steps' : routine.method === 'pushups' ? 'pushups' : 'downstairs'),
+  );
   const [unlocked, setUnlocked] = useState<LockState | null>(null);
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -83,6 +87,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   );
   const onSteps = useCallback(() => onMet('steps'), [onMet]);
   const onDownstairs = useCallback(() => onMet('downstairs'), [onMet]);
+  const onPushups = useCallback(() => onMet('pushups'), [onMet]);
 
   const switchTo = (next: WakeMethodShown) => {
     haptic.tap();
@@ -94,17 +99,21 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   else if (phase !== 'morning') content = <NotMorning state={lock} onClose={close} />;
   else {
     const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
-    // Only with a code to scan. Replaced, like the scan screen's "Walk instead", so switching
+    // Only with a code to scan or a place picked. Replaced, like the scan screen's "Walk instead", so switching
     // between the two doesn't stack screens.
     const scan =
       routine.method === 'scan' && getScanCode() ? (
         <TextButton label="Scan your code instead" onPress={() => router.replace('/scan?mode=morning')} />
+      ) : routine.method === 'place' && getMorningPlace() ? (
+        <TextButton label="Check in at your place instead" onPress={() => router.replace('/place?mode=morning')} />
       ) : null;
     // Steps can't be counted here at all: passes, the scan code and the emergency unlock.
     const stuck = <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />;
     content =
       shown === 'downstairs' && routine.method === 'downstairs' ? (
         <DownstairsView goal={routine.stepGoal} onMet={onDownstairs} onSteps={() => switchTo('steps')} footer={scan} />
+      ) : shown === 'pushups' && routine.method === 'pushups' ? (
+        <PushupsView goal={routine.stepGoal} target={pushupGoalOf(routine)} onMet={onPushups} onSteps={() => switchTo('steps')} footer={scan} />
       ) : (
         <StepsView
           goal={routine.stepGoal}
@@ -115,6 +124,9 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
             <>
               {routine.method === 'downstairs' && (
                 <TextButton label="Go downstairs instead" onPress={() => switchTo('downstairs')} />
+              )}
+              {routine.method === 'pushups' && (
+                <TextButton label="Do push-ups instead" onPress={() => switchTo('pushups')} />
               )}
               {scan}
             </>

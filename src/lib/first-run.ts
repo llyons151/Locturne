@@ -56,6 +56,8 @@ const VERB: Record<WakeMethod, (goal: number) => string> = {
   downstairs: () => 'get downstairs',
   steps: (goal) => `walk ${goal} steps`,
   scan: () => 'scan your code',
+  place: () => 'get to your place',
+  pushups: () => 'do your push-ups',
 };
 
 /** The safety valve for each method, said once so the first morning never feels like a trap. */
@@ -63,6 +65,8 @@ const FALLBACK: Record<WakeMethod, (goal: number) => string> = {
   downstairs: (goal) => `No stairs where you are? Walk ${goal} steps instead.`,
   steps: () => 'Steps from before you opened me count. Reopening never resets them.',
   scan: (goal) => `Can’t find the code? Walk ${goal} steps instead.`,
+  place: (goal) => `Not going out today? Walk ${goal} steps instead.`,
+  pushups: (goal) => `Arms not working today? Walk ${goal} steps instead.`,
 };
 
 /**

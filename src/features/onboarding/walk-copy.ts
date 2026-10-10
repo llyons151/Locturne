@@ -54,5 +54,15 @@ export function walkCopy(method: WakeMethod, day: WakeDay): { intro: string; don
         intro: `${lead} you walk to your code. ${now}, 20 steps anywhere will do.`,
         done: `That’s ${that}: up, a short walk, then your apps wake up.`,
       };
+    case 'place':
+      return {
+        intro: `${lead} you head out to your place. ${now}, 20 steps anywhere will do.`,
+        done: `That’s ${that}: up, out the door, then your apps wake up.`,
+      };
+    case 'pushups':
+      return {
+        intro: `${lead} it’s ten push-ups on the floor. ${now}, 20 steps anywhere will do.`,
+        done: `That’s ${that}: up, down on the floor, ten, then your apps wake up.`,
+      };
   }
 }

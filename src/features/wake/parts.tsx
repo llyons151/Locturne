@@ -7,14 +7,14 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { PrimaryButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { noOrphan } from '@/lib/text';
-import { DisplayFont, italicOverhang, Nocturne, Space, Type, VoiceSize } from '@/theme';
+import { DisplayFont, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 /**
  * The wake-up screens' shared pieces: his line, the body under it, the big number and the
  * thin white progress track the rest of the app uses (Home, Nap). Monochrome, no glow.
  */
 
-/** His line in the italic serif. `*word*` is set in the upright cut for emphasis. */
+/** His line in the display font. `*word*` is set in italic for emphasis. */
 export function Voice({ text }: { text: string }) {
   const parts = noOrphan(text).split('*');
   return (
@@ -63,12 +63,11 @@ export function MotionOff({ what }: { what: string }) {
 const styles = StyleSheet.create({
   voice: {
     ...DisplayFont,
-    ...italicOverhang(VoiceSize.headline),
     color: Nocturne.text,
     fontSize: VoiceSize.headline,
     lineHeight: VoiceSize.headline * 1.08,
   },
-  emphasis: { fontStyle: 'normal' },
+  emphasis: { fontStyle: 'italic' },
   body: { ...Type.body, color: Nocturne.text2 },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
   serious: { gap: Space.l },

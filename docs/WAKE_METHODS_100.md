@@ -2,8 +2,9 @@
 
 Logged October 1, 2026. A brainstorm of wake-up methods: ways for the user to
 prove they've **left bed** before their apps wake up. Nothing here changes
-[GAME_PLAN.md](../GAME_PLAN.md); v1 still ships Go downstairs (hero), Walk it off
-and Scan your code. This is the pool to pull from for v1.x and for video ideas.
+[GAME_PLAN.md](../GAME_PLAN.md); v1 ships Go downstairs (hero), Walk it off,
+Scan your code, and since 2026-10-09 Leave the house (#25) and Proximity push-ups
+(#57). This is the pool to pull from for v1.x and for video ideas.
 
 ## The test every method had to pass
 
@@ -65,7 +66,7 @@ The strongest family: a floor of height can't be faked from bed.
 
 | # | Method | How it's proven | Type | Fit |
 |---|---|---|---|---|
-| 25 | **Leave the house** | Exit the home geofence | P | OK |
+| 25 | **Leave the house** | Exit the home geofence | P | **v1** (2026-10-09; in-app location check, optional daylight exposure check) |
 | 26 | **Coffee shop unlock** | Arrive at any café (MapKit point of interest) | M | OK |
 | 27 | **Gym check-in** | Arrive at your gym | P+M | OK |
 | 28 | **Campus arrival** | Arrive at your school or uni | P | OK |
@@ -110,7 +111,7 @@ Loc lines and its own video.
 
 | # | Method | How it's proven | Type | Fit |
 |---|---|---|---|---|
-| 57 | **Proximity push-ups** | Phone face-up on the floor; your chest covers the proximity sensor, 10 reps | P+M | OK (no camera; still check D2) |
+| 57 | **Proximity push-ups** | Phone face-up on the floor; your chest covers the proximity sensor, 10 reps | P+M | **v1** (2026-10-09; no camera so D2 doesn't apply; hand-wave cheat to solve) |
 | 58 | **Jumping jacks** | 20 reps by accelerometer pattern, phone in hand | P+M | Weak (pattern can be faked) |
 | 59 | **Squats** | Accelerometer reps with the phone at your chest | P | Weak |
 | 60 | **Jump rope** | Accelerometer jump rhythm, phone in pocket | M | Weak |
@@ -127,7 +128,7 @@ All touch D2 (camera methods) and must not drift into photo judging.
 | 64 | **Push-ups on camera** | Vision body pose counts reps | M | Decision |
 | 65 | **Sun salutation** | Body pose matches a short yoga sequence | M | Decision |
 | 66 | **AR kitchen** | ARKit recognises your saved kitchen map; works only in that room | P+M | Decision; high build cost |
-| 67 | **Find Loc in AR** | Loc is hidden somewhere in your saved room; find him | M | Decision |
+| 67 | **Find Loc in AR** | Loc is hidden somewhere in your saved room; find him | M | **Leading v1.1 candidate** (logged 2026-10-09); room relocalization in morning light is the risk |
 | 68 | **LiDAR room match** | RoomPlan matches the kitchen's shape | P | Decision; Pro phones only |
 | 69 | **Daylight at the window** | Camera exposure reads outdoor light levels | P | Decision; Weak |
 | 70 | **Sky check** | Vision classifier sees sky (step outside) | M | Decision |

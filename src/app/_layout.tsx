@@ -48,6 +48,17 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="place" options={{ presentation: 'fullScreenModal' }} />
+          {/* Picking the morning place: a tall sheet over Routine, like Maps' search. */}
+          <Stack.Screen
+            name="place-pick"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: [1],
+              sheetGrabberVisible: true,
+              contentStyle: { backgroundColor: '#000000' },
+            }}
+          />
           <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
       </ThemeProvider>

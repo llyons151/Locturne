@@ -4,7 +4,8 @@
  * Flow and evidence: docs/ONBOARDING_CONVERSION.md.
  */
 
-import { getPendingRoutine, getRoutine, hasRoutine, type WakeMethod } from '@/lib/routine';
+import { DEFAULT_PUSHUP_GOAL, getPendingRoutine, getRoutine, hasRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
+import { getMorningPlace } from '@/lib/place-spot';
 import { getScanCode } from '@/lib/scan-code';
 import type { Tone } from '@/lib/tone';
 
@@ -293,7 +294,11 @@ export const METHOD_CHOICES: Choice<WakeMethod>[] = [
   { label: 'Yes, there are stairs', value: 'downstairs' },
   { label: 'No, it’s all one floor', value: 'steps' },
 ];
-export const MORE_METHODS: Choice<WakeMethod>[] = [{ label: 'Scan a code in another room', value: 'scan' }];
+export const MORE_METHODS: Choice<WakeMethod>[] = [
+  { label: 'Scan a code in another room', value: 'scan' },
+  { label: 'Get to a place, like the gym', value: 'place' },
+  { label: 'Ten push-ups on the floor', value: 'pushups' },
+];
 
 /** Every line after the method question that says how they prove they're up. */
 export const METHOD_COPY: Record<
@@ -352,6 +357,31 @@ export const METHOD_COPY: Record<
       { when: 'Morning', what: 'Walk to it and scan it. Until it’s set up, 200 steps works.' },
     ],
   },
+  place: {
+    echo: 'Outside. In the morning. Bold.',
+    short: 'Your place',
+    check: 'Awake again once you reach your place',
+    until: 'you’ve reached your place',
+    commit: 'Out the door to wake them.',
+    offer: 'One trip to your place. I’ll complain the whole way.',
+    morning: [
+      { when: 'Today', what: 'Pick your place in Routine: the gym, campus, the café.' },
+      { when: 'Morning', what: 'Get there and check in. Until it’s picked, 200 steps works.' },
+    ],
+  },
+  pushups: {
+    echo: '10 push-ups. I’ll count. Out loud. Slowly.',
+    short: 'Push-ups',
+    check: 'Awake again after 10 push-ups',
+    until: 'you’ve done 10 push-ups',
+    commit: '10 push-ups to wake them.',
+    offer: '10 push-ups. I’ll count every one, disappointed.',
+    morning: [
+      { when: 'Start', what: 'Open me, tap Start, and carry me a few steps to the floor.' },
+      { when: 'Floor', what: 'Put me down face-up. 10 push-ups, chest over the screen. They wake up.' },
+      { when: 'Not today', what: 'Arms not working? Walk 200 steps instead.' },
+    ],
+  },
 };
 
 /**
@@ -396,31 +426,49 @@ export function wakePart(wake: number): 'Morning' | 'Afternoon' {
   return wake >= 12 * 60 ? 'Afternoon' : 'Morning';
 }
 
+/** The first morning of a returning scan or place user, whose code or place is already set. */
+const SET_UP_MORNING = {
+  scan: 'Walk to your code and scan it. That wakes them.',
+  place: 'Get to your place and check in. That wakes them.',
+};
+
+/** Setup finished at night, with no code or place yet: it waits for the day after. */
+const WAITING_MORNING = {
+  scan: [
+    { when: 'Morning', what: 'No code yet, so 200 steps wakes them.' },
+    { when: 'Then', what: 'In the day, set up your code in Routine and leave it in another room.' },
+  ],
+  place: [
+    { when: 'Morning', what: 'No place yet, so 200 steps wakes them.' },
+    { when: 'Then', what: 'In the day, pick your place in Routine.' },
+  ],
+};
+
 function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
   const saved = METHOD_COPY[method];
   // A returning scan user already has a code: no "set up your code" today. Without one, a
   // code can't be set while the apps are asleep (`getScanEditRefusal`), so one finishing
   // setup at night (`codeWaits`) can't do it "today": the first morning falls back to steps
   // (`methodInUse`) and the code waits for the day after it.
+  // A place is the same: picked only while the apps are awake (`getPlaceEditRefusal`).
+  const setUp = method === 'scan' ? getScanCode() !== null : method === 'place' ? getMorningPlace() !== null : null;
   const copy: MethodCopy =
-    method !== 'scan'
+    setUp === null
       ? saved
-      : getScanCode()
-        ? { ...saved, morning: [{ when: 'Morning', what: 'Walk to your code and scan it. That wakes them.' }] }
+      : setUp
+        ? { ...saved, morning: [{ when: 'Morning', what: SET_UP_MORNING[method as 'scan' | 'place'] }] }
         : codeWaits
-          ? {
-              ...saved,
-              morning: [
-                { when: 'Morning', what: 'No code yet, so 200 steps wakes them.' },
-                { when: 'Then', what: 'In the day, set up your code in Routine and leave it in another room.' },
-              ],
-            }
+          ? { ...saved, morning: WAITING_MORNING[method as 'scan' | 'place'] }
           : saved;
   // The routine tomorrow runs on: a Routine edit waiting for bedtime included (`saveSetup`).
-  const goal = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()).stepGoal : 200;
-  if (goal === 200) return copy;
+  const next = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : null;
+  const goal = next?.stepGoal ?? 200;
+  // Push-ups are written for the default 10; a rerun keeps the count set in Routine.
+  const reps = next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL;
+  if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL) return copy;
   const swap = <T,>(value: T): T => {
-    if (typeof value === 'string') return value.replace(/\b200\b/g, String(goal)) as T;
+    if (typeof value === 'string')
+      return value.replace(/\b200\b/g, String(goal)).replace(/\b10 push-ups\b/g, `${reps} push-ups`) as T;
     if (Array.isArray(value)) return value.map(swap) as T;
     if (value && typeof value === 'object')
       return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)])) as T;

@@ -351,7 +351,7 @@ Code methods (D) can be filmed for marketing before launch.
 
 **E. Body (sensors, no camera)**
 
-- [ ] 57. Proximity push-ups (P+M; OK (no camera; still check D2))
+- [x] 57. Proximity push-ups (P+M; built 2026-10-09: modules/proximity, src/lib/wake/pushups.ts; needs a device test)
 - [ ] 58. Jumping jacks (P+M; Weak (pattern can be faked))
 - [ ] 59. Squats (P; Weak)
 - [ ] 60. Jump rope (M; Weak)

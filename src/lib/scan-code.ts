@@ -1,4 +1,5 @@
 import type { WakeMethod } from './routine.ts';
+import { getMorningPlace } from './place-spot.ts';
 import { sharedGet } from './screen-time.ts';
 
 /**
@@ -21,7 +22,12 @@ export function getScanCode(): ScanCode | null {
   return sharedGet<ScanCode>(SCAN_CODE_KEY) ?? null;
 }
 
-/** The method the morning really asks for: a scan morning with no code set up yet falls back to steps. */
+/**
+ * The method the morning really asks for: a scan morning with no code set up yet, or a place
+ * morning with no place picked yet, falls back to steps.
+ */
 export function methodInUse(method: WakeMethod): WakeMethod {
-  return method === 'scan' && !getScanCode() ? 'steps' : method;
+  if (method === 'scan' && !getScanCode()) return 'steps';
+  if (method === 'place' && !getMorningPlace()) return 'steps';
+  return method;
 }

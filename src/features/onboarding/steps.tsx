@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react';
 import { Linking, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { GlassCard } from '@/components/glass-card';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -418,7 +419,8 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'method': {
       // One question, not a menu (GAME_PLAN). The third way stays behind a link until asked for.
-      const showAll = answers.method === 'scan' || ctx.showMoreMethods;
+      const showAll =
+        answers.method === 'scan' || answers.method === 'place' || answers.method === 'pushups' || ctx.showMoreMethods;
       return {
         body: (
           <View style={page.top}>
@@ -597,6 +599,7 @@ export function renderStep(ctx: StepContext): StepView {
             {done ? (
               // The result card (Duolingo's lesson card): what they just did, in numbers.
               <Ready ready>
+                <GlassCard dark style={styles.resultCard}>
                 <View style={styles.result} accessible accessibilityLabel={`${WALK_GOAL} steps${ctx.walkSeconds ? ` in ${ctx.walkSeconds} seconds` : ''}. Proven: you can stand.`}>
                   <View style={styles.resultRow}>
                     <ResultCell value={String(WALK_GOAL)} label="Steps" />
@@ -605,6 +608,7 @@ export function renderStep(ctx: StepContext): StepView {
                   </View>
                   <Text style={styles.resultLine}>Proven: you can stand.</Text>
                 </View>
+                </GlassCard>
               </Ready>
             ) : (
               <WalkMeter steps={steps} goal={WALK_GOAL} />
@@ -1054,7 +1058,7 @@ function Beat({ label, text }: { label: string; text: string }) {
   return (
     <Reveal style={styles.beat}>
       <Text style={styles.beatLabel}>{label}</Text>
-      <Text style={styles.beatText}>{text}</Text>
+      <Text style={styles.beatText}>{noOrphan(text)}</Text>
     </Reveal>
   );
 }
@@ -1085,6 +1089,8 @@ const MOTION_WHY: Record<WakeMethod, string> = {
   steps: 'how I count your steps. Nothing else',
   // The goal in use is filled in (`methodCopy`'s rule): a rerun keeps Routine's.
   scan: 'how {goal} steps can stand in for your code',
+  place: 'how {goal} steps can stand in on days you stay in',
+  pushups: 'how I count the steps to the floor before your push-ups',
 };
 
 /** "Fri, Oct 10": the trial's last day, the way the reminder would have said it. */
@@ -1160,15 +1166,8 @@ const styles = StyleSheet.create({
   shieldTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '700', textAlign: 'center' },
   shieldButton: { backgroundColor: '#FFFFFF', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 40 },
   shieldButtonText: { color: '#0B0B0C', fontSize: 16, fontWeight: '600' },
-  result: {
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    borderColor: Nocturne.line,
-    backgroundColor: Nocturne.surface,
-    padding: Space.l,
-    gap: Space.m,
-    marginBottom: Space.l,
-  },
+  resultCard: { marginBottom: Space.l },
+  result: { padding: Space.l, gap: Space.m },
   resultRow: { flexDirection: 'row', justifyContent: 'space-around' },
   resultCell: { alignItems: 'center', gap: 2 },
   resultValue: { color: Nocturne.text, fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] },

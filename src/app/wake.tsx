@@ -7,24 +7,29 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { AppBackground } from '@/components/app-background';
 import { WakeScreen, type WakeMethodShown } from '@/features/wake/wake-screen';
+import { getMorningPlace } from '@/lib/place-spot';
 import { getRoutine } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
 
 /**
- * The morning wake-up. `?method=downstairs|steps` opens that method (the shield tap or a
- * notification can pick one); without it the routine's method opens, and a scan routine
- * goes straight to the scan screen, or to steps while no code is set up yet.
+ * The morning wake-up. `?method=downstairs|steps|pushups` opens that method (the shield tap or a
+ * notification can pick one); without it the routine's method opens, and a scan or place
+ * routine goes straight to its own screen, or to steps while no code or place is set up yet.
  */
 export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
-  // Steps always (the fallback every morning offers); downstairs only for a downstairs routine.
+  // Steps always (the fallback every morning offers); downstairs or push-ups only for their own routine.
   const chosen: WakeMethodShown | undefined =
-    method === 'steps' || (method === 'downstairs' && getRoutine().method === 'downstairs') ? method : undefined;
+    method === 'steps' || ((method === 'downstairs' || method === 'pushups') && getRoutine().method === method)
+      ? method
+      : undefined;
   const scan = !chosen && getRoutine().method === 'scan';
   if (scan && getScanCode()) return <Redirect href="/scan?mode=morning" />;
+  const place = !chosen && getRoutine().method === 'place';
+  if (place && getMorningPlace()) return <Redirect href="/place?mode=morning" />;
   return (
     <AppBackground>
-      <WakeScreen method={scan ? 'steps' : chosen} />
+      <WakeScreen method={scan || place ? 'steps' : chosen} />
     </AppBackground>
   );
 }

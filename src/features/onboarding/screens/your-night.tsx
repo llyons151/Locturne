@@ -15,6 +15,8 @@ const UP: Record<WakeMethod, { after: number; what: string }> = {
   downstairs: { after: 3, what: 'Bottom of the stairs. Everyone’s up.' },
   steps: { after: 3, what: '200 steps. Everyone’s up.' },
   scan: { after: 2, what: 'Code scanned. Everyone’s up.' },
+  place: { after: 15, what: 'Checked in. Everyone’s up.' },
+  pushups: { after: 2, what: 'Ten push-ups. Everyone’s up.' },
 };
 
 /**

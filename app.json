@@ -125,6 +125,17 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Locturne checks once, when you tap, that you've reached the place you picked for your mornings. It never tracks you and your location stays on this phone.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false,
+          "motionUsagePermission": "Locturne checks your steps and stairs each morning to wake your apps. That\u2019s all it uses motion for."
+        }
+      ],
+      [
         "expo-sensors",
         {
           "motionPermission": "Locturne checks your steps and stairs each morning to wake your apps. That\u2019s all it uses motion for."

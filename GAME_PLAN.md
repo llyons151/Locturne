@@ -1,7 +1,7 @@
 # Locturne: game plan
 
 Updated October 1, 2026 (wake-up methods, daytime controls, build status and the
-launch timeline). This is the source of truth for product direction. It
+launch timeline); v1 wake-up methods widened to five on October 9, 2026. This is the source of truth for product direction. It
 replaces the September 21 plan, which is archived at
 [docs/archive/GAME_PLAN_2026-09-21.md](docs/archive/GAME_PLAN_2026-09-21.md). The
 reasoning behind it is in [docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md),
@@ -64,7 +64,7 @@ Rules carried over from the previous plan:
   either (decided 2026-10-01). The always-blocked list still applies.
 - The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
 
-## Wake-up methods (decided 2026-10-01)
+## Wake-up methods (decided 2026-10-01, five for v1 since 2026-10-09)
 
 The promise stays "your apps don't wake up until you get up". The methods are only
 different ways to prove it, each with its own lines from Loc. Details in
@@ -76,6 +76,8 @@ different ways to prove it, each with its own lines from Loc. Details in
 | **Go downstairs** | Barometer `relativeAltitude`: a change of at least 2.5 m held about 5 s, in a live session of up to about 5 min. Up or down both count. | **The hero.** Default for anyone with stairs; leads the marketing. |
 | **Walk it off** | 200 steps on `CMPedometer` since the morning start | Default for one-floor homes, and the "steps instead" fallback every morning |
 | **Scan your code** | A per-user QR or a registered product barcode kept in another room | Alternative; the leading candidate for the accessible option |
+| **Leave the house** | An in-app "I'm out" check reads location once: at least ~150 m from the saved home spot, or at a saved place (gym, campus, café). When-In-Use permission only, no background geofence. Optional light check: the camera's exposure value (brightness only, never the picture) confirms daylight; before sunrise it's location only. | Alternative; the "get outside / see the sky" morning |
+| **Push-ups** | Phone face-up on the floor, 10–20 reps, each one counted when the chest covers the proximity sensor. No camera. | Alternative; the effort option and a strong video ("my alarm makes me do push-ups"), Loc counts the reps |
 
 - **Onboarding asks one question,** not a menu, right after `wake`: "Are there
   stairs between your bed and your coffee?" Yes picks downstairs; no picks steps;
@@ -86,15 +88,32 @@ different ways to prove it, each with its own lines from Loc. Details in
   leave someone stuck.
 - Changing the method follows the next-bedtime rule.
 - Never as a gate: math, memory, typing, shaking or saying a phrase (all doable in
-  bed). Push-ups and photo methods wait for launch data and a decision; photo
-  judging stays banned.
+  bed). Photo methods wait for launch data and a decision; photo judging stays
+  banned. Proximity push-ups were adopted 2026-10-09 because they use no camera.
+- **Push-ups cheat:** waving a hand over the sensor from bed fakes a rep. Both
+  candidates are built (2026-10-09): 20 steps carried to the floor first, then reps
+  only count with the phone flat, face-up and still, and a push-up rhythm (a cover
+  of 0.25–5 s, reps at least 0.9 s apart). The numbers are in
+  `src/lib/wake/pushups.ts` (`PUSHUPS`); tune them on a device. Loc says the count
+  out loud (on-device system voice), since the screen goes dark under the chest.
+- **Leave the house, as built (2026-10-09):** the saved-place half only. The person
+  picks a place in Routine (address search or "I'm there now"), only while the apps
+  are awake. In the morning, Check in reads location once: within 120 m on a fix
+  accurate to 80 m and under a minute old counts, and a vaguer fix is "can't tell
+  yet", never a yes. Rules in `src/lib/place.ts`, screen at `/place`. Not built yet:
+  the "~150 m from home" mode and the daylight check. Needs a new dev build
+  (expo-location).
 - **Background unlock** (being tested): an "I'm up" tap on the shield, then a
   second check downstairs, might unlock without opening the app
   ([docs/BACKGROUND_UNLOCK.md](docs/BACKGROUND_UNLOCK.md)). Don't promise it until
   it works on a device.
 - **More methods later:** a pool of 100 candidates, plus the "build your own
-  morning" idea, is in [docs/WAKE_METHODS_100.md](docs/WAKE_METHODS_100.md). None
-  is adopted yet.
+  morning" idea, is in [docs/WAKE_METHODS_100.md](docs/WAKE_METHODS_100.md).
+  Leave the house (#25) and proximity push-ups (#57) were adopted for v1 on
+  2026-10-09. **Find Loc in AR** (#67) is logged as the leading v1.1 candidate: hide
+  Loc in a room at night with the camera, find him there in the morning. Most
+  on-brand method and ready-made videos, but ARKit has to re-recognise the room in
+  morning light, so it's too risky for v1.
 
 ## Daytime controls (v1, decided 2026-10-01)
 
@@ -270,7 +289,8 @@ ugly UI is fine.
 - Weekday-specific schedules (nights off), inside iOS's ~20-activity budget.
 - A method-agnostic unlock engine: the morning gate takes a proof from any method,
   so adding a method never touches the lock rules.
-- Steps (history plus live, light anti-shake), downstairs, scan.
+- Steps (history plus live, light anti-shake), downstairs, scan, leave the house,
+  push-ups.
 - Passes, emergency unlock (pausing the night windows), the accessible option.
 - Honest status: revocation on every open, an extension heartbeat log in the App
   Group, the nightly self-check, a hidden diagnostics screen for beta testers.
@@ -289,7 +309,7 @@ of trial starters who complete a first morning unlock.
   `method` question, "Armed" only once tonight is confirmed.
 - Night, morning and day home states.
 - Wake-up screens: downstairs (Start, live height meter, "steps instead" link),
-  the live walk with his lines, scan.
+  the live walk with his lines, scan, leave the house, push-ups (rep count in his voice).
 - Custom shield text per state; passes, emergency and can't-sleep path.
 - Morning share card ("Bed 11:41. Downstairs 7:02. Still disappointed.").
 - App icon and splash (the template ones are still in `app.json`).
@@ -309,7 +329,8 @@ of trial starters who complete a first morning unlock.
 - Loc's moon in the Dynamic Island while apps are asleep (night and morning Live
   Activities, push-started; [docs/LIVE_ACTIVITY_IDEA.md](docs/LIVE_ACTIVITY_IDEA.md)) and a
   streak widget.
-- The next wake-up method, chosen by which video series converted best.
+- The next wake-up method, chosen by which video series converted best. Find Loc
+  in AR is the leading candidate (logged 2026-10-09).
 - Buddy/couples mode: a partner gets a message if bedtime breaks; no money moves.
 - Scheduled naps and "put him to bed early" (Block now already ships in v1).
 - An opt-in "went to bed earlier" dataset for a published result later.

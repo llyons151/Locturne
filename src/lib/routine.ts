@@ -10,8 +10,12 @@ import { armedBedtime, dateKey, nightInto, nightsAround, settingsTakeEffectAt, t
 import { getArmedNight, sharedGet, sharedSet } from './screen-time.ts';
 import { EXTENSION_SLACK_MS } from './wake/arming.ts';
 
-/** The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. */
-export type WakeMethod = 'downstairs' | 'steps' | 'scan';
+/**
+ * The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. `place` is
+ * "Leave the house": get to a place picked in the day (place.ts). `pushups`: ten on the floor,
+ * counted by the proximity sensor (wake/pushups.ts).
+ */
+export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups';
 
 export type Routine = {
   bedtime: number;
@@ -20,7 +24,15 @@ export type Routine = {
   activeNights: number[];
   method: WakeMethod;
   stepGoal: number;
+  /** Push-ups a morning takes (`PUSHUP_GOALS`). Missing on routines saved before it was kept: 10. */
+  pushupGoal?: number;
 };
+
+/** The push-up targets on offer (GAME_PLAN: 10–20). */
+export const PUSHUP_GOALS = [10, 15, 20] as const;
+export const DEFAULT_PUSHUP_GOAL = 10;
+
+export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;
 
 export const DEFAULT_ROUTINE: Routine = {
   bedtime: 23 * 60,

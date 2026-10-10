@@ -27,6 +27,7 @@
  */
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
+import type { WakeMethod } from './routine.ts';
 
 const { prng, simDevice, token, dayKey } = await import('./sim-device.ts');
 const device = simDevice();
@@ -785,7 +786,7 @@ async function run(seed: number, zone: string): Promise<string | null> {
     return true;
   }
 
-  async function prove(kind: 'downstairs' | 'steps' | 'scan' | 'pass') {
+  async function prove(kind: WakeMethod | 'pass') {
     const t = Date.now();
     await open('');
     const e = expectNight(t);
