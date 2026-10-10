@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, View, type TextStyle } from 'react-native';
 
-import { Text } from '@/components/text';
+import { Text, TextInput } from '@/components/text';
 import { sym } from '@/components/grouped-list';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import { LIMIT_MAX } from '@/lib/daily-limits';
@@ -20,8 +20,11 @@ type LimitRequest = {
   onChange: (minutes: number) => void;
   /** Deleting the limit, where the sheet offers it (the list page has its own button). */
   onRemove?: () => void;
-  /** The limit's apps where they can be named ("YouTube + 2 more"), shown in the name row. */
-  title?: string;
+  /**
+   * The name row, where the limit can be named: what it's called now (blank for none), what it
+   * goes by without one ("Instagram", "30 min a day"), and where a changed name is saved.
+   */
+  name?: { value: string; fallback: string; onRename: (name: string) => void };
   /** What's happening with it today: used up, or an edit waiting for bedtime. */
   note?: string | null;
   /**
@@ -40,10 +43,13 @@ export function openLimitSheet(next: LimitRequest) {
   router.push('/limit');
 }
 
+/** Long enough for "Social and games", short enough for a tile's title. */
+const NAME_MAX = 24;
+
 /**
  * A daily limit in the Sleep sheet's floating card, laid out like Brick's Edit mode sheet
  * (user's reference, 2026-10-10) in Locturne's colours: a title with a round close button,
- * the limit's name, one grouped card with the time per day (hour and minute wheels that set
+ * the limit's name to type over, one grouped card with the time per day (hour and minute wheels that set
  * any time) over the limit's apps, then Save and a quieter Delete. Opened from a limit's tile
  * on the Apps tab. Only Save saves, since a stricter limit starts at once; the close button
  * and a swipe down keep it as it was.
@@ -51,6 +57,7 @@ export function openLimitSheet(next: LimitRequest) {
 export function LimitSheet() {
   const [req] = useState(() => request);
   const [minutes, setMinutes] = useState(() => req?.start ?? 30);
+  const [name, setName] = useState(() => req?.name?.value ?? '');
   const total = Math.min(minutes, LIMIT_MAX);
   // Apple's picker can't open over this sheet, so editing the apps waits until it has gone.
   const afterClose = useRef<(() => void) | null>(null);
@@ -65,6 +72,8 @@ export function LimitSheet() {
 
   const save = () => {
     haptic.done();
+    // Named first, so the minutes' save keeps the new name.
+    if (req.name && name.trim() !== req.name.value.trim()) req.name.onRename(name);
     if (total !== req.chosen) req.onChange(total);
     closeSleepSheet();
   };
@@ -100,12 +109,22 @@ export function LimitSheet() {
         </Pressable>
       </View>
 
-      {req.title ? (
+      {req.name ? (
         <View style={styles.nameRow}>
           <Text style={styles.nameKey}>Name</Text>
-          <Text style={styles.nameValue} numberOfLines={1}>
-            {req.title}
-          </Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder={req.name.fallback}
+            placeholderTextColor={Nocturne.text3}
+            maxLength={NAME_MAX}
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="done"
+            selectionColor={Nocturne.text}
+            accessibilityLabel="Name"
+            style={styles.nameValue}
+          />
         </View>
       ) : null}
 
@@ -166,6 +185,8 @@ export function LimitSheet() {
 }
 
 const CLOSE = 30;
+/** The boxes are a light veil of the sheet's own glass, so they take its colour, not a flat grey. */
+const FILL = 'rgba(255, 255, 255, 0.06)';
 
 const styles = StyleSheet.create({
   // Sized to its contents inside the card, padded like the Sleep sheet.
@@ -190,17 +211,31 @@ const styles = StyleSheet.create({
     gap: Space.m,
     paddingHorizontal: Space.l,
     borderRadius: 26,
-    backgroundColor: Nocturne.surface,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Nocturne.edge,
+    backgroundColor: FILL,
   },
   nameKey: { ...Type.body, color: Nocturne.text2 },
-  nameValue: { ...Type.body, flex: 1, color: Nocturne.text, fontWeight: '500', textAlign: 'right' },
+  // The whole rest of the row is the field, so a tap anywhere on it starts typing.
+  nameValue: {
+    ...Type.body,
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
+    color: Nocturne.text,
+    fontWeight: '500',
+    textAlign: 'right',
+    // The browser's focus ring; the caret shows where typing goes, as on a phone.
+    ...Platform.select({ web: { outlineStyle: 'none' } as unknown as TextStyle }),
+  },
   // One grouped card for the settings, its sections split by a hairline.
   card: {
     borderRadius: Radius.card,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Nocturne.edge,
-    backgroundColor: Nocturne.surface,
+    backgroundColor: FILL,
     overflow: 'hidden',
   },
   section: { padding: Space.l, paddingBottom: Space.s, gap: 2 },

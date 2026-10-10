@@ -10,6 +10,7 @@ import {
   limitLabel,
   looserEditsStart,
   MAX_LIMITS,
+  renameLimit,
   settleLimits,
   type DailyLimit,
 } from './daily-limits.ts';
@@ -85,6 +86,22 @@ describe('settling at bedtime', () => {
     ]);
     assert.deepEqual(settled.rearm, [{ id: 'limit-0', minutes: 60 }]);
     assert.deepEqual(settled.removed, ['limit-1']);
+  });
+});
+
+describe('naming a limit', () => {
+  const social: DailyLimit[] = [{ id: 'limit-0', name: 'Social', minutes: 30 }];
+
+  test('a name saves at once, trimmed, and a blank one clears it', () => {
+    assert.deepEqual(renameLimit(thirty, 'limit-0', '  Social '), social);
+    assert.deepEqual(renameLimit(social, 'limit-0', '   '), thirty);
+  });
+
+  test('the name carries over stricter, looser and settled edits', () => {
+    assert.deepEqual(editLimit(social, 'limit-0', 15, bedtime), [{ id: 'limit-0', name: 'Social', minutes: 15 }]);
+    const loosened = editLimit(social, 'limit-0', 60, bedtime);
+    assert.equal(loosened[0].name, 'Social');
+    assert.deepEqual(settleLimits(loosened, bedtime).limits, [{ id: 'limit-0', name: 'Social', minutes: 60 }]);
   });
 });
 

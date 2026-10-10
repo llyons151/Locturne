@@ -54,6 +54,7 @@ import {
   removePreviewLimit,
   savePreviewLimitApps,
   setPreviewLimitMinutes,
+  setPreviewLimitName,
   usePreviewLists,
   type PreviewGroup,
 } from './preview-lists';
@@ -242,14 +243,18 @@ function LiveAppsList() {
               const usedUp = limitUsedUpToday(limit.id);
               const picks = editedSelection(limit.id);
               const pending = limit.pending ? (limit.pending.minutes === null ? 'ends tonight' : 'changes tonight') : null;
+              const daily = `${limitLabel(limit.minutes)} a day`;
               return (
                 <ListTile
                   key={limit.id}
                   icons={icons(picks.id, picks.size, <ListSymbol list="limit" />)}
-                  title={`${limitLabel(limit.minutes)} a day`}
+                  // Named, the time moves down into the detail.
+                  title={limit.name ?? daily}
                   // Screen Time only tells the app when a limit is used up, not the minutes so
                   // far, so the meter shows just that: full once it's gone.
-                  detail={[countPicks(picks.size), usedUp ? 'asleep until midnight' : pending].filter(Boolean).join(' · ')}
+                  detail={[limit.name ? daily : null, countPicks(picks.size), usedUp ? 'asleep until midnight' : pending]
+                    .filter(Boolean)
+                    .join(' · ')}
                   used={usedUp ? 1 : null}
                   // Brick's Edit mode sheet (user, 2026-10-10); its Apps row opens the full list page.
                   onPress={() => {
@@ -260,7 +265,8 @@ function LiveAppsList() {
                       onChange: (m) => actions.setMinutes(limit.id, m),
                       // Already ending: a second Delete would change nothing.
                       onRemove: limit.pending?.minutes === null ? undefined : () => actions.setMinutes(limit.id, null),
-                      // No name row: iOS won't name the picks, and the time is on the wheels.
+                      // iOS won't name the picks, so unnamed it goes by its time.
+                      name: { value: limit.name ?? '', fallback: daily, onRename: (n) => actions.setName(limit.id, n) },
                       note: liveLimitNote(limit),
                       apps: {
                         summary: countPicks(picks.size),
@@ -566,7 +572,7 @@ function PreviewAppsList() {
                 <ListTile
                   key={index}
                   icons={<StackedIcons names={limit.apps} />}
-                  title={namedBy(limit.apps)}
+                  title={limit.name ?? namedBy(limit.apps)}
                   detail={`${limitLabel(limit.minutes)} a day · ${usedUp ? 'asleep until midnight' : `${limitLabel(limit.minutes - limit.used)} left`}`}
                   used={limit.used / limit.minutes}
                   onPress={() => {
@@ -576,7 +582,11 @@ function PreviewAppsList() {
                       chosen: limit.minutes,
                       onChange: (minutes) => setPreviewLimitMinutes(index, minutes),
                       onRemove: () => removePreviewLimit(index),
-                      title: namedBy(limit.apps),
+                      name: {
+                        value: limit.name ?? '',
+                        fallback: namedBy(limit.apps),
+                        onRename: (n) => setPreviewLimitName(index, n),
+                      },
                       note: usedUp ? 'Used up today. Back at midnight.' : null,
                       apps: {
                         summary: countApps(limit.apps.length),

@@ -33,7 +33,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="usage" options={{ headerShown: true, title: 'Usage', headerBackTitle: 'Home' }} />
           {/* A list's page, pushed from its tile on the Apps tab: every app in it (features/apps/list-page.tsx). */}
-          <Stack.Screen name="list" options={{ headerShown: true, headerBackTitle: 'Apps' }} />
+          <Stack.Screen name="list" />
           <Stack.Screen
             name="onboarding"
             options={{ presentation: 'fullScreenModal', gestureEnabled: false }}

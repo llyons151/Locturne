@@ -10,7 +10,7 @@ import { removePick, type RemovedPick } from 'blocked-apps';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
-import { editLimit, freeLimitId, isLimitId, type DailyLimit, type LimitId } from '@/lib/daily-limits';
+import { editLimit, freeLimitId, isLimitId, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
 import * as haptic from '@/lib/haptics';
 import { looserEditsStartAt, onLockChange } from '@/lib/lock-controller';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -109,6 +109,13 @@ export function useListActions() {
     const after = next.find((l) => l.id === id);
     const before = current.find((l) => l.id === id);
     saveAndArm(next, after && after.minutes !== before?.minutes ? after : undefined);
+  };
+
+  /** A name is only words on screen: saved now, nothing for iOS to arm. */
+  const setName = (id: LimitId, name: string) => {
+    const next = renameLimit(getLimits(), id, name);
+    saveLimits(next);
+    setLimits(next);
   };
 
   /**
@@ -229,6 +236,7 @@ export function useListActions() {
     edit,
     removed,
     setMinutes,
+    setName,
     addLimit,
     allow,
   };

@@ -15,6 +15,8 @@ export type LimitId = `limit-${number}`;
 
 export type DailyLimit = {
   id: LimitId;
+  /** What the person called it ("Social"). iOS won't name the picks, so without one it goes by its time. */
+  name?: string;
   /** The limit iOS is enforcing now. */
   minutes: number;
   /**
@@ -65,15 +67,30 @@ export function editLimit(
   const current = limits.find((l) => l.id === id);
   if (!current) return minutes === null ? limits : [...limits, { id, minutes }];
 
+  // Its name carries over every edit; only the minutes wait.
+  const named = current.name ? { name: current.name } : {};
   let next: DailyLimit;
-  if (minutes !== null && minutes <= current.minutes) next = { id, minutes };
+  if (minutes !== null && minutes <= current.minutes) next = { id, ...named, minutes };
   else {
     const waiting = current.pending && current.pending.from > takeEffectAt.getTime() ? current.pending : null;
     const from = waiting ? waiting.from : takeEffectAt.getTime();
     const dated = waiting ? waiting.dated : editedAt?.getTime();
-    next = { id, minutes: current.minutes, pending: { minutes, from, ...(dated === undefined ? {} : { dated }) } };
+    next = { id, ...named, minutes: current.minutes, pending: { minutes, from, ...(dated === undefined ? {} : { dated }) } };
   }
   return limits.map((l) => (l.id === id ? next : l));
+}
+
+/**
+ * Names a limit, or clears its name with a blank one. A name loosens nothing, so it never waits
+ * for bedtime.
+ */
+export function renameLimit(limits: DailyLimit[], id: LimitId, name: string): DailyLimit[] {
+  const trimmed = name.trim();
+  return limits.map((l) => {
+    if (l.id !== id) return l;
+    const { name: _old, ...rest } = l;
+    return trimmed ? { ...rest, name: trimmed } : rest;
+  });
 }
 
 /**
@@ -88,7 +105,8 @@ export function settleLimits(limits: DailyLimit[], now: Date) {
     if (!limit.pending || limit.pending.from > now.getTime()) next.push(limit);
     else if (limit.pending.minutes === null) removed.push(limit.id);
     else {
-      const settled = { id: limit.id, minutes: limit.pending.minutes };
+      const { pending: _settling, ...rest } = limit;
+      const settled = { ...rest, minutes: limit.pending.minutes };
       next.push(settled);
       rearm.push(settled);
     }

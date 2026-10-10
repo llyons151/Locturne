@@ -2,19 +2,22 @@
 // Reads the App Group stores during render (picks, limits), which change outside React, so it
 // stays out of the React Compiler like the Apps tab.
 
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isBlockedAppsViewAvailable } from 'blocked-apps';
 
 import { AppPickerSheet } from '@/components/app-picker';
+import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import { isLimitId, limitLabel } from '@/lib/daily-limits';
 import * as haptic from '@/lib/haptics';
 import { editedSelection, isScreenTimeAvailable } from '@/lib/screen-time';
 import { WebsitesCard } from '@/features/websites/websites-card';
-import { Gap, Nocturne, Space, Type } from '@/theme';
+import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import {
   AppRow,
@@ -34,13 +37,20 @@ import {
 } from './apps-list';
 import { openLimitSheet } from './limit-sheet';
 import { useListActions } from './list-actions';
-import { removePreviewLimit, savePreviewLimitApps, savePreviewPicks, setPreviewLimitMinutes, usePreviewLists } from './preview-lists';
+import {
+  removePreviewLimit,
+  savePreviewLimitApps,
+  savePreviewPicks,
+  setPreviewLimitMinutes,
+  setPreviewLimitName,
+  usePreviewLists,
+} from './preview-lists';
 
 /**
  * One list's own page, pushed from its tile on the Apps tab (user, 2026-10-10: "how do you see
  * every app if they are buried"): every app in it, an Add or remove apps row, and for a daily
- * limit its time and a Remove limit button. A plain page with the system back button, like a
- * limit's page in Screen Time.
+ * limit its time and a Remove limit button. Its own header (user's references, 2026-10-10:
+ * stoic.'s back + close over a big centred title, with Opal's round glass buttons).
  *
  * `id` is the list: `night` or `always` (`bedtime` or `always` in the web preview), or a
  * limit's id (`limit-0`, the preview's limits by index).
@@ -66,7 +76,8 @@ function LiveListPage({ id }: { id: string }) {
   // Re-read on every revision: the picker or a swipe changes them outside React.
   void revision;
   const picks = editedSelection(list);
-  const title = group ? group.label : `${limitLabel(limit!.minutes)} a day`;
+  const daily = limit ? `${limitLabel(limit.minutes)} a day` : '';
+  const title = group ? group.label : (limit!.name ?? daily);
 
   const rows = (
     <ListCard note={group ? <PendingNote list={group.key} /> : null}>
@@ -98,6 +109,7 @@ function LiveListPage({ id }: { id: string }) {
               start: limit.pending?.minutes ?? limit.minutes,
               chosen: limit.pending ? limit.pending.minutes : limit.minutes,
               onChange: (m) => actions.setMinutes(limit.id, m),
+              name: { value: limit.name ?? '', fallback: daily, onRename: (n) => actions.setName(limit.id, n) },
               note: liveLimitNote(limit),
             })
           }
@@ -136,7 +148,7 @@ function PreviewListPage({ id }: { id: string }) {
 
   return (
     <Page
-      title={group ? group.label : namedBy(limit.apps)}
+      title={group ? group.label : (limit.name ?? namedBy(limit.apps))}
       about={group ? group.about : 'Once their time is used up today, these apps sleep until midnight.'}
       status={group ? previewStatus(group.key, apps.length) : null}
       overlay={
@@ -163,7 +175,7 @@ function PreviewListPage({ id }: { id: string }) {
               start: limit.minutes,
               chosen: limit.minutes,
               onChange: (minutes) => setPreviewLimitMinutes(index, minutes),
-              title: namedBy(limit.apps),
+              name: { value: limit.name ?? '', fallback: namedBy(limit.apps), onRename: (n) => setPreviewLimitName(index, n) },
               note: usedUp ? 'Used up today. Back at midnight.' : null,
             })
           }
@@ -199,7 +211,7 @@ function PreviewWebsites({ list }: { list: 'night' | 'always' }) {
   );
 }
 
-/** The page: the system header with its back button, what the list does, then its sections. */
+/** The page: round glass back and close buttons over a big centred title, what the list does, then its sections. */
 function Page({
   title,
   about,
@@ -215,11 +227,18 @@ function Page({
   overlay?: ReactNode;
   children: ReactNode;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <>
-      <Stack.Screen options={{ title }} />
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.s }]}>
+        <View style={styles.bar}>
+          <RoundButton icon={sym('chevron.left', 'arrow_back')} label="Back" onPress={() => router.back()} />
+          <RoundButton icon={sym('xmark', 'close')} label="Close" onPress={() => router.dismissTo('/apps')} />
+        </View>
         <View style={styles.head}>
+          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+            {title}
+          </Text>
           <Text style={styles.about}>{about}</Text>
           {status ? (
             <View style={styles.status}>
@@ -233,6 +252,31 @@ function Page({
       </ScrollView>
       {overlay}
     </>
+  );
+}
+
+/** A round glass button with one symbol (Opal's close button): liquid glass on iOS 26, frosted elsewhere. */
+function RoundButton({ icon, label, onPress }: { icon: ReturnType<typeof sym>; label: string; onPress: () => void }) {
+  const glyph = <SymbolView name={icon} size={17} weight="semibold" tintColor={Nocturne.text} />;
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.tap();
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      style={({ pressed }) => pressed && styles.pressed}
+    >
+      {isLiquidGlassAvailable() ? (
+        <GlassView glassEffectStyle="regular" colorScheme="dark" isInteractive style={styles.round}>
+          {glyph}
+        </GlassView>
+      ) : (
+        <View style={[styles.round, styles.roundPane]}>{glyph}</View>
+      )}
+    </Pressable>
   );
 }
 
@@ -283,10 +327,23 @@ function RemoveButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+const ROUND = 44;
+
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Gap.gutter, paddingTop: Space.l, paddingBottom: Gap.section, gap: Gap.section },
-  head: { gap: Space.s, alignItems: 'center' },
-  about: { ...Type.body, color: Nocturne.text2, textAlign: 'center' },
+  content: { paddingHorizontal: Gap.gutter, paddingBottom: Gap.section, gap: Gap.section },
+  // The buttons at the page's top corners, the title centred under them (stoic.).
+  bar: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: -Space.m },
+  round: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  roundPane: {
+    backgroundColor: Nocturne.frost,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    ...Platform.select({ web: { backdropFilter: 'blur(20px) saturate(160%)' } as ViewStyle }),
+  },
+  head: { gap: Space.s, alignItems: 'center', paddingHorizontal: Space.l },
+  title: { ...DisplayFont, color: Nocturne.text, fontSize: 26, lineHeight: 32, letterSpacing: -0.3, textAlign: 'center', marginBottom: Space.xs },
+  // Balanced so a last word never hangs on its own line.
+  about: { ...Type.body, color: Nocturne.text2, textAlign: 'center', textWrap: 'balance' } as never,
   status: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
   statusText: { ...Type.caption, color: Nocturne.text2 },
   sectionLabel: { ...Type.label, textAlign: 'center', marginBottom: Space.m },

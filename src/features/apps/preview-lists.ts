@@ -9,8 +9,11 @@ import { APPS } from './catalog';
  */
 
 export type PreviewGroup = 'bedtime' | 'always';
-/** `used`: sample minutes so far today, for the meter (an iPhone only learns when a limit is used up). */
-export type PreviewLimit = { minutes: number; used: number; apps: string[] };
+/**
+ * `used`: sample minutes so far today, for the meter (an iPhone only learns when a limit is used up).
+ * `name`: what the person called it; without one it goes by its apps.
+ */
+export type PreviewLimit = { name?: string; minutes: number; used: number; apps: string[] };
 type Lists = { picks: Record<PreviewGroup, string[]>; limits: PreviewLimit[] };
 
 const initial = (group: PreviewGroup) =>
@@ -67,6 +70,18 @@ export function savePreviewLimitApps(index: number, apps: string[]) {
 
 export function setPreviewLimitMinutes(index: number, minutes: number) {
   set({ ...lists, limits: lists.limits.map((l, i) => (i === index ? { ...l, minutes } : l)) });
+}
+
+export function setPreviewLimitName(index: number, name: string) {
+  const trimmed = name.trim();
+  set({
+    ...lists,
+    limits: lists.limits.map((l, i) => {
+      if (i !== index) return l;
+      const { name: _old, ...rest } = l;
+      return trimmed ? { ...rest, name: trimmed } : rest;
+    }),
+  });
 }
 
 export function removePreviewLimit(index: number) {
