@@ -150,6 +150,7 @@ Every line is original. The sources set the shape, not the words.
 - G: That’s it. I’m joining the pigeons.
 - G: You’re on the list. In pen.
 - G: I was comfortable. Past tense.
+- G: Oh, I’ll put you to sleep. (user's line, 2026-10-10)
 - U: I AM DOOM INCARNATE.
 - U: I will eat your dad. Then your uncle.
 - U: Prepare your trash cans.

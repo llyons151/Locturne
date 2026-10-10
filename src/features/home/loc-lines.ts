@@ -144,6 +144,7 @@ const ANGRY: Pool = {
   ],
   grumpy: [
     `I’m calling ${FRIEND}.`,
+    'Oh, I’ll put you to sleep.',
     'I am doom.',
     'I will eat your dad.',
     'You have awakened the trash beast.',

@@ -437,3 +437,9 @@ Shipped in `src/features/home/loc-rig.ts`:
   He dives, the lump darts left to -0.3 (further left hides in the panel's corner), then hops
   back right and brakes. He launches up with his eyes squeezed shut, then snaps into a glare:
   ears pinned, mask down, trembling dot pupils. The glare holds about a second.
+- **Burrow routes (user, October 10, 2026: "he shouldn't always just burrow to the left… he shouldn't feel so
+  programmatic"):** `burrowLump` draws a new route on every double-tap:
+  - The route is one of six shapes: one way and back, back and forth, a nervous zigzag, a fake-out (a nudge one
+    way, then a dash the other), wriggling on the spot, or a run out with a stutter.
+  - It starts left or right at random, with random distances, pauses and peeks, and an uneven hop rhythm.
+  - He pops out when the route ends, about 1.8–3 s in, so the timing isn't fixed either.

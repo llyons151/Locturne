@@ -202,40 +202,89 @@ const LEAVE: Bit = { ms: 1300, events: [[0, (r) => r.say('hide')]], tracks: {
   x: [[0, 'S'], [560, 'S'], [1300, OFFSTAGE, 'in']],
 } };
 
-// Tapped twice: he dives under the covers (the nav strip), the lump zips off to the left, then
-// scurries back right in quick little hops, brakes where he lives, crouches, and he bursts out
-// furious (user, October 10, 2026: faster, left to right, and pop up with an angry face):
-// pupils shrunk to trembling dots, lids slanted, ears pinned.
-const BURROW_POP = 2300;
-const BURROW: Bit = { ms: 4000, tracks: {
-  stretch: [[0, 0], [150, -0.08, 'out'], [300, 0.12, 'in'], [460, 0, 'out'], [BURROW_POP, 0], [BURROW_POP + 90, 0.16, 'out'], [BURROW_POP + 200, -0.1, 'io'], [BURROW_POP + 320, 0.03, 'io'], [BURROW_POP + 480, 0, 'io']],
-  sink: [[0, 'S'], [150, -6, 'out'], [460, HIDDEN.sink, 'in3'], [BURROW_POP, HIDDEN.sink], [BURROW_POP + 130, -60, 'out'], [BURROW_POP + 260, 12, 'in'], [BURROW_POP + 340, -4, 'out'], [BURROW_POP + 460, 0, 'io']],
-  paw: [[0, 'S'], [300, 'S'], [460, HIDDEN.paw, 'in'], [BURROW_POP + 220, HIDDEN.paw], [BURROW_POP + 280, -12, 'out'], [BURROW_POP + 400, 0, 'io']],
-  y: [[0, 'S'], [BURROW_POP + 260, 'S'], [BURROW_POP + 340, -10, 'out'], [3400, -10], [4000, 'T', 'io']],
-  earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [BURROW_POP, 16], [BURROW_POP + 120, -34, 'out'], [3400, -30], [4000, 'T', 'io']],
-  earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [BURROW_POP, -16], [BURROW_POP + 120, 34, 'out'], [3400, 30], [4000, 'T', 'io']],
-  open: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.5, 'out'], [3500, 0.5], [4000, 'T', 'io']],
-  openR: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.58, 'out'], [3500, 0.58], [4000, 'T', 'io']],
-  squint: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.36, 'out'], [3500, 0.36], [4000, 'T', 'io']],
-  slope: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 28, 'out'], [3500, 28], [4000, 'T', 'io']],
-  swell: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.6, 'out'], [3500, 0.6], [4000, 'T', 'io']],
-  pupilJit: [[0, 'S'], [BURROW_POP + 280, 'S'], [BURROW_POP + 320, 0.7, 'out'], [3300, 0.7], [3600, 'T', 'io']],
+// Tapped twice: he dives under the covers (the nav strip), the lump scurries about in quick
+// little hops, brakes where he lives, crouches, and he bursts out furious (user, October 10,
+// 2026: faster, and pop up with an angry face): pupils shrunk to trembling dots, lids slanted,
+// ears pinned. Where the lump goes is new every time (`burrowLump`): "he shouldn't feel so
+// programmatic". `pop` is when he bursts out, which depends on how far he ran.
+const burrowBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => ({ ms: pop + 1700, tracks: {
+  stretch: [[0, 0], [150, -0.08, 'out'], [300, 0.12, 'in'], [460, 0, 'out'], [pop, 0], [pop + 90, 0.16, 'out'], [pop + 200, -0.1, 'io'], [pop + 320, 0.03, 'io'], [pop + 480, 0, 'io']],
+  sink: [[0, 'S'], [150, -6, 'out'], [460, HIDDEN.sink, 'in3'], [pop, HIDDEN.sink], [pop + 130, -60, 'out'], [pop + 260, 12, 'in'], [pop + 340, -4, 'out'], [pop + 460, 0, 'io']],
+  paw: [[0, 'S'], [300, 'S'], [460, HIDDEN.paw, 'in'], [pop + 220, HIDDEN.paw], [pop + 280, -12, 'out'], [pop + 400, 0, 'io']],
+  y: [[0, 'S'], [pop + 260, 'S'], [pop + 340, -10, 'out'], [pop + 1100, -10], [pop + 1700, 'T', 'io']],
+  earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [pop, 16], [pop + 120, -34, 'out'], [pop + 1100, -30], [pop + 1700, 'T', 'io']],
+  earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [pop, -16], [pop + 120, 34, 'out'], [pop + 1100, 30], [pop + 1700, 'T', 'io']],
+  open: [[0, 'S'], [pop + 200, 'S'], [pop + 280, 0.5, 'out'], [pop + 1200, 0.5], [pop + 1700, 'T', 'io']],
+  openR: [[0, 'S'], [pop + 200, 'S'], [pop + 280, 0.58, 'out'], [pop + 1200, 0.58], [pop + 1700, 'T', 'io']],
+  squint: [[0, 'S'], [pop + 200, 'S'], [pop + 280, 0.36, 'out'], [pop + 1200, 0.36], [pop + 1700, 'T', 'io']],
+  slope: [[0, 'S'], [pop + 200, 'S'], [pop + 280, 28, 'out'], [pop + 1200, 28], [pop + 1700, 'T', 'io']],
+  swell: [[0, 'S'], [pop + 200, 'S'], [pop + 280, 0.6, 'out'], [pop + 1200, 0.6], [pop + 1700, 'T', 'io']],
+  pupilJit: [[0, 'S'], [pop + 280, 'S'], [pop + 320, 0.7, 'out'], [pop + 1000, 0.7], [pop + 1300, 'T', 'io']],
   pupils: [[0, 'S'], [100, 1]],
 }, events: [
   [0, (r) => { r.squeezing = true; r.say('hide'); }],
   [460, (r) => { r.squeezing = false; }],
   // Squeezed shut on the way up, then the eyes snap open into the glare.
-  [BURROW_POP, (r) => { r.squeezing = true; }],
-  [BURROW_POP + 200, (r) => { r.squeezing = false; r.pop(-0.45); }],
-  [BURROW_POP + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); r.say('angry'); }],
-], lump: {
-  h: [[0, 0], [430, 0], [540, 1.2, 'out'], [620, 1, 'io'],
-    // A dart left, then hop-hop-hop back to the right.
-    [1000, 1], [1080, 0.7, 'io'], [1180, 1.2, 'out'],
-    [1180, 1.18, 'io'], [1275, 0.82, 'io'], [1370, 1.18, 'io'], [1465, 0.82, 'io'], [1560, 1.18, 'io'], [1655, 0.82, 'io'], [1750, 1.18, 'io'], [1845, 0.82, 'io'], [1940, 1.18, 'io'], [2035, 0.82, 'io'],
-    [2080, 1, 'io'], [2180, 0.5, 'io'], [2260, 0.5], [BURROW_POP + 30, 1.8, 'out'], [BURROW_POP + 100, 0, 'in']],
-  x: [[0, 0], [540, 0], [980, -0.3, 'out'], [1100, -0.3], [2060, 0.03, 'in'], [2180, 0, 'out']],
-} };
+  [pop, (r) => { r.squeezing = true; }],
+  [pop + 200, (r) => { r.squeezing = false; r.pop(-0.45); }],
+  [pop + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); r.say('angry'); }],
+], lump });
+
+/**
+ * A fresh route for the lump under the covers: one way and back, back and forth, a nervous
+ * zigzag, a fake-out (a nudge one way, then a dash the other), or wriggling on the spot, with
+ * random distances, pauses, peeks and hop rhythm. Returns when he pops out and the lump's tracks.
+ */
+function burrowLump(rand: () => number = Math.random): { pop: number; lump: NonNullable<Bit['lump']> } {
+  const side = rand() < 0.5 ? -1 : 1;
+  // Past about 0.3 of the width the lump hides in the panel's rounded corner.
+  const far = () => 0.14 + rand() * 0.16;
+  const near = () => 0.05 + rand() * 0.07;
+  const routes = [
+    () => [side * far(), 0],
+    () => [side * far(), -side * far(), 0],
+    () => [side * near(), -side * near(), side * near(), -side * near() * 0.6, 0],
+    () => [side * 0.04, -side * far(), 0],
+    () => [side * 0.03, -side * 0.03, side * 0.02, 0],
+    () => [side * far(), side * near() * 0.5, side * far(), 0],
+  ];
+  const stops = routes[Math.floor(rand() * routes.length)]();
+  const x: Key[] = [[0, 0], [540, 0]];
+  const h: Key[] = [[0, 0], [430, 0], [540, 1.2, 'out'], [620, 1, 'io']];
+  let t = 620, at = 0;
+  let high = true;
+  // Little hops while it runs: an uneven rhythm, never a metronome.
+  const hops = (until: number) => {
+    while (t + 70 < until) {
+      t += 75 + rand() * 60;
+      h.push([t, high ? 1.1 + rand() * 0.15 : 0.75 + rand() * 0.12, 'io']);
+      high = !high;
+    }
+  };
+  for (const [i, stop] of stops.entries()) {
+    const last = i === stops.length - 1;
+    const travel = (130 + Math.abs(stop - at) * 1900) * (0.8 + rand() * 0.4);
+    const start = t;
+    hops(start + travel);
+    t = start + travel;
+    // Darts and brakes ease out; some runs speed up into the stop instead.
+    x.push([t, stop, last || rand() < 0.6 ? 'out' : 'in']);
+    at = stop;
+    if (!last && rand() < 0.55) {
+      // A pause, and now and then a peek: the lump rises as if he's listening.
+      const pause = 90 + rand() * 260;
+      h.push([t + 40, 1, 'io']);
+      if (rand() < 0.5) h.push([t + pause * 0.45, 1.35 + rand() * 0.2, 'out']);
+      h.push([t + pause, 1, 'io']);
+      x.push([t + pause, stop]);
+      t += pause;
+    }
+  }
+  // Crouch where he lives, then burst out.
+  const pop = Math.round(t + 160 + rand() * 120);
+  h.push([t + 20, 1, 'io'], [t + 110, 0.5, 'io'], [pop - 40, 0.5], [pop + 30, 1.8, 'out'], [pop + 100, 0, 'in']);
+  return { pop, lump: { h, x } };
+}
 
 // ---- Small math ----
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -433,7 +482,11 @@ export class LocRig {
   setShare(share: number) { this.share = share; }
   /** Under the covers (burrowing, or arriving or leaving by them): taps wait until he's out. */
   get burrowing() { return !!this.bit?.def.lump; }
-  burrow() { if (!this.hidden) this.play(BURROW); }
+  burrow() {
+    if (this.hidden) return;
+    const { pop, lump } = burrowLump();
+    this.play(burrowBit(pop, lump));
+  }
   /** Off Home he dives under the covers and runs off; back on Home he runs in and bursts out. */
   setPresent(present: boolean) {
     if (present === !this.hidden) return;
