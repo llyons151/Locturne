@@ -7,23 +7,29 @@ import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  Easing,
+  withTiming,
+} from 'react-native-reanimated';
 import { ScrollView } from 'react-native-gesture-handler';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTabBarInset } from '@/components/app-tabs';
-import { nightsLabel, type MenuOption } from '@/components/control-types';
-import { MenuRow } from '@/components/controls';
+import { nightsLabel } from '@/components/control-types';
 import { DayStrip } from '@/components/day-picker';
 import { GlassCard } from '@/components/glass-card';
+import { moonSink } from '@/components/night-sky';
 import { Card, ChoiceRow, sym, ValueRow, type Symbol } from '@/components/grouped-list';
+import { useTabSelected } from '@/hooks/use-tab-selected';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import * as haptic from '@/lib/haptics';
 import { onLockChange } from '@/lib/lock-controller';
 import {
   getPendingRoutine,
   getRoutine,
-  PUSHUP_GOALS,
   pushupGoalOf,
   type Routine as StoredRoutine,
   type WakeMethod,
@@ -111,13 +117,12 @@ const methods = (
   place: string | null,
   reps: number,
   wake: number,
-): { value: Method; icon: Symbol; title: string; detail: string; badge?: string }[] => [
+): { value: Method; icon: Symbol; title: string; detail: string }[] => [
   {
     value: 'downstairs',
     icon: sym('figure.stairs', 'stairs'),
     title: 'Go downstairs',
-    detail: 'One floor down',
-    badge: 'Recommended',
+    detail: 'One floor · Recommended',
   },
   {
     value: 'steps',
@@ -157,7 +162,24 @@ export function RoutineScreen() {
   const insets = useSafeAreaInsets();
   const scroll = useRef<ScrollView>(null);
   useTopOnLeave(scroll);
-  const bottom = useTabBarInset();
+  const reduced = useReducedMotion();
+
+  /** The wake-up card fades in each time the tab is picked. */
+  const shown = useSharedValue(1);
+  const fade = useAnimatedStyle(() => ({ opacity: shown.value }));
+  // On the tab being picked, not on focus: a sheet opened over the page leaves it alone.
+  const selected = useTabSelected();
+  useEffect(() => {
+    if (!selected || reduced) return;
+    shown.set(0);
+    shown.set(withTiming(1, { duration: 300 }));
+  }, [selected, reduced, shown]);
+  // The moon sinks while this tab is open, so the card isn't ringed by its light.
+  useEffect(() => {
+    const to = selected ? 1 : 0;
+    moonSink.set(reduced ? to : withTiming(to, { duration: 1600, easing: Easing.bezier(0.45, 0, 0.25, 1) }));
+  }, [selected, reduced]);
+  useEffect(() => () => moonSink.set(0), []);
 
   const [{ active, saved, from }, setLoaded] = useState<Loaded>(load);
   // Onboarding, or a bedtime passing, can change it while the tab is away, or while the app
@@ -205,7 +227,6 @@ export function RoutineScreen() {
   };
   // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
   const offerReps = saved.method === 'pushups';
-  const repOptions: MenuOption<number>[] = PUSHUP_GOALS.map((n) => ({ value: n, label: `${n} push-ups` }));
   // Scan picked with no code saved: the setup, offered only when it's allowed (not from bed).
   const offerCodeSetup = saved.method === 'scan' && !getScanCode() && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
@@ -230,7 +251,8 @@ export function RoutineScreen() {
   return (
     <ScrollView
       ref={scroll}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
+      // Scrolled to the end, the card sits a gutter above the panel's edge, as at its sides.
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: Gap.gutter }]}
     >
       {/* The night on a 24-hour dial, as set (a waiting edit included), edited by dragging. */}
       <View style={styles.night}>
@@ -280,7 +302,8 @@ export function RoutineScreen() {
       </Text>
 
       {/* The heading sits above the card, so the card has none; each method carries its own icon. */}
-      <Card>
+      <Animated.View style={[styles.methods, fade]}>
+      <Card solid>
         {options.map((o, i) => (
           <ChoiceRow
             key={o.value}
@@ -288,7 +311,6 @@ export function RoutineScreen() {
             last={i === options.length - 1 && !setupRow}
             title={o.title}
             detail={o.value === saved.method && fallsBack ? `Not set up yet, so ${saved.stepGoal} steps for now` : o.detail}
-            badge={o.badge}
             selected={o.value === saved.method}
             onPress={() => pick(o.value)}
           />
@@ -310,15 +332,11 @@ export function RoutineScreen() {
           />
         ) : null}
         {offerReps ? (
-          <MenuRow
-            title="Push-ups"
-            value={reps}
-            options={repOptions}
-            onChange={(pushupGoal) => set({ pushupGoal })}
-            last
-          />
+          // A wheel in the floating sheet: any count, not a short menu (user's ask, 2026-10-10).
+          <ValueRow title="Push-ups" value={`${reps}`} onPress={() => router.push('/pushups')} last />
         ) : null}
       </Card>
+      </Animated.View>
 
     </ScrollView>
   );
@@ -326,7 +344,9 @@ export function RoutineScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
-  night: { marginBottom: Gap.section, gap: Space.l },
+  // Cancels the card's own bottom margin, so only the gutter is left under it.
+  methods: { marginBottom: -Space.l },
+  night: { marginBottom: Space.xl, gap: Space.m },
   // Home's headline ("Bedtime in 3h 28m"): large and light (user's ask, October 9, 2026).
   title: { ...APP_FONT, color: Nocturne.text, fontSize: 38, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6, textAlign: 'center' },
 

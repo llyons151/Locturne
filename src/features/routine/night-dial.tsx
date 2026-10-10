@@ -300,7 +300,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
       </GestureDetector>
 
       {/* Like the Swift dial's columns: the time, then its symbol beside what it is, centred. */}
-      <View style={styles.times}>
+      <View style={[styles.times, { width: size }]}>
         <View style={styles.time}>
           <ValueUnit text={formatPreset(bed)} style={styles.timeValue} unitStyle={styles.timeUnit} />
           <View style={styles.timeName}>
@@ -348,7 +348,8 @@ const styles = StyleSheet.create({
   },
   knobHeld: { transform: [{ scale: 1.1 }] },
 
-  times: { flexDirection: 'row', alignSelf: 'stretch', marginTop: Space.l },
+  // As wide as the dial: each time sits under its half of it.
+  times: { flexDirection: 'row', marginTop: Space.l },
   time: { flex: 1, alignItems: 'center', gap: 2 },
   timeName: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   timeLabel: { ...Type.secondary, color: Nocturne.text2 },

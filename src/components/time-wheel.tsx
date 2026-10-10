@@ -118,17 +118,20 @@ export function TimeWheel({
   );
 }
 
-/** Scroll-wheel number picker for age, same feel as the time wheel. */
-export function AgeWheel({
+/** A single wheel of whole numbers from `min` to `max`, same feel as the time wheel. */
+export function NumberWheel({
   value,
   onChange,
   min,
   max,
+  label,
 }: {
   value: number;
-  onChange: (age: number) => void;
+  onChange: (value: number) => void;
   min: number;
   max: number;
+  /** What the number counts, for VoiceOver. */
+  label: string;
 }) {
   const { height } = useWindowDimensions();
   const row = height < 700 ? 40 : 48;
@@ -145,7 +148,7 @@ export function AgeWheel({
           onIndex={(i) => onChange(min + i)}
           row={row}
           visible={visible}
-          label="Age"
+          label={label}
           align="center"
           wide
         />

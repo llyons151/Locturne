@@ -1,7 +1,9 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import type { ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { GlassCard } from '@/components/glass-card';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { GLASS_RADIUS, GlassCard } from '@/components/glass-card';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,6 +40,7 @@ export function Card({
   title,
   footer,
   warn,
+  solid,
   children,
 }: {
   /** Left out with `title` when the rows carry their own icons, as in a pick-one list. */
@@ -46,10 +49,13 @@ export function Card({
   footer?: string;
   /** An edge in grey instead of the hairline: something here needs fixing. */
   warn?: boolean;
+  /** An opaque dark grey card instead of smoked glass (user's ask, 2026-10-09, for the wake-up methods). */
+  solid?: boolean;
   children?: ReactNode;
 }) {
+  const Frame = solid ? SolidCard : GlassCard;
   return (
-    <GlassCard dark rim={warn ? Nocturne.text2 : undefined} style={styles.card}>
+    <Frame dark rim={warn ? Nocturne.text2 : undefined} style={styles.card}>
       {icon && title ? (
         <View style={styles.cardHeader} accessible accessibilityRole="header">
           <SymbolView name={icon} size={15} weight="semibold" tintColor={Nocturne.accent ?? Nocturne.text} />
@@ -58,8 +64,12 @@ export function Card({
       ) : null}
       {children}
       {footer ? <Text style={styles.cardFooter}>{footer}</Text> : null}
-    </GlassCard>
+    </Frame>
   );
+}
+
+function SolidCard({ children, style, rim }: { children: ReactNode; style?: object; dark?: boolean; rim?: string }) {
+  return <View style={[styles.solid, rim ? { borderColor: rim } : null, style]}>{children}</View>;
 }
 
 /**
@@ -144,13 +154,10 @@ export function ChoiceRow({
   selected,
   onPress,
   last,
-  badge,
 }: {
   icon?: Symbol;
   title: string;
   detail?: string;
-  /** A small tag beside the title: "Recommended". */
-  badge?: string;
   selected: boolean;
   onPress: () => void;
   last?: boolean;
@@ -166,22 +173,15 @@ export function ChoiceRow({
       style={({ pressed }) => [styles.choice, icon && styles.tileChoice, pressed && styles.rowPressed]}
     >
       {icon ? (
-        <View style={[styles.tile, selected && styles.tileOn]}>
-          <SymbolView name={icon} size={17} tintColor={selected ? Nocturne.onCta : Nocturne.text} />
+        // Every tile alike: the radio alone says which is picked (MoonPay's theme list,
+        // docs/design-references/wake-methods).
+        <View style={styles.tile}>
+          <SymbolView name={icon} size={17} tintColor={Nocturne.text} />
         </View>
       ) : null}
       <View style={[styles.choiceBody, icon && styles.tileChoiceBody, !last && styles.separator]}>
         <View style={styles.choiceText}>
-          {badge ? (
-            <View style={styles.badgeRow}>
-              <Text style={[styles.title, styles.badgeTitle]} numberOfLines={1}>
-                {title}
-              </Text>
-              <Text style={styles.badge}>{badge}</Text>
-            </View>
-          ) : (
-            <Text style={styles.title}>{title}</Text>
-          )}
+          <Text style={styles.title}>{title}</Text>
           {detail ? <Text style={styles.detail}>{detail}</Text> : null}
         </View>
         {icon ? (
@@ -216,10 +216,28 @@ export function EditSheet({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  // The dimming fades where it is while only the sheet slides (user, 2026-10-10: "the darkened
+  // background drops with the popup ... it should just disappear"), so the Modal itself doesn't
+  // animate; it stays up until the sheet is gone.
+  const [mounted, setMounted] = useState(open);
+  if (open && !mounted) setMounted(true);
+  const shown = useSharedValue(0);
+  useEffect(() => {
+    shown.set(
+      withTiming(open ? 1 : 0, { duration: open ? 320 : 220, easing: Easing.out(Easing.cubic) }, (finished) => {
+        if (finished && !open) scheduleOnRN(setMounted, false);
+      }),
+    );
+  }, [open, shown]);
+  const scrim = useAnimatedStyle(() => ({ opacity: shown.value }));
+  const sheet = useAnimatedStyle(() => ({ transform: [{ translateY: interpolate(shown.value, [0, 1], [height, 0]) }] }));
   return (
-    <Modal visible={open} transparent animationType="slide" onRequestClose={onCancel}>
-      <Pressable style={styles.scrim} onPress={onCancel} accessibilityLabel="Cancel" />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + Space.l }]}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onCancel}>
+      <Animated.View style={[styles.scrim, scrim]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessibilityLabel="Cancel" />
+      </Animated.View>
+      <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + Space.l }, sheet]}>
         <View style={styles.navBar}>
           <Pressable onPress={onCancel} hitSlop={8} accessibilityRole="button" style={styles.navButton}>
             <Text style={styles.navText}>Cancel</Text>
@@ -242,7 +260,7 @@ export function EditSheet({
         <ScrollView bounces={false} contentContainerStyle={styles.sheetContent}>
           {children}
         </ScrollView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -254,6 +272,14 @@ const styles = StyleSheet.create({
 
   // Smoked glass, like the Apps tab's lists: the sky shows through instead of flat grey.
   card: { marginBottom: Space.l },
+  // A dark grey surface rather than black, which read as a hole in the sky.
+  solid: {
+    backgroundColor: '#16171C',
+    borderRadius: GLASS_RADIUS,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    overflow: 'hidden',
+  },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l, paddingTop: Space.l, paddingBottom: Space.xs },
   cardTitle: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
   cardFooter: { ...Type.caption, color: Nocturne.text2, paddingHorizontal: Space.l, paddingBottom: Space.l },
@@ -288,26 +314,10 @@ const styles = StyleSheet.create({
     paddingRight: Space.l,
   },
   choiceText: { flex: 1, gap: 2 },
-  // The title never breaks for the badge: on a narrow row the badge wraps under it instead.
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: Space.s, rowGap: Space.xs },
-  // Its own width: `title`'s flex: 1 starts it at zero, which no-shrink would keep (and hide).
-  badgeTitle: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
-  badge: {
-    ...Type.caption,
-    fontSize: 12,
-    color: Nocturne.text2,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 999,
-    overflow: 'hidden',
-    backgroundColor: Nocturne.frost,
-  },
   // The tile sits beside the text; the separator starts at the text, as in Settings.
   tileChoice: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   // Takes the row's remaining width, so the detail wraps instead of running off the card.
-  tileChoiceBody: { flex: 1 },
-  // The picked row's tile goes solid white, like a picked day in the week row.
-  tileOn: { backgroundColor: Nocturne.cta },
+  tileChoiceBody: { flex: 1, paddingVertical: 9 },
   tile: {
     width: 36,
     height: 36,

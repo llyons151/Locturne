@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   interpolate,
+  makeMutable,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -79,6 +80,16 @@ export function restingMoonDisc(width: number, height: number) {
   const m = risingMoon(width, height);
   return { cx: m.left + m.size / 2, cy: m.top + m.size / 2, r: m.size / 2 };
 }
+
+/**
+ * How far the resting moon has sunk into the floor, 0 (resting) to 1 (sunk). A tab with a
+ * card over the bottom of the page sinks it, so the card sits on calm, dark sky instead of
+ * having moonlight leak round its corners (user's ask, 2026-10-09, for Routine).
+ */
+export const moonSink = makeMutable(0);
+/** How much of the moon's width it drops when sunk, and how much of its glow stays. */
+const SINK_DEPTH = 0.3;
+const SUNK_GLOW = 0.25;
 
 /** How long the moon takes to rise over the home screen, or sink back when leaving it. */
 export const HOME_RISE_MS = 1100;
@@ -215,7 +226,7 @@ export function NightSky({
     const inset = (d.size * (FROST_PAD - 1)) / 2;
     return {
       left: d.left - inset,
-      top: d.top - inset,
+      top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
       width: d.size * FROST_PAD,
       height: d.size * FROST_PAD,
     };
@@ -226,10 +237,10 @@ export function NightSky({
     const inset = (d.size * (GLOW_PAD - 1)) / 2;
     return {
       left: d.left - inset,
-      top: d.top - inset,
+      top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
       width: d.size * GLOW_PAD,
       height: d.size * GLOW_PAD,
-      opacity: progress.value,
+      opacity: progress.value * interpolate(moonSink.value, [0, 1], [1, SUNK_GLOW]),
     };
   });
 

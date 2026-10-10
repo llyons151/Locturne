@@ -24,12 +24,16 @@ export type Routine = {
   activeNights: number[];
   method: WakeMethod;
   stepGoal: number;
-  /** Push-ups a morning takes (`PUSHUP_GOALS`). Missing on routines saved before it was kept: 10. */
+  /** Push-ups a morning takes (`PUSHUP_MIN`–`PUSHUP_MAX`). Missing on routines saved before it was kept: 10. */
   pushupGoal?: number;
 };
 
-/** The push-up targets on offer (GAME_PLAN: 10–20). */
-export const PUSHUP_GOALS = [10, 15, 20] as const;
+/**
+ * The push-up targets on offer: any number on a wheel (user's ask, 2026-10-10, widening
+ * GAME_PLAN's 10–20), from a few that still get you on the floor to a hundred.
+ */
+export const PUSHUP_MIN = 5;
+export const PUSHUP_MAX = 100;
 export const DEFAULT_PUSHUP_GOAL = 10;
 
 export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;

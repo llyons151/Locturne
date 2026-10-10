@@ -311,9 +311,10 @@ final class NightDialView: ExpoView {
 
     let rowY = s + rowGap
     let rowH = rowHeight - rowGap
-    let colW = min(140, bounds.width / 2)
-    bedColumn.frame = CGRect(x: 0, y: rowY, width: colW, height: rowH)
-    wakeColumn.frame = CGRect(x: bounds.width - colW, y: rowY, width: colW, height: rowH)
+    // Each time centred under its half of the dial, so the row lines up with the dial above.
+    let colW = s / 2
+    bedColumn.frame = CGRect(x: dial.frame.minX, y: rowY, width: colW, height: rowH)
+    wakeColumn.frame = CGRect(x: dial.frame.midX, y: rowY, width: colW, height: rowH)
     draw()
   }
 

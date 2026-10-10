@@ -47,6 +47,15 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
+          {/* The push-up count, in the same floating card. */}
+          <Stack.Screen
+            name="pushups"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="place" options={{ presentation: 'fullScreenModal' }} />
           {/* Picking the morning place: a tall sheet over Routine, like Maps' search. */}
