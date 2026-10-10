@@ -179,6 +179,15 @@ export function selectionSize(id: SelectionId): number {
   return apps + categories + sites;
 }
 
+/** Apps on a list, or null when it also holds whole categories or sites ("6 apps" would be wrong). */
+export function bedtimeAppCount(id: SelectionId): number | null {
+  if (!isAvailable()) return null;
+  const meta = activitySelectionMetadata({ activitySelectionId: id });
+  if (!meta) return null;
+  const { apps, categories, sites } = countsOf(meta);
+  return categories || sites ? null : apps;
+}
+
 type Counts = { applicationCount: number; categoryCount: number; webDomainCount?: number };
 
 /** The library's Swift sends `webdomainCount`, although its types say `webDomainCount`. */

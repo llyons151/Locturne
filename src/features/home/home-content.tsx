@@ -20,10 +20,12 @@ export type HomeContentProps = {
   free: Set<string>;
   /** Bumped to redraw the screen time report. */
   revision: number;
-  hero: { title: string; body: string };
+  /** `aside`: Loc's line, set apart under the body, smaller and dimmer. */
+  hero: { title: string; body: string; aside?: string };
   /** Changes when the headline's countdown does (minutes left), to roll its digits. */
   heroKey: number;
-  action: { label: string; onPress: () => void };
+  /** `opens`: it leads somewhere (a chevron), rather than doing the thing it names. */
+  action: { label: string; onPress: () => void; opens?: boolean };
 };
 
 type Symbol = SymbolViewProps['name'];
@@ -49,6 +51,11 @@ export function HomeContent({ mornings, today, won, free, revision, hero, action
         <Animated.Text style={[APP_FONT, styles.body, enter(4)]} maxFontSizeMultiplier={1.4}>
           {noOrphan(hero.body)}
         </Animated.Text>
+        {hero.aside ? (
+          <Animated.Text style={[APP_FONT, styles.aside, enter(4)]} accessibilityLabel={`Loc: ${hero.aside}`} maxFontSizeMultiplier={1.4}>
+            {noOrphan(hero.aside)}
+          </Animated.Text>
+        ) : null}
         <Animated.View style={enter(5)}>
           <Pressable
             onPress={action.onPress}
@@ -56,6 +63,7 @@ export function HomeContent({ mornings, today, won, free, revision, hero, action
             style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
           >
             <Text style={styles.ghostLabel}>{action.label}</Text>
+            {action.opens ? <SymbolView name={sym('chevron.right', 'chevron_right')} size={11} weight="semibold" tintColor={Nocturne.text2} /> : null}
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -74,7 +82,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.10)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
+  aside: { ...Type.secondary, color: Nocturne.text3, textAlign: 'center', maxWidth: 300 },
   pressed: { opacity: 0.6 },
   ghostLabel: { ...Type.secondary, fontWeight: '600', color: Nocturne.text },
 });

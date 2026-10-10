@@ -79,6 +79,8 @@ export function dayHero({
   sleepsAt,
   offTonight = null,
   alwaysSleeps = false,
+  apps = null,
+  quip = null,
 }: {
   /** `rollUpHealth` said `attention`: its title and detail, or null. */
   attention: { title: string; detail: string } | null;
@@ -100,7 +102,11 @@ export function dayHero({
    * off (as `offHero`).
    */
   alwaysSleeps?: boolean;
-}): { title: string; body: string } {
+  /** Apps on the bedtime list (`bedtimeAppCount`), or null when it also holds categories or sites. */
+  apps?: number | null;
+  /** Loc's line for tonight (`bedtimeQuip`), in place of the plain "wind down" nudge. */
+  quip?: string | null;
+}): { title: string; body: string; aside?: string } {
   if (attention) return { title: attention.title, body: attention.detail };
   if (!sleepsAt || !until) {
     return {
@@ -110,7 +116,28 @@ export function dayHero({
   }
   if (!scheduled) return { title: 'No bedtime scheduled', body: line };
   if (offTonight) return { title: 'Tonight is off', body: `Your next bedtime is ${sleepsAt} on ${offTonight}.` };
-  return { title: `Bedtime in ${until}`, body: `Your apps go to sleep at ${sleepsAt}. Start winding down before then.` };
+  const who = apps ? `${apps} ${apps === 1 ? 'app goes' : 'apps go'}` : 'Your apps go';
+  const body = `${who} to sleep at ${sleepsAt}.`;
+  // Loc's line stands apart from the fact, so it reads as him, not the app being snarky.
+  return quip ? { title: `Bedtime in ${until}`, body, aside: quip } : { title: `Bedtime in ${until}`, body: `${body} Start winding down before then.` };
+}
+
+/** Loc's evening lines (docs/MASCOT_DIRECTION.md: tired, a bit sassy, never mean). */
+const QUIPS = [
+  'The feed will still be there tomorrow. Sadly.',
+  'Nothing good gets posted after bedtime. I’ve checked.',
+  'Finish the episode, not the season.',
+  'I’ll guard the apps. You guard the pillow.',
+  'One more scroll is how they get you.',
+  'Phone on the charger, not on your face.',
+  'Tomorrow-you already says thanks.',
+];
+
+/** One of Loc's lines, fixed for the day (`dateKey`) so it doesn't change each time Home opens. */
+export function bedtimeQuip(day: string): string {
+  let hash = 0;
+  for (const ch of day) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return QUIPS[hash % QUIPS.length];
 }
 
 /**

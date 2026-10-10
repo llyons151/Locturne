@@ -118,7 +118,7 @@ export function HomeContent(props: HomeContentProps) {
           {showUsage ? (
             <RNHostView matchContents>
               {/* Drawn by Apple's report extension, the only place usage may be read. */}
-              <ScreenTimeReport pill days={1} revision={revision} style={{ width: 170, height: 36 }} />
+              <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
             </RNHostView>
           ) : null}
         </HStack>
@@ -202,20 +202,33 @@ export function HomeContent(props: HomeContentProps) {
           >
             {hero.body}
           </Text>
+          {hero.aside ? (
+            // Loc's line, apart from the fact, smaller and dimmer.
+            <Text
+              modifiers={[
+                font({ textStyle: 'subheadline' }),
+                foregroundStyle(Nocturne.text3),
+                multilineTextAlignment('center'),
+                frame({ maxWidth: 300 }),
+                accessibilityLabel(`Loc: ${hero.aside}`),
+                ...enter(4),
+              ]}
+            >
+              {hero.aside}
+            </Text>
+          ) : null}
           <Button
             onPress={action.onPress}
             modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}
           >
-            <Text
-              modifiers={[
-                font({ textStyle: 'subheadline', weight: 'semibold' }),
-                foregroundStyle(Nocturne.text),
-                padding({ vertical: 10, horizontal: 20 }),
-                background(BUTTON, shapes.capsule()),
-              ]}
-            >
-              {action.label}
-            </Text>
+            <HStack spacing={6} modifiers={[padding({ vertical: 10, horizontal: 20 }), background(BUTTON, shapes.capsule())]}>
+              <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(Nocturne.text)]}>
+                {action.label}
+              </Text>
+              {action.opens ? (
+                <Image systemName="chevron.right" color={Nocturne.text2} modifiers={[font({ size: 11, weight: 'semibold' })]} />
+              ) : null}
+            </HStack>
           </Button>
         </VStack>
 

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { awakeLine, dayHero, napHero, offHero, unheldLine } from './awake-line.ts';
+import { awakeLine, bedtimeQuip, dayHero, napHero, offHero, unheldLine } from './awake-line.ts';
 
 describe('awakeLine', () => {
   test('an armed night names its bedtime', () => {
@@ -88,6 +88,15 @@ describe('dayHero', () => {
     });
   });
 
+  test('names how many apps sleep, and Loc says tonight’s line', () => {
+    assert.deepEqual(dayHero({ ...base, attention: null, apps: 6, quip: 'Finish the episode, not the season.' }), {
+      title: 'Bedtime in 8h',
+      body: '6 apps go to sleep at 11:00 PM.',
+      aside: 'Finish the episode, not the season.',
+    });
+    assert.match(dayHero({ ...base, attention: null, apps: 1 }).body, /^1 app goes to sleep/);
+  });
+
   test('no subscription (stood down, never bought): his status leads, no bedtime named', () => {
     const hero = dayHero({
       ...base,
@@ -134,5 +143,13 @@ describe('offHero', () => {
 
   test('with nothing on the always list (or it stood down), nothing sleeps', () => {
     assert.match(offHero(false).body, /Nothing sleeps tonight/);
+  });
+});
+
+describe('bedtimeQuip', () => {
+  test('keeps one line all day and changes between days', () => {
+    assert.equal(bedtimeQuip('2026-10-09'), bedtimeQuip('2026-10-09'));
+    const week = new Set(['2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12', '2026-10-13'].map(bedtimeQuip));
+    assert.ok(week.size > 1);
   });
 });

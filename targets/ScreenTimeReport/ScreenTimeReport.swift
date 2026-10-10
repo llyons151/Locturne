@@ -287,7 +287,7 @@ struct CompactUsageChart: View {
   }
 }
 
-/// Home's top-row pill, "2h 18m today", drawn to match the mornings pill beside it
+/// Home's top-row pill, "2h 18m screen time" (today's total), drawn to match the mornings pill beside it
 /// (home-screen.tsx): the app can't read the number, so the extension draws the whole pill.
 /// Right-aligned in its frame, since the host can't know how wide the text will be.
 /// `.smooth` is iOS 17; the extension still runs on 16.4, which gets a plain ease.
@@ -323,7 +323,7 @@ struct TodayPill: View {
         Text(duration(configuration.total)).font(.system(size: 16, weight: .heavy)).foregroundStyle(text)
           .monospacedDigit()
           .rollingDigits(configuration.total)
-        Text("today").font(.system(size: 15)).foregroundStyle(text2)
+        Text("screen time").font(.system(size: 15)).foregroundStyle(text2)
           .transition(.opacity)
       }
     }

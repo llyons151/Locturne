@@ -17,6 +17,7 @@ import { manageSubscriptions } from '@/lib/purchases';
 import { getRoutineChange, nextNightOn, nightAt, nightWasOn } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import {
+  bedtimeAppCount,
   isScreenTimeAvailable,
   isStoodDown,
   listChangeLandsAt,
@@ -28,7 +29,7 @@ import { clockLabel } from '@/lib/shield-copy';
 import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
-import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
+import { awakeLine, bedtimeQuip, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent } from './home-content';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -47,7 +48,9 @@ const MOCK_WEEK = __DEV__;
  * one sentence and one quiet button. Nothing sits over the moon.
  */
 
-const MORNING_ACTION = { downstairs: 'Go downstairs', steps: 'Start walking', scan: 'Scan my code' } as const;
+const MORNING_ACTION = { downstairs: 'Go downstairs', steps: 'Start walking', scan: 'Scan my code', place: 'Check in', pushups: 'Start push-ups' } as const;
+/** The evening button names tomorrow's wake-up, the part of the night that's still to come. */
+const METHOD_NAME = { downstairs: 'Downstairs', steps: '200 steps', scan: 'Scan my code', place: 'Leave the house', pushups: 'Push-ups' } as const;
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -91,9 +94,8 @@ export function HomeScreen() {
   // nothing sleeps at bedtime and the morning is free (`readLock`), so no bedtime is promised.
   const handoff = listChangeLandsAt('night', now);
   const bedtimeAt = lock.phase === 'night' && !pause ? now : sleepsAt;
-  const bedtimeApps =
-    !isScreenTimeAvailable() ||
-    (handoff && !handoff.waitsForOpen && bedtimeAt && handoff.at <= bedtimeAt ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
+  const listChanges = !!handoff && !handoff.waitsForOpen && !!bedtimeAt && handoff.at <= bedtimeAt;
+  const bedtimeApps = !isScreenTimeAvailable() || (listChanges ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
   // Nothing is asleep on a night that isn't held (never bought, stood down, arming failed,
   // paused, past a lapse's last paid night, or an empty bedtime list), so it reads as day.
   const held = heldPhase(lock.phase, now);
@@ -147,8 +149,16 @@ export function HomeScreen() {
               sleepsAt: sleepsAt ? clockAt(sleepsAt) : null,
               offTonight,
               alwaysSleeps: alwaysSleeps && !stoodDown,
+              // A change still to land would make today's count wrong, so it just says "Your apps".
+              apps: listChanges ? null : bedtimeAppCount('night'),
+              quip: bedtimeQuip(lock.morningKey),
             })
           : heroFor(phase, clockLabel(routine.morningStart));
+  // Tomorrow's morning will hold (tonight sleeps, or is asleep), so the button says how it
+  // ends rather than offering the schedule. Nights off and nothing scheduled keep Edit schedule,
+  // which is the fix there.
+  const tomorrowLocked =
+    !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
   const action = unprotected
     ? health.protection === 'notSetUp'
       ? { label: 'Set up Screen Time', onPress: () => router.push('/apps') }
@@ -161,7 +171,9 @@ export function HomeScreen() {
           ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
           : !bedtimeApps && !stoodDown
             ? { label: 'Pick bedtime apps', onPress: () => router.push('/apps') }
-            : { label: 'Edit schedule', onPress: () => router.push('/routine') };
+            : tomorrowLocked
+              ? { label: `Tomorrow: ${METHOD_NAME[method]} at ${clockLabel(routine.morningStart)}`, onPress: () => router.push('/routine'), opens: true }
+              : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;

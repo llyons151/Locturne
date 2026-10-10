@@ -95,6 +95,7 @@ function home({
     '@/lib/routine': { getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
+      bedtimeAppCount: () => night,
       isScreenTimeAvailable: () => true,
       isStoodDown: () => false,
       nightLockArmed: () => armed,
@@ -138,7 +139,7 @@ describe('Home in the trial’s last days (B4)', () => {
     for (const end of [new Date(2026, 9, 14, 12), null]) {
       const { hero, action } = home({ now: new Date(2026, 9, 9, 14), trialEnd: end });
       assert.match(hero.title, /^Bedtime in/);
-      assert.equal(action.label, 'Edit schedule');
+      assert.equal(action.label, 'Tomorrow: 200 steps at 7 am');
     }
   });
 

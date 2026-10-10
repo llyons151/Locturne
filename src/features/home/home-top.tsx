@@ -44,7 +44,7 @@ export function HomeTop({ mornings, today, won, free, enter }: HomeTopProps) {
           <View style={styles.pill} accessible accessibilityLabel="Sample: 2h 18m of screen time today">
             <SymbolView name={sym('hourglass', 'hourglass_empty')} size={15} tintColor={Nocturne.text} />
             <Text style={styles.pillValue}>2h 18m</Text>
-            <Text style={styles.pillLabel}>today</Text>
+            <Text style={styles.pillLabel}>screen time</Text>
           </View>
         ) : null}
       </Animated.View>
