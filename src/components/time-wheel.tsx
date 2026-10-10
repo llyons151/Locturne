@@ -380,7 +380,8 @@ function Item({
 const styles = StyleSheet.create({
   wrap: { gap: Space.xl, alignSelf: 'stretch' },
   wheels: { flexDirection: 'row', justifyContent: 'center', alignSelf: 'center', gap: 8 },
-  band: { position: 'absolute', left: -20, right: -20, borderRadius: 12, backgroundColor: Nocturne.surface },
+  // A veil, like iOS's own wheels, so it takes the colour of whatever it sits on (a sheet's glass too).
+  band: { position: 'absolute', left: -20, right: -20, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
   column: { width: 56, overflow: 'hidden' },
   columnWide: { width: 120 },
   colon: { width: 12, justifyContent: 'center', alignItems: 'center' },
