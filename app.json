@@ -160,7 +160,7 @@
         "simulateAskToBuy": false
       },
       "posthog": {
-        "apiKey": "REPLACE_WITH_POSTHOG_PROJECT_API_KEY",
+        "apiKey": "phc_rzAh3VLxUiaZ5Sk3wKqvaqMBUVEihJrwwk4wBoJGLzEA",
         "host": "https://us.i.posthog.com",
         "disableGeoip": false
       },
