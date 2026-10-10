@@ -13,11 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Segmented } from '@/components/segmented';
 import { useLock } from '@/hooks/use-lock';
-import { bedtimeAppsAhead, getNightPause, heldPhase } from '@/lib/emergency';
+import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { lapseStillCovers, readLock, routineAt, subscriptionEnded } from '@/lib/lock-controller';
-import { nightsAround, type Phase } from '@/lib/lock-state';
-import { getRoutine, nextNightOn, nightAt, toLockSettings } from '@/lib/routine';
+import { readLock, routineAt } from '@/lib/lock-controller';
+import type { Phase } from '@/lib/lock-state';
+import { getRoutine } from '@/lib/routine';
 import {
   draftQrData,
   getScanCode,
@@ -27,13 +27,13 @@ import {
   submitScan,
   type ScanCode,
 } from '@/lib/scan';
-import { isStoodDown, nightLockArmed } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
 import { awakeStatus } from '../wake/awake-status';
-import { awakeBody, savedBody, type NextMorning } from './next-morning';
+import { awakeBody, savedBody } from './next-morning';
+import { nextLockedMorning } from './next-locked-morning';
 import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
 import { ShareCode } from './share-code';
@@ -80,27 +80,6 @@ const SOURCES: { value: Source; label: string }[] = [
   { value: 'qr', label: 'My own code' },
   { value: 'barcode', label: 'A barcode' },
 ];
-
-/**
- * The next morning the lock holds, or null when every night is off. A night under way here
- * holds nothing (no lock, or an emergency paused it), so its morning is free: look past it.
- * With nothing scheduled to sleep at all (no night lock, stood down, no subscription past
- * the night or morning a lapse still covers, or a bedtime list empty at the next bedtime,
- * which `readLock` reads as a free morning), no morning wants the code: 'unscheduled'.
- */
-function nextLockedMorning(now: Date): NextMorning {
-  if (!nightLockArmed() || isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null) || !bedtimeAppsAhead(now)) {
-    return 'unscheduled';
-  }
-  const night = nightsAround(now, toLockSettings(routineAt(now))).latest;
-  const from = readLock(now).phase === 'night' ? (getNightPause(now) ?? night.end) : now;
-  const start = nextNightOn(from, now);
-  if (!start) return null;
-  // The night that starts there: a waiting edit's first night can start at `from`, after its
-  // own night of that day ended (a switch to a night shift, 08:00 to 16:00, saved in the day).
-  const { latest, next } = nightsAround(start, toLockSettings(nightAt(start, now).routine));
-  return start < latest.end || start.getTime() === latest.start.getTime() ? latest.end : next.end;
-}
 
 /** Loc's line and the plain sentence under it, per stage. */
 function words(stage: Stage): { line: string; body: string } {

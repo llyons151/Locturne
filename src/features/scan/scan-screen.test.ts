@@ -66,6 +66,8 @@ function harness(source: string) {
   };
   // The success line is shared with the wake screen: run the real one against the stubs above.
   mocks['../wake/awake-status'] = load(readFileSync(new URL('../wake/awake-status.ts', import.meta.url), 'utf8'), 'awake-status.ts');
+  // Which morning wants the code next, shared with the place screen: also real, on the stubs.
+  mocks['./next-locked-morning'] = load(readFileSync(new URL('./next-locked-morning.ts', import.meta.url), 'utf8'), 'next-locked-morning.ts');
   const exports = load(source, 'scan-screen.tsx') as { ScanScreen: (props: { mode: string }) => Tree };
   return {
     render() { index = 0; return exports.ScanScreen({ mode: 'morning' }); },
