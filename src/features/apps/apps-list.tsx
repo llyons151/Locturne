@@ -29,7 +29,7 @@ import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { GlassCard } from '@/components/glass-card';
 import { useTabBarInset } from '@/components/app-tabs';
 import { sym } from '@/components/grouped-list';
-import { Segmented } from '@/components/segmented';
+import { Split, SplitHalf } from '@/components/split-choice';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
@@ -69,7 +69,7 @@ import {
   type SelectionId,
   type StandingList,
 } from '@/lib/screen-time';
-import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
+import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { APPS, type AppEntry } from './catalog';
 import { LimitMenu } from './limit-menu';
@@ -92,10 +92,29 @@ const ROW_PAD = 16;
 const ROW_HEIGHT = 56;
 
 type Tab = 'bedtime' | 'limit';
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'bedtime', label: 'Bedtime' },
-  { value: 'limit', label: 'Daily limit' },
-];
+/** The tab switcher: the nap sheet's split row (TIDE), not a stock segmented control. */
+function TabSplit({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
+  return (
+    <Split label="Which apps" compact>
+      <SplitHalf
+        icon={sym('moon.zzz.fill', 'bedtime')}
+        title="Bedtime"
+        detail="Every night"
+        selected={tab === 'bedtime'}
+        compact
+        onPress={() => onChange('bedtime')}
+      />
+      <SplitHalf
+        icon={sym('hourglass', 'hourglass_empty')}
+        title="Daily limit"
+        detail="Each day"
+        selected={tab === 'limit'}
+        compact
+        onPress={() => onChange('limit')}
+      />
+    </Split>
+  );
+}
 
 export function AppsList() {
   return isScreenTimeAvailable() ? <LiveAppsList /> : <PreviewAppsList />;
@@ -105,15 +124,6 @@ const LIVE_GROUPS: { key: 'night' | 'always'; label: string; about: string }[] =
   { key: 'night', label: 'Sleep at bedtime', about: 'Asleep from bedtime until your wake-up is done.' },
   { key: 'always', label: 'Always asleep', about: 'Asleep all day, every day.' },
 ];
-
-/** The title: "Apps", centred. Adding and removing live in each list's own rows. */
-function TitleRow() {
-  return (
-    <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-      Apps
-    </Text>
-  );
-}
 
 /**
  * One list: an optional title with its count (Mercury's and GitHub's section headers) and
@@ -361,7 +371,6 @@ function LiveAppsList() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
       >
         <View style={styles.header}>
-          <TitleRow />
           {unpaid || revoked ? (
             <Text style={styles.summary}>
               {unpaid
@@ -369,7 +378,7 @@ function LiveAppsList() {
                 : 'Screen Time access is off, so nothing is asleep. Turn it back on to put them to sleep again.'}
             </Text>
           ) : null}
-          <Segmented value={tab} options={TABS} onChange={setTab} label="Which apps" />
+          <TabSplit tab={tab} onChange={setTab} />
         </View>
 
         {revoked ? (
@@ -657,8 +666,7 @@ function PreviewAppsList() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
       >
         <View style={styles.header}>
-          <TitleRow />
-          <Segmented value={tab} options={TABS} onChange={setTab} label="Which apps" />
+          <TabSplit tab={tab} onChange={setTab} />
         </View>
 
         {tab === 'bedtime' &&
@@ -827,15 +835,14 @@ function AppIconView({ app }: { app: AppEntry }) {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
   header: { gap: Gap.headline, marginBottom: Gap.block },
-  title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3, textAlign: 'center' },
   summary: { color: Nocturne.text2, ...Type.body },
 
   section: { marginBottom: Gap.section },
-  sectionHeader: { gap: 2, marginHorizontal: Space.xs, marginBottom: Space.m },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: Space.s },
+  sectionHeader: { gap: 2, alignItems: 'center', marginHorizontal: Space.xs, marginBottom: Space.m },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: Space.s, justifyContent: 'center' },
   sectionTitle: { color: Nocturne.text, fontSize: 20, lineHeight: 25, fontWeight: '600', letterSpacing: -0.2 },
   sectionCount: { color: Nocturne.text3, fontSize: 17, fontWeight: '500', fontVariant: ['tabular-nums'] },
-  sectionAbout: { ...Type.caption, color: Nocturne.text2 },
+  sectionAbout: { ...Type.caption, color: Nocturne.text2, textAlign: 'center' },
 
   pressed: { opacity: 0.7 },
   flex: { flex: 1 },
@@ -853,7 +860,7 @@ const styles = StyleSheet.create({
   limitTile: { backgroundColor: '#FF9F0A' },
   limitText: { flex: 1, paddingVertical: Space.s },
   limitStatus: { ...Type.caption, color: Nocturne.text2 },
-  footer: { ...Type.caption, color: Nocturne.text2, marginHorizontal: Space.l, marginTop: Space.s },
+  footer: { ...Type.caption, color: Nocturne.text2, marginHorizontal: Space.l, marginTop: Space.s, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: ROW_PAD, gap: 14 },
   rowPressed: { backgroundColor: 'rgba(255, 255, 255, 0.06)' },
   // The separator starts at the label, not the icon, as in Settings.

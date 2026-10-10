@@ -14,6 +14,7 @@ import { useProtection } from '@/hooks/use-protection';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
 import { sym, type Symbol } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
+import { Split, SplitHalf } from '@/components/split-choice';
 import * as haptic from '@/lib/haptics';
 import { onLockChange, syncLock } from '@/lib/lock-controller';
 import {
@@ -275,22 +276,22 @@ export function NapScreen() {
       ) : (
         /* TIDE's split row (user's reference, 2026-10-08): one pill, two halves, each an icon,
            a title and a short grey line. The chosen half sits on a lighter pane, like a segmented control. */
-        <View style={styles.split} accessibilityRole="radiogroup">
-          <Half
+        <Split>
+          <SplitHalf
             icon={sym('moon.zzz.fill', 'bedtime')}
             title="Bedtime apps"
             detail="Every night"
             selected={list === 'night'}
             onPress={() => choose('night')}
           />
-          <Half
+          <SplitHalf
             icon={sym('square.grid.2x2.fill', 'apps')}
             title="Pick apps"
             detail={list === 'block' ? (picks ? countPicks(picks) : 'None yet') : 'Just this nap'}
             selected={list === 'block'}
             onPress={() => (list === 'block' ? pickApps() : choose('block'))}
           />
-        </View>
+        </Split>
       )}
 
       {nap ? (
@@ -332,42 +333,6 @@ export function NapScreen() {
         />
       )}
     </View>
-  );
-}
-
-/** One half of the split row: a round icon, then the title over a grey line. */
-function Half({
-  icon,
-  title,
-  detail,
-  selected,
-  onPress,
-}: {
-  icon: Symbol;
-  title: string;
-  detail: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        haptic.tap();
-        onPress();
-      }}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${title}. ${detail}`}
-      style={({ pressed }) => [styles.half, selected && styles.halfOn, pressed && styles.pressed]}
-    >
-      <View style={[styles.halfIcon, selected && styles.halfIconOn]}>
-        <SymbolView name={icon} size={13} tintColor={selected ? Nocturne.onCta : INK2} />
-      </View>
-      <View style={styles.halfText}>
-        <Text style={[styles.halfTitle, !selected && styles.halfTitleOff]} numberOfLines={1}>{title}</Text>
-        <Text style={styles.halfDetail} numberOfLines={1}>{detail}</Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -417,7 +382,6 @@ function Voice({ text }: { text: string }) {
 const INK = Nocturne.text;
 const INK2 = Nocturne.text2;
 const LINE = 'rgba(255, 255, 255, 0.12)';
-const ACCENT = Nocturne.accent ?? Nocturne.text;
 /** A pane of glass inside the glass: a faint white fill. */
 const GLASS = 'rgba(255, 255, 255, 0.07)';
 
@@ -443,32 +407,6 @@ const styles = StyleSheet.create({
   until: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -Space.m },
   untilText: { ...Type.caption, fontWeight: '500', color: INK2 },
 
-  split: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 4,
-    borderRadius: 22,
-    borderCurve: 'continuous',
-    backgroundColor: GLASS,
-  },
-  half: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Space.s,
-    paddingVertical: Space.m,
-    paddingHorizontal: Space.s,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-  },
-  halfOn: { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-  halfIcon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: GLASS },
-  halfIconOn: { backgroundColor: ACCENT },
-  halfText: { flexShrink: 1 },
-  halfTitle: { color: INK, fontSize: 15, fontWeight: '600' },
-  halfTitleOff: { color: INK2 },
-  halfDetail: { ...Type.caption, color: INK2 },
 
   actions: { flexDirection: 'row', gap: Space.m },
   button: {
