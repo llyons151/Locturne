@@ -22,6 +22,7 @@ import { Nocturne, Radius, Space, Type } from '@/theme';
 const HOURS = ['12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 const PERIODS = ['am', 'pm'];
+const PLAIN_MINUTES = Array.from({ length: 60 }, (_, i) => `${i}`);
 const SETTLE = { damping: 28, stiffness: 220, mass: 0.8 };
 /** How far a flick carries, in seconds of release velocity. */
 const FLICK_S = 0.22;
@@ -152,6 +153,58 @@ export function NumberWheel({
           align="center"
           wide
         />
+      </View>
+    </Reveal>
+  );
+}
+
+/** An hours and minutes length of time (0 hr up to `maxHours`, 0–59 min), same feel as the time wheel. */
+export function DurationWheel({
+  value,
+  onChange,
+  maxHours,
+}: {
+  /** Minutes. */
+  value: number;
+  onChange: (minutes: number) => void;
+  maxHours: number;
+}) {
+  const { height } = useWindowDimensions();
+  const row = height < 700 ? 34 : 40;
+  const visible = 5;
+  const hours = useMemo(() => Array.from({ length: maxHours + 1 }, (_, h) => `${h}`), [maxHours]);
+  const h = Math.floor(value / 60);
+  const m = value % 60;
+
+  return (
+    <Reveal style={styles.wrap}>
+      <View style={[styles.wheels, { height: row * visible }]}>
+        <View style={[styles.band, { top: (row * (visible - 1)) / 2, height: row }]} />
+        <Column
+          items={hours}
+          index={h}
+          onIndex={(i) => onChange(i * 60 + m)}
+          row={row}
+          visible={visible}
+          label="Hours"
+          align="right"
+        />
+        <View style={[styles.unit, { height: row * visible }]}>
+          <Text style={styles.unitText}>hr</Text>
+        </View>
+        <Column
+          items={PLAIN_MINUTES}
+          index={m}
+          onIndex={(i) => onChange(h * 60 + i)}
+          loop
+          row={row}
+          visible={visible}
+          label="Minutes"
+          align="right"
+        />
+        <View style={[styles.unit, { height: row * visible }]}>
+          <Text style={styles.unitText}>min</Text>
+        </View>
       </View>
     </Reveal>
   );
@@ -332,6 +385,8 @@ const styles = StyleSheet.create({
   columnWide: { width: 120 },
   colon: { width: 12, justifyContent: 'center', alignItems: 'center' },
   colonText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', marginTop: -3 },
+  unit: { width: 40, justifyContent: 'center' },
+  unitText: { color: Nocturne.text2, fontSize: 17, fontWeight: '500' },
   item: { position: 'absolute', left: 0, right: 0, justifyContent: 'center' },
   itemText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', fontVariant: ['tabular-nums'] },
   itemTextWide: { fontSize: 32, fontWeight: '600' },

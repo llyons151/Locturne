@@ -46,6 +46,7 @@ import {
   REPLY_BUTTON,
   TIME_BACK,
   TIME_BACK_REPLY,
+  timeBackQuestion,
   TONE_STEP,
   TRIED,
   TRIED_REPLY,
@@ -68,7 +69,6 @@ import { ScheduleCard } from './schedule-card';
 import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { RevealScreen } from './screens/reveal-screen';
 import { WalkMeter } from './screens/walk-meter';
-import { YourNight } from './screens/your-night';
 import { ToneSlider } from './tone/tone-slider';
 import { TomorrowDemo } from './screens/tomorrow-demo';
 import { Body, Chip, Eyebrow, HoldButton, NotePreview, Options, page, PreviewNote, Ready, Reply, Title, TonightStrip, Voice } from './ui';
@@ -231,12 +231,14 @@ export function renderStep(ctx: StepContext): StepView {
             <View style={styles.beats}>
               <Beat label="Bedtime" text="Your apps go to sleep. So do I." />
               <Beat label="Morning" text="They stay asleep until you’re up. Same as me." />
-              <Beat label="Up means up" text="Downstairs or a short walk. They wake up. I do too, unfortunately." />
+              <Beat label="Up means up" text="A trip downstairs or a short walk. Then we all wake up." />
             </View>
-            {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner. */}
+            {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner;
+                kept to one line so screen 2 isn't a wall. The picked apps staying on the phone
+                is said where it matters, on `screen-time`. Quiz answers go to analytics
+                (docs/ANALYTICS.md), so no "stays on your phone" here. */}
             <View style={page.gapSection} />
-            {/* Quiz answers go to analytics (docs/ANALYTICS.md), so no "stays on your phone" here. What's true: no account, and the picked apps never leave the phone. */}
-            <Body>{`First, a few questions. Then I do math on your nights. About two minutes. No name, no email, and the apps you pick never leave your phone.${ctx.newYear ? ` ${NEW_YEAR.deal}` : ''}`}</Body>
+            <Body>{`Two minutes of questions first. No name, no email.${ctx.newYear ? ` ${NEW_YEAR.deal}` : ''}`}</Body>
           </View>
         ),
         footer: <PrimaryButton label="Ask away" onPress={next} />,
@@ -497,34 +499,22 @@ export function renderStep(ctx: StepContext): StepView {
     case 'time-back':
       return {
         ...moonQuestion(
-          'Say you got those minutes back. What would you do with them?',
+          numbers.lightUser
+            ? 'Say you got those minutes back. What would you do with them?'
+            : timeBackQuestion(weeklyAmount(numbers.weeklyMinutes)),
           undefined,
           <Options options={TIME_BACK} value={answers.timeBack} onChoose={(value) => set('timeBack', value)} tone="moon" dense />,
           answers.timeBack ? TIME_BACK_REPLY[answers.timeBack] : undefined,
           undefined,
           compact,
+          false,
         ),
         footer: replyButton(answers.timeBack !== undefined),
       };
 
-    case 'your-night':
-      return {
-        body: (
-          <YourNight
-            bedtime={answers.bedtime}
-            wake={answers.wake}
-            nightMinutes={nightMinutes}
-            morningMinutes={answers.morningMinutes ?? 0}
-            weeklyMinutes={numbers.weeklyMinutes}
-            method={answers.method ?? 'downstairs'}
-          />
-        ),
-        footer: <PrimaryButton label={REPLY_BUTTON['your-night'] ?? 'Continue'} onPress={next} />,
-      };
-
     case 'reveal':
       return {
-        body: <RevealScreen numbers={numbers} timeBack={answers.timeBack} onPayoff={ctx.onPayoff} />,
+        body: <RevealScreen numbers={numbers} onPayoff={ctx.onPayoff} />,
         footer: (
           <Ready ready={ctx.payoff}>
             <PrimaryButton
@@ -1011,12 +1001,14 @@ function moonQuestion(
   reply?: string,
   detail?: string,
   compact = false,
+  /** False after the reveal (`time-back`): the moon has sunk, so the page starts at the top. */
+  risen = true,
 ) {
   return {
     body: (
       <View style={styles.moonQuestion}>
         {/* Short phones: once he's replied, his line takes the hint's place, and a long detail goes. */}
-        <MoonQuestionHead title={title} sub={compact && reply ? undefined : sub} />
+        <MoonQuestionHead title={title} sub={compact && reply ? undefined : sub} risen={risen} />
         {/* His reply fills the band between the question and the answers. */}
         <Reply text={reply} detail={compact && detail && detail.length > 60 ? undefined : detail} />
         {options}
@@ -1043,11 +1035,11 @@ const COUNT_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seve
 const countWord = (n: number) => COUNT_WORDS[n] ?? String(n);
 
 /** The question sits up near the top bar, above the moon's curve, not on the moon. */
-function MoonQuestionHead({ title, sub }: { title: string; sub?: string }) {
+function MoonQuestionHead({ title, sub, risen }: { title: string; sub?: string; risen: boolean }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ marginTop: 60 - quizContentTop(height, insets.top) }}>
+    <View style={{ marginTop: risen ? 60 - quizContentTop(height, insets.top) : Gap.section }}>
       <Title style={styles.moonTitle}>{title}</Title>
       {sub ? <Body style={[styles.sub, styles.moonSub]}>{sub}</Body> : null}
     </View>

@@ -93,7 +93,12 @@ describe('back', () => {
 
   test('from the reveal goes back to the last question', () => {
     const nav = reach('reveal');
-    assert.equal(currentStep(navigate(nav, back)), 'time-back');
+    assert.equal(currentStep(navigate(nav, back)), 'tried');
+  });
+
+  test('what they would do with the time comes after the number', () => {
+    assert.equal(nextStep('reveal'), 'time-back');
+    assert.equal(nextStep('time-back'), 'method');
   });
 
   test('a second next from the same screen does nothing', () => {

@@ -213,6 +213,8 @@ export function simDevice() {
     isShieldActive: () => s.shielded.size > 0,
     updateShield: () => {},
     updateShieldWithId: () => {},
+    setWebContentFilterPolicy: () => {},
+    clearWebContentFilterPolicy: () => {},
     configureActions: ({
       activityName,
       callbackName,

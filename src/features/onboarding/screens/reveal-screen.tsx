@@ -7,7 +7,7 @@ import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
-import { TIME_BACK_PHRASE } from '../content';
+import { REVEAL_SECOND_BEAT } from '../content';
 import { formatHalves, weeklyAmount, yearAmount, type Estimate } from '../estimate';
 import { RollingNumber } from '../rolling-number';
 import { Body, page, Voice } from '../ui';
@@ -17,16 +17,14 @@ const SECOND_BEAT_MS = 1100;
 
 /**
  * The big number in two beats (Opal's bad news then good news, Noom's reveal in beats): the
- * hours a week on the phone in bed rolls up with the year it adds up to, then his line turns
- * the same hours into what they said they'd do with them.
+ * hours a week on the phone in bed rolls up with the year it adds up to, then his line says
+ * who had a good time. What they'd do with the hours is the next step (`time-back`).
  */
 export function RevealScreen({
   numbers,
-  timeBack,
   onPayoff,
 }: {
   numbers: Estimate;
-  timeBack?: string;
   onPayoff?: () => void;
 }) {
   const [landed, setLanded] = useState(false);
@@ -60,7 +58,6 @@ export function RevealScreen({
   }
 
   const amount = weeklyAmount(numbers.weeklyMinutes);
-  const phrase = TIME_BACK_PHRASE[timeBack ?? 'else'] ?? TIME_BACK_PHRASE.else;
   return (
     <View style={styles.wrap}>
       <Reveal>
@@ -82,7 +79,7 @@ export function RevealScreen({
         </Reveal>
       ) : null}
       <View style={styles.beat}>
-        {secondBeat ? <Voice text={`Or ${amount} of ${phrase}. Your pick.`} size={VoiceSize.headline} center /> : null}
+        {secondBeat ? <Voice text={REVEAL_SECOND_BEAT} size={VoiceSize.headline} center /> : null}
       </View>
     </View>
   );

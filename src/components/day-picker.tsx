@@ -6,7 +6,7 @@ import * as haptic from '@/lib/haptics';
 import { Nocturne, Radius, Space } from '@/theme';
 
 /** Monday first. The value stored is the day's index here. */
-const DAYS = [
+export const DAYS = [
   { letter: 'M', name: 'Monday' },
   { letter: 'T', name: 'Tuesday' },
   { letter: 'W', name: 'Wednesday' },
@@ -18,7 +18,7 @@ const DAYS = [
 
 const ALL = DAYS.map((_, i) => i);
 /** Shown Sunday first, like Home's week (user's ask, October 9, 2026); stored Monday first. */
-const SHOWN = [6, 0, 1, 2, 3, 4, 5];
+export const SHOWN = [6, 0, 1, 2, 3, 4, 5];
 
 /**
  * Seven nights to tap on or off. The count of picked nights is the answer. Copied from
@@ -99,13 +99,14 @@ const styles = StyleSheet.create({
   letter: { color: Nocturne.text2, fontSize: 17, fontWeight: '600' },
   letterOn: { color: Nocturne.onCta },
 
-  strip: { flexDirection: 'row', justifyContent: 'space-between' },
-  stripCol: { alignItems: 'center', gap: 6 },
+  strip: { flexDirection: 'row', justifyContent: 'space-between', gap: Space.xs },
+  // Each night takes an equal share, so the row fits a card on a 320pt phone.
+  stripCol: { flex: 1, maxWidth: 40, alignItems: 'center', gap: 6 },
   // Garmin's sleep-schedule row: off nights are a hairline ring, on nights a solid disc in the
   // same near-white as the CTA and DayPicker, so a picked night reads at a glance.
   stripDay: {
-    width: 40,
-    height: 40,
+    width: '100%',
+    aspectRatio: 1,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',

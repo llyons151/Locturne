@@ -13,13 +13,11 @@ import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
-import { PrimaryButton } from '@/components/buttons';
 import { type MenuOption } from '@/components/control-types';
 import { MenuRow, SwitchRow } from '@/components/controls';
 import { Card, sym, ValueRow } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
-import { useProtection } from '@/hooks/use-protection';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
 import {
@@ -31,31 +29,23 @@ import {
   type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
-import { lapseStillCovers, onLockChange, readLock, subscriptionEnded, syncLock } from '@/lib/lock-controller';
+import { onLockChange, readLock, syncLock } from '@/lib/lock-controller';
 import { getTone, setTone, TONE_LABEL, TONES, type Tone } from '@/lib/tone';
 import { getPassesLeft } from '@/lib/passes';
-import { nextNightOn } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { getScanCode } from '@/lib/scan';
-import { bedtimeAppsAhead } from '@/lib/emergency';
-import { getArmedNight, isStoodDown, selectionSize, type Protection } from '@/lib/screen-time';
-import { noOrphan } from '@/lib/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
 
-import { LocSilhouette } from '@/features/home/loc-peek';
 import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
-
-import { lapseLine } from './lapse-line';
 
 /**
  * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up
- * method, Apps holds both lists, so this is where you check he's working, find the ways
- * out, set the step target once, and manage notifications and the subscription.
+ * method, Apps holds both lists, and Home says whether he's working, so this is where you
+ * find the ways out, set the step target once, and manage notifications and the subscription.
  *
- * Laid out like Jomo's Settings (user's reference, 2026-10-09): Loc's status where the
- * profile would be, the plan card, a Help & Feedback banner, then titled groups of rows.
- * Still GAME_PLAN's order: honest status first, then the humane exits, then account
- * things. No stats or charts; history lives on the morning share card.
+ * Laid out like Jomo's Settings (user's reference, 2026-10-09): the plan card, a Help &
+ * Feedback banner, then titled groups of rows, the humane exits before account things.
+ * No stats or charts; history lives on the morning share card.
  *
  * Passes, the emergency unlock and the scan code open the exits and scan screens; the plan
  * and Restore are src/lib/purchases.ts; the notification switches are saved and redo the
@@ -68,22 +58,6 @@ const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly
 const TONE_OPTIONS: MenuOption<Tone>[] = TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }));
 
 const STEP_GOALS: MenuOption<number>[] = [100, 200, 300, 500].map((n) => ({ value: n, label: `${n} steps` }));
-
-const STATUS: Record<Protection, { icon: string; android: string; line: string }> = {
-  on: { icon: 'lock.fill', android: 'lock', line: 'Screen Time access is on. Your apps sleep on schedule.' },
-  // VOICE.md, "Access revoked": clear first, one small wink.
-  off: {
-    icon: 'exclamationmark.triangle.fill',
-    android: 'warning',
-    line: 'Screen Time access is off, so I can’t block anything. Turn it back on in Settings. Until then I’m just a raccoon.',
-  },
-  notSetUp: {
-    icon: 'exclamationmark.triangle.fill',
-    android: 'warning',
-    line: 'Screen Time access isn’t on yet, so I can’t block anything. Set it up from the Apps tab.',
-  },
-  unavailable: { icon: 'iphone', android: 'smartphone', line: 'Blocking needs Screen Time, which only iPhone has.' },
-};
 
 /** The 1st after the month of the morning `now` belongs to: passes count by mornings (passes.ts). */
 function refillDate(now: Date) {
@@ -130,10 +104,6 @@ export function YouScreen() {
   const bottom = useTabBarInset();
   const scroll = useRef<ScrollView>(null);
   useTopOnLeave(scroll);
-
-  // Checks the schedules and shields too, since iOS keeps reporting access as on after
-  // it's revoked, until the app restarts.
-  const [status] = useProtection();
 
   const [alerts, setAlerts] = useState<NotificationPrefs>(getNotificationPrefs);
   const [tone, setToneShown] = useState<Tone>(getTone);
@@ -225,27 +195,6 @@ export function YouScreen() {
     }
   };
 
-  // Access being on isn't the same as apps sleeping: a lapsed subscription or a night that
-  // never got scheduled says so here, like Home and Apps do.
-  const s =
-    status === 'on' && isStoodDown()
-      ? { ...STATUS.on, line: 'Screen Time access is on, but there’s no subscription, so nothing sleeps.' }
-      : // A lapse found mid-night or mid-morning: that one finishes, nothing after it.
-        status === 'on' && subscriptionEnded()
-        ? { ...STATUS.on, line: lapseLine(lapseStillCovers() ?? (readLock().phase === 'day' ? 'day' : null)) }
-      : // Every night off, counting an edit waiting to turn one back on (`nextNightOn` follows it).
-        status === 'on' && nextNightOn(new Date()) === null
-        ? { ...STATUS.on, line: 'Screen Time access is on. Every night is switched off in Routine.' }
-        : status === 'on' && !getArmedNight()
-          ? { ...STATUS.on, line: 'Screen Time access is on, but bedtime isn’t scheduled yet.' }
-        : // An emptied bedtime list (as it stands at the next bedtime): nothing sleeps then.
-          status === 'on' && !bedtimeAppsAhead()
-          ? {
-              ...STATUS.on,
-              line: `Screen Time access is on, but no bedtime apps are picked, so nothing sleeps at bedtime.${selectionSize('always') > 0 ? ' Always-asleep apps still sleep.' : ''}`,
-            }
-        : STATUS[status];
-  const warn = status === 'off' || status === 'notSetUp';
   return (
     <ScrollView
       ref={scroll}
@@ -257,25 +206,6 @@ export function YouScreen() {
           You
         </Text>
       </Pressable>
-
-      {/* Where Jomo has your photo and email: Loc, and whether he can do his job. */}
-      <View style={styles.profile} accessibilityLiveRegion="polite">
-        <View style={styles.avatar}>
-          <LocSilhouette width={44} color={Nocturne.onCta} />
-        </View>
-        <View style={styles.profileText}>
-          <View style={styles.nameRow}>
-            <Text style={styles.name}>Loc</Text>
-            <SymbolView name={sym(s.icon, s.android)} size={14} weight="semibold" tintColor={warn ? Nocturne.text : Nocturne.text2} />
-          </View>
-          <Text style={styles.statusText}>{noOrphan(s.line)}</Text>
-        </View>
-      </View>
-      {status === 'off' ? (
-        <View style={styles.fix}>
-          <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} />
-        </View>
-      ) : null}
 
       <Card>
         <View style={styles.plan}>
@@ -382,23 +312,6 @@ const styles = StyleSheet.create({
   title: { ...DisplayFont, color: Nocturne.text, fontSize: 34, lineHeight: 37, letterSpacing: -0.3 },
   // Only as wide as the word, so a long press elsewhere up top does nothing.
   titleWrap: { alignSelf: 'flex-start', marginBottom: Gap.block },
-
-  profile: { flexDirection: 'row', alignItems: 'center', gap: Space.m, marginBottom: Space.l },
-  // Loc peeking up over the bottom of a moon-white disc, like a profile photo.
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Nocturne.cta,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  profileText: { flex: 1, gap: 2 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
-  name: { color: Nocturne.text, fontSize: 22, fontWeight: '700' },
-  statusText: { color: Nocturne.text2, ...Type.secondary },
-  fix: { marginBottom: Space.l },
 
   plan: { flexDirection: 'row', alignItems: 'center', gap: Space.m, padding: Space.l },
   planText: { flex: 1, gap: 2 },

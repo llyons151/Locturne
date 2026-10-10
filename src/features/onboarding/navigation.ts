@@ -25,11 +25,10 @@ export const STEPS = [
   'nights-per-week',
   'morning-minutes',
   'tried',
-  'time-back',
+  // The bad news, then what they'd do with the time: the number first, so the dream is in it.
   'reveal',
+  'time-back',
   'method',
-  // Their usual night next to the night with him, drawn from their own answers.
-  'your-night',
   // See it, then try it: the demo shows tomorrow morning, then the walk is a 20-step taste of
   // it. Skipped late at night (`skip` on `next`), when they're in bed (ONBOARDING_OPTIMIZATION §7).
   'tomorrow',

@@ -35,6 +35,7 @@ import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
 import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
+import { useMoonSink } from './use-moon-sink';
 import { weekDays } from './week';
 
 /** Dev only: fill the whole week with won days to preview the mist. */
@@ -58,6 +59,7 @@ export function HomeScreen() {
   const { width } = useWindowDimensions();
   const { lock, routine, proof } = useHomeState();
   useReviewPrompt(lock, proof);
+  useMoonSink();
   const now = useMinute();
   // Bumped each time Home opens, the app returns to the foreground or the day rolls over, so
   // today's screen time redraws.

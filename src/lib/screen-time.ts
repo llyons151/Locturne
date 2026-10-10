@@ -16,6 +16,7 @@ import {
   AuthorizationStatus,
   blockSelection,
   cleanUpAfterActivity,
+  clearWebContentFilterPolicy,
   configureActions,
   getActivities,
   getAuthorizationStatus,
@@ -27,6 +28,7 @@ import {
   pollAuthorizationStatus,
   requestAuthorization,
   setFamilyActivitySelectionId,
+  setWebContentFilterPolicy,
   startMonitoring,
   stopMonitoring,
   unblockSelection,
@@ -228,6 +230,7 @@ const unshield = (id: SelectionId) => unblockSelection({ activitySelectionId: id
 export function sleepApps(id: SelectionId): void {
   shield(id);
   if (id === 'night') userDefaultsSet(NIGHT_HELD_KEY, true);
+  applyWebsiteFilter();
 }
 
 /** Unshields the list, then re-shields whatever other rules still hold. */
@@ -246,8 +249,41 @@ export function isNightHeld(): boolean {
  * now session, and limits used up today. Only ever adds shields. Safe to call any time.
  */
 export function reapplyStandingBlocks(): void {
+  // First: unlike the shields, the filter is set whole, so it also lifts sites nothing holds.
+  applyWebsiteFilter();
   if (!isAvailable() || getAccess() !== 'approved') return;
   for (const id of heldLists()) shield(id);
+}
+
+/** The lists whose typed-in websites sleep (websites.ts). */
+export type SiteList = 'night' | 'always';
+
+/** Each list's websites in force, as domains (websites.ts edits them). */
+export const SITES_KEY = 'locturne.sites';
+/** Removed websites waiting for bedtime: each list's sites as they will be, and when. */
+export const SITES_PENDING_KEY = 'locturne.sitesPending';
+
+/**
+ * Sets iOS's web content filter to every website a rule holds right now: the always list's,
+ * and the bedtime list's while the night holds it or a nap of it runs. Nothing without a
+ * subscription. Removes the filter when nothing is held. The monitor extension does the same
+ * (`reapplyLocturneWebsites`): keep the two in step.
+ */
+export function applyWebsiteFilter(): void {
+  if (!isAvailable()) return;
+  const sites = sharedGet<Partial<Record<SiteList, string[]>>>(SITES_KEY) ?? {};
+  const held = new Set<string>();
+  if (!isStoodDown()) {
+    const lists: SiteList[] = ['always'];
+    if (isNightHeld() || peekNap()?.list === 'night') lists.push('night');
+    for (const list of lists) for (const site of sites[list] ?? []) held.add(site);
+  }
+  try {
+    if (held.size > 0) setWebContentFilterPolicy({ type: 'specific', domains: [...held] }, TRIGGER);
+    else clearWebContentFilterPolicy(TRIGGER);
+  } catch {
+    // iOS refused (access off, say). The next sync tries again.
+  }
 }
 
 /** Every list some rule holds asleep right now, that has apps in it. None without a subscription. */
@@ -696,6 +732,7 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
     // activity must see this session's deadline and leave its apps alone.
     userDefaultsSet(NAP_KEY, nap);
     shield(list);
+    applyWebsiteFilter();
     return nap;
   } finally {
     napStarting = false;

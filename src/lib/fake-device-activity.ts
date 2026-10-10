@@ -59,6 +59,8 @@ export function fakeDeviceActivity({ available = true } = {}) {
     isShieldActive: () => state.calls.some(([name]) => name === 'blockSelection'),
     updateShield: record('updateShield'),
     updateShieldWithId: record('updateShieldWithId'),
+    setWebContentFilterPolicy: record('setWebContentFilterPolicy'),
+    clearWebContentFilterPolicy: record('clearWebContentFilterPolicy'),
     configureActions: record('configureActions'),
     startMonitoring: async (name: string) => {
       state.calls.push(['startMonitoring', name]);

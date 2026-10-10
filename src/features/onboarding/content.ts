@@ -70,7 +70,7 @@ export { STEPS, type StepId } from './navigation';
  */
 export const CHAPTERS: StepId[][] = [
   ['voice', 'found', 'bedtime', 'wake', 'nights', 'night-minutes', 'nights-per-week'],
-  ['morning-minutes', 'tried', 'time-back', 'reveal', 'method', 'your-night', 'tomorrow', 'walk'],
+  ['morning-minutes', 'tried', 'reveal', 'time-back', 'method', 'tomorrow', 'walk'],
   ['screen-time', 'apps', 'commit'],
 ];
 
@@ -187,14 +187,29 @@ export const TIME_BACK_REPLY: Record<string, string> = {
   else: 'Mysterious. I’ll allow it.',
 };
 
-/** The reveal's second beat: "Or 7½ hours of {this}. Your pick." */
-export const TIME_BACK_PHRASE: Record<string, string> = {
-  sleep: 'sleep',
-  read: 'reading',
-  workout: 'workouts',
-  mornings: 'slow mornings',
-  else: 'whatever you like',
+/** The reveal's second beat: the bad news lands on the apps, never on them (VOICE). */
+export const REVEAL_SECOND_BEAT = 'Your apps had a great week. Your mornings didn’t.';
+
+/** What the hours go to on the paywall, from `time-back`: "9 hours a week for reading." */
+const TIME_BACK_FOR: Record<string, string> = {
+  sleep: 'for sleep',
+  read: 'for reading',
+  workout: 'for workouts',
+  mornings: 'for slow mornings',
+  else: 'back',
 };
+
+const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** `time-back`, asked after the reveal: "9 hours a week back. What would you do with them?" */
+export function timeBackQuestion(amount: string): string {
+  return `${upperFirst(amount)} a week back. What would you do with ${amount.endsWith('s') ? 'them' : 'it'}?`;
+}
+
+/** The paywall's headline: their weekly hours, spent on what they picked on `time-back`. */
+export function plansHeadline(amount: string, timeBack: string | undefined): string {
+  return `${upperFirst(amount)} a week ${TIME_BACK_FOR[timeBack ?? 'else'] ?? TIME_BACK_FOR.else}.`;
+}
 
 /**
  * Where they heard about Locturne. Payers per 1K views needs to know which channel an
@@ -243,7 +258,6 @@ export const REPLY_BUTTON: Partial<Record<StepId, string>> = {
   tried: 'Fair point.',
   'time-back': 'Deal.',
   method: 'That’s my morning.',
-  'your-night': 'The second one.',
 };
 
 /** Paywall headline, echoing the answer to "what would you do with them?" */

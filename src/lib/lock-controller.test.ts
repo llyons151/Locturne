@@ -33,6 +33,8 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     sharedGet: (key: string) => store.get(key),
     sharedSet: (key: string, value: unknown) => store.set(key, value),
     sharedRemove: (key: string) => store.delete(key),
+    SITES_KEY: 'locturne.sites',
+    SITES_PENDING_KEY: 'locturne.sitesPending',
     isStoodDown: () => stoodDown,
     standDown: () => {
       calls.push('standDown');

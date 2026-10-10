@@ -33,6 +33,8 @@ mock.module('react-native-device-activity', {
     union: noop,
     updateShield: noop,
     updateShieldWithId: noop,
+    setWebContentFilterPolicy: noop,
+    clearWebContentFilterPolicy: noop,
     userDefaultsGet: () => null,
     userDefaultsSet: noop,
     userDefaultsRemove: noop,

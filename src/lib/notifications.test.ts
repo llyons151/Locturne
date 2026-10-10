@@ -37,6 +37,8 @@ mock.module('react-native-device-activity', {
       'startMonitoring',
       'stopMonitoring',
       'unblockSelection',
+      'setWebContentFilterPolicy',
+      'clearWebContentFilterPolicy',
       'union',
       'updateShield',
       'updateShieldWithId',

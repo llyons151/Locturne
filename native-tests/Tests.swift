@@ -1160,4 +1160,28 @@ func registerTests() {
     expectEqual(locturneDayKey(local("2026-10-05 23:59")), "2026-10-05")
     expectEqual(locturneDayKey(local("2026-01-01 00:00")), "2026-01-01")
   }
+
+  // MARK: Websites
+
+  test("typed websites sleep with their list, and a removal wakes at bedtime with the app closed") {
+    func filtered() -> Set<String>? {
+      guard case .specific(let domains)? = ManagedSettingsStore().webContent.blockedByFilter else { return nil }
+      return Set(domains.compactMap(\.domain))
+    }
+    pick("night", ["instagram"])
+    pick("always", ["tiktok"])
+    set(LOCTURNE_SITES_KEY, ["always": ["reddit.com", "x.com"], "night": ["youtube.com"]])
+    set(LOCTURNE_SITES_PENDING_KEY, ["always": ["sites": ["x.com"], "from": ms(local("2026-10-05 23:00"))]])
+    armNight()
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(filtered(), ["x.com", "youtube.com"], "bedtime list's sites sleep, removed one wakes")
+    // The morning proof wakes the bedtime list: its sites go with it.
+    userDefaults?.set(false, forKey: LOCTURNE_NIGHT_HELD_KEY)
+    reapplyLocturneBlocks(triggeredBy: "app")
+    expectEqual(filtered(), ["x.com"])
+    set(LOCTURNE_STOOD_DOWN_KEY, true)
+    reapplyLocturneBlocks(triggeredBy: "app")
+    expect(filtered() == nil, "nothing without a subscription")
+  }
 }

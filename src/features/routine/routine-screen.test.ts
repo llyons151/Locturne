@@ -1,8 +1,8 @@
 /// <reference types="node" />
 /**
- * The Routine tab's Night card, rendered from routine-screen.tsx with its stores faked. Its two
- * time rows can both save before React renders again: leaving the app mid-edit flushes each
- * row in the same AppState event (`controls.ios.tsx`), with the callbacks of the last render.
+ * The Routine tab, rendered from routine-screen.tsx with its stores faked. Its controls (the
+ * dial, the day strip, the method list) can each save before React renders again, with the
+ * callbacks of the last render: one mustn't undo another.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -69,18 +69,23 @@ function screen(initial: Stored) {
       withDelay: () => 0,
       withTiming: () => 0,
     },
-    '@/components/night-sky': { moonSink: { set() {} } },
     '@/hooks/use-tab-selected': { useTabSelected: () => true },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@/components/app-tabs': { useTabBarInset: () => 0 },
     '@/components/control-types': { nightsLabel: () => '' },
     '@/components/controls': { MenuRow: 'MenuRow', TimeRow: 'TimeRow' },
-    '@/components/day-picker': { DayStrip: 'DayStrip' },
+    '@/components/day-strip': { DayStrip: 'DayStrip' },
     '@/components/grouped-list': { Card: 'Card', ChoiceRow: 'ChoiceRow', ValueRow: 'ValueRow', sym: () => '' },
     '@/hooks/use-app-start': { armIfPaid() {} },
     '@/hooks/use-top-on-leave': { useTopOnLeave() {} },
     '@/components/glass-card': { GlassCard: 'GlassCard' },
-    './apply-edit': { applyRoutineEdit: () => Promise.resolve() },
+    './apply-edit': {
+      applyRoutineEdit(r: Stored) {
+        stored = r;
+        saves.push(r);
+        return Promise.resolve();
+      },
+    },
     '@/lib/haptics': { tap() {}, thud() {} },
     '@/lib/lock-controller': {
       armRoutine: async () => {},
@@ -100,10 +105,11 @@ function screen(initial: Stored) {
         saves.push(r);
       },
     },
-    '@/lib/screen-time': { getArmedNight: () => ({}), isScreenTimeAvailable: () => true },
+    '@/lib/screen-time': { getArmedNight: () => ({}), isScreenTimeAvailable: () => true, sharedGet: () => null, sharedSet() {} },
+    '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/scan': { getScanCode: () => null, getScanEditRefusal: () => null },
     '@/lib/place': { getMorningPlace: () => null, getPlaceEditRefusal: () => null },
-    '@/lib/text': { noOrphan: (s: string) => s },
+    '@/lib/text': { noOrphan: (s: string) => s, formatPreset: () => '' },
     '@/theme': { DisplayFont: {}, Gap: {}, italicOverhang: () => ({}), Nocturne: {}, Radius: {}, Space: {}, Type: {}, VoiceSize: { aside: 0 } },
     './night-dial': { NightDial: 'NightDial' },
     './nights': { nightsToWeekdays, weekdaysToNights },
@@ -114,36 +120,51 @@ function screen(initial: Stored) {
 
   index = 0;
   const tree = exports.RoutineScreen();
-  const rows: Record<string, any>[] = [];
+  const found: Record<string, any> = {};
+  const methods: Record<string, any> = {};
   const walk = (node: unknown) => {
     if (Array.isArray(node)) return node.forEach(walk);
     if (!node || typeof node !== 'object') return;
     const el = node as Tree;
-    if (el.type === 'TimeRow') rows.push(el.props);
+    if (el.type === 'NightDial') found.dial = el.props;
+    if (el.type === 'DayStrip') found.days = el.props;
+    if (el.type === 'ChoiceRow') methods[el.props.title] = el.props;
     el.children?.forEach(walk);
   };
   walk(tree);
-  const [bedtime, morning] = rows;
-  assert.equal(bedtime.title, 'Bedtime');
-  assert.equal(morning.title, 'Morning start');
-  return { bedtime, morning, saves, stored: () => stored };
+  assert.ok(found.dial, 'the night dial renders');
+  assert.ok(found.days, 'the day strip renders');
+  return { dial: found.dial, days: found.days, methods, saves, stored: () => stored };
 }
 
 const ROUTINE: Stored = { bedtime: 23 * 60, morningStart: 7 * 60, activeNights: [0, 1, 2, 3, 4, 5, 6], method: 'steps', stepGoal: 200 };
+const TIMES = { bedtime: 22 * 60 + 30, morningStart: 6 * 60 + 30 };
+const WEEKNIGHTS = [1, 2, 3, 4];
 
-test('both time rows saving before a re-render keep both edits (leaving the app mid-edit)', () => {
+test('a dial edit then a day tap from the same render keep both', () => {
   const s = screen(ROUTINE);
-  // The same AppState event flushes Bedtime, then Morning start, with this render's callbacks.
-  s.bedtime.onChange(22 * 60 + 30);
-  s.morning.onChange(6 * 60 + 30);
-  assert.equal(s.stored().bedtime, 22 * 60 + 30, 'the bedtime edit is not undone by the second save');
-  assert.equal(s.stored().morningStart, 6 * 60 + 30);
-  assert.deepEqual(s.saves.at(-1)?.activeNights, ROUTINE.activeNights);
+  s.dial.onChange(TIMES);
+  s.days.onChange(weekdaysToNights(WEEKNIGHTS));
+  assert.equal(s.stored().bedtime, TIMES.bedtime, 'the day tap does not undo the new bedtime');
+  assert.equal(s.stored().morningStart, TIMES.morningStart);
+  assert.deepEqual(s.stored().activeNights, WEEKNIGHTS);
 });
 
-test("a row's refusal checks the other time as saved now, not as last rendered", () => {
+test('a day tap then a dial edit from the same render keep both', () => {
   const s = screen(ROUTINE);
-  s.bedtime.onChange(22 * 60 + 30);
-  assert.match(s.morning.invalid(22 * 60 + 30) ?? '', /can't be the same time/);
-  assert.equal(s.morning.invalid(6 * 60 + 30), null);
+  s.days.onChange(weekdaysToNights(WEEKNIGHTS));
+  s.dial.onChange(TIMES);
+  assert.deepEqual(s.stored().activeNights, WEEKNIGHTS, 'the dial edit does not undo the days');
+  assert.equal(s.stored().bedtime, TIMES.bedtime);
+});
+
+test('picking a method after a dial edit keeps the new times', () => {
+  const s = screen(ROUTINE);
+  s.dial.onChange(TIMES);
+  const other = Object.values(s.methods).find((m) => !m.selected && /push-ups/i.test(m.title));
+  assert.ok(other, 'a push-ups row to pick');
+  other.onPress();
+  assert.equal(s.stored().method, 'pushups');
+  assert.equal(s.stored().bedtime, TIMES.bedtime);
+  assert.equal(s.stored().morningStart, TIMES.morningStart);
 });

@@ -121,6 +121,9 @@ People paying for a blocker will be upset if they can't block an app at 2pm, so 
 gives them three plain controls on top of the night and morning loop:
 
 1. **Always-blocked list.** Blocked in every state (already in the core loop).
+   The bedtime and always lists also take websites typed in by hand (reddit.com), blocked by
+   iOS's web content filter while their list sleeps (user request, October 10; see
+   docs/WEBSITE_BLOCKING.md).
 2. **Block now.** Pick apps and a duration, then tap go. Loc "naps" for the session.
    It starts right away, because it only tightens things. Only an emergency unlock
    or a pass can end it early. Built on the same code as naps, which move up from

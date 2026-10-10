@@ -78,6 +78,8 @@ mock.module('react-native-device-activity', {
     isShieldActive: () => calls.some(([name]) => name === 'blockSelection'),
     updateShield: (...args: unknown[]) => calls.push(['updateShield', ...args]),
     updateShieldWithId: (...args: unknown[]) => calls.push(['updateShieldWithId', ...args]),
+    setWebContentFilterPolicy: (...args: unknown[]) => calls.push(['setWebContentFilterPolicy', ...args]),
+    clearWebContentFilterPolicy: (...args: unknown[]) => calls.push(['clearWebContentFilterPolicy', ...args]),
     configureActions: (config: unknown) => calls.push(['configureActions', config]),
     startMonitoring: async (name: string, schedule: unknown, evts: unknown) => {
       if (name === failOnStart) throw new Error('intervalTooShort');
@@ -103,6 +105,7 @@ mock.module('react-native-device-activity', {
 });
 
 const st = await import('./screen-time.ts');
+const sites = await import('./websites.ts');
 const { planNightWindows } = await import('./night-plan.ts');
 
 beforeEach(() => {
@@ -140,7 +143,7 @@ test('lists are addressed by id, and tagged as ours', () => {
   st.sleepApps('night');
   st.wakeApps('night');
   st.sleepApps('always');
-  assert.deepEqual(calls, [
+  assert.deepEqual(calls.filter(([name]) => !name.includes('WebContent')), [
     ['blockSelection', { activitySelectionId: 'night' }, 'locturne'],
     ['unblockSelection', { activitySelectionId: 'night' }, 'locturne'],
     ['blockSelection', { activitySelectionId: 'always' }, 'locturne'],
@@ -603,4 +606,79 @@ test('watchAccess hears status changes and stops when asked', () => {
   stop();
   assert.equal(heard, 1);
   assert.equal(authListener, null);
+});
+
+/** The domains the last web filter call held, or null when it cleared the filter. */
+const filtered = () => {
+  const last = calls.filter(([name]) => name.includes('WebContent')).at(-1);
+  if (!last) return undefined;
+  return last[0] === 'clearWebContentFilterPolicy' ? null : [...(last[1] as { domains: string[] }).domains].sort();
+};
+
+test('a typed website is cut down to its domain, and nonsense is refused', () => {
+  assert.equal(sites.normalizeSite('https://www.Reddit.com/r/all?x=1'), 'reddit.com');
+  assert.equal(sites.normalizeSite('  m.youtube.com  '), 'm.youtube.com');
+  assert.equal(sites.normalizeSite('news.ycombinator.com:443/item'), 'news.ycombinator.com');
+  assert.equal(sites.normalizeSite('bbc.co.uk'), 'bbc.co.uk');
+  for (const bad of ['', 'reddit', 'not a site.com', 'http://', '-x.com', 'x.c0m', 'a..com']) {
+    assert.equal(sites.normalizeSite(bad), null, bad);
+  }
+});
+
+test('always-list websites sleep at once; bedtime ones only while the night holds them', () => {
+  status = 2;
+  assert.deepEqual(sites.addSite('always', 'reddit.com'), { ok: true, site: 'reddit.com' });
+  assert.deepEqual(sites.addSite('night', 'youtube.com'), { ok: true, site: 'youtube.com' });
+  st.reapplyStandingBlocks();
+  assert.deepEqual(filtered(), ['reddit.com']);
+  st.sleepApps('night');
+  assert.deepEqual(filtered(), ['reddit.com', 'youtube.com']);
+  st.wakeApps('night');
+  assert.deepEqual(filtered(), ['reddit.com']);
+});
+
+test('nothing is filtered without a subscription, and the filter clears when empty', () => {
+  status = 2;
+  sites.addSite('always', 'reddit.com');
+  st.sharedSet('locturne.stoodDown', true);
+  st.reapplyStandingBlocks();
+  assert.equal(filtered(), null);
+});
+
+test('the same site twice is refused, and the filter cap is shared by both lists', () => {
+  sites.addSite('always', 'reddit.com');
+  assert.deepEqual(sites.addSite('always', 'www.reddit.com'), { ok: false, reason: 'duplicate' });
+  // The same site on the other list takes no extra room.
+  assert.equal(sites.addSite('night', 'reddit.com').ok, true);
+  for (let i = 1; i < sites.MAX_SITES; i++) sites.addSite('night', `site${i}.com`);
+  assert.deepEqual(sites.addSite('always', 'one-too-many.com'), { ok: false, reason: 'full' });
+  assert.equal(sites.addSite('always', 'site1.com').ok, true);
+});
+
+test('a removed website keeps sleeping until bedtime, then wakes', () => {
+  status = 2;
+  sites.addSite('always', 'reddit.com');
+  sites.addSite('always', 'x.com');
+  const bedtime = new Date(2026, 9, 10, 23);
+  sites.removeSite('always', 'reddit.com', bedtime);
+  assert.deepEqual(sites.getSites('always'), ['x.com']);
+  assert.deepEqual(sites.sitesWaking('always'), ['reddit.com']);
+  st.reapplyStandingBlocks();
+  assert.deepEqual(filtered(), ['reddit.com', 'x.com']);
+  // Added while the removal waits: sleeps now, and stays after the swap.
+  sites.addSite('always', 'tiktok.com');
+  assert.equal(sites.settleSites(new Date(2026, 9, 10, 22)), false);
+  assert.equal(sites.settleSites(bedtime), true);
+  st.reapplyStandingBlocks();
+  assert.deepEqual(filtered(), ['tiktok.com', 'x.com']);
+  assert.equal(sites.sitesChangeAt('always'), null);
+});
+
+test('a second removal never pulls a waiting one forward', () => {
+  sites.addSite('night', 'a.com');
+  sites.addSite('night', 'b.com');
+  sites.removeSite('night', 'a.com', new Date(2026, 9, 11, 23));
+  sites.removeSite('night', 'b.com', new Date(2026, 9, 10, 23));
+  assert.deepEqual(sites.sitesChangeAt('night'), new Date(2026, 9, 11, 23));
+  assert.deepEqual(sites.getSites('night'), []);
 });

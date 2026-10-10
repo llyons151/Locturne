@@ -61,6 +61,7 @@ import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
 import { getTone } from './tone.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
 import { planNightWindows } from './night-plan.ts';
+import { settleSites } from './websites.ts';
 
 /** Block now and used-up daily limits, as `getLockState` takes them. Selection ids are the apps. */
 function readDaytime(now: Date): DaytimeFacts {
@@ -244,6 +245,8 @@ export function syncLock(now = new Date()): LockState {
     }
   }
   if (isScreenTimeAvailable()) redateLooserEdits(now);
+  // Removed websites whose bedtime has come wake with the shields re-applied below.
+  if (isScreenTimeAvailable()) settleSites(now);
   if (isScreenTimeAvailable()) noteEmptyMorning(now);
   const state = readLock(now);
   if (isScreenTimeAvailable()) {

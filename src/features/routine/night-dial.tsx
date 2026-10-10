@@ -28,13 +28,13 @@ import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 const DAY = 1440;
 const SNAP = 15;
 /** The width of the track and the night band. */
-const BAND = 34;
+const BAND = 24;
 /** The handles are the band's rounded ends: the same width, so they read as one shape. */
 const KNOB = BAND;
 /** How far from a handle's centre a touch still grabs it. */
 const GRAB = 30;
 /** How far either side of the ring a touch still grabs the night. */
-const RING_GRAB = BAND / 2 + 8;
+const RING_GRAB = BAND / 2 + 13;
 /** Every two hours; the four quarters sit brighter, and only midnight and noon carry am/pm. */
 const LABELS = Array.from({ length: 12 }, (_, i) => {
   const h = i * 2;
@@ -254,7 +254,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
       >
         <SymbolView
           name={part === 'bed' ? sym('moon.fill', 'bedtime') : sym('sunrise.fill', 'wb_twilight')}
-          size={15}
+          size={12}
           tintColor={Nocturne.onCta}
         />
       </View>

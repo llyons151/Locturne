@@ -25,7 +25,7 @@ export type DailyLimit = {
   pending?: { minutes: number | null; from: number; dated?: number };
 };
 
-/** The web preview's times. On iPhone the wheels set any time, from a minute up to `LIMIT_MAX`. */
+/** A few typical times, for the simulation tests. The wheels set any time, from a minute up to `LIMIT_MAX`. */
 export const LIMIT_CHOICES = [15, 30, 60, 120];
 
 /** 23 hr 59 min: Screen Time counts a day's use from midnight, so a longer one never trips. */

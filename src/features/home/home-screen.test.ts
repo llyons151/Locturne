@@ -111,6 +111,7 @@ function home({
     './night-meter': { duration: (m: number) => `${m} min`, useMinute: () => now },
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
+    './use-moon-sink': { useMoonSink() {} },
     './use-home-state': { useHomeState: () => ({ lock, routine: { method: 'steps', morningStart: 7 * 60 }, proof: null }) },
     './week': { weekDays: () => [] },
   };

@@ -12,9 +12,10 @@ import { LEGAL_URLS } from '@/lib/links';
 import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
-import { methodCopy, NEW_YEAR, trialVoice } from '../content';
-import { dateFromToday } from '../estimate';
+import { methodCopy, NEW_YEAR, plansHeadline } from '../content';
+import { dateFromToday, weeklyAmount } from '../estimate';
 import { scheduleCopy } from '../schedule-copy';
+import { NightCompare } from './night-compare';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';
 
@@ -23,6 +24,16 @@ import { Body, page, Voice } from '../ui';
  * Each returns a StepView like the cases in steps.tsx. Every price and trial string comes
  * from the store's offers (`getOffers` in src/lib/purchases.ts), never a constant.
  */
+
+/**
+ * His line under the headline: when it starts, then the price. `note` is scheduleCopy's
+ * "Today at 11:30 PM", null once the night has started; no night at all promises nothing.
+ */
+function plansVoice(hasNight: boolean, note: string | null): string {
+  if (!hasNight) return 'Right. The boring bit.';
+  const starts = note ? note.replace(/^(Today|Tomorrow)/, (day) => day.toLowerCase()) : 'now';
+  return `Starts ${starts}. Right. The boring bit.`;
+}
 
 const RENEWAL = 'Auto-renews unless cancelled at least 24 hours before renewal.';
 
@@ -56,9 +67,18 @@ export function storeStep({ offersFailed, retryOffers }: StepContext): StepView 
  * No struck-through "was" prices: there was never a higher price to strike.
  */
 export function plansStep(ctx: StepContext): StepView {
-  const { answers, set, buy, busy, restorePurchases, compact, offers } = ctx;
+  const { answers, numbers, set, buy, busy, restorePurchases, compact, offers } = ctx;
   if (!offers) return storeStep(ctx);
   const schedule = scheduleCopy(ctx.scheduledNight, new Date());
+  const compare = numbers.lightUser ? null : (
+    <NightCompare
+      bedtime={answers.bedtime}
+      wake={answers.wake}
+      nightMinutes={answers.nightMinutes ?? 0}
+      morningMinutes={answers.morningMinutes ?? 0}
+      method={answers.method ?? 'downstairs'}
+    />
+  );
   const method = methodCopy(answers.method ?? 'downstairs');
   const trialDays = offers.annual.trialDays;
   const annual = offers.annual.priceString;
@@ -86,14 +106,26 @@ export function plansStep(ctx: StepContext): StepView {
   return {
     body: (
       <View style={[styles.paywall, compact && styles.paywallCompact]}>
-        {/* His voice, like every other headline. Never "Try free": Apple 3.1.2 rejects trial
-            wording that's bigger than the billed price. */}
-        <Voice text="Right. The boring bit." size={compact ? 26 : 30} header center />
+        {/* The payoff where they decide: their own hours, spent on what they picked on
+            `time-back` (docs/ONBOARDING_MOBBIN.md). Never "Try free": Apple 3.1.2 rejects
+            trial wording that's bigger than the billed price. A light user has no hours to sell. */}
+        <Voice
+          text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(numbers.weeklyMinutes), answers.timeBack)}
+          size={compact ? 26 : 30}
+          header
+          center
+        />
         {compact ? null : (
           <View style={styles.paywallVoice}>
             <Voice
               // New Year week: no sale, and he says so (D8). The trial is on the cards and the button.
-              text={ctx.newYear ? NEW_YEAR.plans : trialDays ? trialVoice(trialDays) : 'Fine. I’ll get up for this.'}
+              text={
+                ctx.newYear
+                  ? NEW_YEAR.plans
+                  : numbers.lightUser
+                    ? 'Fine. I’ll get up for this.'
+                    : plansVoice(ctx.scheduledNight !== null, schedule.note)
+              }
               size={VoiceSize.aside}
               delay={500}
               sub
@@ -101,12 +133,17 @@ export function plansStep(ctx: StepContext): StepView {
             />
           </View>
         )}
-        <View style={[styles.checks, compact && styles.checksCompact]}>
-          {/* Never an app's name: Apple's picker only hands back opaque tokens. */}
-          <Check text={schedule.sleep} />
-          <Check text={ctx.scheduledNight ? method.check : "Turn nights on in Routine anytime"} />
-          <Check text="Passes for sick days and travel" />
-        </View>
+        {/* Their usual night next to the night with him: what the price buys, in their times. */}
+        {compare ? <View style={[styles.compare, compact && styles.compareCompact]}>{compare}</View> : null}
+        {/* Short phones have room for one of the two: the comparison says more. */}
+        {compact && compare ? null : (
+          <View style={[styles.checks, compact && styles.checksCompact]}>
+            {/* Never an app's name: Apple's picker only hands back opaque tokens. */}
+            <Check text={schedule.sleep} />
+            <Check text={ctx.scheduledNight ? method.check : "Turn nights on in Routine anytime"} />
+            <Check text="Passes for sick days and travel" />
+          </View>
+        )}
         <View accessibilityRole="radiogroup" style={styles.planCards}>
           <PlanCard
             selected={plan === 'annual'}
@@ -328,6 +365,8 @@ const styles = StyleSheet.create({
   paywallTitle: { color: Nocturne.text, ...Type.title, textAlign: 'center' },
   paywallTitleCompact: Type.quizTitle,
   paywallVoice: { marginTop: Space.s },
+  compare: { marginTop: Space.l },
+  compareCompact: { marginTop: Space.m },
   checks: { gap: Space.s, marginTop: Space.l, alignSelf: 'center' },
   checksCompact: { marginTop: Space.s, gap: Space.xs },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },

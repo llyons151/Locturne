@@ -21,6 +21,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     // First, so a bedtime window shields the edited list, not the old one.
     settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
+    settleLocturneSites()
 
     // A deferred change between disjoint sleep periods needs a new schedule even when
     // the app stays closed. The callback that handed it over belongs to the old schedule.
@@ -650,6 +651,8 @@ func restoreLocturneFallbackShield(triggeredBy: String) {
 /// Nothing at all without a subscription (`standDown` in src/lib/screen-time.ts).
 @available(iOS 15.0, *)
 func reapplyLocturneBlocks(triggeredBy: String) {
+  // First: the filter is set whole, so it also lifts websites nothing holds (or all, stood down).
+  reapplyLocturneWebsites(triggeredBy: triggeredBy)
   if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true { return }
   var held = ["always"]
 
@@ -682,6 +685,71 @@ func reapplyLocturneBlocks(triggeredBy: String) {
     }
   }
   blockSelectedApps(blockSelection: selection, triggeredBy: triggeredBy)
+}
+
+let LOCTURNE_SITES_KEY = "locturne.sites"
+let LOCTURNE_SITES_PENDING_KEY = "locturne.sitesPending"
+
+/// Sets iOS's web content filter to every typed-in website a rule holds: the always list's, and
+/// the bedtime list's while the night holds it or a nap of it runs. None without a subscription.
+/// Keep in step with `applyWebsiteFilter` in src/lib/screen-time.ts.
+@available(iOS 15.0, *)
+func reapplyLocturneWebsites(triggeredBy: String) {
+  var held = Set<String>()
+  if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) != true {
+    let sites = userDefaults?.dictionary(forKey: LOCTURNE_SITES_KEY) as? [String: [String]] ?? [:]
+    var lists = ["always"]
+    var napsNight = false
+    if let nap = userDefaults?.dictionary(forKey: LOCTURNE_NAP_KEY),
+      let end = (nap["end"] as? NSNumber)?.doubleValue,
+      nap["list"] as? String == "night",
+      Date().timeIntervalSince1970 * 1000 < end
+    {
+      napsNight = true
+    }
+    if userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true || napsNight {
+      lists.append("night")
+    }
+    for list in lists {
+      held.formUnion(sites[list] ?? [])
+    }
+  }
+  if held.isEmpty {
+    clearWebContentFilterPolicy(triggeredBy: triggeredBy)
+    return
+  }
+  do {
+    try setWebContentFilterPolicy(
+      policyInput: ["type": "specific", "domains": Array(held)],
+      triggeredBy: triggeredBy
+    )
+  } catch {
+    setWebContentFilterPolicyErrorMetadata(triggeredBy: triggeredBy, error: error)
+  }
+}
+
+/// Swaps in each list's removed websites whose bedtime has come, with the same two minutes'
+/// slack as `settleLocturneLists`. The re-apply after each event lifts them. Keep in step with
+/// `settleSites` in src/lib/websites.ts.
+@available(iOS 15.0, *)
+func settleLocturneSites() {
+  guard var pending = userDefaults?.dictionary(forKey: LOCTURNE_SITES_PENDING_KEY) else { return }
+  var sites = userDefaults?.dictionary(forKey: LOCTURNE_SITES_KEY) ?? [:]
+  let now = Date().timeIntervalSince1970 * 1000 + 120_000
+  var changed = false
+  for (list, value) in pending {
+    guard let entry = value as? [String: Any],
+      let from = (entry["from"] as? NSNumber)?.doubleValue,
+      from <= now
+    else { continue }
+    sites[list] = entry["sites"] as? [String] ?? []
+    pending.removeValue(forKey: list)
+    changed = true
+  }
+  if changed {
+    userDefaults?.set(sites, forKey: LOCTURNE_SITES_KEY)
+    userDefaults?.set(pending, forKey: LOCTURNE_SITES_PENDING_KEY)
+  }
 }
 
 /// Swaps in each edited list whose bedtime has come. The app keeps removals in a draft

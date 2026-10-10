@@ -36,6 +36,8 @@ mock.module('react-native-device-activity', {
     union: noop,
     updateShield: (config: { title: string; subtitle: string; primaryButtonLabel: string }) => shields.push(config),
     updateShieldWithId: noop,
+    setWebContentFilterPolicy: noop,
+    clearWebContentFilterPolicy: noop,
     userDefaultsGet: (key: string) => store[key] ?? null,
     userDefaultsSet: (key: string, value: unknown) => {
       store[key] = value;

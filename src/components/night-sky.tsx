@@ -84,7 +84,8 @@ export function restingMoonDisc(width: number, height: number) {
 /**
  * How far the resting moon has sunk into the floor, 0 (resting) to 1 (sunk). A tab with a
  * card over the bottom of the page sinks it, so the card sits on calm, dark sky instead of
- * having moonlight leak round its corners (user's ask, 2026-10-09, for Routine).
+ * having moonlight leak round its corners (user's ask, 2026-10-09; every tab but Home since
+ * 2026-10-10). Set by useMoonSink in Home.
  */
 export const moonSink = makeMutable(0);
 /** How much of the moon's width it drops when sunk, and how much of its glow stays. */

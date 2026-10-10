@@ -15,7 +15,7 @@ function harness() {
   let rendered = original;
   let error: string | null = null;
   const pending: { resolve: () => void; reject: () => void }[] = [];
-  const source = readFileSync(new URL('./apps-list.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('./list-actions.tsx', import.meta.url), 'utf8');
   const handlers = source.slice(source.indexOf('  const saveAndArm ='), source.indexOf('  /** Opens Apple'));
   const code = babel.transformSync(`${handlers}\nglobalThis.setMinutes = setMinutes;`, {
     filename: 'handlers.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
@@ -23,7 +23,7 @@ function harness() {
   const context = {
     limits: original,
     isPickerSettling: () => false,
-    armingLimits: { current: new Set() },
+    armingLimits: new Set(),
     haptic: { tap() {} },
     editLimit,
     looserEditsStartAt: () => new Date(Date.now() + 60_000),
@@ -79,7 +79,7 @@ test('same-limit taps cannot race two native registrations and can retry after c
 });
 
 test('denying the Apps permission repair settles safely and refreshes actual protection', async () => {
-  const source = readFileSync(new URL('./apps-list.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('./list-actions.tsx', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('  const askAccess ='), source.indexOf('  const allow ='));
   let refreshed = false;
   let error: string | null = null;
@@ -101,16 +101,16 @@ test('denying the Apps permission repair settles safely and refreshes actual pro
 });
 
 test('reopening a picker while its native save settles cannot replace the draft before commit', () => {
-  const source = readFileSync(new URL('./apps-list.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('./list-actions.tsx', import.meta.url), 'utf8');
   const edit = source.slice(source.indexOf('  const edit ='), source.indexOf('  const addLimit ='));
-  const close = source.match(/onClose=\{\(\) => \{([\s\S]*?)\n          \}\}/)![1];
+  const close = source.match(/onClose=\{\(\) => \{([\s\S]*?)\n\s*\}\}/)![1];
   let live = ['old'];
   let draft = [...live];
   const timers: (() => void)[] = [];
   const settling = new Set();
   const context = {
     editing: 'night', protection: 'on', haptic: { tap() {} }, isLimitId: () => false,
-    armingLimits: { current: new Set() }, setLimitError() {}, setEditing() {}, refresh() {},
+    armingLimits: new Set(), setLimitError() {}, setEditing() {}, refresh() {},
     beginListEdit: () => { draft = [...live]; },
     pickedList: () => { live = [...draft]; },
     isPickerSettling: (list: string) => settling.has(list),
@@ -132,7 +132,7 @@ test('reopening a picker while its native save settles cannot replace the draft 
 });
 
 test('a bedtime list edit re-plans tonight’s bedtime warning and morning note; a limit edit does not', () => {
-  const source = readFileSync(new URL('./apps-list.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('./list-actions.tsx', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('  const pickedList ='), source.indexOf("  // A limit's list changed"));
   let replans = 0;
   const context = {

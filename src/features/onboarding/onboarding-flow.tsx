@@ -89,9 +89,10 @@ const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
 
 /**
  * The quiz happens on the risen moon: it rises once at the first question and stays up
- * through the last, so it doesn't bob between screens, then sinks for the math.
+ * through the last, so it doesn't bob between screens, then sinks for the math. `time-back`
+ * comes after the math, so it stays on the sunk moon.
  */
-const MOON_QUIZ: StepId[] = STEPS.slice(STEPS.indexOf('nights'), STEPS.indexOf('time-back') + 1);
+const MOON_QUIZ: StepId[] = STEPS.slice(STEPS.indexOf('nights'), STEPS.indexOf('tried') + 1);
 
 /** Text entrance per page (see motion.tsx). Anything not listed uses Word Drift. */
 const MOTION: Partial<Record<StepId, TextMotion>> = {

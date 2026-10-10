@@ -32,6 +32,8 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="usage" options={{ headerShown: true, title: 'Usage', headerBackTitle: 'Home' }} />
+          {/* A list's page, pushed from its tile on the Apps tab: every app in it (features/apps/list-page.tsx). */}
+          <Stack.Screen name="list" options={{ headerShown: true, headerBackTitle: 'Apps' }} />
           <Stack.Screen
             name="onboarding"
             options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
@@ -50,6 +52,15 @@ export default function RootLayout() {
           {/* The push-up count, in the same floating card. */}
           <Stack.Screen
             name="pushups"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          {/* A daily limit's time, in the same floating card. */}
+          <Stack.Screen
+            name="limit"
             options={{
               presentation: 'transparentModal',
               animation: 'none',

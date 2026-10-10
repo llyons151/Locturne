@@ -41,6 +41,7 @@ export function Card({
   footer,
   warn,
   solid,
+  style,
   children,
 }: {
   /** Left out with `title` when the rows carry their own icons, as in a pick-one list. */
@@ -49,13 +50,14 @@ export function Card({
   footer?: string;
   /** An edge in grey instead of the hairline: something here needs fixing. */
   warn?: boolean;
-  /** An opaque dark grey card instead of smoked glass (user's ask, 2026-10-09, for the wake-up methods). */
+  /** Home's "Tomorrow" pill's grey, mostly opaque, instead of smoked glass (the Routine tab's cards). */
   solid?: boolean;
+  style?: object;
   children?: ReactNode;
 }) {
   const Frame = solid ? SolidCard : GlassCard;
   return (
-    <Frame dark rim={warn ? Nocturne.text2 : undefined} style={styles.card}>
+    <Frame dark rim={warn ? Nocturne.text2 : undefined} style={[styles.card, style]}>
       {icon && title ? (
         <View style={styles.cardHeader} accessible accessibilityRole="header">
           <SymbolView name={icon} size={15} weight="semibold" tintColor={Nocturne.accent ?? Nocturne.text} />
@@ -69,7 +71,7 @@ export function Card({
 }
 
 function SolidCard({ children, style, rim }: { children: ReactNode; style?: object; dark?: boolean; rim?: string }) {
-  return <View style={[styles.solid, rim ? { borderColor: rim } : null, style]}>{children}</View>;
+  return <View style={[styles.solid, rim ? { borderWidth: StyleSheet.hairlineWidth, borderColor: rim } : null, style]}>{children}</View>;
 }
 
 /**
@@ -272,12 +274,11 @@ const styles = StyleSheet.create({
 
   // Smoked glass, like the Apps tab's lists: the sky shows through instead of flat grey.
   card: { marginBottom: Space.l },
-  // A dark grey surface rather than black, which read as a hole in the sky.
+  // Home's "Tomorrow" pill's grey, but mostly opaque: its 10% white wash let too much sky
+  // behind the rows, so only a hint shows through (user's ask, 2026-10-10).
   solid: {
-    backgroundColor: '#16171C',
+    backgroundColor: 'rgba(40, 43, 54, 0.8)',
     borderRadius: GLASS_RADIUS,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
     overflow: 'hidden',
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l, paddingTop: Space.l, paddingBottom: Space.xs },

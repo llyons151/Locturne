@@ -1,0 +1,548 @@
+<title>Loc in Motion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: one stage with the rig and its controls, then the same rig small, then in three onboarding moments.
+     Single dark look on purpose: it matches the app's night sky, so it ignores the viewer's theme. */
+  :root {
+    --night: #05070d;
+    --sky-1: #0b1222;
+    --sky-2: #1a2a4d;
+    --moon: #c9d3e6;
+    --ink: #000000;
+    --text: #eef1f7;
+    --text-2: #9aa6bd;
+    --text-3: #5f6a80;
+    --edge: #1f2738;
+    --raised: #121826;
+    --pill: #eef1f7;
+    --on-pill: #05070d;
+    --mask-shadow: #262b36;
+    --mask-accent: #7d6f9e;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--night); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  .page { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 64px; display: grid; gap: 56px; }
+  header { display: grid; gap: 10px; text-align: center; justify-items: center; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+  h1 { font-family: var(--display); font-style: italic; font-weight: 400; font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 0; text-wrap: balance; }
+  header p { margin: 0; color: var(--text-2); max-width: 60ch; text-wrap: pretty; }
+  h2 { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); margin: 0; font-weight: 600; text-align: center; }
+
+  /* Stage */
+  .stage-wrap { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 780px) { .stage-wrap { grid-template-columns: minmax(0, 1fr); } }
+  .stage { position: relative; aspect-ratio: 4 / 3.3; max-width: 100%; border-radius: 28px; overflow: hidden;
+    background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 100%); border: 1px solid var(--edge); cursor: pointer; }
+  .moon { position: absolute; left: 50%; bottom: -56%; width: 118%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: var(--moon); }
+  .stage .loc { position: absolute; left: 50%; bottom: 0; width: 64%; transform: translateX(-50%); }
+  .line { position: absolute; left: 0; right: 0; top: 7%; text-align: center; font-family: var(--display); font-style: italic; font-size: clamp(19px, 2.6vw, 25px); padding-inline: 18px; color: var(--text); transition: opacity .35s ease; text-wrap: balance; }
+
+  .panel { display: grid; gap: 22px; }
+  .group { display: grid; gap: 10px; }
+  .group-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.chip { font: inherit; font-size: 14px; font-weight: 600; color: var(--text); background: var(--raised); border: 1px solid var(--edge);
+    border-radius: 999px; padding: 9px 15px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+  button.chip:hover { border-color: var(--text-3); }
+  button.chip[aria-pressed="true"] { background: var(--pill); color: var(--on-pill); border-color: var(--pill); }
+  button.chip:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .note { font-size: 13px; color: var(--text-2); margin: 0; }
+
+  /* Sizes */
+  .sizes { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 28px; }
+  .size { display: grid; justify-items: center; gap: 8px; }
+  .chipbox { position: relative; overflow: hidden; border-radius: 22%; background: var(--moon); display: grid; place-items: end center; }
+  .size span { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+  /* Onboarding phones */
+  .phones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  @media (max-width: 720px) { .phones { grid-template-columns: minmax(0, 1fr); max-width: 300px; margin: 0 auto; width: 100%; } }
+  .phone { position: relative; aspect-ratio: 9 / 18.5; border-radius: 34px; overflow: hidden; border: 1px solid var(--edge);
+    background: linear-gradient(180deg, var(--night) 0%, var(--sky-1) 55%, var(--sky-2) 100%); }
+  .phone .moon { bottom: -38%; width: 160%; }
+  .phone .copy { position: absolute; left: 0; right: 0; top: 11%; padding-inline: 18px; display: grid; gap: 8px; }
+  .phone .big { font-size: clamp(20px, 2.4vw, 25px); font-weight: 700; line-height: 1.15; text-wrap: balance; }
+  .phone .voice { font-family: var(--display); font-style: italic; font-size: 16px; color: var(--text-2); }
+  .phone .num { font-size: clamp(40px, 5vw, 52px); font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+  .phone .center { text-align: center; }
+  .phone .loc { position: absolute; left: 50%; transform: translateX(-50%); }
+  .phone .cta { position: absolute; left: 14px; right: 14px; bottom: 16px; height: 42px; border-radius: 999px; background: var(--pill); color: var(--on-pill);
+    display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .phone .tag { position: absolute; left: 0; right: 0; bottom: -30px; text-align: center; font-size: 12px; color: var(--text-3); }
+  .phone-col { display: grid; gap: 10px; }
+  .phone-col p { margin: 0; text-align: center; font-size: 13px; color: var(--text-2); }
+  .card { position: absolute; left: 14px; right: 14px; border-radius: 16px; background: var(--raised); border: 1px solid var(--edge); padding: 12px 14px; display: grid; gap: 4px; font-size: 12px; }
+  .card .row { display: grid; grid-template-columns: 1.1fr 1fr 1fr; font-variant-numeric: tabular-nums; }
+  .card .row b { font-size: 14px; }
+  .card .dim { color: var(--text-2); }
+  .peekbox { position: absolute; left: 0; right: 0; overflow: hidden; display: grid; place-items: end center; }
+  .peekbox svg.loc { margin: 0 auto; }
+
+  /* Notes */
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .notes article { border-top: 1px solid var(--edge); padding-top: 14px; display: grid; gap: 6px; }
+  .notes h3 { margin: 0; font-size: 15px; }
+  .notes p { margin: 0; color: var(--text-2); font-size: 14px; }
+  footer { text-align: center; color: var(--text-3); font-size: 12px; }
+
+  svg.loc { display: block; overflow: visible; }
+  @media (prefers-reduced-motion: reduce) { .line { transition: none; } }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Locturne · motion study 01</div>
+    <h1>Loc, as a silhouette that acts</h1>
+    <p>Your traced Loc, rigged in the browser. One black shape, cut into two ears and two eye slits. Every state is a set of targets, and he springs between them, the way a Rive state machine blends.</p>
+  </header>
+
+  <section class="stage-wrap" aria-label="Main stage">
+    <div class="stage" id="stage" role="button" tabindex="0" aria-label="Poke Loc">
+      <div class="moon"></div>
+      <div class="line" id="line">I’m up. Don’t talk to me yet.</div>
+    </div>
+    <div class="panel">
+      <p class="note">Tap him to poke. Move your pointer and his eyes follow.</p>
+      <div class="group">
+        <div class="group-label">State</div>
+        <div class="chips" id="states"></div>
+        <p class="note" id="state-note"></p>
+      </div>
+      <div class="group">
+        <div class="group-label">Reactions</div>
+        <div class="chips" id="reactions"></div>
+      </div>
+      <div class="group">
+        <div class="group-label">Eyes</div>
+        <div class="chips" id="eyes-opt"></div>
+      </div>
+      <div class="group">
+        <div class="group-label">Sleep mask</div>
+        <div class="chips" id="mask-opt"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="Sizes">
+    <h2>Does it read small?</h2>
+    <div class="sizes" id="sizes"></div>
+  </section>
+
+  <section class="group" aria-label="Onboarding">
+    <h2>In onboarding</h2>
+    <div class="phones">
+      <div class="phone-col">
+        <div class="phone" id="ph-hello">
+          <div class="moon"></div>
+          <div class="copy"><div class="big">No apps until you’re out of bed.</div><div class="voice">I’m Loc. I don’t do mornings well either.</div></div>
+          <div class="cta">Go on</div>
+        </div>
+        <p><b>hello</b> · asleep in front of the moon, one ear flick</p>
+      </div>
+      <div class="phone-col">
+        <div class="phone" id="ph-reveal">
+          <div class="moon"></div>
+          <div class="copy center"><div class="voice center">You spend about…</div><div class="num" id="rev-num">0 hours</div><div class="voice center" id="rev-year">&nbsp;</div></div>
+          <div class="cta">Let’s fix this</div>
+        </div>
+        <p><b>reveal</b> · sits up, then ears go flat as it lands</p>
+      </div>
+      <div class="phone-col">
+        <div class="phone" id="ph-plans">
+          <div class="moon"></div>
+          <div class="copy center"><div class="big center">9 hours a week for slow mornings.</div></div>
+          <div class="peekbox" id="plans-peek" style="bottom: 62px; height: 30%;"></div>
+          <div class="card" style="top: 30%;">
+            <div class="row dim"><span></span><span>USUAL</span><span>WITH ME</span></div>
+            <div class="row"><span class="dim">Phone down</span><b class="dim">12:30 AM</b><b>11:30 PM</b></div>
+            <div class="row"><span class="dim">Out of bed</span><b class="dim">7:20 AM</b><b>7:03 AM</b></div>
+          </div>
+          <div class="cta">Start 7-day free trial</div>
+        </div>
+        <p><b>plans</b> · ducks, peeks up from the moon, glances up at the card</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="What this is built on">
+    <h2>What the research said, and where it shows up</h2>
+    <div class="notes">
+      <article><h3>Act with the outline</h3><p>A silhouette has no face, so ears, head tilt and posture carry everything. Each state here changes at least three of them at once, so it reads even at 32 pt.</p></article>
+      <article><h3>Idle on its own layer</h3><p>Rive mascots blink and glance on a random timer every 2 to 5 seconds, separate from the app’s commands. Same here: the app only sets the state.</p></article>
+      <article><h3>Ears lag the head</h3><p>Follow-through: the ears are softer springs than the head, so they overshoot and settle after every move. That wobble is most of the life.</p></article>
+      <article><h3>Eyes as cut-outs</h3><p>The eye slits are holes, so the moon shows through. The pupils follow your pointer, like the eye-tracking Rive characters do with touch.</p></article>
+      <article><h3>Restraint</h3><p>No particles, no glow, no bounce for its own sake. Breathing is 1 to 2 percent. Reduced-motion turns the idle layer off.</p></article>
+      <article><h3>Same API as the app will use</h3><p>One rig, a <code>state</code> and a few triggers. Swapping this for a Rive file later keeps every screen’s code the same.</p></article>
+    </div>
+  </section>
+
+  <footer>Prototype in the browser only. Not in the app.</footer>
+</div>
+
+<script>
+(() => {
+  const PATH = "M2137 5465 c-88 -31 -191 -188 -297 -455 -195 -488 -199 -931 -15 -1412 5 -12 -9 -25 -54 -52 -170 -103 -200 -258 -77 -394 l34 -37 -54 -71 c-175 -232 -424 -386 -646 -401 -104 -8 -114 -21 -51 -67 60 -44 142 -76 211 -83 74 -8 72 -17 -11 -42 -151 -44 -218 -55 -372 -55 -168 -1 -171 -3 -112 -64 32 -33 175 -111 206 -113 31 -1 -95 -40 -178 -54 -46 -8 -121 -15 -168 -15 -98 0 -104 -6 -75 -73 25 -56 80 -118 155 -174 l59 -43 -29 -10 c-91 -35 -171 -97 -194 -151 -16 -39 -4 -51 85 -88 39 -16 117 -51 171 -78 l100 -48 -60 -6 c-61 -6 -135 -34 -135 -51 0 -5 12 -16 27 -24 170 -93 588 -352 580 -360 -1 -2 -45 2 -97 8 -96 10 -159 1 -145 -22 3 -5 50 -42 103 -81 53 -40 166 -131 250 -203 l152 -131 -40 -3 c-57 -4 -51 -22 25 -74 l65 -45 -58 -38 c-31 -21 -75 -52 -97 -70 -63 -50 -61 -50 -88 7 -76 168 -274 215 -423 102 l-45 -34 -32 24 c-122 93 -317 63 -382 -58 -17 -32 -24 -36 -45 -30 -148 40 -246 4 -305 -111 -28 -55 -30 -66 -30 -169 l0 -111 4045 0 4045 0 0 115 c-1 122 -15 169 -69 228 -52 58 -171 83 -249 53 -40 -15 -40 -15 -61 24 -66 123 -259 152 -382 59 l-35 -27 -27 26 c-130 124 -361 81 -439 -82 l-28 -58 -59 32 -58 33 71 37 c73 38 82 55 30 55 -16 0 -29 3 -29 8 0 21 278 142 453 198 75 24 75 32 3 68 l-59 30 79 21 c109 28 231 74 245 91 16 19 -30 86 -93 132 l-47 36 47 16 c100 36 202 116 202 159 0 22 -27 41 -57 41 -30 1 -184 63 -258 105 l-70 40 75 7 c54 6 93 17 140 40 72 37 85 55 43 63 -138 27 -277 83 -390 157 -35 22 -63 41 -63 42 0 1 31 0 69 -2 108 -6 114 5 32 62 -116 79 -244 232 -301 358 l-19 42 42 24 c156 88 174 208 56 372 -9 13 2 33 55 103 285 378 446 922 396 1337 -28 225 -76 279 -251 280 -304 1 -671 -155 -1033 -438 l-109 -86 -36 45 c-164 203 -235 248 -548 350 -209 68 -316 111 -568 229 -309 144 -455 195 -645 224 -345 54 -589 8 -836 -158 -37 -25 -71 -43 -75 -41 -4 3 -22 31 -39 63 -165 293 -439 617 -664 784 -203 151 -336 200 -439 163z";
+  const NS = 'http://www.w3.org/2000/svg';
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Rig geometry, in the traced path's 818 x 552 box.
+  const EAR_L = { pivot: [255, 150], hide: '140,-30 348,-30 348,98 328,106 182,194 140,194', clip: '130,-40 350,-40 362,124 214,236 130,232' };
+  const EAR_R = { pivot: [650, 228], hide: '598,172 590,80 790,80 790,286 702,284', clip: '574,196 580,80 795,80 795,305 680,305' };
+  const EYE_L = [352, 312];
+  const EYE_R = [538, 338];
+  const FACE_ANGLE = 8;      // the head is drawn tilted; eyes and mask follow it
+  const MASK_DOWN = [446, 326];
+  const MASK_UP = [432, 168];
+
+  const STATES = {
+    asleep:   { note: 'Mask down, ears drooped outward, slow breaths. Pure silhouette: no eyes at all.', line: 'Shh. I’m sleeping. So are they.',
+                y: 46, tilt: 5, earL: -20, earR: 20, open: 0, openR: 0, lid: 0, mask: 0, breathe: 1, rate: 0.19, pupils: 0, blinks: false },
+    groggy:   { note: 'Mask shoved up crooked, eyes half shut, slow heavy blinks.', line: 'No.',
+                y: 20, tilt: 7, earL: -10, earR: 13, open: 0.38, openR: 0.3, lid: 7, mask: 0.82, breathe: 0.7, rate: 0.24, pupils: 1, blinks: 'slow' },
+    awake:    { note: 'Upright, eyes open, quick blinks and glances. Follows your pointer.', line: 'I’m up. Don’t talk to me yet.',
+                y: 0, tilt: 0, earL: 0, earR: 0, open: 1, openR: 1, lid: 0, mask: 1, breathe: 0.45, rate: 0.3, pupils: 1, blinks: 'normal' },
+    smug:     { note: 'Sits taller, head cocked the other way, one eye narrower, ears forward.', line: 'Three. I’ll take them.',
+                y: -8, tilt: -6, earL: 7, earR: -7, open: 0.3, openR: 0.52, lid: 13, mask: 1, breathe: 0.4, rate: 0.3, pupils: 1, blinks: 'normal' },
+    betrayed: { note: 'Eyes wide, ears pinned flat, pulled back. The sun is out.', line: 'You walked downstairs. On purpose.',
+                y: -12, tilt: 0, earL: -34, earR: 34, open: 1.32, openR: 1.32, lid: -4, mask: 1, breathe: 0.25, rate: 0.5, pupils: 1, blinks: false },
+  };
+  const KEYS = ['y', 'tilt', 'earL', 'earR', 'open', 'openR', 'lid', 'mask', 'breathe', 'pupils'];
+  // Head is a firm spring; ears are soft and underdamped so they follow through.
+  const SPRING = { y: [90, 0.9], tilt: [90, 0.85], earL: [150, 0.42], earR: [150, 0.42], open: [260, 1], openR: [260, 1], lid: [200, 1], mask: [70, 0.95], breathe: [40, 1], pupils: [120, 1] };
+
+  const settings = { eyes: true, mask: 'shadow' };
+  const rigs = [];
+  let uid = 0;
+
+  function el(name, attrs = {}, parent) {
+    const node = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function eyePath(o, w = 41) {
+    // o = 0 closed crescent, 1 open almond, 1.3 round. Cubic top and bottom lids.
+    const t = 22 - 76 * o;
+    const b = 30 + 14 * Math.min(o, 1) + 10 * Math.max(0, o - 1);
+    const s = 0.56;
+    return `M${-w},0 C${-w * s},${t} ${w * s},${t} ${w},0 C${w * s},${b} ${-w * s},${b} ${-w},0 Z`;
+  }
+
+  function maskPath() {
+    // A sleep mask: wide band, rounded ends, a dip for the nose.
+    return 'M-150,-30 C-60,-46 60,-46 150,-30 C170,-26 174,20 150,28 C100,42 42,40 16,22 Q0,12 -16,22 C-42,40 -100,42 -150,28 C-174,20 -170,-26 -150,-30 Z';
+  }
+
+  class Rig {
+    constructor(host, { width, state = 'awake', interactive = false, follow = true } = {}) {
+      const id = 'r' + (uid++);
+      this.id = id;
+      this.follow = follow;
+      const svg = el('svg', { class: 'loc', viewBox: '-40 -60 898 612', width: '100%', 'aria-hidden': 'true' });
+      if (width) svg.style.width = width;
+      const defs = el('defs', {}, svg);
+      el('path', { id: id + 'sil', d: PATH, transform: 'translate(0,552) scale(0.1,-0.1)' }, defs);
+      const ledge = el('clipPath', { id: id + 'ledge', clipPathUnits: 'userSpaceOnUse' }, defs);
+      el('rect', { x: -200, y: -300, width: 1300, height: 852 }, ledge);
+      for (const [name, pts] of [['earLc', EAR_L.clip], ['earRc', EAR_R.clip]]) {
+        const c = el('clipPath', { id: id + name, clipPathUnits: 'userSpaceOnUse' }, defs);
+        el('polygon', { points: pts }, c);
+      }
+      const bodyMask = el('mask', { id: id + 'body', maskUnits: 'userSpaceOnUse', x: -200, y: -300, width: 1300, height: 900 }, defs);
+      el('rect', { x: -200, y: -300, width: 1300, height: 900, fill: '#fff' }, bodyMask);
+      for (const pts of [EAR_L.hide, EAR_R.hide]) el('polygon', { points: pts, fill: '#000' }, bodyMask);
+      // Eye cut-outs: holes in the head, with pupils put back inside them.
+      const eyeMask = el('mask', { id: id + 'eyes', maskUnits: 'userSpaceOnUse', x: -200, y: -300, width: 1300, height: 900 }, defs);
+      el('rect', { x: -200, y: -300, width: 1300, height: 900, fill: '#fff' }, eyeMask);
+      const eyeClipL = el('clipPath', { id: id + 'eyeLc', clipPathUnits: 'userSpaceOnUse' }, defs);
+      const eyeClipR = el('clipPath', { id: id + 'eyeRc', clipPathUnits: 'userSpaceOnUse' }, defs);
+      this.eyeGL = el('g', {}, eyeMask);
+      this.eyeGR = el('g', {}, eyeMask);
+      this.eyeL = el('path', { fill: '#000' }, this.eyeGL);
+      this.eyeR = el('path', { fill: '#000' }, this.eyeGR);
+      this.clipL = el('path', {}, eyeClipL);
+      this.clipR = el('path', {}, eyeClipR);
+      this.pupilL = el('circle', { r: 13, fill: '#fff', 'clip-path': `url(#${id}eyeLc)` }, eyeMask);
+      this.pupilR = el('circle', { r: 13, fill: '#fff', 'clip-path': `url(#${id}eyeRc)` }, eyeMask);
+
+      const root = el('g', { 'clip-path': `url(#${id}ledge)` }, svg);
+      this.whole = el('g', {}, root);
+      this.rig = el('g', {}, this.whole);
+      const cut = el('g', { mask: `url(#${id}eyes)` }, this.rig);
+      el('use', { href: `#${id}sil`, mask: `url(#${id}body)`, fill: 'var(--ink)' }, cut);
+      // His base continues below the ledge, so a lean never opens a gap above it.
+      el('rect', { x: 0, y: 540, width: 818, height: 500, fill: 'var(--ink)' }, cut);
+      this.earLg = el('g', {}, cut);
+      el('use', { href: `#${id}sil`, 'clip-path': `url(#${id}earLc)`, fill: 'var(--ink)' }, this.earLg);
+      this.earRg = el('g', {}, cut);
+      el('use', { href: `#${id}sil`, 'clip-path': `url(#${id}earRc)`, fill: 'var(--ink)' }, this.earRg);
+      this.maskG = el('g', {}, this.rig);
+      this.maskShape = el('path', { d: maskPath() }, this.maskG);
+      host.appendChild(svg);
+      this.svg = svg;
+
+      this.cur = {}; this.vel = {}; this.target = {};
+      this.setState(state, true);
+      this.t = Math.random() * 10;
+      this.blink = 0;           // 0..1 how closed by a blink
+      this.nextBlink = 1 + Math.random() * 2;
+      this.glance = [0, 0]; this.nextGlance = 1.5 + Math.random() * 2;
+      this.pointer = null;
+      this.ear = { L: 0, R: 0 };   // ear flick offsets (impulses)
+      this.squash = 0; this.squashV = 0;
+      this.sink = 0; this.sinkTarget = 0; this.sinkV = 0;
+      this.glareUntil = 0;
+      this.override = {};
+      rigs.push(this);
+      if (interactive) this.bindPointer(host);
+    }
+
+    setState(name, snap = false) {
+      this.state = name;
+      const s = STATES[name];
+      for (const k of KEYS) {
+        this.target[k] = s[k];
+        if (snap || this.cur[k] === undefined) { this.cur[k] = s[k]; this.vel[k] = 0; }
+      }
+      this.rate = s.rate; this.blinks = s.blinks;
+      if (name === 'betrayed' && !snap) { this.kick(-0.06); this.ear.L -= 10; this.ear.R += 10; }
+      if (name === 'smug' && !snap) this.flick('R');
+    }
+
+    bindPointer(host) {
+      const move = (e) => {
+        const r = this.svg.getBoundingClientRect();
+        const x = ((e.clientX - r.left) / r.width) * 898 - 40;
+        const y = ((e.clientY - r.top) / r.height) * 612 - 60;
+        this.pointer = [x, y];
+      };
+      host.addEventListener('pointermove', move);
+      host.addEventListener('pointerleave', () => { this.pointer = null; });
+    }
+
+    kick(amount) { this.squashV += amount * 14; }
+    flick(side) { this.ear[side] += side === 'L' ? -16 : 16; }
+
+    poke() {
+      this.kick(-0.09);
+      this.ear.L -= 22; this.ear.R += 22;
+      this.override.open = 0.05; this.override.openR = 0.05;
+      clearTimeout(this.pokeT1); clearTimeout(this.pokeT2);
+      this.pokeT1 = setTimeout(() => { this.override = { open: 0.3, openR: 0.42, lid: 13 }; this.glareUntil = performance.now() + 1300; }, 260);
+      this.pokeT2 = setTimeout(() => { this.override = {}; }, 1700);
+    }
+    land() {
+      // The reveal's number lands: ears go flat and he sinks a little, then recovers.
+      this.ear.L -= 26; this.ear.R += 26; this.kick(-0.07);
+      this.override = { open: 1.18, openR: 1.18, lid: -3 };
+      this.sinkTo(26);
+      clearTimeout(this.landT);
+      this.landT = setTimeout(() => { this.override = {}; this.sinkTo(0); }, 1600);
+    }
+    sinkTo(v) { this.sinkTarget = v; }
+
+    step(dt, now) {
+      this.t += dt;
+      // Springs toward the state's targets (with any reaction override on top).
+      for (const k of KEYS) {
+        const goal = this.override[k] !== undefined ? this.override[k] : this.target[k];
+        const [k1, z] = SPRING[k];
+        const c = 2 * Math.sqrt(k1) * z;
+        const a = k1 * (goal - this.cur[k]) - c * this.vel[k];
+        this.vel[k] += a * dt; this.cur[k] += this.vel[k] * dt;
+      }
+      // Ear flick impulses decay like a plucked spring.
+      for (const side of ['L', 'R']) this.ear[side] *= Math.pow(0.004, dt);
+      // Squash spring.
+      const sa = 220 * (0 - this.squash) - 2 * Math.sqrt(220) * 0.35 * this.squashV;
+      this.squashV += sa * dt; this.squash += this.squashV * dt;
+      // Sink spring (peek in and out over the ledge).
+      const ka = 60 * (this.sinkTarget - this.sink) - 2 * Math.sqrt(60) * 0.95 * this.sinkV;
+      this.sinkV += ka * dt; this.sink += this.sinkV * dt;
+
+      if (!reduced) {
+        // Idle layer: blinks, glances and the odd ear flick on random timers.
+        if (this.blinks) {
+          this.nextBlink -= dt;
+          if (this.nextBlink <= 0) {
+            this.blinkStart = now; this.blinkSlow = this.blinks === 'slow';
+            this.nextBlink = this.blinks === 'slow' ? 3 + Math.random() * 3 : 2 + Math.random() * 3;
+            if (Math.random() < 0.18 && this.blinks === 'normal') this.nextBlink = 0.28; // double blink
+          }
+        }
+        this.nextGlance -= dt;
+        if (this.nextGlance <= 0) {
+          this.glance = Math.random() < 0.45 ? [0, 0] : [(Math.random() - 0.5) * 22, (Math.random() - 0.4) * 10];
+          this.nextGlance = 1.2 + Math.random() * 2.6;
+          if (Math.random() < 0.22) this.flick(Math.random() < 0.5 ? 'L' : 'R');
+        }
+      }
+      this.blink = 0;
+      if (this.blinkStart) {
+        const len = this.blinkSlow ? 0.55 : 0.2;
+        const p = (now - this.blinkStart) / 1000 / len;
+        if (p >= 1) this.blinkStart = 0;
+        else this.blink = p < 0.4 ? p / 0.4 : 1 - (p - 0.4) / 0.6;
+      }
+
+      const c = this.cur;
+      const breath = reduced ? 0 : Math.sin(this.t * Math.PI * 2 * this.rate) * c.breathe;
+      const sy = 1 + breath * 0.016 + this.squash;
+      const sx = 1 - this.squash * 0.6;
+      const y = c.y + this.sink + (reduced ? 0 : -breath * 2);
+      this.rig.setAttribute('transform', `translate(0 ${y.toFixed(2)}) rotate(${c.tilt.toFixed(2)} 430 1150) translate(430 552) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-430 -552)`);
+      // Ears: state angle + flick impulse + a little drag from head motion (follow-through).
+      const drag = -this.vel.tilt * 0.06 + this.vel.y * 0.03;
+      const breathEar = breath * 1.2;
+      this.earLg.setAttribute('transform', `rotate(${(c.earL + this.ear.L + drag - breathEar).toFixed(2)} ${EAR_L.pivot[0]} ${EAR_L.pivot[1]})`);
+      this.earRg.setAttribute('transform', `rotate(${(c.earR + this.ear.R + drag + breathEar).toFixed(2)} ${EAR_R.pivot[0]} ${EAR_R.pivot[1]})`);
+
+      // Eyes.
+      const showEyes = settings.eyes;
+      const close = 1 - this.blink;
+      const oL = showEyes ? Math.max(0, c.open * close) : 0;
+      const oR = showEyes ? Math.max(0, c.openR * close) : 0;
+      const dL = eyePath(oL), dR = eyePath(oR);
+      const tL = `translate(${EYE_L[0]} ${EYE_L[1]}) rotate(${(FACE_ANGLE + c.lid).toFixed(2)})`;
+      const tR = `translate(${EYE_R[0]} ${EYE_R[1]}) rotate(${(FACE_ANGLE - c.lid).toFixed(2)})`;
+      this.eyeL.setAttribute('d', dL); this.eyeGL.setAttribute('transform', tL);
+      this.eyeR.setAttribute('d', dR); this.eyeGR.setAttribute('transform', tR);
+      this.clipL.setAttribute('d', dL); this.clipL.setAttribute('transform', tL);
+      this.clipR.setAttribute('d', dR); this.clipR.setAttribute('transform', tR);
+      this.eyeL.setAttribute('visibility', showEyes ? 'visible' : 'hidden');
+      this.eyeR.setAttribute('visibility', showEyes ? 'visible' : 'hidden');
+      // Pupils: follow the pointer when there is one, otherwise glance around.
+      let gx = this.glance[0], gy = this.glance[1];
+      if (this.pointer && this.follow) {
+        const mid = [(EYE_L[0] + EYE_R[0]) / 2, (EYE_L[1] + EYE_R[1]) / 2 + y];
+        const dx = this.pointer[0] - mid[0], dy = this.pointer[1] - mid[1];
+        const len = Math.hypot(dx, dy) || 1;
+        const m = Math.min(1, len / 260);
+        gx = (dx / len) * 20 * m; gy = (dy / len) * 9 * m;
+      }
+      const pr2 = c.pupils > 0.5 ? (this.state === 'betrayed' ? 8 : 13) : 0;
+      this.pupilL.setAttribute('r', showEyes ? pr2 : 0);
+      this.pupilR.setAttribute('r', showEyes ? pr2 : 0);
+      this.pupilL.setAttribute('cx', (EYE_L[0] + gx).toFixed(1)); this.pupilL.setAttribute('cy', (EYE_L[1] + 6 + gy).toFixed(1));
+      this.pupilR.setAttribute('cx', (EYE_R[0] + gx).toFixed(1)); this.pupilR.setAttribute('cy', (EYE_R[1] + 6 + gy).toFixed(1));
+
+      // Sleep mask: slides from over the eyes (0) to the forehead (1), crooked on the way.
+      const m = Math.max(-0.05, Math.min(1.05, c.mask));
+      const mx = MASK_DOWN[0] + (MASK_UP[0] - MASK_DOWN[0]) * m;
+      const my = MASK_DOWN[1] + (MASK_UP[1] - MASK_DOWN[1]) * m;
+      const crooked = this.state === 'groggy' ? 9 : 0;
+      const ms = 1 - 0.12 * m;
+      this.maskG.setAttribute('transform', `translate(${mx.toFixed(1)} ${my.toFixed(1)}) rotate(${(FACE_ANGLE + crooked * m).toFixed(2)}) scale(${ms.toFixed(3)})`);
+      const fill = settings.mask === 'accent' ? 'var(--mask-accent)' : settings.mask === 'shadow' ? 'var(--mask-shadow)' : 'var(--ink)';
+      this.maskShape.setAttribute('fill', fill);
+      this.maskG.setAttribute('visibility', settings.mask === 'none' && m > 0.5 ? 'hidden' : 'visible');
+    }
+  }
+
+  // ---------- Main stage ----------
+  const stage = document.getElementById('stage');
+  const main = new Rig(stage, { state: 'awake', interactive: true });
+  const line = document.getElementById('line');
+  const note = document.getElementById('state-note');
+
+  const sizesHost = document.getElementById('sizes');
+  const smalls = [32, 48, 72, 120].map((px) => {
+    const wrap = document.createElement('div'); wrap.className = 'size';
+    const box = document.createElement('div'); box.className = 'chipbox';
+    box.style.width = px + 'px'; box.style.height = px + 'px';
+    const r = new Rig(box, { width: Math.round(px * 0.9) + 'px', state: 'awake', follow: false });
+    const label = document.createElement('span'); label.textContent = px + ' pt';
+    wrap.append(box, label); sizesHost.append(wrap);
+    return r;
+  });
+
+  function chips(hostId, items, current, onPick, toggle = true) {
+    const host = document.getElementById(hostId);
+    const btns = items.map(([key, label]) => {
+      const b = document.createElement('button');
+      b.className = 'chip'; b.type = 'button'; b.id = hostId + '-' + key; b.textContent = label;
+      if (toggle) b.setAttribute('aria-pressed', String(key === current));
+      b.addEventListener('click', () => {
+        if (toggle) btns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        onPick(key);
+      });
+      host.append(b);
+      return b;
+    });
+    return btns;
+  }
+
+  function goState(name) {
+    main.setState(name);
+    smalls.forEach((r) => r.setState(name));
+    note.textContent = STATES[name].note;
+    line.style.opacity = 0;
+    setTimeout(() => { line.textContent = STATES[name].line; line.style.opacity = 1; }, 180);
+  }
+  chips('states', [['asleep', 'Asleep'], ['groggy', 'Groggy'], ['awake', 'Awake'], ['smug', 'Smug'], ['betrayed', 'Betrayed']], 'awake', goState);
+  note.textContent = STATES.awake.note;
+  chips('reactions', [['poke', 'Poke'], ['flick', 'Ear flick'], ['land', 'Number lands'], ['peek', 'Duck and peek']], null, (k) => {
+    const all = [main, ...smalls];
+    if (k === 'poke') all.forEach((r) => r.poke());
+    if (k === 'flick') all.forEach((r) => r.flick(Math.random() < 0.5 ? 'L' : 'R'));
+    if (k === 'land') all.forEach((r) => r.land());
+    if (k === 'peek') all.forEach((r) => { r.sinkTo(470); setTimeout(() => r.sinkTo(0), 1100); });
+  }, false);
+  chips('eyes-opt', [['on', 'Eye slits'], ['off', 'Pure outline']], 'on', (k) => { settings.eyes = k === 'on'; });
+  chips('mask-opt', [['shadow', 'Shadow grey'], ['accent', 'One accent'], ['none', 'Black']], 'shadow', (k) => { settings.mask = k; });
+
+  stage.addEventListener('click', () => main.poke());
+  stage.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); main.poke(); } });
+
+  // ---------- Onboarding phones ----------
+  const hello = new Rig(document.getElementById('ph-hello'), { width: '78%', state: 'asleep', follow: false });
+  hello.svg.style.position = 'absolute'; hello.svg.style.left = '50%'; hello.svg.style.bottom = '62px'; hello.svg.style.transform = 'translateX(-50%)';
+  const reveal = new Rig(document.getElementById('ph-reveal'), { width: '70%', state: 'groggy', follow: false });
+  reveal.svg.style.position = 'absolute'; reveal.svg.style.left = '50%'; reveal.svg.style.bottom = '62px'; reveal.svg.style.transform = 'translateX(-50%)';
+  const plans = new Rig(document.getElementById('plans-peek'), { width: '70%', state: 'smug', follow: false });
+
+  // hello: asleep, an ear flick every few seconds, a single slow breath shift.
+  setInterval(() => { if (!reduced) hello.flick(Math.random() < 0.6 ? 'R' : 'L'); }, 3600);
+
+  // reveal: groggy → the number rolls → sits up → lands → ears flat → recover.
+  const num = document.getElementById('rev-num'), year = document.getElementById('rev-year');
+  function revealLoop() {
+    reveal.setState('groggy'); num.textContent = '0 hours'; year.innerHTML = '&nbsp;';
+    let v = 0;
+    setTimeout(() => {
+      reveal.setState('awake');
+      const roll = setInterval(() => {
+        v += 1; num.textContent = v + (v === 1 ? ' hour' : ' hours');
+        if (v >= 9) { clearInterval(roll); year.textContent = 'That’s 485 hours a year.'; reveal.land(); setTimeout(() => reveal.setState('groggy'), 2000); }
+      }, 110);
+    }, 1400);
+  }
+  revealLoop(); setInterval(revealLoop, 7000);
+
+  // plans: peeks up over the card, glances at the price, ducks, comes back.
+  function plansLoop() {
+    plans.sinkTo(470); plans.setState('smug');
+    setTimeout(() => plans.sinkTo(120), 500);
+    setTimeout(() => plans.sinkTo(0), 1200);
+    setTimeout(() => { plans.glance = [-4, -16]; plans.nextGlance = 2.4; }, 1900);
+    setTimeout(() => { plans.poke(); }, 5000);
+  }
+  plansLoop(); setInterval(plansLoop, 8000);
+
+  // ---------- Loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    for (const r of rigs) r.step(dt, now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  window.__loc = { main, goState };
+})();
+</script>

@@ -11,7 +11,6 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  Easing,
   withTiming,
 } from 'react-native-reanimated';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -19,9 +18,8 @@ import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { nightsLabel } from '@/components/control-types';
-import { DayStrip } from '@/components/day-picker';
+import { DayStrip } from '@/components/day-strip';
 import { GlassCard } from '@/components/glass-card';
-import { moonSink } from '@/components/night-sky';
 import { Card, ChoiceRow, sym, ValueRow, type Symbol } from '@/components/grouped-list';
 import { useTabSelected } from '@/hooks/use-tab-selected';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
@@ -174,12 +172,6 @@ export function RoutineScreen() {
     shown.set(0);
     shown.set(withTiming(1, { duration: 300 }));
   }, [selected, reduced, shown]);
-  // The moon sinks while this tab is open, so the card isn't ringed by its light.
-  useEffect(() => {
-    const to = selected ? 1 : 0;
-    moonSink.set(reduced ? to : withTiming(to, { duration: 1600, easing: Easing.bezier(0.45, 0, 0.25, 1) }));
-  }, [selected, reduced]);
-  useEffect(() => () => moonSink.set(0), []);
 
   const [{ active, saved, from }, setLoaded] = useState<Loaded>(load);
   // Onboarding, or a bedtime passing, can change it while the tab is away, or while the app
@@ -267,13 +259,19 @@ export function RoutineScreen() {
           onChange={edited((times: { bedtime: number; morningStart: number }) => set(times))}
           scrollRef={scroll}
         />
-        <DayStrip value={saved.nights} onChange={edited((nights: number[]) => set({ nights }))} />
-        {hintSeen ? null : (
-          <Text style={styles.hint}>
-            {noOrphan('Drag the moon or sun. Tap a day to skip it.')}
-          </Text>
-        )}
       </View>
+
+      {/* The nights in the methods' card, so the screen's controls share one edge and surface. */}
+      <Card solid style={styles.daysCard}>
+        <View style={styles.days}>
+          <DayStrip value={saved.nights} onChange={edited((nights: number[]) => set({ nights }))} />
+        </View>
+      </Card>
+      {hintSeen ? null : (
+        <Text style={styles.hint}>
+          {noOrphan('Drag the moon or sun. Tap a day to skip it.')}
+        </Text>
+      )}
 
       {from ? (
         <GlassCard dark style={styles.pendingCard}>
@@ -346,14 +344,19 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
   // Cancels the card's own bottom margin, so only the gutter is left under it.
   methods: { marginBottom: -Space.l },
-  night: { marginBottom: Space.xl, gap: Space.m },
+  night: { marginBottom: Space.l, gap: Space.m },
+  // Fully round ends, like Home's "Tomorrow" pill.
+  daysCard: { borderRadius: 999 },
+  days: { paddingHorizontal: Space.m, paddingVertical: Space.s },
   // Home's headline ("Bedtime in 3h 28m"): large and light (user's ask, October 9, 2026).
   title: { ...APP_FONT, color: Nocturne.text, fontSize: 38, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6, textAlign: 'center' },
 
   // A section label under the one page title, not a second title (centred, user's preference).
   // Home's line under the headline, and Loc's quieter line under that.
-  section: { ...APP_FONT, ...Type.body, color: Nocturne.text2, textAlign: 'center', marginBottom: Space.m },
-  hint: { ...APP_FONT, ...Type.secondary, color: Nocturne.text3, textAlign: 'center', marginTop: -Space.s },
+  // Card to heading matches the gap between the dial and the nights' card.
+  section: { ...APP_FONT, ...Type.body, color: Nocturne.text2, textAlign: 'center', marginTop: Space.s, marginBottom: Space.m },
+  // Under the nights' card, like a card footer.
+  hint: { ...APP_FONT, ...Type.secondary, color: Nocturne.text3, textAlign: 'center', marginTop: -Space.s, marginBottom: Space.l },
 
   pendingCard: { marginBottom: Gap.section },
   pending: {
