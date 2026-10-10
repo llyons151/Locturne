@@ -188,7 +188,7 @@ export function renderStep(ctx: StepContext): StepView {
   const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
   // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
   // morning, it waits for the day after the first morning (`getScanEditRefusal`).
-  const method = methodCopy(answers.method ?? 'downstairs', { codeWaits: lateNight || getScanEditRefusal() !== null, wake: answers.wake });
+  const method = methodCopy(answers.method ?? 'steps', { codeWaits: lateNight || getScanEditRefusal() !== null, wake: answers.wake });
   // How many picks: the real count on an iPhone, the stand-in names in the preview.
   const pickCount = live ? live.count : answers.apps.length;
   // The quiz's button is their reply to him, and waits, invisible, for an answer.
@@ -536,7 +536,7 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'walk': {
-      const copy = walkCopy(answers.method ?? 'downstairs', wakeDay);
+      const copy = walkCopy(answers.method ?? 'steps', wakeDay);
       const { phase, steps } = ctx.walk;
       if (phase === 'denied' || phase === 'unavailable') {
         // Never a dead end: say what it means for the first morning, then carry on to the price.
@@ -620,7 +620,7 @@ export function renderStep(ctx: StepContext): StepView {
           <TomorrowDemo
             when={`${wakeDay}, ${wake}`}
             clock={wake.replace(/\s?[AP]M$/i, '')}
-            method={answers.method ?? 'downstairs'}
+            method={answers.method ?? 'steps'}
             tone={answers.tone}
             onPayoff={ctx.onPayoff}
           />
@@ -731,7 +731,7 @@ export function renderStep(ctx: StepContext): StepView {
             <ScheduleCard
               bedtime={answers.bedtime}
               wake={answers.wake}
-              method={answers.method ?? 'downstairs'}
+              method={answers.method ?? 'steps'}
               apps={answers.apps}
               liveCount={live?.count}
               compact={compact}
@@ -908,7 +908,7 @@ export function renderStep(ctx: StepContext): StepView {
             {motion === null ? (
               <>
                 <View style={page.gapBlock} />
-                <Body>{`${asksNotifications ? 'Then' : 'Next,'} iOS asks about Motion & Fitness. It’s ${MOTION_WHY[answers.method ?? 'downstairs'].replace('{goal}', methodCopy('steps').short.split(' ')[0])}.`}</Body>
+                <Body>{`${asksNotifications ? 'Then' : 'Next,'} iOS asks about Motion & Fitness. It’s ${MOTION_WHY[answers.method ?? 'steps'].replace('{goal}', methodCopy('steps').short.split(' ')[0])}.`}</Body>
               </>
             ) : null}
             {asksNotifications && !compact ? (

@@ -128,7 +128,8 @@ beforeEach(() => {
   live = 0;
   nightPicks = 3;
   clock = at(12, 0, 0).getTime();
-  saveRoutine(DEFAULT_ROUTINE, at(12, 0, 0)); // onboarding: applies at once
+  // Downstairs, so an edit to steps (the default) is a change of words.
+  saveRoutine({ ...DEFAULT_ROUTINE, method: 'downstairs' }, at(12, 0, 0)); // onboarding: applies at once
 });
 
 /** Armed the afternoon before, like a real install. */

@@ -42,7 +42,7 @@ export const DEFAULT_ROUTINE: Routine = {
   bedtime: 23 * 60,
   morningStart: 7 * 60,
   activeNights: [0, 1, 2, 3, 4, 5, 6],
-  method: 'downstairs',
+  method: 'steps',
   stepGoal: 200,
 };
 

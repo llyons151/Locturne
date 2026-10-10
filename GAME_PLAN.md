@@ -73,8 +73,8 @@ different ways to prove it, each with its own lines from Loc. Details in
 
 | Method | Proof | v1 role |
 |---|---|---|
-| **Go downstairs** | Barometer `relativeAltitude`: a change of at least 2.5 m held about 5 s, in a live session of up to about 5 min. Up or down both count. | **The hero.** Default for anyone with stairs; leads the marketing. |
-| **Walk it off** | 200 steps on `CMPedometer` since the morning start | Default for one-floor homes, and the "steps instead" fallback every morning |
+| **Walk it off** | 200 steps on `CMPedometer` since the morning start | **The default** (2026-10-10): top of "How you get up" and the routine's starting method; also the "steps instead" fallback every morning |
+| **Go downstairs** | Barometer `relativeAltitude`: a change of at least 2.5 m held about 5 s, in a live session of up to about 5 min. Up or down both count. | The hero for marketing; picked in onboarding by anyone with stairs. |
 | **Scan your code** | A per-user QR or a registered product barcode kept in another room | Alternative; the leading candidate for the accessible option |
 | **Leave the house** | An in-app "I'm out" check reads location once: at least ~150 m from the saved home spot, or at a saved place (gym, campus, café). When-In-Use permission only, no background geofence. Optional light check: the camera's exposure value (brightness only, never the picture) confirms daylight; before sunrise it's location only. | Alternative; the "get outside / see the sky" morning |
 | **Push-ups** | Phone face-up on the floor, 10–20 reps, each one counted when the chest covers the proximity sensor. No camera. | Alternative; the effort option and a strong video ("my alarm makes me do push-ups"), Loc counts the reps |

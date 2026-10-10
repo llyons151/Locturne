@@ -109,7 +109,7 @@ function load(): Loaded {
   return { active, saved: fromStored(pending.routine), from: new Date(pending.from) };
 }
 
-/** Downstairs first: it's the hero method, and the default for anyone with stairs. */
+/** Steps first: it's the default, and works in any home (user's ask, 2026-10-10). */
 const methods = (
   goal: number,
   place: string | null,
@@ -117,16 +117,16 @@ const methods = (
   wake: number,
 ): { value: Method; icon: Symbol; title: string; detail: string }[] => [
   {
-    value: 'downstairs',
-    icon: sym('figure.stairs', 'stairs'),
-    title: 'Go downstairs',
-    detail: 'One floor · Recommended',
-  },
-  {
     value: 'steps',
     icon: sym('figure.walk', 'directions_walk'),
     title: `Walk ${goal} steps`,
-    detail: `Counted from ${formatPreset(wake)}`,
+    detail: `From ${formatPreset(wake)} · Recommended`,
+  },
+  {
+    value: 'downstairs',
+    icon: sym('figure.stairs', 'stairs'),
+    title: 'Go downstairs',
+    detail: 'One floor',
   },
   {
     value: 'scan',
