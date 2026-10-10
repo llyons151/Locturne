@@ -875,11 +875,14 @@ function applyShieldText(state: LockState, now: Date): void {
   const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
   // The app-wide fallback is what the always list, limits and Block now show, so it follows
   // what's really asleep: a night or morning with no night lock, paused by an emergency unlock,
+  // with nothing on the bedtime list (the live picks: removals made from bed wait for bedtime),
   // or after the last one a lapsed subscription covers gets the day's rules (Block now, a limit,
   // the always list), not "they wake up after 7 am" over apps that won't.
   const locked = state.phase === 'night' || state.phase === 'morning';
+  const emptyNight = isScreenTimeAvailable() && selectionSize('night') === 0;
   const unheld =
-    locked && (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now))));
+    locked &&
+    (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now) || emptyNight)));
   const held = unheld ? { ...state, phase: 'day' as const } : state;
   // His words only: the tone never changes a rule, so it applies straight away.
   const tone = getTone();

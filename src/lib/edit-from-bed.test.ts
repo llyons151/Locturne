@@ -270,6 +270,26 @@ test('the shield fallback during a paused night is the always list’s, not the 
   assert.equal(fallback.at(-1), 'Shh. It’s asleep.');
 });
 
+test('the shield fallback on a night with an empty bedtime list is the always list’s, not the bedtime words', async () => {
+  await setUp(at(5, 12));
+  // Every bedtime app swiped away by day: the removal waits for bedtime, then lands.
+  st.beginListEdit('night');
+  st.clearSelection('night-next');
+  assert.equal(st.finishListEdit('night', new Date(at(5, 23))), 'bedtime');
+  advance(at(5, 23, 30));
+  assert.equal(st.selectionSize('night'), 0, 'the removal landed at bedtime');
+  fallback.length = 0;
+  assert.equal(lc.syncLock().phase, 'night');
+  assert.ok(device.state.shielded.has('reddit'), 'the always list stays asleep');
+  assert.doesNotMatch(fallback.at(-1) ?? '', /sleeping/i);
+  assert.equal(fallback.at(-1), 'Shh. It’s asleep.');
+  advance(at(6, 2));
+  fallback.length = 0;
+  lc.syncLock();
+  assert.doesNotMatch(fallback.at(-1) ?? '', /awake/i);
+  assert.equal(fallback.at(-1), 'Shh. It’s asleep.');
+});
+
 test('a morning the old routine held stays locked when the edit switches that evening off', async () => {
   await setUp(at(4, 12));
   advance(at(5, 10));
