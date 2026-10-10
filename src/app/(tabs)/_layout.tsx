@@ -1,6 +1,7 @@
 import { AppBackground } from '@/components/app-background';
 import AppTabs from '@/components/app-tabs';
 import { Recede } from '@/components/recede';
+import { Loc } from '@/features/home/loc';
 import { useAppStart } from '@/hooks/use-app-start';
 
 export default function TabsLayout() {
@@ -11,6 +12,8 @@ export default function TabsLayout() {
     <AppBackground panel>
       <Recede>
         <AppTabs />
+        {/* Over every tab, so he can be seen diving under the covers as Home fades out. */}
+        <Loc />
       </Recede>
     </AppBackground>
   );

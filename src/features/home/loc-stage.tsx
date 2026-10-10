@@ -13,10 +13,22 @@ import { LocRig, type LocMood } from './loc-rig';
 /** A second hit within this many ms of the first sends him under the covers; one pokes him. */
 const SECOND_HIT_MS = 2500;
 
-/** Give the moon a head start before he peeks up over it. */
-const ARRIVE_DELAY_MS = 350;
+/** A beat for Home to start fading in before the lump comes running. */
+const ARRIVE_DELAY_MS = 120;
 
-export default function LocStage({ mood, share, present }: { mood: LocMood; share: number; present: boolean; dom?: import('expo/dom').DOMProps }) {
+export default function LocStage({
+  mood,
+  share,
+  present,
+  onCue,
+}: {
+  mood: LocMood;
+  share: number;
+  present: boolean;
+  /** What just happened to him (a poke, popping back up...), for his speech bubble. A native action on iOS. */
+  onCue?: (cue: 'poke' | 'angry' | 'hello' | 'hide') => void;
+  dom?: import('expo/dom').DOMProps;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rigRef = useRef<LocRig | null>(null);
   // The mood the rig starts in; later changes go through `setMood`.
@@ -24,6 +36,7 @@ export default function LocStage({ mood, share, present }: { mood: LocMood; shar
   const shareRef = useRef(share);
   const presentRef = useRef(present);
   const lastTap = useRef(0);
+  const onCueRef = useRef(onCue);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -31,6 +44,7 @@ export default function LocStage({ mood, share, present }: { mood: LocMood; shar
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const rig = new LocRig(canvas, moodRef.current, reduced);
     rig.setShare(shareRef.current);
+    rig.onCue = (cue) => onCueRef.current?.(cue);
     rigRef.current = rig;
     const arrive = presentRef.current ? setTimeout(() => rig.setPresent(true), ARRIVE_DELAY_MS) : undefined;
     const size = () => {
@@ -75,6 +89,10 @@ export default function LocStage({ mood, share, present }: { mood: LocMood; shar
     shareRef.current = share;
     rigRef.current?.setShare(share);
   }, [share]);
+
+  useEffect(() => {
+    onCueRef.current = onCue;
+  }, [onCue]);
 
   useEffect(() => {
     moodRef.current = mood;

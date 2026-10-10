@@ -321,3 +321,119 @@ clock by hand. These were reviewed frame by frame in the web build.
 
 **Not yet checked on a device:** the webview on the iPhone. If the current dev build is missing
 the DOM webview module, it needs a new dev build.
+
+### Round 6: options for a real crawl-out, and the vanishing exit (October 10, 2026)
+
+**The problem (user, with a screenshot of the peek):** the entrance doesn't look good, and when
+you leave Home he "just kinda disappears".
+
+**Why he vanishes:** he lives inside the Home page. A tab switch fades the page out within about
+100 ms (`fadeThrough` in `app-tabs.tsx`: out by 40% of a 260 ms switch), but his duck takes
+560 ms. The page, and him with it, is gone before the move gets going.
+
+**Why the peek reads badly:** mid-peek he's a head and eyes rising from behind a flat edge, with
+no paws or arms. The paws only land at the end, so most of the move reads as a floating head.
+
+**Entrance options:**
+- **A. Ledge climb.** One paw slaps over the edge, claws spread, then the other. He hauls
+  himself up with effort (ears pinned back, eyes squeezed), chin over the edge, elbows over,
+  then a settle and an exhale. Needs the paws as their own bones that can reach and grip.
+- **B. Out from under the covers.** The blanket lump from the burrow gag scurries in along the
+  edge, stops, bulges, and he bursts out ears first. Reuses the lump and makes the nav strip
+  his bed.
+- **C. Mood-dependent.** Groggy: one paw flops over, he drags himself up like getting out of
+  bed, mask crooked. Awake: a quick vault. Asleep: the lump stays, breathing.
+
+**Exit options:**
+1. **Move Loc to the nav strip's layer** (`AppTabs`), which stays put across tabs, so his exit
+   is actually seen: he dives under the covers and the lump scurries off along the edge. Coming
+   back reverses it.
+2. **Make the exit fit the fade** (about 100 ms). Cheap, but it's barely a move.
+
+**Recommendation:** B with exit 1, since it gives him one story (he lives under the covers),
+or A if he should feel physical. Prototype in the browser and review filmstrips before porting.
+
+**Built (user: "sounds good"):** B with exit 1.
+- `Loc` is drawn by the tabs layout (`src/app/(tabs)/_layout.tsx`). Home only publishes his
+  mood, and that it's the picked tab, through `LocCue`.
+- **Leaving (1.3 s):** a dive with no wind-up, because Home is already fading. The lump comes
+  up where he went under, shuffles back a touch, then runs off the right edge, toward the other
+  tabs' buttons.
+- **Arriving (2.65 s, starting 120 ms after Home is picked):** the lump runs in from the right
+  and brakes in the middle. It wriggles twice, then he bursts out with his eyes wide. The paws
+  slap down, and he checks left and right.
+- **Asleep:** the lump drifts in, and he rises slowly.
+- Taps are ignored while any lump bit is playing. A lump bit that interrupts another starts
+  from where the lump already was.
+- Reviewed as filmstrips in the web build, stepped with `__locDev`. Not yet checked on a device.
+
+**Revised the same day (user):** "I liked the more aggressive [move]… not for popdown, do something like that when he comes up."
+- **The way up is the aggressive move now.** The lump wriggles, then crouches, and he launches
+  out with his eyes squeezed (`> <`) and his ears pinned back. He shoots about 70 units past his
+  rest, drops into a squash as his paws slap the edge, and his eyes pop open to check the room.
+  `LOC_VIEW` gained 140 units of headroom so the launch isn't cropped.
+- **The way down is calm.** He slides out of sight with his ears folding and his paws going down
+  with him. Then the lump runs off.
+
+## Eye lab (October 10, 2026)
+
+The user asked for 20 versions of his eyes, with animations, to experiment with:
+`design-references/loc-animation/eye-study.html`, also published as a private artifact. It uses
+the real silhouette and the mask window, in front of a flat moon.
+
+**The 20 styles:**
+1. Current
+2. Moon window
+3. Window + pupil
+4. Buttons
+5. Beads
+6. Night dots
+7. Heavy lids
+8. Smug
+9. Grumpy
+10. Worried
+11. Skeptical
+12. Happy arcs
+13. Asleep lines
+14. Rubberhose
+15. Pills
+16. Rings
+17. Jelly
+18. Darting
+19. Dizzy
+20. Cartoon swaps
+
+**How it works:**
+- Each style idles on its own: blinks and glances.
+- Each has its own move, which plays on a tap.
+- Shared controls apply an expression to all of them: blink, look around, surprised,
+  suspicious, angry, sleepy.
+- There's also pointer follow, sizes (big, the app's width on Home, tiny) and speeds of 1×, ½×
+  and ¼×.
+
+**Pick (user, October 10, 2026): 04 Buttons, "with all the eye animations very dramatised".**
+Shipped in `src/features/home/loc-rig.ts`:
+- **Shape:** round whites (34 rig units) with big pupils (20) and two catchlights. A pupil
+  never grows past 70% of its white, so the white always shows.
+- **Lids show mood; squash is only for blinks.** A half-open mood keeps the eye round and
+  lowers a lid across it. The lid slants with `slope` (angry or worried), the bottom lid rises
+  with `squint`, and under a heavy lid the pupil sinks so it still peeks out. Only a blink
+  squashes the eyeball itself, flat and wide, with the pupil hidden. Fully closed, the eye is
+  a soft ‿ curve. Smug's `slope` changed from 16 to -8, so its lids droop to the outside.
+  Graded from frame sheets: before this change smug and groggy were 5/10 (squashed slivers),
+  after it 8 and 9.
+- **Jelly:** a new `goo` channel on a loose spring (320, ζ 0.2), kicked by `pop()`. Every blink
+  squashes the eyes flat and wide, then they bounce back open into a tall stretch.
+- **Pupils:** a new `swell` channel. They swell on shocks (up to 1.7×) and shrink to trembling
+  dots in a glare. Gaze runs on an underdamped spring, so glances overshoot. Fast glances
+  stretch the eyeballs along the way they're moving.
+- **Poke:** squeeze (> <, punched in oversized with a shudder), then a double take (eyes 1.3
+  open, pupils 1.7×, mask flies up), then a glare (pupils 0.62× with jitter, lids slanted,
+  mask slammed down).
+- **Other moves:** arrive and the burrow return pop the eyes huge with swollen pupils. The
+  groggy jolt and awake's double take pop too. Betrayed pops on entry.
+- **Reduced motion:** no pops, the gaze is critically damped, and squeezes don't shake.
+- **Burrow (user, October 10, 2026: faster, left to right, pop up angry):** 4 s instead of 5.9.
+  He dives, the lump darts left to -0.3 (further left hides in the panel's corner), then hops
+  back right and brakes. He launches up with his eyes squeezed shut, then snaps into a glare:
+  ears pinned, mask down, trembling dot pupils. The glare holds about a second.

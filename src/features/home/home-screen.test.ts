@@ -108,7 +108,7 @@ function home({
     '@/theme': { Gap: {}, Space: {} },
     './awake-line': awakeLine,
     './home-content': { HomeContent: 'HomeContent' },
-    './loc': { Loc: 'Loc' },
+    './loc': { LocCue: 'LocCue' },
     './night-meter': { duration: (m: number) => `${m} min`, useMinute: () => now },
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },

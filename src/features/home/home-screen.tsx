@@ -31,7 +31,8 @@ import { Gap, Space } from '@/theme';
 
 import { awakeLine, bedtimeQuip, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent } from './home-content';
-import { Loc } from './loc';
+import { LocCue } from './loc';
+import type { LocMoment } from './loc-lines';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
 import { useVisit } from './use-visit';
@@ -181,6 +182,18 @@ export function HomeScreen() {
   // Loc sleeps when the apps do (a held night, or Block now), is groggy through the locked
   // morning, and is up by day.
   const mood = (phase === 'night' && !paused) || napping ? 'asleep' : phase === 'morning' ? 'groggy' : 'awake';
+  // What Loc has something to say about (loc-lines.ts), once each: bedtime within the hour, the
+  // apps just gone to sleep, this morning's wake-up done. Keyed so each is said once per night.
+  const quiet = unprotected || attention || paused || stoodDown;
+  const moment: LocMoment | null = quiet
+    ? null
+    : phase === 'night'
+      ? { kind: 'appsAsleep', key: `asleep:${lock.morningKey}` }
+      : phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency'
+        ? { kind: 'wakeDone', key: `woke:${proof.morningKey}` }
+        : phase === 'day' && armed && bedtimeApps && !offTonight && !napping && minutes !== null && minutes > 0 && minutes <= 60
+          ? { kind: 'bedtimeSoon', key: `soon:${lock.morningKey}` }
+          : null;
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;
@@ -197,7 +210,7 @@ export function HomeScreen() {
         heroKey={minutes ?? 0}
         action={action}
       />
-      <Loc mood={mood} />
+      <LocCue mood={mood} moment={moment} />
     </View>
   );
 }

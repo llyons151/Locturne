@@ -1,0 +1,330 @@
+<title>Loc Eye Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a night-sky bench. Controls pinned on top, 20 numbered specimens below, each Loc in front of his moon. */
+:root {
+  --sky: #0b1020;
+  --panel: #131a30;
+  --line: #243052;
+  --moon: #8fa2c6;
+  --moon-shade: #7486ab;
+  --text: #e6ebf7;
+  --muted: #8d98b5;
+  --chip: #1b2442;
+  --chip-on: #e6ebf7;
+  --chip-on-text: #0b1020;
+  --display: 'Fraunces', Georgia, serif;
+  --body: 'Figtree', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--sky); color: var(--text); font-family: var(--body); margin: 0; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { padding-block: 28px 12px; display: grid; gap: 6px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(28px, 4vw, 40px); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.lede { color: var(--muted); margin: 0; max-width: 64ch; line-height: 1.5; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--sky); padding-block: 12px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.group > span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 4px; }
+button { font: 500 13px var(--body); color: var(--text); background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-text); border-color: var(--chip-on); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding-block: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.stage { position: relative; aspect-ratio: 898 / 612; max-width: 100%; display: grid; place-items: end center; background: var(--sky); cursor: pointer; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage.small canvas { width: 105px; height: auto; aspect-ratio: 898 / 612; }
+.stage.tiny canvas { width: 64px; height: auto; aspect-ratio: 898 / 612; }
+.meta { padding: 10px 12px 12px; display: grid; gap: 4px; grid-template-columns: 1fr auto; align-items: start; }
+.meta h2 { margin: 0; font-size: 15px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+.num { font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.meta p { margin: 0; grid-column: 1 / -1; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.meta button { padding: 4px 10px; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Loc Eye Lab</h1>
+    <p class="lede">Twenty eye styles on the real silhouette, the sleep-mask window included. Tap a Loc (or its Play button) for that style's own move. The buttons below act on all twenty at once. “App size” shows them at the width he has on Home.</p>
+  </header>
+  <div class="bar" role="toolbar" aria-label="Controls">
+    <div class="group"><span>All</span>
+      <button id="a-blink">Blink</button>
+      <button id="a-look">Look around</button>
+      <button id="a-surprise">Surprised</button>
+      <button id="a-squint">Suspicious</button>
+      <button id="a-angry">Angry</button>
+      <button id="a-sleepy">Sleepy</button>
+      <button id="a-sig">Play all</button>
+    </div>
+    <div class="group"><span>Eyes</span>
+      <button id="follow" aria-pressed="false">Follow pointer</button>
+    </div>
+    <div class="group" id="sizes"><span>Size</span>
+      <button data-size="big" aria-pressed="true">Big</button>
+      <button data-size="small" aria-pressed="false">App size</button>
+      <button data-size="tiny" aria-pressed="false">Tiny</button>
+    </div>
+    <div class="group" id="speeds"><span>Speed</span>
+      <button data-speed="1" aria-pressed="true">1×</button>
+      <button data-speed="0.5" aria-pressed="false">½×</button>
+      <button data-speed="0.25" aria-pressed="false">¼×</button>
+    </div>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+const LOC_PATH = 'M2137 5465 c-88 -31 -191 -188 -297 -455 -195 -488 -199 -931 -15 -1412 5 -12 -9 -25 -54 -52 -170 -103 -200 -258 -77 -394 l34 -37 -54 -71 c-175 -232 -424 -386 -646 -401 -104 -8 -114 -21 -51 -67 60 -44 142 -76 211 -83 74 -8 72 -17 -11 -42 -151 -44 -218 -55 -372 -55 -168 -1 -171 -3 -112 -64 32 -33 175 -111 206 -113 31 -1 -95 -40 -178 -54 -46 -8 -121 -15 -168 -15 -98 0 -104 -6 -75 -73 25 -56 80 -118 155 -174 l59 -43 -29 -10 c-91 -35 -171 -97 -194 -151 -16 -39 -4 -51 85 -88 39 -16 117 -51 171 -78 l100 -48 -60 -6 c-61 -6 -135 -34 -135 -51 0 -5 12 -16 27 -24 170 -93 588 -352 580 -360 -1 -2 -45 2 -97 8 -96 10 -159 1 -145 -22 3 -5 50 -42 103 -81 53 -40 166 -131 250 -203 l152 -131 -40 -3 c-57 -4 -51 -22 25 -74 l65 -45 -58 -38 c-31 -21 -75 -52 -97 -70 -63 -50 -61 -50 -88 7 -76 168 -274 215 -423 102 l-45 -34 -32 24 c-122 93 -317 63 -382 -58 -17 -32 -24 -36 -45 -30 -148 40 -246 4 -305 -111 -28 -55 -30 -66 -30 -169 l0 -111 4045 0 4045 0 0 115 c-1 122 -15 169 -69 228 -52 58 -171 83 -249 53 -40 -15 -40 -15 -61 24 -66 123 -259 152 -382 59 l-35 -27 -27 26 c-130 124 -361 81 -439 -82 l-28 -58 -59 32 -58 33 71 37 c73 38 82 55 30 55 -16 0 -29 3 -29 8 0 21 278 142 453 198 75 24 75 32 3 68 l-59 30 79 21 c109 28 231 74 245 91 16 19 -30 86 -93 132 l-47 36 47 16 c100 36 202 116 202 159 0 22 -27 41 -57 41 -30 1 -184 63 -258 105 l-70 40 75 7 c54 6 93 17 140 40 72 37 85 55 43 63 -138 27 -277 83 -390 157 -35 22 -63 41 -63 42 0 1 31 0 69 -2 108 -6 114 5 32 62 -116 79 -244 232 -301 358 l-19 42 42 24 c156 88 174 208 56 372 -9 13 2 33 55 103 285 378 446 922 396 1337 -28 225 -76 279 -251 280 -304 1 -671 -155 -1033 -438 l-109 -86 -36 45 c-164 203 -235 248 -548 350 -209 68 -316 111 -568 229 -309 144 -455 195 -645 224 -345 54 -589 8 -836 -158 -37 -25 -71 -43 -75 -41 -4 3 -22 31 -39 63 -165 293 -439 617 -664 784 -203 151 -336 200 -439 163z';
+const LOC = new Path2D(LOC_PATH);
+const VIEW = { x: -40, y: -60, w: 898, h: 612 };
+const EYE_L = [352, 312], EYE_R = [538, 338], FACE = 8;
+const MASK_UP = [436, 200];
+const MASK = new Path2D('M-150,-30 C-60,-46 60,-46 150,-30 C170,-26 174,20 150,28 C100,42 42,40 16,22 Q0,12 -16,22 C-42,40 -100,42 -150,28 C-174,20 -170,-26 -150,-30 Z');
+const WHITE = '#ffffff', INK = '#000000';
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+const bump = (p, a, b) => (p < a || p > b ? 0 : Math.sin(((p - a) / (b - a)) * Math.PI));
+
+// The rig's almond: o = openness, squint lifts the lower lid, slope tilts the top lid (+ angry, - worried).
+function almond(o, squint, slope, side, w = 39) {
+  const t = 22 - 76 * o;
+  const b = Math.max((30 + 14 * Math.min(o, 1) + 10 * Math.max(0, o - 1)) * (1 - 0.72 * squint), t + 6);
+  const inner = Math.min(t + slope, b - 3), outer = Math.min(t - slope * 0.55, b - 3);
+  const iy = clamp(slope * 0.22, -6, 10), ix = side * w, ox = -side * w, s = 0.56;
+  const p = new Path2D();
+  p.moveTo(ox, 0); p.bezierCurveTo(ox * s, outer, ix * s, inner, ix, iy); p.bezierCurveTo(ix * s, b, ox * s, b, ox, 0); p.closePath();
+  return p;
+}
+const ellipse = (rx, ry, cx = 0, cy = 0) => { const p = new Path2D(); p.ellipse(cx, cy, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2); return p; };
+const pill = (w, h) => { const p = new Path2D(); const r = Math.min(w, h) / 2; p.roundRect(-w / 2, -h / 2, w, Math.max(h, 0.1), r); return p; };
+
+// Shared helpers for a variant's draw: fill white, cut a hole, draw a pupil clipped to the eye.
+const H = {
+  white(c, p) { c.globalCompositeOperation = 'source-over'; c.fillStyle = WHITE; c.fill(p); },
+  hole(c, p) { c.globalCompositeOperation = 'destination-out'; c.fill(p); c.globalCompositeOperation = 'source-over'; },
+  pupil(c, clip, x, y, r, light = true) {
+    if (r <= 0.3) return;
+    c.save(); c.clip(clip); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    if (light && r >= 6) { c.fillStyle = WHITE; c.beginPath(); c.arc(x - r * 0.36, y - r * 0.4, Math.min(4.4, r * 0.3), 0, Math.PI * 2); c.fill(); }
+    c.restore();
+  },
+  stroke(c, draw, width = 12) { c.save(); c.strokeStyle = WHITE; c.lineWidth = width; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); draw(c); c.stroke(); c.restore(); },
+};
+
+// Each variant: name, note, draw(c, e) at the eye's centre (rig units, already turned with the face),
+// and sig(p, s, e) for its own move: p runs 0..1 over `ms`, and it may change the state s before drawing.
+// e = { side: 1 left / -1 right, s: state, t: seconds, k: per-card scratch }
+// s = { open, blink, gx, gy, surprise, squint, sleepy, angry }
+const base = (s) => clamp(s.open * (1 - s.blink) * (1 + 0.3 * s.surprise) * (1 - 0.45 * s.sleepy), 0, 1.4);
+const slopeOf = (s) => 2 + 26 * s.angry - 14 * s.surprise;
+const squintOf = (s) => 0.12 + 0.45 * s.squint + 0.2 * s.angry;
+const pupilR = (s, r) => r * (1 - 0.35 * s.surprise);
+
+const VARIANTS = [
+  { name: 'Current', note: 'What ships today: white almonds, black pupils with a catchlight.', ms: 900,
+    draw(c, { side, s }) { const p = almond(base(s), squintOf(s), slopeOf(s), side); H.white(c, p); H.pupil(c, p, s.gx, 6 + s.gy, pupilR(s, 11.5)); },
+    sig(p, s) { s.blink = Math.max(bump(p, 0, 0.3), bump(p, 0.4, 0.7)); } },
+  { name: 'Moon window', note: 'Pure silhouette: the eyes are holes, so the moon shows through, like the mask.', ms: 1400,
+    draw(c, { side, s }) { H.hole(c, almond(base(s) * 0.9, squintOf(s), slopeOf(s), side)); },
+    sig(p, s) { s.blink = bump(p, 0, 1); } },
+  { name: 'Window + pupil', note: 'The moon-hole eye with a black pupil floating in it.', ms: 1000,
+    draw(c, { side, s }) { const p = almond(base(s), squintOf(s), slopeOf(s), side); H.hole(c, p); H.pupil(c, p, s.gx, 6 + s.gy, pupilR(s, 12), false); },
+    sig(p, s) { s.gx = Math.sin(p * Math.PI * 4) * 22; } },
+  { name: 'Buttons', note: 'Round whites, big pupils. Cute; the pupils swell when you tap.', ms: 1500,
+    draw(c, { side, s, k }) { const o = base(s); const p = ellipse(34, 34 * Math.min(1, o / 0.8)); H.white(c, p); H.pupil(c, p, s.gx * 0.6, 4 + s.gy * 0.6, pupilR(s, 20) * (1 + (k.swell || 0))); },
+    sig(p, s, e) { e.k.swell = 0.45 * bump(p, 0, 1); } },
+  { name: 'Beads', note: 'Big whites, pinprick pupils. Deadpan; the left eye twitches.', ms: 1600,
+    draw(c, { side, s, k }) { const o = base(s); const tw = side === 1 ? (k.tw || 0) : 0; const p = almond(Math.max(0, o - tw * 0.4), squintOf(s) + tw * 0.3, slopeOf(s), side); H.white(c, p); H.pupil(c, p, s.gx * 0.5, 6 + s.gy * 0.5, 4, false); },
+    sig(p, s, e) { e.k.tw = (Math.sin(p * 70) > 0.3 ? 1 : 0) * bump(p, 0.1, 0.9); } },
+  { name: 'Night dots', note: 'No whites at all: two white dots on black, Limbo style. Blinks squash to a line.', ms: 900,
+    draw(c, { side, s }) { const o = base(s); const r = 13 * (1 + 0.4 * s.surprise); H.white(c, ellipse(r, r * clamp(o / 0.8, 0.12, 1.3) * (1 - 0.5 * s.squint), s.gx * 0.7, 6 + s.gy * 0.7)); },
+    sig(p, s, e) { s.blink = e.side === 1 ? bump(p, 0, 0.45) : bump(p, 0.25, 0.7); } },
+  { name: 'Heavy lids', note: 'Top lids parked at half-mast. Tap: he nods off, then jolts awake.', ms: 2200,
+    draw(c, { side, s, k }) { const o = base(s) * 0.55 * (1 - (k.nod || 0)) + (k.jolt || 0) * 0.6; const p = almond(o, squintOf(s), slopeOf(s) - 4, side); H.white(c, p); H.pupil(c, p, s.gx, 10 + s.gy, pupilR(s, 11)); },
+    sig(p, s, e) { e.k.nod = ease(clamp(p / 0.6, 0, 1)) * (p < 0.68 ? 1 : 0); e.k.jolt = bump(p, 0.66, 1); } },
+  { name: 'Smug', note: 'Lids slanting down to the outside, lower lids up. Tap for the slow satisfied blink.', ms: 1800,
+    draw(c, { side, s }) { const p = almond(base(s) * 0.7, squintOf(s) + 0.3, slopeOf(s) - 16, side); H.white(c, p); H.pupil(c, p, s.gx - side * 6, 10 + s.gy, pupilR(s, 10)); },
+    sig(p, s) { s.blink = bump(p, 0.1, 0.9) * 0.95; } },
+  { name: 'Grumpy', note: 'Inner lids pulled down, small pupils. Tap: a hard glare that narrows and shakes.', ms: 1400,
+    draw(c, { side, s, k }) { const g = k.glare || 0; const p = almond(base(s) * (1 - 0.35 * g), squintOf(s) + 0.2 + 0.3 * g, slopeOf(s) + 22 + 10 * g, side); c.translate(Math.sin(e_t * 60) * 2.5 * g, 0); H.white(c, p); H.pupil(c, p, s.gx, 10 + s.gy, pupilR(s, 8)); },
+    sig(p, s, e) { e.k.glare = bump(p, 0, 1); } },
+  { name: 'Worried', note: 'Inner lids raised, pupils big. Tap: the pupils tremble.', ms: 1600,
+    draw(c, { side, s, k }) { const tr = k.tr || 0; const p = almond(base(s) * 1.05, squintOf(s), slopeOf(s) - 16, side); H.white(c, p); H.pupil(c, p, s.gx + Math.sin(e_t * 90) * 2.4 * tr, 6 + s.gy + Math.cos(e_t * 77) * 1.8 * tr, pupilR(s, 15)); },
+    sig(p, s, e) { e.k.tr = bump(p, 0, 1); } },
+  { name: 'Skeptical', note: 'One eye wide, one half shut, the sassy brow. Tap: the shut eye narrows further.', ms: 1500,
+    draw(c, { side, s, k }) { const sk = k.sk || 0; const o = side === 1 ? base(s) * 1.05 : base(s) * (0.5 - 0.25 * sk); const p = almond(o, squintOf(s) + (side === 1 ? 0 : 0.2 + 0.25 * sk), slopeOf(s) + (side === 1 ? -6 : 10), side); H.white(c, p); H.pupil(c, p, s.gx, 6 + s.gy, pupilR(s, 11)); },
+    sig(p, s, e) { e.k.sk = bump(p, 0, 1); } },
+  { name: 'Happy arcs', note: 'Closed happy curves, ^ ^. Opens to dots now and then; tap to bounce.', ms: 900,
+    draw(c, { side, s, k }) { c.translate(0, -(k.hop || 0) * 10); const o = 1 - base(s) / 0.8; if (k.peek) { H.white(c, ellipse(10, 12, s.gx * 0.5, 6)); return; } H.stroke(c, (c) => { c.moveTo(-30, 14 - 6 * o); c.quadraticCurveTo(0, -22, 30, 14 - 6 * o); }, 12); },
+    sig(p, s, e) { e.k.hop = Math.abs(Math.sin(p * Math.PI * 2)) * (1 - p); },
+    idle(e, dt) { e.k.peekT = (e.k.peekT ?? 4) - dt; if (e.k.peekT < 0) { e.k.peek = !e.k.peek; e.k.peekT = e.k.peek ? 0.9 : 3 + Math.random() * 3; } } },
+  { name: 'Asleep lines', note: 'Closed ‿ ‿ lines. Every so often one eye cracks open to check on you.', ms: 1600,
+    draw(c, { side, s, k }) { const peek = side === -1 ? Math.max(k.peekA || 0, k.sigA || 0) : 0; if (peek > 0.05) { const p = almond(0.45 * peek, 0.3, 4, side); H.white(c, p); H.pupil(c, p, -10, 12, 9); } else H.stroke(c, (c) => { c.moveTo(-30, 4); c.quadraticCurveTo(0, 26, 30, 4); }, 10); },
+    sig(p, s, e) { e.k.sigA = bump(p, 0, 1) > 0.2 ? 1 : 0; },
+    idle(e, dt) { e.k.pk = (e.k.pk ?? 5) - dt; if (e.k.pk < -1.2) e.k.pk = 4 + Math.random() * 4; e.k.peekA = e.k.pk < 0 ? 1 : 0; } },
+  { name: 'Rubberhose', note: '1930s cartoon: tall whites, pie-cut pill pupils. Tap for a stretched take.', ms: 1100,
+    draw(c, { side, s, k }) { const st = 1 + 0.5 * (k.take || 0); const o = base(s) / 0.8; const p = ellipse(24, 40 * o * st, 0, -4); H.white(c, p); c.save(); c.clip(p); c.fillStyle = INK; c.beginPath(); c.ellipse(s.gx * 0.5, 2 + s.gy, 11, 22 * st, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = WHITE; c.beginPath(); c.moveTo(s.gx * 0.5, 2 + s.gy); c.arc(s.gx * 0.5, 2 + s.gy, 24 * st, -Math.PI * 0.62, -Math.PI * 0.38); c.closePath(); c.fill(); c.restore(); },
+    sig(p, s, e) { e.k.take = p < 0.2 ? ease(p / 0.2) : Math.max(0, 1 - (p - 0.2) / 0.8) * Math.cos((p - 0.2) * 18); } },
+  { name: 'Pills', note: 'Plain white capsules, no pupils. They squash flat to blink.', ms: 900,
+    draw(c, { side, s }) { const o = base(s) / 0.8; H.white(c, pill(24 + 8 * (1 - o), Math.max(3, 58 * o * (1 - 0.4 * s.squint)))); },
+    sig(p, s) { s.blink = bump(p, 0, 0.5); s.surprise = bump(p, 0.5, 1); } },
+  { name: 'Rings', note: 'White rings with dark centres. Shock widens the ring.', ms: 1200,
+    draw(c, { side, s, k }) { const o = base(s) / 0.8; const r = 26 * (1 + 0.25 * s.surprise + 0.35 * (k.ring || 0)); const outer = ellipse(r, r * clamp(o, 0.08, 1.2), s.gx * 0.4, 4 + s.gy * 0.4); H.white(c, outer); c.save(); c.clip(outer); c.fillStyle = INK; c.beginPath(); c.arc(s.gx * 0.7, 4 + s.gy * 0.7, r * (0.62 - 0.25 * (k.ring || 0)), 0, Math.PI * 2); c.fill(); c.restore(); },
+    sig(p, s, e) { e.k.ring = bump(p, 0, 1); } },
+  { name: 'Jelly', note: 'Round eyes that squash and stretch with overshoot, like they are made of jelly.', ms: 1200,
+    draw(c, { side, s, k }) { const j = k.j || 0; const o = base(s) / 0.8; const sx = 1 - 0.25 * j, sy = (1 + 0.45 * j) * clamp(o, 0.06, 1.3); const p = ellipse(28 * sx, 30 * sy); H.white(c, p); H.pupil(c, p, s.gx * 0.6, 4 + s.gy * 0.6, pupilR(s, 13)); },
+    sig(p, s, e) { e.k.j = Math.sin(p * Math.PI * 3.5) * (1 - p); } },
+  { name: 'Darting', note: 'Small pupils that never settle: quick saccades, nervous.', ms: 1400,
+    draw(c, { side, s, k }) { const p = almond(base(s) * 1.05, squintOf(s), slopeOf(s) - 6, side); H.white(c, p); H.pupil(c, p, s.gx + (k.dx || 0), 6 + s.gy + (k.dy || 0), pupilR(s, 7), false); },
+    sig(p, s, e) { if (Math.floor(p * 9) !== e.k.step) { e.k.step = Math.floor(p * 9); e.k.dx = (Math.random() - 0.5) * 44; e.k.dy = (Math.random() - 0.5) * 16; } if (p > 0.95) { e.k.dx = 0; e.k.dy = 0; } },
+    idle(e, dt) { e.k.it = (e.k.it ?? 0.5) - dt; if (e.k.it < 0) { e.k.dx = (Math.random() - 0.5) * 30; e.k.dy = (Math.random() - 0.5) * 10; e.k.it = 0.25 + Math.random() * 0.6; } } },
+  { name: 'Dizzy', note: 'Normal until tapped, then the pupils turn into spinning spirals.', ms: 2200,
+    draw(c, { side, s, k }) { const p = almond(base(s), squintOf(s), slopeOf(s), side); H.white(c, p); const sp = k.spin || 0; if (sp > 0.01) { c.save(); c.clip(p); c.strokeStyle = INK; c.lineWidth = 4.5; c.beginPath(); const a0 = e_t * 9 * side; for (let i = 0; i <= 60; i++) { const a = a0 + i * 0.32, r = i * 0.48 * sp; const x = Math.cos(a) * r, y = 6 + Math.sin(a) * r; i ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); c.restore(); } else H.pupil(c, p, s.gx, 6 + s.gy, pupilR(s, 11.5)); },
+    sig(p, s, e) { e.k.spin = bump(p, 0, 1) > 0.15 ? 1 : 0; } },
+  { name: 'Cartoon swaps', note: 'Normal eyes that swap for symbols on cue: > <, then X X, then back.', ms: 2400,
+    draw(c, { side, s, k }) {
+      const m = k.mode || 0;
+      if (m === 1) return H.stroke(c, (c) => { c.moveTo(-side * 22, -20); c.lineTo(side * 18, 2); c.lineTo(-side * 22, 22); }, 12);
+      if (m === 2) return H.stroke(c, (c) => { c.moveTo(-18, -18); c.lineTo(18, 20); c.moveTo(18, -18); c.lineTo(-18, 20); }, 11);
+      const p = almond(base(s), squintOf(s), slopeOf(s), side); H.white(c, p); H.pupil(c, p, s.gx, 6 + s.gy, pupilR(s, 11.5));
+    },
+    sig(p, s, e) { e.k.mode = p < 0.05 ? 0 : p < 0.45 ? 1 : p < 0.9 ? 2 : 0; } },
+];
+let e_t = 0; // the current card's clock, for draws that shake
+
+// ---- Cards ----
+const grid = document.getElementById('grid');
+let speed = 1, follow = false, size = 'big';
+const pointer = { x: -1, y: -1 };
+const cards = VARIANTS.map((v, i) => {
+  const el = document.createElement('article');
+  el.className = 'card';
+  el.innerHTML = `<div class="stage" role="button" tabindex="0" aria-label="Play ${v.name}"><canvas></canvas></div>
+    <div class="meta"><h2><span class="num">${String(i + 1).padStart(2, '0')}</span>${v.name}</h2><button type="button">Play</button><p>${v.note}</p></div>`;
+  grid.appendChild(el);
+  const stage = el.querySelector('.stage'), canvas = el.querySelector('canvas');
+  const layer = document.createElement('canvas');
+  const card = { v, el, stage, canvas, layer, t: Math.random() * 10,
+    s: { open: 0.8, blink: 0, gx: 0, gy: 0, surprise: 0, squint: 0, sleepy: 0, angry: 0 },
+    goal: { gx: 0, gy: 0, surprise: 0, squint: 0, sleepy: 0, angry: 0 },
+    k: {}, fx: null, blinkAt: -1, nextBlink: 1 + Math.random() * 3, nextGlance: 1 + Math.random() * 2, exprUntil: 0, look: null };
+  const play = () => { card.fx = { t: 0, ms: v.ms }; };
+  stage.addEventListener('click', play);
+  stage.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(); } });
+  el.querySelector('.meta button').addEventListener('click', play);
+  card.play = play;
+  return card;
+});
+
+function setExpr(key, secs = 1.8) {
+  for (const c of cards) { for (const k of ['surprise', 'squint', 'sleepy', 'angry']) c.goal[k] = 0; c.goal[key] = 1; c.exprUntil = c.t + secs; }
+}
+document.getElementById('a-blink').onclick = () => cards.forEach((c) => (c.blinkAt = c.t));
+document.getElementById('a-look').onclick = () => cards.forEach((c) => (c.look = 0));
+document.getElementById('a-surprise').onclick = () => setExpr('surprise');
+document.getElementById('a-squint').onclick = () => setExpr('squint');
+document.getElementById('a-angry').onclick = () => setExpr('angry');
+document.getElementById('a-sleepy').onclick = () => setExpr('sleepy', 2.6);
+document.getElementById('a-sig').onclick = () => cards.forEach((c) => c.play());
+const followBtn = document.getElementById('follow');
+followBtn.onclick = () => { follow = !follow; followBtn.setAttribute('aria-pressed', String(follow)); };
+const pick = (groupId, attr, apply) => document.querySelectorAll(`#${groupId} button`).forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll(`#${groupId} button`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  apply(b.dataset[attr]);
+}));
+pick('sizes', 'size', (v) => { size = v; cards.forEach((c) => { c.stage.classList.toggle('small', v === 'small'); c.stage.classList.toggle('tiny', v === 'tiny'); }); });
+pick('speeds', 'speed', (v) => { speed = Number(v); });
+addEventListener('pointermove', (e) => { pointer.x = e.clientX; pointer.y = e.clientY; });
+
+// ---- Motion ----
+const LOOK = [[0, 0, 0], [0.15, -22, 0], [0.7, -22, 0], [0.85, 22, 2], [1.4, 22, 2], [1.55, 0, 0]];
+function update(card, dt) {
+  const { s, goal, v } = card;
+  card.t += dt;
+  if (card.exprUntil && card.t > card.exprUntil) { for (const k of ['surprise', 'squint', 'sleepy', 'angry']) goal[k] = 0; card.exprUntil = 0; }
+  // Gaze: follow the pointer, a scripted look-around, or idle glances.
+  if (follow && pointer.x >= 0) {
+    const r = card.canvas.getBoundingClientRect();
+    goal.gx = clamp(((pointer.x - (r.left + r.width / 2)) / Math.max(120, r.width)) * 60, -24, 24);
+    goal.gy = clamp(((pointer.y - (r.top + r.height * 0.5)) / Math.max(120, r.height)) * 30, -10, 12);
+  } else if (card.look !== null) {
+    card.look += dt;
+    const i = LOOK.findIndex((k) => k[0] > card.look);
+    if (i < 0) card.look = null; else { goal.gx = LOOK[i - 1][1]; goal.gy = LOOK[i - 1][2]; }
+  } else {
+    card.nextGlance -= dt;
+    if (card.nextGlance <= 0) { goal.gx = Math.random() < 0.45 ? 0 : (Math.random() - 0.5) * 30; goal.gy = Math.random() < 0.5 ? 0 : (Math.random() - 0.4) * 10; card.nextGlance = 1.2 + Math.random() * 2.6; }
+  }
+  const k = 1 - Math.exp(-dt * 18), kx = 1 - Math.exp(-dt * 7);
+  s.gx += (goal.gx - s.gx) * k; s.gy += (goal.gy - s.gy) * k;
+  for (const key of ['surprise', 'squint', 'sleepy', 'angry']) s[key] += (goal[key] - s[key]) * kx;
+  // Blinks every 2 to 5 s, sometimes a double.
+  card.nextBlink -= dt;
+  if (card.nextBlink <= 0) { card.blinkAt = card.t; card.nextBlink = Math.random() < 0.2 ? 0.32 : 2 + Math.random() * 3; }
+  s.blink = 0;
+  if (card.blinkAt >= 0) {
+    const len = 0.19 + 0.3 * s.sleepy, p = (card.t - card.blinkAt) / len;
+    if (p >= 1) card.blinkAt = -1; else if (p >= 0) s.blink = p < 0.4 ? 1 - Math.pow(1 - p / 0.4, 2) : 1 - ease((p - 0.4) / 0.6);
+  }
+  if (v.idle) v.idle(card, dt);
+  if (card.fx) {
+    card.fx.t += dt * 1000;
+    const p = clamp(card.fx.t / card.fx.ms, 0, 1);
+    v.sig(p, s, card);
+    if (p >= 1) { card.fx = null; v.sig(1, s, card); }
+  }
+}
+
+// ---- Drawing ----
+function draw(card) {
+  const { canvas, layer, s, v } = card;
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  const W = Math.round(canvas.clientWidth * dpr), Hh = Math.round(canvas.clientHeight * dpr);
+  if (!W || !Hh) return;
+  if (canvas.width !== W || canvas.height !== Hh) { canvas.width = W; canvas.height = Hh; layer.width = W; layer.height = Hh; }
+  const c = canvas.getContext('2d'), L = layer.getContext('2d');
+  const sc = W / VIEW.w;
+  // Sky, then his moon: a flat disc with soft shading inside it (no halo).
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#0b1020'; c.fillRect(0, 0, W, Hh);
+  const mr = W * 0.62, mx = W / 2, my = Hh + mr * 0.08;
+  const g = c.createRadialGradient(mx - mr * 0.25, my - mr * 0.3, mr * 0.1, mx, my, mr);
+  g.addColorStop(0, '#9aaccd'); g.addColorStop(1, '#7486ab');
+  c.fillStyle = g; c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.fill();
+  // Loc on his own layer, so holes cut through to the moon.
+  L.setTransform(1, 0, 0, 1, 0, 0); L.clearRect(0, 0, W, Hh);
+  const breath = Math.sin(card.t * 1.9) * 0.006;
+  const base = [sc, 0, 0, sc, -VIEW.x * sc, -VIEW.y * sc];
+  L.setTransform(...base);
+  L.translate(430, 552); L.scale(1 - breath * 0.5, 1 + breath); L.translate(-430, -552);
+  const root = L.getTransform();
+  L.save(); L.translate(0, 552); L.scale(0.1, -0.1); L.fillStyle = INK; L.fill(LOC); L.restore();
+  // The sleep mask, pushed up: a window to the moon. Anger presses it down, surprise lifts it.
+  L.save(); L.translate(MASK_UP[0], MASK_UP[1] + 16 * s.angry - 20 * s.surprise + 14 * s.sleepy);
+  L.rotate(((FACE + 6 * s.angry) * Math.PI) / 180); L.scale(0.88, 0.88);
+  L.globalCompositeOperation = 'destination-out'; L.fill(MASK); L.globalCompositeOperation = 'source-over'; L.restore();
+  e_t = card.t;
+  for (const [pos, side] of [[EYE_L, 1], [EYE_R, -1]]) {
+    L.save(); L.setTransform(root); L.translate(pos[0], pos[1]); L.rotate((FACE * Math.PI) / 180);
+    v.draw(L, { side, s, t: card.t, k: card.k });
+    L.restore();
+  }
+  c.drawImage(layer, 0, 0);
+}
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000) * (reduce ? 0.5 : 1) * speed;
+  last = now;
+  for (const card of cards) { update(card, dt); draw(card); }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

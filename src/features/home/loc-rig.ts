@@ -5,14 +5,15 @@
  * component, so it's plain web code.
  *
  * How it moves (rounds 3 and 4 of the study):
- * - Channels (posture, tilt, ears, lids, mask...) have a resting value per mood and spring
+ * - Channels (posture, tilt, ears, lids, pupils...) have a resting value per mood and spring
  *   between them. Short "habits" and the poke are keyframed on top.
  * - The silhouette is a mesh weighted to seven bones (paws, body, head, two ears, two cheek
  *   fluffs), so he bends where bones meet instead of hinging.
  * - Moves travel down the chain (body, then head, then ears), and the head, ears and fluff
  *   have spring physics, so they lag, overshoot and settle on their own.
- * - The face rides the head bone: white eyes with black pupils, and a sleep mask that's a
- *   window cut through him, so the real moon behind shows in it.
+ * - The face rides the head bone: round "button" eyes with big pupils (eye-study.html option 04)
+ *   that squash, stretch and wobble like jelly. No sleep mask (user, October 10, 2026: "remove
+ *   the sleep mask"): the lids carry every expression.
  */
 import { LOC_HEIGHT, LOC_PATH } from './loc-path';
 
@@ -27,7 +28,10 @@ type Bit = {
   every?: [number, number];
   tracks: Partial<Record<Channel, Key[]>>;
   events?: [number, (r: LocRig) => void][];
-  /** A lump in the blanket while he's under it: height (0..1) and offset along the edge (share of width). */
+  /**
+   * A lump in the blanket while he's under it: height (0..1) and offset along the edge (share of
+   * width). 'S' is where the lump was when the bit started.
+   */
   lump?: { h: Key[]; x: Key[] };
 };
 
@@ -36,8 +40,6 @@ const LEDGE = LOC_HEIGHT;
 const EYE_L: Vec = [352, 312];
 const EYE_R: Vec = [538, 338];
 const FACE = 8; // the head is drawn tilted; the face follows it
-const MASK_DOWN: Vec = [446, 326];
-const MASK_UP: Vec = [436, 200];
 const BONE = {
   base: [430, 552] as Vec,
   neck: [440, 440] as Vec,
@@ -48,33 +50,47 @@ const BONE = {
   cheekR: [730, 400] as Vec,
 };
 const MESH = { x0: -24, x1: 842, y0: -64, y1: 1000, step: 20 };
-/** The view box around him: room for his ears to swing above the path. */
-export const LOC_VIEW = { x: -40, y: -60, width: 898, height: 612 };
+/** The view box around him: room above the path for his ears to swing and for him to launch out. */
+export const LOC_VIEW = { x: -40, y: -200, width: 898, height: 752 };
 
 const INK = '#000000';
 /** Solid white eyes (user, October 10, 2026), not holes, with black pupils. */
 const EYE_WHITE = '#FFFFFF';
+/**
+ * Button eyes (user's pick, October 10, 2026: docs/design-references/loc-animation/eye-study.html
+ * option 04, "with all the eye animations very dramatised"): round whites this big, in rig units,
+ * with big pupils. Every move is exaggerated: blinks squash them flat and they bounce back
+ * open, glances overshoot and stretch the eyes along the way, and a shock balloons them.
+ */
+const BUTTON = 34;
+const PUPIL = 20;
 
 // ---- Channels and moods ----
 const BASE = {
-  y: 0, tilt: 0, earL: 0, earR: 0, open: 0.8, openR: 0.8, slope: 2, squint: 0.12, mask: 1, maskY: 0, maskTilt: 0,
+  y: 0, tilt: 0, earL: 0, earR: 0, open: 0.8, openR: 0.8, slope: 2, squint: 0.12,
   breathe: 0.45, pupils: 1, pupilR: 11.5, stretch: 0, gx: 0, gy: 0, pupilJit: 0, sink: 0, paw: 0,
+  /** The eyeballs' squash and stretch: + tall and thin, - short and wide. Kicked by `pop`. */
+  goo: 0,
+  /** Pupil size on top of `pupilR`: they swell when he's startled and shrink to dots when he glares. */
+  swell: 1,
 };
 type Channel = keyof typeof BASE;
 const KEYS = Object.keys(BASE) as Channel[];
 const MOODS: Record<LocMood, { set: Partial<Record<Channel, number>>; rate: number; blinks: false | 'slow' | 'normal' }> = {
-  asleep: { set: { y: 46, tilt: 5, earL: -22, earR: 22, open: 0, openR: 0, mask: 0, breathe: 1, pupils: 0 }, rate: 0.19, blinks: false },
-  groggy: { set: { y: 20, tilt: 7, earL: -10, earR: 13, open: 0.34, openR: 0.27, squint: 0.15, mask: 0.86, maskTilt: 9, breathe: 0.7 }, rate: 0.24, blinks: 'slow' },
+  asleep: { set: { y: 46, tilt: 5, earL: -22, earR: 22, open: 0, openR: 0, breathe: 1, pupils: 0 }, rate: 0.19, blinks: false },
+  groggy: { set: { y: 20, tilt: 7, earL: -10, earR: 13, open: 0.34, openR: 0.27, squint: 0.15, breathe: 0.7 }, rate: 0.24, blinks: 'slow' },
   awake: { set: {}, rate: 0.3, blinks: 'normal' },
-  smug: { set: { y: -8, tilt: -6, earL: 7, earR: -7, open: 0.42, openR: 0.6, slope: 16, squint: 0.35, maskTilt: -5, maskY: 6 }, rate: 0.3, blinks: 'normal' },
-  betrayed: { set: { y: -12, earL: -34, earR: 34, open: 1.2, openR: 1.2, slope: -12, maskY: -26, pupilR: 8, breathe: 0.25, pupilJit: 0.35 }, rate: 0.5, blinks: false },
+  smug: { set: { y: -8, tilt: -6, earL: 7, earR: -7, open: 0.42, openR: 0.6, slope: -8, squint: 0.35 }, rate: 0.3, blinks: 'normal' },
+  betrayed: { set: { y: -12, earL: -34, earR: 34, open: 1.2, openR: 1.2, slope: -12, pupilR: 8, breathe: 0.25, pupilJit: 0.35 }, rate: 0.5, blinks: false },
 };
 const TARGET = Object.fromEntries(Object.entries(MOODS).map(([k, m]) => [k, { ...BASE, ...m.set }])) as Record<LocMood, typeof BASE>;
 // Stiffness and damping ratio: head firm, eyes fast, pupils fastest.
 const SPRING: Record<Channel, [number, number]> = {
   y: [90, 0.9], tilt: [90, 0.85], earL: [150, 0.42], earR: [150, 0.42], open: [280, 1], openR: [280, 1], slope: [220, 1], squint: [220, 1],
-  mask: [70, 0.95], maskY: [140, 0.7], maskTilt: [140, 0.7], breathe: [40, 1], pupils: [160, 1], pupilR: [220, 1], stretch: [220, 0.4],
+  breathe: [40, 1], pupils: [160, 1], pupilR: [220, 1], stretch: [220, 0.4],
   gx: [700, 1], gy: [700, 1], pupilJit: [90, 1], sink: [60, 0.95], paw: [160, 0.6],
+  // Loose on purpose: the eyes wobble like jelly after every kick.
+  goo: [320, 0.2], swell: [240, 0.3],
 };
 const E = {
   lin: (t: number) => t,
@@ -97,7 +113,8 @@ const HABITS: Partial<Record<LocMood, Bit>> = {
     earR: [[0, 'S'], [1500, 24, 'in'], [1600, -2, 'back'], [2500, 'T', 'io']],
     gx: [[0, 0], [1500, 0], [1600, -14, 'out'], [1900, 12, 'out'], [2200, 0, 'io']],
     gy: [[0, 2], [2500, 2]],
-  }, events: [[1560, (r) => r.kick(0.05)]] },
+    swell: [[0, 'S'], [1560, 'S'], [1650, 1.5, 'back'], [2000, 1.5], [2500, 'T', 'io']],
+  }, events: [[1560, (r) => { r.kick(0.05); r.pop(0.5); }]] },
   asleep: { every: [6, 4], ms: 1400, tracks: { stretch: [[0, 0], [260, 0.025, 'out'], [700, 0, 'io']] },
     events: [[300, (r) => r.flick('L', -10)], [650, (r) => r.flick('R', 8)]] },
   smug: { every: [5, 3], ms: 1800, tracks: {
@@ -105,77 +122,119 @@ const HABITS: Partial<Record<LocMood, Bit>> = {
     openR: [[0, 'S'], [420, 0.08, 'io'], [720, 0.08], [1120, 'T', 'io']],
     tilt: [[0, 'S'], [600, -10, 'io'], [1500, 'T', 'io']],
     y: [[0, 'S'], [600, -12, 'io'], [1500, 'T', 'io']],
-  }, events: [[900, (r) => r.flick('R', 12)]] },
+  }, events: [[900, (r) => r.flick('R', 12)], [1100, (r) => r.pop(0.2)]] },
   awake: { every: [7, 4], ms: 2400, tracks: {
     gx: [[0, 0], [160, -20, 'out'], [700, -20], [860, 18, 'out'], [1400, 18], [1560, 0, 'out'], [2400, 0]],
     gy: [[0, 0], [2400, 0]],
     tilt: [[0, 'S'], [500, -3, 'io'], [1200, 3, 'io'], [2000, 'T', 'io']],
-  }, events: [[900, (r) => r.flick('R', 10)]] },
+    swell: [[0, 'S'], [860, 'S'], [960, 1.35, 'back'], [1400, 1.35], [1800, 'T', 'io']],
+  }, events: [[900, (r) => { r.flick('R', 10); r.pop(0.3); }]] },
 };
 
-// Tap: a flinch with his eyes squeezed shut, then a glare with the mask pressed down like a frown.
-const POKE: Bit = { ms: 1700, tracks: {
+// Tap: a flinch with his eyes squeezed shut, then they spring open huge with the pupils swollen
+// (a double take), then slam into a glare: pupils shrunk to trembling dots, lids slanted.
+const POKE: Bit = { ms: 1900, tracks: {
   stretch: [[0, 0], [80, -0.1, 'out'], [260, 0.02, 'back'], [500, 0, 'io']],
   y: [[0, 'S'], [80, 14, 'out'], [260, 'S', 'back']],
-  open: [[0, 'S'], [260, 'S'], [380, 0.34, 'out'], [1350, 0.34], [1700, 'T', 'io']],
-  openR: [[0, 'S'], [260, 'S'], [380, 0.42, 'out'], [1350, 0.42], [1700, 'T', 'io']],
-  squint: [[0, 'S'], [380, 0.4, 'out'], [1350, 0.4], [1700, 'T', 'io']],
-  slope: [[0, 'S'], [380, 24, 'out'], [1350, 24], [1700, 'T', 'io']],
-  maskY: [[0, 'S'], [380, 22, 'out'], [1350, 22], [1700, 'T', 'io']],
-  mask: [[0, 'S'], [200, 1, 'out']], pupils: [[0, 'S'], [100, 1]],
-  earL: [[0, 'S'], [90, -30, 'out'], [600, -12, 'io'], [1700, 'T', 'io']],
-  earR: [[0, 'S'], [90, 30, 'out'], [600, 12, 'io'], [1700, 'T', 'io']],
-}, events: [[0, (r) => { r.squeezing = true; }], [260, (r) => { r.squeezing = false; }]] };
+  open: [[0, 'S'], [260, 'S'], [340, 1.3, 'back'], [620, 1.3], [740, 0.52, 'out'], [1500, 0.52], [1900, 'T', 'io']],
+  openR: [[0, 'S'], [260, 'S'], [340, 1.3, 'back'], [620, 1.3], [740, 0.6, 'out'], [1500, 0.6], [1900, 'T', 'io']],
+  swell: [[0, 'S'], [260, 'S'], [340, 1.7, 'back'], [620, 1.7], [740, 0.62, 'out'], [1500, 0.62], [1900, 'T', 'io']],
+  squint: [[0, 'S'], [620, 'S'], [740, 0.36, 'out'], [1500, 0.36], [1900, 'T', 'io']],
+  slope: [[0, 'S'], [620, 'S'], [740, 26, 'out'], [1500, 26], [1900, 'T', 'io']],
+  pupilJit: [[0, 'S'], [740, 'S'], [800, 0.7, 'out'], [1400, 0.7], [1600, 'T', 'io']],
+  pupils: [[0, 'S'], [100, 1]],
+  earL: [[0, 'S'], [90, -30, 'out'], [600, -12, 'io'], [1900, 'T', 'io']],
+  earR: [[0, 'S'], [90, 30, 'out'], [600, 12, 'io'], [1900, 'T', 'io']],
+}, events: [[0, (r) => { r.squeezing = true; }], [260, (r) => { r.squeezing = false; r.pop(0.55); r.say('poke'); }], [720, (r) => r.pop(-0.4)]] };
 
 /** How far down he goes to be out of sight: his body, and his paws (which only need to clear the edge). */
 const HIDDEN = { sink: 720, paw: 80 };
 
-// Entrances and exits are acted, not slid (docs/LOC_SILHOUETTE.md, round 5). Peeking up: ear
-// tips first, listening; the eyes rise just over the edge and check left and right; a beat;
-// then he pops up, stretching, overshoots and settles, and his paws slap onto the edge last.
-const ARRIVE: Bit = { ms: 1650, tracks: {
-  sink: [[0, HIDDEN.sink], [380, 470, 'out'], [520, 470], [900, 232, 'io'], [1000, 232], [1200, -18, 'out'], [1450, 0, 'io']],
-  paw: [[0, HIDDEN.paw], [1160, HIDDEN.paw], [1260, -8, 'out'], [1400, 0, 'io']],
-  stretch: [[0, 0], [1000, 0], [1100, 0.1, 'out'], [1260, -0.05, 'io'], [1450, 0, 'io']],
-  open: [[0, 'T'], [520, 'T'], [600, 1.05, 'out'], [1000, 1.05], [1500, 'T', 'io']],
-  openR: [[0, 'T'], [520, 'T'], [600, 1.05, 'out'], [1000, 1.05], [1500, 'T', 'io']],
-  gx: [[0, 0], [700, 0], [760, -22, 'out'], [900, -22], [960, 22, 'out'], [1050, 22], [1110, 0, 'out'], [1650, 0]],
-  gy: [[0, 0], [1650, 0]],
-  earL: [[0, 'S'], [380, 6, 'out'], [1000, 6], [1150, -12, 'out'], [1350, 'T', 'back']],
-  earR: [[0, 'S'], [380, -6, 'out'], [1000, -6], [1150, 12, 'out'], [1350, 'T', 'back']],
-}, events: [[380, (r) => r.flick('L', -14)], [520, (r) => r.flick('R', 14)], [1260, (r) => r.kick(-0.05)]] };
-// Asleep, he doesn't check the room: one slow rise, paws last.
-const ARRIVE_ASLEEP: Bit = { ms: 1400, tracks: {
-  sink: [[0, HIDDEN.sink], [1300, 0, 'io']],
-  paw: [[0, HIDDEN.paw], [1000, HIDDEN.paw], [1300, 0, 'io']],
+// He lives under the covers, the nav strip (docs/LOC_SILHOUETTE.md, round 6). Off the edge the
+// lump runs to the right, toward the other tabs' buttons, and comes back in from there.
+const OFFSTAGE = 0.62;
+
+// Coming back: the lump scurries in along the edge and brakes where he lives, wriggles, crouches,
+// and he launches out (user, October 10, 2026: the aggressive move goes on the way up): eyes
+// squeezed and ears pinned back as he shoots up past his rest, then he drops, lands in a squash
+// with his paws slapping the edge, and the eyes pop open to check the room.
+const ARRIVE: Bit = { ms: 2700, tracks: {
+  sink: [[0, HIDDEN.sink], [1180, HIDDEN.sink], [1320, -70, 'out'], [1470, 14, 'in'], [1560, -6, 'out'], [1700, 0, 'io']],
+  paw: [[0, HIDDEN.paw], [1440, HIDDEN.paw], [1500, -10, 'out'], [1620, 0, 'io']],
+  stretch: [[0, 0], [1180, 0], [1260, 0.16, 'out'], [1340, 0.04, 'io'], [1450, 0.1, 'in'], [1500, -0.12, 'out'], [1600, 0.03, 'io'], [1760, 0, 'io']],
+  open: [[0, 'T'], [1480, 'T'], [1600, 1.15, 'back'], [2150, 1.15], [2550, 'T', 'io']],
+  openR: [[0, 'T'], [1480, 'T'], [1600, 1.15, 'back'], [2150, 1.15], [2550, 'T', 'io']],
+  swell: [[0, 'T'], [1480, 'T'], [1600, 1.6, 'back'], [2150, 1.6], [2550, 'T', 'io']],
+  gx: [[0, 0], [1840, 0], [1900, -22, 'out'], [2080, -22], [2140, 22, 'out'], [2320, 22], [2380, 0, 'out'], [2700, 0]],
+  gy: [[0, 0], [2700, 0]],
+  earL: [[0, 16], [1180, 16], [1260, 26, 'out'], [1480, 16], [1540, -14, 'out'], [1800, 'T', 'back']],
+  earR: [[0, -16], [1180, -16], [1260, -26, 'out'], [1480, -16], [1540, 14, 'out'], [1800, 'T', 'back']],
+}, events: [
+  [1180, (r) => { r.squeezing = true; }],
+  [1480, (r) => { r.squeezing = false; r.kick(-0.08); r.flick('L', -14); r.flick('R', 14); r.pop(0.6); }],
+  [1900, (r) => r.pop(0.2)],
+  [2140, (r) => { r.flick('R', 10); r.pop(0.2); }],
+  [2450, (r) => r.say('hello')],
+], lump: {
+  h: [[0, 'S'], [80, 1, 'out'], [880, 1], [960, 1.4, 'out'], [1030, 1, 'io'], [1110, 0.55, 'io'], [1180, 0.55], [1210, 1.7, 'out'], [1270, 0, 'in']],
+  x: [[0, OFFSTAGE], [760, -0.025, 'out'], [880, 0, 'io']],
 } };
-// Ducking down: a little rise first, then a drop that speeds up, stretching as he falls; the
-// ears flip up behind him and the paws let go a beat after the body.
-const LEAVE: Bit = { ms: 560, tracks: {
-  sink: [[0, 'S'], [120, -10, 'out'], [440, HIDDEN.sink, 'in3']],
-  paw: [[0, 'S'], [260, 'S'], [440, HIDDEN.paw, 'in']],
-  stretch: [[0, 0], [120, 0.04, 'out'], [300, 0.12, 'in'], [440, 0.02, 'out'], [560, 0, 'io']],
-  earL: [[0, 'S'], [120, 8, 'out'], [380, 22, 'out']],
-  earR: [[0, 'S'], [120, -8, 'out'], [380, -22, 'out']],
+// Asleep, he isn't in a hurry: the lump drifts in, settles, and he rises slowly, paws last.
+const ARRIVE_ASLEEP: Bit = { ms: 2900, events: [[2800, (r) => r.say('hello')]], tracks: {
+  sink: [[0, HIDDEN.sink], [1500, HIDDEN.sink], [2700, 0, 'io']],
+  paw: [[0, HIDDEN.paw], [2300, HIDDEN.paw], [2700, 0, 'io']],
+}, lump: {
+  h: [[0, 'S'], [200, 1, 'out'], [1400, 1], [1900, 0, 'io']],
+  x: [[0, OFFSTAGE], [1400, 0, 'out']],
+} };
+// Leaving: no drama (that's saved for the way up). He slides down out of sight, ears folding,
+// paws letting go last; the lump comes up where he went under and runs off along the edge,
+// faster and faster.
+const LEAVE: Bit = { ms: 1300, events: [[0, (r) => r.say('hide')]], tracks: {
+  sink: [[0, 'S'], [450, HIDDEN.sink, 'io']],
+  paw: [[0, 'S'], [180, 'S'], [340, HIDDEN.paw, 'io']],
+  earL: [[0, 'S'], [350, 14, 'io']],
+  earR: [[0, 'S'], [350, -14, 'io']],
+  open: [[0, 'S'], [250, 0.45, 'io']],
+  openR: [[0, 'S'], [250, 0.45, 'io']],
+}, lump: {
+  h: [[0, 'S'], [380, 'S'], [520, 1, 'out'], [1300, 1]],
+  x: [[0, 'S'], [560, 'S'], [1300, OFFSTAGE, 'in']],
 } };
 
-// Tapped twice: he dives under the covers (the nav strip), the blanket lumps up where he is and
-// wanders along the edge with a ripple behind it, then he bursts back out (user, October 10, 2026).
-const BURROW: Bit = { ms: 5900, tracks: {
-  stretch: [[0, 0], [150, -0.08, 'out'], [300, 0.12, 'in'], [460, 0, 'out'], [5050, 0], [5190, 0.13, 'out'], [5380, -0.05, 'io'], [5700, 0, 'io']],
-  sink: [[0, 'S'], [150, -6, 'out'], [460, HIDDEN.sink, 'in3'], [5050, HIDDEN.sink], [5280, -20, 'out'], [5600, 0, 'io']],
-  paw: [[0, 'S'], [300, 'S'], [460, HIDDEN.paw, 'in'], [5250, HIDDEN.paw], [5370, -8, 'out'], [5550, 0, 'io']],
-  earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [5050, 16], [5300, -12, 'out'], [5700, 'T', 'back']],
-  earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [5050, -16], [5300, 12, 'out'], [5700, 'T', 'back']],
-  open: [[0, 'S'], [5050, 'S'], [5200, 1.1, 'back'], [5800, 'T', 'io']],
-  openR: [[0, 'S'], [5050, 'S'], [5200, 1.1, 'back'], [5800, 'T', 'io']],
-  mask: [[0, 'S'], [200, 1, 'out']], pupils: [[0, 'S'], [100, 1]],
+// Tapped twice: he dives under the covers (the nav strip), the lump zips off to the left, then
+// scurries back right in quick little hops, brakes where he lives, crouches, and he bursts out
+// furious (user, October 10, 2026: faster, left to right, and pop up with an angry face):
+// pupils shrunk to trembling dots, lids slanted, ears pinned.
+const BURROW_POP = 2300;
+const BURROW: Bit = { ms: 4000, tracks: {
+  stretch: [[0, 0], [150, -0.08, 'out'], [300, 0.12, 'in'], [460, 0, 'out'], [BURROW_POP, 0], [BURROW_POP + 90, 0.16, 'out'], [BURROW_POP + 200, -0.1, 'io'], [BURROW_POP + 320, 0.03, 'io'], [BURROW_POP + 480, 0, 'io']],
+  sink: [[0, 'S'], [150, -6, 'out'], [460, HIDDEN.sink, 'in3'], [BURROW_POP, HIDDEN.sink], [BURROW_POP + 130, -60, 'out'], [BURROW_POP + 260, 12, 'in'], [BURROW_POP + 340, -4, 'out'], [BURROW_POP + 460, 0, 'io']],
+  paw: [[0, 'S'], [300, 'S'], [460, HIDDEN.paw, 'in'], [BURROW_POP + 220, HIDDEN.paw], [BURROW_POP + 280, -12, 'out'], [BURROW_POP + 400, 0, 'io']],
+  y: [[0, 'S'], [BURROW_POP + 260, 'S'], [BURROW_POP + 340, -10, 'out'], [3400, -10], [4000, 'T', 'io']],
+  earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [BURROW_POP, 16], [BURROW_POP + 120, -34, 'out'], [3400, -30], [4000, 'T', 'io']],
+  earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [BURROW_POP, -16], [BURROW_POP + 120, 34, 'out'], [3400, 30], [4000, 'T', 'io']],
+  open: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.5, 'out'], [3500, 0.5], [4000, 'T', 'io']],
+  openR: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.58, 'out'], [3500, 0.58], [4000, 'T', 'io']],
+  squint: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.36, 'out'], [3500, 0.36], [4000, 'T', 'io']],
+  slope: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 28, 'out'], [3500, 28], [4000, 'T', 'io']],
+  swell: [[0, 'S'], [BURROW_POP + 200, 'S'], [BURROW_POP + 280, 0.6, 'out'], [3500, 0.6], [4000, 'T', 'io']],
+  pupilJit: [[0, 'S'], [BURROW_POP + 280, 'S'], [BURROW_POP + 320, 0.7, 'out'], [3300, 0.7], [3600, 'T', 'io']],
+  pupils: [[0, 'S'], [100, 1]],
 }, events: [
-  [0, (r) => { r.squeezing = true; }], [460, (r) => { r.squeezing = false; }],
-  [5370, (r) => { r.kick(-0.04); r.flick('L', -18); r.flick('R', 18); }],
+  [0, (r) => { r.squeezing = true; r.say('hide'); }],
+  [460, (r) => { r.squeezing = false; }],
+  // Squeezed shut on the way up, then the eyes snap open into the glare.
+  [BURROW_POP, (r) => { r.squeezing = true; }],
+  [BURROW_POP + 200, (r) => { r.squeezing = false; r.pop(-0.45); }],
+  [BURROW_POP + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); r.say('angry'); }],
 ], lump: {
-  h: [[0, 0], [430, 0], [700, 1, 'back'], [4650, 1], [4900, 0.4, 'io'], [5040, 0, 'in']],
-  x: [[0, 0], [700, 0], [1500, -0.32, 'io'], [2500, 0.3, 'io'], [3300, -0.18, 'io'], [4000, 0.22, 'io'], [4600, -0.06, 'io'], [4800, 0, 'io']],
+  h: [[0, 0], [430, 0], [540, 1.2, 'out'], [620, 1, 'io'],
+    // A dart left, then hop-hop-hop back to the right.
+    [1000, 1], [1080, 0.7, 'io'], [1180, 1.2, 'out'],
+    [1180, 1.18, 'io'], [1275, 0.82, 'io'], [1370, 1.18, 'io'], [1465, 0.82, 'io'], [1560, 1.18, 'io'], [1655, 0.82, 'io'], [1750, 1.18, 'io'], [1845, 0.82, 'io'], [1940, 1.18, 'io'], [2035, 0.82, 'io'],
+    [2080, 1, 'io'], [2180, 0.5, 'io'], [2260, 0.5], [BURROW_POP + 30, 1.8, 'out'], [BURROW_POP + 100, 0, 'in']],
+  x: [[0, 0], [540, 0], [980, -0.3, 'out'], [1100, -0.3], [2060, 0.03, 'in'], [2180, 0, 'out']],
 } };
 
 // ---- Small math ----
@@ -189,18 +248,8 @@ const scale = (x: number, y: number): Mat => [x, 0, 0, y, 0, 0];
 const about = (o: Vec, m: Mat) => mul(tr(o[0], o[1]), mul(m, tr(-o[0], -o[1])));
 const apply = (m: Mat, p: Vec): Vec => [m[0] * p[0] + m[2] * p[1] + m[4], m[1] * p[0] + m[3] * p[1] + m[5]];
 const chain = (...ms: Mat[]) => ms.reduce((a, b) => mul(a, b));
-const fmt = (n: number) => (Math.round(n * 10) / 10).toString();
 
 // ---- Face shapes ----
-function eyePath(o: number, squint: number, slope: number, side: 1 | -1, w = 39) {
-  const t = 22 - 76 * o;
-  const b = Math.max((30 + 14 * Math.min(o, 1) + 10 * Math.max(0, o - 1)) * (1 - 0.72 * squint), t + 6);
-  const inner = Math.min(t + slope, b - 3), outer = Math.min(t - slope * 0.55, b - 3);
-  const iy = clamp(slope * 0.22, -6, 10);
-  const ix = side * w, ox = -side * w, s = 0.56;
-  return `M${fmt(ox)},0 C${fmt(ox * s)},${fmt(outer)} ${fmt(ix * s)},${fmt(inner)} ${fmt(ix)},${fmt(iy)} C${fmt(ix * s)},${fmt(b)} ${fmt(ox * s)},${fmt(b)} ${fmt(ox)},0 Z`;
-}
-const MASK_PATH = 'M-150,-30 C-60,-46 60,-46 150,-30 C170,-26 174,20 150,28 C100,42 42,40 16,22 Q0,12 -16,22 C-42,40 -100,42 -150,28 C-174,20 -170,-26 -150,-30 Z';
 
 // ---- Mesh and weights (built once) ----
 const BONES = 7; // root (paws), body, head, earL, earR, cheekL, cheekR
@@ -297,8 +346,11 @@ export class LocRig {
   private nextGlance = 2;
   private nextHabit = 4;
   private flicks = { L: 0, R: 0 };
-  private bit: { def: Bit; t: number; start: typeof BASE; fired: Set<number> } | null = null;
+  private bit: { def: Bit; t: number; start: typeof BASE; fired: Set<number>; lump: { h: number; x: number } } | null = null;
   private gaze: Vec = [0, 0];
+  private gazeV: Vec = [0, 0];
+  /** When the current squeeze (> <) started, so it can slam shut with a shudder. */
+  private squeezeAt = -1;
   private swaySeed = Math.random() * 10;
   private lag = { tilt: 0, earL: 0, earR: 0, gazeTurn: 0 };
   private phys = {
@@ -317,6 +369,7 @@ export class LocRig {
   /** Starts out of sight; `setPresent(true)` brings him up. */
   private hidden = true;
   private lumpX = 0;
+  private lumpH = 0;
 
   constructor(private canvas: HTMLCanvasElement, mood: LocMood, private reduced = false) {
     this.ctx = canvas.getContext('2d')!;
@@ -364,24 +417,24 @@ export class LocRig {
     gl.clearColor(0, 0, 0, 0);
   }
 
-  /** Change mood. Parts move in sequence: going to sleep the eyes close, then the mask, then he sinks. */
+  /** Change mood. Parts move in sequence: going to sleep the eyes close, then he sinks. */
   setMood(mood: LocMood) {
     if (mood === this.mood) return;
     const prev = this.mood;
     this.mood = mood;
-    let delay: Partial<Record<Channel, number>> = { earL: 50, earR: 110, mask: 40, maskY: 30, maskTilt: 30 };
-    if (mood === 'asleep') delay = { open: 0, openR: 40, pupils: 0, mask: 260, y: 430, tilt: 430, earL: 520, earR: 600, breathe: 650 };
-    else if (prev === 'asleep') delay = { mask: 0, maskTilt: 120, open: 320, openR: 380, pupils: 300, y: 120, tilt: 160, earL: 180, earR: 240 };
+    let delay: Partial<Record<Channel, number>> = { earL: 50, earR: 110 };
+    if (mood === 'asleep') delay = { open: 0, openR: 40, pupils: 0, y: 430, tilt: 430, earL: 520, earR: 600, breathe: 650 };
+    else if (prev === 'asleep') delay = { open: 320, openR: 380, pupils: 300, y: 120, tilt: 160, earL: 180, earR: 240 };
     this.pending = KEYS.map((key) => ({ key, value: TARGET[mood][key], at: this.clock + (delay[key] ?? 0) / 1000 }));
-    if (mood === 'betrayed') { this.kick(-0.06); this.flick('L', -12); this.flick('R', 12); }
+    if (mood === 'betrayed') { this.kick(-0.06); this.flick('L', -12); this.flick('R', 12); this.pop(0.7); }
     if (prev === 'asleep') this.blinkAt = this.clock + 0.55;
   }
 
   setShare(share: number) { this.share = share; }
-  /** Busy under the covers: taps wait until he's out. */
-  get burrowing() { return this.bit?.def === BURROW; }
+  /** Under the covers (burrowing, or arriving or leaving by them): taps wait until he's out. */
+  get burrowing() { return !!this.bit?.def.lump; }
   burrow() { if (!this.hidden) this.play(BURROW); }
-  /** Off Home he ducks out of sight; back on Home he peeks up. */
+  /** Off Home he dives under the covers and runs off; back on Home he runs in and bursts out. */
   setPresent(present: boolean) {
     if (present === !this.hidden) return;
     this.hidden = !present;
@@ -390,12 +443,19 @@ export class LocRig {
   poke() { this.play(POKE); }
   kick(v: number) { this.vel.stretch += v * 14; }
   flick(side: 'L' | 'R', deg: number) { this.flicks[side] += deg; }
+  /** Tells Home what just happened, so he can say something about it (loc-lines.ts). */
+  onCue: ((cue: 'poke' | 'angry' | 'hello' | 'hide') => void) | null = null;
+  say(cue: 'poke' | 'angry' | 'hello' | 'hide') { this.onCue?.(cue); }
+  /** Kick the eyeballs' jelly: + springs them tall, - squashes them wide. */
+  pop(v: number) { if (!this.reduced) this.vel.goo += v * 18; }
 
-  private play(def: Bit) { this.bit = { def, t: 0, start: { ...this.cur }, fired: new Set() }; }
+  private play(def: Bit) {
+    this.bit = { def, t: 0, start: { ...this.cur }, fired: new Set(), lump: { h: this.lumpH, x: this.lumpX } };
+  }
 
-  private sample(track: Key[], t: number, key: Channel): number | null {
+  private sample(track: Key[], t: number, key: Channel, start = this.bit!.start[key]): number | null {
     const rest = (k: Channel) => (k === 'sink' || k === 'paw' ? this.goal[k] : TARGET[this.mood][k]);
-    const val = (v: Key[1]) => (v === 'S' ? this.bit!.start[key] : v === 'T' ? rest(key) : v);
+    const val = (v: Key[1]) => (v === 'S' ? start : v === 'T' ? rest(key) : v);
     if (t <= track[0][0]) return val(track[0][1]);
     for (let i = 1; i < track.length; i++) {
       const [t1, v1, ease = 'io'] = track[i];
@@ -462,7 +522,8 @@ export class LocRig {
     if (this.blinkAt >= 0) {
       const len = mood.blinks === 'slow' ? 0.55 : 0.19;
       const p = (this.clock - this.blinkAt) / len;
-      if (p >= 1) this.blinkAt = -1;
+      // They bounce back open, overshooting into a tall stretch.
+      if (p >= 1) { this.blinkAt = -1; this.pop(0.3); }
       else if (p >= 0) this.blink = p < 0.4 ? E.out(p / 0.4) : 1 - E.io((p - 0.4) / 0.6);
     }
   }
@@ -476,8 +537,12 @@ export class LocRig {
     const sway = this.reduced ? 0 : (Math.sin(t * 0.9 + this.swaySeed) * 0.7 + Math.sin(t * 0.37 + this.swaySeed * 2) * 0.5) * (this.mood === 'asleep' ? 0.3 : 1);
     const hasGaze = !!this.bit && 'gx' in this.bit.def.tracks;
     const gx = hasGaze ? c.gx : this.glance[0], gy = hasGaze ? c.gy : this.glance[1];
-    const k = Math.min(1, dt * 22);
-    this.gaze[0] += (gx - this.gaze[0]) * k; this.gaze[1] += (gy - this.gaze[1]) * k;
+    // The pupils dart on an underdamped spring, so every glance overshoots and settles.
+    const gk = 900, gz = this.reduced ? 1 : 0.42;
+    for (const i of [0, 1] as const) {
+      const a = gk * ((i ? gy : gx) - this.gaze[i]) - 2 * Math.sqrt(gk) * gz * this.gazeV[i];
+      this.gazeV[i] += a * dt; this.gaze[i] += this.gazeV[i] * dt;
+    }
     // Down the chain: the head follows the body's lean about 60 ms later, the ears after that.
     const follow = (key: keyof LocRig['lag'], target: number, tau: number) => (this.lag[key] += (target - this.lag[key]) * (1 - Math.exp(-dt / tau)));
     const headTilt = follow('tilt', c.tilt, 0.06);
@@ -524,14 +589,15 @@ export class LocRig {
   /** The blanket lump: the strip's black, bulging up from the bottom edge where he is. */
   private drawLump(dt: number) {
     const lump = this.bit?.def.lump;
-    if (!lump) { this.lumpX = 0; return; }
+    if (!lump) { this.lumpX = 0; this.lumpH = 0; return; }
     const { ctx, canvas } = this;
     const cw = canvas.width, ch = canvas.height;
     const t = this.bit!.t;
-    const h = this.sample(lump.h, t, 'sink') ?? 0;
-    const x = this.sample(lump.x, t, 'sink') ?? 0;
+    const from = this.bit!.lump;
+    const h = this.sample(lump.h, t, 'sink', from.h) ?? 0;
+    const x = this.sample(lump.x, t, 'sink', from.x) ?? 0;
     const vx = dt > 0 ? (x - this.lumpX) / dt : 0;
-    this.lumpX = x;
+    this.lumpX = x; this.lumpH = h;
     if (h <= 0.001) return;
     const dpr = cw / (canvas.clientWidth || cw);
     // Low and wide (user, October 10, 2026): about 9 pt high, roughly a fifth of the width across.
@@ -592,42 +658,84 @@ export class LocRig {
     ctx.beginPath(); ctx.rect(0, 0, cw, ledgePx); ctx.clip();
     const H = mul(view, this.head);
     const at = (local: Mat) => { const q = mul(H, local); ctx.setTransform(q[0], q[1], q[2], q[3], q[4], q[5]); };
-    const quiver = this.mood === 'betrayed' && !this.bit ? Math.sin(this.clock * 31) * 0.035 : 0;
-    const eyes = [
-      { pos: EYE_L, path: new Path2D(eyePath(Math.max(0, (c.open + quiver) * (1 - this.blink)), c.squint, c.slope, 1)), squeeze: 'M-24,-21 L18,0 L-24,21' },
-      { pos: EYE_R, path: new Path2D(eyePath(Math.max(0, (c.openR + quiver) * (1 - this.blink)), c.squint, c.slope, -1)), squeeze: 'M24,-21 L-18,0 L24,21' },
+    const quiver = this.mood === 'betrayed' && !this.bit ? Math.sin(this.clock * 31) * 0.05 : 0;
+    const jit = c.pupilJit > 0.01 && !this.reduced ? [Math.sin(this.clock * 97) * 4 * c.pupilJit, Math.cos(this.clock * 83) * 3 * c.pupilJit] : [0, 0];
+    const goo = this.reduced ? 0 : clamp(c.goo, -0.45, 0.6);
+    // Moving fast, they stretch along the way they're looking.
+    const dart = this.reduced ? 0 : clamp(Math.hypot(this.gazeV[0], this.gazeV[1]) * 0.0009, 0, 0.18);
+    if (this.squeezing && this.squeezeAt < 0) this.squeezeAt = this.clock;
+    if (!this.squeezing) this.squeezeAt = -1;
+    const eyes: { pos: Vec; o: number; side: 1 | -1; squeeze: string }[] = [
+      { pos: EYE_L, o: Math.max(0, c.open + quiver), side: 1, squeeze: 'M-26,-24 L20,0 L-26,24' },
+      { pos: EYE_R, o: Math.max(0, c.openR + quiver), side: -1, squeeze: 'M26,-24 L-20,0 L26,24' },
     ];
-    const jit = c.pupilJit > 0.01 && !this.reduced ? [Math.sin(this.clock * 97) * 2.2 * c.pupilJit, Math.cos(this.clock * 83) * 1.6 * c.pupilJit] : [0, 0];
-    const pr = c.pupils > 0.5 && !this.squeezing ? Math.max(2, c.pupilR) : 0;
     for (const e of eyes) {
-      at(mul(tr(e.pos[0], e.pos[1]), rot(FACE)));
+      at(chain(tr(e.pos[0] + this.gaze[0] * 0.12, e.pos[1] + this.gaze[1] * 0.12), rot(FACE)));
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = EYE_WHITE; ctx.strokeStyle = EYE_WHITE;
-      if (this.squeezing) { ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(new Path2D(e.squeeze)); }
-      else ctx.fill(e.path);
-      if (pr > 0) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (this.squeezing) {
+        // Slammed shut: the > < punch in oversized and shudder.
+        const since = this.clock - this.squeezeAt;
+        const punch = this.reduced ? 1 : 1 + 0.45 * Math.exp(-since * 14);
+        const shake = this.reduced ? 0 : Math.sin(this.clock * 70) * 2.5;
         ctx.save();
-        ctx.clip(e.path);
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.translate(shake, 0); ctx.scale(punch, punch);
+        ctx.lineWidth = 15; ctx.stroke(new Path2D(e.squeeze));
+        ctx.restore();
+        continue;
+      }
+      // Moods lower a lid over a round eye (heavy for groggy, half for smug, slanted for a
+      // glare); only a blink squashes the eyeball itself, flat and wide. Wide open past his
+      // rest, they balloon.
+      const k = e.o / 0.8;
+      const grow = 1 + 0.45 * Math.max(0, k - 1);
+      const lidded = 1 - Math.min(1, k);
+      const rx = BUTTON * grow * (1 + 0.3 * this.blink + dart - 0.5 * goo);
+      const ry = BUTTON * grow * (1 - this.blink) * (1 - 0.6 * dart + goo);
+      // Lids: the top one comes down as he closes and slants with his mood (+ angry, - worried);
+      // the bottom one rises as he squints.
+      const lift = Math.max(0, c.squint - 0.12) * 0.9 * ry;
+      const top = -ry - 2 + lidded * 1.84 * ry;
+      if (ry < 5 || top > ry - lift - 4) {
+        // Closed: a soft curve, not a sliver.
+        ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.moveTo(-rx, 0); ctx.quadraticCurveTo(0, 12, rx, 0); ctx.stroke();
+        continue;
+      }
+      const white = new Path2D();
+      white.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      const inner = top + Math.max(0, c.slope - 4) * 1.1;
+      const outer = top + Math.max(0, -c.slope) * 1.1 + Math.max(0, c.slope - 4) * 0.15;
+      const xi = e.side * (rx + 6), xo = -e.side * (rx + 6);
+      const lids = new Path2D(`M${xo},${outer} L${xi},${inner} L${xi},${ry - lift} L${xo},${ry - lift} Z`);
+      ctx.save();
+      ctx.clip(lids);
+      ctx.fill(white);
+      ctx.clip(white);
+      const pr = c.pupils > 0.5 ? Math.min(PUPIL * (c.pupilR / 11.5) * Math.max(0.3, c.swell), 0.7 * BUTTON * grow) : 0;
+      // Squashed nearly flat (mid-blink), the white reads cleaner as a plain pill.
+      if (pr > 0 && ry / (BUTTON * grow) > 0.4) {
+        // Under a heavy lid the pupil sinks, so it still peeks out below it.
+        let px = this.gaze[0] + jit[0], py = 4 + lidded * ry * 0.45 + this.gaze[1] + jit[1];
+        // Keep the pupil in the white however far he looks. Never bigger than 70% of it, so the white always shows.
+        const n = Math.hypot(px / Math.max(1, rx - pr * 0.6), py / Math.max(1, ry - pr * 0.6));
+        if (n > 1) { px /= n; py /= n; }
+        // The pupil is part of the jelly: it squashes and stretches with the white around it.
+        const psx = clamp(rx / (BUTTON * grow), 0.7, 1.5), psy = clamp(ry / (BUTTON * grow), 0.15, 1.5);
+        ctx.save();
+        ctx.translate(px, py); ctx.scale(psx, psy);
         ctx.fillStyle = INK;
-        at(tr(e.pos[0] + this.gaze[0] + jit[0], e.pos[1] + 6 + this.gaze[1] + jit[1]));
         ctx.beginPath(); ctx.arc(0, 0, pr, 0, Math.PI * 2); ctx.fill();
-        if (pr >= 7) {
+        if (pr >= 8) {
           ctx.fillStyle = EYE_WHITE;
-          ctx.beginPath(); ctx.arc(-pr * 0.36, -pr * 0.4, Math.min(4.2, pr * 0.3), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(-pr * 0.36, -pr * 0.4, Math.min(7.5, pr * 0.3), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(pr * 0.32, pr * 0.3, pr * 0.1, 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
       }
+      ctx.restore();
     }
-    // Sleep mask: over the eyes (0) to the forehead (1), where it doubles as his brows. It's a
-    // window cut through him (user's pick, October 10, 2026, docs/design-references/
-    // loc-animation/headband-study.html option 2), so the moon behind shows in it.
-    const mk = clamp(c.mask, -0.05, 1.05);
-    const mx = MASK_DOWN[0] + (MASK_UP[0] - MASK_DOWN[0]) * mk;
-    const my = MASK_DOWN[1] + (MASK_UP[1] - MASK_DOWN[1]) * mk + c.maskY * mk;
-    at(chain(tr(mx, my), rot(FACE + c.maskTilt * mk), scale(1 - 0.12 * mk, 1 - 0.12 * mk)));
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fill(new Path2D(MASK_PATH));
     ctx.restore();
   }
 
