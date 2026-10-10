@@ -48,3 +48,7 @@ targets/*/generated.entitlements
 
 # Agent worktrees (Claude Code)
 .claude/worktrees/
+
+# Dev flags (EXPO_PUBLIC_FREE_TESTING): EAS builds from git, so committing this would
+# ship free testing to the App Store.
+.env
