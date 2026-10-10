@@ -124,6 +124,19 @@ function inNight(now: Date, times: { bedtime: number; morningStart: number }): b
   });
 }
 
+/**
+ * The end of the newest night of these times that has had its chance (bedtime at least
+ * `ON_TIME_GRACE` minutes past), switched on or not: the night `checkNights` lists first when
+ * it's on. Null when the clocks skip every night.
+ */
+function latestNightEnd(now: Date, times: { bedtime: number; morningStart: number }): Date | null {
+  for (const offset of [1, 0, -1]) {
+    const { start, end } = nightInto(now, times, offset);
+    if (start < end && start.getTime() + ON_TIME_GRACE * MINUTE <= now.getTime()) return end;
+  }
+  return null;
+}
+
 /** Whether the night in progress, or else the next one, is switched on. */
 export function nextNightIsOn(now: Date, times: { bedtime: number; morningStart: number }, activeNights: number[]): boolean {
   for (const offset of [-1, 0, 1, 2]) {
@@ -369,6 +382,11 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
   // The night checked can be tonight's, once bedtime is a few minutes past: name it right. By
   // then the app has put the apps to sleep itself (`syncLock`), so don't say they're awake.
   const tonightChecked = lastNight !== null && lastNight.end > now;
+  // Only the newest night speaks for "last night" (or tonight). An older one, with a night that
+  // was off (or skipped) since, was said on its own day: it doesn't lead for days after.
+  const latest = latestNightEnd(now, armed);
+  const recent = lastNight !== null && latest !== null && lastNight.end.getTime() === latest.getTime();
+  const nextOn = nextNightIsOn(now, armed, routine.activeNights);
   if (lastNight?.verdict === 'missed' && tonightChecked) {
     return {
       ...base,
@@ -377,16 +395,15 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
       detail: 'I’ve put your apps to sleep myself. Access is still on, so later nights should start on time. If it keeps happening, let us know.',
     };
   }
-  if (lastNight?.verdict === 'missed') {
+  if (recent && lastNight?.verdict === 'missed') {
     return {
       ...base,
       level: 'attention',
       title: 'iOS never put me to bed last night.',
-      detail:
-        'Your apps stayed awake. Access is still on and tonight is scheduled, so it should hold. If it happens again, let us know.',
+      detail: `Your apps stayed awake. Access is still on and ${nextOn ? 'tonight' : 'your next night'} is scheduled, so it should hold. If it happens again, let us know.`,
     };
   }
-  if (lastNight?.verdict === 'noShield') {
+  if (recent && lastNight?.verdict === 'noShield') {
     return {
       ...base,
       level: 'attention',
@@ -396,10 +413,10 @@ export function rollUpHealth({ protection, access, armed, routine, nights, purch
   }
 
   const late =
-    lastNight?.verdict === 'late'
+    recent && lastNight?.verdict === 'late'
       ? ` ${tonightChecked ? 'Tonight' : 'Last night'} started ${lastNight.lateBy} minutes late; a later window caught it.`
       : '';
-  const tonight = nextNightIsOn(now, armed, routine.activeNights)
+  const tonight = nextOn
     ? `Your apps sleep at ${formatMinutes(armed.bedtime)}.`
     : `Tonight is off. Next time, your apps sleep at ${formatMinutes(armed.bedtime)}.`;
   return { ...base, level: 'ok', title: 'Bedtime is set.', detail: tonight + late };

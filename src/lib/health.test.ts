@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 
 import {
   checkNights,
@@ -290,4 +290,48 @@ test('nights before a time-zone change are not judged: they were logged on anoth
   assert.ok(nights.some((n) => n.verdict === 'missed'));
   const after = check([], at(4, 8), { zoneChangedAt: +at(4, 6) });
   assert.ok(after.length > 0 && after.every((n) => n.verdict === 'unknown'));
+});
+
+describe('a bad night followed by nights that are off', () => {
+  // Monday to Thursday nights on (by the evening's weekday), 23:00 to 07:00. Oct 5 is a Monday.
+  const MON_THU = [1, 2, 3, 4];
+  const ranOnTime = [start(at(5, 23)), start(at(6, 23)), start(at(7, 23))];
+  const rollAt = (now: Date, heartbeats: Heartbeat[]) => {
+    const nights = check(heartbeats, now, { routine: { activeNights: MON_THU } });
+    return rollUpHealth({ protection: 'on', access: 'approved', armed: armed(), routine: { activeNights: MON_THU }, nights, now });
+  };
+
+  test('the morning after a missed Thursday night: last night, and the next night (not tonight) should hold', () => {
+    const health = rollAt(at(9, 12), ranOnTime);
+    assert.equal(health.lastNight?.morningKey, '2026-10-09');
+    assert.equal(health.level, 'attention');
+    assert.equal(health.title, 'iOS never put me to bed last night.');
+    assert.doesNotMatch(health.detail, /tonight is scheduled/);
+    assert.match(health.detail, /your next night is scheduled/);
+  });
+
+  test('on Saturday and Sunday, Thursday’s missed night no longer leads as "last night"', () => {
+    for (const day of [10, 11]) {
+      const health = rollAt(at(day, 12), ranOnTime);
+      assert.equal(health.lastNight?.morningKey, '2026-10-09', 'still the newest judged night');
+      assert.equal(health.level, 'ok');
+      assert.doesNotMatch(health.title, /last night/);
+      assert.match(health.detail, /^Tonight is off\./);
+    }
+  });
+
+  test('a noShield Thursday doesn’t say "nothing slept" all weekend', () => {
+    const noShield = [...ranOnTime, start(at(8, 23), true, 'night-0'), start(at(8, 23, 45), true, 'night-1')].map((h) =>
+      h.at >= +at(8, 22) ? { ...h, nightPicked: false } : h,
+    );
+    assert.equal(rollAt(at(9, 12), noShield).title, 'Bedtime ran, but nothing slept.');
+    for (const day of [10, 11]) assert.equal(rollAt(at(day, 12), noShield).level, 'ok');
+  });
+
+  test('a missed night with tonight on still says tonight is scheduled', () => {
+    // Wednesday night missed, checked Thursday noon: Thursday night is on.
+    const health = rollAt(at(8, 12), [start(at(5, 23)), start(at(6, 23))]);
+    assert.equal(health.title, 'iOS never put me to bed last night.');
+    assert.match(health.detail, /tonight is scheduled/);
+  });
 });
