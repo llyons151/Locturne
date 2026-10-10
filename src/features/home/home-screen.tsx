@@ -31,6 +31,7 @@ import { Gap, Space } from '@/theme';
 
 import { awakeLine, bedtimeQuip, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent } from './home-content';
+import { Loc } from './loc';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
 import { useVisit } from './use-visit';
@@ -46,7 +47,7 @@ const MOCK_WEEK = __DEV__;
  * 01-oura-bedtime): the moon is the floor of the screen, so everything lives in the sky
  * above it. The top (home-top) holds the mornings count,
  * today's screen time and this week's dots (option B in the README); then one centred headline,
- * one sentence and one quiet button. Nothing sits over the moon.
+ * one sentence and one quiet button. Over the moon only Loc, peeking over the panel's edge.
  */
 
 const MORNING_ACTION = { downstairs: 'Go downstairs', steps: 'Start walking', scan: 'Scan my code', place: 'Check in', pushups: 'Start push-ups' } as const;
@@ -177,6 +178,10 @@ export function HomeScreen() {
               ? { label: `Tomorrow: ${METHOD_NAME[method]} at ${clockLabel(routine.morningStart)}`, onPress: () => router.push('/routine'), opens: true }
               : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
+  // Loc sleeps when the apps do (a held night, or Block now), is groggy through the locked
+  // morning, and is up by day.
+  const mood = (phase === 'night' && !paused) || napping ? 'asleep' : phase === 'morning' ? 'groggy' : 'awake';
+
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;
 
@@ -192,6 +197,7 @@ export function HomeScreen() {
         heroKey={minutes ?? 0}
         action={action}
       />
+      <Loc mood={mood} />
     </View>
   );
 }

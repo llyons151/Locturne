@@ -142,3 +142,182 @@ private artifact. It isn't in the app. It rigs the traced peek silhouette, the s
 
 To download YouTube on this machine, yt-dlp needs `--js-runtimes node --remote-components
 ejs:github --extractor-args "youtube:player_client=mweb"`.
+
+### Round 2 (same day)
+
+- **Ear clipping fixed.** Each ear's cut-out used to include a chunk of head-top past its base,
+  which swung out as a nub and left a flat cut behind. Now each ear piece keeps only a thin strip
+  below its base, inset from both ends, and a rounded "root" sits under each ear so the joint
+  stays smooth at any angle.
+- **Seven dramatic bits** for memes and videos. Each is a two- to five-second timeline that
+  plays on top of any state, then hands back to it:
+
+  | Bit | What happens | His line |
+  |---|---|---|
+  | Side-eye | Hard side-eye with a slow blink in the middle | "TikTok wants you back. Absolutely not." |
+  | Dramatic zoom | Head turn, then a fast push-in on wide eyes | "TikTok. At 2 AM." |
+  | Screech | Ducks, then pops up with `> <` eyes and a fanged mouth, vibrating | "IT'S. SEVEN. AM." |
+  | Dead inside | Pinpoint pupils, a thousand-yard stare, one eye twitching | "Day three of being a morning person." |
+  | Faint | A gasp, then X eyes, keels over, slides slowly out of frame | "You took the stairs. I need to lie down." |
+  | Vibrating | Eyes narrowed to slits, ears pinned, shaking | "Someone said 'one more video.'" |
+  | Nope | Drops out of sight, peeks back with eyes darting, drops again | "Not here. Never was." |
+
+- **New rig parts for these:** a mouth (a hole with the teeth put back as body), X eyes, `> <`
+  eyes, pupil size, shake and zoom, all as spring channels. A Rive version would carry these
+  over as the same inputs and timelines.
+- Stills are in `design-references/loc-animation/dramatic.png`.
+
+### Round 3: keyframed rewrite (same day)
+
+The motion engine was rebuilt. Before, every value simply sprang toward a target, so all
+movement had the same floaty feel.
+
+**The engine now:**
+- Each bit is a set of keyframe tracks per channel, and every segment has its own easing:
+  anticipation, snap, hold, overshoot, an accelerating fall. Springs only carry him back to
+  his state afterwards, and drive follow-through.
+- State changes are staggered. Going to sleep: eyes close, then the mask comes down, then he
+  sinks, then the ears settle. Waking reverses it.
+- Each state has a habit that plays only when nothing else is running:
+  - groggy nods off and jolts awake;
+  - asleep twitches mid-dream, with a deeper breath every fourth one;
+  - smug gives a slow satisfied blink;
+  - awake looks around;
+  - betrayed has trembling pupils.
+
+**The face:**
+- The top lids slant for anger or worry, and the lower lids rise for a squint. The whole eye
+  no longer rotates.
+- The pupils have catchlights.
+- The sleep mask works as his brows: it shoots up in shock and presses down in rage.
+- Fast vertical moves stretch him slightly, and the ears lag head turns and lift when he drops.
+
+**The bits** each follow a comic structure (setup, punchline, deadpan button), and the caption
+lines land on the beats:
+- **Side-eye** ends with a "caught" snap.
+- **Dramatic zoom** has a jump cut, then an innocent look away.
+- **Screech** takes a breath first, then goes deadpan with "…" and "Morning."
+- **Dead inside** has a twitching eye and a long blink.
+- **Faint:** a gasp, a freeze, X eyes, a fall that speeds up, then his ears peek back first.
+- **Vibrating** builds pressure, pops, then deflates.
+- **Nope** drops, peeks with darting eyes, drops again, then rises looking innocent.
+
+**Other:** the page has half- and quarter-speed playback for review. Filmstrips of every bit
+are in `design-references/loc-animation/filmstrips/`; each one was reviewed frame by frame.
+
+### Round 4: skeleton and physics (same day)
+
+**The problem:** the user said he "moves unnatural, just changes positions". He was a rigid
+cut-out: the body slid and rotated as one stiff piece, and only the ears were hinged.
+
+**The research:**
+- **Binding and weighting (Rive and Spine).** Rigged mascots bind their artwork to a bone
+  hierarchy. Every vertex is weighted to one or more bones, and the weights add up to 100%, so
+  shapes bend where the bones meet. Sources: https://rive.app/docs/editor/manipulating-shapes/bones
+  and https://rive.app/blog/intro-to-meshes
+- **The Rive rigging video** ("Snow day! Rig and animate with Rive",
+  https://www.youtube.com/watch?v=GpCyXo4VujA, watched frame by frame because transcribing the
+  audio failed). It builds hips → chest → head, plus a chain of bones down the scarf, then
+  staggers each child bone's keys a few frames after its parent's.
+- **Successive breaking of joints, and drag.** Motion travels down the chain one joint after
+  another. Too slow an offset looks awkward; too fast can't be seen.
+  https://www.brianlemay.com/Pages/animationschool/animation/1stsemesteranimation/successivebreaking.html
+- **Spine's physics constraints.** Inertia, strength and damping per bone give automatic
+  secondary motion. https://esotericsoftware.com/spine-physics-constraints
+- **Moving holds.** A fully frozen character reads as dead, so keep tiny motion going
+  (Thomas & Johnston, *The Illusion of Life*). https://en.wikipedia.org/wiki/Twelve_basic_principles_of_animation
+
+**What changed in the prototype:**
+- **The body is now a skinned mesh.** The silhouette is a texture on a grid of about 2,400
+  vertices, skinned on the GPU with WebGL. Each vertex is weighted to seven bones: root (the
+  paws, planted on the ledge), body, head, two ears and two cheek-fluffs. The face cut-outs and
+  the mask ride the head bone.
+- **Bending:**
+  - Posture squashes and stretches the body from the ledge instead of sliding him up and down.
+  - A lean splits between the body (38%) and the head (62%).
+  - The head turns slightly toward wherever his eyes are looking.
+- **Successive breaking:** authored poses reach the head about 60 ms after the body, and the
+  ears about 110–130 ms after.
+- **Physics:**
+  - The head swings on the neck like a pendulum and bobs.
+  - The ears trail the head's acceleration.
+  - The cheek fluff jiggles.
+  - The shake effect is kept out of the physics input, so the ears don't flail.
+- **Moving hold:** a slow two-frequency weight shift runs under everything, with the head
+  countering the body.
+- **Captions now run on the bit's own clock,** so they stay on the beat at any speed or frame
+  rate.
+- **Cost:** about 0.6 ms per character per frame.
+
+Frame-stepped filmstrips are in `design-references/loc-animation/filmstrips-skeleton/`. They
+were filmed with a frozen clock that's advanced by hand: `window.__loc.advance(ms)`.
+
+**For the app:** this is the same bones-and-weights model a Rive file uses. An animator who
+rebuilds Loc in Rive would use the same bones (root, body, head, ears, fluff), and the same
+physics settings would carry over to Rive's constraints.
+
+## In the app (October 10, 2026)
+
+On Home, Loc peeks over the panel's bottom edge, in front of the moon (`src/features/home/loc.tsx`).
+
+**How it's built:**
+- **`loc-rig.ts`:** the skeleton, physics and face, ported from the browser study to typed
+  TypeScript.
+- **`loc-stage.tsx`:** a DOM component (`'use dom'`). On iOS it runs in a transparent webview
+  (`@expo/dom-webview`, part of SDK 57); on web it renders inline.
+- **`loc-path.ts`:** the silhouette path, now shared with the static `LocSilhouette`.
+- **His canvas spans the panel's full width,** so the blanket lump can travel along the edge;
+  he sits in the middle, at 27% of the width.
+
+**Mood follows Home:**
+- A held night, or Block now, is `asleep`.
+- The locked morning is `groggy`.
+- Otherwise he's `awake`.
+
+**User changes the same day:**
+- **Eyes:** solid white with black pupils, not holes. They're also less wide by default
+  (open 0.8, a light squint), because they read as bugging out.
+- **Sleep mask:** first tried as a crop of the moon texture, then chosen from the headband
+  study (`design-references/loc-animation/headband-study.html`, nine treatments). The user
+  picked option 2, **a window to the moon**: the mask is cut through him, so the real moon
+  behind him shows in it. Pure silhouette, with no new color.
+- **Hit him twice (the second tap within 2.5 s of the first): under the covers.** Revised the
+  same day: the lump is lower and wider (about 9 pt high and a fifth of the width across), he
+  stays under for about 4.6 s, and the lump roams most of the edge, from about 18% to 82% of
+  the width.
+  1. He dives below the edge.
+  2. The nav strip's black edge lumps up where he is and wanders left and right, with a soft
+     ripple trailing the way it's moving (about 15 pt high).
+  3. He bursts back out.
+- **One tap** pokes him, as before.
+
+### Round 5: entrances and exits, acted rather than slid
+
+**The problem:** he used to ride the moon's sink, so the whole canvas moved like an elevator,
+at one speed, with his paws dragged along. The user said it looked cheap.
+
+**The research:** *The Animator's Survival Kit* (anticipation, takes, stagger timing), overshoot
+and settle, squash for impact and stretch for speed, and how peek and ledge-grab moves are
+staged: hands placed on the edge as their own beat. The rig now gives the paws their own drop
+channel, separate from the body.
+
+**Peeking up** (1.65 s, starting 350 ms after Home is selected, so the moon gets a head start):
+1. The ear tips surface and twitch, listening.
+2. The eyes rise just over the edge and check left, then right.
+3. A held beat.
+4. He pops up, stretching as he goes, overshoots and settles with a squash, while the ears
+   trail and then flick.
+5. The paws slap onto the edge last.
+
+If he's asleep, it's one slow rise instead, with the paws last.
+
+**Ducking down** (0.56 s):
+1. A small rise first.
+2. A drop that speeds up, stretching as he falls.
+3. The ears flip up, and the paws let go a beat after the body.
+
+**Testing:** a dev-only hook, `window.__locDev` (`advance(ms)`, `resume()`, `rig`), steps his
+clock by hand. These were reviewed frame by frame in the web build.
+
+**Not yet checked on a device:** the webview on the iPhone. If the current dev build is missing
+the DOM webview module, it needs a new dev build.

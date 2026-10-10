@@ -108,6 +108,7 @@ function home({
     '@/theme': { Gap: {}, Space: {} },
     './awake-line': awakeLine,
     './home-content': { HomeContent: 'HomeContent' },
+    './loc': { Loc: 'Loc' },
     './night-meter': { duration: (m: number) => `${m} min`, useMinute: () => now },
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
@@ -117,8 +118,10 @@ function home({
   };
   const exports = {} as { HomeScreen: () => Tree };
   runInNewContext(code, { exports, require: (id: string) => mocks[id], React: react, __DEV__: false });
-  const content = exports.HomeScreen().children[0];
-  return content.props as { hero: Hero; action: { label: string } };
+  const screen = exports.HomeScreen();
+  const content = screen.children[0];
+  const loc = screen.children[1];
+  return { ...(content.props as { hero: Hero; action: { label: string } }), mood: (loc.props as { mood: string }).mood };
 }
 
 describe('Home in the trial’s last days (B4)', () => {
@@ -271,5 +274,17 @@ describe('Home with an armed night and an empty bedtime list', () => {
   test('a night with bedtime apps still says they are asleep', () => {
     const { hero } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night' });
     assert.equal(hero.title, 'Your apps are asleep');
+  });
+});
+
+describe('Loc on Home', () => {
+  test('sleeps through a held night, is groggy through the locked morning and up by day', () => {
+    assert.equal(home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night' }).mood, 'asleep');
+    assert.equal(home({ now: new Date(2026, 9, 10, 7, 5), phase: 'morning' }).mood, 'groggy');
+    assert.equal(home({ now: new Date(2026, 9, 9, 14), phase: 'day' }).mood, 'awake');
+  });
+
+  test('a night an emergency unlock paused is not asleep', () => {
+    assert.equal(home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', pause: new Date(2026, 9, 10, 23) }).mood, 'awake');
   });
 });
