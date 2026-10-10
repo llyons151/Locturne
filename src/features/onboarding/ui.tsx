@@ -150,7 +150,7 @@ export function Body({ children, style }: PropsWithChildren<{ style?: StyleProp<
   );
 }
 
-/** Loc talking: heavy italic serif, entering with the page's text motion. */
+/** Loc talking: the display font, entering with the page's text motion. */
 export function Voice({
   text,
   size = 34,
@@ -204,7 +204,7 @@ export function Ready({ ready, children }: PropsWithChildren<{ ready: boolean }>
 }
 
 /**
- * His reply to the answer just picked, on the question's own screen: one italic line (and,
+ * His reply to the answer just picked, on the question's own screen: one voice line (and,
  * for `tried`, a plain sentence under it). Keyed by the answer, so a new pick replays it.
  */
 export function Reply({ text, detail }: { text?: string; detail?: string }) {

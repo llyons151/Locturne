@@ -25,7 +25,11 @@ export type DailyLimit = {
   pending?: { minutes: number | null; from: number; dated?: number };
 };
 
+/** The web preview's times. On iPhone the wheels set any time, from a minute up to `LIMIT_MAX`. */
 export const LIMIT_CHOICES = [15, 30, 60, 120];
+
+/** 23 hr 59 min: Screen Time counts a day's use from midnight, so a longer one never trips. */
+export const LIMIT_MAX = 24 * 60 - 1;
 
 /**
  * iOS monitors about 20 activities per app: up to 16 night windows (`night-plan.ts`), one

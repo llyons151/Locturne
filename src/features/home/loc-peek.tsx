@@ -15,17 +15,23 @@ const PATH =
 /** His width as a share of the screen (halved at the user's request). */
 const SHARE = 0.23;
 
+/** Loc's silhouette at `width`, in `color`: the strip's black here, the You tab's avatar too. */
+export function LocSilhouette({ width, color = '#000000' }: { width: number; color?: string }) {
+  const height = Math.round((width * HEIGHT) / WIDTH);
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
+      <G transform={`translate(0,${HEIGHT}) scale(0.1,-0.1)`}>
+        <Path d={PATH} fill={color} />
+      </G>
+    </Svg>
+  );
+}
+
 export function LocPeek() {
   const { width } = useWindowDimensions();
-  const w = Math.round(width * SHARE);
-  const h = Math.round((w * HEIGHT) / WIDTH);
   return (
     <View style={styles.wrap} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Svg width={w} height={h} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
-        <G transform={`translate(0,${HEIGHT}) scale(0.1,-0.1)`}>
-          <Path d={PATH} fill="#000000" />
-        </G>
-      </Svg>
+      <LocSilhouette width={Math.round(width * SHARE)} />
     </View>
   );
 }

@@ -6,11 +6,12 @@ import { useAppStart } from '@/hooks/use-app-start';
 export default function TabsLayout() {
   useAppStart();
   return (
-    // Shrinks back a little behind the Sleep sheet.
-    <Recede>
-      <AppBackground panel>
+    // The page shrinks back a little behind the Sleep sheet; the sky stays put behind it, so
+    // the edges show the sky rather than black.
+    <AppBackground panel>
+      <Recede>
         <AppTabs />
-      </AppBackground>
-    </Recede>
+      </Recede>
+    </AppBackground>
   );
 }

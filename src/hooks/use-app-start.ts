@@ -18,7 +18,7 @@ import {
 } from '@/lib/notifications';
 import { takePendingApproval } from '@/lib/pending-purchase';
 import { currentTrialEnd, isEntitled, isPurchasing, onEntitled } from '@/lib/purchases';
-import { hasRoutine } from '@/lib/routine';
+import { DEFAULT_ROUTINE, hasRoutine, saveRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
 
 /**
@@ -50,7 +50,10 @@ export function armIfPaid(): void {
       // "Bedtime in 15 minutes" keeps coming with nothing to block.
       rescheduleNotifications().catch(() => {});
       followTrial();
-      if (!paid || !hasRoutine() || getArmedNight() || getAccess() !== 'approved' || shownSelection('night').size === 0) return;
+      if (!paid || getArmedNight() || getAccess() !== 'approved' || shownSelection('night').size === 0) return;
+      // Paid with nothing saved (onboarding left before its setup step): the default routine
+      // stands in, so there's always a bedtime rather than "No bedtime scheduled".
+      if (!hasRoutine()) saveRoutine(DEFAULT_ROUTINE);
       // The bedtime and morning notes only plan for an armed night.
       armTonight()
         .then(() => rescheduleNotifications())

@@ -41,7 +41,7 @@ export const Radius = {
   control: 12,
 } as const;
 
-/** Loc's italic serif sizes (see Voice in features/onboarding/ui.tsx). */
+/** Loc's voice sizes (see Voice in features/onboarding/ui.tsx). */
 export const VoiceSize = {
   hero: 46,
   headline: 34,

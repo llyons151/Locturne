@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { interpolate, makeMutable, useAnimatedStyle } from 'react-native-reanimated';
 
 /**
@@ -15,9 +15,11 @@ const SHRINK = 26;
 const RADIUS = 44;
 
 /**
- * The page stepping back behind an open sheet: it shrinks a little and rounds its corners over
- * black, the way iOS page sheets and vaul's `shouldScaleBackground` drawers do. The user asked
- * for it: "when i open this up the background should zoom out a little bit".
+ * The page stepping back behind an open sheet: it shrinks a little and rounds its corners, the
+ * way iOS page sheets and vaul's `shouldScaleBackground` drawers do. The user asked for it: "when
+ * i open this up the background should zoom out a little bit". It goes inside the background, so
+ * the sky stays full size around the shrunken page instead of black edges ("i want the blue and
+ * stuff to still be there").
  */
 export function Recede({ children }: PropsWithChildren) {
   const { width } = useWindowDimensions();
@@ -27,13 +29,10 @@ export function Recede({ children }: PropsWithChildren) {
     borderRadius: interpolate(recede.value, [0, 1], [0, RADIUS], 'clamp'),
   }));
   return (
-    <View style={styles.black}>
-      <Animated.View style={[styles.page, page]}>{children}</Animated.View>
-    </View>
+    <Animated.View style={[styles.page, page]}>{children}</Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  black: { flex: 1, backgroundColor: '#000000' },
   page: { flex: 1, overflow: 'hidden', borderCurve: 'continuous' },
 });

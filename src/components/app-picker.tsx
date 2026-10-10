@@ -8,9 +8,10 @@ import { BlockedAppsView, isBlockedAppsViewAvailable } from 'blocked-apps';
 
 import * as haptic from '@/lib/haptics';
 import type { SelectionId } from '@/lib/screen-time';
-import { Nocturne, Radius, Space, Type } from '@/theme';
+import { Nocturne, Space, Type } from '@/theme';
 
 import { AppTile } from './app-icons';
+import { GlassCard } from './glass-card';
 import { Reveal } from './motion';
 
 /**
@@ -130,7 +131,7 @@ export function AppsCard({
     return (
       <Reveal>
         <Text style={styles.listHeader}>{countPicks(live.count).toUpperCase()}</Text>
-        <View style={styles.list}>
+        <GlassCard dark>
           {isBlockedAppsViewAvailable ? (
             // Drawn at full height and clipped, so extra picks fold into the "more" row.
             <View style={[styles.liveClip, { height: shown * LIVE_ROW }]}>
@@ -158,7 +159,7 @@ export function AppsCard({
             </View>
           ) : null}
           {editRow}
-        </View>
+        </GlassCard>
       </Reveal>
     );
   }
@@ -166,6 +167,7 @@ export function AppsCard({
   if (!picked) {
     return (
       <Reveal>
+        <GlassCard dark>
         <Pressable
           onPress={press}
           accessibilityRole="button"
@@ -179,6 +181,7 @@ export function AppsCard({
           </View>
           <Chevron />
         </Pressable>
+        </GlassCard>
       </Reveal>
     );
   }
@@ -190,7 +193,7 @@ export function AppsCard({
   return (
     <Reveal>
       <Text style={styles.listHeader}>{pickedSummary(apps).toUpperCase()}</Text>
-      <View style={styles.list}>
+      <GlassCard dark>
         {rows.map((app) => (
           <View key={app} style={styles.listRow}>
             <View ref={(view) => onIconRef?.(app, view)} collapsable={false}>
@@ -215,7 +218,7 @@ export function AppsCard({
           </View>
         ) : null}
         {editRow}
-      </View>
+      </GlassCard>
     </Reveal>
   );
 }
@@ -406,11 +409,8 @@ const Sys = {
 };
 
 const styles = StyleSheet.create({
+  // Inside a smoked GlassCard, like the grouped lists.
   card: {
-    borderRadius: Radius.card,
-    backgroundColor: Nocturne.surface,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
     padding: Space.l,
     gap: Space.l,
   },
@@ -420,7 +420,6 @@ const styles = StyleSheet.create({
   cardSub: { color: Nocturne.text2, fontSize: 15 },
   add: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   listHeader: { ...Type.label, marginLeft: Space.l, marginBottom: Space.s },
-  list: { borderRadius: Radius.card, backgroundColor: Nocturne.surface, borderWidth: 1, borderColor: Nocturne.edge, overflow: 'hidden' },
   listRow: {
     minHeight: 52,
     flexDirection: 'row',

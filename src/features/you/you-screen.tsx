@@ -6,17 +6,21 @@
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActionSheetIOS, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { PrimaryButton } from '@/components/buttons';
-import { SwitchRow } from '@/components/controls';
+import { type MenuOption } from '@/components/control-types';
+import { MenuRow, SwitchRow } from '@/components/controls';
 import { Card, sym, ValueRow } from '@/components/grouped-list';
+import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
+import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
 import {
   getNotificationPermission,
@@ -28,7 +32,7 @@ import {
   type NotificationPrefs,
 } from '@/lib/notifications';
 import { lapseStillCovers, onLockChange, readLock, subscriptionEnded, syncLock } from '@/lib/lock-controller';
-import { getTone, setTone, type Tone } from '@/lib/tone';
+import { getTone, setTone, TONE_LABEL, TONES, type Tone } from '@/lib/tone';
 import { getPassesLeft } from '@/lib/passes';
 import { nextNightOn } from '@/lib/routine';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
@@ -36,18 +40,22 @@ import { getScanCode } from '@/lib/scan';
 import { bedtimeAppsAhead } from '@/lib/emergency';
 import { getArmedNight, isStoodDown, selectionSize, type Protection } from '@/lib/screen-time';
 import { noOrphan } from '@/lib/text';
-import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
+import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Radius, Space, Type } from '@/theme';
+
+import { LocSilhouette } from '@/features/home/loc-peek';
+import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
 
 import { lapseLine } from './lapse-line';
-import { TonePicker } from './tone-picker';
 
 /**
  * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up
  * method, Apps holds both lists, so this is where you check he's working, find the ways
- * out, and manage notifications and the subscription.
+ * out, set the step target once, and manage notifications and the subscription.
  *
- * Order (GAME_PLAN): honest status first, then the humane exits, then account things. No
- * stats or charts; history lives on the morning share card.
+ * Laid out like Jomo's Settings (user's reference, 2026-10-09): Loc's status where the
+ * profile would be, the plan card, a Help & Feedback banner, then titled groups of rows.
+ * Still GAME_PLAN's order: honest status first, then the humane exits, then account
+ * things. No stats or charts; history lives on the morning share card.
  *
  * Passes, the emergency unlock and the scan code open the exits and scan screens; the plan
  * and Restore are src/lib/purchases.ts; the notification switches are saved and redo the
@@ -56,6 +64,10 @@ import { TonePicker } from './tone-picker';
  */
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
+
+const TONE_OPTIONS: MenuOption<Tone>[] = TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }));
+
+const STEP_GOALS: MenuOption<number>[] = [100, 200, 300, 500].map((n) => ({ value: n, label: `${n} steps` }));
 
 const STATUS: Record<Protection, { icon: string; android: string; line: string }> = {
   on: { icon: 'lock.fill', android: 'lock', line: 'Screen Time access is on. Your apps sleep on schedule.' },
@@ -92,6 +104,17 @@ function sendFeedback() {
   );
 }
 
+/** Help or feedback, picked from the system's action sheet (the web preview opens Help). */
+function helpOrFeedback() {
+  if (Platform.OS !== 'ios') return open(LEGAL_URLS.support);
+  ActionSheetIOS.showActionSheetWithOptions(
+    { options: ['Help', 'Send feedback', 'Cancel'], cancelButtonIndex: 2 },
+    (i) => (i === 0 ? open(LEGAL_URLS.support) : i === 1 ? sendFeedback() : null),
+  );
+}
+
+const trialDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
 /**
  * The App Store's write-a-review page once `ios.appStoreUrl` is in app.json (it needs the
  * app's Apple ID); until then Apple's in-app prompt, which iOS may decline to show.
@@ -105,6 +128,8 @@ function rate() {
 export function YouScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
+  const scroll = useRef<ScrollView>(null);
+  useTopOnLeave(scroll);
 
   // Checks the schedules and shields too, since iOS keeps reporting access as on after
   // it's revoked, until the app restarts.
@@ -137,9 +162,16 @@ export function YouScreen() {
   const read = () => ({
     // Only someone in a trial has a reminder to switch off.
     inTrial: (getTrialEnd()?.getTime() ?? 0) > Date.now(),
+    trialEnd: getTrialEnd(),
     passesLeft: getPassesLeft(),
+    // As set, a waiting edit included: Routine's banner says when it starts.
+    stepGoal: getSetRoutine().stepGoal,
   });
-  const [{ inTrial, passesLeft }, setFacts] = useState(read);
+  const [{ inTrial, trialEnd, passesLeft, stepGoal }, setFacts] = useState(read);
+  const setStepGoal = (goal: number) => {
+    applyRoutineEdit({ ...getSetRoutine(), stepGoal: goal });
+    setFacts(read());
+  };
 
   // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
   // Asked again on focus: the paywall may have just sold one.
@@ -213,8 +245,10 @@ export function YouScreen() {
               line: `Screen Time access is on, but no bedtime apps are picked, so nothing sleeps at bedtime.${selectionSize('always') > 0 ? ' Always-asleep apps still sleep.' : ''}`,
             }
         : STATUS[status];
+  const warn = status === 'off' || status === 'notSetUp';
   return (
     <ScrollView
+      ref={scroll}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: bottom }]}
     >
       {/* Long press for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
@@ -224,61 +258,114 @@ export function YouScreen() {
         </Text>
       </Pressable>
 
-      <Card icon={sym(s.icon, s.android)} title="Screen Time" warn={status === 'off' || status === 'notSetUp'}>
-        <View style={styles.status} accessibilityLiveRegion="polite">
+      {/* Where Jomo has your photo and email: Loc, and whether he can do his job. */}
+      <View style={styles.profile} accessibilityLiveRegion="polite">
+        <View style={styles.avatar}>
+          <LocSilhouette width={44} color={Nocturne.onCta} />
+        </View>
+        <View style={styles.profileText}>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>Loc</Text>
+            <SymbolView name={sym(s.icon, s.android)} size={14} weight="semibold" tintColor={warn ? Nocturne.text : Nocturne.text2} />
+          </View>
           <Text style={styles.statusText}>{noOrphan(s.line)}</Text>
-          {status === 'off' ? <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+        </View>
+      </View>
+      {status === 'off' ? (
+        <View style={styles.fix}>
+          <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} />
+        </View>
+      ) : null}
+
+      <Card>
+        <View style={styles.plan}>
+          <View style={styles.planText}>
+            <Text style={styles.planLabel}>Current plan</Text>
+            <Text style={styles.planName}>
+              {plan === null ? 'None' : plan ? `${PLAN_LABEL[plan]}${inTrial ? ' (Trial)' : ''}` : ' '}
+            </Text>
+            {inTrial && trialEnd ? (
+              <View style={styles.planNote}>
+                <SymbolView name={sym('clock.fill', 'schedule')} size={12} tintColor={Nocturne.text2} />
+                <Text style={styles.planNoteText}>Trial ends on {trialDate(trialEnd)}</Text>
+              </View>
+            ) : plan === null ? (
+              <Text style={styles.planNoteText}>Nothing sleeps without one.</Text>
+            ) : null}
+          </View>
+          {plan !== undefined ? (
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                if (plan === null) router.push('/onboarding?resume=paywall');
+                else manage();
+              }}
+              accessibilityRole="button"
+              hitSlop={8}
+              style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+            >
+              <Text style={styles.pillText}>{plan === null ? 'Subscribe' : 'Manage'}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </Card>
 
-      <Card
-        icon={sym('door.left.hand.open', 'door_open')}
-        title="Ways out"
-        footer={`Passes refill on ${refillDate(new Date())}. For sick days, travel, or a baby asleep in the room.`}
+      <Pressable
+        onPress={() => {
+          haptic.tap();
+          helpOrFeedback();
+        }}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
       >
-        <ValueRow title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} />
-        <ValueRow title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
-        <ValueRow title="Can’t walk or use stairs" value="" onPress={cantWalk} last />
+        <SymbolView name={sym('exclamationmark.bubble.fill', 'feedback')} size={22} tintColor={Nocturne.onCta} />
+        <View style={styles.bannerText}>
+          <Text style={styles.bannerTitle}>Help & Feedback</Text>
+          <Text style={styles.bannerLine}>Get help or tell me what’s broken.</Text>
+        </View>
+        <SymbolView name={sym('chevron.right', 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.onCta} />
+      </Pressable>
+
+      <Text style={styles.heading} accessibilityRole="header">
+        Ways out
+      </Text>
+      <Card footer={`Passes refill on ${refillDate(new Date())}. For sick days, travel, or a baby asleep in the room.`}>
+        <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} />
+        <ValueRow icon={sym('light.beacon.max.fill', 'emergency')} title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
+        <ValueRow icon={sym('figure.roll', 'accessible')} title="Can’t walk or use stairs" value="" onPress={cantWalk} last />
       </Card>
 
-      <Card
-        icon={sym('theatermasks.fill', 'theater_comedy')}
-        title="How grumpy Loc is"
-        footer="How he talks on the block screen and in notifications. It changes his words, never the rules, so it applies straight away."
-      >
-        <TonePicker value={tone} onChange={changeTone} />
+      <Text style={styles.heading} accessibilityRole="header">
+        General
+      </Text>
+      <Card footer="Steps count for the walking wake-up and the fallback; a new target starts from the next bedtime. Loc’s tone changes his words, never the rules, so it applies now.">
+        <MenuRow icon={sym('figure.walk', 'directions_walk')} title="Step target" value={stepGoal} options={STEP_GOALS} onChange={setStepGoal} />
+        <MenuRow icon={sym('theatermasks.fill', 'theater_comedy')} title="How grumpy Loc is" value={tone} options={TONE_OPTIONS} onChange={changeTone} last />
       </Card>
 
+      <Text style={styles.heading} accessibilityRole="header">
+        Notifications
+      </Text>
       <Card
-        icon={sym('bell.fill', 'notifications')}
-        title="Notifications"
         footer={
           permission === 'denied'
             ? 'Notifications are off for Locturne in Settings, so these stay quiet until you turn them on there.'
             : 'He keeps it short. No streaks, no guilt.'
         }
       >
-        <SwitchRow title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
-        <SwitchRow title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} last={!inTrial} />
-        {inTrial ? <SwitchRow title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last /> : null}
+        <SwitchRow icon={sym('moon.fill', 'bedtime')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
+        <SwitchRow icon={sym('sunrise.fill', 'wb_twilight')} title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} last={!inTrial} />
+        {inTrial ? <SwitchRow icon={sym('calendar', 'event')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last /> : null}
       </Card>
 
-      <Card icon={sym('creditcard.fill', 'credit_card')} title="Subscription">
-        {plan === null ? (
-          // Left at the paywall, or the subscription ended: the plans, with the saved setup.
-          <ValueRow title="Subscribe" value="" onPress={() => router.push('/onboarding?resume=paywall')} />
-        ) : (
-          <ValueRow title="Manage subscription" value={plan ? PLAN_LABEL[plan] : ''} onPress={manage} />
-        )}
-        <ValueRow title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} last />
-      </Card>
-
-      <Card icon={sym('questionmark.circle.fill', 'help')} title="Help">
-        <ValueRow title="Help" value="" onPress={() => open(LEGAL_URLS.support)} />
-        <ValueRow title="Send feedback" value="" onPress={sendFeedback} />
-        <ValueRow title="Rate Locturne" value="" onPress={rate} />
-        <ValueRow title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
-        <ValueRow title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
+      <Text style={styles.heading} accessibilityRole="header">
+        About
+      </Text>
+      <Card>
+        <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={rate} />
+        <ValueRow icon={sym('arrow.clockwise', 'restore')} title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} />
+        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
+        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
       </Card>
 
       {__DEV__ ? (
@@ -286,7 +373,6 @@ export function YouScreen() {
           <ValueRow title="Screen Time lab" value="" onPress={() => router.push('/screen-time-lab')} last />
         </Card>
       ) : null}
-
     </ScrollView>
   );
 }
@@ -297,8 +383,54 @@ const styles = StyleSheet.create({
   // Only as wide as the word, so a long press elsewhere up top does nothing.
   titleWrap: { alignSelf: 'flex-start', marginBottom: Gap.block },
 
-  // Lined up with the card's header, like the rows under it.
-  status: { gap: Space.l, paddingHorizontal: Space.l, paddingTop: Space.xs, paddingBottom: Space.l },
-  statusText: { color: Nocturne.text, ...Type.secondary },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: Space.m, marginBottom: Space.l },
+  // Loc peeking up over the bottom of a moon-white disc, like a profile photo.
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Nocturne.cta,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  profileText: { flex: 1, gap: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  name: { color: Nocturne.text, fontSize: 22, fontWeight: '700' },
+  statusText: { color: Nocturne.text2, ...Type.secondary },
+  fix: { marginBottom: Space.l },
 
+  plan: { flexDirection: 'row', alignItems: 'center', gap: Space.m, padding: Space.l },
+  planText: { flex: 1, gap: 2 },
+  planLabel: { color: Nocturne.text2, ...Type.secondary },
+  planName: { color: Nocturne.accent ?? Nocturne.text, fontSize: 22, fontWeight: '700' },
+  planNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  planNoteText: { color: Nocturne.text2, ...Type.caption },
+  pill: {
+    paddingHorizontal: Space.l,
+    minHeight: 36,
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: Nocturne.frost,
+  },
+  pillText: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
+  pressed: { opacity: 0.7 },
+
+  // The one filled card on the tab, as in the reference: help is always one tap away.
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.m,
+    padding: Space.l,
+    marginBottom: Gap.section,
+    borderRadius: Radius.card,
+    borderCurve: 'continuous',
+    backgroundColor: Nocturne.accent ?? Nocturne.cta,
+  },
+  bannerText: { flex: 1, gap: 2 },
+  bannerTitle: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
+  bannerLine: { color: Nocturne.onCta, ...Type.secondary, opacity: 0.75 },
+
+  // Title-case group headings outside the cards, like the reference's "General".
+  heading: { color: Nocturne.text2, fontSize: 20, fontWeight: '700', marginLeft: Space.xs, marginTop: Space.s, marginBottom: Space.s },
 });

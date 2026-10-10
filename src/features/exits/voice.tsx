@@ -2,11 +2,11 @@ import { StyleSheet } from 'react-native';
 import { Text } from '@/components/text';
 
 import { noOrphan } from '@/lib/text';
-import { DisplayFont, italicOverhang, Nocturne, VoiceSize } from '@/theme';
+import { DisplayFont, Nocturne, VoiceSize } from '@/theme';
 
 /**
- * His line in the italic serif, as on the Sleep sheet. `*word*` is set in the upright cut for
- * emphasis ("Fine. *Fine.*"). Shared by the exits and scan screens.
+ * His line in the display font, as on the Sleep sheet. `*word*` is set in italic for emphasis
+ * ("Fine. *Fine.*"). Shared by the exits and scan screens.
  */
 export function Voice({ text }: { text: string }) {
   const parts = noOrphan(text).split('*');
@@ -20,10 +20,9 @@ export function Voice({ text }: { text: string }) {
 const styles = StyleSheet.create({
   voice: {
     ...DisplayFont,
-    ...italicOverhang(VoiceSize.headline),
     color: Nocturne.text,
     fontSize: VoiceSize.headline,
     lineHeight: VoiceSize.headline * 1.08,
   },
-  emphasis: { fontStyle: 'normal' },
+  emphasis: { fontStyle: 'italic' },
 });

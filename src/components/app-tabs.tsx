@@ -85,12 +85,23 @@ const SWITCH: BottomTabNavigationOptions['transitionSpec'] = {
  */
 const HIDDEN = 0.01;
 
+/**
+ * Once a page is fully hidden it moves far off the panel. 1% opacity alone left every hidden
+ * page faintly burned into the sky behind the shown one, glass cards most of all; off the
+ * panel nothing of it is drawn, and its glass stays alive for when it fades back in.
+ */
+const parked = (progress: Parameters<NonNullable<BottomTabNavigationOptions['sceneStyleInterpolator']>>[0]['current']['progress']) =>
+  progress.interpolate({ inputRange: [-1, -0.999, 0.999, 1], outputRange: [100000, 0, 0, 100000] });
+
 /** `progress` is 0 for the shown tab and ±1 for the others (React Navigation). */
 const fadeThrough: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
   sceneStyle: {
     // Out by 40% of the way, so the two pages barely overlap: no double image on the sky.
     opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [HIDDEN, HIDDEN, 1, HIDDEN, HIDDEN] }),
-    transform: [{ scale: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1, 0.98] }) }],
+    transform: [
+      { translateX: parked(current.progress) },
+      { scale: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1, 0.98] }) },
+    ],
   },
 });
 
@@ -98,6 +109,7 @@ const fadeThrough: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ cur
 const fadeOnly: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
   sceneStyle: {
     opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [HIDDEN, HIDDEN, 1, HIDDEN, HIDDEN] }),
+    transform: [{ translateX: parked(current.progress) }],
   },
 });
 

@@ -43,17 +43,17 @@ export const italicOverhang = (fontSize: number) => {
  */
 export const APP_FONT = { fontFamily: Fonts?.sans } as const;
 
-/** Loc's voice: the app font, heavy and italic. */
+/**
+ * Titles and Loc's voice: the app font, upright and bold like `Type.title`, so display and
+ * body text read as one family (user's pick, October 9, 2026; replaced heavy italic).
+ */
 export const DisplayFont = {
   fontFamily: Fonts?.sans,
-  fontStyle: 'italic',
-  fontWeight: '800',
-  // Sized for the largest body-level voice lines (~26pt); WordsIn sizes its own per line.
-  ...italicOverhang(26),
+  fontWeight: '700',
 } as const;
 
-/** Numbers use the display font upright. Italic always means Loc is talking. */
-export const NUMBER_FONT = { ...DisplayFont, fontStyle: 'normal', paddingRight: 0, marginRight: 0 } as const;
+/** Numbers use the display font. */
+export const NUMBER_FONT = DisplayFont;
 
 /** Display type is already large; let it grow a little with Dynamic Type, not 3x. */
 export const DISPLAY_MAX_SCALE = 1.3;
