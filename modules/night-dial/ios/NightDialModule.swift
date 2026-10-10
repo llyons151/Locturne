@@ -67,7 +67,8 @@ final class NightDialView: ExpoView {
   static let day: Double = 1440
   static let snap: Double = 15
   /** The widest the dial gets; narrower columns shrink it. */
-  private let maxDial: CGFloat = 300
+  /** 260 (from 300), so the wake-up methods start on the first screen. Matches `DIAL_MAX` in JS. */
+  private let maxDial: CGFloat = 260
   /** The track and band width. The handles are the same size, so they read as the band's ends. */
   private let band: CGFloat = 36
   /** How far from a handle's centre a touch still grabs it. */
@@ -75,7 +76,7 @@ final class NightDialView: ExpoView {
   /** How far either side of the ring a touch on the band still grabs the night. */
   private let ringSlop: CGFloat = 10
   /** The columns under the dial. Matches `NIGHT_DIAL_ROW` in JS. */
-  private let rowHeight: CGFloat = 98
+  private let rowHeight: CGFloat = 72
   private let rowGap: CGFloat = 20
 
   let onTimesChange = EventDispatcher()
@@ -122,7 +123,7 @@ final class NightDialView: ExpoView {
   private let bedKnob = Knob(symbol: "moon.fill")
   private let wakeKnob = Knob(symbol: "sunrise.fill")
   private let bedColumn = TimeColumn(symbol: "moon.fill", title: "Bedtime")
-  private let wakeColumn = TimeColumn(symbol: "sunrise.fill", title: "Morning start")
+  private let wakeColumn = TimeColumn(symbol: "sunrise.fill", title: "Wake-up")
   private let bedElement: KnobElement
   private let wakeElement: KnobElement
 
@@ -166,12 +167,13 @@ final class NightDialView: ExpoView {
     }
     track.strokeColor = UIColor(white: 1, alpha: 0.16).cgColor
 
-    // Every two hours; the four quarters carry am/pm and sit a step brighter.
+    // Every two hours; the four quarters sit a step brighter, and only midnight and noon carry
+    // am/pm, so 6 and 6 leave the centre room (user's ask, October 9, 2026).
     for i in 0..<12 {
       let h = i * 2
       let label = UILabel()
       let hour = h % 12 == 0 ? 12 : h % 12
-      label.text = h % 6 == 0 ? "\(hour) \(h < 12 ? "am" : "pm")" : "\(hour)"
+      label.text = h % 12 == 0 ? "\(hour) \(h < 12 ? "am" : "pm")" : "\(hour)"
       label.textAlignment = .center
       label.isAccessibilityElement = false
       dial.addSubview(label)
@@ -196,7 +198,7 @@ final class NightDialView: ExpoView {
     bedElement.accessibilityContainer = self
     wakeElement.accessibilityContainer = self
     bedElement.accessibilityLabel = "Bedtime"
-    wakeElement.accessibilityLabel = "Morning start"
+    wakeElement.accessibilityLabel = "Wake-up"
     bedElement.onStep = { [weak self] dir in self?.nudge(.bed, by: Double(dir) * Self.snap) }
     wakeElement.onStep = { [weak self] dir in self?.nudge(.wake, by: Double(dir) * Self.snap) }
     // Moving on to the other handle, or away from the dial, saves the held step at once.
@@ -336,16 +338,16 @@ final class NightDialView: ExpoView {
   /** The labels follow the snapped times, never the in-between drawing. */
   private func refreshText() {
     let night = Self.span(targetBed, targetWake)
-    lengthLabel.text = off ? "Off" : Self.length(night)
+    // Home's type (user's ask, October 9, 2026): the number heavy, its unit regular and dimmer,
+    // like "7 mornings"; the caption in sentence case, like Home's lines.
+    lengthLabel.attributedText = off
+      ? NSAttributedString(string: "Off", attributes: [.font: UIFont.systemFont(ofSize: 34, weight: .heavy), .foregroundColor: textColor])
+      : Self.valueUnit(Self.length(night), size: 34, unitSize: 20, color: textColor, unitColor: text2Color)
     captionLabel.attributedText = NSAttributedString(
-      string: caption.uppercased(),
-      attributes: [
-        .font: UIFont.systemFont(ofSize: 11, weight: .semibold),
-        .kern: 1.2,
-        .foregroundColor: text2Color,
-      ])
-    bedColumn.time.text = Self.format(targetBed)
-    wakeColumn.time.text = Self.format(targetWake)
+      string: caption,
+      attributes: [.font: UIFont.systemFont(ofSize: 13, weight: .regular), .foregroundColor: text2Color])
+    bedColumn.time.attributedText = Self.valueUnit(Self.format(targetBed), size: 24, unitSize: 16, color: textColor, unitColor: text2Color)
+    wakeColumn.time.attributedText = Self.valueUnit(Self.format(targetWake), size: 24, unitSize: 16, color: textColor, unitColor: text2Color)
     bedElement.accessibilityValue = Self.format(targetBed)
     wakeElement.accessibilityValue = Self.format(targetWake)
   }
@@ -616,6 +618,18 @@ final class NightDialView: ExpoView {
   }
 
   /** "8 hrs", "7½ hrs", "45 min". */
+  /** "11 pm", "8 hrs": the number heavy, the unit after the last space regular and dimmer. */
+  static func valueUnit(_ text: String, size: CGFloat, unitSize: CGFloat, color: UIColor, unitColor: UIColor) -> NSAttributedString {
+    let out = NSMutableAttributedString()
+    let split = text.range(of: " ", options: .backwards)
+    let value = split.map { String(text[..<$0.lowerBound]) } ?? text
+    out.append(NSAttributedString(string: value, attributes: [.font: UIFont.monospacedDigitSystemFont(ofSize: size, weight: .heavy), .foregroundColor: color]))
+    if let split {
+      out.append(NSAttributedString(string: " " + text[split.upperBound...], attributes: [.font: UIFont.systemFont(ofSize: unitSize, weight: .regular), .foregroundColor: unitColor]))
+    }
+    return out
+  }
+
   static func length(_ minutes: Double) -> String {
     let m = Int(minutes.rounded())
     if m < 60 { return "\(m) min" }
@@ -658,43 +672,51 @@ private final class Knob: UIView {
   }
 }
 
-/** A time under the dial: its symbol, the time, and what it is. */
+/** A time under the dial: the time, then its symbol beside what it is ("☾ Bedtime"). */
 private final class TimeColumn: UIView {
-  let icon = UIImageView()
   let time = UILabel()
   let title = UILabel()
+  private let symbol: String
+  private let text: String
 
   init(symbol: String, title text: String) {
+    self.symbol = symbol
+    self.text = text
     super.init(frame: .zero)
     isUserInteractionEnabled = false
     isAccessibilityElement = false
-    icon.image = UIImage(systemName: symbol)
-    icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-    icon.contentMode = .center
     time.font = UIFont.monospacedDigitSystemFont(ofSize: 24, weight: .bold)
     time.textAlignment = .center
     time.adjustsFontSizeToFitWidth = true
     time.minimumScaleFactor = 0.7
-    title.font = UIFont.systemFont(ofSize: 13, weight: .medium)
     title.textAlignment = .center
-    title.text = text
-    for v in [icon, time, title] as [UIView] { addSubview(v) }
+    for v in [time, title] as [UIView] { addSubview(v) }
   }
 
   required init?(coder: NSCoder) { fatalError() }
 
   func tint(text: UIColor, title color: UIColor) {
-    icon.tintColor = text
     time.textColor = text
-    title.textColor = color
+    let font = UIFont.systemFont(ofSize: 15, weight: .regular)
+    let line = NSMutableAttributedString()
+    let config = UIImage.SymbolConfiguration(font: UIFont.systemFont(ofSize: 13, weight: .medium))
+    if let image = UIImage(systemName: symbol, withConfiguration: config)?.withTintColor(color, renderingMode: .alwaysOriginal) {
+      let mark = NSTextAttachment(image: image)
+      // Sits on the text's middle, not its baseline.
+      mark.bounds = CGRect(x: 0, y: (font.capHeight - image.size.height) / 2, width: image.size.width, height: image.size.height)
+      line.append(NSAttributedString(attachment: mark))
+      line.append(NSAttributedString(string: " "))
+    }
+    line.append(NSAttributedString(string: text))
+    line.addAttributes([.font: font, .foregroundColor: color], range: NSRange(location: 0, length: line.length))
+    title.attributedText = line
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
     let w = bounds.width
-    icon.frame = CGRect(x: 0, y: 0, width: w, height: 24)
-    time.frame = CGRect(x: 0, y: 28, width: w, height: 30)
-    title.frame = CGRect(x: 0, y: 58, width: w, height: 18)
+    time.frame = CGRect(x: 0, y: 0, width: w, height: 30)
+    title.frame = CGRect(x: 0, y: 32, width: w, height: 20)
   }
 }
 

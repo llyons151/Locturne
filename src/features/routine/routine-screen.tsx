@@ -9,50 +9,49 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Pressable, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { Text } from '@/components/text';
-import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { nightsLabel, type MenuOption } from '@/components/control-types';
-import { MenuRow, TimeRow } from '@/components/controls';
+import { MenuRow } from '@/components/controls';
 import { DayStrip } from '@/components/day-picker';
-import { Card, ChoiceRow, sym, ValueRow } from '@/components/grouped-list';
-import { armIfPaid } from '@/hooks/use-app-start';
+import { GlassCard } from '@/components/glass-card';
+import { Card, ChoiceRow, sym, ValueRow, type Symbol } from '@/components/grouped-list';
+import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import * as haptic from '@/lib/haptics';
-import { armRoutine, inPendingFirstNight, onLockChange, syncLock } from '@/lib/lock-controller';
-import { MIN_WINDOW } from '@/lib/night-plan';
-import { rescheduleNotifications } from '@/lib/notifications';
+import { onLockChange } from '@/lib/lock-controller';
 import {
   getPendingRoutine,
   getRoutine,
-  hasRoutine,
-  saveRoutine,
+  PUSHUP_GOALS,
+  pushupGoalOf,
   type Routine as StoredRoutine,
   type WakeMethod,
 } from '@/lib/routine';
-import { getArmedNight, isScreenTimeAvailable } from '@/lib/screen-time';
+import { getMorningPlace, getPlaceEditRefusal } from '@/lib/place';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
-import { noOrphan } from '@/lib/text';
+import { methodInUse } from '@/lib/scan-code';
+import { sharedGet, sharedSet } from '@/lib/screen-time';
+import { formatPreset, noOrphan } from '@/lib/text';
 import {
-  DisplayFont,
+  DISPLAY_MAX_SCALE,
+  APP_FONT,
   Gap,
-  italicOverhang,
   Nocturne,
-  Radius,
   Space,
   Type,
-  VoiceSize,
 } from '@/theme';
 
 import { NightDial } from './night-dial';
 import { nightsToWeekdays, weekdaysToNights } from './nights';
+import { applyRoutineEdit } from './apply-edit';
 import { pendingLine } from './pending-line';
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
  *
  * The wake-up method leads the screen (DOWNSTAIRS_METHOD.md): it's the part of the routine
- * nobody else has, so it gets his line and a full list of choices, not a menu row.
+ * nobody else has, so it gets a heading and a full list of choices, not a menu row.
  *
  * Every change waits for the next bedtime (GAME_PLAN, decided 2026-10-01), so nothing can
  * be loosened from bed. The screen shows what's set, and says plainly when it starts.
@@ -65,6 +64,8 @@ import { pendingLine } from './pending-line';
 
 type Method = WakeMethod;
 
+const HINT_SEEN = 'locturne.dialHintSeen';
+
 /** The screen's shape. Nights are Monday first, like onboarding's day picker (`nights.ts`). */
 type Routine = {
   bedtime: number;
@@ -73,6 +74,7 @@ type Routine = {
   nights: number[];
   method: Method;
   stepGoal: number;
+  pushupGoal?: number;
 };
 
 const fromStored = ({ activeNights, ...rest }: StoredRoutine): Routine => ({
@@ -103,31 +105,43 @@ function load(): Loaded {
   return { active, saved: fromStored(pending.routine), from: new Date(pending.from) };
 }
 
-/** Presets for the web preview's time wheel. On iPhone the system picker needs none. */
-const BEDTIME_PRESETS = [22 * 60, 22 * 60 + 30, 23 * 60, 23 * 60 + 30];
-const MORNING_PRESETS = [6 * 60 + 30, 7 * 60, 7 * 60 + 30, 8 * 60];
-
-const STEP_GOALS: MenuOption<number>[] = [100, 200, 300, 500].map((n) => ({ value: n, label: `${n} steps` }));
-
 /** Downstairs first: it's the hero method, and the default for anyone with stairs. */
-const methods = (goal: number): { value: Method; title: string; detail: string; line: string }[] => [
+const methods = (
+  goal: number,
+  place: string | null,
+  reps: number,
+  wake: number,
+): { value: Method; icon: Symbol; title: string; detail: string; badge?: string }[] => [
   {
     value: 'downstairs',
+    icon: sym('figure.stairs', 'stairs'),
     title: 'Go downstairs',
-    detail: 'About one floor down. Takes 20 seconds and can’t be faked from bed.',
-    line: 'Downstairs. Every morning. I’ll be at the bottom, judging.',
+    detail: 'One floor down',
+    badge: 'Recommended',
   },
   {
     value: 'steps',
+    icon: sym('figure.walk', 'directions_walk'),
     title: `Walk ${goal} steps`,
-    detail: 'Counts from your morning start, even before you open the app.',
-    line: `${goal} steps. I’ll count every one. Reluctantly.`,
+    detail: `Counted from ${formatPreset(wake)}`,
   },
   {
     value: 'scan',
-    title: 'Scan your code',
-    detail: 'A code you keep in another room, like on the coffee machine.',
-    line: 'Hide the code somewhere far. I’ll wait by it.',
+    icon: sym('barcode.viewfinder', 'barcode_scanner'),
+    title: 'Scan a code',
+    detail: 'A code in another room',
+  },
+  {
+    value: 'place',
+    icon: sym('mappin.and.ellipse', 'location_on'),
+    title: 'Get to a place',
+    detail: place ?? 'The gym, campus, the café',
+  },
+  {
+    value: 'pushups',
+    icon: sym('figure.strengthtraining.functional', 'fitness_center'),
+    title: `Do ${reps} push-ups`,
+    detail: 'Phone face-up on the floor',
   },
 ];
 
@@ -136,20 +150,13 @@ const same = (a: Routine, b: Routine) =>
   a.morningStart === b.morningStart &&
   a.method === b.method &&
   a.stepGoal === b.stepGoal &&
+  pushupGoalOf(a) === pushupGoalOf(b) &&
   a.nights.join() === b.nights.join();
-
-const SAME_TIME = "Bedtime and morning start can't be the same time.";
-const TOO_SHORT = `Bedtime and morning start need ${MIN_WINDOW} minutes between them. iOS won't schedule a shorter night.`;
-
-/** Why this night can't be saved: iOS won't run a window under `MIN_WINDOW`, so it would disarm. */
-function nightRefusal(bedtime: number, morningStart: number): string | null {
-  if (bedtime === morningStart) return SAME_TIME;
-  return (morningStart - bedtime + 1440) % 1440 < MIN_WINDOW ? TOO_SHORT : null;
-}
 
 export function RoutineScreen() {
   const insets = useSafeAreaInsets();
   const scroll = useRef<ScrollView>(null);
+  useTopOnLeave(scroll);
   const bottom = useTabBarInset();
 
   const [{ active, saved, from }, setLoaded] = useState<Loaded>(load);
@@ -164,50 +171,56 @@ export function RoutineScreen() {
   }, []);
 
   const commit = (next: Routine) => {
-    // Onboarding can't be left before its setup is saved, so a routine exists by the time this
-    // tab is reachable. Guarded anyway: a save here would be the first routine, and with one
-    // saved onboarding never opens again (`useAppStart`).
-    if (!hasRoutine()) return;
     const wasWaiting = load().from !== null;
-    // Inside a waiting edit's early first night, that edit governs tonight: this one waits
-    // for its next bedtime rather than handing tonight back to the old, later bedtime.
-    const savedAt = new Date();
-    saveRoutine(toStored(next), savedAt, inPendingFirstNight(savedAt));
-    // The shield words the extension copies later (tonight's, the morning's) follow the saved
-    // routine: rewrite them now, even when the windows stay as they are (`kept`).
-    syncLock();
+    const armed = applyRoutineEdit(toStored(next));
     const loaded = load();
     setLoaded(loaded);
     // The note appears above the control VoiceOver is on, and iOS has no live regions. Said in
     // the banner's words once arming settles: an earlier bedtime whose night has begun shields
     // at once, and the bare waiting note would still name the old bedtime.
-    const announce = loaded.from !== null && !wasWaiting;
-    const sayNote = () => {
-      const latest = load();
-      if (latest.from) AccessibilityInfo.announceForAccessibility(pendingLine(latest.from, latest.saved.bedtime, new Date()));
-    };
-    // Every edit goes through here. `armRoutine` hands iOS the windows for the routine in
-    // force at the next bedtime; if iOS refuses, the old windows stay and the next sync retries.
-    // Nothing armed yet means nothing was bought yet (or the night was lost): only a
-    // subscription arms it, or leaving onboarding at the paywall and saving here would lock
-    // tonight for free.
-    if (getArmedNight()) {
-      const armed = armRoutine().catch(() => {});
-      if (announce) armed.finally(sayNote);
-    } else {
-      armIfPaid();
-      if (announce) sayNote();
-    }
-    rescheduleNotifications().catch(() => {});
+    if (loaded.from !== null && !wasWaiting)
+      armed.finally(() => {
+        const latest = load();
+        if (latest.from) AccessibilityInfo.announceForAccessibility(pendingLine(latest.from, latest.saved.bedtime, new Date()));
+      });
   };
   // From the store, not this render's `saved`: leaving the app mid-edit saves both time rows in
   // one AppState event, before React renders again, and the second would undo the first.
   const set = (patch: Partial<Routine>) => commit({ ...load().saved, ...patch });
 
-  const options = methods(saved.stepGoal);
+  const place = getMorningPlace();
+  const reps = pushupGoalOf(saved);
+  const options = methods(saved.stepGoal, place?.name ?? null, reps, saved.morningStart);
+  // A scan with no code, or a place with none picked, wakes with steps until it's set up (as
+  // Home's "Tomorrow" says), so the picked row says so rather than looking like it's in force.
+  const fallsBack = methodInUse(saved.method) !== saved.method;
+  // The dial's how-to, until the first change (user's ask, October 9, 2026).
+  const [hintSeen, setHintSeen] = useState(() => sharedGet<boolean>(HINT_SEEN) === true);
+  const edited = <T,>(apply: (value: T) => void) => (value: T) => {
+    if (!hintSeen) {
+      sharedSet(HINT_SEEN, true);
+      setHintSeen(true);
+    }
+    apply(value);
+  };
+  // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
+  const offerReps = saved.method === 'pushups';
+  const repOptions: MenuOption<number>[] = PUSHUP_GOALS.map((n) => ({ value: n, label: `${n} push-ups` }));
   // Scan picked with no code saved: the setup, offered only when it's allowed (not from bed).
   const offerCodeSetup = saved.method === 'scan' && !getScanCode() && !getScanEditRefusal();
-  const chosen = options.find((o) => o.value === saved.method) ?? options[0];
+  // Place picked: pick one, or change it, only while it's allowed (not from bed).
+  const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
+  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps;
+  // "Get to a place" with no place yet: straight to the picker, which selects it once one is
+  // saved. Closing it leaves the routine alone, so nobody ends up on a place they don't have.
+  const pick = (method: Method) => {
+    if (method === 'place' && saved.method !== 'place' && !place && !getPlaceEditRefusal()) {
+      haptic.tap();
+      router.push({ pathname: '/place-pick', params: { select: '1' } });
+      return;
+    }
+    set({ method });
+  };
 
   const now = new Date();
 
@@ -221,19 +234,28 @@ export function RoutineScreen() {
     >
       {/* The night on a 24-hour dial, as set (a waiting edit included), edited by dragging. */}
       <View style={styles.night}>
+        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+          Routine
+        </Text>
         <NightDial
           bedtime={saved.bedtime}
           morningStart={saved.morningStart}
           nightsLabel={saved.nights.length === 0 ? 'Every night off' : nightsLabel(saved.nights)}
           off={saved.nights.length === 0}
-          onChange={(times) => set(times)}
+          onChange={edited((times: { bedtime: number; morningStart: number }) => set(times))}
           scrollRef={scroll}
         />
-        <DayStrip value={saved.nights} onChange={(nights) => set({ nights })} />
+        <DayStrip value={saved.nights} onChange={edited((nights: number[]) => set({ nights }))} />
+        {hintSeen ? null : (
+          <Text style={styles.hint}>
+            {noOrphan('Drag the moon or sun. Tap a day to skip it.')}
+          </Text>
+        )}
       </View>
 
       {from ? (
-        <View style={styles.pending} accessibilityLiveRegion="polite">
+        <GlassCard dark style={styles.pendingCard}>
+          <View style={styles.pending} accessibilityLiveRegion="polite">
           <SymbolView name={sym('clock', 'schedule')} size={17} tintColor={Nocturne.text} style={styles.pendingIcon} />
           <Text style={styles.pendingText}>
             {noOrphan(bannerNote)}
@@ -249,27 +271,26 @@ export function RoutineScreen() {
           >
             <Text style={styles.undo}>Undo</Text>
           </Pressable>
-        </View>
+          </View>
+        </GlassCard>
       ) : null}
 
-      {/* His line fades when the method changes, not every time the tab opens. */}
-      <LayoutAnimationConfig skipEntering>
-        <Animated.View key={saved.method} entering={FadeIn.duration(400)} style={styles.wake}>
-          <Text style={styles.voice} maxFontSizeMultiplier={1.3}>
-            {noOrphan(chosen.line)}
-          </Text>
-        </Animated.View>
-      </LayoutAnimationConfig>
+      <Text style={styles.section} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
+        How you get up
+      </Text>
 
-      {/* The You tab's cards (iOS Display & Brightness): heading inside, rows without icons. */}
-      <Card icon={sym('figure.stairs', 'stairs')} title="Wake-up" footer={wakeFooter(saved)}>
-        {options.map((o) => (
+      {/* The heading sits above the card, so the card has none; each method carries its own icon. */}
+      <Card>
+        {options.map((o, i) => (
           <ChoiceRow
             key={o.value}
+            icon={o.icon}
+            last={i === options.length - 1 && !setupRow}
             title={o.title}
-            detail={o.detail}
+            detail={o.value === saved.method && fallsBack ? `Not set up yet, so ${saved.stepGoal} steps for now` : o.detail}
+            badge={o.badge}
             selected={o.value === saved.method}
-            onPress={() => set({ method: o.value })}
+            onPress={() => pick(o.value)}
           />
         ))}
         {offerCodeSetup ? (
@@ -277,86 +298,53 @@ export function RoutineScreen() {
             title="Set up your code"
             value=""
             onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
+            last
           />
         ) : null}
-        <MenuRow
-          title="Step target"
-          value={saved.stepGoal}
-          options={STEP_GOALS}
-          onChange={(stepGoal) => set({ stepGoal })}
-          last
-        />
+        {offerPlaceSetup ? (
+          <ValueRow
+            title={place ? 'Change your place' : 'Pick your place'}
+            value=""
+            onPress={() => router.push('/place-pick')}
+            last
+          />
+        ) : null}
+        {offerReps ? (
+          <MenuRow
+            title="Push-ups"
+            value={reps}
+            options={repOptions}
+            onChange={(pushupGoal) => set({ pushupGoal })}
+            last
+          />
+        ) : null}
       </Card>
 
-      <Card
-        icon={sym('moon.fill', 'bedtime')}
-        title="Night"
-        footer="Changes start from the next bedtime, so nothing gets loosened from bed."
-      >
-        <TimeRow
-          title="Bedtime"
-          value={saved.bedtime}
-          onChange={(bedtime) => set({ bedtime })}
-          presets={BEDTIME_PRESETS}
-          invalid={(m) => nightRefusal(m, load().saved.morningStart)}
-        />
-        <TimeRow
-          title="Morning start"
-          value={saved.morningStart}
-          onChange={(morningStart) => set({ morningStart })}
-          presets={MORNING_PRESETS}
-          invalid={(m) => nightRefusal(load().saved.bedtime, m)}
-          last
-        />
-      </Card>
-
-      {/* Off iPhone nothing can be armed, so never imply protection is on (GAME_PLAN, "Reliability"). */}
-      {isScreenTimeAvailable() ? null : (
-        <Text style={styles.preview}>Preview. Blocking needs Screen Time, which only iPhone has.</Text>
-      )}
     </ScrollView>
   );
-}
-
-/** The steps fallback for the chosen method. */
-function wakeFooter(r: Routine) {
-  if (r.method === 'downstairs') return `No stairs that morning, like in a hotel? Walk ${r.stepGoal} steps instead.`;
-  if (r.method === 'scan')
-    return getScanCode()
-      ? `Lost the code? Walk ${r.stepGoal} steps instead.`
-      : `No code yet, so mornings are ${r.stepGoal} steps until you set one up. Not from bed: in the day.`;
-  return 'Have stairs? Going down one floor is quicker, and harder to fake.';
 }
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter },
   night: { marginBottom: Gap.section, gap: Space.l },
+  // Home's headline ("Bedtime in 3h 28m"): large and light (user's ask, October 9, 2026).
+  title: { ...APP_FONT, color: Nocturne.text, fontSize: 38, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6, textAlign: 'center' },
 
-  wake: { marginBottom: Gap.block },
-  voice: {
-    ...DisplayFont,
-    ...italicOverhang(VoiceSize.aside + 6),
-    color: Nocturne.text,
-    fontSize: VoiceSize.aside + 6,
-    lineHeight: (VoiceSize.aside + 6) * 1.1,
-  },
+  // A section label under the one page title, not a second title (centred, user's preference).
+  // Home's line under the headline, and Loc's quieter line under that.
+  section: { ...APP_FONT, ...Type.body, color: Nocturne.text2, textAlign: 'center', marginBottom: Space.m },
+  hint: { ...APP_FONT, ...Type.secondary, color: Nocturne.text3, textAlign: 'center', marginTop: -Space.s },
 
+  pendingCard: { marginBottom: Gap.section },
   pending: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Space.m,
     padding: Space.l,
-    marginBottom: Gap.section,
-    borderRadius: Radius.card,
-    borderCurve: 'continuous',
-    backgroundColor: Nocturne.raised,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
   },
   // Centres the icon on the first line of text.
   pendingIcon: { marginTop: 2 },
   pendingText: { flex: 1, color: Nocturne.text, ...Type.secondary },
   undo: { color: Nocturne.text, fontSize: 15, fontWeight: '600', lineHeight: 20 },
 
-  preview: { ...Type.caption, color: Nocturne.text3, textAlign: 'center' },
 });

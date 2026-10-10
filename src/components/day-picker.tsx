@@ -17,6 +17,8 @@ const DAYS = [
 ];
 
 const ALL = DAYS.map((_, i) => i);
+/** Shown Sunday first, like Home's week (user's ask, October 9, 2026); stored Monday first. */
+const SHOWN = [6, 0, 1, 2, 3, 4, 5];
 
 /**
  * Seven nights to tap on or off. The count of picked nights is the answer. Copied from
@@ -51,7 +53,8 @@ export function DayPicker({ value, onChange }: { value: number[]; onChange: (day
         </Pressable>
       </View>
       <View style={styles.row}>
-        {DAYS.map((day, i) => {
+        {SHOWN.map((i) => {
+          const day = DAYS[i];
           const on = value.includes(i);
           return (
             <Pressable
@@ -96,31 +99,35 @@ const styles = StyleSheet.create({
   letter: { color: Nocturne.text2, fontSize: 17, fontWeight: '600' },
   letterOn: { color: Nocturne.onCta },
 
-  strip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: Space.s,
-    borderRadius: 999,
-    backgroundColor: Nocturne.surface,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-  },
+  strip: { flexDirection: 'row', justifyContent: 'space-between' },
+  stripCol: { alignItems: 'center', gap: 6 },
+  // Garmin's sleep-schedule row: off nights are a hairline ring, on nights a solid disc in the
+  // same near-white as the CTA and DayPicker, so a picked night reads at a glance.
   stripDay: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Nocturne.raised,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: Nocturne.edge,
   },
+  stripDayOn: { backgroundColor: Nocturne.cta, borderColor: Nocturne.cta },
+  stripLetterOn: { color: Nocturne.onCta },
   stripLetter: { color: Nocturne.text2, fontSize: 15, fontWeight: '600' },
 });
 
 /**
- * The same seven nights as one pill-shaped strip (user's reference, 2026-10-08): every day a
- * circle, picked ones filled. Sits under the Routine tab's dial and saves on each tap.
+ * The same seven nights as a bare row of rings (user's reference, Garmin Connect's sleep
+ * schedule, 2026-10-09): off nights outlined, on nights filled. No dot under tonight (removed
+ * at the user's ask, October 9, 2026); VoiceOver still hears which one is tonight.
+ * Sits under the Routine tab's dial and saves on each tap.
  */
 export function DayStrip({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
+  // Reads the clock for tonight's label, so the React Compiler mustn't cache it from the first render.
+  'use no memo';
+  // Monday first, like DAYS: getDay() is Sunday first.
+  const tonight = (new Date().getDay() + 6) % 7;
   const toggle = (day: number) => {
     haptic.tap();
     onChange(value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort((a, b) => a - b));
@@ -128,22 +135,25 @@ export function DayStrip({ value, onChange }: { value: number[]; onChange: (days
 
   return (
     <View style={styles.strip} accessibilityLabel="Nights">
-      {DAYS.map((day, i) => {
+      {SHOWN.map((i) => {
+        const day = DAYS[i];
         const on = value.includes(i);
+        const isTonight = i === tonight;
         return (
-          <Pressable
-            key={day.name}
-            onPress={() => toggle(i)}
-            accessibilityRole="checkbox"
-            accessibilityLabel={`${day.name} night`}
-            accessibilityState={{ checked: on }}
-            hitSlop={4}
-            style={({ pressed }) => [styles.stripDay, on && styles.dayOn, pressed && styles.pressed]}
-          >
-            <Text style={[styles.stripLetter, on && styles.letterOn]} maxFontSizeMultiplier={1.2}>
-              {day.letter}
-            </Text>
-          </Pressable>
+          <View key={day.name} style={styles.stripCol}>
+            <Pressable
+              onPress={() => toggle(i)}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`${day.name} night${isTonight ? ', tonight' : ''}`}
+              accessibilityState={{ checked: on }}
+              hitSlop={4}
+              style={({ pressed }) => [styles.stripDay, on && styles.stripDayOn, pressed && styles.pressed]}
+            >
+              <Text style={[styles.stripLetter, on && styles.stripLetterOn]} maxFontSizeMultiplier={1.2}>
+                {day.letter}
+              </Text>
+            </Pressable>
+          </View>
         );
       })}
     </View>

@@ -6,7 +6,7 @@ import type { NativeNightDialProps } from './NightDial.types';
 export type { NativeNightDialProps };
 
 /** Height under the dial for the bedtime and morning-start columns. Matches `rowHeight` in Swift. */
-export const NIGHT_DIAL_ROW = 98;
+export const NIGHT_DIAL_ROW = 72;
 
 /**
  * False on a development build made before this module existed: its JS loads over Metro,

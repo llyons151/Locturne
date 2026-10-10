@@ -1,6 +1,7 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { GlassCard } from '@/components/glass-card';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,7 +22,7 @@ export function Section({ label, footer, children }: { label?: string; footer?: 
   return (
     <View style={styles.section}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={styles.group}>{children}</View>
+      <GlassCard dark>{children}</GlassCard>
       {footer ? <Text style={styles.footer}>{footer}</Text> : null}
     </View>
   );
@@ -39,22 +40,25 @@ export function Card({
   warn,
   children,
 }: {
-  icon: Symbol;
-  title: string;
+  /** Left out with `title` when the rows carry their own icons, as in a pick-one list. */
+  icon?: Symbol;
+  title?: string;
   footer?: string;
   /** An edge in grey instead of the hairline: something here needs fixing. */
   warn?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <View style={[styles.card, warn && styles.cardWarn]}>
-      <View style={styles.cardHeader} accessible accessibilityRole="header">
-        <SymbolView name={icon} size={15} weight="semibold" tintColor={Nocturne.accent ?? Nocturne.text} />
-        <Text style={styles.cardTitle}>{title}</Text>
-      </View>
+    <GlassCard dark rim={warn ? Nocturne.text2 : undefined} style={styles.card}>
+      {icon && title ? (
+        <View style={styles.cardHeader} accessible accessibilityRole="header">
+          <SymbolView name={icon} size={15} weight="semibold" tintColor={Nocturne.accent ?? Nocturne.text} />
+          <Text style={styles.cardTitle}>{title}</Text>
+        </View>
+      ) : null}
       {children}
       {footer ? <Text style={styles.cardFooter}>{footer}</Text> : null}
-    </View>
+    </GlassCard>
   );
 }
 
@@ -129,16 +133,24 @@ export function ValueRow({
   );
 }
 
-/** A row in a pick-one list: title, a grey detail line, and a checkmark when chosen. */
+/**
+ * A row in a pick-one list: title, a grey detail line, and a checkmark when chosen. Given an
+ * icon, it takes the larger form: the icon on a rounded tile and a radio instead of the check.
+ */
 export function ChoiceRow({
+  icon,
   title,
   detail,
   selected,
   onPress,
   last,
+  badge,
 }: {
+  icon?: Symbol;
   title: string;
   detail?: string;
+  /** A small tag beside the title: "Recommended". */
+  badge?: string;
   selected: boolean;
   onPress: () => void;
   last?: boolean;
@@ -151,14 +163,34 @@ export function ChoiceRow({
       }}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      style={({ pressed }) => [styles.choice, pressed && styles.rowPressed]}
+      style={({ pressed }) => [styles.choice, icon && styles.tileChoice, pressed && styles.rowPressed]}
     >
-      <View style={[styles.choiceBody, !last && styles.separator]}>
+      {icon ? (
+        <View style={[styles.tile, selected && styles.tileOn]}>
+          <SymbolView name={icon} size={17} tintColor={selected ? Nocturne.onCta : Nocturne.text} />
+        </View>
+      ) : null}
+      <View style={[styles.choiceBody, icon && styles.tileChoiceBody, !last && styles.separator]}>
         <View style={styles.choiceText}>
-          <Text style={styles.title}>{title}</Text>
+          {badge ? (
+            <View style={styles.badgeRow}>
+              <Text style={[styles.title, styles.badgeTitle]} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={styles.badge}>{badge}</Text>
+            </View>
+          ) : (
+            <Text style={styles.title}>{title}</Text>
+          )}
           {detail ? <Text style={styles.detail}>{detail}</Text> : null}
         </View>
-        {selected ? (
+        {icon ? (
+          <SymbolView
+            name={selected ? sym('largecircle.fill.circle', 'radio_button_checked') : sym('circle', 'radio_button_unchecked')}
+            size={22}
+            tintColor={selected ? Nocturne.text : Nocturne.text3}
+          />
+        ) : selected ? (
           <SymbolView name={sym('checkmark', 'check')} size={16} weight="semibold" tintColor={Nocturne.text} />
         ) : null}
       </View>
@@ -218,31 +250,16 @@ export function EditSheet({
 const styles = StyleSheet.create({
   section: { marginBottom: Gap.section },
   label: { ...Type.label, marginLeft: Space.l, marginBottom: Space.s },
-  group: {
-    borderRadius: Radius.card,
-    backgroundColor: Nocturne.surface,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-    overflow: 'hidden',
-  },
   footer: { ...Type.caption, color: Nocturne.text2, marginHorizontal: Space.l, marginTop: Space.s },
 
-  card: {
-    marginBottom: Space.l,
-    borderRadius: Radius.card,
-    borderCurve: 'continuous',
-    backgroundColor: Nocturne.surface,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-    overflow: 'hidden',
-  },
-  cardWarn: { borderColor: Nocturne.text2 },
+  // Smoked glass, like the Apps tab's lists: the sky shows through instead of flat grey.
+  card: { marginBottom: Space.l },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l, paddingTop: Space.l, paddingBottom: Space.xs },
   cardTitle: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
   cardFooter: { ...Type.caption, color: Nocturne.text2, paddingHorizontal: Space.l, paddingBottom: Space.l },
 
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: Space.l },
-  rowPressed: { backgroundColor: Nocturne.raised },
+  rowPressed: { backgroundColor: Nocturne.frost },
   icon: { width: 22, marginRight: 14 },
   // The separator starts at the title, not the icon, as in Settings.
   rowBody: {
@@ -271,6 +288,36 @@ const styles = StyleSheet.create({
     paddingRight: Space.l,
   },
   choiceText: { flex: 1, gap: 2 },
+  // The title never breaks for the badge: on a narrow row the badge wraps under it instead.
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: Space.s, rowGap: Space.xs },
+  // Its own width: `title`'s flex: 1 starts it at zero, which no-shrink would keep (and hide).
+  badgeTitle: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+  badge: {
+    ...Type.caption,
+    fontSize: 12,
+    color: Nocturne.text2,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: Nocturne.frost,
+  },
+  // The tile sits beside the text; the separator starts at the text, as in Settings.
+  tileChoice: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // Takes the row's remaining width, so the detail wraps instead of running off the card.
+  tileChoiceBody: { flex: 1 },
+  // The picked row's tile goes solid white, like a picked day in the week row.
+  tileOn: { backgroundColor: Nocturne.cta },
+  tile: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+    // Frosted white, part of the glass, not a grey square on it.
+    backgroundColor: Nocturne.frost,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   detail: { ...Type.secondary, color: Nocturne.text2 },
 
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },

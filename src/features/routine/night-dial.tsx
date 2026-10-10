@@ -35,13 +35,15 @@ const KNOB = BAND;
 const GRAB = 30;
 /** How far either side of the ring a touch still grabs the night. */
 const RING_GRAB = BAND / 2 + 8;
-/** Every two hours; the four quarters carry am/pm. */
+/** Every two hours; the four quarters sit brighter, and only midnight and noon carry am/pm. */
 const LABELS = Array.from({ length: 12 }, (_, i) => {
   const h = i * 2;
-  const text = h % 6 ? String(h % 12 || 12) : `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`;
+  const text = h % 12 ? String(h % 12 || 12) : `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
   return { m: h * 60, text, quarter: h % 6 === 0 };
 });
 const LABEL_W = 44;
+/** The dial's largest size: 260 (from 300) so the wake-up methods start on the first screen. */
+const DIAL_MAX = 260;
 
 type Part = 'bed' | 'wake' | 'night';
 type Drag = {
@@ -66,6 +68,20 @@ const turn = (a: number, b: number) => ((b - a + DAY * 1.5) % DAY) - DAY / 2;
 function point(m: number, r: number, c: number) {
   const a = (m / DAY) * Math.PI * 2;
   return { x: c + r * Math.sin(a), y: c - r * Math.cos(a) };
+}
+
+/**
+ * Home's type (user's ask, October 9, 2026): "11 pm", "8 hrs" with the number heavy and the
+ * unit after the last space regular and dimmer, like "7 mornings".
+ */
+function ValueUnit({ text, style, unitStyle }: { text: string; style: object; unitStyle: object }) {
+  const at = text.lastIndexOf(' ');
+  return (
+    <Text style={style} maxFontSizeMultiplier={1.3}>
+      {at < 0 ? text : text.slice(0, at)}
+      {at < 0 ? null : <Text style={unitStyle}>{text.slice(at)}</Text>}
+    </Text>
+  );
 }
 
 /** "8 hrs", "7½ hrs", "45 min". */
@@ -94,9 +110,9 @@ export function NightDial(props: Props) {
 }
 
 function SwiftNightDial({ bedtime, morningStart, nightsLabel, off, onChange }: Props) {
-  const [size, setSize] = useState(300);
+  const [size, setSize] = useState(DIAL_MAX);
   return (
-    <View style={styles.wrap} onLayout={(e) => setSize(Math.min(300, Math.round(e.nativeEvent.layout.width)) || 300)}>
+    <View style={styles.wrap} onLayout={(e) => setSize(Math.min(DIAL_MAX, Math.round(e.nativeEvent.layout.width)) || DIAL_MAX)}>
       <NativeNightDial
         bedtime={bedtime}
         morningStart={morningStart}
@@ -112,15 +128,14 @@ function SwiftNightDial({ bedtime, morningStart, nightsLabel, off, onChange }: P
         onChange={onChange}
         style={{ alignSelf: 'stretch', height: size + NIGHT_DIAL_ROW }}
       />
-      <Text style={styles.hint}>Drag the moon or sun to change a time, or the night to move both.</Text>
     </View>
   );
 }
 
 /** Web, Android, and dev builds made before the Swift dial: the same dial in SVG. */
 function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scrollRef }: Props) {
-  // As wide as the column allows, up to 300 (measured: the window can read 0 on web's first render).
-  const [size, setSize] = useState(300);
+  // As wide as the column allows, up to DIAL_MAX (measured: the window can read 0 on web's first render).
+  const [size, setSize] = useState(DIAL_MAX);
   const c = size / 2;
   const r = c - BAND / 2;
 
@@ -219,7 +234,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
   const knob = (part: 'bed' | 'wake') => {
     const m = part === 'bed' ? bed : wake;
     const p = point(m, r, c);
-    const title = part === 'bed' ? 'Bedtime' : 'Morning start';
+    const title = part === 'bed' ? 'Bedtime' : 'Wake-up';
     return (
       <View
         key={part}
@@ -247,7 +262,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
   };
 
   return (
-    <View style={styles.wrap} onLayout={(e) => setSize(Math.min(300, Math.round(e.nativeEvent.layout.width)) || 300)}>
+    <View style={styles.wrap} onLayout={(e) => setSize(Math.min(DIAL_MAX, Math.round(e.nativeEvent.layout.width)) || DIAL_MAX)}>
       <GestureDetector gesture={pan}>
         <View style={{ width: size, height: size }} collapsable={false}>
           <Svg width={size} height={size} pointerEvents="none">
@@ -274,9 +289,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
             );
           })}
           <View style={styles.centre} pointerEvents="none">
-            <Text style={styles.length} maxFontSizeMultiplier={1.2}>
-              {off ? 'Off' : length(night)}
-            </Text>
+            <ValueUnit text={off ? 'Off' : length(night)} style={styles.length} unitStyle={styles.lengthUnit} />
             <Text style={styles.nights} maxFontSizeMultiplier={1.2}>
               {nightsLabel}
             </Text>
@@ -286,21 +299,23 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
         </View>
       </GestureDetector>
 
+      {/* Like the Swift dial's columns: the time, then its symbol beside what it is, centred. */}
       <View style={styles.times}>
         <View style={styles.time}>
-          <Text style={styles.timeLabel}>Bedtime</Text>
-          <Text style={styles.timeValue} maxFontSizeMultiplier={1.3}>
-            {formatPreset(bed)}
-          </Text>
+          <ValueUnit text={formatPreset(bed)} style={styles.timeValue} unitStyle={styles.timeUnit} />
+          <View style={styles.timeName}>
+            <SymbolView name={sym('moon.fill', 'bedtime')} size={13} tintColor={Nocturne.text2} />
+            <Text style={styles.timeLabel}>Bedtime</Text>
+          </View>
         </View>
-        <View style={[styles.time, styles.timeEnd]}>
-          <Text style={styles.timeLabel}>Morning start</Text>
-          <Text style={styles.timeValue} maxFontSizeMultiplier={1.3}>
-            {formatPreset(wake)}
-          </Text>
+        <View style={styles.time}>
+          <ValueUnit text={formatPreset(wake)} style={styles.timeValue} unitStyle={styles.timeUnit} />
+          <View style={styles.timeName}>
+            <SymbolView name={sym('sunrise.fill', 'wb_twilight')} size={13} tintColor={Nocturne.text2} />
+            <Text style={styles.timeLabel}>Wake-up</Text>
+          </View>
         </View>
       </View>
-      <Text style={styles.hint}>Drag the moon or sun to change a time, or the night to move both.</Text>
     </View>
   );
 }
@@ -308,7 +323,8 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
   centre: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  length: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 34, lineHeight: 40, fontVariant: ['tabular-nums'] },
+  length: { ...NUMBER_FONT, fontWeight: '800', color: Nocturne.text, fontSize: 34, lineHeight: 40, fontVariant: ['tabular-nums'] },
+  lengthUnit: { fontSize: 20, fontWeight: '400', color: Nocturne.text2 },
   number: {
     position: 'absolute',
     width: LABEL_W,
@@ -320,7 +336,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   quarter: { color: Nocturne.text2, fontWeight: '600' },
-  nights: { ...Type.label, fontSize: 11, color: Nocturne.text2, marginTop: 2 },
+  nights: { ...Type.caption, color: Nocturne.text2, marginTop: 2 },
 
   knob: {
     position: 'absolute',
@@ -333,9 +349,9 @@ const styles = StyleSheet.create({
   knobHeld: { transform: [{ scale: 1.1 }] },
 
   times: { flexDirection: 'row', alignSelf: 'stretch', marginTop: Space.l },
-  time: { flex: 1, gap: 2 },
-  timeEnd: { alignItems: 'flex-end' },
-  timeLabel: { ...Type.label, fontSize: 11 },
-  timeValue: { color: Nocturne.text, fontSize: 24, lineHeight: 30, fontWeight: '700', letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
-  hint: { ...Type.caption, color: Nocturne.text3, alignSelf: 'stretch', marginTop: Space.s },
+  time: { flex: 1, alignItems: 'center', gap: 2 },
+  timeName: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  timeLabel: { ...Type.secondary, color: Nocturne.text2 },
+  timeValue: { ...NUMBER_FONT, fontWeight: '800', color: Nocturne.text, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
+  timeUnit: { fontSize: 16, fontWeight: '400', color: Nocturne.text2 },
 });
