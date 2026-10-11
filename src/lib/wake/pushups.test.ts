@@ -14,6 +14,7 @@ import {
   PUSHUPS,
   readFrame,
   repProgress,
+  repsDoneFor,
   retarget,
   startPushups,
   tick,
@@ -149,6 +150,27 @@ describe('push-up session', () => {
     const s = feed(startPushups(0), 0, [165, 165, [150, 0.05], [130, 0.2], [125, 0.3], [125, 0.3], [130, 0.2], 155, 165]);
     assert.equal(s.reps, 0);
     assert.equal(s.miss, 'shallow');
+  });
+
+  test('a missed rep never takes any back: the count is the total', () => {
+    const HALF: (number | [number, number])[] = [165, [150, 0.05], [130, 0.2], [125, 0.3], [125, 0.3], [130, 0.2], 155, 165];
+    let s = feed(startPushups(0), 0, [...REP, ...REP]);
+    assert.equal(s.reps, 2);
+    s = feed(s, 2_000, HALF);
+    assert.equal(s.reps, 2);
+    assert.equal(s.miss, 'shallow');
+    s = feed(s, 3_000, REP);
+    assert.equal(s.reps, 3);
+    assert.equal(s.miss, null);
+  });
+
+  test("this morning's saved reps carry on; another morning's or a bad record don't", () => {
+    assert.equal(repsDoneFor({ morning: '2026-10-11', reps: 6 }, '2026-10-11'), 6);
+    assert.equal(repsDoneFor({ morning: '2026-10-10', reps: 6 }, '2026-10-11'), 0);
+    assert.equal(repsDoneFor({ morning: '2026-10-11', reps: NaN }, '2026-10-11'), 0);
+    assert.equal(repsDoneFor({ morning: '2026-10-11', reps: 6 }, undefined), 0);
+    assert.equal(repsDoneFor(undefined, '2026-10-11'), 0);
+    assert.equal(startPushups(0, 10, { reps: repsDoneFor({ morning: 'm', reps: 6 }, 'm') }).reps, 6);
   });
 
   test('bent elbows with the shoulders barely moving count nothing and say nothing (camera jitter)', () => {
@@ -360,7 +382,7 @@ describe('push-up lines', () => {
 
   test('timed out says how many are left once some are done', () => {
     assert.equal(pushupsLine('timedOut', 0, 10, null), 'Ten minutes and no push-ups. Start again.');
-    assert.equal(pushupsLine('timedOut', 6, 10, null), 'Ten quiet minutes. 4 left. Start again.');
+    assert.equal(pushupsLine('timedOut', 6, 10, null), 'Ten quiet minutes. 4 left. Keep going.');
   });
 
   test('the spoken count', () => {

@@ -161,6 +161,15 @@ export function startPushups(
   };
 }
 
+/** The reps saved for a morning: what counts is the total, so closing the camera and coming back carries on. */
+export type RepsDone = { morning: string; reps: number };
+
+/** This morning's saved reps, 0 for another morning's or a bad record. */
+export function repsDoneFor(saved: RepsDone | null | undefined, morning: string | undefined): number {
+  if (!saved || morning === undefined || saved.morning !== morning || !Number.isFinite(saved.reps)) return 0;
+  return Math.max(0, Math.floor(saved.reps));
+}
+
 /**
  * The goal changed while the camera is up (the routine in force changed under it): keep the
  * reps done and measure them against the new goal, met if they already are. A finished set stays

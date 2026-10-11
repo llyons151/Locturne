@@ -128,6 +128,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
           target={(pretend && preview.goal) || pushupGoalOf(routine)}
           onMet={onPushups}
           onSteps={() => switchTo('steps')}
+          morning={pretend ? undefined : lock.morningKey}
           footer={scan}
           preview={pretend ? preview : undefined}
         />

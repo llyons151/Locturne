@@ -13,6 +13,7 @@ import * as haptic from '@/lib/haptics';
 import { pushupsLine, spokenRep } from '@/lib/wake/lines';
 import type { PhoneHint } from '@/lib/wake/phone-hint';
 import { PUSHUPS, repProgress, type PushupsSession } from '@/lib/wake/pushups';
+import { getRepsDone } from '@/lib/wake/pushups-done';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { hush, isPoseCameraAvailable, PoseCameraView, say, type PoseCameraError } from '../../../modules/pose-camera';
@@ -49,9 +50,12 @@ export function PushupsView({
   onSteps,
   footer,
   preview,
+  morning,
 }: {
   /** The step goal, for "walk instead". */
   goal: number;
+  /** The real morning's key, so its push-up total is kept across closing the camera. None in the wake lab. */
+  morning?: string;
   /** The wake lab only (You → Developer → Push-up preview): forced states and a pretend body. Never the real morning. */
   preview?: PushupsPreview;
   /** Push-ups to do: the routine's `pushupGoal`. */
@@ -78,6 +82,8 @@ export function PushupsView({
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
   const instead = `Walk ${goal} steps instead`;
+  // Read each render: closing the camera re-renders this page with the total so far.
+  const done = getRepsDone(morning);
   // Screen Time or a profile keeps the camera off; Settings can't change that, so only walking is offered.
   const restricted = access === 'restricted' || failed === 'restricted';
 
@@ -121,7 +127,9 @@ export function PushupsView({
         <Body>
           {denied
             ? 'Camera access is off for Locturne, so I can’t count push-ups. Turn it on in Settings.'
-            : `Lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${target} push-ups. I count out loud.`}
+            : `Lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
+                done > 0 ? `${Math.max(0, target - done)} more push-ups; you've done ${done}` : `${target} push-ups`
+              }. I count out loud.`}
         </Body>
       </View>
 
@@ -144,6 +152,7 @@ export function PushupsView({
       {open ? (
         <PushupsCamera
           target={target}
+          morning={morning}
           instead={instead}
           preview={preview}
           onMet={() => {
@@ -264,8 +273,10 @@ function PushupsCamera({
   onClose,
   onError,
   preview,
+  morning,
 }: {
   target: number;
+  morning?: string;
   instead: string;
   preview?: PushupsPreview;
   onMet: () => void;
@@ -275,8 +286,7 @@ function PushupsCamera({
 }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined);
-  const again = () => start(true);
+  const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning);
   // Smaller on an SE, so the count leaves room for you in the picture.
   const short = height < 700;
   const [quiet, setQuiet] = useState(false);
@@ -438,7 +448,7 @@ function PushupsCamera({
           <View style={styles.actions}>
             {timedOut ? (
               // The reps done stay: a long set with a break in it carries on from where it was.
-              <PrimaryButton label="Start again" onPress={again} />
+              <PrimaryButton label={reps > 0 ? 'Keep going' : 'Start again'} onPress={start} />
             ) : (
               <TextButton label={quiet ? 'Count out loud' : 'Count quietly'} onPress={() => setQuiet((q) => !q)} />
             )}
