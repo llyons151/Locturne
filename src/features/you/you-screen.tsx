@@ -34,10 +34,12 @@ import { getTone, setTone, type Tone } from '@/lib/tone';
 import { getPassesLeft } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { getScanCode } from '@/lib/scan';
-import { DISPLAY_MAX_SCALE, Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
+import { APP_FONT, DISPLAY_MAX_SCALE, Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
 
 import { morningsLabel } from '@/features/home/week';
 import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
+
+import { PushupsPreviewCard } from '@/features/dev/wake-lab/pushups-preview-card';
 
 import { refusal, SIGN_OFF } from './fire-loc';
 import { LocCard } from './loc-card';
@@ -332,6 +334,22 @@ export function YouScreen() {
           <Card>
             <ValueRow icon={sym('hammer.fill', 'build')} title="Screen Time lab" value="" onPress={() => router.push('/screen-time-lab')} last />
           </Card>
+          {/* Each wake-up method's real flow at any hour; a pass records nothing (features/dev/wake-lab). */}
+          <Card>
+            <ValueRow icon={sym('figure.walk', 'directions_walk')} title="Test walk steps" value="" onPress={() => router.push('/wake-lab?method=steps')} />
+            <ValueRow icon={sym('figure.stairs', 'stairs')} title="Test go downstairs" value="" onPress={() => router.push('/wake-lab?method=downstairs')} />
+            <ValueRow icon={sym('barcode.viewfinder', 'barcode_scanner')} title="Test scan a code" value="" onPress={() => router.push('/wake-lab?method=scan')} />
+            <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Test get to a place" value="" onPress={() => router.push('/wake-lab?method=place')} />
+            <ValueRow
+              icon={sym('figure.strengthtraining.functional', 'fitness_center')}
+              title="Test push-ups"
+              value=""
+              onPress={() => router.push('/wake-lab?method=pushups')}
+              last
+            />
+          </Card>
+          {/* Every state of the push-ups screen, with a pretend body, for the browser (features/dev/wake-lab). */}
+          <PushupsPreviewCard />
         </>
       ) : null}
 
@@ -390,6 +408,17 @@ const styles = StyleSheet.create({
   // The version and his line, a section's gap either side (cards keep Space.l under them), then Fire Loc last.
   signOff: { color: Nocturne.text3, ...Type.caption, textAlign: 'center', marginTop: Gap.section - Space.l, marginBottom: Gap.section },
 
-  // Title-case group headings outside the cards, like the reference's "General".
-  heading: { color: Nocturne.text2, fontSize: 20, fontWeight: '700', marginLeft: Space.xs, marginTop: Space.s, marginBottom: Space.s },
+  // Group headings outside the cards, in the app's large light titles (Routine's title, Apps'
+  // Bedtime | Limits; user, 2026-10-10), a size down since there are several on the page.
+  heading: {
+    ...APP_FONT,
+    color: Nocturne.text,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '300',
+    letterSpacing: -0.5,
+    marginLeft: Space.xs,
+    marginTop: Space.s,
+    marginBottom: Space.s,
+  },
 });

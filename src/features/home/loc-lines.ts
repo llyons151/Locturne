@@ -62,6 +62,7 @@ const POKE: Partial<Record<LocMood, Pool>> = {
     ],
     unbearable: [
       `${FRIEND} was right about you.`,
+      `%$#@ ${FRIEND.toUpperCase()}.`,
       'I AM DOOM.',
       'I will eat your dad. And his car.',
       'Your parakeet’s eggs are mine now.',
@@ -284,10 +285,108 @@ const BIRTHDAY: Pool = {
 };
 export const isLocBirthday = (now: Date) => now.getMonth() === 8 && now.getDate() === 23;
 
+/**
+ * Movie and TV lines, bent to fit a raccoon (user, October 10, 2026: "lines that appear across
+ * all different loc tones", "really funny movie and tv show quotes"). The same in every tone, and
+ * said only now and then (`QUOTE_CHANCE`) so they land as a surprise. A few words, never a scene.
+ */
+const QUOTE_CHANCE = 1 / 5;
+
+const QUOTES = {
+  poke: {
+    awake: [
+      'Say hello to my little paw.', // Scarface
+      'You talkin’ to me?', // Taxi Driver
+      'I’m in danger.', // The Simpsons
+      'Why are you the way that you are?', // The Office
+      'SQUIRREL!', // Up
+      'Is mayonnaise an instrument?', // SpongeBob
+      'Nobody puts Loc in a corner.', // Dirty Dancing
+      'My name is Loc. You poked my father. Prepare to die.', // The Princess Bride
+      'I have a very particular set of skills. Mostly bins.', // Taken
+      'I am inevitable.', // Avengers: Endgame
+      'Cool cool cool cool cool. No doubt no doubt.', // Brooklyn Nine-Nine
+      'No soup for you.', // Seinfeld
+      'You are a sad, strange little man.', // Toy Story
+      'Nobody expects the raccoon inquisition.', // Monty Python
+      'Raccoons are like onions. We make you cry.', // Shrek
+      'I am speed. I am soup.', // Cars
+    ],
+    groggy: [
+      'Stop trying to make mornings happen.', // Mean Girls
+      'I’m not even supposed to be here today.', // Clerks
+      'I’m ready! I’m ready! I’m not ready.', // SpongeBob
+      'Wake up, Neo. Actually, don’t.', // The Matrix
+    ],
+    asleep: [
+      'You shall not scroll.', // The Lord of the Rings
+      'Go sleep with the fishes.', // The Godfather
+      'Bedtime is coming.', // Game of Thrones
+    ],
+  },
+  angry: [
+    'WHAT ARE YOU DOING IN MY SWAMP.', // Shrek
+    'MY CABBAGES!', // Avatar: The Last Airbender
+    'WE WERE ON A BREAK.', // Friends
+    'Your mother was a hamster.', // Monty Python and the Holy Grail
+    'No, God! Please, no! NOOOOO!', // The Office
+    'I drink your milkshake.', // There Will Be Blood
+    'You’ve made a huge mistake.', // Arrested Development
+    'Some of you may die. A sacrifice I’m willing to make.', // Shrek
+    'I’ll be back.', // The Terminator
+  ],
+  hello: {
+    awake: [
+      'Hello there.', // Star Wars
+      'How you doin’?', // Friends
+      'Hi Barbie.', // Barbie
+      'Hello, Clarice.', // The Silence of the Lambs
+      'Look at me. I’m the captain now.', // Captain Phillips
+      'Everything the moon touches is my trash.', // The Lion King
+    ],
+    groggy: [
+      'Good morning! And in case I don’t see ya, good night.', // The Truman Show
+      'Bueller? Bueller?', // Ferris Bueller's Day Off
+      'It’s Groundhog Day. Again.', // Groundhog Day
+    ],
+  },
+  late: [
+    'We all scroll down here.', // It
+    'They’re heeere.', // Poltergeist
+    'Heeere’s Loccy!', // The Shining
+  ],
+  bedtimeSoon: [
+    'One does not simply put down the phone.', // The Lord of the Rings
+    'Brace yourself. Bedtime is coming.', // Game of Thrones
+  ],
+  appsAsleep: [
+    'I see dead apps.', // The Sixth Sense
+    'These aren’t the apps you’re looking for.', // Star Wars
+    'Leave the phone. Take the cannoli.', // The Godfather
+  ],
+  wakeDone: [
+    'Ka-chow.', // Cars
+    'Houston, we have a morning.', // Apollo 13
+    'Yes, chef.', // The Bear
+  ],
+  streak: [
+    'SERENITY NOW!', // Seinfeld
+    'I DECLARE BANKRUPTCY.', // The Office
+    'NOT THE BEES!', // The Wicker Man
+    'Somebody stop me!', // The Mask
+  ],
+  birthday: ['It’s my birthday. Treat yo self.'], // Parks and Recreation
+} satisfies Record<string, readonly string[] | Partial<Record<LocMood, readonly string[]>>>;
+
+/** One of his lines from `pool`, or now and then a movie or TV line from `quotes`. */
+function say(pool: readonly string[], quotes: readonly string[] | undefined, random: () => number): string {
+  return quotes?.length && random() < QUOTE_CHANCE ? draw(quotes, random) : draw(pool, random);
+}
+
 /** His line for a moment Home told him about, a poke streak, or his birthday. */
 export function locSpecial(kind: LocMoment['kind'] | 'streak' | 'birthday', tone: Tone, random: () => number = Math.random): string {
   const pool = kind === 'streak' ? STREAK : kind === 'birthday' ? BIRTHDAY : MOMENTS[kind];
-  return draw(pool[tone], random);
+  return say(pool[tone], QUOTES[kind], random);
 }
 
 /** How often he says hello when you come back to Home: rarely enough to stay a surprise. */
@@ -315,5 +414,14 @@ function draw(pool: readonly string[], random: () => number): string {
 export function locLine(cue: LocCue, mood: LocMood, tone: Tone, hour = 12, random: () => number = Math.random): string | null {
   const late = cue === 'hello' && hour >= 1 && hour < 5;
   const pool = cue === 'poke' ? POKE[mood] : cue === 'angry' ? ANGRY : late ? LATE : cue === 'hello' ? HELLO[mood] : undefined;
-  return pool ? draw(pool[tone], random) : null;
+  if (!pool) return null;
+  const quotes =
+    cue === 'poke'
+      ? (QUOTES.poke as Partial<Record<LocMood, readonly string[]>>)[mood]
+      : cue === 'angry'
+        ? QUOTES.angry
+        : late
+          ? QUOTES.late
+          : (QUOTES.hello as Partial<Record<LocMood, readonly string[]>>)[mood];
+  return say(pool[tone], quotes, random);
 }

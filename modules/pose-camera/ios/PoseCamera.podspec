@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
-  s.name           = 'Proximity'
+  s.name           = 'PoseCamera'
   s.version        = '1.0.0'
-  s.summary        = 'Push-ups: the proximity sensor, and Loc saying the count out loud.'
+  s.summary        = 'Push-ups: the front camera, Apple Vision body pose, and Loc saying the count out loud.'
   s.author         = 'Locturne'
   s.homepage       = 'https://github.com/llyons151/locturne'
   s.license        = 'MIT'
@@ -12,6 +12,10 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  s.frameworks = 'UIKit', 'AVFoundation'
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+  }
+
+  s.frameworks = 'UIKit', 'AVFoundation', 'Vision'
   s.source_files = "**/*.{h,m,swift}"
 end

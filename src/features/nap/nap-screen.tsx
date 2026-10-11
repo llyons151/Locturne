@@ -38,7 +38,6 @@ import {
   NUMBER_FONT,
   Space,
   Type,
-  VoiceSize,
 } from '@/theme';
 
 import { HoldButton } from '../../../modules/hold-button';

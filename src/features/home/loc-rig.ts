@@ -420,17 +420,22 @@ export class LocRig {
   private lumpX = 0;
   private lumpH = 0;
 
-  constructor(private canvas: HTMLCanvasElement, mood: LocMood, private reduced = false) {
+  /**
+   * `ink` is his body's colour, `#RRGGBB`: black on Home, in front of the moon; light where
+   * there's no moon behind him (the push-up camera's black strip). The pupils and the blanket
+   * stay black either way.
+   */
+  constructor(private canvas: HTMLCanvasElement, mood: LocMood, private reduced = false, ink = INK) {
     this.ctx = canvas.getContext('2d')!;
     this.gl = this.glCanvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: true, preserveDrawingBuffer: true });
-    this.setupGL();
+    this.setupGL(ink);
     this.mood = mood;
     Object.assign(this.cur, TARGET[mood], HIDDEN);
     Object.assign(this.goal, TARGET[mood], HIDDEN);
     this.lag = { tilt: this.cur.tilt, earL: this.cur.earL, earR: this.cur.earR, gazeTurn: 0 };
   }
 
-  private setupGL() {
+  private setupGL(ink: string) {
     const gl = this.gl;
     if (!gl) return;
     const m = buildMesh();
@@ -447,7 +452,7 @@ export class LocRig {
     const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
     const prog = gl.createProgram()!;
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p; attribute vec2 uv; uniform vec2 res; varying vec2 v; void main(){ v = uv; gl_Position = vec4(p.x / res.x * 2.0 - 1.0, 1.0 - p.y / res.y * 2.0, 0.0, 1.0); }'));
-    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; uniform sampler2D t; varying vec2 v; void main(){ float a = texture2D(t, v).a; gl_FragColor = vec4(0.0, 0.0, 0.0, a); }'));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; uniform sampler2D t; uniform vec3 ink; varying vec2 v; void main(){ float a = texture2D(t, v).a; gl_FragColor = vec4(ink * a, a); }'));
     gl.linkProgram(prog); gl.useProgram(prog);
     this.posBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuf); gl.bufferData(gl.ARRAY_BUFFER, NV * 8, gl.DYNAMIC_DRAW);
     const posLoc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(posLoc); gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
@@ -462,6 +467,8 @@ export class LocRig {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.resLoc = gl.getUniformLocation(prog, 'res');
+    const rgb = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(ink)?.slice(1).map((h) => parseInt(h, 16) / 255) ?? [0, 0, 0];
+    gl.uniform3f(gl.getUniformLocation(prog, 'ink'), rgb[0], rgb[1], rgb[2]);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearColor(0, 0, 0, 0);
   }

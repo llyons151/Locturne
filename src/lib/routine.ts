@@ -13,7 +13,7 @@ import { EXTENSION_SLACK_MS } from './wake/arming.ts';
 /**
  * The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. `place` is
  * "Leave the house": get to a place picked in the day (place.ts). `pushups`: ten on the floor,
- * counted by the proximity sensor (wake/pushups.ts).
+ * counted by the front camera (wake/pushups.ts).
  */
 export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups';
 

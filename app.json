@@ -119,7 +119,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Locturne uses the camera to scan your wake-up code in the morning. Nothing is recorded or saved.",
+          "cameraPermission": "Locturne uses the camera to scan your wake-up code, or to count your push-ups, in the morning. It looks on this phone; nothing is recorded or saved.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

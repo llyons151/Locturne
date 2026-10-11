@@ -50,6 +50,7 @@ import { NightDial } from './night-dial';
 import { nightsToWeekdays, weekdaysToNights } from './nights';
 import { applyRoutineEdit } from './apply-edit';
 import { pendingLine } from './pending-line';
+import { ShadowLoc } from './shadow-loc';
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
@@ -144,7 +145,7 @@ const methods = (
     value: 'pushups',
     icon: sym('figure.strengthtraining.functional', 'fitness_center'),
     title: `Do ${reps} push-ups`,
-    detail: 'Phone face-up on the floor',
+    detail: 'The camera counts them',
   },
 ];
 
@@ -177,6 +178,10 @@ export function RoutineScreen() {
   // Onboarding, or a bedtime passing, can change it while the tab is away, or while the app
   // sits in the background on this tab.
   useFocusEffect(useCallback(() => setLoaded(load()), []));
+  // TESTING (user, October 10, 2026): Loc in the dark plays on every visit while it's tried out.
+  const [visit, setVisit] = useState(0);
+  const [titleWidth, setTitleWidth] = useState(0);
+  useFocusEffect(useCallback(() => setVisit((n) => n + 1), []));
   // Home keeps the boundary timer alive while this tab is open: reload when it settles edits.
   useEffect(() => onLockChange(() => setLoaded(load())), []);
   useEffect(() => {
@@ -248,7 +253,13 @@ export function RoutineScreen() {
     >
       {/* The night on a 24-hour dial, as set (a waiting edit included), edited by dragging. */}
       <View style={styles.night}>
-        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+        <ShadowLoc visit={visit} titleWidth={titleWidth} />
+        <Text
+          style={styles.title}
+          onLayout={(e) => setTitleWidth(e.nativeEvent.layout.width)}
+          accessibilityRole="header"
+          maxFontSizeMultiplier={DISPLAY_MAX_SCALE}
+        >
           Routine
         </Text>
         <NightDial
@@ -349,7 +360,7 @@ const styles = StyleSheet.create({
   daysCard: { borderRadius: 999 },
   days: { paddingHorizontal: Space.m, paddingVertical: Space.s },
   // Home's headline ("Bedtime in 3h 28m"): large and light (user's ask, October 9, 2026).
-  title: { ...APP_FONT, color: Nocturne.text, fontSize: 38, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6, textAlign: 'center' },
+  title: { ...APP_FONT, color: Nocturne.text, fontSize: 38, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6, textAlign: 'center', alignSelf: 'center' },
 
   // A section label under the one page title, not a second title (centred, user's preference).
   // Home's line under the headline, and Loc's quieter line under that.

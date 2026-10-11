@@ -27,6 +27,7 @@ import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
+import { setPushupsPreview, usePushupsPreview } from '../dev/wake-lab/pushups-preview';
 import { awakeStatus } from './awake-status';
 import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
@@ -63,6 +64,9 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     method ?? (routine.method === 'steps' ? 'steps' : routine.method === 'pushups' ? 'pushups' : 'downstairs'),
   );
   const [unlocked, setUnlocked] = useState<LockState | null>(null);
+  // You → Developer's pretend morning: its fake bodies and forced states, and a pass that records nothing.
+  const preview = usePushupsPreview();
+  const pretend = preview.phase !== 'real';
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   // A morning nothing holds (after a lapse's last paid one) is day here, as on Home.
@@ -72,6 +76,12 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
 
   const onMet = useCallback(
     (kind: WakeMethodShown) => {
+      if (pretend) {
+        haptic.done();
+        setPushupsPreview({ phase: 'woke' });
+        setUnlocked({ ...readLock(), phase: 'day' });
+        return;
+      }
       const state = proveMorning(kind) ?? readLock();
       if (state.phase !== 'day') return; // bedtime came round, or the night was off
       haptic.done();
@@ -83,7 +93,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
         .then((ask) => (ask ? askForNotifications() : false))
         .catch(() => {});
     },
-    [],
+    [pretend],
   );
   const onSteps = useCallback(() => onMet('steps'), [onMet]);
   const onDownstairs = useCallback(() => onMet('downstairs'), [onMet]);
@@ -112,8 +122,15 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     content =
       shown === 'downstairs' && routine.method === 'downstairs' ? (
         <DownstairsView goal={routine.stepGoal} onMet={onDownstairs} onSteps={() => switchTo('steps')} footer={scan} />
-      ) : shown === 'pushups' && routine.method === 'pushups' ? (
-        <PushupsView goal={routine.stepGoal} target={pushupGoalOf(routine)} onMet={onPushups} onSteps={() => switchTo('steps')} footer={scan} />
+      ) : shown === 'pushups' && (routine.method === 'pushups' || pretend) ? (
+        <PushupsView
+          goal={routine.stepGoal}
+          target={(pretend && preview.goal) || pushupGoalOf(routine)}
+          onMet={onPushups}
+          onSteps={() => switchTo('steps')}
+          footer={scan}
+          preview={pretend ? preview : undefined}
+        />
       ) : (
         <StepsView
           goal={routine.stepGoal}
@@ -125,7 +142,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
               {routine.method === 'downstairs' && (
                 <TextButton label="Go downstairs instead" onPress={() => switchTo('downstairs')} />
               )}
-              {routine.method === 'pushups' && (
+              {(routine.method === 'pushups' || pretend) && (
                 <TextButton label="Do push-ups instead" onPress={() => switchTo('pushups')} />
               )}
               {scan}

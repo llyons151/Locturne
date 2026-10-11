@@ -391,8 +391,8 @@ export const METHOD_COPY: Record<
     commit: '10 push-ups to wake them.',
     offer: '10 push-ups. I’ll count every one, disappointed.',
     morning: [
-      { when: 'Start', what: 'Open me, tap Start, and carry me a few steps to the floor.' },
-      { when: 'Floor', what: 'Put me down face-up. 10 push-ups, chest over the screen. They wake up.' },
+      { when: 'Start', what: 'Open me, lean me on the floor two steps away, side-on to you.' },
+      { when: 'Floor', what: '10 push-ups where I can see you. I count. They wake up.' },
       { when: 'Not today', what: 'Arms not working? Walk 200 steps instead.' },
     ],
   },

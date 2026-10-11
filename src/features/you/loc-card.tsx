@@ -9,7 +9,6 @@ import { TONE_LABEL, TONES, type Tone } from '@/lib/tone';
 import { Nocturne, Space, Type } from '@/theme';
 
 import { LocBubble } from '@/features/home/loc-bubble';
-import { locLine } from '@/features/home/loc-lines';
 import { LocSilhouette } from '@/features/home/loc-peek';
 
 const OPTIONS = TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }));
@@ -17,26 +16,34 @@ const OPTIONS = TONES.map((t) => ({ value: t, label: TONE_LABEL[t] }));
 /** His width in the card. */
 const LOC_WIDTH = 132;
 
-const say = (tone: Tone) => locLine('poke', 'awake', tone) ?? '';
+/**
+ * One set line per tone, the best of each from Home's poke lines (loc-lines.ts), so the card
+ * always says the same thing for a tone (user, October 10, 2026).
+ */
+const DEMO_LINE: Record<Tone, string> = {
+  mild: 'I contain at least three raccoons.',
+  grumpy: 'There’s a reason I’m not allowed at airports.',
+  unbearable: 'I have seen the end. It’s Tuesday.',
+};
 
 /**
  * How grumpy Loc is, set by hearing him (CARROT Weather's personality slider, which says what
  * each level sounds like; docs/SETTINGS_INSPIRATION.md, round 2). He peeks over the card's
- * lower edge with a line in the chosen tone; picking another tone, or tapping him, gets a new
- * one. The pick applies at once (tone.ts: words only, never a rule).
+ * lower edge saying the chosen tone's set line; picking a tone pops its line up, and tapping him
+ * says it again. The pick applies at once (tone.ts: words only, never a rule).
  */
 export function LocCard({ tone, onChange }: { tone: Tone; onChange: (tone: Tone) => void }) {
-  const [said, setSaid] = useState(() => ({ line: say(tone), id: 0 }));
-  const speak = (t: Tone) => setSaid((prev) => ({ line: say(t), id: prev.id + 1 }));
-  const another = () => {
+  const [said, setSaid] = useState(0);
+  const again = () => {
     haptic.tap();
-    speak(tone);
+    setSaid((n) => n + 1);
   };
+  const line = DEMO_LINE[tone];
   return (
     <Card>
-      <Pressable onPress={another} accessibilityRole="button" accessibilityLabel={`Loc says: ${said.line}`} accessibilityHint="Another line" style={styles.stage}>
+      <Pressable onPress={again} accessibilityRole="button" accessibilityLabel={`Loc says: ${line}`} accessibilityHint="Says it again" style={styles.stage}>
         <View style={styles.speech}>
-          <LocBubble key={said.id} line={said.line} onDismiss={another} />
+          <LocBubble key={`${tone}-${said}`} line={line} onDismiss={again} />
         </View>
         <View style={styles.loc} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <LocSilhouette width={LOC_WIDTH} color={Nocturne.text3} />
@@ -50,7 +57,6 @@ export function LocCard({ tone, onChange }: { tone: Tone; onChange: (tone: Tone)
           onChange={(next) => {
             if (next === tone) return;
             onChange(next);
-            speak(next);
           }}
         />
         <Text style={styles.note}>How Loc talks</Text>

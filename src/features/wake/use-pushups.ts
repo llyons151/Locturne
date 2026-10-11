@@ -1,49 +1,43 @@
-import { DeviceMotion, Pedometer } from 'expo-sensors';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
 
-import type { PushupsSession } from '@/lib/wake/pushups';
-import { watchPushups, type PushupsAccess, type PushupsWatch } from '@/lib/wake/pushups-watch';
+import { addPose, isOver, PUSHUPS, startPushups, tick, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 
-import { Proximity } from '../../../modules/proximity';
-
-export type { PushupsAccess };
+const TICK_MS = 1_000;
 
 /**
- * A live push-up session (wake/pushups.ts has the rules, wake/pushups-watch.ts the wiring).
- * It only listens between Start and the end of the session, and stops if the app leaves the
- * foreground. `say` is Loc counting out loud, on the phone.
+ * A live push-up session (wake/pushups.ts has the rules). The camera view feeds `onPose`; a
+ * clock ticks for the timeout and a stalled camera. A trip to the background keeps the session:
+ * iOS pauses the camera and resumes it on the way back, the reps done stay, and he looks for you
+ * again. (Ending it there left the screen open with nothing counting.) `timeoutIn` is the wake
+ * lab's preview: time out that soon instead of after PUSHUPS.timeoutMs.
  */
-export function usePushups() {
-  const [access, setAccess] = useState<PushupsAccess>('checking');
+export function usePushups(goal: number, timeoutIn?: number) {
   const [session, setSession] = useState<PushupsSession | null>(null);
-  const watch = useRef<PushupsWatch | null>(null);
+  const [pose, setPose] = useState<PoseFrame | null>(null);
+  const running = !!session && !isOver(session);
 
-  useEffect(() => {
-    const current = watchPushups({
-      proximity: Proximity,
-      motion: DeviceMotion,
-      pedometer: Pedometer,
-      isIOS: Platform.OS === 'ios',
-      onAppState: (listener) => AppState.addEventListener('change', listener),
-      onAccess: setAccess,
-      onSession: setSession,
-    });
-    watch.current = current;
-    return () => {
-      current.dispose();
-      if (watch.current === current) watch.current = null;
-    };
-  }, []);
-
-  const start = useCallback((goal: number) => watch.current?.start(goal) ?? Promise.resolve(), []);
-  const stop = useCallback(() => watch.current?.stop(), []);
-  /** The Stop button: stops listening and drops the session, so Start shows again. */
+  const start = useCallback(() => {
+    setPose(null);
+    const now = Date.now();
+    const session = startPushups(now, goal);
+    setSession(timeoutIn === undefined ? session : { ...session, startedAt: now - PUSHUPS.timeoutMs + timeoutIn });
+  }, [goal, timeoutIn]);
   const cancel = useCallback(() => {
-    watch.current?.stop();
+    setPose(null);
     setSession(null);
   }, []);
-  const say = useCallback((text: string) => void Proximity?.say(text).catch(() => {}), []);
+  const onPose = useCallback((frame: PoseFrame) => {
+    setPose(frame);
+    // Stamped here, on the same clock as `tick`: the phone's wall clock in a native frame can step.
+    const at = Date.now();
+    setSession((s) => (s ? addPose(s, { at, joints: frame.joints }) : s));
+  }, []);
 
-  return { access, session, start, stop, cancel, say };
+  useEffect(() => {
+    if (!running) return;
+    const clock = setInterval(() => setSession((s) => (s ? tick(s, Date.now()) : s)), TICK_MS);
+    return () => clearInterval(clock);
+  }, [running]);
+
+  return { session, pose, start, cancel, onPose };
 }

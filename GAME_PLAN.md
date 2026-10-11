@@ -77,7 +77,7 @@ different ways to prove it, each with its own lines from Loc. Details in
 | **Go downstairs** | Barometer `relativeAltitude`: a change of at least 2.5 m held about 5 s, in a live session of up to about 5 min. Up or down both count. | The hero for marketing; picked in onboarding by anyone with stairs. |
 | **Scan your code** | A per-user QR or a registered product barcode kept in another room | Alternative; the leading candidate for the accessible option |
 | **Leave the house** | An in-app "I'm out" check reads location once: at least ~150 m from the saved home spot, or at a saved place (gym, campus, café). When-In-Use permission only, no background geofence. Optional light check: the camera's exposure value (brightness only, never the picture) confirms daylight; before sunrise it's location only. | Alternative; the "get outside / see the sky" morning |
-| **Push-ups** | Phone face-up on the floor, 10–20 reps, each one counted when the chest covers the proximity sensor. No camera. | Alternative; the effort option and a strong video ("my alarm makes me do push-ups"), Loc counts the reps |
+| **Push-ups** | Phone leaning on the floor two steps away, side-on; the front camera counts the reps (Apple Vision body pose, on the phone, nothing recorded). Loc peeks over the bottom strip, reacting, and says the count out loud. | Alternative; the effort option and a strong video ("my alarm watches me do push-ups") |
 
 - **Onboarding asks one question,** not a menu, right after `wake`: "Are there
   stairs between your bed and your coffee?" Yes picks downstairs; no picks steps;
@@ -89,13 +89,18 @@ different ways to prove it, each with its own lines from Loc. Details in
 - Changing the method follows the next-bedtime rule.
 - Never as a gate: math, memory, typing, shaking or saying a phrase (all doable in
   bed). Photo methods wait for launch data and a decision; photo judging stays
-  banned. Proximity push-ups were adopted 2026-10-09 because they use no camera.
-- **Push-ups cheat:** waving a hand over the sensor from bed fakes a rep. Both
-  candidates are built (2026-10-09): 20 steps carried to the floor first, then reps
-  only count with the phone flat, face-up and still, and a push-up rhythm (a cover
-  of 0.25–5 s, reps at least 0.9 s apart). The numbers are in
-  `src/lib/wake/pushups.ts` (`PUSHUPS`); tune them on a device. Loc says the count
-  out loud (on-device system voice), since the screen goes dark under the chest.
+  banned. Push-ups moved from the proximity sensor to the camera on 2026-10-10 (user's
+  call): it counts real body pose, never judges a photo, and nothing is kept.
+- **Push-ups, as built (2026-10-10):** a rep is the elbow bending past 115° and straightening
+  past 140°, with the shoulders dropping 0.4 of the torso, only in a plank (torso within 45° of
+  horizontal, hands under the shoulders). That refuses curls standing or sitting, arm pumps
+  lying on your back, and waving at the camera. Tuned and tested on 19 real clips in several
+  lights and framings, no fake reps from any cheat ([docs/PUSHUP_TESTS.md](docs/PUSHUP_TESTS.md)).
+  Elbow angles are only true side-on, which is why Loc asks for side-on. Rules and numbers in
+  `src/lib/wake/pushups.ts` (`PUSHUPS`); the camera is `modules/pose-camera` (Swift, Vision).
+  The web preview runs the same rules on a laptop webcam via MediaPipe
+  (`/wake-lab?method=pushups`, or add `&demo=1` for a pretend body). Tune on a device; check
+  the overlay follows a raised arm on the first build (front-camera orientation).
 - **Leave the house, as built (2026-10-09):** the saved-place half only. The person
   picks a place in Routine (address search or "I'm there now"), only while the apps
   are awake. In the morning, Check in reads location once: within 120 m on a fix

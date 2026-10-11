@@ -114,6 +114,7 @@ function screen(initial: Stored) {
     './night-dial': { NightDial: 'NightDial' },
     './nights': { nightsToWeekdays, weekdaysToNights },
     './pending-line': { pendingLine: () => '' },
+    './shadow-loc': { ShadowLoc: 'ShadowLoc' },
   };
   const exports = {} as { RoutineScreen: () => Tree };
   runInNewContext(code, { exports, require: (id: string) => mocks[id], React: react });

@@ -20,11 +20,14 @@ export default function LocStage({
   mood,
   share,
   present,
+  ink,
   onCue,
 }: {
   mood: LocMood;
   share: number;
   present: boolean;
+  /** His body's colour, `#RRGGBB`; black (in front of the moon) when left out. */
+  ink?: string;
   /** What just happened to him (a poke, popping back up...), for his speech bubble. A native action on iOS. */
   onCue?: (cue: 'poke' | 'angry' | 'hello' | 'hide') => void;
   dom?: import('expo/dom').DOMProps;
@@ -35,6 +38,8 @@ export default function LocStage({
   const moodRef = useRef(mood);
   const shareRef = useRef(share);
   const presentRef = useRef(present);
+  // Read once, when the rig is made.
+  const inkRef = useRef(ink);
   const lastTap = useRef(0);
   const onCueRef = useRef(onCue);
 
@@ -42,7 +47,7 @@ export default function LocStage({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const rig = new LocRig(canvas, moodRef.current, reduced);
+    const rig = new LocRig(canvas, moodRef.current, reduced, inkRef.current);
     rig.setShare(shareRef.current);
     rig.onCue = (cue) => onCueRef.current?.(cue);
     rigRef.current = rig;

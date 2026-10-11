@@ -80,6 +80,7 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="(dev)/wake-lab" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>
