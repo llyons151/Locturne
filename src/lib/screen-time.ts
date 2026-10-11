@@ -40,7 +40,7 @@ import {
   userDefaultsSet,
 } from 'react-native-device-activity';
 
-import { MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
+import { keepName, MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 import { formatPreset } from './text.ts';
@@ -856,6 +856,11 @@ export function judgeListAwakeWith(judge: (now: Date) => boolean): void {
   bedtimeListAwake = judge;
 }
 
+/** Whether the bedtime list is awake at `now`, for a removal saved then; undefined before lock-controller.ts loads. */
+export function bedtimeListAwakeAt(now: Date): boolean | undefined {
+  return bedtimeListAwake ? bedtimeListAwake(now) : undefined;
+}
+
 function getPendingLists(): Partial<Record<StandingList, PendingList>> {
   return sharedGet<Partial<Record<StandingList, PendingList>>>(PENDING_LISTS_KEY) ?? {};
 }
@@ -1001,7 +1006,7 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
  * The monitor extension swaps in a waiting list at an interval start up to this long before its
  * `from` (`settleLocturneLists`: iOS can start a bedtime window a little early).
  */
-const SETTLE_SLACK_MS = 2 * 60_000;
+export const SETTLE_SLACK_MS = 2 * 60_000;
 
 /**
  * Moves waiting list changes later, never earlier: each to `dueAt(list, dated, awake, from)`
@@ -1422,7 +1427,8 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
     // stricter one keeps being enforced (the safe side), and the next open tries again.
     for (const limit of settled.rearm) {
       await armLimit(limit, { fresh: true });
-      saveLimits(getLimits().map((l) => (l.id === limit.id ? limit : l)));
+      // With the name it has now: a rename while iOS was registering stays.
+      saveLimits(getLimits().map((l) => (l.id === limit.id ? keepName(limit, l) : l)));
     }
     // A limit whose apps changed at bedtime: hand iOS the new picks.
     for (const limit of settled.limits) {

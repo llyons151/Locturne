@@ -74,14 +74,54 @@ export function validSpot(spot: { latitude: number; longitude: number }): boolea
 export function judgeFix(place: Pick<MorningPlace, 'latitude' | 'longitude'>, fix: Fix, now: Date): Judgement {
   if (!validSpot(fix)) return { kind: 'unsure', distance: null };
   const distance = distanceMeters(place, fix);
-  const age = now.getTime() - fix.timestamp;
-  // A few seconds into the future is clock skew between the GPS and the phone; more is odd.
-  if (age > MAX_FIX_AGE_MS || age < -5_000) return { kind: 'unsure', distance };
+  if (!freshFix(fix, now)) return { kind: 'unsure', distance };
+  if (sharpFix(fix)) return distance <= PLACE_RADIUS_M ? { kind: 'there', distance } : { kind: 'notThere', distance };
   const accuracy = fix.accuracy;
-  const sharp = accuracy !== null && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= MAX_ACCURACY_M;
-  if (sharp) return distance <= PLACE_RADIUS_M ? { kind: 'there', distance } : { kind: 'notThere', distance };
   if (accuracy !== null && Number.isFinite(accuracy) && distance - accuracy > PLACE_RADIUS_M) return { kind: 'notThere', distance };
   return { kind: 'unsure', distance };
+}
+
+/** Pure: taken recently enough to be where they are now. */
+export function freshFix(fix: Pick<Fix, 'timestamp'>, now: Date): boolean {
+  const age = now.getTime() - fix.timestamp;
+  // A few seconds into the future is clock skew between the GPS and the phone; more is odd.
+  return age <= MAX_FIX_AGE_MS && age >= -5_000;
+}
+
+/** Pure: sharp enough to say yes (`MAX_ACCURACY_M`). */
+export function sharpFix(fix: Pick<Fix, 'accuracy'>): boolean {
+  const { accuracy } = fix;
+  return accuracy !== null && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= MAX_ACCURACY_M;
+}
+
+/**
+ * Pure: may this fix become the saved place ("use where I am now")? Only a real, fresh, sharp
+ * one: a fuzzy fix saved as the place puts the circle hundreds of metres from where they stood,
+ * and every morning there then reads as "not there".
+ */
+export function fixToSave(fix: Fix, now: Date): 'ok' | 'vague' {
+  return validSpot(fix) && freshFix(fix, now) && sharpFix(fix) ? 'ok' : 'vague';
+}
+
+/** Location access as the place check needs it. */
+export type Access = 'granted' | 'denied' | 'restricted' | 'imprecise' | 'notDetermined';
+
+/**
+ * Pure: the access a permission answer gives. `restricted` is iOS's own word (Screen Time or a
+ * managed phone: the person can't turn it on), which expo-location reports as denied. Approximate
+ * Location (iOS's Precise Location off, Android's coarse) is granted but `imprecise`: its fixes
+ * are kilometres wide and can never say yes, so it's named rather than read.
+ */
+export function accessFrom(
+  permission: { granted: boolean; canAskAgain: boolean; ios?: { accuracy?: string }; android?: { accuracy?: string } },
+  ios: 'restricted' | 'denied' | 'notDetermined' | 'granted' | null,
+): Access {
+  if (!permission.granted) {
+    if (ios === 'restricted') return 'restricted';
+    return permission.canAskAgain ? 'notDetermined' : 'denied';
+  }
+  if (permission.ios?.accuracy === 'reduced' || permission.android?.accuracy === 'coarse') return 'imprecise';
+  return 'granted';
 }
 
 /** Pure: the trimmed name to save, or null when there's nothing usable. */

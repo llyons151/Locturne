@@ -10,10 +10,11 @@ import { APPS } from './catalog';
 
 export type PreviewGroup = 'bedtime' | 'always';
 /**
- * `used`: sample minutes so far today, for the meter (an iPhone only learns when a limit is used up).
- * `name`: what the person called it; without one it goes by its apps.
+ * `id`: its own, kept for good (its page is `limit-<id>`), so deleting one never moves another's
+ * tile or page onto it. `used`: sample minutes so far today, for the meter (an iPhone only learns
+ * when a limit is used up). `name`: what the person called it; without one it goes by its apps.
  */
-export type PreviewLimit = { name?: string; minutes: number; used: number; apps: string[] };
+export type PreviewLimit = { id: number; name?: string; minutes: number; used: number; apps: string[] };
 type Lists = { picks: Record<PreviewGroup, string[]>; limits: PreviewLimit[] };
 
 const initial = (group: PreviewGroup) =>
@@ -24,10 +25,11 @@ const initial = (group: PreviewGroup) =>
 let lists: Lists = {
   picks: { bedtime: initial('bedtime'), always: initial('always') },
   limits: [
-    { minutes: 30, used: 12, apps: ['Instagram'] },
-    { minutes: 60, used: 60, apps: ['YouTube', 'Reddit', 'X'] },
+    { id: 0, minutes: 30, used: 12, apps: ['Instagram'] },
+    { id: 1, minutes: 60, used: 60, apps: ['YouTube', 'Reddit', 'X'] },
   ],
 };
+let nextId = 2;
 const listeners = new Set<() => void>();
 
 function set(next: Lists) {
@@ -54,36 +56,36 @@ export function savePreviewPicks(group: PreviewGroup, apps: string[]) {
   set({ ...lists, picks });
 }
 
-/** A limit's apps; an index past the end is a new limit, kept only if it has apps. */
-export function savePreviewLimitApps(index: number, apps: string[]) {
+/** A limit's apps; `id` null (or one that's gone) is a new limit, kept only if it has apps. */
+export function savePreviewLimitApps(id: number | null, apps: string[]) {
   const { limits } = lists;
+  const known = limits.some((l) => l.id === id);
   set({
     ...lists,
-    limits:
-      index < limits.length
-        ? limits.map((l, i) => (i === index ? { ...l, apps } : l))
-        : apps.length
-          ? [...limits, { minutes: 30, used: 0, apps }]
-          : limits,
+    limits: known
+      ? limits.map((l) => (l.id === id ? { ...l, apps } : l))
+      : apps.length
+        ? [...limits, { id: nextId++, minutes: 30, used: 0, apps }]
+        : limits,
   });
 }
 
-export function setPreviewLimitMinutes(index: number, minutes: number) {
-  set({ ...lists, limits: lists.limits.map((l, i) => (i === index ? { ...l, minutes } : l)) });
+export function setPreviewLimitMinutes(id: number, minutes: number) {
+  set({ ...lists, limits: lists.limits.map((l) => (l.id === id ? { ...l, minutes } : l)) });
 }
 
-export function setPreviewLimitName(index: number, name: string) {
+export function setPreviewLimitName(id: number, name: string) {
   const trimmed = name.trim();
   set({
     ...lists,
-    limits: lists.limits.map((l, i) => {
-      if (i !== index) return l;
+    limits: lists.limits.map((l) => {
+      if (l.id !== id) return l;
       const { name: _old, ...rest } = l;
       return trimmed ? { ...rest, name: trimmed } : rest;
     }),
   });
 }
 
-export function removePreviewLimit(index: number) {
-  set({ ...lists, limits: lists.limits.filter((_, i) => i !== index) });
+export function removePreviewLimit(id: number) {
+  set({ ...lists, limits: lists.limits.filter((l) => l.id !== id) });
 }

@@ -210,7 +210,8 @@ export function HomeScreen() {
         heroKey={minutes ?? 0}
         action={action}
       />
-      <LocCue mood={mood} moment={moment} />
+      {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
+      <LocCue mood={mood} moment={moment} floor={tabInset + moonArc} />
     </View>
   );
 }

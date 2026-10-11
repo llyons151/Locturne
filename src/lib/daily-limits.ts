@@ -94,6 +94,15 @@ export function renameLimit(limits: DailyLimit[], id: LimitId, name: string): Da
 }
 
 /**
+ * `limit` with the name `now` has (none if `now` has none): for writing back a copy taken before
+ * an await (a refused arm's rollback, a settled loosening) without undoing a rename made meanwhile.
+ */
+export function keepName(limit: DailyLimit, now: DailyLimit | undefined): DailyLimit {
+  const { name: _old, ...rest } = limit;
+  return now?.name ? { ...rest, name: now.name } : rest;
+}
+
+/**
  * Applies loosenings whose bedtime has come. Returns the new list and which limits iOS needs
  * to hear about: `rearm` with a new number of minutes, `removed` to stop entirely.
  */

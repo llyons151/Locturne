@@ -61,7 +61,7 @@ import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
 import { getTone } from './tone.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
 import { planNightWindows } from './night-plan.ts';
-import { settleSites } from './websites.ts';
+import { delaySiteChanges, settleSites } from './websites.ts';
 
 /** Block now and used-up daily limits, as `getLockState` takes them. Selection ids are the apps. */
 function readDaytime(now: Date): DaytimeFacts {
@@ -788,13 +788,17 @@ function redateLooserEdits(now: Date): void {
   // With nothing armed there's no bedtime to judge them by (a lapse stood everything down, or
   // every night is off): midnight would move a change dated by tonight's bedtime past it.
   if (!getArmedNight()) return;
-  const dueNow = delayListChanges((list, dated, awake, from) => {
+  const dueAt = (list: StandingList, dated: Date, awake: boolean | undefined, from: Date) => {
     const due = looserStart(dated, list, awake);
     if (list !== 'night' || due.awake) return { at: due.at, earlier: awake === true && due.early };
     // From bed: also never inside a night of a waiting edit saved since `from` was set (an even
     // earlier bedtime replacing the one it was dated by), which redating alone leaves it in.
     return { at: pastEditNight(due.at > from ? due.at : from, now) };
-  }, now);
+  };
+  const dueNow = delayListChanges(dueAt, now);
+  // Typed-in websites removed with the apps move with them; any now due are swapped in by
+  // `settleSites`, which `syncLock` runs straight after this.
+  delaySiteChanges(dueAt, now);
   // Moved earlier to now (the night it waited for began before this sync: protection armed again
   // after a renewal, say): due, and the window start that would swap it in has passed, so it lands
   // here rather than at the next one (round 53: the Apps tab had said "now").

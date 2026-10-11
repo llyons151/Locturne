@@ -276,7 +276,9 @@ function LiveAppsList() {
             {limits.map((limit) => {
               const usedUp = limitUsedUpToday(limit.id);
               const picks = editedSelection(limit.id);
-              const pending = limit.pending ? (limit.pending.minutes === null ? 'ends tonight' : 'changes tonight') : null;
+              // When it lands, never a plain "tonight": an edit from bed after bedtime waits a night.
+              const when = limit.pending ? startsLabel(new Date(limit.pending.from), new Date()) : '';
+              const pending = limit.pending ? `${limit.pending.minutes === null ? 'ends' : 'changes'} ${when}` : null;
               const daily = `${limitLabel(limit.minutes)} a day`;
               return (
                 <ListTile
@@ -591,11 +593,11 @@ function PreviewAppsList() {
         {tab === 'limit' && (
           <View style={styles.tiles}>
             {limits.length === 0 ? <Text style={styles.empty}>{LIMITS_ABOUT}</Text> : null}
-            {limits.map((limit, index) => {
+            {limits.map((limit) => {
               const usedUp = limit.used >= limit.minutes;
               return (
                 <ListTile
-                  key={index}
+                  key={limit.id}
                   icons={<PreviewIcons names={limit.apps} />}
                   title={limit.name ?? namedBy(limit.apps)}
                   detail={`${limitLabel(limit.minutes)} a day · ${usedUp ? 'asleep until midnight' : `${limitLabel(limit.minutes - limit.used)} left`}`}
@@ -605,17 +607,17 @@ function PreviewAppsList() {
                     openLimitSheet({
                       start: limit.minutes,
                       chosen: limit.minutes,
-                      onChange: (minutes) => setPreviewLimitMinutes(index, minutes),
-                      onRemove: () => removePreviewLimit(index),
+                      onChange: (minutes) => setPreviewLimitMinutes(limit.id, minutes),
+                      onRemove: () => removePreviewLimit(limit.id),
                       name: {
                         value: limit.name ?? '',
                         fallback: namedBy(limit.apps),
-                        onRename: (n) => setPreviewLimitName(index, n),
+                        onRename: (n) => setPreviewLimitName(limit.id, n),
                       },
                       note: usedUp ? 'Used up today. Back at midnight.' : null,
                       apps: {
                         summary: countApps(limit.apps.length),
-                        onEdit: () => openList(`limit-${index}`),
+                        onEdit: () => openList(`limit-${limit.id}`),
                         icons: limit.apps.slice(0, 6).map((name) => <AppIcon key={name} name={name} />),
                       },
                     });
@@ -641,7 +643,7 @@ function PreviewAppsList() {
         header={LIMIT_PICKER_HEADER}
         onDone={(apps) => {
           haptic.done();
-          savePreviewLimitApps(limits.length, apps);
+          savePreviewLimitApps(null, apps);
           setAdding(false);
         }}
         onClose={() => setAdding(false)}

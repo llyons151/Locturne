@@ -67,6 +67,31 @@ test('an old or future-dated fix is unsure, and 0,0 is not a place', () => {
   assert.equal(place.judgeFix(GYM, { latitude: 0, longitude: 0, accuracy: 5, timestamp: now.getTime() }, now).kind, 'unsure');
 });
 
+test('"use where I am now" saves only a fresh, sharp fix', () => {
+  const now = at(10, 5, 14);
+  assert.equal(place.fixToSave(fix(0, now, 15), now), 'ok');
+  assert.equal(place.fixToSave(fix(0, now, place.MAX_ACCURACY_M), now), 'ok');
+  // Indoors on cell towers, or Approximate Location: saved, the circle would land far from them.
+  assert.equal(place.fixToSave(fix(0, now, place.MAX_ACCURACY_M + 1), now), 'vague');
+  assert.equal(place.fixToSave(fix(0, now, 3_000), now), 'vague');
+  assert.equal(place.fixToSave(fix(0, now, null), now), 'vague');
+  assert.equal(place.fixToSave(fix(0, new Date(now.getTime() - place.MAX_FIX_AGE_MS - 1)), now), 'vague', 'stale');
+  assert.equal(place.fixToSave({ latitude: 0, longitude: 0, accuracy: 5, timestamp: now.getTime() }, now), 'vague');
+});
+
+test('access: Approximate Location and a restriction are named, not read', () => {
+  const granted = { granted: true, canAskAgain: true };
+  assert.equal(place.accessFrom({ ...granted, ios: { accuracy: 'full' } }, null), 'granted');
+  assert.equal(place.accessFrom({ ...granted, ios: { accuracy: 'reduced' } }, null), 'imprecise');
+  assert.equal(place.accessFrom({ ...granted, android: { accuracy: 'coarse' } }, null), 'imprecise');
+  assert.equal(place.accessFrom({ ...granted, android: { accuracy: 'fine' } }, null), 'granted');
+  // expo-location says denied for both; only iOS's own status tells a restriction apart.
+  assert.equal(place.accessFrom({ granted: false, canAskAgain: false }, 'restricted'), 'restricted');
+  assert.equal(place.accessFrom({ granted: false, canAskAgain: false }, 'denied'), 'denied');
+  assert.equal(place.accessFrom({ granted: false, canAskAgain: false }, null), 'denied');
+  assert.equal(place.accessFrom({ granted: false, canAskAgain: true }, 'notDetermined'), 'notDetermined');
+});
+
 /** Saves the gym on the afternoon of October 5, once that morning was proven. */
 function saveYesterday() {
   recordProof({ morningKey: '2026-10-05', kind: 'steps', at: at(10, 5, 7, 30).getTime() });

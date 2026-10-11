@@ -39,10 +39,15 @@ import { APP_FONT, DISPLAY_MAX_SCALE, Gap, Nocturne, NUMBER_FONT, Radius, Space,
 import { morningsLabel } from '@/features/home/week';
 import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
 
-import { PushupsPreviewCard } from '@/features/dev/wake-lab/pushups-preview-card';
-
 import { refusal, SIGN_OFF } from './fire-loc';
 import { LocCard } from './loc-card';
+
+// Dev only: loaded only in a dev build, so the push-up preview never ships (`__DEV__` is false
+// in a release bundle, which drops the require).
+const PushupsPreviewCard: () => React.JSX.Element | null = __DEV__
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('@/features/dev/wake-lab/pushups-preview-card') as typeof import('@/features/dev/wake-lab/pushups-preview-card')).PushupsPreviewCard
+  : () => null;
 
 /**
  * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up

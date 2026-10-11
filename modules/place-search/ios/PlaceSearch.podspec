@@ -12,6 +12,6 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  s.frameworks = 'MapKit', 'UIKit'
+  s.frameworks = 'CoreLocation', 'MapKit', 'UIKit'
   s.source_files = "**/*.{h,m,swift}"
 end

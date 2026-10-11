@@ -14,6 +14,7 @@ import {
   PUSHUPS,
   readFrame,
   repProgress,
+  retarget,
   startPushups,
   tick,
   type Joint,
@@ -216,6 +217,42 @@ describe('push-up session', () => {
     assert.equal(tick(startPushups(0), PUSHUPS.timeoutMs).status, 'timedOut');
   });
 
+  test('times out after a while with nobody in view, not a while after the start', () => {
+    // On the floor at 9 minutes: a long set with rests carries on past ten.
+    let s = run(startPushups(0, 100), 9 * 60_000, 9 * 60_000 + 3 * DEMO_REP_MS);
+    assert.ok(s.reps >= 1);
+    s = tick(s, 12 * 60_000);
+    assert.notEqual(s.status, 'timedOut');
+    assert.equal(tick(s, s.seenAt! + PUSHUPS.timeoutMs).status, 'timedOut');
+  });
+
+  test("the preview's shorter timeout", () => {
+    assert.equal(tick(startPushups(0, 10, { timeoutMs: 15_000 }), 15_000).status, 'timedOut');
+  });
+
+  test('starting again keeps the reps done', () => {
+    const s = startPushups(0, 10, { reps: 4 });
+    assert.equal(s.reps, 4);
+    assert.equal(s.status, 'finding');
+    assert.equal(startPushups(0, 10, { reps: Number.NaN }).reps, 0);
+    // Already enough (the goal came down meanwhile): met as it starts.
+    assert.equal(startPushups(5, 3, { reps: 4 }).status, 'met');
+  });
+
+  test('a new goal mid-set keeps the reps', () => {
+    const s = { ...run(startPushups(0, 10), 0, 500), reps: 6 };
+    const up = retarget(s, 20, 600);
+    assert.equal(up.goal, 20);
+    assert.equal(up.reps, 6);
+    assert.equal(up.status, s.status);
+    const down = retarget(s, 5, 600);
+    assert.equal(down.status, 'met');
+    assert.equal(down.metAt, 600);
+    assert.equal(retarget(s, 10, 600), s);
+    const met = { ...s, status: 'met' as const };
+    assert.equal(retarget(met, 50, 600), met);
+  });
+
   test('the goal is a whole number of at least one', () => {
     assert.equal(startPushups(0, 0).goal, 1);
     assert.equal(startPushups(0, 7.6).goal, 8);
@@ -319,6 +356,11 @@ describe('push-up lines', () => {
     assert.equal(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 2, 10, null));
     assert.notEqual(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 3, 10, null));
     assert.match(pushupsLine('counting', 9, 10, null), /Almost/);
+  });
+
+  test('timed out says how many are left once some are done', () => {
+    assert.equal(pushupsLine('timedOut', 0, 10, null), 'Ten minutes and no push-ups. Start again.');
+    assert.equal(pushupsLine('timedOut', 6, 10, null), 'Ten quiet minutes. 4 left. Start again.');
   });
 
   test('the spoken count', () => {

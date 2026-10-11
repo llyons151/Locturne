@@ -33,7 +33,8 @@ import {
   LIGHT_OFFER_HEADLINE,
   METHOD_CHOICES,
   METHOD_COPY,
-  MORE_METHODS,
+  moreMethods,
+  morningGoals,
   methodCopy,
   MORNING_MINUTES_REPLY,
   morningMinuteChoices,
@@ -189,6 +190,8 @@ export function renderStep(ctx: StepContext): StepView {
   // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
   // morning, it waits for the day after the first morning (`getScanEditRefusal`).
   const method = methodCopy(answers.method ?? 'steps', { codeWaits: lateNight || getScanEditRefusal() !== null, wake: answers.wake });
+  // The step target and push-up count the first morning runs on: a rerun keeps Routine's.
+  const goals = morningGoals();
   // How many picks: the real count on an iPhone, the stand-in names in the preview.
   const pickCount = live ? live.count : answers.apps.length;
   // The quiz's button is their reply to him, and waits, invisible, for an answer.
@@ -430,7 +433,7 @@ export function renderStep(ctx: StepContext): StepView {
             <Body style={styles.sub}>That’s how you’ll show me you’re up.</Body>
             <View style={styles.methodOptions}>
               <Options
-                options={showAll ? [...METHOD_CHOICES, ...MORE_METHODS] : METHOD_CHOICES}
+                options={showAll ? [...METHOD_CHOICES, ...moreMethods(goals.reps)] : METHOD_CHOICES}
                 value={answers.method}
                 // No auto-advance: his reaction is worth a beat, then Continue.
                 onChoose={(value) => set('method', value)}
@@ -536,7 +539,7 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'walk': {
-      const copy = walkCopy(answers.method ?? 'steps', wakeDay);
+      const copy = walkCopy(answers.method ?? 'steps', wakeDay, goals);
       const { phase, steps } = ctx.walk;
       if (phase === 'denied' || phase === 'unavailable') {
         // Never a dead end: say what it means for the first morning, then carry on to the price.
@@ -621,6 +624,7 @@ export function renderStep(ctx: StepContext): StepView {
             when={`${wakeDay}, ${wake}`}
             clock={wake.replace(/\s?[AP]M$/i, '')}
             method={answers.method ?? 'steps'}
+            reps={goals.reps}
             tone={answers.tone}
             onPayoff={ctx.onPayoff}
           />
@@ -1082,7 +1086,8 @@ const MOTION_WHY: Record<WakeMethod, string> = {
   // The goal in use is filled in (`methodCopy`'s rule): a rerun keeps Routine's.
   scan: 'how {goal} steps can stand in for your code',
   place: 'how {goal} steps can stand in on days you stay in',
-  pushups: 'how I count the steps to the floor before your push-ups',
+  // The camera counts the push-ups (no Motion needed); Motion counts the steps that stand in.
+  pushups: 'how {goal} steps can stand in when your arms say no',
 };
 
 /** "Fri, Oct 10": the trial's last day, the way the reminder would have said it. */

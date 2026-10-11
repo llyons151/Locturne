@@ -32,8 +32,13 @@ export function wakeDayFor({
  * The `walk` step's words for the first morning's day (`WALK_GOAL` in content.ts). The step is
  * skipped late at night, so `day` is today only when the whole night is still ahead today
  * (00:30 before a 01:00 bedtime, 07:00 before a night shift's 08:00): "for now", not "tonight".
+ * `goals`: the step target and push-up count the morning runs on (a rerun keeps Routine's).
  */
-export function walkCopy(method: WakeMethod, day: WakeDay): { intro: string; done: string } {
+export function walkCopy(
+  method: WakeMethod,
+  day: WakeDay,
+  { steps = 200, reps = 10 }: { steps?: number; reps?: number } = {},
+): { intro: string; done: string } {
   const lead = day; // "Tomorrow", "This morning", "Later today"
   const now = day === 'Tomorrow' ? 'Tonight' : 'For now';
   const that = { Tomorrow: 'tomorrow morning', 'This morning': 'this morning', 'Later today': 'later today' }[day];
@@ -46,8 +51,8 @@ export function walkCopy(method: WakeMethod, day: WakeDay): { intro: string; don
       };
     case 'steps':
       return {
-        intro: `${lead} it’s 200 steps. ${now}, 20 will do. Walk around the room.`,
-        done: `Same ${same}, just 200 instead of 20. Then your apps wake up.`,
+        intro: `${lead} it’s ${steps} steps. ${now}, 20 will do. Walk around the room.`,
+        done: `Same ${same}, just ${steps} instead of 20. Then your apps wake up.`,
       };
     case 'scan':
       return {
@@ -61,8 +66,8 @@ export function walkCopy(method: WakeMethod, day: WakeDay): { intro: string; don
       };
     case 'pushups':
       return {
-        intro: `${lead} it’s ten push-ups on the floor. ${now}, 20 steps anywhere will do.`,
-        done: `That’s ${that}: up, down on the floor, ten, then your apps wake up.`,
+        intro: `${lead} it’s ${reps} push-ups on the floor. ${now}, 20 steps anywhere will do.`,
+        done: `That’s ${that}: up, down on the floor, ${reps} push-ups, then your apps wake up.`,
       };
   }
 }

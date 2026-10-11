@@ -25,10 +25,13 @@ import { useTabSelected } from '@/hooks/use-tab-selected';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import * as haptic from '@/lib/haptics';
 import { onLockChange } from '@/lib/lock-controller';
+import { nightsAround, wallClock } from '@/lib/lock-state';
 import {
   getPendingRoutine,
   getRoutine,
+  hasRoutine,
   pushupGoalOf,
+  toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
 } from '@/lib/routine';
@@ -47,7 +50,7 @@ import {
 } from '@/theme';
 
 import { NightDial } from './night-dial';
-import { nightsToWeekdays, weekdaysToNights } from './nights';
+import { fromWeekday, nightsToWeekdays, weekdaysToNights } from './nights';
 import { applyRoutineEdit } from './apply-edit';
 import { pendingLine } from './pending-line';
 import { ShadowLoc } from './shadow-loc';
@@ -149,6 +152,17 @@ const methods = (
   },
 ];
 
+/**
+ * Which night VoiceOver calls "tonight", Monday first: the night in progress under the routine
+ * tonight runs on, or else the next one. After midnight that's still the evening before's.
+ */
+function tonightOf(routine: Routine, now: Date): number {
+  const { latest, next } = nightsAround(now, toLockSettings(toStored(routine)));
+  const night = now < latest.end ? latest : next;
+  // Named after its evening (nights.ts): the day before the morning it leads into.
+  return fromWeekday(wallClock(night.end, 0, -1).getDay());
+}
+
 const same = (a: Routine, b: Routine) =>
   a.bedtime === b.bedtime &&
   a.morningStart === b.morningStart &&
@@ -190,6 +204,10 @@ export function RoutineScreen() {
   }, []);
 
   const commit = (next: Routine) => {
+    // Onboarding can't be left before its setup is saved, so a routine exists by the time this
+    // tab is reachable. Guarded anyway: a save here would be the first routine, and with one
+    // saved onboarding never opens again (`useAppStart`).
+    if (!hasRoutine()) return;
     const wasWaiting = load().from !== null;
     const armed = applyRoutineEdit(toStored(next));
     const loaded = load();
@@ -275,7 +293,11 @@ export function RoutineScreen() {
       {/* The nights in the methods' card, so the screen's controls share one edge and surface. */}
       <Card solid style={styles.daysCard}>
         <View style={styles.days}>
-          <DayStrip value={saved.nights} onChange={edited((nights: number[]) => set({ nights }))} />
+          <DayStrip
+            value={saved.nights}
+            tonight={tonightOf(active, now)}
+            onChange={edited((nights: number[]) => set({ nights }))}
+          />
         </View>
       </Card>
       {hintSeen ? null : (

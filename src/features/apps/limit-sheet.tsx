@@ -6,7 +6,7 @@ import { Alert, Platform, Pressable, StyleSheet, View, type TextStyle } from 're
 import { Text, TextInput } from '@/components/text';
 import { sym } from '@/components/grouped-list';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
-import { LIMIT_MAX } from '@/lib/daily-limits';
+import { LIMIT_MAX, limitLabel } from '@/lib/daily-limits';
 import * as haptic from '@/lib/haptics';
 import { DisplayFont, Nocturne, Radius, Space, Type } from '@/theme';
 
@@ -43,6 +43,18 @@ export function openLimitSheet(next: LimitRequest) {
   router.push('/limit');
 }
 
+/**
+ * Asks before deleting a limit, like deleting an alarm; the web preview has no alert to ask with.
+ * The sheet's Delete and a limit page's Remove limit both ask this.
+ */
+export function confirmRemoveLimit(remove: () => void) {
+  if (Platform.OS === 'web') return remove();
+  Alert.alert('Delete this limit?', 'These apps stay awake all day again.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: remove },
+  ]);
+}
+
 /** Long enough for "Social and games", short enough for a tile's title. */
 const NAME_MAX = 24;
 
@@ -70,11 +82,14 @@ export function LimitSheet() {
   if (!req) return null;
   const { apps } = req;
 
+  const renamed = !!req.name && name.trim() !== req.name.value.trim();
+  const retimed = total !== req.chosen && total > 0;
+  // Named first, so the minutes' save keeps the new name.
+  const saveName = () => renamed && req.name!.onRename(name);
   const save = () => {
     haptic.done();
-    // Named first, so the minutes' save keeps the new name.
-    if (req.name && name.trim() !== req.name.value.trim()) req.name.onRename(name);
-    if (total !== req.chosen) req.onChange(total);
+    saveName();
+    if (retimed) req.onChange(total);
     closeSleepSheet();
   };
   const { onRemove } = req;
@@ -83,14 +98,27 @@ export function LimitSheet() {
     onRemove?.();
     closeSleepSheet();
   };
-  // Asked first on a phone, like deleting an alarm; the web preview has no alert to ask with.
-  const askRemove = () =>
-    Platform.OS === 'web'
-      ? remove()
-      : Alert.alert('Delete this limit?', 'These apps stay awake all day again.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: remove },
-        ]);
+  const askRemove = () => confirmRemoveLimit(remove);
+
+  // The apps' page opens once the sheet has gone (Apple's picker can't open over it). Edits made
+  // here go with it rather than vanish: a name is only words, so it's saved; a new time asks
+  // first, since a shorter one starts at once and can't be taken back until bedtime.
+  const openApps = (onEdit: () => void) => {
+    haptic.tap();
+    const go = (keepTime: boolean) => {
+      saveName();
+      if (keepTime) req.onChange(total);
+      afterClose.current = onEdit;
+      closeSleepSheet();
+    };
+    if (!retimed) return go(false);
+    if (Platform.OS === 'web') return go(true);
+    Alert.alert('Save the new time?', `This limit becomes ${limitLabel(total)} a day.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Don’t Save', onPress: () => go(false) },
+      { text: 'Save', isPreferred: true, onPress: () => go(true) },
+    ]);
+  };
 
   return (
     <View style={styles.sheet}>
@@ -136,11 +164,7 @@ export function LimitSheet() {
         </View>
         {apps ? (
           <Pressable
-            onPress={() => {
-              haptic.tap();
-              afterClose.current = apps.onEdit;
-              closeSleepSheet();
-            }}
+            onPress={() => openApps(apps.onEdit)}
             accessibilityRole="button"
             accessibilityLabel={`Apps, ${apps.summary}`}
             accessibilityHint="Opens the app picker"

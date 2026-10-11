@@ -8,7 +8,7 @@ import type { Stage, WordsContext } from './place-stage.ts';
 
 // place-spot.ts reads the App Group store; Screen Time is unavailable here.
 mock.module('react-native-device-activity', { namedExports: fakeDeviceActivity({ available: false }).exports });
-const { formatDistance, livePlaceStage, placeWords } = await import('./place-stage.ts');
+const { formatDistance, hereFailedWords, livePlaceStage, placeWords, settingsCanFix } = await import('./place-stage.ts');
 
 const morning = { phase: 'morning' as const, morningKey: '2026-10-06' };
 const day = { phase: 'day' as const, morningKey: '2026-10-06' };
@@ -63,4 +63,21 @@ test('his words name the place, the distance and the way out', () => {
   // "Use where I am" warns against picking home.
   const here = placeWords({ kind: 'confirm', source: 'here', candidate: { name: '', address: '', latitude: 1, longitude: 1 } }, ctx);
   assert.match(here.body, /not at home/);
+});
+
+test('no location: Settings is offered only where it can help', () => {
+  assert.match(placeWords({ kind: 'noFix', why: 'imprecise' }, ctx).body, /Precise Location/);
+  assert.match(placeWords({ kind: 'noFix', why: 'imprecise' }, ctx).body, /walk 200 steps instead/);
+  // A restriction isn't theirs to lift: no "turn it on".
+  const restricted = placeWords({ kind: 'noFix', why: 'restricted' }, ctx).body;
+  assert.match(restricted, /restricted/);
+  assert.doesNotMatch(restricted, /Turn|turn/);
+  assert.equal(settingsCanFix('denied'), true);
+  assert.equal(settingsCanFix('imprecise'), true);
+  assert.equal(settingsCanFix('restricted'), false);
+  assert.equal(settingsCanFix('off'), false, "the app's Settings page can't turn Location Services on");
+  assert.equal(settingsCanFix('failed'), false);
+  assert.match(hereFailedWords('vague'), /too fuzzy/);
+  assert.match(hereFailedWords('imprecise'), /Precise Location/);
+  assert.doesNotMatch(hereFailedWords('restricted'), /turn/i);
 });

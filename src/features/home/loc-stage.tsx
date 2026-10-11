@@ -37,7 +37,8 @@ export default function LocStage({
   // The mood the rig starts in; later changes go through `setMood`.
   const moodRef = useRef(mood);
   const shareRef = useRef(share);
-  const presentRef = useRef(present);
+  /** Restarts the frame loop after it stopped for an idle, out-of-sight Loc or a hidden page. */
+  const wakeRef = useRef<() => void>(() => {});
   // Read once, when the rig is made.
   const inkRef = useRef(ink);
   const lastTap = useRef(0);
@@ -51,48 +52,77 @@ export default function LocStage({
     rig.setShare(shareRef.current);
     rig.onCue = (cue) => onCueRef.current?.(cue);
     rigRef.current = rig;
-    const arrive = presentRef.current ? setTimeout(() => rig.setPresent(true), ARRIVE_DELAY_MS) : undefined;
+    // He arrives from the `present` effect below, which runs after this one with the rig made.
+    let frame = 0;
+    let running = false;
+    let last = 0;
+    let paused = false;
+    // The loop runs only while there's something to draw: out of sight with nothing playing, or
+    // with the page hidden (the app in the background, a screen over his), it stops until a
+    // prop, a tap, a resize or the page coming back wakes it.
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, now - last) / 1000);
+      last = now;
+      if (!paused) rig.step(dt);
+      if (document.visibilityState === 'hidden' || (rig.idle && !paused)) { running = false; return; }
+      frame = requestAnimationFrame(tick);
+    };
+    const wake = () => {
+      if (running || document.visibilityState === 'hidden') return;
+      running = true;
+      last = performance.now();
+      frame = requestAnimationFrame(tick);
+    };
+    wakeRef.current = wake;
     const size = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; wake(); }
     };
     size();
     const observer = new ResizeObserver(size);
     observer.observe(canvas);
-    let frame = 0;
-    let last = performance.now();
-    let paused = false;
-    const tick = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      if (!paused) rig.step(dt);
-      frame = requestAnimationFrame(tick);
-    };
+    document.addEventListener('visibilitychange', wake);
     // Dev only: freeze his clock and step it by hand, to review moves frame by frame.
     if (process.env.NODE_ENV !== 'production') {
       (window as unknown as { __locDev?: object }).__locDev = {
         rig,
-        advance: (ms: number) => { paused = true; const n = Math.ceil(ms / (1000 / 60)); for (let i = 0; i < n; i++) rig.step(ms / 1000 / n); },
-        resume: () => { paused = false; },
+        advance: (ms: number) => { paused = true; wake(); const n = Math.ceil(ms / (1000 / 60)); for (let i = 0; i < n; i++) rig.step(ms / 1000 / n); },
+        resume: () => { paused = false; wake(); },
       };
     }
-    frame = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(frame); clearTimeout(arrive); observer.disconnect(); rigRef.current = null; };
+    // One frame either way, so the canvas is sized and cleared before he first arrives.
+    wake();
+    return () => {
+      cancelAnimationFrame(frame);
+      running = false;
+      document.removeEventListener('visibilitychange', wake);
+      observer.disconnect();
+      rigRef.current = null;
+      wakeRef.current = () => {};
+    };
   }, []);
 
   useEffect(() => {
-    presentRef.current = present;
     const rig = rigRef.current;
     if (!rig) return;
-    if (!present) { rig.setPresent(false); return; }
-    const t = setTimeout(() => rig.setPresent(true), ARRIVE_DELAY_MS);
+    if (!present) {
+      rig.setPresent(false);
+      wakeRef.current();
+      return;
+    }
+    // Cleared if he's sent away again first, so a quick flip never brings him up off Home.
+    const t = setTimeout(() => {
+      rig.setPresent(true);
+      wakeRef.current();
+    }, ARRIVE_DELAY_MS);
     return () => clearTimeout(t);
   }, [present]);
 
   useEffect(() => {
     shareRef.current = share;
     rigRef.current?.setShare(share);
+    wakeRef.current();
   }, [share]);
 
   useEffect(() => {
@@ -102,6 +132,7 @@ export default function LocStage({
   useEffect(() => {
     moodRef.current = mood;
     rigRef.current?.setMood(mood);
+    wakeRef.current();
   }, [mood]);
 
   return (
@@ -122,6 +153,7 @@ export default function LocStage({
           const now = performance.now();
           if (now - lastTap.current < SECOND_HIT_MS) { lastTap.current = 0; rig.burrow(); }
           else { lastTap.current = now; rig.poke(); }
+          wakeRef.current();
         }}
       />
     </>

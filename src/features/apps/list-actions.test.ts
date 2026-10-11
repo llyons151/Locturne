@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { editLimit, type DailyLimit, type LimitId } from '../../lib/daily-limits.ts';
+import { editLimit, keepName, renameLimit, type DailyLimit, type LimitId } from '../../lib/daily-limits.ts';
 
 const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
@@ -17,7 +17,7 @@ function harness() {
   const pending: { resolve: () => void; reject: () => void }[] = [];
   const source = readFileSync(new URL('./list-actions.tsx', import.meta.url), 'utf8');
   const handlers = source.slice(source.indexOf('  const saveAndArm ='), source.indexOf('  /** Opens Apple'));
-  const code = babel.transformSync(`${handlers}\nglobalThis.setMinutes = setMinutes;`, {
+  const code = babel.transformSync(`${handlers}\nglobalThis.setMinutes = setMinutes; globalThis.setName = setName;`, {
     filename: 'handlers.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
   }).code;
   const context = {
@@ -26,6 +26,8 @@ function harness() {
     armingLimits: new Set(),
     haptic: { tap() {} },
     editLimit,
+    keepName,
+    renameLimit,
     looserEditsStartAt: () => new Date(Date.now() + 60_000),
     getLimits: () => disk,
     saveLimits: (next: DailyLimit[]) => { disk = next; },
@@ -33,9 +35,10 @@ function harness() {
     setLimitError: (next: string | null) => { error = next; },
     armLimit: () => new Promise<void>((resolve, reject) => pending.push({ resolve, reject: () => reject(new Error('native refusal')) })),
     setMinutes: undefined as unknown as (id: LimitId, minutes: number | null) => void,
+    setName: undefined as unknown as (id: LimitId, name: string) => void,
   };
   runInNewContext(code, context);
-  return { edit: context.setMinutes, pending, disk: () => disk, rendered: () => rendered, error: () => error };
+  return { edit: context.setMinutes, rename: context.setName, pending, disk: () => disk, rendered: () => rendered, error: () => error };
 }
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -61,6 +64,16 @@ test('native refusal rolls back only its limit while retaining concurrent succes
   assert.deepEqual(h.disk().map((l) => l.minutes), [60, 15]);
   assert.deepEqual(h.rendered().map((l) => l.minutes), [60, 15]);
   assert.match(h.error()!, /wouldn't start/);
+});
+
+test('a rename while iOS registers the limit survives that registration’s refusal', async () => {
+  const h = harness();
+  h.edit('limit-0', 30);
+  h.rename('limit-0', 'Social');
+  h.pending[0].reject();
+  await settle();
+  assert.deepEqual(h.disk()[0], { id: 'limit-0', minutes: 60, name: 'Social' });
+  assert.deepEqual(h.rendered()[0], h.disk()[0]);
 });
 
 test('same-limit taps cannot race two native registrations and can retry after completion', async () => {

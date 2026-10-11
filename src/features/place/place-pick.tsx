@@ -5,20 +5,21 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { Text, TextInput } from '@/components/text';
+import { useLock } from '@/hooks/use-lock';
 import * as haptic from '@/lib/haptics';
-import { getMorningPlace, getPlaceEditRefusal, PLACE_RADIUS_M, saveMorningPlace } from '@/lib/place';
+import { distanceMeters, getMorningPlace, getPlaceEditRefusal, PLACE_RADIUS_M, saveMorningPlace } from '@/lib/place';
 import { Gap, Radius, Space, Type } from '@/theme';
 
 import { applyRoutineEdit, getSetRoutine } from '../routine/apply-edit';
-import { here, mapPicture, search, type Candidate } from './locate';
-import { formatDistance } from './place-stage';
+import { here, mapPicture, near, search, type Candidate, type NoFix } from './locate';
+import { formatDistance, hereFailedWords, settingsCanFix } from './place-stage';
 import { usesMiles } from './units';
 
 /**
@@ -54,13 +55,26 @@ export function PlacePick({ select }: { select: boolean }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  // Re-renders at bedtime, so a sheet left open turns into "Not from bed".
+  useLock();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Candidate[] | null>(null);
+  /** Roughly where they are, when known: each result shows how far it is. */
+  const [from, setFrom] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [offline, setOffline] = useState(false);
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [hereFailed, setHereFailed] = useState<string | null>(null);
+  const [hereFailed, setHereFailed] = useState<NoFix | null>(null);
   const [picked, setPicked] = useState<Picked | null>(null);
+  /** Save found the apps asleep (bedtime came while the sheet was open). */
+  const [refusedAtSave, setRefusedAtSave] = useState(false);
+  const imperial = usesMiles();
+
+  // Where they roughly are, read once while they start typing, if location is already allowed.
+  useEffect(() => {
+    near().then((spot) => spot && setFrom((known) => known ?? spot));
+  }, []);
 
   // Search as you type. Only the latest query's answer is shown.
   const asked = useRef(0);
@@ -68,15 +82,20 @@ export function PlacePick({ select }: { select: boolean }) {
     setQuery(text);
     const short = text.trim().length < 2;
     setSearching(!short);
-    if (short) setResults(null);
+    if (short) {
+      setResults(null);
+      setOffline(false);
+    }
   };
   useEffect(() => {
     const ask = ++asked.current;
     if (query.trim().length < 2) return;
     const timer = setTimeout(async () => {
       const found = await search(query);
-      if (ask !== asked.current) return;
-      setResults(found);
+      if (ask !== asked.current || found.trouble === 'stale') return;
+      setResults(found.places);
+      if (found.from) setFrom(found.from);
+      setOffline(found.trouble === 'offline');
       setSearching(false);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -90,19 +109,13 @@ export function PlacePick({ select }: { select: boolean }) {
     setLocating(false);
     if (!found.ok) {
       haptic.thud();
-      setHereFailed(
-        found.why === 'denied'
-          ? 'Location is off for Locturne. Turn on While Using the App in Settings, or search instead.'
-          : found.why === 'off'
-            ? 'Location Services are off on this phone. Search instead, or turn them on in Settings.'
-            : 'Your phone didn’t find you in time. Try again, or search instead.',
-      );
+      setHereFailed(found.why);
       return;
     }
     setPicked({ candidate: found.candidate, source: 'here' });
   };
 
-  const refused = getPlaceEditRefusal() !== null;
+  const refused = refusedAtSave || getPlaceEditRefusal() !== null;
   const pad = { paddingBottom: insets.bottom + Space.l };
 
   if (refused) {
@@ -127,6 +140,7 @@ export function PlacePick({ select }: { select: boolean }) {
           if (select) applyRoutineEdit({ ...getSetRoutine(), method: 'place' });
           close();
         }}
+        onRefused={() => setRefusedAtSave(true)}
         pad={pad}
       />
     );
@@ -180,7 +194,7 @@ export function PlacePick({ select }: { select: boolean }) {
             key={`${r.latitude},${r.longitude},${i}`}
             icon={sym('mappin', 'location_on')}
             title={r.name}
-            detail={r.address}
+            detail={[from ? formatDistance(distanceMeters(from, r), imperial) : '', r.address].filter(Boolean).join(' · ')}
             onPress={() => {
               haptic.tap();
               setPicked({ candidate: r, source: 'search' });
@@ -191,9 +205,14 @@ export function PlacePick({ select }: { select: boolean }) {
       </View>
 
       {results && results.length === 0 ? (
-        <Text style={styles.note}>Nothing found. Try the street address, or go there and use where you are.</Text>
+        <Text style={styles.note}>
+          {offline
+            ? 'Can’t search without a connection. Check your signal and try again, or go there and use where you are.'
+            : 'Nothing found. Try the street address, or go there and use where you are.'}
+        </Text>
       ) : null}
-      {hereFailed ? <Text style={styles.note}>{hereFailed}</Text> : null}
+      {hereFailed ? <Text style={styles.note}>{hereFailedWords(hereFailed)}</Text> : null}
+      {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
     </ScrollView>
   );
 }
@@ -258,6 +277,7 @@ function Confirm({
   onBack,
   onClose,
   onSaved,
+  onRefused,
   pad,
 }: {
   picked: Picked;
@@ -265,6 +285,8 @@ function Confirm({
   onBack: () => void;
   onClose: () => void;
   onSaved: () => void;
+  /** The apps went to sleep while the sheet was open: nothing saved, and it can't be now. */
+  onRefused: () => void;
   pad: { paddingBottom: number };
 }) {
   const height = Math.round(width * 0.62);
@@ -286,6 +308,9 @@ function Confirm({
     if (result === null) {
       haptic.done();
       onSaved();
+    } else if (result === 'asleep') {
+      haptic.thud();
+      onRefused();
     } else {
       haptic.thud();
       setFailed(true);

@@ -28,6 +28,7 @@ const rt = await import('./routine.ts');
 const st = await import('./screen-time.ts');
 const dl = await import('./daily-limits.ts');
 const em = await import('./emergency.ts');
+const sites = await import('./websites.ts');
 const { armTonight } = await import('./arm.ts');
 
 type Routine = import('./routine.ts').Routine;
@@ -603,4 +604,61 @@ test('a by-day removal after an earlier bedtime and later morning saved from bed
   drain();
   const from = st.listChangeStarts('night');
   runChecking(at(9, 6, 50), () => assert.ok(!asleep('tiktok'), `tiktok asleep at ${hhmm()} (removal due ${from})`));
+});
+
+/*
+ * Typed-in websites removed with the apps are redated with them (`delaySiteChanges`), so a removed
+ * site never wakes before the apps removed in the same moment.
+ */
+
+/** A website off a list, as the websites card saves it. */
+const removeSite = (list: 'night' | 'always', site: string) =>
+  sites.removeSite(list, site, lc.looserEditsStartAt(new Date(), list));
+
+test('a removed website dated by an earlier bedtime moves back to 23:00 with the apps when it is undone', async () => {
+  await setUp(at(4, 12));
+  sites.addSite('night', 'reddit.com');
+  sites.addSite('always', 'x.com');
+  await proveAt(at(5, 7, 10));
+  runTo(at(5, 10));
+  await edit({ bedtime: 10 * 60 + 5 });
+  editList('night', ['tiktok']);
+  removeSite('night', 'reddit.com');
+  removeSite('always', 'x.com');
+  assert.equal(sites.sitesChangeAt('night')?.getTime(), at(5, 10, 5));
+  assert.equal(sites.sitesChangeAt('always')?.getTime(), at(5, 23));
+  await undo();
+  assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 23));
+  assert.equal(sites.sitesChangeAt('night')?.getTime(), at(5, 23));
+  runTo(at(5, 10, 10));
+  await open();
+  assert.equal(sites.sitesChangeAt('night')?.getTime(), at(5, 23));
+  assert.deepEqual(sites.sitesWaking('night'), ['reddit.com']);
+  assert.deepEqual(sites.sitesWaking('always'), ['x.com']);
+});
+
+test('a website removed from bed waiting for a bedtime an even earlier edit replaced moves past that night with the apps', async () => {
+  // As 'a removal from bed waiting for a bedtime an even earlier edit replaced…', with a website
+  // removed beside tiktok: it must wake no earlier than tiktok does.
+  await setUp(at(5, 12));
+  sites.addSite('night', 'reddit.com');
+  await proveAt(at(6, 7, 10));
+  await proveAt(at(7, 7, 10));
+  runTo(at(7, 23, 30));
+  await open();
+  await edit({ bedtime: 21 * 60 });
+  runTo(at(7, 23, 40));
+  await open();
+  editList('night', ['insta']);
+  removeSite('night', 'reddit.com');
+  assert.equal(sites.sitesChangeAt('night')?.getTime(), st.listChangeStarts('night')?.getTime());
+  await proveAt(at(8, 7, 30));
+  runTo(at(8, 12));
+  await open();
+  const before = sites.sitesChangeAt('night')!.getTime();
+  await edit({ bedtime: 20 * 60 + 30 });
+  await open();
+  const apps = st.listChangeStarts('night')!.getTime();
+  assert.ok(apps > before, `the apps' removal stayed at ${new Date(apps)}`);
+  assert.equal(sites.sitesChangeAt('night')?.getTime(), apps);
 });

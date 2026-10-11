@@ -1184,4 +1184,29 @@ func registerTests() {
     reapplyLocturneBlocks(triggeredBy: "app")
     expect(filtered() == nil, "nothing without a subscription")
   }
+
+  test("a website removal the app redated wakes at its new time, whatever else it stored with it") {
+    func filtered() -> Set<String>? {
+      guard case .specific(let domains)? = ManagedSettingsStore().webContent.blockedByFilter else { return nil }
+      return Set(domains.compactMap(\.domain))
+    }
+    pick("night", ["instagram"])
+    set(LOCTURNE_SITES_KEY, ["always": ["reddit.com", "x.com"]])
+    // `delaySiteChanges` (src/lib/websites.ts) moved it from Monday's 23:00 to Tuesday's, keeping
+    // when it was made and whether the bedtime list was awake then.
+    set(LOCTURNE_SITES_PENDING_KEY, [
+      "always": [
+        "sites": ["x.com"], "from": ms(local("2026-10-06 23:00")),
+        "dated": ms(local("2026-10-05 10:00")), "awake": true,
+      ]
+    ])
+    armNight()
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(filtered(), ["reddit.com", "x.com"], "still asleep at the old time")
+    at("2026-10-06 22:59")
+    start("night-1")
+    expectEqual(filtered(), ["x.com"], "wakes within the two minutes' slack of its new time")
+    expect(userDefaults?.dictionary(forKey: LOCTURNE_SITES_PENDING_KEY)?["always"] == nil, "the removal is settled")
+  }
 }

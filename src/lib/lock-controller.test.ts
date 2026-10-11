@@ -35,6 +35,8 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     sharedRemove: (key: string) => store.delete(key),
     SITES_KEY: 'locturne.sites',
     SITES_PENDING_KEY: 'locturne.sitesPending',
+    SETTLE_SLACK_MS: 2 * 60_000,
+    bedtimeListAwakeAt: () => undefined,
     isStoodDown: () => stoodDown,
     standDown: () => {
       calls.push('standDown');

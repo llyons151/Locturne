@@ -10,9 +10,19 @@
  * Like the apps (GAME_PLAN), an added site sleeps at once and a removed one keeps sleeping until
  * the next bedtime (`looserEditsStartAt`): the removal waits in `SITES_PENDING_KEY` and is swapped
  * in here when the app opens after it (`settleSites`), or by the extension at the first interval
- * start after it (`settleLocturneSites`).
+ * start after it (`settleLocturneSites`). Like a list's removal, it remembers when it was made
+ * (`dated`, and `awake` for the bedtime list), so it moves with the apps when the windows or a
+ * waiting routine edit change (`delaySiteChanges`, from `redateLooserEdits` in lock-controller.ts).
  */
-import { sharedGet, sharedSet, SITES_KEY, SITES_PENDING_KEY, type SiteList } from './screen-time.ts';
+import {
+  bedtimeListAwakeAt,
+  SETTLE_SLACK_MS,
+  sharedGet,
+  sharedSet,
+  SITES_KEY,
+  SITES_PENDING_KEY,
+  type SiteList,
+} from './screen-time.ts';
 
 export type { SiteList };
 
@@ -20,7 +30,8 @@ export type { SiteList };
 export const MAX_SITES = 50;
 
 type Sites = Partial<Record<SiteList, string[]>>;
-type PendingSites = Partial<Record<SiteList, { sites: string[]; from: number }>>;
+/** `dated`: when `from` was worked out. `awake`: for the bedtime list, whether it was awake then. */
+type PendingSites = Partial<Record<SiteList, { sites: string[]; from: number; dated?: number; awake?: boolean }>>;
 
 const live = (): Sites => sharedGet<Sites>(SITES_KEY) ?? {};
 const pending = (): PendingSites => sharedGet<PendingSites>(SITES_PENDING_KEY) ?? {};
@@ -88,13 +99,43 @@ export function addSite(list: SiteList, input: string): AddSiteResult {
 /**
  * Removes a site from a list. It keeps sleeping until `takeEffectAt` (`looserEditsStartAt`), or
  * until removals already waiting land, whichever is later. A second removal never pulls a
- * waiting one forward.
+ * waiting one forward, and keeps its `dated` and `awake` (as `finishListEdit` does for apps).
  */
-export function removeSite(list: SiteList, site: string, takeEffectAt: Date): void {
+export function removeSite(list: SiteList, site: string, takeEffectAt: Date, now = new Date()): void {
   const waiting = pending()[list];
   const sites = getSites(list).filter((s) => s !== site);
   const from = Math.max(waiting?.from ?? 0, takeEffectAt.getTime());
-  sharedSet(SITES_PENDING_KEY, { ...pending(), [list]: { sites, from } });
+  const kept = !!waiting && waiting.from > takeEffectAt.getTime();
+  const dated = kept ? waiting.dated : now.getTime();
+  const awake = kept ? waiting.awake : list === 'night' && dated !== undefined ? bedtimeListAwakeAt(new Date(dated)) : undefined;
+  const entry = { sites, from, ...(dated === undefined ? {} : { dated }), ...(awake === undefined ? {} : { awake }) };
+  sharedSet(SITES_PENDING_KEY, { ...pending(), [list]: entry });
+}
+
+/**
+ * Moves waiting removals to `dueAt(list, dated, awake, from)`, the rule `delayListChanges` applies
+ * to the apps (screen-time.ts), so a removed site never wakes before the apps removed with it:
+ * only ever later, unless `dueAt` says `earlier`, and never before now. Skips one the extension
+ * may be settling (`SETTLE_SLACK_MS`) or saved without `dated` (an older build). Returns the
+ * lists now due, for `settleSites`.
+ */
+export function delaySiteChanges(
+  dueAt: (list: SiteList, dated: Date, awake: boolean | undefined, from: Date) => { at: Date; earlier?: boolean },
+  now = new Date(),
+): SiteList[] {
+  const dueNow: SiteList[] = [];
+  for (const list of Object.keys(pending()) as SiteList[]) {
+    // Read again for each list: the monitor extension may have settled it a moment ago.
+    const waiting = pending()[list];
+    if (!waiting || waiting.dated === undefined || waiting.from <= now.getTime() + SETTLE_SLACK_MS) continue;
+    const due = dueAt(list, new Date(waiting.dated), waiting.awake, new Date(waiting.from));
+    const at = due.earlier ? Math.max(due.at.getTime(), now.getTime()) : due.at.getTime();
+    if (at > waiting.from || (due.earlier && at < waiting.from)) {
+      sharedSet(SITES_PENDING_KEY, { ...pending(), [list]: { ...waiting, from: at } });
+      if (at <= now.getTime()) dueNow.push(list);
+    }
+  }
+  return dueNow;
 }
 
 /** Swaps in each list's waiting removals whose time has come. Returns whether any did. */

@@ -7,6 +7,7 @@ import {
   editLimit,
   freeLimitId,
   isLimitId,
+  keepName,
   limitLabel,
   looserEditsStart,
   MAX_LIMITS,
@@ -95,6 +96,18 @@ describe('naming a limit', () => {
   test('a name saves at once, trimmed, and a blank one clears it', () => {
     assert.deepEqual(renameLimit(thirty, 'limit-0', '  Social '), social);
     assert.deepEqual(renameLimit(social, 'limit-0', '   '), thirty);
+  });
+
+  test('a copy written back takes the name the limit has now, or none', () => {
+    assert.deepEqual(keepName({ id: 'limit-0', minutes: 60 }, { id: 'limit-0', name: 'Social', minutes: 30 }), {
+      id: 'limit-0',
+      minutes: 60,
+      name: 'Social',
+    });
+    assert.deepEqual(keepName({ id: 'limit-0', name: 'Social', minutes: 60 }, { id: 'limit-0', minutes: 30 }), {
+      id: 'limit-0',
+      minutes: 60,
+    });
   });
 
   test('the name carries over stricter, looser and settled edits', () => {

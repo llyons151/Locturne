@@ -10,7 +10,8 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 
-import { nightsToWeekdays, weekdaysToNights } from './nights.ts';
+import { nightsAround, wallClock } from '../../lib/lock-state.ts';
+import { fromWeekday, nightsToWeekdays, weekdaysToNights } from './nights.ts';
 
 const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
@@ -26,7 +27,8 @@ const code = babel.transformSync(readFileSync(new URL('./routine-screen.tsx', im
   plugins: [['@babel/plugin-transform-react-jsx', { runtime: 'classic' }], '@babel/plugin-transform-modules-commonjs'],
 }).code;
 
-function screen(initial: Stored) {
+/** `now`: the screen's clock, for what it reads from `new Date()`. */
+function screen(initial: Stored, now?: Date) {
   let stored = initial;
   const saves: Stored[] = [];
   const state: unknown[] = [];
@@ -93,6 +95,7 @@ function screen(initial: Stored) {
       onLockChange: () => () => {},
       syncLock() {},
     },
+    '@/lib/lock-state': { nightsAround, wallClock },
     '@/lib/night-plan': { MIN_WINDOW: 15 },
     '@/lib/notifications': { rescheduleNotifications: async () => {} },
     '@/lib/routine': {
@@ -100,6 +103,7 @@ function screen(initial: Stored) {
       pushupGoalOf: (r: { pushupGoal?: number }) => r.pushupGoal ?? 10,
       getPendingRoutine: () => null,
       hasRoutine: () => true,
+      toLockSettings: (r: Stored) => ({ ...r, nightApps: ['night'], alwaysApps: ['always'] }),
       saveRoutine(r: Stored) {
         stored = r;
         saves.push(r);
@@ -112,12 +116,22 @@ function screen(initial: Stored) {
     '@/lib/text': { noOrphan: (s: string) => s, formatPreset: () => '' },
     '@/theme': { DisplayFont: {}, Gap: {}, italicOverhang: () => ({}), Nocturne: {}, Radius: {}, Space: {}, Type: {}, VoiceSize: { aside: 0 } },
     './night-dial': { NightDial: 'NightDial' },
-    './nights': { nightsToWeekdays, weekdaysToNights },
+    './nights': { fromWeekday, nightsToWeekdays, weekdaysToNights },
     './pending-line': { pendingLine: () => '' },
     './shadow-loc': { ShadowLoc: 'ShadowLoc' },
   };
   const exports = {} as { RoutineScreen: () => Tree };
-  runInNewContext(code, { exports, require: (id: string) => mocks[id], React: react });
+  // A clock stopped at `now`: `new Date()` reads it, `new Date(ms)` still works.
+  const at = now?.getTime();
+  const Clock =
+    at === undefined
+      ? Date
+      : class extends Date {
+          constructor(...args: [number?]) {
+            super(args.length ? args[0]! : at!);
+          }
+        };
+  runInNewContext(code, { exports, require: (id: string) => mocks[id], React: react, Date: Clock });
 
   index = 0;
   const tree = exports.RoutineScreen();
@@ -168,4 +182,23 @@ test('picking a method after a dial edit keeps the new times', () => {
   assert.equal(s.stored().method, 'pushups');
   assert.equal(s.stored().bedtime, TIMES.bedtime);
   assert.equal(s.stored().morningStart, TIMES.morningStart);
+});
+
+test('after midnight, "tonight" is still the night in progress', () => {
+  // Tuesday October 13, 2026, 1:30 AM: inside Monday night (11 PM to 7 AM).
+  const s = screen(ROUTINE, new Date(2026, 9, 13, 1, 30));
+  assert.equal(s.days.tonight, 0, 'Monday night, Monday first');
+});
+
+test('in the day, "tonight" is the coming night', () => {
+  // Tuesday October 13, 2026, 3 PM: tonight is Tuesday night.
+  assert.equal(screen(ROUTINE, new Date(2026, 9, 13, 15)).days.tonight, 1);
+  // Sunday October 11, 2026, 10 PM: Sunday night, last in a Monday-first week.
+  assert.equal(screen(ROUTINE, new Date(2026, 9, 11, 22)).days.tonight, 6);
+});
+
+test('a bedtime after midnight names the night after its evening', () => {
+  // 1 AM to 8 AM. Wednesday October 14, 2026, 0:30: Wednesday's 1 AM bedtime is Tuesday night.
+  const late = { ...ROUTINE, bedtime: 60, morningStart: 8 * 60 };
+  assert.equal(screen(late, new Date(2026, 9, 14, 0, 30)).days.tonight, 1);
 });

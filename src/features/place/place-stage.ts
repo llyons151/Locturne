@@ -43,6 +43,33 @@ export function livePlaceStage(
   return initial;
 }
 
+/**
+ * Can Settings fix this? Only Locturne's own page opens from the app: it has the When-In-Use
+ * and Precise Location switches, but not Location Services (system-wide) and nothing a
+ * restriction blocks.
+ */
+export function settingsCanFix(why: NoFix): boolean {
+  return why === 'denied' || why === 'imprecise';
+}
+
+/** What "use where I am now" says when it can't use where they are. */
+export function hereFailedWords(why: NoFix): string {
+  switch (why) {
+    case 'denied':
+      return 'Location is off for Locturne. Turn on While Using the App in Settings, or search instead.';
+    case 'imprecise':
+      return 'Precise Location is off for Locturne, so your phone only knows roughly where you are. Turn it on in Settings, or search instead.';
+    case 'restricted':
+      return 'Location is restricted on this phone, so I can’t use where you are. Search for the place instead.';
+    case 'off':
+      return 'Location Services are off on this phone. Search instead, or turn them on in Settings › Privacy & Security.';
+    case 'vague':
+      return 'Your location is too fuzzy to save as the place. Step outside or near a window and try again, or search instead.';
+    case 'failed':
+      return 'Your phone didn’t find you in time. Try again, or search instead.';
+  }
+}
+
 /** "350 m", "1.2 km", or "400 ft", "1.3 mi" where miles are the norm. */
 export function formatDistance(meters: number, imperial: boolean): string {
   if (imperial) {
@@ -94,11 +121,22 @@ export function placeWords(stage: Stage, ctx: WordsContext): { line: string; bod
           line: 'I can’t see where you are.',
           body: `Locturne needs location While Using the App to check you’re there. Turn it on in Settings, or walk ${ctx.stepGoal} steps instead.`,
         };
+      if (stage.why === 'imprecise')
+        return {
+          line: 'I only know roughly where you are.',
+          body: `Precise Location is off for Locturne, so your phone only says which part of town you’re in. Turn on Precise Location in Settings, or walk ${ctx.stepGoal} steps instead.`,
+        };
+      if (stage.why === 'restricted')
+        return {
+          line: 'I’m not allowed to look.',
+          body: `Location is restricted on this phone (Screen Time or whoever manages it), so I can’t check you’re there. Walk ${ctx.stepGoal} steps instead.`,
+        };
       if (stage.why === 'off')
         return {
           line: 'Location is off.',
-          body: `Location Services are off on this phone. Turn them on in Settings, or walk ${ctx.stepGoal} steps instead.`,
+          body: `Location Services are off on this phone. Turn them on in Settings › Privacy & Security › Location Services, or walk ${ctx.stepGoal} steps instead.`,
         };
+      if (stage.why === 'vague') return placeWords({ kind: 'unsure' }, ctx);
       return { line: 'Nothing yet.', body: 'Your phone didn’t find you in time. Try again, ideally outside.' };
     case 'unlocked':
       return { line: 'I’m up. Don’t talk to me yet.', body: ctx.awake };

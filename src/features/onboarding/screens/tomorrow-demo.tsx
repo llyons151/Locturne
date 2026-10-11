@@ -78,23 +78,37 @@ const DOCK_APPS: SystemName[] = ['Phone', 'Safari', 'Messages', 'Music'];
  * is the same for all three; `tick` is how far along it is, 0 to STEP_GOAL. The shield's words
  * are the real ones (`shieldCopy`), and the app's lines are the real wake-up screen's.
  */
-const METHOD_DEMO: Record<
-  WakeMethod,
-  {
-    /** The big number and its unit, at this point of the timeline. */
-    count: (tick: number) => { value: string; unit: string };
-    /** Loc under the phone once the app is open, before the count starts. */
-    go: string;
-    /** His line halfway there. */
-    midway: string;
-    /** The wake-up screen's own line inside the phone, before the goal. */
-    appLine: (tick: number) => string;
-    /** Downstairs has a Start button; the others count straight away. */
-    start: boolean;
-    /** VoiceOver, at the end. */
-    done: string;
-  }
-> = {
+type MethodDemo = {
+  /** The big number and its unit, at this point of the timeline. */
+  count: (tick: number) => { value: string; unit: string };
+  /** Loc under the phone once the app is open, before the count starts. */
+  go: string;
+  /** His line halfway there. */
+  midway: string;
+  /** The wake-up screen's own line inside the phone, before the goal. */
+  appLine: (tick: number) => string;
+  /** Downstairs has a Start button; the others count straight away. */
+  start: boolean;
+  /** VoiceOver, at the end. */
+  done: string;
+};
+
+/** Push-ups to `goal`, the count the morning runs on: a rerun keeps Routine's. */
+function pushupsDemo(goal: number): MethodDemo {
+  // The same rep meter as the real wake-up screen (pushups-view.tsx).
+  const repsAt = (tick: number) => Math.floor((tick / STEP_GOAL) * goal);
+  return {
+    count: (tick) => ({ value: String(repsAt(tick)), unit: ` / ${goal} push-ups` }),
+    go: 'Start. Then the floor.',
+    midway: 'Down. Up. I’m counting. Out loud.',
+    appLine: (tick) =>
+      tick === 0 ? pushupsLine('idle', 0, goal, null) : pushupsLine('counting', repsAt(tick), goal, null).replace(/\*/g, ''),
+    start: true,
+    done: `${goal} push-ups.`,
+  };
+}
+
+const METHOD_DEMO: Record<WakeMethod, MethodDemo> = {
   steps: {
     count: (tick) => ({ value: String(tick), unit: ` / ${STEP_GOAL} steps` }),
     go: 'Walk. I’m counting. Grudgingly.',
@@ -134,18 +148,7 @@ const METHOD_DEMO: Record<
     start: false,
     done: 'Checked in at your place.',
   },
-  pushups: {
-    // The same rep meter as the real wake-up screen (pushups-view.tsx).
-    count: (tick) => ({ value: String(Math.floor((tick / STEP_GOAL) * PUSHUPS.reps)), unit: ` / ${PUSHUPS.reps} push-ups` }),
-    go: 'Start. Then the floor.',
-    midway: 'Down. Up. I’m counting. Out loud.',
-    appLine: (tick) => {
-      const reps = Math.floor((tick / STEP_GOAL) * PUSHUPS.reps);
-      return tick === 0 ? pushupsLine('idle', 0, PUSHUPS.reps, null) : pushupsLine('counting', reps, PUSHUPS.reps, null).replace(/\*/g, '');
-    },
-    start: true,
-    done: 'Ten push-ups.',
-  },
+  pushups: pushupsDemo(PUSHUPS.reps),
 };
 
 /** The notification the shield's button sends (`shieldTap`): the way into the app. */
@@ -165,18 +168,21 @@ export function TomorrowDemo({
   when,
   clock,
   method,
+  reps = PUSHUPS.reps,
   tone = 'grumpy',
   onPayoff,
 }: {
   when: string;
   clock: string;
   method: WakeMethod;
+  /** Push-ups the morning takes, for the push-ups demo (`morningGoals`). */
+  reps?: number;
   /** How grumpy he was asked to be (`voice`): the shield in the demo says it his way. */
   tone?: Tone;
   /** Called once the sleep screen has lifted: the onboarding's button waits for it. */
   onPayoff?: () => void;
 }) {
-  const copy = METHOD_DEMO[method];
+  const copy = useMemo(() => (method === 'pushups' ? pushupsDemo(reps) : METHOD_DEMO[method]), [method, reps]);
   const shield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL }, null, tone);
   const reduced = useReducedMotion();
   const compact = useCompact();

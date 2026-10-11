@@ -1,3 +1,4 @@
+import CoreLocation
 import ExpoModulesCore
 import MapKit
 import UIKit
@@ -11,14 +12,31 @@ import UIKit
    for the confirm step. A picture, not a live map: there's nothing to pan.
  */
 public class PlaceSearchModule: Module {
+  /// The search under way and the promise waiting on it. A newer search answers the older one
+  /// itself (`cancelled`), since a cancelled MKLocalSearch may never call its completion.
   private var running: MKLocalSearch?
+  private var waiting: Promise?
+  /// The last map picture written, removed when the next one is drawn so they don't pile up.
+  private var lastSnapshot: URL?
+  /// Kept until its picture is drawn: nothing else holds the snapshotter while it works.
+  private var snapshotter: MKMapSnapshotter?
 
   public func definition() -> ModuleDefinition {
     Name("PlaceSearch")
 
-    /// Up to `limit` places matching `query`, nearest first when `near` is given.
+    /// Up to `limit` places matching `query`, in Apple's order (relevance, biased toward `near`
+    /// when it's given). Resolves `{ places, error }`: `error` is null, "none" (nothing matched),
+    /// "offline" (no connection, or Apple's servers didn't answer), "cancelled" (a newer search
+    /// replaced it) or "failed".
     AsyncFunction("search") { (query: String, near: [String: Double]?, limit: Int, promise: Promise) in
-      self.running?.cancel()
+      if let old = self.running {
+        self.running = nil
+        old.cancel()
+      }
+      if let older = self.waiting {
+        self.waiting = nil
+        older.resolve(Self.answer([], error: "cancelled"))
+      }
       let request = MKLocalSearch.Request()
       request.naturalLanguageQuery = query
       request.resultTypes = [.pointOfInterest, .address]
@@ -31,13 +49,30 @@ public class PlaceSearchModule: Module {
       }
       let search = MKLocalSearch(request: request)
       self.running = search
-      search.start { response, error in
-        // A newer search cancelled this one: its caller has moved on, so an empty answer is fine.
-        guard let items = response?.mapItems, error == nil else {
-          promise.resolve([[String: Any]]())
-          return
+      self.waiting = promise
+      search.start { [weak self] response, error in
+        // Replaced by a newer search, which already answered this one's promise.
+        guard let self, self.running === search else { return }
+        self.running = nil
+        self.waiting = nil
+        if let items = response?.mapItems, error == nil {
+          promise.resolve(Self.answer(items.prefix(max(1, limit)).map(Self.describe), error: nil))
+        } else {
+          promise.resolve(Self.answer([], error: Self.kind(of: error)))
         }
-        promise.resolve(items.prefix(max(1, limit)).map(Self.describe))
+      }
+    }.runOnQueue(.main)
+
+    /// Location access as iOS has it, for what expo-location folds together: "restricted"
+    /// (Screen Time or a managed phone: the person can't turn it on), "denied", "notDetermined",
+    /// or "granted".
+    AsyncFunction("locationAccess") { () -> String in
+      switch CLLocationManager().authorizationStatus {
+      case .restricted: return "restricted"
+      case .denied: return "denied"
+      case .notDetermined: return "notDetermined"
+      case .authorizedAlways, .authorizedWhenInUse: return "granted"
+      @unknown default: return "denied"
       }
     }.runOnQueue(.main)
 
@@ -49,7 +84,10 @@ public class PlaceSearchModule: Module {
       options.region = MKCoordinateRegion(center: center, latitudinalMeters: span, longitudinalMeters: span * width / max(height, 1))
       options.size = CGSize(width: width, height: height)
       options.traitCollection = UITraitCollection(userInterfaceStyle: .dark)
-      MKMapSnapshotter(options: options).start { snapshot, _ in
+      let snapshotter = MKMapSnapshotter(options: options)
+      self.snapshotter = snapshotter
+      snapshotter.start { snapshot, _ in
+        if self.snapshotter === snapshotter { self.snapshotter = nil }
         guard let snapshot else {
           promise.resolve(nil)
           return
@@ -73,15 +111,49 @@ public class PlaceSearchModule: Module {
           dot.stroke()
           _ = context
         }
+        // A new name each time, so the image view doesn't show a cached older picture; the
+        // previous one goes.
+        if let previous = self.lastSnapshot {
+          try? FileManager.default.removeItem(at: previous)
+          self.lastSnapshot = nil
+        }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("place-\(UUID().uuidString).png")
+        guard let data = image.pngData() else {
+          promise.resolve(nil)
+          return
+        }
         do {
-          try image.pngData()?.write(to: url)
+          try data.write(to: url)
+          self.lastSnapshot = url
           promise.resolve(url.absoluteString)
         } catch {
           promise.resolve(nil)
         }
       }
     }.runOnQueue(.main)
+  }
+
+  private static func answer(_ places: [[String: Any]], error: String?) -> [String: Any] {
+    return ["places": places, "error": error ?? NSNull()]
+  }
+
+  /// "none", "offline" or "failed", from MapKit's error (or a network error under it).
+  private static func kind(of error: Error?) -> String {
+    guard let error = error as NSError? else { return "failed" }
+    var chain: NSError? = error
+    while let current = chain {
+      if current.domain == NSURLErrorDomain { return "offline" }
+      chain = current.userInfo[NSUnderlyingErrorKey] as? NSError
+    }
+    // MKErrorDomain's codes, as numbers: 2 serverFailure, 3 loadingThrottled, 4 placemarkNotFound.
+    if error.domain == "MKErrorDomain" {
+      switch error.code {
+      case 4: return "none"
+      case 2, 3: return "offline"
+      default: return "failed"
+      }
+    }
+    return "failed"
   }
 
   private static func describe(_ item: MKMapItem) -> [String: Any] {

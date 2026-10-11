@@ -124,11 +124,16 @@ const styles = StyleSheet.create({
  * at the user's ask, October 9, 2026); VoiceOver still hears which one is tonight.
  * Sits under the Routine tab's dial and saves on each tap.
  */
-export function DayStrip({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
-  // Reads the clock for tonight's label, so the React Compiler mustn't cache it from the first render.
-  'use no memo';
-  // Monday first, like DAYS: getDay() is Sunday first.
-  const tonight = (new Date().getDay() + 6) % 7;
+export function DayStrip({
+  value,
+  tonight,
+  onChange,
+}: {
+  value: number[];
+  /** The night VoiceOver calls tonight, Monday first: the one in progress after midnight too. */
+  tonight: number;
+  onChange: (days: number[]) => void;
+}) {
   const toggle = (day: number) => {
     haptic.tap();
     onChange(value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort((a, b) => a - b));

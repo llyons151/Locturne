@@ -12,7 +12,15 @@ function useSelectedTab() {
     return state ? state.routes[state.index]?.name : undefined;
   };
   const [name, setName] = useState(read);
-  useEffect(() => navigation.addListener('state', () => setName(read())));
+  // Subscribed once per navigator, not again on every render.
+  useEffect(() => {
+    const update = () => {
+      const state = navigation.getState();
+      setName(state ? state.routes[state.index]?.name : undefined);
+    };
+    update();
+    return navigation.addListener('state', update);
+  }, [navigation]);
   return name;
 }
 

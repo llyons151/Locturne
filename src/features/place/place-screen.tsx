@@ -25,7 +25,7 @@ import { Voice } from '../exits/voice';
 import { nextLockedMorning } from '../scan/next-locked-morning';
 import { awakeStatus } from '../wake/awake-status';
 import { readFix } from './locate';
-import { livePlaceStage, placeWords, type Stage } from './place-stage';
+import { livePlaceStage, placeWords, settingsCanFix, type Stage } from './place-stage';
 import { usesMiles } from './units';
 
 /**
@@ -130,7 +130,7 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
         {morning ? (
           <>
             <PrimaryButton label={stage.kind === 'morning' ? 'Check in' : 'Try again'} icon="location.fill" onPress={onCheckIn} />
-            {stage.kind === 'noFix' && stage.why !== 'failed' ? (
+            {stage.kind === 'noFix' && settingsCanFix(stage.why) ? (
               <TextButton label="Open Settings" onPress={() => Linking.openSettings()} />
             ) : null}
             {/* Every morning offers walking instead (GAME_PLAN): no signal, a closed gym, a sick day. */}

@@ -308,11 +308,14 @@ export const METHOD_CHOICES: Choice<WakeMethod>[] = [
   { label: 'Yes, there are stairs', value: 'downstairs' },
   { label: 'No, it’s all one floor', value: 'steps' },
 ];
-export const MORE_METHODS: Choice<WakeMethod>[] = [
-  { label: 'Scan a code in another room', value: 'scan' },
-  { label: 'Get to a place, like the gym', value: 'place' },
-  { label: 'Ten push-ups on the floor', value: 'pushups' },
-];
+/** The rest, behind "Other ways to wake them". `reps`: the push-up count in use (`morningGoals`). */
+export function moreMethods(reps: number = DEFAULT_PUSHUP_GOAL): Choice<WakeMethod>[] {
+  return [
+    { label: 'Scan a code in another room', value: 'scan' },
+    { label: 'Get to a place, like the gym', value: 'place' },
+    { label: `${reps} push-ups on the floor`, value: 'pushups' },
+  ];
+}
 
 /** Every line after the method question that says how they prove they're up. */
 export const METHOD_COPY: Record<
@@ -458,6 +461,15 @@ const WAITING_MORNING = {
   ],
 };
 
+/**
+ * The step target and push-up count the first morning runs on: the routine tomorrow runs on,
+ * a Routine edit waiting for bedtime included (`saveSetup`), or the defaults on a first run.
+ */
+export function morningGoals(): { steps: number; reps: number } {
+  const next = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : null;
+  return { steps: next?.stepGoal ?? 200, reps: next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL };
+}
+
 function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
   const saved = METHOD_COPY[method];
   // A returning scan user already has a code: no "set up your code" today. Without one, a
@@ -474,11 +486,8 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
         : codeWaits
           ? { ...saved, morning: WAITING_MORNING[method as 'scan' | 'place'] }
           : saved;
-  // The routine tomorrow runs on: a Routine edit waiting for bedtime included (`saveSetup`).
-  const next = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : null;
-  const goal = next?.stepGoal ?? 200;
-  // Push-ups are written for the default 10; a rerun keeps the count set in Routine.
-  const reps = next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL;
+  // Written for the default 200 steps and 10 push-ups; a rerun keeps the ones set in Routine.
+  const { steps: goal, reps } = morningGoals();
   if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL) return copy;
   const swap = <T,>(value: T): T => {
     if (typeof value === 'string')

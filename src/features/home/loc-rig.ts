@@ -147,6 +147,21 @@ const POKE: Bit = { ms: 1900, tracks: {
   earR: [[0, 'S'], [90, 30, 'out'], [600, 12, 'io'], [1900, 'T', 'io']],
 }, events: [[0, (r) => { r.squeezing = true; }], [260, (r) => { r.squeezing = false; r.pop(0.55); r.say('poke'); }], [720, (r) => r.pop(-0.4)]] };
 
+/**
+ * Reduce Motion: no launching, sinking or burrowing. He fades in and out where he sits
+ * (`setPresent`), and a tap (or two) gets the same look without the flinch or the dive.
+ */
+const FADE_MS = 250;
+const calm = (bit: Bit, cue: 'poke' | 'angry'): Bit => ({
+  ms: bit.ms,
+  tracks: Object.fromEntries(Object.entries(bit.tracks).filter(([key]) => !['stretch', 'y', 'sink', 'paw'].includes(key))),
+  events: [[260, (r) => r.say(cue)]],
+});
+const POKE_CALM = calm(POKE, 'poke');
+const BURROW_CALM = calm(POKE, 'angry');
+const ARRIVE_CALM: Bit = { ms: FADE_MS + 100, tracks: {}, events: [[FADE_MS, (r) => r.say('hello')]] };
+const LEAVE_CALM: Bit = { ms: FADE_MS, tracks: {}, events: [[0, (r) => r.say('hide')]] };
+
 /** How far down he goes to be out of sight: his body, and his paws (which only need to clear the edge). */
 const HIDDEN = { sink: 720, paw: 80 };
 
@@ -266,7 +281,8 @@ function burrowLump(rand: () => number = Math.random): { pop: number; lump: NonN
     const travel = (130 + Math.abs(stop - at) * 1900) * (0.8 + rand() * 0.4);
     const start = t;
     hops(start + travel);
-    t = start + travel;
+    // A hop can land just past the stop; the next keys follow it, never before it.
+    t = Math.max(t, start + travel);
     // Darts and brakes ease out; some runs speed up into the stop instead.
     x.push([t, stop, last || rand() < 0.6 ? 'out' : 'in']);
     at = stop;
@@ -430,8 +446,14 @@ export class LocRig {
     this.gl = this.glCanvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: true, preserveDrawingBuffer: true });
     this.setupGL(ink);
     this.mood = mood;
-    Object.assign(this.cur, TARGET[mood], HIDDEN);
-    Object.assign(this.goal, TARGET[mood], HIDDEN);
+    // With Reduce Motion he never leaves his spot: out of sight is see-through (`setPresent`).
+    const away = reduced ? { sink: 0, paw: 0 } : HIDDEN;
+    Object.assign(this.cur, TARGET[mood], away);
+    Object.assign(this.goal, TARGET[mood], away);
+    if (reduced) {
+      canvas.style.transition = `opacity ${FADE_MS}ms ease`;
+      canvas.style.opacity = '0';
+    }
     this.lag = { tilt: this.cur.tilt, earL: this.cur.earL, earR: this.cur.earR, gazeTurn: 0 };
   }
 
@@ -491,6 +513,7 @@ export class LocRig {
   get burrowing() { return !!this.bit?.def.lump; }
   burrow() {
     if (this.hidden) return;
+    if (this.reduced) return this.play(BURROW_CALM);
     const { pop, lump } = burrowLump();
     this.play(burrowBit(pop, lump));
   }
@@ -498,9 +521,19 @@ export class LocRig {
   setPresent(present: boolean) {
     if (present === !this.hidden) return;
     this.hidden = !present;
+    if (this.reduced) {
+      this.canvas.style.opacity = present ? '1' : '0';
+      this.play(present ? ARRIVE_CALM : LEAVE_CALM);
+      return;
+    }
     this.play(present ? (this.mood === 'asleep' ? ARRIVE_ASLEEP : ARRIVE) : LEAVE);
   }
-  poke() { this.play(POKE); }
+  /**
+   * Out of sight with nothing playing: every frame would draw the same empty canvas, so the
+   * stage stops its frame loop until something changes (loc-stage.tsx).
+   */
+  get idle() { return this.hidden && !this.bit; }
+  poke() { this.play(this.reduced ? POKE_CALM : POKE); }
   kick(v: number) { this.vel.stretch += v * 14; }
   flick(side: 'L' | 'R', deg: number) { this.flicks[side] += deg; }
   /** Tells Home what just happened, so he can say something about it (loc-lines.ts). */
@@ -533,8 +566,8 @@ export class LocRig {
     this.clock += dt;
     if (this.pending.length) this.pending = this.pending.filter((p) => { if (p.at <= this.clock) { this.goal[p.key] = p.value; return false; } return true; });
     // Where he rests: up on the edge, or out of sight below it.
-    this.goal.sink = this.hidden ? HIDDEN.sink : 0;
-    this.goal.paw = this.hidden ? HIDDEN.paw : 0;
+    this.goal.sink = this.hidden && !this.reduced ? HIDDEN.sink : 0;
+    this.goal.paw = this.hidden && !this.reduced ? HIDDEN.paw : 0;
     const driven: Partial<Record<Channel, number>> = {};
     if (this.bit) {
       const b = this.bit;

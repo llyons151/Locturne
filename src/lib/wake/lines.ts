@@ -78,7 +78,7 @@ export function pushupsLine(
     case 'met':
       return "I'm up. Don't talk to me yet.";
     case 'timedOut':
-      return 'Ten minutes and no push-ups. Start again.';
+      return reps > 0 ? `Ten quiet minutes. ${Math.max(0, goal - reps)} left. Start again.` : 'Ten minutes and no push-ups. Start again.';
   }
 }
 

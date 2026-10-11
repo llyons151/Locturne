@@ -51,6 +51,7 @@ export const PUSHUPS = {
   minRepMs: 700,
   /** Out of view or out of a plank this long and he says so. The reps done stay. */
   lostMs: 1_200,
+  /** No plank in view for this long (not since the start: a long set with rests is fine) and the camera stops. */
   timeoutMs: 10 * 60_000,
 } as const;
 
@@ -95,6 +96,8 @@ export type PushupsSession = {
   startedAt: number;
   /** Reps needed. */
   goal: number;
+  /** Time out after this long with no plank in view (`PUSHUPS.timeoutMs`; the wake lab's preview sets less). */
+  timeoutMs: number;
   now: number;
   reps: number;
   /** Bottom of a rep reached (for `downFrames` frames), waiting for the arms to straighten. */
@@ -121,13 +124,27 @@ export type PushupsSession = {
   status: PushupsStatus;
 };
 
-export function startPushups(now: number, goal: number = PUSHUPS.reps): PushupsSession {
+/** A bad stored goal (NaN) would never be met; fall back to the default. */
+const wholeGoal = (goal: number) => (Number.isFinite(goal) ? Math.max(1, Math.round(goal)) : PUSHUPS.reps);
+
+/**
+ * A new session. `reps` carries a timed-out set's count into "Start again", so a long set
+ * with a break in it doesn't start over from nothing.
+ */
+export function startPushups(
+  now: number,
+  goal: number = PUSHUPS.reps,
+  { reps = 0, timeoutMs = PUSHUPS.timeoutMs }: { reps?: number; timeoutMs?: number } = {},
+): PushupsSession {
+  const whole = wholeGoal(goal);
+  const done = Number.isFinite(reps) ? Math.max(0, Math.floor(reps)) : 0;
+  const met = done >= whole;
   return {
     startedAt: now,
-    // A bad stored goal (NaN) would never be met; fall back to the default.
-    goal: Number.isFinite(goal) ? Math.max(1, Math.round(goal)) : PUSHUPS.reps,
+    goal: whole,
+    timeoutMs,
     now,
-    reps: 0,
+    reps: done,
     down: false,
     lowFrames: 0,
     dip: null,
@@ -139,9 +156,21 @@ export function startPushups(now: number, goal: number = PUSHUPS.reps): PushupsS
     hint: 'noBody',
     lastRep: null,
     miss: null,
-    metAt: null,
-    status: 'finding',
+    metAt: met ? now : null,
+    status: met ? 'met' : 'finding',
   };
+}
+
+/**
+ * The goal changed while the camera is up (the routine in force changed under it): keep the
+ * reps done and measure them against the new goal, met if they already are. A finished set stays
+ * finished.
+ */
+export function retarget(s: PushupsSession, goal: number, now: number): PushupsSession {
+  const whole = wholeGoal(goal);
+  if (whole === s.goal || s.status === 'met') return s;
+  if (s.status === 'timedOut' || s.reps < whole) return { ...s, goal: whole };
+  return { ...s, goal: whole, now: Math.max(s.now, now), status: 'met', metAt: Math.max(s.now, now) };
 }
 
 export const isOver = (s: PushupsSession) => s.status === 'met' || s.status === 'timedOut';
@@ -305,7 +334,8 @@ export function tick(s: PushupsSession, now: number): PushupsSession {
     next.topAt = null;
     next.drop = 0;
   }
-  if (next.now - next.startedAt >= PUSHUPS.timeoutMs) next.status = 'timedOut';
+  // Measured from the last plank seen, or the start before one.
+  if (next.now - Math.max(next.startedAt, next.seenAt ?? next.startedAt) >= next.timeoutMs) next.status = 'timedOut';
   return next;
 }
 

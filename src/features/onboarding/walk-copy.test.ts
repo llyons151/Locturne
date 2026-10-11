@@ -37,9 +37,19 @@ test('walk copy names the day it’s for', () => {
 
 test('no "tomorrow" or "tonight" when the first morning is today', () => {
   for (const day of ['This morning', 'Later today'] as WakeDay[]) {
-    for (const method of ['downstairs', 'steps', 'scan'] as const) {
+    for (const method of ['downstairs', 'steps', 'scan', 'place', 'pushups'] as const) {
       const { intro, done } = walkCopy(method, day);
       assert.doesNotMatch(`${intro} ${done}`, /tomorrow|tonight/i, `${method}, ${day}`);
     }
   }
+});
+
+test('walk copy follows the step target and push-up count in use', () => {
+  const goals = { steps: 300, reps: 25 };
+  assert.equal(walkCopy('steps', 'Tomorrow', goals).intro, 'Tomorrow it’s 300 steps. Tonight, 20 will do. Walk around the room.');
+  assert.equal(walkCopy('steps', 'Tomorrow', goals).done, 'Same tomorrow, just 300 instead of 20. Then your apps wake up.');
+  assert.equal(walkCopy('pushups', 'Tomorrow', goals).intro, 'Tomorrow it’s 25 push-ups on the floor. Tonight, 20 steps anywhere will do.');
+  assert.match(walkCopy('pushups', 'Tomorrow', goals).done, /25 push-ups/);
+  // The defaults on a first run.
+  assert.match(walkCopy('pushups', 'Tomorrow').intro, /it’s 10 push-ups/);
 });

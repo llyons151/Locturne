@@ -22,13 +22,18 @@ const DAY = 40;
  * near-white, so a full week reads calm. Picked neighbours melt together in the container.
  * Before iOS 26 it's the ring row from day-picker.
  */
-export function DayStrip({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
-  // Reads the clock for tonight's label, so the React Compiler mustn't cache it from the first render.
-  'use no memo';
-  if (!isLiquidGlassAvailable()) return <RingStrip value={value} onChange={onChange} />;
+export function DayStrip({
+  value,
+  tonight,
+  onChange,
+}: {
+  value: number[];
+  /** The night VoiceOver calls tonight, Monday first: the one in progress after midnight too. */
+  tonight: number;
+  onChange: (days: number[]) => void;
+}) {
+  if (!isLiquidGlassAvailable()) return <RingStrip value={value} tonight={tonight} onChange={onChange} />;
 
-  // Monday first, like DAYS: getDay() is Sunday first.
-  const tonight = (new Date().getDay() + 6) % 7;
   const toggle = (day: number) => {
     haptic.tap();
     onChange(value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort((a, b) => a - b));

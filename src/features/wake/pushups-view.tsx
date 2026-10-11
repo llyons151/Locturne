@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -78,13 +78,17 @@ export function PushupsView({
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
   const instead = `Walk ${goal} steps instead`;
+  // Screen Time or a profile keeps the camera off; Settings can't change that, so only walking is offered.
+  const restricted = access === 'restricted' || failed === 'restricted';
 
-  if (!available || failed === 'noCamera' || failed === 'model') {
+  if (!available || restricted || failed === 'noCamera' || failed === 'model') {
     const why = !available
       ? 'This build of the app can’t count push-ups yet. It needs the next update.'
-      : failed === 'model'
-        ? 'The pose model didn’t load. Check the connection and try again.'
-        : 'The front camera wouldn’t start.';
+      : restricted
+        ? 'The camera is restricted on this phone, by Screen Time or a profile.'
+        : failed === 'model'
+          ? 'The pose model didn’t load. Check the connection and try again.'
+          : 'The front camera wouldn’t start.';
     return (
       <View style={styles.page}>
         <View style={styles.top}>
@@ -93,7 +97,7 @@ export function PushupsView({
         </View>
         <View style={styles.flex} />
         <View style={styles.bottom}>
-          {failed ? <TextButton label="Try again" onPress={() => setFailed(null)} /> : null}
+          {failed && !restricted ? <TextButton label="Try again" onPress={() => setFailed(null)} /> : null}
           <PrimaryButton label={instead} onPress={onSteps} />
           {footer}
         </View>
@@ -101,7 +105,8 @@ export function PushupsView({
     );
   }
 
-  const denied = access === 'denied' || failed === 'denied';
+  // The camera said no but access reads as granted again (back from Settings): Start, and it's tried again.
+  const denied = access === 'denied' || (failed === 'denied' && access !== 'granted');
   const begin = async () => {
     haptic.tap();
     if (access !== 'granted' && !(await request())) return;
@@ -271,6 +276,7 @@ function PushupsCamera({
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined);
+  const again = () => start(true);
   // Smaller on an SE, so the count leaves room for you in the picture.
   const short = height < 700;
   const [quiet, setQuiet] = useState(false);
@@ -353,6 +359,17 @@ function PushupsCamera({
   const phone = preview && preview.phone !== 'upright' ? (met || timedOut ? null : preview.phone) : sensed;
   const line = phone ? PHONE_LINES[phone] : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null);
   const locH = Math.round((width * LOC_SHARE * LOC_VIEW.height) / LOC_VIEW.width);
+  // The same object between renders: the camera re-renders this about 30 times a second, and Loc's
+  // DOM view would otherwise be handed new props every time.
+  const dom = useMemo(
+    () => ({
+      style: { width, height: locH, backgroundColor: 'transparent' },
+      scrollEnabled: false,
+      bounces: false,
+      contentInsetAdjustmentBehavior: 'never' as const,
+    }),
+    [width, locH],
+  );
   const strip = STRIP + Math.max(insets.bottom, Space.l);
   const pill = phone
     ? PHONE_PILLS[phone]
@@ -409,12 +426,7 @@ function PushupsCamera({
             share={LOC_SHARE}
             present
             ink={Nocturne.text3}
-            dom={{
-              style: { width, height: locH, backgroundColor: 'transparent' },
-              scrollEnabled: false,
-              bounces: false,
-              contentInsetAdjustmentBehavior: 'never',
-            }}
+            dom={dom}
           />
         </View>
         <View style={[styles.speech, { bottom: strip + Math.round(locH * BUBBLE_AT) }]} pointerEvents="box-none">
@@ -425,7 +437,8 @@ function PushupsCamera({
           <Track progress={session ? repProgress(session) : 0} />
           <View style={styles.actions}>
             {timedOut ? (
-              <PrimaryButton label="Start again" onPress={start} />
+              // The reps done stay: a long set with a break in it carries on from where it was.
+              <PrimaryButton label="Start again" onPress={again} />
             ) : (
               <TextButton label={quiet ? 'Count out loud' : 'Count quietly'} onPress={() => setQuiet((q) => !q)} />
             )}

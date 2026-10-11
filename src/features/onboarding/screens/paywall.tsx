@@ -76,10 +76,10 @@ export function plansStep(ctx: StepContext): StepView {
       wake={answers.wake}
       nightMinutes={answers.nightMinutes ?? 0}
       morningMinutes={answers.morningMinutes ?? 0}
-      method={answers.method ?? 'downstairs'}
+      method={answers.method ?? 'steps'}
     />
   );
-  const method = methodCopy(answers.method ?? 'downstairs');
+  const method = methodCopy(answers.method ?? 'steps');
   const trialDays = offers.annual.trialDays;
   const annual = offers.annual.priceString;
   const monthly = offers.monthly.priceString;

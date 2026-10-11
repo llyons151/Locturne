@@ -7,12 +7,17 @@
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
-import { PLACE_RADIUS_M, validSpot, type Fix } from '@/lib/place';
+import { accessFrom, fixToSave, PLACE_RADIUS_M, validSpot, type Access, type Fix } from '@/lib/place';
 
-import { PlaceSearch } from '../../../modules/place-search';
+import { PlaceSearch, type SearchError } from '../../../modules/place-search';
 
-/** Why a read gave nothing: permission refused, Location Services off, or no answer in time. */
-export type NoFix = 'denied' | 'off' | 'failed';
+/**
+ * Why a read gave nothing: permission refused (`denied`), not the person's to give
+ * (`restricted`: Screen Time or a managed phone), Approximate Location on (`imprecise`),
+ * Location Services off, or no answer in time (`failed`). `vague`: a fix came, but too fuzzy or
+ * old to save as the place (setup only; the morning check judges it instead).
+ */
+export type NoFix = 'denied' | 'restricted' | 'imprecise' | 'off' | 'failed' | 'vague';
 
 export type Located = { ok: true; fix: Fix } | { ok: false; why: NoFix };
 
@@ -22,22 +27,36 @@ export type Candidate = { name: string; address: string; latitude: number; longi
 /** iOS can take a while for a first GPS fix outside; past this, say so instead of spinning. */
 const READ_TIMEOUT_MS = 20_000;
 
-/** Asks for When-In-Use if it hasn't been asked yet. True once granted. */
-async function allowed(): Promise<boolean> {
-  const now = await Location.getForegroundPermissionsAsync();
-  if (now.granted) return true;
-  if (!now.canAskAgain) return false;
-  return (await Location.requestForegroundPermissionsAsync()).granted;
+/** Location access now, asking for When-In-Use first if `ask` and it hasn't been asked yet. */
+async function access(ask: boolean): Promise<Access> {
+  let permission = await Location.getForegroundPermissionsAsync();
+  if (!permission.granted && permission.canAskAgain && ask) permission = await Location.requestForegroundPermissionsAsync();
+  // Only iOS tells restricted apart from denied, and only through our own module.
+  const ios = permission.granted ? null : ((await PlaceSearch?.locationAccess().catch(() => null)) ?? null);
+  return accessFrom(permission, ios);
+}
+
+/** Resolves null after `ms`, and clears its timer once `work` settles. */
+async function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** One fresh, precise read. Asks for permission the first time. */
 export async function readFix(): Promise<Located> {
   try {
     if (!(await Location.hasServicesEnabledAsync())) return { ok: false, why: 'off' };
-    if (!(await allowed())) return { ok: false, why: 'denied' };
-    const read = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), READ_TIMEOUT_MS));
-    const position = await Promise.race([read, timeout]);
+    const allowed = await access(true);
+    if (allowed === 'imprecise' || allowed === 'restricted') return { ok: false, why: allowed };
+    if (allowed !== 'granted') return { ok: false, why: 'denied' };
+    const position = await within(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }), READ_TIMEOUT_MS);
     if (!position) return { ok: false, why: 'failed' };
     const { latitude, longitude, accuracy } = position.coords;
     return { ok: true, fix: { latitude, longitude, accuracy, timestamp: position.timestamp } };
@@ -72,49 +91,95 @@ export async function describe(spot: { latitude: number; longitude: number }): P
   }
 }
 
-/** Where they're standing now, named. For "use where I am now" in setup. */
+/**
+ * Where they're standing now, named. For "use where I am now" in setup: only a fresh, sharp fix
+ * (`fixToSave`), or the place would be saved off by as much as the fix was.
+ */
 export async function here(): Promise<{ ok: true; candidate: Candidate; fix: Fix } | { ok: false; why: NoFix }> {
   const located = await readFix();
   if (!located.ok) return located;
+  if (fixToSave(located.fix, new Date()) !== 'ok') return { ok: false, why: 'vague' };
   const { latitude, longitude } = located.fix;
   return { ok: true, fix: located.fix, candidate: { ...(await describe(located.fix)), latitude, longitude } };
 }
 
-/** Where they last were, if location is already allowed: search ranks places near it first. Never asks. */
-async function near(): Promise<{ latitude: number; longitude: number } | null> {
+type Spot = { latitude: number; longitude: number };
+
+/** Where `near` last found them, and when, so typing doesn't read the location on every search. */
+let nearCache: { spot: Spot; at: number } | null = null;
+const NEAR_REUSE_MS = 5 * 60_000;
+/** A rough read for ranking search results: quick, or not at all. */
+const NEAR_TIMEOUT_MS = 4_000;
+
+/**
+ * Roughly where they are, if location is already allowed (Approximate counts): search leans
+ * toward it, and results show how far away they are. Never asks for permission: a search
+ * shouldn't put up a location prompt. A recent known position if there is one, else one quick
+ * low-accuracy read.
+ */
+export async function near(): Promise<Spot | null> {
+  if (nearCache && Date.now() - nearCache.at < NEAR_REUSE_MS) return nearCache.spot;
   try {
     if (!(await Location.getForegroundPermissionsAsync()).granted) return null;
-    const last = await Location.getLastKnownPositionAsync({ maxAge: 30 * 60_000 });
-    return last ? { latitude: last.coords.latitude, longitude: last.coords.longitude } : null;
+    const last =
+      (await Location.getLastKnownPositionAsync({ maxAge: 30 * 60_000 })) ??
+      (await within(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }), NEAR_TIMEOUT_MS));
+    if (!last) return null;
+    const spot = { latitude: last.coords.latitude, longitude: last.coords.longitude };
+    if (!validSpot(spot)) return null;
+    nearCache = { spot, at: Date.now() };
+    return spot;
   } catch {
     return null;
   }
 }
 
 /**
- * Places matching what they typed: names ("Planet Fitness", "the library") as well as
- * addresses. On iOS it's Apple Maps search (modules/place-search). The web preview has no
- * MapKit, so it asks OpenStreetMap's Photon instead; an iOS build from before the module falls
- * back to Apple's geocoder, which only knows addresses.
+ * What a search found. `from`: where they roughly are, when known, for showing distances.
+ * `trouble`: `offline` when the search couldn't reach Apple (or Photon), so "nothing found"
+ * would be wrong; `stale` when a newer search replaced this one.
  */
-export async function search(query: string, limit = 6): Promise<Candidate[]> {
+export type Found = { places: Candidate[]; from: Spot | null; trouble: 'offline' | 'stale' | null };
+
+/**
+ * Places matching what they typed: names ("Planet Fitness", "the library") as well as
+ * addresses. On iOS it's Apple Maps search (modules/place-search), in Apple's order: relevance,
+ * leaning toward where they are when that's known. The web preview has no MapKit, so it asks
+ * OpenStreetMap's Photon instead; an iOS build from before the module falls back to Apple's
+ * geocoder, which only knows addresses.
+ */
+export async function search(query: string, limit = 6): Promise<Found> {
   const trimmed = query.trim();
-  if (trimmed.length < 2) return [];
+  if (trimmed.length < 2) return { places: [], from: null, trouble: null };
+  const from = await near();
   try {
-    if (PlaceSearch) return (await PlaceSearch.search(trimmed, await near(), limit)).filter(validSpot);
-    if (Platform.OS === 'web') return await photon(trimmed, limit, await near());
+    if (PlaceSearch) {
+      const { places, error } = await PlaceSearch.search(trimmed, from, limit);
+      return { places: places.filter(validSpot), from, trouble: troubleOf(error) };
+    }
+    if (Platform.OS === 'web') return { places: await photon(trimmed, limit, from), from, trouble: null };
     // Android's geocoder needs the permission; iOS's doesn't.
-    if (Platform.OS === 'android' && !(await allowed())) return [];
+    if (Platform.OS === 'android' && !['granted', 'imprecise'].includes(await access(true))) {
+      return { places: [], from, trouble: null };
+    }
     const found = (await Location.geocodeAsync(trimmed)).slice(0, limit);
-    return await Promise.all(
+    const places = await Promise.all(
       found.map(async ({ latitude, longitude }) => {
         const { name, address } = await describe({ latitude, longitude });
         return { name: name || trimmed, address, latitude, longitude };
       }),
     );
-  } catch {
-    return [];
+    return { places, from, trouble: null };
+  } catch (error) {
+    // fetch (the web preview's Photon) rejects with a TypeError when there's no connection.
+    return { places: [], from, trouble: error instanceof TypeError ? 'offline' : null };
   }
+}
+
+function troubleOf(error: SearchError | null): Found['trouble'] {
+  if (error === 'offline') return 'offline';
+  if (error === 'cancelled') return 'stale';
+  return null;
 }
 
 type PhotonFeature = {

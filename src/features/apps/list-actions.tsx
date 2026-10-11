@@ -10,7 +10,7 @@ import { removePick, type RemovedPick } from 'blocked-apps';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
-import { editLimit, freeLimitId, isLimitId, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
+import { editLimit, freeLimitId, isLimitId, keepName, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
 import * as haptic from '@/lib/haptics';
 import { looserEditsStartAt, onLockChange } from '@/lib/lock-controller';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -82,8 +82,9 @@ export function useListActions() {
         // goes back to what iOS is still enforcing, on disk and on screen. Only this one: an
         // edit to another limit may have landed meanwhile.
         // In place, so the rows keep their order.
+        // With the name it has now: a rename while iOS was registering is only words, and stays.
         const reverted = before
-          ? getLimits().map((l) => (l.id === arm.id ? before : l))
+          ? getLimits().map((l) => (l.id === arm.id ? keepName(before, l) : l))
           : getLimits().filter((l) => l.id !== arm.id);
         saveLimits(reverted);
         setLimits(reverted);

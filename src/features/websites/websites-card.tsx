@@ -9,6 +9,7 @@ import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import { EditRow, ICON, ListCard } from '@/features/apps/apps-list';
 import { startsLabel } from '@/features/apps/pending-note';
+import { useProtection } from '@/hooks/use-protection';
 import * as haptic from '@/lib/haptics';
 import { looserEditsStartAt, readLock } from '@/lib/lock-controller';
 import { editedSelection, isScreenTimeAvailable, isStoodDown, reapplyStandingBlocks } from '@/lib/screen-time';
@@ -23,6 +24,9 @@ const REFUSED: Record<Exclude<AddSiteResult, { ok: true }>['reason'], string> = 
   duplicate: 'That website is already on this list.',
   full: `iOS can block up to ${MAX_SITES} websites. Remove one to add another.`,
 };
+
+/** Screen Time access is off (or never given): iOS's web filter takes nothing, so adding is refused. */
+const NO_ACCESS = 'Screen Time access is off, so websites can’t sleep. Turn it back on from the Apps tab, then add them.';
 
 /** Asks for an address in the system's own text prompt (a plain prompt in the web preview). */
 function askForSite(onSite: (text: string) => void) {
@@ -46,11 +50,19 @@ function askForSite(onSite: (text: string) => void) {
 export function WebsitesCard({ list }: { list: SiteList }) {
   // Bumped after an edit, so the rows re-read the App Group.
   const [, setRevision] = useState(0);
+  // Kept fresh like the Apps tab's: a revoke in Settings shows on return.
+  const [protection] = useProtection();
+  const noAccess = protection === 'off' || protection === 'notSetUp';
   const sites = getSites(list);
   const now = new Date();
 
   const add = () => {
     haptic.tap();
+    // Saved but never blocked would read as asleep: say why instead.
+    if (noAccess) {
+      Alert.alert('Couldn’t add it', NO_ACCESS);
+      return;
+    }
     askForSite((text) => {
       const result = addSite(list, text);
       if (!result.ok) {
@@ -71,7 +83,7 @@ export function WebsitesCard({ list }: { list: SiteList }) {
   };
 
   return (
-    <ListCard note={<Note list={list} now={now} />}>
+    <ListCard note={noAccess ? <Text style={styles.footer}>{NO_ACCESS}</Text> : <Note list={list} now={now} />}>
       <EditRow label="Add website" onPress={add} divided={sites.length > 0} />
       {sites.map((site, i) => (
         <View key={site} style={styles.row}>

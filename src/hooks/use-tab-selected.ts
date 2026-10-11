@@ -14,6 +14,15 @@ export function useTabSelected() {
     return state ? state.routes[state.index]?.key === route.key : true;
   };
   const [selected, setSelected] = useState(read);
-  useEffect(() => navigation.addListener('state', () => setSelected(read())));
+  const key = route.key;
+  // Subscribed once per navigator and route, not again on every render.
+  useEffect(() => {
+    const update = () => {
+      const state = navigation.getState();
+      setSelected(state ? state.routes[state.index]?.key === key : true);
+    };
+    update();
+    return navigation.addListener('state', update);
+  }, [navigation, key]);
   return selected;
 }

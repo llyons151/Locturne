@@ -27,6 +27,17 @@ public class PoseCameraModule: Module {
       self.speaker.hush()
     }.runOnQueue(.main)
 
+    /// `authorized`, `notDetermined`, `denied` or `restricted` (Screen Time or a profile, which
+    /// Settings can't turn on): expo-camera reports the last two alike.
+    Function("cameraAccess") { () -> String in
+      switch AVCaptureDevice.authorizationStatus(for: .video) {
+      case .authorized: return "authorized"
+      case .notDetermined: return "notDetermined"
+      case .restricted: return "restricted"
+      default: return "denied"
+      }
+    }
+
     OnDestroy {
       DispatchQueue.main.async {
         self.speaker.hush()
@@ -115,8 +126,10 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var viewSize: CGSize = .zero
   private let lock = NSLock()
 
-  /// About fifteen readings a second is plenty for push-ups and keeps the phone cool.
-  private static let readInterval: CFTimeInterval = 1.0 / 15.0
+  /// About fifteen readings a second is plenty for push-ups and keeps the phone cool. Just under
+  /// two of the camera's 30 fps frames: exactly 1/15 s missed every other pair by a hair of
+  /// timing jitter and read every third frame, about 10 a second.
+  private static let readInterval: CFTimeInterval = 0.06
 
   private static let joints: [(VNHumanBodyPoseObservation.JointName, String)] = [
     (.nose, "nose"),
@@ -135,8 +148,11 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   ]
 
   private var runtimeObserver: NSObjectProtocol?
-  /// One automatic restart after a runtime error; a second one in a row gives up.
-  private var restarted = false
+  /// Whether the view wants the camera running (active and on screen), on `sessionQueue`.
+  private var wanted = false
+  /// A frame has arrived since the camera last (re)started, under `lock`. A runtime error
+  /// restarts the camera once; a second one before any frame came through gives up.
+  private var framesFlowing = true
 
   override init() {
     previewLayer = AVCaptureVideoPreviewLayer(session: session)
@@ -150,8 +166,9 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     ) { [weak self] _ in
       guard let self else { return }
       self.sessionQueue.async {
-        if self.restarted { return self.report("noCamera") }
-        self.restarted = true
+        // Stopped meanwhile (closed, or off screen): leave it stopped.
+        guard self.wanted, self.configured else { return }
+        if !self.takeFramesFlowing() { return self.report("noCamera") }
         self.session.startRunning()
       }
     }
@@ -173,17 +190,38 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     return viewSize
   }
 
+  /// Whether frames came through since the last (re)start, and starts watching again.
+  private func takeFramesFlowing() -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    let flowing = framesFlowing
+    framesFlowing = false
+    return flowing
+  }
+
+  private func sawFrame() {
+    lock.lock()
+    framesFlowing = true
+    lock.unlock()
+  }
+
   /// Held strongly until it's done, so a view going away still stops the camera.
   func setRunning(_ running: Bool) {
     sessionQueue.async { [self] in
+      wanted = running
       if running {
-        if AVCaptureDevice.authorizationStatus(for: .video) != .authorized { return report("denied") }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: break
+        case .restricted: return report("restricted")
+        default: return report("denied")
+        }
         if !configured {
           if let reason = configure() { return report(reason) }
           configured = true
           DispatchQueue.main.async { self.portrait(self.previewLayer.connection) }
         }
-        restarted = false
+        // A fresh start earns a restart of its own if a runtime error stops it.
+        sawFrame()
         if !session.isRunning { session.startRunning() }
       } else if session.isRunning {
         session.stopRunning()
@@ -231,6 +269,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     guard now - lastRead >= Self.readInterval else { return }
     lastRead = now
     guard let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+    sawFrame()
 
     // Apple's orientation for the front camera held upright: turned to portrait and mirrored,
     // so Vision's points are in the picture as the (mirrored) preview shows it.

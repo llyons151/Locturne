@@ -682,3 +682,37 @@ test('a second removal never pulls a waiting one forward', () => {
   assert.deepEqual(sites.sitesChangeAt('night'), new Date(2026, 9, 11, 23));
   assert.deepEqual(sites.getSites('night'), []);
 });
+
+test('a waiting website removal keeps when it was made, and moves only later unless told it may come earlier', () => {
+  sites.addSite('always', 'a.com');
+  sites.addSite('always', 'b.com');
+  const made = new Date(2026, 9, 10, 10);
+  sites.removeSite('always', 'a.com', new Date(2026, 9, 10, 23), made);
+  // A second removal joins the first, dated as it was.
+  sites.removeSite('always', 'b.com', new Date(2026, 9, 10, 22), new Date(2026, 9, 10, 11));
+  const dated: number[] = [];
+  const later = new Date(2026, 9, 11, 23);
+  const due = sites.delaySiteChanges((_list, when) => {
+    dated.push(when.getTime());
+    return { at: later };
+  }, made);
+  assert.deepEqual(dated, [made.getTime()]);
+  assert.deepEqual(due, []);
+  assert.deepEqual(sites.sitesChangeAt('always'), later);
+  // Never earlier on its own.
+  sites.delaySiteChanges(() => ({ at: new Date(2026, 9, 10, 23) }), made);
+  assert.deepEqual(sites.sitesChangeAt('always'), later);
+  // Earlier only when the rule says so, and never before now: then it's due.
+  const now = new Date(2026, 9, 11, 12);
+  assert.deepEqual(sites.delaySiteChanges(() => ({ at: new Date(2026, 9, 11, 9), earlier: true }), now), ['always']);
+  assert.deepEqual(sites.sitesChangeAt('always'), now);
+  assert.equal(sites.settleSites(now), true);
+  assert.deepEqual(sites.getSites('always'), []);
+});
+
+test('a website removal saved by an older build (no date) is left where it is', () => {
+  const from = new Date(2026, 9, 12, 23);
+  st.sharedSet(st.SITES_PENDING_KEY, { night: { sites: [], from: from.getTime() } });
+  sites.delaySiteChanges(() => ({ at: new Date(2026, 9, 13, 23) }), new Date(2026, 9, 12, 9));
+  assert.deepEqual(sites.sitesChangeAt('night'), from);
+});

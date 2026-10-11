@@ -35,7 +35,7 @@ import {
   previewStatus,
   type TileStatus,
 } from './apps-list';
-import { openLimitSheet } from './limit-sheet';
+import { confirmRemoveLimit, openLimitSheet } from './limit-sheet';
 import { useListActions } from './list-actions';
 import {
   removePreviewLimit,
@@ -53,7 +53,7 @@ import {
  * stoic.'s back + close over a big centred title, with Opal's round glass buttons).
  *
  * `id` is the list: `night` or `always` (`bedtime` or `always` in the web preview), or a
- * limit's id (`limit-0`, the preview's limits by index).
+ * limit's id (`limit-0`, the preview's by their own `id`).
  */
 export function ListPage() {
   const { id = '' } = useLocalSearchParams<{ id?: string }>();
@@ -122,7 +122,9 @@ function LiveListPage({ id }: { id: string }) {
         </Section>
       ) : null}
       {/* Already ending: a second tap would change nothing. */}
-      {limit && limit.pending?.minutes !== null ? <RemoveButton onPress={() => actions.setMinutes(limit.id, null)} /> : null}
+      {limit && limit.pending?.minutes !== null ? (
+        <RemoveButton onPress={() => confirmRemoveLimit(() => actions.setMinutes(limit.id, null))} />
+      ) : null}
     </Page>
   );
 }
@@ -131,15 +133,16 @@ function PreviewListPage({ id }: { id: string }) {
   const { picks, limits } = usePreviewLists();
   const [picking, setPicking] = useState(false);
   const group = PREVIEW_GROUPS.find((g) => g.key === id);
-  const index = id.startsWith('limit-') ? Number(id.slice('limit-'.length)) : -1;
-  const limit = limits[index];
+  // A limit by its own id, never its place: deleting one leaves the others' pages on them.
+  const limitId = id.startsWith('limit-') ? Number(id.slice('limit-'.length)) : -1;
+  const limit = limits.find((l) => l.id === limitId);
   const gone = !group && !limit;
   useEffect(() => {
     if (gone && router.canGoBack()) router.back();
   }, [gone]);
   if (gone) return null;
 
-  const apps = group ? picks[group.key] : limit.apps;
+  const apps = group ? picks[group.key] : limit!.apps;
   const usedUp = limit ? limit.used >= limit.minutes : false;
   const edit = () => {
     haptic.tap();
@@ -148,7 +151,7 @@ function PreviewListPage({ id }: { id: string }) {
 
   return (
     <Page
-      title={group ? group.label : (limit.name ?? namedBy(limit.apps))}
+      title={group ? group.label : (limit!.name ?? namedBy(limit!.apps))}
       about={group ? group.about : 'Once their time is used up today, these apps sleep until midnight.'}
       status={group ? previewStatus(group.key, apps.length) : null}
       overlay={
@@ -159,7 +162,7 @@ function PreviewListPage({ id }: { id: string }) {
           onDone={(next) => {
             haptic.done();
             if (group) savePreviewPicks(group.key, next);
-            else savePreviewLimitApps(index, next);
+            else savePreviewLimitApps(limitId, next);
             setPicking(false);
           }}
           onClose={() => setPicking(false)}
@@ -174,8 +177,8 @@ function PreviewListPage({ id }: { id: string }) {
             openLimitSheet({
               start: limit.minutes,
               chosen: limit.minutes,
-              onChange: (minutes) => setPreviewLimitMinutes(index, minutes),
-              name: { value: limit.name ?? '', fallback: namedBy(limit.apps), onRename: (n) => setPreviewLimitName(index, n) },
+              onChange: (minutes) => setPreviewLimitMinutes(limit.id, minutes),
+              name: { value: limit.name ?? '', fallback: namedBy(limit.apps), onRename: (n) => setPreviewLimitName(limit.id, n) },
               note: usedUp ? 'Used up today. Back at midnight.' : null,
             })
           }
@@ -194,7 +197,7 @@ function PreviewListPage({ id }: { id: string }) {
         <RemoveButton
           onPress={() => {
             haptic.tap();
-            removePreviewLimit(index);
+            confirmRemoveLimit(() => removePreviewLimit(limit.id));
           }}
         />
       ) : null}

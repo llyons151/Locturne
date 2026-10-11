@@ -129,6 +129,7 @@
         {
           "locationWhenInUsePermission": "Locturne checks once, when you tap, that you've reached the place you picked for your mornings. It never tracks you and your location stays on this phone.",
           "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false,
