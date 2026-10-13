@@ -11,6 +11,8 @@ export type HoldButtonProps = {
   color?: string;
   /** What fills it while held. */
   fillColor?: string;
+  /** The fill's top colour, shading down into `fillColor`: glassy, like the night sky. */
+  fillTopColor?: string;
   textColor?: string;
   /** The label where the fill has passed. */
   filledTextColor?: string;

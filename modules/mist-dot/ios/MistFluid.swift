@@ -4,11 +4,13 @@ import Foundation
  A little mist in a round jar: a Stable Fluids solver (Stam 1999) on a small square grid,
  with every cell outside the inscribed circle treated as solid wall.
 
- The mist is a density field. A uniform push on an incompressible fluid in a closed jar does
- nothing (the pressure solve cancels it), so gravity and the phone's shakes act on the mist in
- proportion to how much denser it is than the jar's average (Boussinesq). That's what makes it
- pool at the bottom, slosh when tilted and fling when shaken. Vorticity confinement keeps the
- small curls that make it read as mist instead of syrup.
+ The mist is a density field that fills the whole jar, thicker in some wisps than others, and
+ floats: there's no gravity (user's ask, October 13, 2026). A uniform push on an incompressible
+ fluid in a closed jar does nothing (the pressure solve cancels it), so the phone's shakes act on
+ the mist in proportion to how much denser it is than the jar's average (Boussinesq): the thick
+ wisps are thrown about and the thin ones fill in behind. The mist eases back toward a slowly
+ drifting cloud, so it never blurs into one flat grey. Vorticity confinement keeps the small
+ curls that make it read as mist instead of syrup.
 
  Plain Foundation, no UIKit or Metal, so it runs (and is checked) off-device too. The fields
  are raw buffers rather than arrays: no bounds checks or copy-on-write in the inner loops, which
@@ -38,24 +40,29 @@ final class MistFluid {
   private let seed: Float
 
   // Tuning, in grid cells and seconds.
-  /// How hard gravity pulls the mist down, per unit of density above average.
-  var sink: Float = 260
-  /// How hard a shake throws it, per g of acceleration.
-  var fling: Float = 2200
+  /// How hard a shake throws it, per g of acceleration, per unit of density above average.
+  var fling: Float = 4500
   /// How much the jar's own turning drags the mist round, per radian a second.
   var spin: Float = 2.2
-  var vorticity: Float = 7
+  var vorticity: Float = 5
   /// Fraction of velocity kept per second, so a slosh dies down in a couple of seconds.
   var damping: Float = 0.35
-  /// A faint stir so a resting pool still drifts.
-  var breath: Float = 6
+  /// A faint stir so the mist keeps floating round when the phone is still.
+  var breath: Float = 5
   var pressureIterations = 20
 
-  /// How fast the mist's droplets drift down through the air on their own, in cells a second per g.
-  var settling: Float = 11
+  /// The mist's average thickness, and how far its wisps stray from it either way.
+  let base: Float
+  let wisps: Float
+  /// Seconds for the mist to get halfway back to its drifting cloud after a shake.
+  var reform: Float = 2.5
+  /// How much each step evens out neighbouring cells, so a shake doesn't leave grid-sized ripples.
+  var soften: Float = 0.12
 
-  init(size: Int = 32, fill: Float = 0.38, seed: Float = Float.random(in: 0..<100)) {
+  init(size: Int = 32, base: Float = 0.5, wisps: Float = 0.4, seed: Float = Float.random(in: 0..<100)) {
     n = size
+    self.base = base
+    self.wisps = wisps
     self.seed = seed
     let count = size * size
     let make = { () -> Field in
@@ -87,22 +94,24 @@ final class MistFluid {
       }
     }
 
-    // Start already pooled: the bottom `fill` of the jar, with a soft top.
-    let surface = c + r - fill * 2 * r
+    // Start already filled, wisps and all.
     for k in 0..<count where fluid[k] > 0 {
-      let y = Float(k / size) + 0.5
-      density[k] = smooth(surface - 3, surface + 3, y)
+      density[k] = cloud(Float(k % size) + 0.5, Float(k / size) + 0.5, 0)
       mass += density[k]
     }
   }
 
-  deinit {
-    fields.forEach { $0.deallocate() }
+  /// The mist's resting shape at a cell and time: a few slow, crossing waves, so thick and thin wisps drift past each other.
+  @inline(__always) private func cloud(_ x: Float, _ y: Float, _ t: Float) -> Float {
+    let s = seed
+    let a = sin(x * 0.29 + y * 0.11 + s + t * 0.21)
+    let b = sin(y * 0.33 - x * 0.17 + s * 1.7 - t * 0.16)
+    let c = sin((x + y) * 0.19 + s * 2.3 + t * 0.12)
+    return min(1, max(0, base + wisps * (a + b + c) / 2))
   }
 
-  @inline(__always) private func smooth(_ a: Float, _ b: Float, _ x: Float) -> Float {
-    let t = min(1, max(0, (x - a) / (b - a)))
-    return t * t * (3 - 2 * t)
+  deinit {
+    fields.forEach { $0.deallocate() }
   }
 
   /// Fastest any mist moved last step, in cells a second; lets the view rest when it's calm.
@@ -110,17 +119,16 @@ final class MistFluid {
 
   /**
    Advance by `dt` seconds.
-   - gravity: which way is down on the screen, in g (x right, y down). Flat on a table it's ~0.
    - shake: the phone's own acceleration, in g, screen axes; the mist is thrown the other way.
    - turn: the phone spinning about the screen's axis, in radians a second (counterclockwise positive).
    */
-  func step(dt: Float, gravity: SIMD2<Float>, shake: SIMD2<Float>, turn: Float) {
+  func step(dt: Float, shake: SIMD2<Float>, turn: Float) {
     let dt = min(dt, 1 / 30)
     time += dt
     let count = n * n
     let n = self.n, fluid = self.fluid, density = self.density, u = self.u, v = self.v
     let avg = mass / max(fluidCells, 1)
-    let push = gravity * sink - shake * fling
+    let push = -shake * fling
     let c = Float(n) / 2
 
     // Forces: density-weighted push, the jar's turning, and a faint stir.
@@ -135,8 +143,8 @@ final class MistFluid {
       fx -= turn * spin * y
       fy += turn * spin * x
       let s = seed + time * 0.35
-      fx += breath * (sin(y * 0.31 + s * 1.7) + 0.6 * sin(x * 0.23 - s * 1.1)) * density[k]
-      fy += breath * 0.5 * sin(x * 0.27 + s * 1.3) * density[k]
+      fx += breath * (sin(y * 0.31 + s * 1.7) + 0.6 * sin(x * 0.23 - s * 1.1))
+      fy += breath * (0.7 * sin(x * 0.27 + s * 1.3) + 0.4 * sin(y * 0.21 - s * 0.9))
       u[k] += fx * dt
       v[k] += fy * dt
     }
@@ -156,7 +164,10 @@ final class MistFluid {
     // Make it incompressible before the mist rides it.
     project()
     advectSharp(dt: dt)
-    settle(gravity: gravity, dt: dt)
+    drift(dt: dt)
+    blur(self.density)
+    blur(self.u)
+    blur(self.v)
 
     // Keep the same amount of mist, and keep it in [0, 1].
     var total: Float = 0
@@ -218,38 +229,32 @@ final class MistFluid {
     }
   }
 
-  /**
-   Droplets sinking on their own: each cell hands some mist to its downhill neighbours, only
-   into jar cells and only as much as they have room for, so it piles up against the wall
-   below and the amount never changes.
-   */
-  private func settle(gravity: SIMD2<Float>, dt: Float) {
-    let n = self.n, fluid = self.fluid, density = self.density, scratchA = self.scratchA
-    for k in 0..<n * n { scratchA[k] = 0 }
-    let sx = gravity.x * settling * dt
-    let sy = gravity.y * settling * dt
-    let di = sx >= 0 ? 1 : -1
-    let dj = sy >= 0 ? n : -n
+  /// Ease the mist back toward its drifting cloud, so a shake's plumes melt back into wisps instead of a flat grey.
+  private func drift(dt: Float) {
+    let n = self.n, fluid = self.fluid, density = self.density
+    let ease = 1 - pow(0.5, dt / reform)
+    for k in 0..<n * n where fluid[k] > 0 {
+      let target = cloud(Float(k % n) + 0.5, Float(k / n) + 0.5, time)
+      density[k] += (target - density[k]) * ease
+    }
+  }
+
+  /// Mix a little of each jar cell's jar neighbours into it.
+  private func blur(_ field: Field) {
+    let n = self.n, fluid = self.fluid, out = self.scratchA, soften = self.soften
     for j in 1..<n - 1 {
       for i in 1..<n - 1 {
         let k = j * n + i
-        let d = density[k]
-        guard fluid[k] > 0, d > 0 else { continue }
-        let kx = k + di
-        if fluid[kx] > 0 {
-          let m = min(d * abs(sx), max(0, 1 - density[kx]) * 0.5)
-          scratchA[k] -= m
-          scratchA[kx] += m
-        }
-        let ky = k + dj
-        if fluid[ky] > 0 {
-          let m = min(d * abs(sy), max(0, 1 - density[ky]) * 0.5)
-          scratchA[k] -= m
-          scratchA[ky] += m
-        }
+        guard fluid[k] > 0 else { continue }
+        let f = field[k]
+        let l = fluid[k - 1] > 0 ? field[k - 1] : f
+        let rt = fluid[k + 1] > 0 ? field[k + 1] : f
+        let dn = fluid[k - n] > 0 ? field[k - n] : f
+        let up = fluid[k + n] > 0 ? field[k + n] : f
+        out[k] = f + soften * ((l + rt + dn + up) / 4 - f)
       }
     }
-    for k in 0..<n * n { density[k] += scratchA[k] }
+    for k in 0..<n * n where fluid[k] > 0 { field[k] = out[k] }
   }
 
   /// Make the flow incompressible: solve for pressure (Jacobi, walls are zero-gradient) and subtract its gradient.
@@ -313,7 +318,7 @@ final class MistFluid {
         let len = (gx * gx + gy * gy).squareRoot() + 1e-5
         gx /= len
         gy /= len
-        // Weighted by the mist, so clear air above the pool stays calm.
+        // Weighted by the mist, so the thick wisps curl the most.
         let w = vorticity * curl[k] * (0.25 + density[k])
         u[k] += gy * w * dt
         v[k] -= gx * w * dt

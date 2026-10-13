@@ -5,7 +5,7 @@
 
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,16 +16,20 @@ import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
-import { getMorningPlace, getPlaceEditRefusal, submitPlaceFix } from '@/lib/place';
+import { distanceMeters, getPlaceEditRefusal, judgeFix, PLACE_RADIUS_M, submitPlaceFix, type Fix, type PlaceCheck } from '@/lib/place';
 import { getRoutine } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
-import { Gap, Nocturne, Radius, Space, Type } from '@/theme';
+import { Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
 import { nextLockedMorning } from '../scan/next-locked-morning';
 import { awakeStatus } from '../wake/awake-status';
+import { shownPlace } from '../dev/wake-lab/stand-ins';
+import { pretendPhase, pretendWoke } from '../dev/wake-lab/wake-preview';
 import { readFix } from './locate';
-import { livePlaceStage, placeWords, settingsCanFix, type Stage } from './place-stage';
+import { LiveMap } from './live-map';
+import { formatDistance, livePlaceStage, placeWords, settingsCanFix, type Stage } from './place-stage';
+import { useLiveFix } from './use-live-fix';
 import { usesMiles } from './units';
 
 /**
@@ -36,20 +40,25 @@ import { usesMiles } from './units';
  *
  * `/place?mode=setup` or `/place?mode=morning`; without a mode it picks the morning check when
  * the apps are waiting for one, and setup otherwise.
+ *
+ * In the wake preview's pretend morning (dev only) the morning half runs at any hour, against
+ * a stand-in place if none is picked, and a check-in there records nothing.
  */
 
 export type PlaceMode = 'setup' | 'morning';
 
 /** Night and day both refuse a check-in, as on the scan screen. */
 function notMorning(phase: Phase): Stage | null {
+  // A pretend morning holds nothing, so there's nothing to ask `heldPhase`.
+  if (pretendPhase()) return phase === 'morning' ? null : { kind: 'awake' };
   if (phase === 'night') return heldPhase('night') === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   if (phase === 'morning') return heldPhase('morning') === 'morning' ? null : { kind: 'awake' };
   return { kind: 'awake' };
 }
 
 function firstStage(mode: PlaceMode | undefined): Stage {
-  const phase = readLock().phase;
-  const place = getMorningPlace();
+  const phase = pretendPhase() ?? readLock().phase;
+  const place = shownPlace();
   if (mode === 'morning' || (!mode && phase === 'morning' && place)) {
     if (!place) return phase === 'night' || phase === 'morning' ? { kind: 'noPlace' } : { kind: 'pick' };
     return notMorning(phase) ?? { kind: 'morning' };
@@ -58,6 +67,15 @@ function firstStage(mode: PlaceMode | undefined): Stage {
   return { kind: 'pick' };
 }
 
+/** A pretend morning's check-in: judged like the real one, but nothing is recorded. */
+function pretendCheck(fix: Fix): PlaceCheck {
+  const place = shownPlace();
+  if (!place) return { kind: 'noPlace' };
+  const judged = judgeFix(place, fix, new Date());
+  if (judged.kind !== 'there') return judged;
+  pretendWoke();
+  return { kind: 'unlocked' };
+}
 
 export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
   const router = useRouter();
@@ -77,11 +95,11 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
       setStage({ kind: 'noFix', why: located.why });
       return;
     }
-    const result = submitPlaceFix(located.fix);
+    const result = pretendPhase() ? pretendCheck(located.fix) : submitPlaceFix(located.fix);
     if (result.kind === 'unlocked') {
       haptic.done();
       setStage({ kind: 'unlocked', morningKey: readLock().morningKey });
-    } else if (result.kind === 'notMorning') setStage(notMorning(readLock().phase) ?? { kind: 'awake' });
+    } else if (result.kind === 'notMorning') setStage(notMorning(pretendPhase() ?? readLock().phase) ?? { kind: 'awake' });
     else if (result.kind === 'noPlace') setStage({ kind: 'noPlace' });
     else if (result.kind === 'notThere') {
       haptic.thud();
@@ -94,7 +112,7 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
 
   const now = new Date();
   const { line, body } = placeWords(stage, {
-    place: getMorningPlace()?.name ?? null,
+    place: shownPlace()?.name ?? null,
     awake: stage.kind === 'unlocked' ? awakeStatus(readLock()) : '',
     next: stage.kind === 'awake' || stage.kind === 'saved' ? nextLockedMorning(now) : null,
     morningStart: formatPreset(routineAt(now).morningStart),
@@ -105,6 +123,15 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
   const finished = stage.kind === 'unlocked' || stage.kind === 'saved';
   const morning = stage.kind === 'morning' || stage.kind === 'notThere' || stage.kind === 'unsure' || stage.kind === 'noFix';
   const steps = () => router.replace({ pathname: '/wake', params: { method: 'steps' } });
+
+  // The live view while there's a place to get to: the map, you on it, and how far is left.
+  const screen = useWindowDimensions();
+  const live = morning || stage.kind === 'checking';
+  const you = useLiveFix(live, stage.kind);
+  const target = shownPlace();
+  const away = you && target ? distanceMeters(you, target) : null;
+  const mapW = screen.width - Gap.gutter * 2;
+  const mapH = Math.round(mapW * (screen.height < 700 ? 0.5 : 0.72));
 
   return (
     <ScrollView
@@ -121,6 +148,29 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
         <Voice text={line} />
         <Text style={styles.body}>{body}</Text>
       </Animated.View>
+
+      {live && target ? (
+        <View style={styles.live}>
+          <View style={styles.reading} accessible accessibilityLiveRegion="polite">
+            {away === null ? (
+              <Text style={styles.caption}>I’ll put you on the map once I can see where you are.</Text>
+            ) : away <= PLACE_RADIUS_M ? (
+              <>
+                <Text style={styles.distance}>You’re here</Text>
+                <Text style={styles.caption}>Tap Check in.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.distance} maxFontSizeMultiplier={1.3}>
+                  {formatDistance(away - PLACE_RADIUS_M, usesMiles())}
+                </Text>
+                <Text style={styles.caption}>{`to ${target.name}`}</Text>
+              </>
+            )}
+          </View>
+          <LiveMap place={target} you={you} width={mapW} height={mapH} />
+        </View>
+      ) : null}
 
       {stage.kind === 'checking' ? <ActivityIndicator style={styles.spinner} color={Nocturne.text2} /> : null}
 
@@ -153,8 +203,9 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
 }
 
 const styles = StyleSheet.create({
-  // Pure black, like the picker sheet (user's ask, 2026-10-09).
-  screen: { flex: 1, backgroundColor: '#000000' },
+  // The night sky behind, like every other morning screen (user, 2026-10-11: "too black").
+  // The picker sheet (place-pick.tsx) stays pure black.
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { flexGrow: 1, paddingHorizontal: Gap.gutter },
   bar: { flexDirection: 'row', justifyContent: 'flex-start' },
   top: { gap: Space.l, marginTop: Space.xxl },
@@ -172,6 +223,10 @@ const styles = StyleSheet.create({
   },
   note: { ...Type.secondary, color: Nocturne.text2 },
   spinner: { marginTop: Space.xl },
+  live: { marginTop: Gap.block, gap: Space.l },
+  reading: { alignItems: 'center', gap: Space.xs },
+  distance: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 44, lineHeight: 52, fontVariant: ['tabular-nums'] },
+  caption: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
   flex: { flex: 1, minHeight: Space.xl },
   bottom: { gap: Space.l, paddingBottom: Space.s },
 });

@@ -51,6 +51,13 @@ public class PoseCameraModule: Module {
       Prop("active") { (view: PoseCameraView, active: Bool) in
         view.setActive(active)
       }
+
+      /// Which way the phone stands (src/lib/wake/phone-hint.ts): `portrait`, `landscapeLeft`
+      /// (turned anticlockwise, right edge up) or `landscapeRight`. The app stays portrait; the
+      /// screen turns its own contents, and the joints come back in that turned screen's points.
+      Prop("turn") { (view: PoseCameraView, turn: String?) in
+        view.setTurn(turn ?? "portrait")
+      }
     }
   }
 }
@@ -79,6 +86,10 @@ final class PoseCameraView: ExpoView {
   func setActive(_ active: Bool) {
     wantsActive = active
     update()
+  }
+
+  func setTurn(_ turn: String) {
+    reader.setTurn(turn)
   }
 
   override func didMoveToWindow() {
@@ -124,6 +135,8 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var lastRead: CFTimeInterval = 0
   /// The view's size, written on main and read on `videoQueue`.
   private var viewSize: CGSize = .zero
+  /// Which way the phone stands, written on main and read on `videoQueue`, under `lock`.
+  private var turn = "portrait"
   private let lock = NSLock()
 
   /// About fifteen readings a second is plenty for push-ups and keeps the phone cool. Just under
@@ -184,10 +197,16 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     lock.unlock()
   }
 
-  private func currentViewSize() -> CGSize {
+  func setTurn(_ next: String) {
+    lock.lock()
+    turn = next
+    lock.unlock()
+  }
+
+  private func currentView() -> (CGSize, String) {
     lock.lock()
     defer { lock.unlock() }
-    return viewSize
+    return (viewSize, turn)
   }
 
   /// Whether frames came through since the last (re)start, and starts watching again.
@@ -271,9 +290,15 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     guard let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
     sawFrame()
 
-    // Apple's orientation for the front camera held upright: turned to portrait and mirrored,
-    // so Vision's points are in the picture as the (mirrored) preview shows it.
-    let handler = VNImageRequestHandler(cvPixelBuffer: pixels, orientation: .leftMirrored, options: [:])
+    // Apple's orientations for the front camera (its VisionFaceTrack sample), mirrored like the
+    // preview: upright, the sensor's landscape frames turn to portrait; on its side they're
+    // already landscape, one way up or the other. Vision reads the body the right way up, and its
+    // points are in the picture as you see it on the turned phone.
+    let (view, turn) = currentView()
+    let side = turn == "landscapeLeft" || turn == "landscapeRight"
+    let orientation: CGImagePropertyOrientation =
+      turn == "landscapeLeft" ? .downMirrored : turn == "landscapeRight" ? .upMirrored : .leftMirrored
+    let handler = VNImageRequestHandler(cvPixelBuffer: pixels, orientation: orientation, options: [:])
     do {
       try handler.perform([request])
     } catch {
@@ -281,10 +306,12 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     // The picture fills the view (aspect fill), so scale up and centre, as the preview does.
-    // The buffer is landscape; turned upright its sides swap.
-    let width = CGFloat(CVPixelBufferGetHeight(pixels))
-    let height = CGFloat(CVPixelBufferGetWidth(pixels))
-    let size = currentViewSize()
+    // The buffer is landscape; turned upright its sides swap. On its side the screen turns too,
+    // so the box the joints go in is the view with its sides swapped.
+    let buffer = CGSize(width: CVPixelBufferGetWidth(pixels), height: CVPixelBufferGetHeight(pixels))
+    let width = side ? buffer.width : buffer.height
+    let height = side ? buffer.height : buffer.width
+    let size = side ? CGSize(width: view.height, height: view.width) : view
     let scale = max(size.width / width, size.height / height)
     let dx = (size.width - width * scale) / 2
     let dy = (size.height - height * scale) / 2

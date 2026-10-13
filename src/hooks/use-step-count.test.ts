@@ -40,6 +40,8 @@ function harness() {
     'react-native': { AppState: {}, Platform: { OS: 'ios' } },
     'expo-sensors': { Pedometer: {} },
     '@/lib/wake/steps': { stepsOf },
+    '@/features/dev/wake-lab/fake-sensors': {},
+    '@/features/dev/wake-lab/wake-preview': { useWakePreview: () => ({ steps: 'real' }) },
     '@/lib/wake/step-watch': { watchSteps: (_deps: unknown, options: typeof watcher) => {
       watcher = options;
       return () => {};

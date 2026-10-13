@@ -11,6 +11,7 @@ import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
 import { editLimit, freeLimitId, isLimitId, keepName, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
+import { restoreBlocks } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
 import { looserEditsStartAt, onLockChange } from '@/lib/lock-controller';
 import { rescheduleNotifications } from '@/lib/notifications';
@@ -190,7 +191,7 @@ export function useListActions() {
     setLimitError(null);
     try {
       if ((await requestAccess()) !== 'approved') throw new Error('refused');
-      reapplyStandingBlocks();
+      restoreBlocks();
       return true;
     } catch {
       setLimitError("Screen Time access wasn't turned on. You can try again when you're ready.");

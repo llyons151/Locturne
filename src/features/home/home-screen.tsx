@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
 import { useHealth } from '@/hooks/use-health';
+import { askAccessAgain } from '@/lib/ask-access';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
@@ -40,7 +41,7 @@ import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
 import { weekDays } from './week';
 
-/** Dev only: fill the whole week with won days to preview the mist. */
+/** Dev only: fill Sunday through today with won days to preview the mist. */
 const MOCK_WEEK = __DEV__;
 
 /**
@@ -69,7 +70,7 @@ export function HomeScreen() {
 
   // Honest status (health.ts): access off or never given replaces everything. Also keeps the
   // notifications in line when protection changes while Home is open.
-  const [health] = useHealth();
+  const [health, recheckHealth] = useHealth();
   const unprotected = health.protection === 'off' || health.protection === 'notSetUp';
   // An emergency unlock paused tonight: the windows still run, so the clock says night.
   const pause = getNightPause(now);
@@ -78,9 +79,11 @@ export function HomeScreen() {
   // subtract (HOME_10.md #7). The store keeps the last 30 proofs, enough for this week's dots;
   // the lifetime count is its own counter (`getMorningsWon`).
   const won = new Set(getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency').map((p) => p.morningKey));
-  // MOCK (dev only, remove when done looking): every day this week counts as got up, so the
-  // week strip shows the mist dots without real mornings.
-  if (MOCK_WEEK) for (const day of weekDays(lock.morningKey, won)) won.add(day.key);
+  // MOCK (dev only, remove when done looking): Sunday through today's date count as got up, so
+  // the week strip shows the mist dots without real mornings. By the calendar, not
+  // `morningKey`, which is already tomorrow at night. Days still to come stay plain.
+  if (MOCK_WEEK)
+    for (const day of weekDays(lock.morningKey, won)) if (day.key <= dateKey(now)) won.add(day.key);
   // Past mornings this week no night locked (off, or before the first save): not "missed".
   const change = getRoutineChange(now);
   const free = new Set(
@@ -163,10 +166,12 @@ export function HomeScreen() {
   // which is the fix there.
   const tomorrowLocked =
     !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
+  // Asks right here (askAccessAgain), which offers Settings only if it's refused again.
+  const turnAccessOn = () => askAccessAgain().then(recheckHealth);
   const action = unprotected
     ? health.protection === 'notSetUp'
-      ? { label: 'Set up Screen Time', onPress: () => router.push('/apps') }
-      : { label: 'Open Settings', onPress: () => Linking.openSettings() }
+      ? { label: 'Turn on Screen Time', onPress: turnAccessOn }
+      : { label: 'Turn Screen Time back on', onPress: turnAccessOn }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : trial

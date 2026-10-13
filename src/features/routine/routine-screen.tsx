@@ -203,11 +203,18 @@ export function RoutineScreen() {
     return () => sub.remove();
   }, []);
 
+  // A dev Exit's edits, with no routine to save them to (`commit`).
+  const unsaved = useRef<Routine | null>(null);
   const commit = (next: Routine) => {
     // Onboarding can't be left before its setup is saved, so a routine exists by the time this
     // tab is reachable. Guarded anyway: a save here would be the first routine, and with one
-    // saved onboarding never opens again (`useAppStart`).
-    if (!hasRoutine()) return;
+    // saved onboarding never opens again (`useAppStart`). Only a dev build's Exit gets here
+    // without one: the edit shows on the tab, unsaved, so the controls still answer a tap.
+    if (!hasRoutine()) {
+      unsaved.current = next;
+      setLoaded((loaded) => ({ ...loaded, saved: next }));
+      return;
+    }
     const wasWaiting = load().from !== null;
     const armed = applyRoutineEdit(toStored(next));
     const loaded = load();
@@ -223,7 +230,7 @@ export function RoutineScreen() {
   };
   // From the store, not this render's `saved`: leaving the app mid-edit saves both time rows in
   // one AppState event, before React renders again, and the second would undo the first.
-  const set = (patch: Partial<Routine>) => commit({ ...load().saved, ...patch });
+  const set = (patch: Partial<Routine>) => commit({ ...(hasRoutine() ? load().saved : (unsaved.current ?? load().saved)), ...patch });
 
   const place = getMorningPlace();
   const reps = pushupGoalOf(saved);

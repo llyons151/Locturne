@@ -10,6 +10,8 @@ import { Platform } from 'react-native';
 import { accessFrom, fixToSave, PLACE_RADIUS_M, validSpot, type Access, type Fix } from '@/lib/place';
 
 import { PlaceSearch, type SearchError } from '../../../modules/place-search';
+import { fakeFix } from '../dev/wake-lab/stand-ins';
+import { getWakePreview } from '../dev/wake-lab/wake-preview';
 
 /**
  * Why a read gave nothing: permission refused (`denied`), not the person's to give
@@ -49,8 +51,10 @@ async function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   }
 }
 
-/** One fresh, precise read. Asks for permission the first time. */
+/** One fresh, precise read. Asks for permission the first time. The wake preview (dev only) can FAKE it. */
 export async function readFix(): Promise<Located> {
+  const fake = getWakePreview().place;
+  if (fake !== 'real') return fakeFix(fake);
   try {
     if (!(await Location.hasServicesEnabledAsync())) return { ok: false, why: 'off' };
     const allowed = await access(true);

@@ -15,6 +15,7 @@ test('scanner refreshes denied camera access after Settings and removes its fore
   let permission = { granted: false, canAskAgain: false };
   const hooks = {
     useRef: () => ({ current: null }),
+    useState: (initial: unknown) => [initial, () => {}],
     useEffect: (effect: () => (() => void)) => { cleanup = effect(); },
     createElement: (type: unknown, props: unknown, ...children: unknown[]) => ({ type, props, children }),
   };
@@ -35,6 +36,8 @@ test('scanner refreshes denied camera access after Settings and removes its fore
       } },
     },
     '@/components/buttons': { PrimaryButton: 'button' },
+    '@/features/dev/wake-lab/wake-preview': { useWakePreview: () => ({ scan: 'real' }) },
+    '../dev/wake-lab/fake-viewfinder': { FakeViewfinder: 'fake' },
     '@/theme': { Nocturne: {}, Radius: {}, Space: {}, Type: {} },
   };
   const code = babel.transformSync(readFileSync(new URL('./scanner.tsx', import.meta.url), 'utf8'), {

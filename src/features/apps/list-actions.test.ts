@@ -99,7 +99,7 @@ test('denying the Apps permission repair settles safely and refreshes actual pro
   const context = {
     haptic: { tap() {} },
     requestAccess: async () => { throw new Error('user cancelled authorization'); },
-    reapplyStandingBlocks: () => assert.fail('denied access must not claim to restore shields'),
+    restoreBlocks: () => assert.fail('denied access must not claim to restore shields'),
     refresh: () => { refreshed = true; },
     setLimitError: (next: string | null) => { error = next; },
     invoke: undefined as unknown as () => Promise<void>,

@@ -1,6 +1,9 @@
 # Builds the iOS app on GitHub's Mac runners with `eas build --local`, so it doesn't use the EAS build quota.
 # Signing still comes from the credentials stored on EAS. Needs the EXPO_TOKEN repo secret.
-# Run it from the Actions tab ("iOS build" → Run workflow); the .ipa is attached to the run.
+# Run it from the Actions tab ("iOS build" → Run workflow). Development and preview builds are put on
+# Cloudflare R2 with an install page: scan the QR code in the run summary, or bookmark
+# <INSTALL_BASE_URL>/<profile>.html on the phone, which always has the newest build. Needs the
+# CLOUDFLARE_API_TOKEN secret (R2 edit). The .ipa is also attached to the run.
 name: iOS build
 
 on:
@@ -11,6 +14,11 @@ on:
         type: choice
         options: [development, preview, production]
         default: development
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: dddab8afa49d4cc07d21fd8fe95c2982
+  INSTALL_BUCKET: locturne-builds
+  INSTALL_BASE_URL: https://pub-b53cc96e1dd147d89e3946c151545abf.r2.dev
 
 concurrency:
   group: ios-build-${{ inputs.profile }}
@@ -49,3 +57,9 @@ jobs:
           path: build/*.ipa
           # The repo is public, so keep the builds around only briefly.
           retention-days: 7
+
+      - name: Publish install page
+        if: inputs.profile != 'production'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: tools/ios-install/publish.sh build/*.ipa ${{ inputs.profile }}

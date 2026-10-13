@@ -32,7 +32,14 @@ type Bit = {
    * A lump in the blanket while he's under it: height (0..1) and offset along the edge (share of
    * width). 'S' is where the lump was when the bit started.
    */
-  lump?: { h: Key[]; x: Key[] };
+  lump?: {
+    h: Key[];
+    x: Key[];
+    /** Width, times the usual: wider as he presses up under it, wider still as it falls flat. */
+    w?: Key[];
+    /** 0..1, a tremble while he strains against it. */
+    shake?: Key[];
+  };
 };
 
 // ---- Geometry, in the traced path's 818 x 552 box; the ledge is y = 552 ----
@@ -169,39 +176,104 @@ const HIDDEN = { sink: 720, paw: 80 };
 // lump runs to the right, toward the other tabs' buttons, and comes back in from there.
 const OFFSTAGE = 0.62;
 
-// Coming back: the lump scurries in along the edge and brakes where he lives, wriggles, crouches,
-// and he launches out (user, October 10, 2026: the aggressive move goes on the way up): eyes
-// squeezed and ears pinned back as he shoots up past his rest, then he drops, lands in a squash
-// with his paws slapping the edge, and the eyes pop open to check the room.
-const ARRIVE: Bit = { ms: 2700, tracks: {
-  sink: [[0, HIDDEN.sink], [1180, HIDDEN.sink], [1320, -70, 'out'], [1470, 14, 'in'], [1560, -6, 'out'], [1700, 0, 'io']],
-  paw: [[0, HIDDEN.paw], [1440, HIDDEN.paw], [1500, -10, 'out'], [1620, 0, 'io']],
-  stretch: [[0, 0], [1180, 0], [1260, 0.16, 'out'], [1340, 0.04, 'io'], [1450, 0.1, 'in'], [1500, -0.12, 'out'], [1600, 0.03, 'io'], [1760, 0, 'io']],
-  open: [[0, 'T'], [1480, 'T'], [1600, 1.15, 'back'], [2150, 1.15], [2550, 'T', 'io']],
-  openR: [[0, 'T'], [1480, 'T'], [1600, 1.15, 'back'], [2150, 1.15], [2550, 'T', 'io']],
-  swell: [[0, 'T'], [1480, 'T'], [1600, 1.6, 'back'], [2150, 1.6], [2550, 'T', 'io']],
-  gx: [[0, 0], [1840, 0], [1900, -22, 'out'], [2080, -22], [2140, 22, 'out'], [2320, 22], [2380, 0, 'out'], [2700, 0]],
-  gy: [[0, 0], [2700, 0]],
-  earL: [[0, 16], [1180, 16], [1260, 26, 'out'], [1480, 16], [1540, -14, 'out'], [1800, 'T', 'back']],
-  earR: [[0, -16], [1180, -16], [1260, -26, 'out'], [1480, -16], [1540, 14, 'out'], [1800, 'T', 'back']],
+/** The same bit at another speed: every key and event `k` times as far in. */
+const timed = (bit: Bit, k: number): Bit => {
+  const keys = (track: Key[]) => track.map(([t, v, e]): Key => (e ? [t * k, v, e] : [t * k, v]));
+  const tracks = Object.fromEntries(Object.entries(bit.tracks).map(([c, track]) => [c, keys(track)]));
+  const lump = bit.lump && (Object.fromEntries(Object.entries(bit.lump).map(([c, track]) => [c, keys(track)])) as Bit['lump']);
+  return { ...bit, ms: bit.ms * k, tracks, events: bit.events?.map(([t, fn]) => [t * k, fn]), lump };
+};
+
+// Coming back (all at 0.7 of the authored times: "still too slow", user, October 12, 2026):
+// the lump scurries in along the edge and brakes where he lives, wriggles and
+// crouches. Then the pop (user, October 12, 2026: it "does not feel natural", and he should push
+// the floor up). The floor strains up as wide as he is, trembling, in two shoves with a little
+// give between, so you see something under it pushing, then he gathers (a dip) and it breaks: he launches out (eyes
+// squeezed, ears pinned: the aggressive move goes on the way up, user, October 10, 2026),
+// decelerating into a hang at the top, then gravity brings him down into a squash with his paws
+// slapping the edge, and the eyes pop open to check the room. The covers don't vanish: they
+// slide down off him and wobble flat.
+const POP = 1420;
+const ARRIVE: Bit = timed({ ms: POP + 1580, tracks: {
+  sink: [[0, HIDDEN.sink], [1180, HIDDEN.sink], [1260, 640, 'out'], [1310, 670, 'io'], [1370, 610, 'out'], [1395, 640, 'io'], [POP, 600, 'out'],
+    [POP + 140, -75, 'out'], [POP + 190, -68, 'io'], [POP + 320, 12, 'in'], [POP + 450, -5, 'out'], [POP + 590, 0, 'io']],
+  paw: [[0, HIDDEN.paw], [POP + 330, HIDDEN.paw], [POP + 380, -12, 'out'], [POP + 520, 0, 'io']],
+  stretch: [[0, 0], [1180, 0], [1260, -0.06, 'out'], [1370, -0.1, 'in'], [POP, -0.12], [POP + 90, 0.2, 'out'], [POP + 200, 0.05, 'io'],
+    [POP + 300, 0.08, 'in'], [POP + 360, -0.15, 'out'], [POP + 470, 0.04, 'io'], [POP + 640, 0, 'io']],
+  open: [[0, 'T'], [POP + 360, 'T'], [POP + 480, 1.15, 'back'], [POP + 1030, 1.15], [POP + 1430, 'T', 'io']],
+  openR: [[0, 'T'], [POP + 360, 'T'], [POP + 480, 1.15, 'back'], [POP + 1030, 1.15], [POP + 1430, 'T', 'io']],
+  swell: [[0, 'T'], [POP + 360, 'T'], [POP + 480, 1.6, 'back'], [POP + 1030, 1.6], [POP + 1430, 'T', 'io']],
+  gx: [[0, 0], [POP + 720, 0], [POP + 780, -22, 'out'], [POP + 960, -22], [POP + 1020, 22, 'out'], [POP + 1200, 22], [POP + 1260, 0, 'out'], [POP + 1580, 0]],
+  gy: [[0, 0], [POP + 1580, 0]],
+  earL: [[0, 16], [1180, 16], [1260, 26, 'out'], [POP, 26], [POP + 120, 10, 'out'], [POP + 360, 16], [POP + 420, -14, 'out'], [POP + 680, 'T', 'back']],
+  earR: [[0, -16], [1180, -16], [1260, -26, 'out'], [POP, -26], [POP + 120, -10, 'out'], [POP + 360, -16], [POP + 420, 14, 'out'], [POP + 680, 'T', 'back']],
 }, events: [
   [1180, (r) => { r.squeezing = true; }],
-  [1480, (r) => { r.squeezing = false; r.kick(-0.08); r.flick('L', -14); r.flick('R', 14); r.pop(0.6); }],
-  [1900, (r) => r.pop(0.2)],
-  [2140, (r) => { r.flick('R', 10); r.pop(0.2); }],
-  [2450, (r) => r.say('hello')],
+  [POP + 360, (r) => { r.squeezing = false; r.kick(-0.08); r.flick('L', -14); r.flick('R', 14); r.pop(0.6); }],
+  [POP + 780, (r) => r.pop(0.2)],
+  [POP + 1020, (r) => { r.flick('R', 10); r.pop(0.2); }],
+  [POP + 1330, (r) => r.say('hello')],
 ], lump: {
-  h: [[0, 'S'], [80, 1, 'out'], [880, 1], [960, 1.4, 'out'], [1030, 1, 'io'], [1110, 0.55, 'io'], [1180, 0.55], [1210, 1.7, 'out'], [1270, 0, 'in']],
+  h: [[0, 'S'], [80, 1, 'out'], [880, 1], [960, 1.4, 'out'], [1030, 1, 'io'], [1110, 0.6, 'io'], [1180, 0.6],
+    [1260, 1.55, 'out'], [1310, 1.35, 'io'], [1370, 2.3, 'out'], [1395, 2.05, 'io'], [POP, 2.5, 'out'],
+    [POP + 80, 1.4, 'out'], [POP + 190, 0.45, 'io'], [POP + 280, 0.8, 'io'], [POP + 380, 0.2, 'io'], [POP + 480, 0.35, 'io'], [POP + 600, 0, 'io']],
   x: [[0, OFFSTAGE], [760, -0.025, 'out'], [880, 0, 'io']],
-} };
-// Asleep, he isn't in a hurry: the lump drifts in, settles, and he rises slowly, paws last.
-const ARRIVE_ASLEEP: Bit = { ms: 2900, events: [[2800, (r) => r.say('hello')]], tracks: {
-  sink: [[0, HIDDEN.sink], [1500, HIDDEN.sink], [2700, 0, 'io']],
-  paw: [[0, HIDDEN.paw], [2300, HIDDEN.paw], [2700, 0, 'io']],
+  w: [[0, 1], [1180, 1], [1260, 1.3, 'out'], [1370, 1.5, 'out'], [POP, 1.5], [POP + 190, 1.9, 'out'], [POP + 600, 2.1]],
+  shake: [[0, 0], [1180, 0], [1260, 0.5, 'out'], [1310, 0.2], [1370, 1, 'in'], [POP, 1], [POP + 40, 0]],
+} }, 0.7);
+// Asleep (at 0.6 of the authored times, about 1.5 s in all), he isn't in a hurry: the lump drifts in and settles. He pushes up slowly, dozes off
+// against it and it sinks back a little, then a second, longer push, and he hauls himself
+// through as the covers slide down off him: head lolling, paws flopping onto the edge last, an
+// ear twitching. The eyes stay shut.
+const RISE = 1450;
+const ASLEEP_RISE: Bit = timed({ ms: RISE + 1000, events: [
+  [RISE + 220, (r) => r.flick('L', -8)],
+  [RISE + 560, (r) => r.kick(-0.04)],
+  [RISE + 780, (r) => r.flick('R', 8)],
+], tracks: {
+  sink: [[0, HIDDEN.sink], [950, HIDDEN.sink], [1120, 650, 'io'], [1240, 685, 'io'], [1400, 620, 'io'], [RISE, 610], [RISE + 560, -8, 'io'], [RISE + 680, 0, 'io']],
+  paw: [[0, HIDDEN.paw], [RISE + 420, HIDDEN.paw], [RISE + 530, -8, 'out'], [RISE + 640, 0, 'io']],
+  stretch: [[0, 0], [RISE, 0], [RISE + 300, 0.05, 'io'], [RISE + 560, -0.04, 'io'], [RISE + 720, 0, 'io']],
+  tilt: [[0, 'T'], [RISE + 180, 'T'], [RISE + 430, 13, 'io'], [RISE + 620, 8, 'io'], [RISE + 1000, 'T', 'io']],
 }, lump: {
-  h: [[0, 'S'], [200, 1, 'out'], [1400, 1], [1900, 0, 'io']],
-  x: [[0, OFFSTAGE], [1400, 0, 'out']],
-} };
+  h: [[0, 'S'], [160, 1, 'out'], [950, 1], [1120, 1.45, 'io'], [1240, 1.15, 'io'], [1400, 1.9, 'io'], [RISE, 1.95],
+    // Held up until his head is through, then it slides down off him.
+    [RISE + 160, 2.05, 'io'], [RISE + 350, 1.0, 'io'], [RISE + 510, 0.4, 'io'], [RISE + 600, 0.55, 'io'], [RISE + 720, 0, 'io']],
+  x: [[0, OFFSTAGE], [950, 0, 'out']],
+  w: [[0, 1], [950, 1], [1120, 1.3, 'io'], [1400, 1.45, 'io'], [RISE + 160, 1.5], [RISE + 510, 1.9, 'io'], [RISE + 720, 2]],
+  shake: [[0, 0], [1280, 0], [1400, 0.2, 'io'], [RISE, 0.2], [RISE + 60, 0]],
+} }, 0.6);
+// Then, up, he doesn't just sleep (user, October 12, 2026: "look around like sad... then close
+// his eyes or yawn"). The lids come up heavy and slanted sad, the pupils fading in with them;
+// he looks slowly one way, a slow heavy blink, then the other way, at a room that's still dark; a big slumped sigh, the
+// ears drooping; and the eyes drift shut. In real time, from when he's settled on the edge.
+const UP = Math.round((RISE + 680) * 0.6);
+const SAD_LOOK: Bit['tracks'] = {
+  open: [[0, 'T'], [UP + 150, 'T'], [UP + 550, 0.52, 'io'], [UP + 1260, 0.5], [UP + 1360, 0.04, 'io'], [UP + 1520, 0.48, 'io'], [UP + 1850, 0.44], [UP + 2400, 0, 'io']],
+  openR: [[0, 'T'], [UP + 200, 'T'], [UP + 600, 0.44, 'io'], [UP + 1270, 0.42], [UP + 1380, 0.03, 'io'], [UP + 1560, 0.4, 'io'], [UP + 1850, 0.36], [UP + 2350, 0, 'io']],
+  pupils: [[0, 'T'], [UP + 150, 'T'], [UP + 500, 1, 'io'], [UP + 1850, 1], [UP + 2100, 'T', 'io']],
+  slope: [[0, 'T'], [UP + 150, 'T'], [UP + 550, -18, 'io'], [UP + 2100, -18], [UP + 2450, 'T', 'io']],
+  gx: [[0, 0], [UP + 650, 0], [UP + 900, -24, 'io'], [UP + 1250, -24], [UP + 1550, 22, 'io'], [UP + 1900, 22], [UP + 2150, 0, 'io'], [UP + 2600, 0]],
+  gy: [[0, 0], [UP + 650, 0], [UP + 900, 5, 'io'], [UP + 2150, 5], [UP + 2400, 0, 'io'], [UP + 2600, 0]],
+  stretch: [[0, 0], [UP + 1850, 0], [UP + 2150, 0.06, 'io'], [UP + 2550, -0.03, 'io'], [UP + 2800, 0, 'io']],
+  y: [[0, 'T'], [UP + 2150, 'T'], [UP + 2550, 58, 'io'], [UP + 3000, 'T', 'io']],
+  earL: [[0, 'T'], [UP + 2150, 'T'], [UP + 2550, -30, 'io'], [UP + 3000, 'T', 'io']],
+  earR: [[0, 'T'], [UP + 2150, 'T'], [UP + 2550, 30, 'io'], [UP + 3000, 'T', 'io']],
+};
+const ARRIVE_ASLEEP: Bit = {
+  ...ASLEEP_RISE,
+  ms: UP + 3000,
+  // The rise's own keys run first; each of these picks up where the rise left that channel.
+  tracks: Object.fromEntries(
+    [...new Set([...Object.keys(ASLEEP_RISE.tracks), ...Object.keys(SAD_LOOK)])].map((c) => {
+      const rise = ASLEEP_RISE.tracks[c as Channel] ?? [];
+      const look = SAD_LOOK[c as Channel] ?? [];
+      const end = rise.length ? rise[rise.length - 1][0] : 0;
+      return [c, [...rise, ...look.filter(([t]) => t > end)]];
+    }),
+  ),
+  events: [...(ASLEEP_RISE.events ?? []), [UP + 2200, (r) => r.flick('L', -10)], [UP + 2900, (r) => r.say('hello')]],
+};
 // Leaving: no drama (that's saved for the way up). He slides down out of sight, ears folding,
 // paws letting go last; the lump comes up where he went under and runs off along the edge,
 // faster and faster.
@@ -689,13 +761,17 @@ export class LocRig {
     const from = this.bit!.lump;
     const h = this.sample(lump.h, t, 'sink', from.h) ?? 0;
     const x = this.sample(lump.x, t, 'sink', from.x) ?? 0;
+    const wide = lump.w ? this.sample(lump.w, t, 'sink', 1) ?? 1 : 1;
+    const shake = lump.shake && !this.reduced ? this.sample(lump.shake, t, 'sink', 0) ?? 0 : 0;
     const vx = dt > 0 ? (x - this.lumpX) / dt : 0;
     this.lumpX = x; this.lumpH = h;
     if (h <= 0.001) return;
     const dpr = cw / (canvas.clientWidth || cw);
     // Low and wide (user, October 10, 2026): about 9 pt high, roughly a fifth of the width across.
-    const top = 9 * dpr * h * (1 + (this.reduced ? 0 : Math.sin(this.clock * 6) * 0.08));
-    const cx = cw * (0.5 + x), w = cw * 0.085;
+    // Straining, it trembles: quick and uneven, so it reads as effort, not a vibration.
+    const strain = shake * (Math.sin(this.clock * 58) * 0.6 + Math.sin(this.clock * 37) * 0.4);
+    const top = 9 * dpr * h * (1 + (this.reduced ? 0 : Math.sin(this.clock * 6) * 0.08) + strain * 0.12);
+    const cx = cw * (0.5 + x) + strain * dpr * 2, w = cw * 0.085 * wide;
     // A ripple trails whichever way he's moving, so it flows like a wave.
     const dir = Math.sign(vx);
     const ripple = this.reduced ? 0 : top * 0.42 * Math.min(1, Math.abs(vx) * 1.6) * (0.65 + 0.35 * Math.sin(this.clock * 10));

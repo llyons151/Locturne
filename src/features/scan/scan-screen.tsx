@@ -22,6 +22,7 @@ import {
   draftQrData,
   getScanCode,
   getScanEditRefusal,
+  matches,
   QR_PREFIX,
   registerScanCode,
   submitScan,
@@ -38,6 +39,8 @@ import { QrCode } from './qr';
 import { Scanner, type Scan } from './scanner';
 import { ShareCode } from './share-code';
 import { liveScanStage, type Stage } from './scan-stage';
+import { shownScanCode } from '../dev/wake-lab/stand-ins';
+import { pretendPhase, pretendWoke } from '../dev/wake-lab/wake-preview';
 
 /**
  * Scan your code (GAME_PLAN, "Wake-up methods"), both halves:
@@ -48,6 +51,9 @@ import { liveScanStage, type Stage } from './scan-stage';
  *
  * `/scan?mode=setup` or `/scan?mode=morning`; without a mode it picks the morning scan when
  * the apps are waiting for one, and setup otherwise.
+ *
+ * In the wake preview's pretend morning (dev only) the morning half runs at any hour, against
+ * a stand-in code if none is set up, and a match records nothing.
  */
 
 export type ScanMode = 'setup' | 'morning';
@@ -59,14 +65,16 @@ type Source = ScanCode['kind'];
  * asleep (`heldPhase`: no lock, paused, or after a lapse's last paid morning) is day.
  */
 function notMorning(phase: Phase): Stage | null {
+  // A pretend morning holds nothing, so there's nothing to ask `heldPhase`.
+  if (pretendPhase()) return phase === 'morning' ? null : { kind: 'awake' };
   if (phase === 'night') return heldPhase('night') === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   if (phase === 'morning') return heldPhase('morning') === 'morning' ? null : { kind: 'awake' };
   return { kind: 'awake' };
 }
 
 function firstStage(mode: ScanMode | undefined): Stage {
-  const phase = readLock().phase;
-  const code = getScanCode();
+  const phase = pretendPhase() ?? readLock().phase;
+  const code = shownScanCode();
   if (mode === 'morning' || (!mode && phase === 'morning' && code)) {
     // No code: from bed it can't be set up ("your usual way still works"); in the day it can.
     if (!code) return phase === 'night' || phase === 'morning' ? { kind: 'noCode' } : { kind: 'choose', source: 'qr' };
@@ -145,11 +153,13 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   const onMorningScan = ({ data }: Scan) => {
-    const result = submitScan(data);
+    const pretend = pretendPhase() !== null;
+    const result = pretend ? (matches(shownScanCode(), data) ? 'unlocked' : 'wrongCode') : submitScan(data);
     if (result === 'unlocked') {
       haptic.done();
+      if (pretend) pretendWoke();
       setStage({ kind: 'unlocked', morningKey: readLock().morningKey });
-    } else if (result === 'notMorning') setStage(notMorning(readLock().phase) ?? { kind: 'awake' });
+    } else if (result === 'notMorning') setStage(notMorning(pretendPhase() ?? readLock().phase) ?? { kind: 'awake' });
     else if (result === 'noCode') setStage({ kind: 'noCode' });
     else {
       haptic.thud();
@@ -198,6 +208,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
             onScan={
               stage.kind === 'morning' ? onMorningScan : onRegisterScan(stage.source, stage.expect)
             }
+            expected={stage.kind === 'morning' ? shownScanCode()?.data : stage.expect}
           />
         ) : null}
 

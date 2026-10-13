@@ -61,13 +61,7 @@ export function plankPose(
 export function demoPose(ms: number, width: number, height: number): PoseFrame['joints'] {
   const phase = (ms % DEMO_REP_MS) / DEMO_REP_MS;
   const elbow = 165 - 105 * (0.5 - 0.5 * Math.cos(phase * 2 * Math.PI));
-  const floor = height * 0.58;
-  return plankPose(elbow, {
-    upper: width * 0.2,
-    fore: width * 0.19,
-    wrist: { x: width * 0.3, y: floor },
-    ankle: { x: width * 0.92, y: floor - width * 0.03 },
-  });
+  return plankIn(elbow, width, height);
 }
 
 /**
@@ -83,13 +77,20 @@ export type DemoScene = 'pushups' | 'shallow' | 'quick' | 'hold' | 'standing' | 
 const swing = (ms: number, period: number, top: number, bottom: number) =>
   top - (top - bottom) * (0.5 - 0.5 * Math.cos(((ms % period) / period) * 2 * Math.PI));
 
+/**
+ * A plank in a `width` × `height` view. Upright the body is sized to the width; on a sideways
+ * (wide) screen, to the height, centred, with the floor lower, as a real body two steps away is.
+ */
 function plankIn(elbowDeg: number, width: number, height: number) {
-  const floor = height * 0.58;
+  const wide = width > height;
+  const u = wide ? Math.min(width, height * 1.15) : width;
+  const left = (width - u) / 2;
+  const floor = height * (wide ? 0.72 : 0.58);
   return plankPose(elbowDeg, {
-    upper: width * 0.2,
-    fore: width * 0.19,
-    wrist: { x: width * 0.3, y: floor },
-    ankle: { x: width * 0.92, y: floor - width * 0.03 },
+    upper: u * 0.2,
+    fore: u * 0.19,
+    wrist: { x: left + u * 0.3, y: floor },
+    ankle: { x: left + u * 0.92, y: floor - u * 0.03 },
   });
 }
 

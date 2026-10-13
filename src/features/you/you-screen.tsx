@@ -4,7 +4,7 @@
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
 import Constants from 'expo-constants';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -36,18 +36,12 @@ import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/pu
 import { getScanCode } from '@/lib/scan';
 import { APP_FONT, DISPLAY_MAX_SCALE, Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
 
+import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 import { morningsLabel } from '@/features/home/week';
 import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
 
 import { refusal, SIGN_OFF } from './fire-loc';
 import { LocCard } from './loc-card';
-
-// Dev only: loaded only in a dev build, so the push-up preview never ships (`__DEV__` is false
-// in a release bundle, which drops the require).
-const PushupsPreviewCard: () => React.JSX.Element | null = __DEV__
-  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
-    (require('@/features/dev/wake-lab/pushups-preview-card') as typeof import('@/features/dev/wake-lab/pushups-preview-card')).PushupsPreviewCard
-  : () => null;
 
 /**
  * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up
@@ -79,6 +73,12 @@ function refillDate(now: Date) {
 }
 
 const open = (url: string) => Linking.openURL(url).catch(() => {});
+
+/** Dev (You → UI): a morning screen with every sensor faked, at any hour. */
+function preview(href: Href) {
+  fakeTheMorning();
+  router.push(href);
+}
 
 function sendFeedback() {
   const version = Constants.expoConfig?.version;
@@ -334,6 +334,24 @@ export function YouScreen() {
       {__DEV__ ? (
         <>
           <Text style={styles.heading} accessibilityRole="header">
+            UI
+          </Text>
+          {/* Each morning screen on the phone at any hour, every sensor faked (features/dev/wake-lab/wake-preview.ts). */}
+          <Card footer="The real screens with fake sensors and a fake morning. Nothing is recorded. More states: Developer → Wake preview.">
+            <ValueRow icon={sym('house.fill', 'home')} title="Home, morning" value="" onPress={() => preview('/')} />
+            <ValueRow icon={sym('figure.walk', 'directions_walk')} title="Walk steps" value="" onPress={() => preview('/wake?method=steps')} />
+            <ValueRow icon={sym('figure.stairs', 'stairs')} title="Go downstairs" value="" onPress={() => preview('/wake?method=downstairs')} />
+            <ValueRow
+              icon={sym('figure.strengthtraining.functional', 'fitness_center')}
+              title="Push-ups"
+              value=""
+              onPress={() => preview('/wake?method=pushups')}
+            />
+            <ValueRow icon={sym('barcode.viewfinder', 'barcode_scanner')} title="Scan a code" value="" onPress={() => preview('/scan?mode=morning')} />
+            <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Get to a place" value="" onPress={() => preview('/place?mode=morning')} last />
+          </Card>
+
+          <Text style={styles.heading} accessibilityRole="header">
             Developer
           </Text>
           <Card>
@@ -353,8 +371,10 @@ export function YouScreen() {
               last
             />
           </Card>
-          {/* Every state of the push-ups screen, with a pretend body, for the browser (features/dev/wake-lab). */}
-          <PushupsPreviewCard />
+          {/* Every method's real morning screen at any hour, each fake and state picked by hand (features/dev/wake-lab). */}
+          <Card>
+            <ValueRow icon={sym('wand.and.stars', 'auto_fix_high')} title="Wake preview" value="" onPress={() => router.push('/wake-preview')} last />
+          </Card>
         </>
       ) : null}
 

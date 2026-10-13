@@ -5,9 +5,9 @@ import MetalKit
 import UIKit
 
 /**
- A day you got up, on Home's week strip: the circle holds a little of the frosted moon's mist,
- pooled at the bottom. Tilt the phone and it slides over; shake it and it's thrown up into
- plumes that drift back down; spin it and it lags behind (user's ask, October 8, 2026).
+ A day you got up, on Home's week strip: the circle is full of the frosted moon's mist, floating
+ in thick and thin wisps with no gravity. Shake the phone and it's thrown about, then melts back
+ into wisps; spin it and it lags behind (user's asks, October 8 and 13, 2026).
 
  `MistFluid` simulates it on the CPU (a 32-cell grid costs well under a millisecond a step),
  and a Metal shader draws it: the mist blurred and drifting, in the moon's blues, behind a
@@ -35,8 +35,7 @@ final class MistMotion {
   private let manager = CMMotionManager()
   private var users = 0
 
-  /// On screen, in g: which way is down (x right, y down), and the phone's own acceleration.
-  private(set) var gravity = SIMD2<Float>(0, 1)
+  /// The phone's own acceleration on screen, in g (x right, y down).
   private(set) var shake = SIMD2<Float>(0, 0)
   /// Turning about the screen's axis, radians a second, counterclockwise as you look at it.
   private(set) var turn: Float = 0
@@ -48,9 +47,7 @@ final class MistMotion {
     manager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
       guard let self, let motion else { return }
       // The app is portrait only, so the device's axes are the screen's, with y flipped.
-      let g = motion.gravity
       let a = motion.userAcceleration
-      self.gravity = SIMD2(Float(g.x), Float(-g.y))
       let s = SIMD2(Float(a.x), Float(-a.y))
       let len = (s.x * s.x + s.y * s.y).squareRoot()
       // A hard shake is about 2 g; past that it only throws the mist into the wall.
@@ -263,7 +260,7 @@ final class MistDotRenderer: NSObject, MTKViewDelegate {
     if moving {
       time += dt
       let motion = MistMotion.shared
-      let gravity = motion.gravity, shake = motion.shake, turn = motion.turn
+      let shake = motion.shake, turn = motion.turn
       // Calm: nothing much moving, so 30 fps is plenty. Any jolt brings back 60.
       let jolt = (shake.x * shake.x + shake.y * shake.y).squareRoot() + abs(turn) * 0.1
       calmFor = jolt < 0.03 && speed < 4 ? calmFor + dt : 0
@@ -275,7 +272,7 @@ final class MistDotRenderer: NSObject, MTKViewDelegate {
           leftover += dt
           var steps = 0
           while leftover >= 1.0 / 60 && steps < 3 {
-            fluid.step(dt: 1.0 / 60, gravity: gravity, shake: shake, turn: turn)
+            fluid.step(dt: 1.0 / 60, shake: shake, turn: turn)
             leftover -= 1.0 / 60
             steps += 1
           }

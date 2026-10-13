@@ -443,3 +443,25 @@ Shipped in `src/features/home/loc-rig.ts`:
     way, then a dash the other), wriggling on the spot, or a run out with a stutter.
   - It starts left or right at random, with random distances, pauses and peeks, and an uneven hop rhythm.
   - He pops out when the route ends, about 1.8–3 s in, so the timing isn't fixed either.
+
+### The pop out from under the covers, reworked (October 12, 2026)
+
+The user: popping up "does not feel natural", and the asleep rise didn't push the floor up at
+all. The scurry in and out stays. What was wrong: the floor gave one 9 pt blip that vanished in
+60 ms, and he covered his whole height in about 140 ms, so he appeared rather than broke through.
+
+- **Awake (`ARRIVE`, break at `POP` = 1.42 s, strain cut to 240 ms after "its to slow"):** the floor strains up as wide as he is
+  (the lump's new `w` track) and trembles (`shake`), in two shoves with a little give between.
+  He gathers (a dip), it breaks, he launches out decelerating into a hang, gravity brings him down
+  into a squash, paws slap the edge, eyes pop open. The covers slide down off him and wobble flat.
+- **Asleep (`ARRIVE_ASLEEP`, rise at `RISE` = 1.45 s, about 2.4 s in all after "its to slow"):** a slow push, he dozes against it and it
+  sinks back, a second push, then he hauls himself through with the bulge held up until his head
+  is through, so the push and the rise read as one move. Eyes stay shut.
+- Reviewed frame by frame with `window.__locDev.advance(ms)` in the web build (headless Chromium
+  over CDP; `Emulation.setTimezoneOverride` to a daytime zone to see the awake one at night).
+- **Faster, then a sad look (same day):** "still too slow", so both entrances run through
+  `timed(bit, k)`, which scales every key: awake at 0.7 (breaks out about 1 s in), asleep at 0.6
+  (up in about 1.3 s). Then, asleep, he doesn't just sleep (`SAD_LOOK`, in real time from when
+  he's up): lids open heavy and slanted sad with the pupils fading in, he looks left, a slow
+  heavy blink, looks right, the pupils fade out before the lids close (the near-shut slits
+  looked broken with pupils in them), then a slumped sigh: body swells, head drops, ears droop.

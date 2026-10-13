@@ -1,9 +1,10 @@
-import { Link, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Segmented } from '@/components/segmented';
 import { Text } from '@/components/text';
+import { askAccessAgain } from '@/lib/ask-access';
 import { getAccess, watchAccess } from '@/lib/screen-time';
 import { Nocturne, Space, Type } from '@/theme';
 import { ScreenTimeReport, isScreenTimeReportAvailable } from '../../../modules/screen-time-report';
@@ -38,10 +39,11 @@ export function UsageScreen() {
         <Text style={styles.message}>Screen time reports will be available with the next app build.</Text>
       ) : access !== 'approved' ? (
         <View style={styles.preview}>
-          <Text style={styles.message}>{access === 'denied' ? 'Screen Time access is off. Open Settings from the You tab to restore it.' : 'Set up Screen Time from the Apps tab to see your usage.'}</Text>
-          <Link href={access === 'denied' ? '/(tabs)/profile' : '/(tabs)/apps'} asChild>
-            <Pressable style={styles.accessButton} accessibilityRole="button"><Text style={styles.title}>{access === 'denied' ? 'Go to You' : 'Set up Screen Time'}</Text></Pressable>
-          </Link>
+          <Text style={styles.message}>{access === 'denied' ? 'Screen Time access is off, so there’s no usage to show.' : 'Turn on Screen Time access to see your usage.'}</Text>
+          {/* Asks right here rather than sending people to another tab (askAccessAgain). */}
+          <Pressable style={styles.accessButton} accessibilityRole="button" onPress={() => askAccessAgain().then(refresh)}>
+            <Text style={styles.title}>{access === 'denied' ? 'Turn Screen Time access back on' : 'Turn on Screen Time access'}</Text>
+          </Pressable>
         </View>
       ) : (
         <ScreenTimeReport days={days} revision={revision} style={{ flex: 1 }} />

@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { FakeBadge } from '@/features/dev/wake-lab/fake-badge';
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
 import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { startPurchases } from '@/lib/purchases-start';
@@ -81,7 +82,9 @@ export default function RootLayout() {
           />
           <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="(dev)/wake-lab" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="(dev)/wake-preview" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
+        <FakeBadge />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

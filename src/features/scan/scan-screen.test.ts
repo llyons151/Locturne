@@ -54,6 +54,8 @@ function harness(source: string) {
     '@/theme': { Type: {}, Space: {}, Gap: {}, Nocturne: {} },
     '../exits/voice': { Voice: 'Voice' }, './next-morning': { awakeBody, savedBody },
     './qr': {}, './scanner': { Scanner: 'Scanner' }, './share-code': {}, './scan-stage': { liveScanStage },
+    '../dev/wake-lab/stand-ins': { shownScanCode: () => ({ kind: 'qr', data: 'registered-code' }) },
+    '../dev/wake-lab/wake-preview': { pretendPhase: () => null, pretendWoke() {} },
   };
   const load = (text: string, filename: string) => {
     const code = babel.transformSync(text, {

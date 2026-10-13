@@ -18,6 +18,8 @@ export const PlaceSearch = requireOptionalNativeModule<{
   ) => Promise<{ places: FoundPlace[]; error: SearchError | null }>;
   /** A file URI of the PNG, or null when the map couldn't be drawn. */
   snapshot: (latitude: number, longitude: number, radius: number, width: number, height: number) => Promise<string | null>;
+  /** A plain dark map of the region `span` metres tall, nothing drawn on it. Missing on builds before 2026-10-11. */
+  area?: (latitude: number, longitude: number, span: number, width: number, height: number) => Promise<string | null>;
   /** iOS's own location access, which tells "restricted" apart from "denied" (expo-location folds them). */
   locationAccess: () => Promise<'restricted' | 'denied' | 'notDetermined' | 'granted'>;
 }>('PlaceSearch');

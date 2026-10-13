@@ -11,7 +11,7 @@ import { Track } from '@/components/meter';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import { pushupsLine, spokenRep } from '@/lib/wake/lines';
-import type { PhoneHint } from '@/lib/wake/phone-hint';
+import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
 import { PUSHUPS, repProgress, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
@@ -20,20 +20,23 @@ import { hush, isPoseCameraAvailable, PoseCameraView, say, type PoseCameraError 
 import { LocBubble } from '../home/loc-bubble';
 import { LOC_VIEW, type LocMood } from '../home/loc-rig';
 import LocStage from '../home/loc-stage';
-import { FAST_TIMEOUT_MS, type PushupsPreview } from '../dev/wake-lab/pushups-preview';
+import { FAST_TIMEOUT_MS, PREVIEW_PHONES, type PushupsPreview } from '../dev/wake-lab/pushups-preview';
 import { useCameraAccess, type CameraAccess } from './camera-access';
 import { DemoCamera } from './demo-camera';
 import { Body, Voice } from './parts';
 import { PoseOverlay } from './pose-overlay';
-import { usePhoneHint } from './use-phone-hint';
+import { usePhone } from './use-phone-hint';
 import { usePushups } from './use-pushups';
 
 /** Loc's width as a share of the screen, as on Home (loc.tsx). */
 const LOC_SHARE = 0.27;
+/** Sideways, Loc stands small in the bottom-left corner, under his bubble, out of your way. */
+const LOC_SIDE = { canvas: 260, loc: 96 };
 /** His bubble's tail, as a share of his canvas's height up from its bottom: just over his head. */
 const BUBBLE_AT = 0.78;
-/** The black strip under him: the meter and the buttons. */
+/** The black strip under him: the meter and the buttons. Sideways the buttons sit in a row. */
 const STRIP = 132;
+const STRIP_SIDE = 84;
 /** A beat on the last rep before the apps wake, so the count and his line land. */
 const MET_BEAT_MS = 1_600;
 
@@ -68,7 +71,10 @@ export function PushupsView({
   // The preview's "Continue" grants pretend access.
   const [previewGranted, setPreviewGranted] = useState(false);
   const setup = preview?.setup ?? 'real';
-  const access: CameraAccess = setup === 'denied' ? 'denied' : setup === 'ask' && !previewGranted ? 'ask' : camera.access;
+  // A preview's drawn body needs neither the camera nor the Swift module, so it shows on a build without them.
+  const drawn = !!preview && (preview.scene !== 'camera' || !!fails(preview));
+  const access: CameraAccess =
+    setup === 'denied' ? 'denied' : setup === 'ask' && !previewGranted ? 'ask' : drawn ? 'granted' : camera.access;
   const request =
     setup === 'denied'
       ? async () => false
@@ -78,7 +84,7 @@ export function PushupsView({
             return true;
           }
         : camera.request;
-  const available = isPoseCameraAvailable && setup !== 'oldBuild';
+  const available = (isPoseCameraAvailable || drawn) && setup !== 'oldBuild';
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
   const instead = `Walk ${goal} steps instead`;
@@ -127,7 +133,7 @@ export function PushupsView({
         <Body>
           {denied
             ? 'Camera access is off for Locturne, so I can’t count push-ups. Turn it on in Settings.'
-            : `Lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
+            : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
                 done > 0 ? `${Math.max(0, target - done)} more push-ups; you've done ${done}` : `${target} push-ups`
               }. I count out loud.`}
         </Body>
@@ -183,12 +189,12 @@ function SetupSketch() {
   const ink = Nocturne.text2;
   const faint = Nocturne.text3;
   return (
-    <View style={styles.sketch} accessible accessibilityLabel="The phone leaning upright on the floor, two steps from you, side-on.">
+    <View style={styles.sketch} accessible accessibilityLabel="The phone on its side, leaning on the floor, two steps from you, side-on.">
       <Svg width={260} height={110} viewBox="0 0 260 110">
         <Line x1={8} y1={98} x2={252} y2={98} stroke={faint} strokeWidth={1.5} strokeLinecap="round" />
-        {/* The phone, leaning back a little, camera facing you. */}
-        <Rect x={20} y={46} width={24} height={50} rx={5} stroke={ink} strokeWidth={2.5} fill="none" transform="rotate(-8 32 96)" />
-        <Circle cx={36.5} cy={52} r={1.8} fill={ink} />
+        {/* The phone on its long edge, leaning back a little, camera facing you. */}
+        <Rect x={8} y={72} width={48} height={24} rx={5} stroke={ink} strokeWidth={2.5} fill="none" transform="rotate(-8 32 96)" />
+        <Circle cx={51} cy={80} r={1.8} fill={ink} />
         {/* You, in a plank, head toward the phone. */}
         <Circle cx={96} cy={60} r={7.5} stroke={ink} strokeWidth={2.5} fill="none" />
         <Line x1={106} y1={66} x2={232} y2={92} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
@@ -217,15 +223,25 @@ function Scrim({ height, flip }: { height: number; flip?: boolean }) {
 
 const PHONE_LINES: Record<PhoneHint, string> = {
   flat: 'Stand me up. I can only see the ceiling.',
-  sideways: 'Stand me up tall, not on my side.',
   upsideDown: 'Other way up. Please.',
+  tall: 'On my side. I can’t fit all of you in.',
 };
 
 const PHONE_PILLS: Record<PhoneHint, string> = {
-  flat: 'Lean me upright against something, screen facing you.',
-  sideways: 'Turn me upright, the tall way.',
+  flat: 'Lean me on my side against something, screen facing you.',
   upsideDown: 'Turn me the right way up.',
+  tall: 'Turn me sideways, the long way, so all of you fits.',
 };
+
+/** Which way the phone stands: the preview's pretend one, or the accelerometer's. Upright until it knows. */
+function useTurn(live: boolean, finding: boolean, preview?: PushupsPreview): { turn: PhoneTurn; hint: PhoneHint | null } {
+  const sensed = usePhone(live);
+  const forced = preview && preview.phone !== 'sensor' ? PREVIEW_PHONES[preview.phone] : null;
+  const turn = forced?.turn ?? sensed.turn ?? 'portrait';
+  const hint = forced ? (live ? forced.hint : null) : sensed.hint;
+  // Upright counts too: the nudge to turn it only while he's still looking for you.
+  return { turn, hint: hint === 'tall' && !finding ? null : hint };
+}
 
 /**
  * The wake lab's numbers, for tuning on a phone (docs/PUSHUP_TESTS.md): what the rules see right
@@ -284,14 +300,29 @@ function PushupsCamera({
   onClose: () => void;
   onError: (reason: PoseCameraError) => void;
 }) {
-  const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const safe = useSafeAreaInsets();
+  const screen = useWindowDimensions();
   const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning);
-  // Smaller on an SE, so the count leaves room for you in the picture.
-  const short = height < 700;
   const [quiet, setQuiet] = useState(false);
 
   const status = session?.status ?? 'finding';
+  const timedOut = status === 'timedOut';
+  // The phone on its side (the main way) or upright. The app stays portrait; this screen turns its
+  // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
+  // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
+  const { turn, hint: phone } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
+  const side = turn !== 'portrait';
+  const width = side ? screen.height : screen.width;
+  const height = side ? screen.width : screen.height;
+  // The notch and the home bar end up at the turned screen's ends.
+  const insets = {
+    top: side ? Space.m : safe.top,
+    bottom: side ? Space.m : safe.bottom,
+    left: turn === 'landscapeLeft' ? safe.top : turn === 'landscapeRight' ? safe.bottom : 0,
+    right: turn === 'landscapeLeft' ? safe.bottom : turn === 'landscapeRight' ? safe.top : 0,
+  };
+  // Smaller on an SE, and sideways, so the count leaves room for you in the picture.
+  const short = height < 700;
   const reps = session?.reps ?? 0;
   const met = status === 'met';
   const counting = status === 'counting' || met;
@@ -363,24 +394,25 @@ function PushupsCamera({
   }, [met]);
   const close = () => (met ? finish() : onClose());
 
-  const timedOut = status === 'timedOut';
-  // The phone lying flat or on its side: say that first, it's why he can't see you.
-  const sensed = usePhoneHint(!met && !timedOut);
-  const phone = preview && preview.phone !== 'upright' ? (met || timedOut ? null : preview.phone) : sensed;
+  // The phone lying flat, upside down or upright: say that first, it's why he can't see (all of) you.
   const line = phone ? PHONE_LINES[phone] : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null);
-  const locH = Math.round((width * LOC_SHARE * LOC_VIEW.height) / LOC_VIEW.width);
+  const locCanvas = side ? LOC_SIDE.canvas : width;
+  const locShare = side ? LOC_SIDE.loc / LOC_SIDE.canvas : LOC_SHARE;
+  const locH = Math.round((locCanvas * locShare * LOC_VIEW.height) / LOC_VIEW.width);
   // The same object between renders: the camera re-renders this about 30 times a second, and Loc's
   // DOM view would otherwise be handed new props every time.
   const dom = useMemo(
     () => ({
-      style: { width, height: locH, backgroundColor: 'transparent' },
+      style: { width: locCanvas, height: locH, backgroundColor: 'transparent' },
       scrollEnabled: false,
       bounces: false,
       contentInsetAdjustmentBehavior: 'never' as const,
     }),
-    [width, locH],
+    [locCanvas, locH],
   );
-  const strip = STRIP + Math.max(insets.bottom, Space.l);
+  const strip = side ? STRIP_SIDE : STRIP + Math.max(insets.bottom, Space.l);
+  const ends = { paddingLeft: Gap.gutter + insets.left, paddingRight: Gap.gutter + insets.right };
+  const drawn = !!preview && (preview.scene !== 'camera' || !!fails(preview));
   const pill = phone
     ? PHONE_PILLS[phone]
     : status === 'finding'
@@ -392,67 +424,100 @@ function PushupsCamera({
   return (
     <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={close} statusBarTranslucent>
       <View style={styles.camera}>
-        {preview && (preview.scene !== 'camera' || fails(preview)) ? (
-          <DemoCamera
-            style={StyleSheet.absoluteFill}
-            scene={preview.scene === 'camera' ? 'nobody' : preview.scene}
-            fail={fails(preview)}
-            active={!met && !timedOut}
-            onPose={onPose}
-            onCameraError={onError}
-          />
-        ) : (
-          <PoseCameraView style={StyleSheet.absoluteFill} active={!met && !timedOut} onPose={onPose} onCameraError={onError} />
+        {drawn ? null : (
+          <PoseCameraView style={StyleSheet.absoluteFill} active={!met && !timedOut} turn={turn} onPose={onPose} onCameraError={onError} />
         )}
-        <PoseOverlay pose={pose} counting={counting} />
-        <Scrim height={insets.top + 200} />
-        <Scrim height={strip + locH + 80} flip />
+        {/* Everything over the picture, turned to stand up with the phone. */}
+        <View
+          style={[
+            styles.turned,
+            { width, height, left: (screen.width - width) / 2, top: (screen.height - height) / 2 },
+            side && { transform: [{ rotate: `${TURN_DEG[turn]}deg` }] },
+          ]}
+        >
+          {drawn ? (
+            <DemoCamera
+              style={StyleSheet.absoluteFill}
+              scene={preview!.scene === 'camera' ? 'nobody' : preview!.scene}
+              fail={fails(preview!)}
+              active={!met && !timedOut}
+              onPose={onPose}
+              onCameraError={onError}
+              tagTop={insets.top + (side ? 112 : 48)}
+            />
+          ) : null}
+          <PoseOverlay pose={pose} counting={counting} />
+          <Scrim height={insets.top + (side ? 130 : 200)} />
+          <Scrim height={strip + locH + (side ? 40 : 80)} flip />
 
-        <View style={[styles.bar, { paddingTop: insets.top }]}>
-          <Text style={Type.label}>Push-ups</Text>
-          <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel={met ? 'Done' : 'Stop'}>
-            <SymbolView name={sym('xmark', 'close')} size={20} weight="semibold" tintColor={Nocturne.text} />
-          </Pressable>
-        </View>
+          <View style={[styles.bar, { paddingTop: insets.top, left: Gap.gutter + insets.left, right: Gap.gutter + insets.right }]}>
+            <Text style={Type.label}>Push-ups</Text>
+            <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel={met ? 'Done' : 'Stop'}>
+              <SymbolView name={sym('xmark', 'close')} size={20} weight="semibold" tintColor={Nocturne.text} />
+            </Pressable>
+          </View>
 
-        <View style={[styles.reading, short && styles.readingShort]} accessible accessibilityLabel={`${reps} of ${target} push-ups.`}>
-          <Text style={[styles.count, short && styles.countShort, !counting && styles.countIdle]} maxFontSizeMultiplier={1.2}>
-            {reps}
-          </Text>
-          <Text style={styles.of}>{`of ${target} push-ups`}</Text>
-        </View>
+          <View
+            style={[styles.reading, short && styles.readingShort, side && styles.readingSide]}
+            accessible
+            accessibilityLabel={`${reps} of ${target} push-ups.`}
+          >
+            <Text
+              style={[styles.count, short && styles.countShort, side && styles.countSide, !counting && styles.countIdle]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {reps}
+            </Text>
+            <Text style={styles.of}>{`of ${target} push-ups`}</Text>
+          </View>
 
-        {preview?.readout ? <TuningReadout session={session} /> : null}
+          {preview?.readout ? <TuningReadout session={session} /> : null}
 
-        {pill ? (
-          <Animated.View key={pill} entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)} style={styles.hint} pointerEvents="none">
-            <Text style={styles.hintText}>{pill}</Text>
-          </Animated.View>
-        ) : null}
+          {pill ? (
+            <Animated.View
+              key={pill}
+              entering={FadeIn.duration(300)}
+              exiting={FadeOut.duration(200)}
+              style={[styles.hint, side && styles.hintSide]}
+              pointerEvents="none"
+            >
+              <Text style={styles.hintText}>{pill}</Text>
+            </Animated.View>
+          ) : null}
 
-        <View style={[styles.loc, { height: locH, bottom: strip - 1 }]} pointerEvents="none">
-          <LocStage
-            mood={moodFor(session)}
-            share={LOC_SHARE}
-            present
-            ink={Nocturne.text3}
-            dom={dom}
-          />
-        </View>
-        <View style={[styles.speech, { bottom: strip + Math.round(locH * BUBBLE_AT) }]} pointerEvents="box-none">
-          <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} />
-        </View>
+          <View
+            style={[side ? [styles.locSide, { left: Gap.gutter + insets.left, width: locCanvas }] : styles.loc, { height: locH, bottom: strip - 1 }]}
+            pointerEvents="none"
+          >
+            <LocStage mood={moodFor(session)} share={locShare} present ink={Nocturne.text3} dom={dom} />
+          </View>
+          <View
+            style={[
+              side ? [styles.speechSide, { left: Gap.gutter + insets.left, width: locCanvas }] : styles.speech,
+              { bottom: strip + Math.round(locH * BUBBLE_AT) },
+            ]}
+            pointerEvents="box-none"
+          >
+            <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} />
+          </View>
 
-        <View style={[styles.strip, { height: strip, paddingBottom: Math.max(insets.bottom, Space.l) }]}>
-          <Track progress={session ? repProgress(session) : 0} />
-          <View style={styles.actions}>
-            {timedOut ? (
-              // The reps done stay: a long set with a break in it carries on from where it was.
-              <PrimaryButton label={reps > 0 ? 'Keep going' : 'Start again'} onPress={start} />
-            ) : (
-              <TextButton label={quiet ? 'Count out loud' : 'Count quietly'} onPress={() => setQuiet((q) => !q)} />
-            )}
-            {met ? null : <TextButton label={instead} onPress={onSteps} />}
+          <View
+            style={[
+              styles.strip,
+              side ? [styles.stripSide, ends] : { paddingBottom: Math.max(insets.bottom, Space.l) },
+              { height: strip },
+            ]}
+          >
+            <Track progress={session ? repProgress(session) : 0} />
+            <View style={[styles.actions, side && styles.actionsSide]}>
+              {timedOut ? (
+                // The reps done stay: a long set with a break in it carries on from where it was.
+                <PrimaryButton label={reps > 0 ? 'Keep going' : 'Start again'} onPress={start} />
+              ) : (
+                <TextButton label={quiet ? 'Count out loud' : 'Count quietly'} onPress={() => setQuiet((q) => !q)} />
+              )}
+              {met ? null : <TextButton label={instead} onPress={onSteps} />}
+            </View>
           </View>
         </View>
       </View>
@@ -469,6 +534,7 @@ const styles = StyleSheet.create({
   sketch: { alignItems: 'center' },
 
   camera: { flex: 1, backgroundColor: '#000000' },
+  turned: { position: 'absolute', overflow: 'hidden' },
   scrimTop: { position: 'absolute', top: 0, left: 0 },
   scrimBottom: { position: 'absolute', bottom: 0, left: 0 },
   bar: {
@@ -485,9 +551,12 @@ const styles = StyleSheet.create({
   count: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 112, lineHeight: 120, fontVariant: ['tabular-nums'] },
   countShort: { fontSize: 76, lineHeight: 84 },
   readingShort: { marginTop: 64 },
+  readingSide: { marginTop: Space.s },
+  countSide: { fontSize: 64, lineHeight: 70 },
   countIdle: { opacity: 0.45 },
   of: { ...Type.body, color: Nocturne.text, fontWeight: '600' },
   hint: { position: 'absolute', top: '42%', left: Gap.gutter, right: Gap.gutter, alignItems: 'center' },
+  hintSide: { top: '36%' },
   hintText: {
     ...Type.body,
     color: Nocturne.text,
@@ -499,9 +568,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   loc: { position: 'absolute', left: 0, right: 0 },
+  locSide: { position: 'absolute' },
   tuning: { position: 'absolute', top: '30%', left: Gap.gutter, right: Gap.gutter, padding: Space.s, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.6)' },
   tuningText: { ...Type.caption, color: Nocturne.text, fontVariant: ['tabular-nums'] },
   speech: { position: 'absolute', left: Space.l, right: Space.l, alignItems: 'center' },
+  speechSide: { position: 'absolute', alignItems: 'center' },
   strip: {
     position: 'absolute',
     left: 0,
@@ -513,4 +584,6 @@ const styles = StyleSheet.create({
     gap: Space.l,
   },
   actions: { alignItems: 'center', gap: Space.s },
+  stripSide: { paddingTop: Space.m, gap: Space.xs },
+  actionsSide: { flexDirection: 'row', justifyContent: 'flex-end', gap: Space.xl },
 });

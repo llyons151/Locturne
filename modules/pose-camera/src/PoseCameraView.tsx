@@ -78,7 +78,8 @@ const wantsDemo = () =>
  * The web preview's camera: the laptop's webcam, mirrored and filling the view like the iPhone's
  * front camera, read by MediaPipe. With `?demo=1` it's a dark frame and the demo body instead.
  */
-export function PoseCameraView({ active, onPose, onCameraError, style, ...props }: PoseCameraViewProps) {
+// `turn` is left out: a laptop's webcam is always the right way up.
+export function PoseCameraView({ active, onPose, onCameraError, style, turn: _turn, ...props }: PoseCameraViewProps) {
   const box = useRef<View>(null);
   const video = useRef<HTMLVideoElement>(null);
   const onPoseRef = useRef(onPose);

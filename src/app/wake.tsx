@@ -7,10 +7,9 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { AppBackground } from '@/components/app-background';
 import { WakeScreen, type WakeMethodShown } from '@/features/wake/wake-screen';
-import { getMorningPlace } from '@/lib/place-spot';
 import { getRoutine } from '@/lib/routine';
-import { getScanCode } from '@/lib/scan';
-import { getPushupsPreview } from '@/features/dev/wake-lab/pushups-preview';
+import { shownPlace, shownScanCode } from '@/features/dev/wake-lab/stand-ins';
+import { getWakePreview } from '@/features/dev/wake-lab/wake-preview';
 
 /**
  * The morning wake-up. `?method=downstairs|steps|pushups` opens that method (the shield tap or a
@@ -19,17 +18,17 @@ import { getPushupsPreview } from '@/features/dev/wake-lab/pushups-preview';
  */
 export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
-  // A pretend morning (You → Developer) can open push-ups whatever the routine says.
-  const pretend = method === 'pushups' && getPushupsPreview().phase !== 'real';
+  // A pretend morning (/wake-preview) can open any method whatever the routine says.
+  const pretend = getWakePreview().phase !== 'real';
   // Steps always (the fallback every morning offers); downstairs or push-ups only for their own routine.
   const chosen: WakeMethodShown | undefined =
-    method === 'steps' || pretend || ((method === 'downstairs' || method === 'pushups') && getRoutine().method === method)
+    method === 'steps' || ((method === 'downstairs' || method === 'pushups') && (pretend || getRoutine().method === method))
       ? method
       : undefined;
   const scan = !chosen && getRoutine().method === 'scan';
-  if (scan && getScanCode()) return <Redirect href="/scan?mode=morning" />;
+  if (scan && shownScanCode()) return <Redirect href="/scan?mode=morning" />;
   const place = !chosen && getRoutine().method === 'place';
-  if (place && getMorningPlace()) return <Redirect href="/place?mode=morning" />;
+  if (place && shownPlace()) return <Redirect href="/place?mode=morning" />;
   return (
     <AppBackground>
       <WakeScreen method={scan || place ? 'steps' : chosen} />

@@ -10,6 +10,7 @@ import UIKit
    else leaves the phone.
  - `snapshot`: a dark map picture of the place picked, with the check-in radius drawn on it,
    for the confirm step. A picture, not a live map: there's nothing to pan.
+ - `area`: a plain dark map picture of a region, for the morning's live view to draw on.
  */
 public class PlaceSearchModule: Module {
   /// The search under way and the promise waiting on it. A newer search answers the older one
@@ -79,58 +80,75 @@ public class PlaceSearchModule: Module {
     /// A PNG of the map around the place, `radius` metres circled, at `width` x `height` points.
     AsyncFunction("snapshot") { (latitude: Double, longitude: Double, radius: Double, width: Double, height: Double, promise: Promise) in
       let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-      let options = MKMapSnapshotter.Options()
       let span = radius * 5
-      options.region = MKCoordinateRegion(center: center, latitudinalMeters: span, longitudinalMeters: span * width / max(height, 1))
-      options.size = CGSize(width: width, height: height)
-      options.traitCollection = UITraitCollection(userInterfaceStyle: .dark)
-      let snapshotter = MKMapSnapshotter(options: options)
-      self.snapshotter = snapshotter
-      snapshotter.start { snapshot, _ in
-        if self.snapshotter === snapshotter { self.snapshotter = nil }
-        guard let snapshot else {
-          promise.resolve(nil)
-          return
-        }
-        let image = UIGraphicsImageRenderer(size: options.size).image { context in
-          snapshot.image.draw(at: .zero)
-          let middle = snapshot.point(for: center)
-          let edge = snapshot.point(for: CLLocationCoordinate2D(latitude: latitude + radius / 111_320, longitude: longitude))
-          let r = abs(middle.y - edge.y)
-          let ring = UIBezierPath(ovalIn: CGRect(x: middle.x - r, y: middle.y - r, width: r * 2, height: r * 2))
-          UIColor.white.withAlphaComponent(0.1).setFill()
-          ring.fill()
-          UIColor.white.withAlphaComponent(0.8).setStroke()
-          ring.lineWidth = 1.5
-          ring.stroke()
-          let dot = UIBezierPath(ovalIn: CGRect(x: middle.x - 7, y: middle.y - 7, width: 14, height: 14))
-          UIColor.white.setFill()
-          dot.fill()
-          UIColor.black.setStroke()
-          dot.lineWidth = 3
-          dot.stroke()
-          _ = context
-        }
-        // A new name each time, so the image view doesn't show a cached older picture; the
-        // previous one goes.
-        if let previous = self.lastSnapshot {
-          try? FileManager.default.removeItem(at: previous)
-          self.lastSnapshot = nil
-        }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("place-\(UUID().uuidString).png")
-        guard let data = image.pngData() else {
-          promise.resolve(nil)
-          return
-        }
-        do {
-          try data.write(to: url)
-          self.lastSnapshot = url
-          promise.resolve(url.absoluteString)
-        } catch {
-          promise.resolve(nil)
-        }
+      self.draw(center: center, span: span, width: width, height: height, promise: promise) { snapshot in
+        let middle = snapshot.point(for: center)
+        let edge = snapshot.point(for: CLLocationCoordinate2D(latitude: latitude + radius / 111_320, longitude: longitude))
+        let r = abs(middle.y - edge.y)
+        let ring = UIBezierPath(ovalIn: CGRect(x: middle.x - r, y: middle.y - r, width: r * 2, height: r * 2))
+        UIColor.white.withAlphaComponent(0.1).setFill()
+        ring.fill()
+        UIColor.white.withAlphaComponent(0.8).setStroke()
+        ring.lineWidth = 1.5
+        ring.stroke()
+        let dot = UIBezierPath(ovalIn: CGRect(x: middle.x - 7, y: middle.y - 7, width: 14, height: 14))
+        UIColor.white.setFill()
+        dot.fill()
+        UIColor.black.setStroke()
+        dot.lineWidth = 3
+        dot.stroke()
       }
     }.runOnQueue(.main)
+
+    /// A plain dark map picture, `span` metres tall around the centre, nothing drawn on it: the
+    /// morning's live view (place-screen.tsx) draws the place and you over it itself, as you move.
+    AsyncFunction("area") { (latitude: Double, longitude: Double, span: Double, width: Double, height: Double, promise: Promise) in
+      let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+      self.draw(center: center, span: span, width: width, height: height, promise: promise) { _ in }
+    }.runOnQueue(.main)
+  }
+
+  /// Draws the dark map of the region `span` metres tall, then `overlay` on it, and resolves a
+  /// file URI of the PNG (or null).
+  private func draw(
+    center: CLLocationCoordinate2D, span: Double, width: Double, height: Double, promise: Promise,
+    overlay: @escaping (MKMapSnapshotter.Snapshot) -> Void
+  ) {
+    let options = MKMapSnapshotter.Options()
+    options.region = MKCoordinateRegion(center: center, latitudinalMeters: span, longitudinalMeters: span * width / max(height, 1))
+    options.size = CGSize(width: width, height: height)
+    options.traitCollection = UITraitCollection(userInterfaceStyle: .dark)
+    let snapshotter = MKMapSnapshotter(options: options)
+    self.snapshotter = snapshotter
+    snapshotter.start { snapshot, _ in
+      if self.snapshotter === snapshotter { self.snapshotter = nil }
+      guard let snapshot else {
+        promise.resolve(nil)
+        return
+      }
+      let image = UIGraphicsImageRenderer(size: options.size).image { _ in
+        snapshot.image.draw(at: .zero)
+        overlay(snapshot)
+      }
+      // A new name each time, so the image view doesn't show a cached older picture; the
+      // previous one goes.
+      if let previous = self.lastSnapshot {
+        try? FileManager.default.removeItem(at: previous)
+        self.lastSnapshot = nil
+      }
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("place-\(UUID().uuidString).png")
+      guard let data = image.pngData() else {
+        promise.resolve(nil)
+        return
+      }
+      do {
+        try data.write(to: url)
+        self.lastSnapshot = url
+        promise.resolve(url.absoluteString)
+      } catch {
+        promise.resolve(nil)
+      }
+    }
   }
 
   private static func answer(_ places: [[String: Any]], error: String?) -> [String: Any] {

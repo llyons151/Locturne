@@ -708,7 +708,7 @@ private final class TimeColumn: UIView {
       line.append(NSAttributedString(attachment: mark))
       line.append(NSAttributedString(string: " "))
     }
-    line.append(NSAttributedString(string: text))
+    line.append(NSAttributedString(string: self.text))
     line.addAttributes([.font: font, .foregroundColor: color], range: NSRange(location: 0, length: line.length))
     title.attributedText = line
   }

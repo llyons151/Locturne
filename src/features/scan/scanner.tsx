@@ -1,16 +1,23 @@
 import { CameraView, useCameraPermissions, type BarcodeType } from 'expo-camera';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useIsFocused } from 'expo-router';
 import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 
 import { PrimaryButton } from '@/components/buttons';
+import { useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Nocturne, Radius, Space, Type } from '@/theme';
+
+import { FakeViewfinder } from '../dev/wake-lab/fake-viewfinder';
 
 /**
  * The camera, looking for codes. QR plus the product barcodes found on groceries and
  * toiletries. Repeats of the same code are ignored for a moment, so a code held in frame
  * doesn't fire thirty times a second. Pass `active={false}` to stop looking.
+ *
+ * The wake preview (/wake-preview, dev only) swaps the camera for a FAKE viewfinder with
+ * buttons that "scan" `expected` (the code the screen wants) or a wrong one, and can fake the
+ * permission states. Everything around it is the real screen.
  */
 
 const TYPES: BarcodeType[] = ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'code93', 'itf14', 'datamatrix'];
@@ -18,10 +25,30 @@ const REPEAT_MS = 2000;
 
 export type Scan = { data: string; type: string };
 
-export function Scanner({ onScan, active = true }: { onScan: (scan: Scan) => void; active?: boolean }) {
+export function Scanner({
+  onScan,
+  active = true,
+  expected,
+}: {
+  onScan: (scan: Scan) => void;
+  active?: boolean;
+  /** The code the screen wants, for the fake viewfinder's "right code" button only. */
+  expected?: string;
+}) {
   const focused = useIsFocused();
   const scanning = active && focused;
-  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  const [realPermission, requestRealPermission, getPermission] = useCameraPermissions();
+  const fake = useWakePreview().scan;
+  // The fake's "Continue" grants pretend access.
+  const [fakeGranted, setFakeGranted] = useState(false);
+  const permission =
+    fake === 'real'
+      ? realPermission
+      : { granted: fake === 'fake' || (fake === 'ask' && fakeGranted), canAskAgain: fake === 'ask' };
+  const requestPermission = async () => {
+    if (fake === 'real') return requestRealPermission();
+    setFakeGranted(true);
+  };
   // Expo reads once on mount. Settings can grant or revoke access without remounting us.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -48,6 +75,10 @@ export function Scanner({ onScan, active = true }: { onScan: (scan: Scan) => voi
         />
       </View>
     );
+  }
+
+  if (fake !== 'real') {
+    return <FakeViewfinder style={styles.frame} expected={expected} onScan={scanning ? onScan : undefined} />;
   }
 
   return (

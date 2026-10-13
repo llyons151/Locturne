@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 
 import { pushupsLine, spokenRep } from './lines.ts';
-import { phoneHint } from './phone-hint.ts';
+import { readPhone } from './phone-hint.ts';
 import { DEMO_REP_MS, demoPose, plankPose, scenePose, type DemoScene } from './pose-demo.ts';
 import {
   addPose,
@@ -341,28 +341,32 @@ describe('real clips', () => {
   }
 });
 
-describe('phone hint', () => {
-  test('upright, or leaning back a little, is fine', () => {
-    assert.equal(phoneHint({ x: 0, y: -1, z: 0 }), null);
-    assert.equal(phoneHint({ x: 0, y: -0.85, z: -0.5 }), null);
-    assert.equal(phoneHint({ x: 0.3, y: -0.95, z: 0 }), null);
+describe('phone reading', () => {
+  test('sideways, either way, is the main way and needs no hint', () => {
+    assert.deepEqual(readPhone({ x: -1, y: 0, z: 0 }), { turn: 'landscapeLeft', hint: null });
+    assert.deepEqual(readPhone({ x: 1, y: 0, z: 0 }), { turn: 'landscapeRight', hint: null });
+    assert.deepEqual(readPhone({ x: -0.9, y: -0.3, z: -0.2 }), { turn: 'landscapeLeft', hint: null });
   });
 
-  test('flat on the floor, either way up', () => {
-    assert.equal(phoneHint({ x: 0, y: 0, z: -1 }), 'flat');
-    assert.equal(phoneHint({ x: 0, y: -0.5, z: -0.86 }), 'flat');
-    assert.equal(phoneHint({ x: 0, y: 0, z: 1 }), 'flat');
+  test('upright, or leaning back a little, works with a nudge to turn it', () => {
+    assert.deepEqual(readPhone({ x: 0, y: -1, z: 0 }), { turn: 'portrait', hint: 'tall' });
+    assert.deepEqual(readPhone({ x: 0, y: -0.85, z: -0.5 }), { turn: 'portrait', hint: 'tall' });
+    assert.deepEqual(readPhone({ x: 0.3, y: -0.95, z: 0 }), { turn: 'portrait', hint: 'tall' });
   });
 
-  test('on its side, or upside down', () => {
-    assert.equal(phoneHint({ x: 1, y: 0, z: 0 }), 'sideways');
-    assert.equal(phoneHint({ x: -0.9, y: -0.3, z: -0.2 }), 'sideways');
-    assert.equal(phoneHint({ x: 0, y: 1, z: 0 }), 'upsideDown');
+  test('flat on the floor, either way up, keeps the last turn', () => {
+    assert.deepEqual(readPhone({ x: 0, y: 0, z: -1 }), { turn: null, hint: 'flat' });
+    assert.deepEqual(readPhone({ x: 0, y: -0.5, z: -0.86 }), { turn: null, hint: 'flat' });
+    assert.deepEqual(readPhone({ x: 0, y: 0, z: 1 }), { turn: null, hint: 'flat' });
+  });
+
+  test('upside down', () => {
+    assert.deepEqual(readPhone({ x: 0, y: 1, z: 0 }), { turn: null, hint: 'upsideDown' });
   });
 
   test('mid-throw or shaken: no opinion', () => {
-    assert.equal(phoneHint({ x: 0, y: 0, z: 0.1 }), null);
-    assert.equal(phoneHint({ x: 2, y: 1, z: 0 }), null);
+    assert.equal(readPhone({ x: 0, y: 0, z: 0.1 }), null);
+    assert.equal(readPhone({ x: 2, y: 1, z: 0 }), null);
   });
 });
 

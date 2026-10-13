@@ -21,13 +21,13 @@ import { currentProof, proveMorning, readLock, routineAt } from '@/lib/lock-cont
 import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, pushupGoalOf, toLockSettings } from '@/lib/routine';
-import { getMorningPlace } from '@/lib/place-spot';
-import { getScanCode } from '@/lib/scan';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
-import { setPushupsPreview, usePushupsPreview } from '../dev/wake-lab/pushups-preview';
+import { usePushupsPreview } from '../dev/wake-lab/pushups-preview';
+import { shownPlace, shownScanCode } from '../dev/wake-lab/stand-ins';
+import { pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { awakeStatus } from './awake-status';
 import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
@@ -64,9 +64,10 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     method ?? (routine.method === 'steps' ? 'steps' : routine.method === 'pushups' ? 'pushups' : 'downstairs'),
   );
   const [unlocked, setUnlocked] = useState<LockState | null>(null);
-  // You → Developer's pretend morning: its fake bodies and forced states, and a pass that records nothing.
+  // The wake preview's pretend morning (/wake-preview): any method at any hour, push-ups' fake
+  // bodies and forced states, and a pass that records nothing.
   const preview = usePushupsPreview();
-  const pretend = preview.phase !== 'real';
+  const pretend = useWakePreview().phase !== 'real';
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   // A morning nothing holds (after a lapse's last paid one) is day here, as on Home.
@@ -78,7 +79,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     (kind: WakeMethodShown) => {
       if (pretend) {
         haptic.done();
-        setPushupsPreview({ phase: 'woke' });
+        pretendWoke();
         setUnlocked({ ...readLock(), phase: 'day' });
         return;
       }
@@ -112,15 +113,15 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
     // Only with a code to scan or a place picked. Replaced, like the scan screen's "Walk instead", so switching
     // between the two doesn't stack screens.
     const scan =
-      routine.method === 'scan' && getScanCode() ? (
+      routine.method === 'scan' && shownScanCode() ? (
         <TextButton label="Scan your code instead" onPress={() => router.replace('/scan?mode=morning')} />
-      ) : routine.method === 'place' && getMorningPlace() ? (
+      ) : routine.method === 'place' && shownPlace() ? (
         <TextButton label="Check in at your place instead" onPress={() => router.replace('/place?mode=morning')} />
       ) : null;
     // Steps can't be counted here at all: passes, the scan code and the emergency unlock.
     const stuck = <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />;
     content =
-      shown === 'downstairs' && routine.method === 'downstairs' ? (
+      shown === 'downstairs' && (routine.method === 'downstairs' || pretend) ? (
         <DownstairsView goal={routine.stepGoal} onMet={onDownstairs} onSteps={() => switchTo('steps')} footer={scan} />
       ) : shown === 'pushups' && (routine.method === 'pushups' || pretend) ? (
         <PushupsView
@@ -140,7 +141,7 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
           stuck={stuck}
           footer={
             <>
-              {routine.method === 'downstairs' && (
+              {(routine.method === 'downstairs' || pretend) && (
                 <TextButton label="Go downstairs instead" onPress={() => switchTo('downstairs')} />
               )}
               {(routine.method === 'pushups' || pretend) && (

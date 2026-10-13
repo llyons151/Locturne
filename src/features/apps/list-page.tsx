@@ -50,7 +50,7 @@ import {
  * One list's own page, pushed from its tile on the Apps tab (user, 2026-10-10: "how do you see
  * every app if they are buried"): every app in it, an Add or remove apps row, and for a daily
  * limit its time and a Remove limit button. Its own header (user's references, 2026-10-10:
- * stoic.'s back + close over a big centred title, with Opal's round glass buttons).
+ * stoic.'s big centred title under a round back button, in Opal's round glass).
  *
  * `id` is the list: `night` or `always` (`bedtime` or `always` in the web preview), or a
  * limit's id (`limit-0`, the preview's by their own `id`).
@@ -214,7 +214,11 @@ function PreviewWebsites({ list }: { list: 'night' | 'always' }) {
   );
 }
 
-/** The page: round glass back and close buttons over a big centred title, what the list does, then its sections. */
+/**
+ * The page: a round glass back button over a big centred title, what the list does, then its
+ * sections. Back only: the page is pushed, and an xmark belongs to a modal (HIG, Toolbars;
+ * user, 2026-10-13: back and close did the same thing). See docs/NAV_AND_ACCESS.md.
+ */
 function Page({
   title,
   about,
@@ -236,7 +240,6 @@ function Page({
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.s }]}>
         <View style={styles.bar}>
           <RoundButton icon={sym('chevron.left', 'arrow_back')} label="Back" onPress={() => router.back()} />
-          <RoundButton icon={sym('xmark', 'close')} label="Close" onPress={() => router.dismissTo('/apps')} />
         </View>
         <View style={styles.head}>
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>

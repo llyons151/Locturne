@@ -15,6 +15,8 @@ import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
 import { sym, type Symbol } from '@/components/grouped-list';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { Split, SplitHalf } from '@/components/split-choice';
+import { TextButton } from '@/components/buttons';
+import { askAccessAgain } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
 import { onLockChange, syncLock } from '@/lib/lock-controller';
 import {
@@ -67,6 +69,10 @@ const lengthLabel = (minutes: number) => {
 };
 
 type List = ActiveNap['list'];
+
+/** The hold's fill: the sky's lit blue at the top, shading down to its navy. */
+const HOLD_FILL_TOP = '#4467B8';
+const HOLD_FILL = '#16254F';
 
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
@@ -171,7 +177,7 @@ export function NapScreen() {
     setList(next);
     setNotice(null);
     // The first time, go straight to Apple's picker.
-    if (next === 'block' && isScreenTimeAvailable() && picks === 0 && !isPickerSettling('block')) setPicking(true);
+    if (next === 'block' && isScreenTimeAvailable() && picks === 0) pickApps();
   };
   const refreshPicks = () => setPicks(isScreenTimeAvailable() ? selectionSize('block') : 0);
 
@@ -183,6 +189,12 @@ export function NapScreen() {
 
   const start = async () => {
     if (isPickerSettling(list)) return refuse("Your app picks are still saving. Try again in a moment.");
+    // Access off: ask again here, then carry on with the nap (askAccessAgain explains a refusal).
+    if (isScreenTimeAvailable() && getProtection() !== 'on') {
+      const allowed = await askAccessAgain();
+      recheckProtection();
+      if (!allowed) return;
+    }
     const why = blocker(list);
     setNotice(null);
     if (why) return refuse(why);
@@ -221,8 +233,23 @@ export function NapScreen() {
 
   // Under the time, where the reference has its "Focus ›": what sleeps, until when.
   const until = nap ? napStatus : `Apps asleep until ${timeOf(now + length * 60_000)}`;
-  const pickApps = () =>
-    isScreenTimeAvailable() ? !isPickerSettling('block') && setPicking(true) : refuse("Apple's app picker only opens on iPhone.");
+  const pickApps = async () => {
+    if (!isScreenTimeAvailable()) return refuse("Apple's app picker only opens on iPhone.");
+    if (isPickerSettling('block')) return;
+    // Apple's picker needs access: ask again first, as the Apps tab does.
+    if (getProtection() !== 'on') {
+      const allowed = await askAccessAgain();
+      recheckProtection();
+      if (!allowed) return;
+    }
+    setPicking(true);
+  };
+  // A nap running while access is off: ask again, and the shields come back (`restoreBlocks`).
+  const turnAccessOn = async () => {
+    haptic.tap();
+    await askAccessAgain();
+    recheckProtection();
+  };
 
   return (
     <View style={styles.sheet}>
@@ -266,11 +293,11 @@ export function NapScreen() {
         </Text>
       </View>
 
-      {nap ? (
+      {nap && !napProtected ? (
+        <TextButton label="Turn Screen Time access back on" onPress={turnAccessOn} />
+      ) : nap ? (
         <Text style={styles.body}>
-          {!napProtected
-            ? 'Turn Screen Time access back on from the Apps tab.'
-            : `${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`}
+          {`${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`}
         </Text>
       ) : (
         /* TIDE's split row (user's reference, 2026-10-08): one pill, two halves, each an icon,
@@ -307,9 +334,11 @@ export function NapScreen() {
           duration={1200}
           disabled={starting}
           color={Nocturne.cta}
-          fillColor={Nocturne.onCta}
+          // Glassy night blue, like the sky behind the moon, over the whole pill (user, October 12, 2026).
+          fillTopColor={HOLD_FILL_TOP}
+          fillColor={HOLD_FILL}
           textColor={Nocturne.onCta}
-          filledTextColor={Nocturne.cta}
+          filledTextColor={Nocturne.text}
           onComplete={start}
           style={styles.hold}
         />

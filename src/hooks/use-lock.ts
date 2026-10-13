@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import type { LockState } from '@/lib/lock-state';
 import { armRetryAt, onLockChange, readLock, syncLock } from '@/lib/lock-controller';
 import { onProofChange } from '@/lib/morning-proof';
-import { usePushupsPreview } from '@/features/dev/wake-lab/pushups-preview';
+import { useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 
 /**
  * The live lock state (phase, what's asleep, the morning key, the next change), for any
@@ -19,8 +19,8 @@ export function useLock(): LockState {
   'use no memo';
   // Read during render; the sync (which touches shields and tells every listener) runs after.
   const [state, setState] = useState<LockState>(() => readLock());
-  // You → Developer → Push-up preview's pretend morning; only a dev build can set it.
-  const pretend = usePushupsPreview().phase;
+  // The wake preview's pretend morning (/wake-preview); only a dev build can set it.
+  const pretend = useWakePreview().phase;
 
   useEffect(() => {
     const stopLock = onLockChange(setState);

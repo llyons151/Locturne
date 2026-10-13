@@ -7,7 +7,7 @@ import UIKit
  using really pretty hd swift stuff like how opal does").
 
  A white pill. Press and it settles in a little; keep holding and a night-blue pill fills it from
- the left, inset so the two curves run parallel, and the label turns moon-white wherever the fill
+ the left, edge to edge, and the label turns moon-white wherever the fill
  has passed. A Core Haptics hum rises with it. Let go early and the fill drains back. Reaching
  the end gives a success tap, a small spring back, and `onComplete`.
 
@@ -43,6 +43,9 @@ public class HoldButtonModule: Module {
       Prop("textColor") { (view: HoldButtonView, color: UIColor?) in
         view.setColors(text: color)
       }
+      Prop("fillTopColor") { (view: HoldButtonView, color: UIColor?) in
+        view.setColors(fillTop: color)
+      }
       Prop("filledTextColor") { (view: HoldButtonView, color: UIColor?) in
         view.setColors(filledText: color)
       }
@@ -58,6 +61,8 @@ final class HoldButtonView: ExpoView {
   /** Everything that moves: scaled as one so the press reads as the whole button. */
   private let content = UIView()
   private let fill = UIView()
+  /** The fill's glassy shading, top to bottom. */
+  private let fillShade = CAGradientLayer()
   /** The label twice: dark on the white, and moon-white on the fill, clipped to it. */
   private let baseLabel = LabelStack()
   private let filledLabel = LabelStack()
@@ -65,6 +70,7 @@ final class HoldButtonView: ExpoView {
 
   private var baseColor = UIColor.white
   private var fillColor = UIColor(red: 0.04, green: 0.08, blue: 0.16, alpha: 1)
+  private var fillTopColor: UIColor?
   private var textColor = UIColor(red: 0.04, green: 0.08, blue: 0.16, alpha: 1)
   private var filledTextColor = UIColor.white
 
@@ -77,8 +83,8 @@ final class HoldButtonView: ExpoView {
   private var lastTick: CFTimeInterval = 0
   private let haptics = HoldHaptics()
 
-  /** The gap between the fill and the pill's edge. */
-  private let inset: CGFloat = 4
+  /** The gap between the fill and the pill's edge: none, it covers the whole pill (user, October 12, 2026). */
+  private let inset: CGFloat = 0
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -90,6 +96,8 @@ final class HoldButtonView: ExpoView {
     addSubview(content)
 
     fill.layer.cornerCurve = .continuous
+    fill.layer.masksToBounds = true
+    fill.layer.addSublayer(fillShade)
     content.addSubview(fill)
     content.addSubview(baseLabel)
     content.addSubview(filledLabel)
@@ -126,9 +134,12 @@ final class HoldButtonView: ExpoView {
     accessibilityTraits = value ? [.button, .notEnabled] : .button
   }
 
-  func setColors(base: UIColor? = nil, fill: UIColor? = nil, text: UIColor? = nil, filledText: UIColor? = nil) {
+  func setColors(
+    base: UIColor? = nil, fill: UIColor? = nil, fillTop: UIColor? = nil, text: UIColor? = nil, filledText: UIColor? = nil
+  ) {
     if let base { baseColor = base }
     if let fill { fillColor = fill }
+    if let fillTop { fillTopColor = fillTop }
     if let text { textColor = text }
     if let filledText { filledTextColor = filledText }
     applyColors()
@@ -137,6 +148,7 @@ final class HoldButtonView: ExpoView {
   private func applyColors() {
     content.backgroundColor = baseColor
     fill.backgroundColor = fillColor
+    fillShade.colors = [(fillTopColor ?? fillColor).cgColor, fillColor.cgColor]
     baseLabel.tint(textColor)
     filledLabel.tint(filledTextColor)
   }
@@ -164,6 +176,8 @@ final class HoldButtonView: ExpoView {
     let rect = CGRect(x: track.minX, y: track.minY, width: width, height: height)
     fill.frame = rect
     fill.layer.cornerRadius = height / 2
+    // The shading spans the whole pill, so it doesn't stretch as the fill grows.
+    fillShade.frame = CGRect(x: 0, y: 0, width: track.width, height: height)
     fill.alpha = progress <= 0 ? 0 : min(1, progress * 12)
     filledMask.path = UIBezierPath(roundedRect: rect, cornerRadius: height / 2).cgPath
     filledLabel.alpha = fill.alpha

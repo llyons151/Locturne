@@ -106,7 +106,6 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
           i > 0 ? <View key="rule" style={styles.switchRule} /> : null,
           <Pressable
             key={t.value}
-            style={[styles.switchSide, i === 0 ? styles.switchLeft : styles.switchRight]}
             onPress={() => {
               if (on) return;
               haptic.tap();
@@ -743,11 +742,9 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter, paddingBottom: Gap.gutter, gap: Gap.section },
   header: { gap: Gap.headline },
   tiles: { gap: Space.l },
-  // Each name takes half the row and hugs the rule, so the rule sits at the screen's centre.
-  switcher: { flexDirection: 'row', alignItems: 'center', gap: Space.l + Space.xs },
-  switchSide: { flex: 1 },
-  switchLeft: { alignItems: 'flex-end' },
-  switchRight: { alignItems: 'flex-start' },
+  // The two names and the rule centred as one group. (Halving the row put the rule at the
+  // screen's centre, but "Bedtime" is wider than "Limits", so the title read as off-centre.)
+  switcher: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.l + Space.xs },
   switchRule: { width: StyleSheet.hairlineWidth * 2, height: 28, borderRadius: 1, backgroundColor: Nocturne.edge },
   // Routine's title: large and light.
   switchLabel: { ...APP_FONT, color: Nocturne.text, fontSize: 36, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6 },
