@@ -1,0 +1,51 @@
+# Builds the iOS app on GitHub's Mac runners with `eas build --local`, so it doesn't use the EAS build quota.
+# Signing still comes from the credentials stored on EAS. Needs the EXPO_TOKEN repo secret.
+# Run it from the Actions tab ("iOS build" → Run workflow); the .ipa is attached to the run.
+name: iOS build
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: eas.json build profile
+        type: choice
+        options: [development, preview, production]
+        default: development
+
+concurrency:
+  group: ios-build-${{ inputs.profile }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Expo SDK 57 needs Xcode 26.4+; this image defaults to 26.6 and has fastlane and CocoaPods.
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Build
+        run: >
+          eas build --local --non-interactive
+          --platform ios
+          --profile ${{ inputs.profile }}
+          --output build/Locturne-${{ inputs.profile }}-${{ github.run_number }}.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Locturne-${{ inputs.profile }}-${{ github.run_number }}
+          path: build/*.ipa
+          # The repo is public, so keep the builds around only briefly.
+          retention-days: 7
