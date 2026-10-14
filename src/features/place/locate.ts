@@ -180,6 +180,47 @@ export async function search(query: string, limit = 6): Promise<Found> {
   }
 }
 
+/**
+ * A row in the search list. On iOS it's one of Apple's suggestions, found as you type the way
+ * the Maps app's field does, and `place` is filled in once tapped (`placeOf`). On the web
+ * preview, or a build from before suggestions, it's a search result with `place` already known.
+ */
+export type Suggested = { id: string; title: string; subtitle: string; place?: Candidate };
+
+export type Suggestions = { items: Suggested[]; from: Spot | null; trouble: Found['trouble'] };
+
+/** Suggestions for what they've typed so far, many of them, as Maps lists them. */
+export async function suggest(query: string): Promise<Suggestions> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return { items: [], from: null, trouble: null };
+  const from = await near();
+  if (PlaceSearch?.suggest) {
+    try {
+      const { suggestions, error } = await PlaceSearch.suggest(trimmed, from);
+      return { items: suggestions, from, trouble: troubleOf(error) };
+    } catch {
+      return { items: [], from, trouble: null };
+    }
+  }
+  const found = await search(trimmed, 10);
+  return {
+    items: found.places.map((place, i) => ({ id: `found:${i}`, title: place.name, subtitle: place.address, place })),
+    from: found.from,
+    trouble: found.trouble,
+  };
+}
+
+/** Where a tapped suggestion is, or null when Apple can't place it. */
+export async function placeOf(item: Suggested): Promise<Candidate | null> {
+  if (item.place) return item.place;
+  try {
+    const place = await PlaceSearch?.resolve?.(item.id);
+    return place && validSpot(place) ? place : null;
+  } catch {
+    return null;
+  }
+}
+
 function troubleOf(error: SearchError | null): Found['trouble'] {
   if (error === 'offline') return 'offline';
   if (error === 'cancelled') return 'stale';

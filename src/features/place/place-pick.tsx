@@ -1,12 +1,20 @@
 'use no memo';
 // Reads the App Group stores during render (the place, the lock), which change outside React.
 
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
@@ -17,89 +25,115 @@ import * as haptic from '@/lib/haptics';
 import { distanceMeters, getMorningPlace, getPlaceEditRefusal, PLACE_RADIUS_M, saveMorningPlace } from '@/lib/place';
 import { Gap, Radius, Space, Type } from '@/theme';
 
+import { isPlaceMapAvailable, PlaceMap, type MapTarget } from '../../../modules/place-search';
 import { applyRoutineEdit, getSetRoutine } from '../routine/apply-edit';
-import { here, mapPicture, near, search, type Candidate, type NoFix } from './locate';
+import { describe, here, near, placeOf, suggest, type Candidate, type NoFix, type Suggested } from './locate';
 import { formatDistance, hereFailedWords, settingsCanFix } from './place-stage';
 import { usesMiles } from './units';
 
 /**
- * Picking the morning place (Leave the house), as a sheet over Routine. The layout follows
- * the search sheets in Citizen, Alta and Zomato on Mobbin (2026-10-09): the field at the top
- * with the keyboard up, "use where I am" first, results under it as you type, each a pin,
- * the name and the address. Picking one shows it on a map with the check-in radius, like
- * Rivian's location confirm, with a name to save it under.
+ * Picking the morning place (Leave the house), redone like Google Maps so it's familiar (user,
+ * 2026-10-13: the old sheet showed one result and a still picture). Two modes:
  *
+ * - **Search:** a field with Apple's suggestions as you type, many of them, as the Maps app
+ *   lists them, and "Use where I am now" before anything's typed. Tapping one flies the map there.
+ * - **Map:** the whole screen is a live map with a pin fixed in the middle and the check-in
+ *   circle round it (modules/place-search, PlaceMapView.swift). Drag it under the pin, as in
+ *   Google Maps' "choose on map", or tap a business on it. A card at the bottom names the spot
+ *   and saves it; the search bar on top goes back to searching.
+ *
+ * A full-screen modal rather than a sheet, so dragging the map never drags the sheet away.
  * `select`: opened by tapping "Get to a place" with no place yet. Saving also makes it the
  * routine's method; closing without saving leaves the routine as it was.
- *
- * Pure black, iOS's neutral greys on it (user's ask, 2026-10-09).
  */
 
 const C = {
   bg: '#000000',
-  field: '#1C1C1E',
-  icon: '#2C2C2E',
+  surface: '#1C1C1E',
+  field: '#2C2C2E',
   line: 'rgba(255,255,255,0.1)',
   text: '#FFFFFF',
   text2: '#8E8E93',
   text3: '#636366',
 };
 
-/** Typing pauses this long before a search goes out. */
-const DEBOUNCE_MS = 300;
+/** Typing pauses this long before suggestions are asked for. */
+const DEBOUNCE_MS = 200;
+/** How much map shows around a place flown to: the circle reads clearly, the street around it too. */
+const PLACE_SPAN_M = 700;
+/** Before anything's known: the whole of the US, until where they are comes in. */
+const WIDE: MapTarget = { latitude: 39.5, longitude: -98.35, span: 4_500_000, key: 'wide' };
 
-type Picked = { candidate: Candidate; source: 'here' | 'search' };
+type Spot = { latitude: number; longitude: number };
+/** What the pin is on: a place picked by name, or a spot dragged to (named by the geocoder). */
+type Label = { name: string; address: string };
 
 export function PlacePick({ select }: { select: boolean }) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  // Re-renders at bedtime, so a sheet left open turns into "Not from bed".
+  // Re-renders at bedtime, so a screen left open turns into "Not from bed".
   useLock();
 
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Candidate[] | null>(null);
-  /** Roughly where they are, when known: each result shows how far it is. */
-  const [from, setFrom] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [offline, setOffline] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [locating, setLocating] = useState(false);
+  const [saved] = useState(getMorningPlace);
+  const [mode, setMode] = useState<'search' | 'map'>(saved ? 'map' : 'search');
+  const [target, setTarget] = useState<MapTarget>(
+    saved ? { latitude: saved.latitude, longitude: saved.longitude, span: PLACE_SPAN_M, key: 'saved' } : WIDE,
+  );
+  /** Where the pin is, once the map has stopped there. */
+  const [spot, setSpot] = useState<Spot | null>(null);
+  const [label, setLabel] = useState<Label | null>(saved ? { name: saved.name, address: '' } : null);
+  /** Dragging, or naming where the drag stopped. */
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState(saved?.name ?? '');
   const [hereFailed, setHereFailed] = useState<NoFix | null>(null);
-  const [picked, setPicked] = useState<Picked | null>(null);
-  /** Save found the apps asleep (bedtime came while the sheet was open). */
+  const [locating, setLocating] = useState(false);
+  /** Save found the apps asleep (bedtime came while the screen was open). */
   const [refusedAtSave, setRefusedAtSave] = useState(false);
-  const imperial = usesMiles();
+  const [failed, setFailed] = useState(false);
+  /** Moved by hand or flown somewhere: where they are no longer replaces the view. */
+  const placed = useRef(saved !== null);
 
-  // Where they roughly are, read once while they start typing, if location is already allowed.
+  // With nothing saved, start over where they roughly are once that's known (never asks).
   useEffect(() => {
-    near().then((spot) => spot && setFrom((known) => known ?? spot));
-  }, []);
+    if (saved) return;
+    near().then((at) => {
+      if (at && !placed.current) setTarget({ ...at, span: 3_000, key: 'near' });
+    });
+  }, [saved]);
 
-  // Search as you type. Only the latest query's answer is shown.
+  // A drag names where it stopped. Only the latest naming is kept: a pick or a newer drag wins.
   const asked = useRef(0);
-  const type = (text: string) => {
-    setQuery(text);
-    const short = text.trim().length < 2;
-    setSearching(!short);
-    if (short) {
-      setResults(null);
-      setOffline(false);
-    }
+
+  /** Fly to a place and name the pin after it. */
+  const flyTo = (place: Candidate, span = PLACE_SPAN_M) => {
+    placed.current = true;
+    asked.current++;
+    setTarget({ latitude: place.latitude, longitude: place.longitude, span, key: `${place.latitude},${place.longitude},${Date.now()}` });
+    setLabel({ name: place.name, address: place.address });
+    setName(place.name || place.address);
+    setNaming(false);
+    setFailed(false);
+    setMode('map');
+    Keyboard.dismiss();
   };
-  useEffect(() => {
+
+  const onSettle = ({ latitude, longitude, byUser }: Spot & { byUser: boolean }) => {
+    setSpot({ latitude, longitude });
+    if (!byUser) return;
+    placed.current = true;
     const ask = ++asked.current;
-    if (query.trim().length < 2) return;
-    const timer = setTimeout(async () => {
-      const found = await search(query);
-      if (ask !== asked.current || found.trouble === 'stale') return;
-      setResults(found.places);
-      if (found.from) setFrom(found.from);
-      setOffline(found.trouble === 'offline');
-      setSearching(false);
-    }, DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [query]);
+    describe({ latitude, longitude }).then((found) => {
+      if (ask !== asked.current) return;
+      setLabel(found);
+      setName(found.name || found.address);
+      setNaming(false);
+    });
+  };
+  const onMoveStart = () => {
+    setNaming(true);
+    setFailed(false);
+    setHereFailed(null);
+  };
 
   const onHere = async () => {
     haptic.tap();
@@ -112,120 +146,353 @@ export function PlacePick({ select }: { select: boolean }) {
       setHereFailed(found.why);
       return;
     }
-    setPicked({ candidate: found.candidate, source: 'here' });
+    flyTo(found.candidate, 400);
   };
 
   const refused = refusedAtSave || getPlaceEditRefusal() !== null;
-  const pad = { paddingBottom: insets.bottom + Space.l };
+  if (refused) return <NotFromBed onClose={close} />;
 
-  if (refused) {
+  if (mode === 'search') {
     return (
-      <View style={[styles.screen, styles.content, pad]}>
-        <Header title="Not from bed." onClose={close} />
-        <Text style={styles.sub}>You can pick or change your place in the day, once you’re up. Otherwise I’d let you pick your pillow.</Text>
-        <View style={styles.flex} />
-        <PrimaryButton label="Okay" onPress={close} />
-      </View>
-    );
-  }
-
-  if (picked) {
-    return (
-      <Confirm
-        picked={picked}
-        width={width - Gap.gutter * 2}
-        onBack={() => setPicked(null)}
-        onClose={close}
-        onSaved={() => {
-          if (select) applyRoutineEdit({ ...getSetRoutine(), method: 'place' });
-          close();
+      <SearchMode
+        onPick={(place) => {
+          haptic.tap();
+          flyTo(place);
         }}
-        onRefused={() => setRefusedAtSave(true)}
-        pad={pad}
+        onBack={() => setMode('map')}
+        onHere={onHere}
+        locating={locating}
+        hereFailed={hereFailed}
       />
     );
   }
 
-  const current = getMorningPlace();
+  const where = spot ?? { latitude: target.latitude, longitude: target.longitude };
+  const onSave = () => {
+    if (!label) return;
+    const result = saveMorningPlace({ ...where, name: name.trim() || label.name || label.address || 'My place' });
+    if (result === null) {
+      haptic.done();
+      if (select) applyRoutineEdit({ ...getSetRoutine(), method: 'place' });
+      close();
+    } else if (result === 'asleep') {
+      haptic.thud();
+      setRefusedAtSave(true);
+    } else {
+      haptic.thud();
+      setFailed(true);
+    }
+  };
+
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, pad]}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-    >
-      <Header title={current ? 'Change your place' : 'Where are we going?'} onClose={close} />
-      <Text style={styles.sub}>Somewhere that isn’t home: the gym, campus, the café.</Text>
-
-      <View style={styles.field}>
-        <SymbolView name={sym('magnifyingglass', 'search')} size={17} tintColor={C.text2} />
-        <TextInput
-          style={styles.input}
-          value={query}
-          onChangeText={type}
-          placeholder="Search for a place or address"
-          placeholderTextColor={C.text3}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoFocus
-          accessibilityLabel="Search for a place or address"
-        />
-        {searching ? <ActivityIndicator size="small" color={C.text2} /> : null}
-        {query && !searching ? (
-          <Pressable onPress={() => type('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear">
-            <SymbolView name={sym('xmark.circle.fill', 'cancel')} size={17} tintColor={C.text3} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      <View style={styles.list}>
-        {!results ? (
-          <Row
-            icon={sym('location.fill', 'my_location')}
-            title={locating ? 'Finding you…' : 'Use where I am now'}
-            detail="Only if you’re at your place, not at home"
-            onPress={onHere}
-            busy={locating}
-            last
-          />
-        ) : null}
-        {results?.map((r, i) => (
-          <Row
-            key={`${r.latitude},${r.longitude},${i}`}
-            icon={sym('mappin', 'location_on')}
-            title={r.name}
-            detail={[from ? formatDistance(distanceMeters(from, r), imperial) : '', r.address].filter(Boolean).join(' · ')}
-            onPress={() => {
-              haptic.tap();
-              setPicked({ candidate: r, source: 'search' });
-            }}
-            last={i === results.length - 1}
-          />
-        ))}
-      </View>
-
-      {results && results.length === 0 ? (
-        <Text style={styles.note}>
-          {offline
-            ? 'Can’t search without a connection. Check your signal and try again, or go there and use where you are.'
-            : 'Nothing found. Try the street address, or go there and use where you are.'}
-        </Text>
-      ) : null}
-      {hereFailed ? <Text style={styles.note}>{hereFailedWords(hereFailed)}</Text> : null}
-      {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
-    </ScrollView>
+    <MapMode
+      target={target}
+      label={label}
+      naming={naming}
+      name={name}
+      onName={setName}
+      onSettle={onSettle}
+      onMoveStart={onMoveStart}
+      onPoiPress={(place) => {
+        placed.current = true;
+        asked.current++;
+        setLabel({ name: place.name, address: place.address });
+        setName(place.name || place.address);
+        setNaming(false);
+      }}
+      onSearch={() => setMode('search')}
+      onHere={onHere}
+      locating={locating}
+      hereFailed={hereFailed}
+      failed={failed}
+      onSave={onSave}
+      onClose={close}
+    />
   );
 }
 
-function Header({ title, onClose }: { title: string; onClose: () => void }) {
+/** The search screen: the field, "Use where I am now", and Apple's suggestions as you type. */
+function SearchMode({
+  onPick,
+  onBack,
+  onHere,
+  locating,
+  hereFailed,
+}: {
+  onPick: (place: Candidate) => void;
+  onBack: () => void;
+  onHere: () => void;
+  locating: boolean;
+  hereFailed: NoFix | null;
+}) {
+  const insets = useSafeAreaInsets();
+  const imperial = usesMiles();
+  const [query, setQuery] = useState('');
+  const [items, setItems] = useState<Suggested[] | null>(null);
+  const [from, setFrom] = useState<Spot | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [searching, setSearching] = useState(false);
+  /** The suggestion being looked up after a tap. */
+  const [opening, setOpening] = useState<string | null>(null);
+  const [lost, setLost] = useState(false);
+
+  // Suggestions as you type. Only the latest query's answer is shown.
+  const asked = useRef(0);
+  const type = (text: string) => {
+    setQuery(text);
+    setLost(false);
+    const short = text.trim().length < 2;
+    setSearching(!short);
+    if (short) {
+      setItems(null);
+      setOffline(false);
+    }
+  };
+  useEffect(() => {
+    const ask = ++asked.current;
+    if (query.trim().length < 2) return;
+    const timer = setTimeout(async () => {
+      const found = await suggest(query);
+      if (ask !== asked.current || found.trouble === 'stale') return;
+      setItems(found.items);
+      if (found.from) setFrom(found.from);
+      setOffline(found.trouble === 'offline');
+      setSearching(false);
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const open = async (item: Suggested) => {
+    haptic.tap();
+    setOpening(item.id);
+    setLost(false);
+    const place = await placeOf(item);
+    setOpening(null);
+    if (!place) {
+      haptic.thud();
+      setLost(true);
+      return;
+    }
+    onPick({ ...place, name: place.name || item.title });
+  };
+
   return (
-    <View style={styles.header}>
-      <Text style={styles.title} accessibilityRole="header">
-        {title}
+    <View style={[styles.screen, { paddingTop: insets.top + Space.s }]}>
+      <View style={styles.searchRow}>
+        <View style={styles.searchField}>
+          <Pressable onPress={onBack} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back to the map">
+            <SymbolView name={sym('chevron.left', 'arrow_back')} size={18} weight="semibold" tintColor={C.text} />
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            value={query}
+            onChangeText={type}
+            placeholder="Search for a place or address"
+            placeholderTextColor={C.text3}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoFocus
+            accessibilityLabel="Search for a place or address"
+          />
+          {searching ? <ActivityIndicator size="small" color={C.text2} /> : null}
+          {query && !searching ? (
+            <Pressable onPress={() => type('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear">
+              <SymbolView name={sym('xmark.circle.fill', 'cancel')} size={18} tintColor={C.text3} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[styles.results, { paddingBottom: insets.bottom + Space.l }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {!items ? (
+          <>
+            <Row
+              icon={sym('location.fill', 'my_location')}
+              title={locating ? 'Finding you…' : 'Use where I am now'}
+              detail="If you’re at your place now, not at home"
+              onPress={onHere}
+              busy={locating}
+            />
+            <Row
+              icon={sym('map', 'map')}
+              title="Choose on map"
+              detail="Move the map until the pin is on it"
+              onPress={onBack}
+              last
+            />
+            <Text style={styles.hint}>Somewhere that isn’t home: the gym, campus, the café.</Text>
+          </>
+        ) : null}
+        {items?.map((item, i) => (
+          <Row
+            key={item.id}
+            icon={sym('mappin', 'location_on')}
+            title={item.title}
+            detail={[item.place && from ? formatDistance(distanceMeters(from, item.place), imperial) : '', item.subtitle]
+              .filter(Boolean)
+              .join(' · ')}
+            onPress={() => open(item)}
+            busy={opening === item.id}
+            last={i === items.length - 1}
+          />
+        ))}
+        {items && items.length === 0 ? (
+          <Text style={styles.hint}>
+            {offline
+              ? 'Can’t search without a connection. Check your signal, or choose it on the map.'
+              : 'Nothing found. Try the street address, or choose it on the map.'}
+          </Text>
+        ) : null}
+        {lost ? <Text style={styles.hint}>Couldn’t find where that one is. Try another, or choose it on the map.</Text> : null}
+        {hereFailed ? <Text style={styles.hint}>{hereFailedWords(hereFailed)}</Text> : null}
+        {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+/** The map with the pin, the search bar over it, and the card that names and saves the spot. */
+function MapMode({
+  target,
+  label,
+  naming,
+  name,
+  onName,
+  onSettle,
+  onMoveStart,
+  onPoiPress,
+  onSearch,
+  onHere,
+  locating,
+  hereFailed,
+  failed,
+  onSave,
+  onClose,
+}: {
+  target: MapTarget;
+  label: Label | null;
+  naming: boolean;
+  name: string;
+  onName: (name: string) => void;
+  onSettle: (spot: Spot & { byUser: boolean }) => void;
+  onMoveStart: () => void;
+  onPoiPress: (place: Candidate) => void;
+  onSearch: () => void;
+  onHere: () => void;
+  locating: boolean;
+  hereFailed: NoFix | null;
+  failed: boolean;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const radius = formatDistance(PLACE_RADIUS_M, usesMiles());
+  const title = naming ? 'Finding the name…' : label ? label.name || label.address || 'Dropped pin' : 'Move the map to your place';
+
+  return (
+    <View style={styles.screen}>
+      {isPlaceMapAvailable ? (
+        <PlaceMap
+          style={StyleSheet.absoluteFill}
+          radius={PLACE_RADIUS_M}
+          target={target}
+          onSettle={onSettle}
+          onMoveStart={onMoveStart}
+          onPoiPress={onPoiPress}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.noMap]}>
+          <Text style={styles.hint}>The map comes with the next app update. Search for your place for now.</Text>
+        </View>
+      )}
+
+      <View style={[styles.topBar, { paddingTop: insets.top + Space.s }]} pointerEvents="box-none">
+        <Pressable onPress={onClose} style={styles.roundButton} accessibilityRole="button" accessibilityLabel="Close">
+          <SymbolView name={sym('xmark', 'close')} size={16} weight="semibold" tintColor={C.text} />
+        </Pressable>
+        <Pressable onPress={onSearch} style={[styles.searchField, styles.flex]} accessibilityRole="search" accessibilityLabel="Search for a place">
+          <SymbolView name={sym('magnifyingglass', 'search')} size={17} tintColor={C.text2} />
+          <Text style={[styles.input, !label && styles.placeholder]} numberOfLines={1}>
+            {label?.name || 'Search for a place or address'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <KeyboardAvoidingView
+        style={StyleSheet.absoluteFill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        pointerEvents="box-none"
+      >
+        <View style={styles.flex} pointerEvents="none" />
+        <View style={styles.floatRow} pointerEvents="box-none">
+          <Pressable
+            onPress={onHere}
+            disabled={locating}
+            style={styles.roundButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go to where I am"
+          >
+            {locating ? (
+              <ActivityIndicator size="small" color={C.text} />
+            ) : (
+              <SymbolView name={sym('location.fill', 'my_location')} size={17} tintColor={C.text} />
+            )}
+          </Pressable>
+        </View>
+        <View style={[styles.card, { paddingBottom: insets.bottom + Space.l }]}>
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            {!naming && label?.address && label.address !== label.name ? (
+              <Text style={styles.cardDetail} numberOfLines={1}>
+                {label.address}
+              </Text>
+            ) : null}
+            <Text style={styles.cardDetail}>Anywhere in the circle counts as there, about {radius} around the pin.</Text>
+          </View>
+          {label ? (
+            <View style={styles.nameField}>
+              <Text style={styles.nameLabel}>Call it</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={onName}
+                placeholder="The gym"
+                placeholderTextColor={C.text3}
+                maxLength={60}
+                returnKeyType="done"
+                accessibilityLabel="Name for this place"
+              />
+            </View>
+          ) : null}
+          {hereFailed ? <Text style={styles.cardDetail}>{hereFailedWords(hereFailed)}</Text> : null}
+          {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+          {failed ? <Text style={styles.cardDetail}>That spot didn’t save. Move the pin a little, or search for it.</Text> : null}
+          <PrimaryButton label="Save this place" onPress={onSave} disabled={!label || naming} />
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+function NotFromBed({ onClose }: { onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.screen, styles.refused, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Space.l }]}>
+      <Text style={styles.refusedTitle} accessibilityRole="header">
+        Not from bed.
       </Text>
-      <Pressable onPress={onClose} hitSlop={10} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close">
-        <SymbolView name={sym('xmark', 'close')} size={14} weight="semibold" tintColor={C.text2} />
-      </Pressable>
+      <Text style={styles.refusedBody}>
+        You can pick or change your place in the day, once you’re up. Otherwise I’d let you pick your pillow.
+      </Text>
+      <View style={styles.flex} />
+      <PrimaryButton label="Okay" onPress={onClose} />
     </View>
   );
 }
@@ -270,146 +537,72 @@ function Row({
   );
 }
 
-/** The place picked: on a map with the radius that counts, a name, and Save. */
-function Confirm({
-  picked: { candidate, source },
-  width,
-  onBack,
-  onClose,
-  onSaved,
-  onRefused,
-  pad,
-}: {
-  picked: Picked;
-  width: number;
-  onBack: () => void;
-  onClose: () => void;
-  onSaved: () => void;
-  /** The apps went to sleep while the sheet was open: nothing saved, and it can't be now. */
-  onRefused: () => void;
-  pad: { paddingBottom: number };
-}) {
-  const height = Math.round(width * 0.62);
-  const [map, setMap] = useState<string | null>(null);
-  const [name, setName] = useState(candidate.name);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let live = true;
-    mapPicture(candidate, width, height).then((uri) => live && setMap(uri));
-    return () => {
-      live = false;
-    };
-  }, [candidate, width, height]);
-
-  const radius = formatDistance(PLACE_RADIUS_M, usesMiles());
-  const onSave = () => {
-    const result = saveMorningPlace({ ...candidate, name: name.trim() || candidate.name || candidate.address || 'My place' });
-    if (result === null) {
-      haptic.done();
-      onSaved();
-    } else if (result === 'asleep') {
-      haptic.thud();
-      onRefused();
-    } else {
-      haptic.thud();
-      setFailed(true);
-    }
-  };
-
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, pad]} keyboardShouldPersistTaps="handled">
-      <Header title={source === 'here' ? 'Here? Fine.' : 'That one?'} onClose={onClose} />
-
-      <Animated.View entering={FadeIn.duration(250)} style={[styles.map, { height }]}>
-        {map ? (
-          <Image source={{ uri: map }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} accessibilityIgnoresInvertColors />
-        ) : (
-          <SymbolView name={sym('mappin.and.ellipse', 'location_on')} size={28} tintColor={C.text3} />
-        )}
-      </Animated.View>
-
-      <View style={styles.place}>
-        <Text style={styles.placeTitle}>{candidate.name || 'Your place'}</Text>
-        {candidate.address ? <Text style={[styles.rowDetail, styles.centred]}>{candidate.address}</Text> : null}
-        <Text style={styles.sub}>Anywhere within about {radius} counts as there.</Text>
-      </View>
-
-      <View style={styles.nameBlock}>
-        <Text style={styles.label}>Call it</Text>
-        <View style={styles.field}>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="The gym"
-            placeholderTextColor={C.text3}
-            maxLength={60}
-            returnKeyType="done"
-            accessibilityLabel="Name for this place"
-          />
-        </View>
-      </View>
-
-      {failed ? <Text style={styles.note}>That spot didn’t save. Pick it again, or try another.</Text> : null}
-
-      <View style={styles.flex} />
-      <View style={styles.bottom}>
-        <PrimaryButton label="Save this place" onPress={onSave} />
-        <TextButton label="Back" onPress={onBack} />
-      </View>
-    </ScrollView>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { flexGrow: 1, paddingHorizontal: Gap.gutter, paddingTop: Space.xl, gap: Space.l },
-  // Centred, with the close button pinned right (the user likes headings centred).
-  header: { alignItems: 'center', justifyContent: 'center', minHeight: 30, paddingHorizontal: 40 },
-  title: { ...Type.title, fontSize: 22, lineHeight: 27, color: C.text, textAlign: 'center' },
-  closeButton: {
-    position: 'absolute',
-    right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: C.icon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sub: { ...Type.secondary, color: C.text2, marginTop: -Space.s, textAlign: 'center' },
-  field: {
+  flex: { flex: 1 },
+  searchRow: { paddingHorizontal: Space.l, paddingBottom: Space.s },
+  // Google Maps' search pill: one rounded field, the way back at its start.
+  searchField: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Space.s,
-    backgroundColor: C.field,
-    borderRadius: Radius.control,
-    paddingHorizontal: Space.m,
-    minHeight: 44,
+    gap: Space.m,
+    backgroundColor: C.surface,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Space.l,
+    minHeight: 48,
+    shadowColor: '#000000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
   input: { ...Type.body, color: C.text, flex: 1, paddingVertical: Space.s },
-  list: { marginTop: -Space.xs },
+  placeholder: { color: C.text2 },
+  results: { paddingHorizontal: Space.l, paddingTop: Space.s },
   row: { flexDirection: 'row', alignItems: 'center', gap: Space.m, minHeight: 60 },
   pressed: { opacity: 0.6 },
-  rowIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.icon, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1, paddingVertical: Space.m, gap: 2 },
   rowLine: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
   rowTitle: { ...Type.body, color: C.text, fontWeight: '600' },
   rowDetail: { ...Type.secondary, color: C.text2 },
-  note: { ...Type.secondary, color: C.text2 },
-  map: {
-    borderRadius: Radius.control * 1.5,
-    overflow: 'hidden',
-    backgroundColor: C.field,
+  hint: { ...Type.secondary, color: C.text2, textAlign: 'center', paddingHorizontal: Space.l, paddingTop: Space.l },
+  noMap: { backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', padding: Gap.gutter },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l },
+  roundButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: C.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
-  place: { gap: Space.xs, alignItems: 'center' },
-  placeTitle: { ...Type.body, color: C.text, fontWeight: '600', fontSize: 20, textAlign: 'center' },
-  centred: { textAlign: 'center' },
-  nameBlock: { gap: Space.s },
-  label: { ...Type.label, color: C.text2 },
-  flex: { flex: 1, minHeight: Space.l },
-  bottom: { gap: Space.l },
+  floatRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Space.l, paddingBottom: Space.m },
+  card: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: Radius.card + 4,
+    borderTopRightRadius: Radius.card + 4,
+    paddingHorizontal: Gap.gutter,
+    paddingTop: Space.xl,
+    gap: Space.l,
+  },
+  cardHead: { gap: Space.xs },
+  cardTitle: { ...Type.body, color: C.text, fontWeight: '700', fontSize: 22, lineHeight: 28 },
+  cardDetail: { ...Type.secondary, color: C.text2 },
+  nameField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.m,
+    backgroundColor: C.field,
+    borderRadius: Radius.control,
+    paddingHorizontal: Space.l,
+    minHeight: 48,
+  },
+  nameLabel: { ...Type.secondary, color: C.text2, flexShrink: 0 },
+  refused: { paddingHorizontal: Gap.gutter, gap: Space.l },
+  refusedTitle: { ...Type.title, fontSize: 22, lineHeight: 27, color: C.text, textAlign: 'center' },
+  refusedBody: { ...Type.secondary, color: C.text2, textAlign: 'center' },
 });

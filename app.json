@@ -157,7 +157,7 @@
     },
     "extra": {
       "revenueCat": {
-        "appleApiKey": "REPLACE_WITH_REVENUECAT_PUBLIC_APPLE_KEY",
+        "appleApiKey": "appl_lwwbbiQkJCPxUpkzhVEgjRwhOxa",
         "simulateAskToBuy": false
       },
       "posthog": {

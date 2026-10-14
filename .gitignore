@@ -52,3 +52,6 @@ targets/*/generated.entitlements
 # Dev flags (EXPO_PUBLIC_FREE_TESTING): EAS builds from git, so committing this would
 # ship free testing to the App Store.
 .env
+
+# Research, plans and business docs stay local (the repo is public)
+docs/
