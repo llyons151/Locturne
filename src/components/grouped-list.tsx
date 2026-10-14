@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { GLASS_RADIUS, GlassCard } from '@/components/glass-card';
+import { GlassCard } from '@/components/glass-card';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -40,7 +40,6 @@ export function Card({
   title,
   footer,
   warn,
-  solid,
   style,
   children,
 }: {
@@ -50,14 +49,11 @@ export function Card({
   footer?: string;
   /** An edge in grey instead of the hairline: something here needs fixing. */
   warn?: boolean;
-  /** Home's "Tomorrow" pill's grey, mostly opaque, instead of smoked glass (the Routine tab's cards). */
-  solid?: boolean;
   style?: object;
   children?: ReactNode;
 }) {
-  const Frame = solid ? SolidCard : GlassCard;
   return (
-    <Frame dark rim={warn ? Nocturne.text2 : undefined} style={[styles.card, style]}>
+    <GlassCard dark rim={warn ? Nocturne.text2 : undefined} style={[styles.card, style]}>
       {icon && title ? (
         <View style={styles.cardHeader} accessible accessibilityRole="header">
           <SymbolView name={icon} size={15} weight="semibold" tintColor={Nocturne.accent ?? Nocturne.text} />
@@ -66,12 +62,8 @@ export function Card({
       ) : null}
       {children}
       {footer ? <Text style={styles.cardFooter}>{footer}</Text> : null}
-    </Frame>
+    </GlassCard>
   );
-}
-
-function SolidCard({ children, style, rim }: { children: ReactNode; style?: object; dark?: boolean; rim?: string }) {
-  return <View style={[styles.solid, rim ? { borderWidth: StyleSheet.hairlineWidth, borderColor: rim } : null, style]}>{children}</View>;
 }
 
 /**
@@ -147,7 +139,9 @@ export function ValueRow({
 
 /**
  * A row in a pick-one list: title, a grey detail line, and a checkmark when chosen. Given an
- * icon, it takes the larger form: the icon on a rounded tile and a radio instead of the check.
+ * icon, it takes the larger form: the icon on a rounded tile, each row inset in the card with
+ * no separators, and the picked one gets a frosted highlight (white was too loud, user
+ * 2026-10-13).
  */
 export function ChoiceRow({
   icon,
@@ -172,23 +166,26 @@ export function ChoiceRow({
       }}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      style={({ pressed }) => [styles.choice, icon && styles.tileChoice, pressed && styles.rowPressed]}
+      style={({ pressed }) => [
+        styles.choice,
+        icon && styles.tileChoice,
+        icon && selected && styles.tileChoiceOn,
+        pressed && styles.rowPressed,
+      ]}
     >
       {icon ? (
-        // Every tile alike: the radio alone says which is picked (MoonPay's theme list,
-        // docs/design-references/wake-methods).
         <View style={styles.tile}>
           <SymbolView name={icon} size={17} tintColor={Nocturne.text} />
         </View>
       ) : null}
-      <View style={[styles.choiceBody, icon && styles.tileChoiceBody, !last && styles.separator]}>
+      <View style={[styles.choiceBody, icon ? styles.tileChoiceBody : !last && styles.separator]}>
         <View style={styles.choiceText}>
           <Text style={styles.title}>{title}</Text>
           {detail ? <Text style={styles.detail}>{detail}</Text> : null}
         </View>
         {icon ? (
           <SymbolView
-            name={selected ? sym('largecircle.fill.circle', 'radio_button_checked') : sym('circle', 'radio_button_unchecked')}
+            name={selected ? sym('checkmark.circle.fill', 'check_circle') : sym('circle', 'radio_button_unchecked')}
             size={22}
             tintColor={selected ? Nocturne.text : Nocturne.text3}
           />
@@ -272,15 +269,8 @@ const styles = StyleSheet.create({
   label: { ...Type.label, marginLeft: Space.l, marginBottom: Space.s },
   footer: { ...Type.caption, color: Nocturne.text2, marginHorizontal: Space.l, marginTop: Space.s },
 
-  // Smoked glass, like the Apps tab's lists: the sky shows through instead of flat grey.
+  // The same navy glass on every tab (docs/CARD_CONSISTENCY.md, 2026-10-13).
   card: { marginBottom: Space.l },
-  // Home's "Tomorrow" pill's grey, but mostly opaque: its 10% white wash let too much sky
-  // behind the rows, so only a hint shows through (user's ask, 2026-10-10).
-  solid: {
-    backgroundColor: 'rgba(40, 43, 54, 0.8)',
-    borderRadius: GLASS_RADIUS,
-    overflow: 'hidden',
-  },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l, paddingTop: Space.l, paddingBottom: Space.xs },
   cardTitle: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
   cardFooter: { ...Type.caption, color: Nocturne.text2, paddingHorizontal: Space.l, paddingBottom: Space.l },
@@ -315,8 +305,18 @@ const styles = StyleSheet.create({
     paddingRight: Space.l,
   },
   choiceText: { flex: 1, gap: 2 },
-  // The tile sits beside the text; the separator starts at the text, as in Settings.
-  tileChoice: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // Inset in the card with round ends, so the picked one reads as a frosted pill in the glass.
+  tileChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginHorizontal: 6,
+    marginVertical: 3,
+    paddingLeft: Space.m,
+    borderRadius: 20,
+    borderCurve: 'continuous',
+  },
+  tileChoiceOn: { backgroundColor: 'rgba(255, 255, 255, 0.08)' },
   // Takes the row's remaining width, so the detail wraps instead of running off the card.
   tileChoiceBody: { flex: 1, paddingVertical: 9 },
   tile: {

@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
 type Tree = { type: unknown; props: Record<string, any>; children: (Tree | Tree[] | string | null)[] };
 
-function harness(source: string) {
+function harness(source: string, nav: { canGoBack: () => boolean; back: () => void; announced?: boolean } = { canGoBack: () => false, back() {} }) {
   let index = 0;
   const state: any[] = [];
   let lock = { phase: 'night', morningKey: '2026-10-06', blockNowUntil: null as Date | null, nextChange: new Date(2026, 9, 6, 22) };
@@ -26,7 +26,7 @@ function harness(source: string) {
     },
   };
   const mocks: Record<string, unknown> = {
-    react, 'expo-router': { useRouter: () => ({}) },
+    react, 'expo-router': { useRouter: () => nav },
     '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': { StyleSheet: { create: (s: unknown) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text' },
     'react-native-reanimated': { default: { View: 'Animated' }, __esModule: true, FadeIn: { duration() {} } },
@@ -56,6 +56,7 @@ function harness(source: string) {
     './qr': {}, './scanner': { Scanner: 'Scanner' }, './share-code': {}, './scan-stage': { liveScanStage },
     '../dev/wake-lab/stand-ins': { shownScanCode: () => ({ kind: 'qr', data: 'registered-code' }) },
     '../dev/wake-lab/wake-preview': { pretendPhase: () => null, pretendWoke() {} },
+    '../wake/use-prove-morning': { announceWoke: () => { nav.announced = true; } },
   };
   const load = (text: string, filename: string) => {
     const code = babel.transformSync(text, {
@@ -153,4 +154,14 @@ test('an emptied bedtime list: no bedtime promised after the scan, and no mornin
   later.world({ bedtimeApps: false });
   assert.match(texts(later.render()), /Nothing is scheduled to sleep, so there’s nothing to scan for\./);
   assert.doesNotMatch(texts(later.render()), /tomorrow/);
+});
+
+test('a match opened from Home closes the camera, so the apps wake on Home', () => {
+  let back = 0;
+  const nav = { canGoBack: () => true, back: () => { back++; }, announced: false };
+  const h = harness(readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8'), nav);
+  h.phase('morning');
+  find(h.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
+  assert.equal(back, 1);
+  assert.equal(nav.announced, true);
 });

@@ -228,6 +228,8 @@ const unshield = (id: SelectionId) => unblockSelection({ activitySelectionId: id
 
 /** Shield every app in the list. Stays up with the app closed, until `wakeApps`. */
 export function sleepApps(id: SelectionId): void {
+  // With only typed-in websites there's no selection: iOS reads a missing one as empty and
+  // shields nothing, and the filter below holds the sites.
   shield(id);
   if (id === 'night') userDefaultsSet(NIGHT_HELD_KEY, true);
   applyWebsiteFilter();
@@ -915,6 +917,28 @@ export function selectionSizeAfterChange(list: StandingList): number {
   const pending = getPendingLists()[list];
   if (!pending || (!pending.empty && !hasSelection(draftId(list)))) return selectionSize(list);
   return selectionSize(draftId(list));
+}
+
+/**
+ * Everything on the bedtime list that a night holds: its apps, categories and Safari sites, plus
+ * the websites typed in by hand (websites.ts), which iOS's web filter blocks while the night is
+ * held. A list of only typed-in websites still holds a night (user, 2026-10-13). Not while an
+ * emergency unlock has parked the apps until a later bedtime (`pauseNightUntil`): the sites are
+ * awake with them then. The monitor extension counts the same way (`locturneNightHasPicks`).
+ */
+export function nightPickCount(now = Date.now()): number {
+  if (!isAvailable()) return 0;
+  const parked = (getPendingLists().night?.from ?? 0) > now;
+  const sites = sharedGet<Partial<Record<SiteList, string[]>>>(SITES_KEY)?.night?.length ?? 0;
+  return selectionSize('night') + (parked ? 0 : sites);
+}
+
+/** `nightPickCount` once a waiting change has landed: the typed-in sites as last chosen. */
+export function nightPickCountAfterChange(): number {
+  if (!isAvailable()) return 0;
+  const pending = sharedGet<Partial<Record<SiteList, { sites: string[] }>>>(SITES_PENDING_KEY)?.night?.sites;
+  const sites = pending ?? sharedGet<Partial<Record<SiteList, string[]>>>(SITES_KEY)?.night ?? [];
+  return selectionSizeAfterChange('night') + sites.length;
 }
 
 /**

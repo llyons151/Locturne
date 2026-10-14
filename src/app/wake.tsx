@@ -8,13 +8,17 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 import { AppBackground } from '@/components/app-background';
 import { WakeScreen, type WakeMethodShown } from '@/features/wake/wake-screen';
 import { getRoutine } from '@/lib/routine';
+import { methodInUse } from '@/lib/scan-code';
 import { shownPlace, shownScanCode } from '@/features/dev/wake-lab/stand-ins';
 import { getWakePreview } from '@/features/dev/wake-lab/wake-preview';
 
 /**
- * The morning wake-up. `?method=downstairs|steps|pushups` opens that method (the shield tap or a
- * notification can pick one); without it the routine's method opens, and a scan or place
- * routine goes straight to its own screen, or to steps while no code or place is set up yet.
+ * The morning wake-up. `?method=steps|pushups` opens that method (the shield tap or a
+ * notification can pick one); without it the routine's method opens, and a scan routine goes
+ * straight to its camera. A walk, the stairs and the place check-in happen on Home itself
+ * (docs/HOME_INTERACTIVE.md), so a shield tap or notification lands there; `?method=steps` is
+ * still this page, the "walk instead" of push-ups and the scan. The wake preview's pretend
+ * morning can still open `?method=downstairs` here.
  */
 export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
@@ -25,6 +29,11 @@ export default function WakeRoute() {
     method === 'steps' || ((method === 'downstairs' || method === 'pushups') && (pretend || getRoutine().method === method))
       ? method
       : undefined;
+  // Walks, the stairs and the place check-in all happen on Home now; push-ups and the scan
+  // camera keep their own screens.
+  const homeMethod = methodInUse(getRoutine().method);
+  if (!chosen && (homeMethod === 'steps' || homeMethod === 'downstairs' || homeMethod === 'place')) return <Redirect href="/" />;
+  if (chosen === 'downstairs' && !pretend) return <Redirect href="/" />;
   const scan = !chosen && getRoutine().method === 'scan';
   if (scan && shownScanCode()) return <Redirect href="/scan?mode=morning" />;
   const place = !chosen && getRoutine().method === 'place';

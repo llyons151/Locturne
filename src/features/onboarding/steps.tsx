@@ -770,7 +770,8 @@ export function renderStep(ctx: StepContext): StepView {
             <Voice text={headline} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
             <Body>{noOrphan(method.offer)}</Body>
-            {numbers.lightUser ? null : (
+            {/* Short phones keep the timeline whole and drop this line: the paywall headline says it next. */}
+            {numbers.lightUser || compact ? null : (
               <>
                 <View style={page.gapAside} />
                 <Body>{`Week one: about ${weeklyAmount(numbers.weeklyMinutes)} back.`}</Body>
@@ -778,20 +779,31 @@ export function renderStep(ctx: StepContext): StepView {
             )}
             {trialDays ? (
               // The trial timeline (Blinkist pattern): the most replicated paywall win in
-              // docs/sub-club/themes/02-paywall-design-and-copy.md. The reminder day matches the
-              // paywall's toggle. "Morning" puts the first wake-up in the timeline (TODO §4).
-              <View style={styles.plan}>
-                {/* Past bedtime already, arming shields at once (`commit` said so too). */}
-                <PlanRow
-                  when={schedule.when}
-                  what={`${schedule.sleep} $0 today.`}
+              // docs/sub-club/themes/02-paywall-design-and-copy.md. Morning-first (TODO §4): the
+              // first wake-up is a stop of its own, on every phone. The reminder day matches the
+              // paywall's toggle. Filled stops are what the free week does; hollow ones are the deal.
+              <View style={[styles.trail, compact && styles.trailCompact]}>
+                {ctx.scheduledNight ? (
+                  <>
+                    {/* Past bedtime already, arming shields at once (`commit` said so too). */}
+                    <TrailStop
+                      title={schedule.when === 'Now' ? 'Now' : `${schedule.when}, ${schedule.bedAt}`}
+                      body={schedule.when === 'Now' ? 'Your apps sleep as soon as you’re in. $0 today.' : 'Your apps go to sleep. $0 today.'}
+                      filled
+                    />
+                    <TrailStop title={`${schedule.wakeWhen}, ${schedule.wakeAt}`} body={`They stay asleep until ${method.until}.`} filled />
+                  </>
+                ) : (
+                  <TrailStop title="Today" body={`${schedule.sleep} $0 today.`} filled />
+                )}
+                <TrailStop
+                  title={`Day ${reminderDay(trialDays)} · ${dateFromToday(reminderDay(trialDays))}`}
+                  body="I remind you. Grudgingly."
                 />
-                {/* Short phones keep the original three rows so nothing scrolls. */}
-                {compact || !ctx.scheduledNight ? null : <PlanRow when="Wake-up" what={schedule.morning} />}
-                <PlanRow when={`Day ${reminderDay(trialDays)}`} what="I remind you. Grudgingly." />
-                <PlanRow
-                  when={`Day ${trialDays}`}
-                  what={`${dateFromToday(trialDays)}: ${offers.annual.priceString} for the year, unless you cancel before then.`}
+                <TrailStop
+                  title={`Day ${trialDays} · ${dateFromToday(trialDays)}`}
+                  body={`${offers.annual.priceString} for the year, unless you cancel before then.`}
+                  last
                 />
               </View>
             ) : (
@@ -1074,6 +1086,22 @@ function PlanRow({ when, what }: { when: string; what: string }) {
   );
 }
 
+/** One stop on the trial timeline: a dot on the rail, the day in white, what happens under it. */
+function TrailStop({ title, body, filled, last }: { title: string; body: string; filled?: boolean; last?: boolean }) {
+  return (
+    <Reveal style={styles.stop}>
+      <View style={styles.rail}>
+        <View style={[styles.dot, filled && styles.dotFilled]} />
+        {last ? null : <View style={styles.railLine} />}
+      </View>
+      <View style={[styles.stopText, !last && styles.stopGap]}>
+        <Text style={styles.stopTitle}>{title}</Text>
+        <Text style={styles.stopBody}>{body}</Text>
+      </View>
+    </Reveal>
+  );
+}
+
 /** Shown when bedtime to wake is implausibly long or short, which is usually AM/PM mixed up. */
 function ScheduleWarning({ minutes }: { minutes: number }) {
   return <Body style={styles.warning}>That’s {formatHoursFromMinutes(minutes)} hours in bed. Check AM and PM.</Body>;
@@ -1140,6 +1168,18 @@ const styles = StyleSheet.create({
   planWhen: { flexShrink: 0, maxWidth: '50%', ...Type.rowKey, fontVariant: ['tabular-nums'] },
   planWhat: { flex: 1, color: Nocturne.text, ...Type.body },
   reassure: { color: Nocturne.text2, ...Type.secondary },
+  trail: { marginVertical: Gap.block },
+  trailCompact: { marginVertical: Space.l },
+  stop: { flexDirection: 'row', gap: Space.m },
+  // The dot sits on the title's first line; the line runs down to the next stop's dot.
+  rail: { width: 12, alignItems: 'center', paddingTop: 6 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: Nocturne.text2 },
+  dotFilled: { backgroundColor: Nocturne.text, borderColor: Nocturne.text },
+  railLine: { flex: 1, width: 2, marginVertical: 4, borderRadius: 1, backgroundColor: Nocturne.edge },
+  stopText: { flex: 1 },
+  stopGap: { paddingBottom: Space.m },
+  stopTitle: { color: Nocturne.text, ...Type.body, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  stopBody: { color: Nocturne.text2, ...Type.secondary, marginTop: 2 },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },
   stripGap: { marginTop: Gap.block },
   foundOptions: { marginTop: Gap.block },

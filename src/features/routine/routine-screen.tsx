@@ -29,7 +29,6 @@ import { nightsAround, wallClock } from '@/lib/lock-state';
 import {
   getPendingRoutine,
   getRoutine,
-  hasRoutine,
   pushupGoalOf,
   toLockSettings,
   type Routine as StoredRoutine,
@@ -54,6 +53,9 @@ import { fromWeekday, nightsToWeekdays, weekdaysToNights } from './nights';
 import { applyRoutineEdit } from './apply-edit';
 import { pendingLine } from './pending-line';
 import { ShadowLoc } from './shadow-loc';
+
+/** Loc in the dark beside the dial (shadow-loc.tsx). Off for now (user, 2026-10-14). */
+const SHADOW_LOC = false;
 
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
@@ -203,18 +205,10 @@ export function RoutineScreen() {
     return () => sub.remove();
   }, []);
 
-  // A dev Exit's edits, with no routine to save them to (`commit`).
-  const unsaved = useRef<Routine | null>(null);
   const commit = (next: Routine) => {
-    // Onboarding can't be left before its setup is saved, so a routine exists by the time this
-    // tab is reachable. Guarded anyway: a save here would be the first routine, and with one
-    // saved onboarding never opens again (`useAppStart`). Only a dev build's Exit gets here
-    // without one: the edit shows on the tab, unsaved, so the controls still answer a tap.
-    if (!hasRoutine()) {
-      unsaved.current = next;
-      setLoaded((loaded) => ({ ...loaded, saved: next }));
-      return;
-    }
+    // With nothing saved yet (onboarding left by its Exit) the tab shows the default routine,
+    // and the first edit is saved over it as the first routine. It used to stay unsaved on the
+    // tab, so switching tabs threw it away (user, 2026-10-13: "it still needs to save").
     const wasWaiting = load().from !== null;
     const armed = applyRoutineEdit(toStored(next));
     const loaded = load();
@@ -230,7 +224,7 @@ export function RoutineScreen() {
   };
   // From the store, not this render's `saved`: leaving the app mid-edit saves both time rows in
   // one AppState event, before React renders again, and the second would undo the first.
-  const set = (patch: Partial<Routine>) => commit({ ...(hasRoutine() ? load().saved : (unsaved.current ?? load().saved)), ...patch });
+  const set = (patch: Partial<Routine>) => commit({ ...load().saved, ...patch });
 
   const place = getMorningPlace();
   const reps = pushupGoalOf(saved);
@@ -278,7 +272,7 @@ export function RoutineScreen() {
     >
       {/* The night on a 24-hour dial, as set (a waiting edit included), edited by dragging. */}
       <View style={styles.night}>
-        <ShadowLoc visit={visit} titleWidth={titleWidth} />
+        {SHADOW_LOC ? <ShadowLoc visit={visit} titleWidth={titleWidth} /> : null}
         <Text
           style={styles.title}
           onLayout={(e) => setTitleWidth(e.nativeEvent.layout.width)}
@@ -297,9 +291,12 @@ export function RoutineScreen() {
         />
       </View>
 
-      {/* The nights in the methods' card, so the screen's controls share one edge and surface. */}
-      <Card solid style={styles.daysCard}>
+      {/* The nights in a card like the methods', so the screen's controls share one surface. */}
+      <Card style={styles.daysCard}>
         <View style={styles.days}>
+          <Text style={styles.daysLabel} maxFontSizeMultiplier={1.4}>
+            Repeat on
+          </Text>
           <DayStrip
             value={saved.nights}
             tonight={tonightOf(active, now)}
@@ -341,7 +338,7 @@ export function RoutineScreen() {
 
       {/* The heading sits above the card, so the card has none; each method carries its own icon. */}
       <Animated.View style={[styles.methods, fade]}>
-      <Card solid>
+      <Card>
         {options.map((o, i) => (
           <ChoiceRow
             key={o.value}
@@ -385,9 +382,10 @@ const styles = StyleSheet.create({
   // Cancels the card's own bottom margin, so only the gutter is left under it.
   methods: { marginBottom: -Space.l },
   night: { marginBottom: Space.l, gap: Space.m },
-  // Fully round ends, like Home's "Tomorrow" pill.
-  daysCard: { borderRadius: 999 },
-  days: { paddingHorizontal: Space.m, paddingVertical: Space.s },
+  // Eight Sleep's "Repeat on" card (user's reference, 2026-10-13): a small label over the row.
+  daysCard: { borderRadius: 22 },
+  days: { paddingHorizontal: Space.m, paddingTop: Space.m, paddingBottom: Space.m, gap: Space.m },
+  daysLabel: { ...APP_FONT, ...Type.secondary, color: Nocturne.text, paddingHorizontal: Space.xs },
   // Home's headline ("Bedtime in 3h 28m"): large and light (user's ask, October 9, 2026).
   title: { ...APP_FONT, color: Nocturne.text, fontSize: 38, lineHeight: 44, fontWeight: '300', letterSpacing: -0.6, textAlign: 'center', alignSelf: 'center' },
 

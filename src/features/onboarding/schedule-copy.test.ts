@@ -49,8 +49,11 @@ test('the sample bedtime note names the first night armed shows, not always toni
   const copy = scheduleCopy(night, now);
   assert.equal(copy.note, 'Tomorrow at 8:00 AM');
   assert.match(copy.armed, new RegExp(copy.note!));
-  // An evening setup names today's bedtime.
-  assert.equal(scheduleCopy(firstEnabledNight(23 * 60, 7 * 60, [1], now), now).note, 'Today at 11:00 PM');
+  // An evening setup names tonight's bedtime.
+  const evening = scheduleCopy(firstEnabledNight(23 * 60, 7 * 60, [1], now), now);
+  assert.equal(evening.note, 'Tonight at 11:00 PM');
+  assert.match(evening.sleep, /tonight at 11:00 PM/);
+  assert.deepEqual([evening.when, evening.bedAt, evening.wakeWhen, evening.wakeAt], ['Tonight', '11:00 PM', 'Tomorrow', '7:00 AM']);
   // Every night off, or a night already started: no sample.
   assert.equal(scheduleCopy(null, now).note, null);
   const late = at(5, 23, 30);

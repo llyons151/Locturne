@@ -1,9 +1,10 @@
 'use no memo';
 // Reads the App Group stores during render (the place, the lock), which change outside React.
 
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -12,8 +13,12 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type StyleProp,
   StyleSheet,
+  type TextInput as RNTextInput,
+  type TextStyle,
   View,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,28 +38,32 @@ import { usesMiles } from './units';
 
 /**
  * Picking the morning place (Leave the house), redone like Google Maps so it's familiar (user,
- * 2026-10-13: the old sheet showed one result and a still picture). Two modes:
+ * 2026-10-13: the old sheet showed one result and a still picture; 2026-10-14: the map should stay
+ * on screen with the search bar on top and a dropdown).
  *
- * - **Search:** a field with Apple's suggestions as you type, many of them, as the Maps app
- *   lists them, and "Use where I am now" before anything's typed. Tapping one flies the map there.
- * - **Map:** the whole screen is a live map with a pin fixed in the middle and the check-in
- *   circle round it (modules/place-search, PlaceMapView.swift). Drag it under the pin, as in
- *   Google Maps' "choose on map", or tap a business on it. A card at the bottom names the spot
- *   and saves it; the search bar on top goes back to searching.
+ * The whole screen is a live map with a pin fixed in the middle and the check-in circle round it
+ * (modules/place-search, PlaceMapView.swift). Drag it under the pin, as in Google Maps' "choose on
+ * map", or tap a business on it. The search bar floats on top; typing drops Apple's suggestions
+ * down under it, over the map, and tapping one flies the map there. A card at the bottom names the
+ * spot and saves it.
  *
  * A full-screen modal rather than a sheet, so dragging the map never drags the sheet away.
  * `select`: opened by tapping "Get to a place" with no place yet. Saving also makes it the
  * routine's method; closing without saving leaves the routine as it was.
  */
 
+/** iOS's dark system colours, so the screen reads like Apple Maps over its map. */
 const C = {
   bg: '#000000',
   surface: '#1C1C1E',
-  field: '#2C2C2E',
-  line: 'rgba(255,255,255,0.1)',
+  field: 'rgba(118,118,128,0.24)',
+  line: 'rgba(84,84,88,0.6)',
   text: '#FFFFFF',
-  text2: '#8E8E93',
-  text3: '#636366',
+  text2: 'rgba(235,235,245,0.6)',
+  text3: 'rgba(235,235,245,0.3)',
+  blue: '#0A84FF',
+  red: '#FF453A',
+  gray: '#636366',
 };
 
 /** Typing pauses this long before suggestions are asked for. */
@@ -71,11 +80,12 @@ type Label = { name: string; address: string };
 export function PlacePick({ select }: { select: boolean }) {
   const router = useRouter();
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const insets = useSafeAreaInsets();
+  const radius = formatDistance(PLACE_RADIUS_M, usesMiles());
   // Re-renders at bedtime, so a screen left open turns into "Not from bed".
   useLock();
 
   const [saved] = useState(getMorningPlace);
-  const [mode, setMode] = useState<'search' | 'map'>(saved ? 'map' : 'search');
   const [target, setTarget] = useState<MapTarget>(
     saved ? { latitude: saved.latitude, longitude: saved.longitude, span: PLACE_SPAN_M, key: 'saved' } : WIDE,
   );
@@ -90,6 +100,10 @@ export function PlacePick({ select }: { select: boolean }) {
   /** Save found the apps asleep (bedtime came while the screen was open). */
   const [refusedAtSave, setRefusedAtSave] = useState(false);
   const [failed, setFailed] = useState(false);
+  /** The search bar has the keyboard: the dropdown shows and the bottom card steps aside. */
+  const [searching, setSearching] = useState(!saved);
+  const [query, setQuery] = useState(saved?.name ?? '');
+  const field = useRef<RNTextInput>(null);
   /** Moved by hand or flown somewhere: where they are no longer replaces the view. */
   const placed = useRef(saved !== null);
 
@@ -104,6 +118,12 @@ export function PlacePick({ select }: { select: boolean }) {
   // A drag names where it stopped. Only the latest naming is kept: a pick or a newer drag wins.
   const asked = useRef(0);
 
+  const endSearch = () => {
+    field.current?.blur();
+    Keyboard.dismiss();
+    setSearching(false);
+  };
+
   /** Fly to a place and name the pin after it. */
   const flyTo = (place: Candidate, span = PLACE_SPAN_M) => {
     placed.current = true;
@@ -111,10 +131,10 @@ export function PlacePick({ select }: { select: boolean }) {
     setTarget({ latitude: place.latitude, longitude: place.longitude, span, key: `${place.latitude},${place.longitude},${Date.now()}` });
     setLabel({ name: place.name, address: place.address });
     setName(place.name || place.address);
+    setQuery(place.name || place.address);
     setNaming(false);
     setFailed(false);
-    setMode('map');
-    Keyboard.dismiss();
+    endSearch();
   };
 
   const onSettle = ({ latitude, longitude, byUser }: Spot & { byUser: boolean }) => {
@@ -130,6 +150,8 @@ export function PlacePick({ select }: { select: boolean }) {
     });
   };
   const onMoveStart = () => {
+    endSearch();
+    setQuery('');
     setNaming(true);
     setFailed(false);
     setHereFailed(null);
@@ -152,21 +174,6 @@ export function PlacePick({ select }: { select: boolean }) {
   const refused = refusedAtSave || getPlaceEditRefusal() !== null;
   if (refused) return <NotFromBed onClose={close} />;
 
-  if (mode === 'search') {
-    return (
-      <SearchMode
-        onPick={(place) => {
-          haptic.tap();
-          flyTo(place);
-        }}
-        onBack={() => setMode('map')}
-        onHere={onHere}
-        locating={locating}
-        hereFailed={hereFailed}
-      />
-    );
-  }
-
   const where = spot ?? { latitude: target.latitude, longitude: target.longitude };
   const onSave = () => {
     if (!label) return;
@@ -184,214 +191,6 @@ export function PlacePick({ select }: { select: boolean }) {
     }
   };
 
-  return (
-    <MapMode
-      target={target}
-      label={label}
-      naming={naming}
-      name={name}
-      onName={setName}
-      onSettle={onSettle}
-      onMoveStart={onMoveStart}
-      onPoiPress={(place) => {
-        placed.current = true;
-        asked.current++;
-        setLabel({ name: place.name, address: place.address });
-        setName(place.name || place.address);
-        setNaming(false);
-      }}
-      onSearch={() => setMode('search')}
-      onHere={onHere}
-      locating={locating}
-      hereFailed={hereFailed}
-      failed={failed}
-      onSave={onSave}
-      onClose={close}
-    />
-  );
-}
-
-/** The search screen: the field, "Use where I am now", and Apple's suggestions as you type. */
-function SearchMode({
-  onPick,
-  onBack,
-  onHere,
-  locating,
-  hereFailed,
-}: {
-  onPick: (place: Candidate) => void;
-  onBack: () => void;
-  onHere: () => void;
-  locating: boolean;
-  hereFailed: NoFix | null;
-}) {
-  const insets = useSafeAreaInsets();
-  const imperial = usesMiles();
-  const [query, setQuery] = useState('');
-  const [items, setItems] = useState<Suggested[] | null>(null);
-  const [from, setFrom] = useState<Spot | null>(null);
-  const [offline, setOffline] = useState(false);
-  const [searching, setSearching] = useState(false);
-  /** The suggestion being looked up after a tap. */
-  const [opening, setOpening] = useState<string | null>(null);
-  const [lost, setLost] = useState(false);
-
-  // Suggestions as you type. Only the latest query's answer is shown.
-  const asked = useRef(0);
-  const type = (text: string) => {
-    setQuery(text);
-    setLost(false);
-    const short = text.trim().length < 2;
-    setSearching(!short);
-    if (short) {
-      setItems(null);
-      setOffline(false);
-    }
-  };
-  useEffect(() => {
-    const ask = ++asked.current;
-    if (query.trim().length < 2) return;
-    const timer = setTimeout(async () => {
-      const found = await suggest(query);
-      if (ask !== asked.current || found.trouble === 'stale') return;
-      setItems(found.items);
-      if (found.from) setFrom(found.from);
-      setOffline(found.trouble === 'offline');
-      setSearching(false);
-    }, DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const open = async (item: Suggested) => {
-    haptic.tap();
-    setOpening(item.id);
-    setLost(false);
-    const place = await placeOf(item);
-    setOpening(null);
-    if (!place) {
-      haptic.thud();
-      setLost(true);
-      return;
-    }
-    onPick({ ...place, name: place.name || item.title });
-  };
-
-  return (
-    <View style={[styles.screen, { paddingTop: insets.top + Space.s }]}>
-      <View style={styles.searchRow}>
-        <View style={styles.searchField}>
-          <Pressable onPress={onBack} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back to the map">
-            <SymbolView name={sym('chevron.left', 'arrow_back')} size={18} weight="semibold" tintColor={C.text} />
-          </Pressable>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={type}
-            placeholder="Search for a place or address"
-            placeholderTextColor={C.text3}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoFocus
-            accessibilityLabel="Search for a place or address"
-          />
-          {searching ? <ActivityIndicator size="small" color={C.text2} /> : null}
-          {query && !searching ? (
-            <Pressable onPress={() => type('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear">
-              <SymbolView name={sym('xmark.circle.fill', 'cancel')} size={18} tintColor={C.text3} />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={[styles.results, { paddingBottom: insets.bottom + Space.l }]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        {!items ? (
-          <>
-            <Row
-              icon={sym('location.fill', 'my_location')}
-              title={locating ? 'Finding you…' : 'Use where I am now'}
-              detail="If you’re at your place now, not at home"
-              onPress={onHere}
-              busy={locating}
-            />
-            <Row
-              icon={sym('map', 'map')}
-              title="Choose on map"
-              detail="Move the map until the pin is on it"
-              onPress={onBack}
-              last
-            />
-            <Text style={styles.hint}>Somewhere that isn’t home: the gym, campus, the café.</Text>
-          </>
-        ) : null}
-        {items?.map((item, i) => (
-          <Row
-            key={item.id}
-            icon={sym('mappin', 'location_on')}
-            title={item.title}
-            detail={[item.place && from ? formatDistance(distanceMeters(from, item.place), imperial) : '', item.subtitle]
-              .filter(Boolean)
-              .join(' · ')}
-            onPress={() => open(item)}
-            busy={opening === item.id}
-            last={i === items.length - 1}
-          />
-        ))}
-        {items && items.length === 0 ? (
-          <Text style={styles.hint}>
-            {offline
-              ? 'Can’t search without a connection. Check your signal, or choose it on the map.'
-              : 'Nothing found. Try the street address, or choose it on the map.'}
-          </Text>
-        ) : null}
-        {lost ? <Text style={styles.hint}>Couldn’t find where that one is. Try another, or choose it on the map.</Text> : null}
-        {hereFailed ? <Text style={styles.hint}>{hereFailedWords(hereFailed)}</Text> : null}
-        {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
-      </ScrollView>
-    </View>
-  );
-}
-
-/** The map with the pin, the search bar over it, and the card that names and saves the spot. */
-function MapMode({
-  target,
-  label,
-  naming,
-  name,
-  onName,
-  onSettle,
-  onMoveStart,
-  onPoiPress,
-  onSearch,
-  onHere,
-  locating,
-  hereFailed,
-  failed,
-  onSave,
-  onClose,
-}: {
-  target: MapTarget;
-  label: Label | null;
-  naming: boolean;
-  name: string;
-  onName: (name: string) => void;
-  onSettle: (spot: Spot & { byUser: boolean }) => void;
-  onMoveStart: () => void;
-  onPoiPress: (place: Candidate) => void;
-  onSearch: () => void;
-  onHere: () => void;
-  locating: boolean;
-  hereFailed: NoFix | null;
-  failed: boolean;
-  onSave: () => void;
-  onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const radius = formatDistance(PLACE_RADIUS_M, usesMiles());
   const title = naming ? 'Finding the name…' : label ? label.name || label.address || 'Dropped pin' : 'Move the map to your place';
 
   return (
@@ -403,7 +202,15 @@ function MapMode({
           target={target}
           onSettle={onSettle}
           onMoveStart={onMoveStart}
-          onPoiPress={onPoiPress}
+          onPoiPress={(place) => {
+            placed.current = true;
+            asked.current++;
+            setLabel({ name: place.name, address: place.address });
+            setName(place.name || place.address);
+            setQuery(place.name || place.address);
+            setNaming(false);
+            endSearch();
+          }}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.noMap]}>
@@ -411,74 +218,248 @@ function MapMode({
         </View>
       )}
 
-      <View style={[styles.topBar, { paddingTop: insets.top + Space.s }]} pointerEvents="box-none">
-        <Pressable onPress={onClose} style={styles.roundButton} accessibilityRole="button" accessibilityLabel="Close">
-          <SymbolView name={sym('xmark', 'close')} size={16} weight="semibold" tintColor={C.text} />
-        </Pressable>
-        <Pressable onPress={onSearch} style={[styles.searchField, styles.flex]} accessibilityRole="search" accessibilityLabel="Search for a place">
-          <SymbolView name={sym('magnifyingglass', 'search')} size={17} tintColor={C.text2} />
-          <Text style={[styles.input, !label && styles.placeholder]} numberOfLines={1}>
-            {label?.name || 'Search for a place or address'}
-          </Text>
-        </Pressable>
-      </View>
+      {/* Tapping the map round the dropdown puts the keyboard away, as in Maps. */}
+      {searching ? <Pressable style={StyleSheet.absoluteFill} onPress={endSearch} accessible={false} /> : null}
 
-      <KeyboardAvoidingView
-        style={StyleSheet.absoluteFill}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        pointerEvents="box-none"
-      >
-        <View style={styles.flex} pointerEvents="none" />
-        <View style={styles.floatRow} pointerEvents="box-none">
-          <Pressable
-            onPress={onHere}
-            disabled={locating}
-            style={styles.roundButton}
-            accessibilityRole="button"
-            accessibilityLabel="Go to where I am"
-          >
-            {locating ? (
-              <ActivityIndicator size="small" color={C.text} />
-            ) : (
-              <SymbolView name={sym('location.fill', 'my_location')} size={17} tintColor={C.text} />
-            )}
-          </Pressable>
-        </View>
-        <View style={[styles.card, { paddingBottom: insets.bottom + Space.l }]}>
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {title}
-            </Text>
-            {!naming && label?.address && label.address !== label.name ? (
-              <Text style={styles.cardDetail} numberOfLines={1}>
-                {label.address}
-              </Text>
-            ) : null}
-            <Text style={styles.cardDetail}>Anywhere in the circle counts as there, about {radius} around the pin.</Text>
+      {!searching ? (
+        <KeyboardAvoidingView
+          style={StyleSheet.absoluteFill}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          pointerEvents="box-none"
+        >
+          <View style={styles.flex} pointerEvents="none" />
+          <View style={styles.floatRow} pointerEvents="box-none">
+            <Pressable onPress={onHere} disabled={locating} accessibilityRole="button" accessibilityLabel="Go to where I am">
+              <Glass style={styles.roundButton}>
+                {locating ? (
+                  <ActivityIndicator size="small" color={C.text} />
+                ) : (
+                  <SymbolView name={sym('location.fill', 'my_location')} size={18} tintColor={C.blue} />
+                )}
+              </Glass>
+            </Pressable>
           </View>
-          {label ? (
-            <View style={styles.nameField}>
-              <Text style={styles.nameLabel}>Call it</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={onName}
-                placeholder="The gym"
-                placeholderTextColor={C.text3}
-                maxLength={60}
-                returnKeyType="done"
-                accessibilityLabel="Name for this place"
-              />
+          <Glass style={[styles.card, { marginBottom: Math.max(insets.bottom, Space.s) }]}>
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              {!naming && label?.address && label.address !== label.name ? (
+                <Text style={styles.cardDetail} numberOfLines={1}>
+                  {label.address}
+                </Text>
+              ) : null}
+              <Text style={styles.cardDetail}>Anywhere in the circle counts as there, about {radius} around the pin.</Text>
             </View>
+            {label ? (
+              <View style={styles.nameField}>
+                <Text style={styles.nameLabel}>Call it</Text>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="The gym"
+                  placeholderTextColor={C.text3}
+                  maxLength={60}
+                  returnKeyType="done"
+                  accessibilityLabel="Name for this place"
+                />
+              </View>
+            ) : null}
+            {hereFailed ? <Text style={styles.cardDetail}>{hereFailedWords(hereFailed)}</Text> : null}
+            {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+            {failed ? <Text style={styles.cardDetail}>That spot didn’t save. Move the pin a little, or search for it.</Text> : null}
+            <PrimaryButton label="Save this place" onPress={onSave} disabled={!label || naming} />
+          </Glass>
+        </KeyboardAvoidingView>
+      ) : null}
+
+      <View style={[styles.top, { paddingTop: insets.top + Space.s }]} pointerEvents="box-none">
+        <View style={styles.topBar}>
+          {!searching ? (
+            <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close">
+              <Glass style={styles.roundButton}>
+                <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor={C.text} />
+              </Glass>
+            </Pressable>
           ) : null}
-          {hereFailed ? <Text style={styles.cardDetail}>{hereFailedWords(hereFailed)}</Text> : null}
-          {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
-          {failed ? <Text style={styles.cardDetail}>That spot didn’t save. Move the pin a little, or search for it.</Text> : null}
-          <PrimaryButton label="Save this place" onPress={onSave} disabled={!label || naming} />
+          <Glass style={[styles.searchField, styles.flex]}>
+            <SymbolView name={sym('magnifyingglass', 'search')} size={17} weight="medium" tintColor={C.text2} />
+            <TextInput
+              ref={field}
+              style={styles.input}
+              value={query}
+              onChangeText={setQuery}
+              onFocus={() => setSearching(true)}
+              placeholder="Search for a place or address"
+              placeholderTextColor={C.text2}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoFocus={!saved}
+              selectTextOnFocus
+              keyboardAppearance="dark"
+              accessibilityLabel="Search for a place or address"
+            />
+            {query && searching ? (
+              <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear">
+                <SymbolView name={sym('xmark.circle.fill', 'cancel')} size={17} tintColor={C.text2} />
+              </Pressable>
+            ) : null}
+          </Glass>
+          {/* As in Maps and every iOS search field: Cancel puts the keyboard away and drops what was typed. */}
+          {searching ? (
+            <Pressable
+              onPress={() => {
+                endSearch();
+                setQuery(label?.name ?? '');
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancel}>Cancel</Text>
+            </Pressable>
+          ) : null}
         </View>
-      </KeyboardAvoidingView>
+        {searching ? (
+          <Dropdown
+            query={query}
+            onPick={(place) => {
+              haptic.tap();
+              flyTo(place);
+            }}
+            onHere={onHere}
+            onChooseOnMap={endSearch}
+            locating={locating}
+            hereFailed={hereFailed}
+          />
+        ) : null}
+      </View>
     </View>
   );
+}
+
+/** Under the search bar, over the map: "Use where I am now", then Apple's suggestions as you type. */
+function Dropdown({
+  query,
+  onPick,
+  onHere,
+  onChooseOnMap,
+  locating,
+  hereFailed,
+}: {
+  query: string;
+  onPick: (place: Candidate) => void;
+  onHere: () => void;
+  onChooseOnMap: () => void;
+  locating: boolean;
+  hereFailed: NoFix | null;
+}) {
+  const imperial = usesMiles();
+  /** The latest answer and the query it was for; kept while a newer one loads, as Maps does. */
+  const [answer, setAnswer] = useState<{ query: string; items: Suggested[]; offline: boolean } | null>(null);
+  const [from, setFrom] = useState<Spot | null>(null);
+  /** The suggestion being looked up after a tap. */
+  const [opening, setOpening] = useState<string | null>(null);
+  /** The query whose tapped suggestion couldn't be found. */
+  const [lostFor, setLostFor] = useState<string | null>(null);
+
+  const short = query.trim().length < 2;
+  const items = short ? null : (answer?.items ?? null);
+  const offline = !short && answer?.offline === true;
+  const loading = !short && answer?.query !== query;
+  const lost = lostFor === query;
+
+  // Suggestions as you type. Only the latest query's answer is shown.
+  const asked = useRef(0);
+  useEffect(() => {
+    const ask = ++asked.current;
+    if (query.trim().length < 2) return;
+    const timer = setTimeout(async () => {
+      const found = await suggest(query);
+      if (ask !== asked.current || found.trouble === 'stale') return;
+      setAnswer({ query, items: found.items, offline: found.trouble === 'offline' });
+      if (found.from) setFrom(found.from);
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const open = async (item: Suggested) => {
+    haptic.tap();
+    setOpening(item.id);
+    setLostFor(null);
+    const place = await placeOf(item);
+    setOpening(null);
+    if (!place) {
+      haptic.thud();
+      setLostFor(query);
+      return;
+    }
+    onPick({ ...place, name: place.name || item.title });
+  };
+
+  return (
+    <Glass style={styles.dropdown}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false}>
+        {short ? (
+          <>
+            <Row
+              icon={sym('location.fill', 'my_location')}
+              tint={C.blue}
+              title={locating ? 'Finding you…' : 'Use where I am now'}
+              detail="If you’re at your place now, not at home"
+              onPress={onHere}
+              busy={locating}
+            />
+            <Row
+              icon={sym('map.fill', 'map')}
+              tint={C.gray}
+              title="Choose on map"
+              detail="Move the map until the pin is on it"
+              onPress={onChooseOnMap}
+              last
+            />
+          </>
+        ) : null}
+        {loading && !items ? <ActivityIndicator style={styles.loading} size="small" color={C.text2} /> : null}
+        {items?.map((item, i) => (
+          <Row
+            key={item.id}
+            icon={sym('mappin', 'location_on')}
+            tint={C.red}
+            title={item.title}
+            detail={[item.place && from ? formatDistance(distanceMeters(from, item.place), imperial) : '', item.subtitle]
+              .filter(Boolean)
+              .join(' · ')}
+            onPress={() => open(item)}
+            busy={opening === item.id}
+            last={i === items.length - 1}
+          />
+        ))}
+        {items && items.length === 0 && !loading ? (
+          <Text style={styles.hint}>
+            {offline
+              ? 'Can’t search without a connection. Check your signal, or choose it on the map.'
+              : 'Nothing found. Try the street address, or choose it on the map.'}
+          </Text>
+        ) : null}
+        {lost ? <Text style={styles.hint}>Couldn’t find where that one is. Try another, or choose it on the map.</Text> : null}
+        {hereFailed ? <Text style={styles.hint}>{hereFailedWords(hereFailed)}</Text> : null}
+        {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+      </ScrollView>
+    </Glass>
+  );
+}
+
+/** Liquid Glass on iOS 26, as Maps floats its controls; a dark frosted pane before that and on web. */
+function Glass({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  if (isLiquidGlassAvailable()) {
+    return (
+      <GlassView glassEffectStyle="regular" colorScheme="dark" style={[styles.glass, style]}>
+        {children}
+      </GlassView>
+    );
+  }
+  return <View style={[styles.glass, styles.pane, style]}>{children}</View>;
 }
 
 function NotFromBed({ onClose }: { onClose: () => void }) {
@@ -499,6 +480,7 @@ function NotFromBed({ onClose }: { onClose: () => void }) {
 
 function Row({
   icon,
+  tint,
   title,
   detail,
   onPress,
@@ -506,6 +488,8 @@ function Row({
   last,
 }: {
   icon: ReturnType<typeof sym>;
+  /** The icon's disc, Maps-style: blue for where you are, red for a place, gray for the rest. */
+  tint: string;
   title: string;
   detail?: string;
   onPress: () => void;
@@ -520,8 +504,8 @@ function Row({
       accessibilityRole="button"
       accessibilityLabel={detail ? `${title}, ${detail}` : title}
     >
-      <View style={styles.rowIcon}>
-        {busy ? <ActivityIndicator size="small" color={C.text} /> : <SymbolView name={icon} size={15} tintColor={C.text} />}
+      <View style={[styles.rowIcon, { backgroundColor: tint }]}>
+        {busy ? <ActivityIndicator size="small" color={C.text} /> : <SymbolView name={icon} size={15} weight="semibold" tintColor={C.text} />}
       </View>
       <View style={[styles.rowText, !last && styles.rowLine]}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -540,55 +524,42 @@ function Row({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
-  searchRow: { paddingHorizontal: Space.l, paddingBottom: Space.s },
-  // Google Maps' search pill: one rounded field, the way back at its start.
-  searchField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.m,
-    backgroundColor: C.surface,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Space.l,
-    minHeight: 48,
-    shadowColor: '#000000',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+  // A glass capsule like Maps' search field on iOS 26: icon, field, clear.
+  searchField: { flexDirection: 'row', alignItems: 'center', gap: Space.s, borderRadius: 22, paddingHorizontal: 14, height: 44 },
+  cancel: { ...Type.body, color: C.blue },
+  input: {
+    ...Type.body,
+    color: C.text,
+    flex: 1,
+    paddingVertical: Space.s,
+    ...Platform.select({ web: { outlineStyle: 'none' } as unknown as TextStyle }),
   },
-  input: { ...Type.body, color: C.text, flex: 1, paddingVertical: Space.s },
-  placeholder: { color: C.text2 },
-  results: { paddingHorizontal: Space.l, paddingTop: Space.s },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Space.m, minHeight: 60 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Space.m, minHeight: 56 },
   pressed: { opacity: 0.6 },
-  rowIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' },
-  rowText: { flex: 1, paddingVertical: Space.m, gap: 2 },
+  rowIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  // The separator starts at the text, as in an iOS list.
+  rowText: { flex: 1, paddingVertical: 10, gap: 1 },
   rowLine: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
-  rowTitle: { ...Type.body, color: C.text, fontWeight: '600' },
+  rowTitle: { ...Type.body, color: C.text },
   rowDetail: { ...Type.secondary, color: C.text2 },
   hint: { ...Type.secondary, color: C.text2, textAlign: 'center', paddingHorizontal: Space.l, paddingTop: Space.l },
   noMap: { backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', padding: Gap.gutter },
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: Space.s, paddingHorizontal: Space.l },
-  roundButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: C.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+  top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: Space.l, gap: Space.s },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  glass: { overflow: 'hidden' },
+  pane: {
+    backgroundColor: 'rgba(30,30,32,0.82)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+    ...Platform.select({ web: { backdropFilter: 'blur(24px) saturate(180%)' } as ViewStyle }),
   },
-  floatRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Space.l, paddingBottom: Space.m },
-  card: {
-    backgroundColor: C.surface,
-    borderTopLeftRadius: Radius.card + 4,
-    borderTopRightRadius: Radius.card + 4,
-    paddingHorizontal: Gap.gutter,
-    paddingTop: Space.xl,
-    gap: Space.l,
-  },
+  // Hangs under the search bar like Maps' suggestions; short enough to leave the map showing.
+  dropdown: { borderRadius: 24, paddingLeft: Space.l, paddingRight: Space.m, paddingVertical: Space.xs, maxHeight: 360 },
+  loading: { paddingVertical: Space.l },
+  roundButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  floatRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Space.l, paddingBottom: Space.s },
+  // A floating glass panel, inset from the edges with the screen's corner radius, as iOS 26 sheets sit.
+  card: { marginHorizontal: Space.s, borderRadius: 34, paddingHorizontal: Space.xl, paddingTop: Space.xl, paddingBottom: Space.l, gap: Space.l },
   cardHead: { gap: Space.xs },
   cardTitle: { ...Type.body, color: C.text, fontWeight: '700', fontSize: 22, lineHeight: 28 },
   cardDetail: { ...Type.secondary, color: C.text2 },

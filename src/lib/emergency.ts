@@ -25,8 +25,8 @@ import {
   listChangeLandsAt,
   nightLockArmed,
   pauseNightUntil,
-  selectionSize,
-  selectionSizeAfterChange,
+  nightPickCount,
+  nightPickCountAfterChange,
   sharedGet,
   sharedSet,
 } from './screen-time.ts';
@@ -121,7 +121,7 @@ function bedtimeAppsAt(at: Date | null, now: Date): boolean {
   if (!isScreenTimeAvailable()) return true;
   const handoff = listChangeLandsAt('night', now);
   const landed = handoff && !handoff.waitsForOpen && at && handoff.at <= at;
-  return (landed ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
+  return (landed ? nightPickCountAfterChange() : nightPickCount()) > 0;
 }
 
 /**

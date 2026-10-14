@@ -67,6 +67,29 @@ export const OFFERING_IDS = {
   'longer-trial': 'exit-longer-trial',
 } as const satisfies Record<'default' | ExitOfferArm, string>;
 
+/**
+ * The cancel flow's one discount (docs/CANCEL_FLOW.md): a promotional offer on the plan they're
+ * on, made in App Store Connect under each product's Promotional Offers with exactly these IDs
+ * (RevenueCat signs it). Annual: the next year at half price, one cycle. Monthly: half price for
+ * three months. Apple lets each Apple ID redeem it once and starts it at the next renewal.
+ */
+export const SAVE_OFFER_IDS = {
+  annual: 'locturne.save50.annual',
+  monthly: 'locturne.save50.monthly',
+} as const satisfies Record<PlanId, string>;
+
+/** The cancel flow's discount as the store prices it for this person. */
+export type SaveOffer = {
+  plan: PlanId;
+  /** The discounted price per billing period, localized by the store ("$29.99"). */
+  priceString: string;
+  /** The plan's normal price, the same way ("$59.99"). */
+  fullPriceString: string;
+  percentOff: number;
+  /** How many billing periods it lasts: 1 year, or 3 months. */
+  cycles: number;
+};
+
 /** The one RevenueCat entitlement every product unlocks. The lock arms only while it's active. */
 export const ENTITLEMENT_ID = 'pro';
 
@@ -78,6 +101,10 @@ export const ATTRIBUTES = {
   exitArm: 'exit_arm',
   /** "true" once the exit offer has been shown. */
   exitOfferShown: 'exit_offer_shown',
+  /** The reason picked in the cancel flow, or "skipped". */
+  cancelReason: 'cancel_reason',
+  /** How the cancel flow ended: "kept", "helped", "claimed_offer" or "to_apple". */
+  cancelOutcome: 'cancel_outcome',
 } as const;
 
 /** One product as the store describes it to this person. */
@@ -142,6 +169,13 @@ export interface PurchasesProvider {
    * sheet (the stub), so the caller opens Apple's subscriptions page instead.
    */
   manageSubscriptions(): Promise<boolean>;
+  /**
+   * The cancel flow's discount on the plan they're on (`SAVE_OFFER_IDS`), or null: no plan, a
+   * free trial still running, the offer not set up, or this Apple ID already used it.
+   */
+  getSaveOffer(): Promise<SaveOffer | null>;
+  /** Takes the save offer. Apple applies it from the next renewal; nothing is charged now. */
+  claimSaveOffer(): Promise<PurchaseResult>;
   /** Custom attributes on the store's customer record (`ATTRIBUTES`). Never throws. */
   setAttributes(attributes: Record<string, string>): void;
   /**
@@ -153,6 +187,11 @@ export interface PurchasesProvider {
 }
 
 /* Pure helpers, shared by every provider and the paywall. */
+
+/** Whole percent off, "50" for $29.99 against $59.99. */
+export function percentOff(price: number, fullPrice: number): number {
+  return fullPrice > 0 ? Math.round((1 - price / fullPrice) * 100) : 0;
+}
 
 /** "Save 49%": the annual price against twelve months of monthly. */
 export function annualSavingsPercent(offers: Pick<Offers, 'annual' | 'monthly'>): number {
@@ -238,6 +277,9 @@ export const DEV_CATALOG = {
   annual: 59.99,
   monthly: 9.99,
   annualOffer: 29.99,
+  /** The cancel flow's save offer: half of each plan (`SAVE_OFFER_IDS`). */
+  saveAnnual: 29.99,
+  saveMonthly: 4.99,
   trialDays: 7,
   extendedTrialDays: 14,
 } as const;
@@ -247,6 +289,8 @@ export const DEFAULT_EXIT_ARM: ExitArm = 'longer-trial';
 
 type DevEntitlement = { target: PurchaseTarget; at: number; trialEndsAt: number | null };
 const DEV_KEY = 'locturne.devEntitlement';
+/** The stub's "this Apple ID used the save offer". */
+const DEV_SAVE_KEY = 'locturne.devSaveClaimed';
 
 export type DevPurchasesOptions = {
   /** Pretend this Apple ID already used its trial. */
@@ -346,6 +390,21 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
     async manageSubscriptions() {
       return false;
     },
+    // With nothing bought it prices the annual offer, so the cancel flow's preview has one to show.
+    async getSaveOffer() {
+      await wait();
+      if (store.get<boolean>(DEV_SAVE_KEY)) return null;
+      const target = entitlement()?.target;
+      const plan = target ? planOf(PRODUCT_IDS[target]) : 'annual';
+      const [price, full] = plan === 'annual' ? [DEV_CATALOG.saveAnnual, DEV_CATALOG.annual] : [DEV_CATALOG.saveMonthly, DEV_CATALOG.monthly];
+      return { plan, priceString: usd(price), fullPriceString: usd(full), percentOff: percentOff(price, full), cycles: plan === 'annual' ? 1 : 3 };
+    },
+    async claimSaveOffer() {
+      await wait();
+      if (outcome !== 'purchased') return outcome === 'failed' ? { status: 'failed', message: 'The App Store couldn’t apply the offer.' } : { status: outcome };
+      store.set(DEV_SAVE_KEY, true);
+      return { status: 'purchased' };
+    },
     setAttributes(next) {
       Object.assign(attributes, next);
     },
@@ -383,6 +442,12 @@ export function createClosedPurchases(): PurchasesProvider {
     },
     async manageSubscriptions() {
       return false;
+    },
+    async getSaveOffer() {
+      return null;
+    },
+    async claimSaveOffer() {
+      return { status: 'failed', message: 'The App Store couldn’t apply the offer.' };
     },
     setAttributes() {},
     onEntitled() {
@@ -433,5 +498,16 @@ export const isEntitled = () => provider.isEntitled();
 export const currentTrialEnd = () => provider.currentTrialEnd();
 export const currentPlan = () => provider.currentPlan();
 export const manageSubscriptions = () => provider.manageSubscriptions();
+export const getSaveOffer = () => provider.getSaveOffer();
+/** Takes the save offer, guarded against a double tap like `purchase`. */
+export const claimSaveOffer = async (): Promise<PurchaseResult> => {
+  if (buying) return { status: 'cancelled' };
+  buying = true;
+  try {
+    return await provider.claimSaveOffer();
+  } finally {
+    buying = false;
+  }
+};
 export const setAttributes =(attributes: Record<string, string>) => provider.setAttributes(attributes);
 export const onEntitled = (listener: () => void) => provider.onEntitled(listener);

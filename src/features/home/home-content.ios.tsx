@@ -1,5 +1,6 @@
 import {
   Button,
+  Capsule,
   Circle,
   Host,
   HStack,
@@ -33,7 +34,7 @@ import {
   strokeBorder,
   type ModifierConfig,
 } from '@expo/ui/swift-ui/modifiers';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { HOME_RISE_MS } from '@/components/night-sky';
@@ -45,9 +46,13 @@ import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/
 import type { HomeContentProps } from './home-content';
 import { dayLabel, morningsLabel, weekDays } from './week';
 
+type SymbolName = NonNullable<ComponentProps<typeof Image>['systemName']>;
+
 const PILL = 'rgba(255,255,255,0.08)';
 const BUTTON = 'rgba(255,255,255,0.10)';
 const DOT = 32;
+/** The morning meter's track, as wide as the body text it sits over. */
+const TRACK = 240;
 
 /** Seconds. Everything starts once the moon is about a third of the way up. */
 const START = (HOME_RISE_MS * 0.35) / 1000;
@@ -71,7 +76,7 @@ const BLUR = 8;
  */
 export function HomeContent(props: HomeContentProps) {
   'use no memo';
-  const { mornings, today, won, free, revision, hero, heroKey, action } = props;
+  const { mornings, today, won, free, revision, hero, heroKey, meter, icon, action, alt } = props;
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
 
@@ -176,21 +181,54 @@ export function HomeContent(props: HomeContentProps) {
             animation(Animation.spring({ duration: TOTAL, bounce: 0 }).delay(START), shown),
           ]}
         >
-          <Image systemName="moon.fill" size={18} color={Nocturne.text2} modifiers={enter(2)} />
-          <Text
-            modifiers={[
-              font({ size: 38, weight: 'light' }),
-              foregroundStyle(Nocturne.text),
-              multilineTextAlignment('center'),
-              accessibilityAddTraits(['isHeader']),
-              // The countdown rolls its digits as the minutes change.
-              contentTransition('numericText', { countsDown: true }),
-              animation(Animation.spring({ duration: 0.5, bounce: 0 }), heroKey),
-              ...enter(3),
-            ]}
-          >
-            {hero.title}
-          </Text>
+          <Image systemName={(icon?.ios ?? 'moon.fill') as SymbolName} size={18} color={Nocturne.text2} modifiers={enter(2)} />
+          {meter ? (
+            // The morning's live count in place of the headline, rolling as it climbs.
+            <VStack
+              spacing={Space.xs}
+              modifiers={[accessibilityElement('ignore'), accessibilityLabel(hero.title), accessibilityAddTraits(['isHeader']), ...enter(3)]}
+            >
+              <Text
+                modifiers={[
+                  font({ size: 64, weight: 'light' }),
+                  monospacedDigit(),
+                  foregroundStyle(Nocturne.text),
+                  contentTransition('numericText'),
+                  animation(Animation.spring({ duration: 0.5, bounce: 0 }), heroKey),
+                ]}
+              >
+                {meter.value}
+              </Text>
+              <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(Nocturne.text2)]}>{meter.caption}</Text>
+              {meter.progress !== undefined ? (
+                <ZStack alignment="leading" modifiers={[frame({ width: TRACK, height: 6 }), padding({ top: Space.s })]}>
+                  <Capsule modifiers={[foregroundStyle(Nocturne.progressTrack)]} />
+                  <Capsule
+                    modifiers={[
+                      foregroundStyle(Nocturne.text),
+                      frame({ width: TRACK * Math.min(1, Math.max(0, meter.progress)) }),
+                      animation(Animation.spring({ duration: 0.5, bounce: 0 }), meter.progress),
+                    ]}
+                  />
+                </ZStack>
+              ) : null}
+            </VStack>
+          ) : (
+            <Text
+              modifiers={[
+                font({ size: 38, weight: 'light' }),
+                foregroundStyle(Nocturne.text),
+                multilineTextAlignment('center'),
+                accessibilityAddTraits(['isHeader']),
+                // The countdown rolls its digits as the minutes change.
+                contentTransition('numericText', { countsDown: true }),
+                animation(Animation.spring({ duration: 0.5, bounce: 0 }), heroKey),
+                ...enter(3),
+              ]}
+            >
+              {hero.title}
+            </Text>
+          )}
           <Text
             modifiers={[
               font({ textStyle: 'body' }),
@@ -230,6 +268,13 @@ export function HomeContent(props: HomeContentProps) {
               ) : null}
             </HStack>
           </Button>
+          {alt ? (
+            <Button onPress={alt.onPress} modifiers={[buttonStyle('plain'), ...enter(5)]}>
+              <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2), padding({ vertical: Space.xs })]}>
+                {alt.label}
+              </Text>
+            </Button>
+          ) : null}
         </VStack>
 
         <Spacer />

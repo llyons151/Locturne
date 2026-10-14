@@ -101,28 +101,27 @@ const styles = StyleSheet.create({
 
   strip: { flexDirection: 'row', justifyContent: 'space-between', gap: Space.xs },
   // Each night takes an equal share, so the row fits a card on a 320pt phone.
-  stripCol: { flex: 1, maxWidth: 40, alignItems: 'center', gap: 6 },
-  // Garmin's sleep-schedule row: off nights are a hairline ring, on nights a solid disc in the
-  // same near-white as the CTA and DayPicker, so a picked night reads at a glance.
+  stripCol: { flex: 1, maxWidth: 38, alignItems: 'center' },
+  // Eight Sleep's "Repeat on" row (user's reference, 2026-10-13): off nights a dim filled disc,
+  // on nights solid moon-white, the app's one way of saying "picked".
   stripDay: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 20,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: Nocturne.edge,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
   },
-  stripDayOn: { backgroundColor: Nocturne.cta, borderColor: Nocturne.cta },
-  stripLetterOn: { color: Nocturne.onCta },
-  stripLetter: { color: Nocturne.text2, fontSize: 15, fontWeight: '600' },
+  stripDayOn: { backgroundColor: Nocturne.cta },
+  stripLetterOn: { color: Nocturne.onCta, fontWeight: '600' },
+  stripLetter: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
 });
 
 /**
- * The same seven nights as a bare row of rings (user's reference, Garmin Connect's sleep
- * schedule, 2026-10-09): off nights outlined, on nights filled. No dot under tonight (removed
- * at the user's ask, October 9, 2026); VoiceOver still hears which one is tonight.
- * Sits under the Routine tab's dial and saves on each tap.
+ * The same seven nights as a row of discs (user's reference, Eight Sleep's "Repeat on",
+ * 2026-10-13): off nights dim, on nights moon-white. No dot under tonight (removed at the
+ * user's ask, October 9, 2026); VoiceOver still hears which one is tonight.
+ * Sits in the Routine tab's "Repeat on" card and saves on each tap.
  */
 export function DayStrip({
   value,

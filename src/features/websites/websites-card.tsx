@@ -13,7 +13,9 @@ import { useProtection } from '@/hooks/use-protection';
 import { askAccessAgain } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
 import { looserEditsStartAt, readLock } from '@/lib/lock-controller';
-import { editedSelection, isScreenTimeAvailable, isStoodDown, reapplyStandingBlocks } from '@/lib/screen-time';
+import { getArmedNight, isStoodDown, reapplyStandingBlocks } from '@/lib/screen-time';
+import { rescheduleNotifications } from '@/lib/notifications';
+import { armIfPaid } from '@/hooks/use-app-start';
 import { addSite, getSites, MAX_SITES, removeSite, sitesChangeAt, type AddSiteResult, type SiteList } from '@/lib/websites';
 import { Nocturne, Space, Type } from '@/theme';
 
@@ -74,6 +76,12 @@ export function WebsitesCard({ list }: { list: SiteList }) {
       haptic.done();
       // Only tightens: the filter takes it now if the list is asleep.
       reapplyStandingBlocks();
+      if (list === 'night') {
+        // Websites alone hold a night (user, 2026-10-13): a bedtime list that was empty left it
+        // unarmed, so arm it now and plan its notes, as picking bedtime apps does (list-actions).
+        if (!getArmedNight()) armIfPaid();
+        rescheduleNotifications().catch(() => {});
+      }
       setRevision((r) => r + 1);
     });
   };
@@ -116,10 +124,7 @@ export function WebsitesCard({ list }: { list: SiteList }) {
   );
 }
 
-/**
- * Under the card: when removed sites wake, or, for bedtime, that the sites sleep with the
- * bedtime apps (with none picked, nothing holds the night).
- */
+/** Under the card: when removed sites wake. Sites alone hold a night, so nothing else to say. */
 function Note({ list, now }: { list: SiteList; now: Date }) {
   const changeAt = sitesChangeAt(list);
   let text: string | null = null;
@@ -129,8 +134,6 @@ function Note({ list, now }: { list: SiteList; now: Date }) {
     text = asleep
       ? `Websites you removed stay asleep. Your change starts ${startsLabel(changeAt, now)}.`
       : `Websites you removed won’t sleep from ${startsLabel(changeAt, now).replace(/^at /, '')}.`;
-  } else if (list === 'night' && getSites('night').length > 0 && isScreenTimeAvailable() && editedSelection('night').size === 0) {
-    text = 'These sleep with your bedtime apps. Pick at least one app above so the night can start.';
   }
   return text ? <Text style={styles.footer}>{text}</Text> : null;
 }

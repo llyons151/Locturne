@@ -27,11 +27,11 @@ import { Body, page, Voice } from '../ui';
 
 /**
  * His line under the headline: when it starts, then the price. `note` is scheduleCopy's
- * "Today at 11:30 PM", null once the night has started; no night at all promises nothing.
+ * "Tonight at 11:30 PM", null once the night has started; no night at all promises nothing.
  */
 function plansVoice(hasNight: boolean, note: string | null): string {
   if (!hasNight) return 'Right. The boring bit.';
-  const starts = note ? note.replace(/^(Today|Tomorrow)/, (day) => day.toLowerCase()) : 'now';
+  const starts = note ? note.replace(/^(Today|Tonight|Tomorrow)/, (day) => day.toLowerCase()) : 'now';
   return `Starts ${starts}. Right. The boring bit.`;
 }
 
@@ -138,9 +138,10 @@ export function plansStep(ctx: StepContext): StepView {
         {/* Short phones have room for one of the two: the comparison says more. */}
         {compact && compare ? null : (
           <View style={[styles.checks, compact && styles.checksCompact]}>
-            {/* Never an app's name: Apple's picker only hands back opaque tokens. */}
-            <Check text={schedule.sleep} />
-            <Check text={ctx.scheduledNight ? method.check : "Turn nights on in Routine anytime"} />
+            {/* Never an app's name: Apple's picker only hands back opaque tokens. Bedtime is in
+                his line above, so the list starts at the morning, then the two ways out. */}
+            <Check text={ctx.scheduledNight ? method.check : 'Turn nights on in Routine anytime'} />
+            <Check text="Emergency unlock, anytime" />
             <Check text="Passes for sick days and travel" />
           </View>
         )}

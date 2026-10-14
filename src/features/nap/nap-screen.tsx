@@ -28,6 +28,7 @@ import {
   isStoodDown,
   NapClockChangeError,
   peekNap,
+  nightPickCount,
   selectionSize,
   shownSelection,
   startNap,
@@ -92,7 +93,7 @@ function blocker(list: List): string | null {
   if (!isScreenTimeAvailable()) return 'Naps need Screen Time, which only iPhone has.';
   if (getProtection() !== 'on') return 'Turn on Screen Time access first.';
   if (isStoodDown()) return 'Block now needs a subscription. Subscribe from the You tab.';
-  if (list === 'night' && selectionSize('night') === 0) {
+  if (list === 'night' && nightPickCount() === 0) {
     // An emergency unlock parks the picks until the next bedtime (`pauseNightUntil`): they're
     // still chosen, just awake, and a nap on the empty live list would shield nothing.
     return shownSelection('night').size > 0

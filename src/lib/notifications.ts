@@ -26,7 +26,7 @@ import { wallClock } from './lock-state.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
 import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, hasRoutine, holdsEarly, runsAs, type ArmedTimes, type Routine, type StoredRoutine } from './routine.ts';
 import { getTone, type Tone } from './tone.ts';
-import { armedSince, getArmedNight, getProtection, listChangeLandsAt, selectionSize, selectionSizeAfterChange, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
+import { armedSince, getArmedNight, getProtection, listChangeLandsAt, nightPickCount, nightPickCountAfterChange, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
 
 const MINUTE = 60_000;
 const DAY_MS = 24 * 60 * MINUTE;
@@ -482,8 +482,8 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       routineSince: stored ? getRoutineChange()?.since : null,
       armedSince: armed ? armedSince(armed) : null,
       nightSelection: {
-        hasApps: selectionSize('night') > 0,
-        ...(handoff && !handoff.waitsForOpen ? { change: { at: handoff.at, hasApps: selectionSizeAfterChange('night') > 0 } } : {}),
+        hasApps: nightPickCount() > 0,
+        ...(handoff && !handoff.waitsForOpen ? { change: { at: handoff.at, hasApps: nightPickCountAfterChange() > 0 } } : {}),
       },
       proofs: getProofs(),
       trialEnd: getTrialEnd(),

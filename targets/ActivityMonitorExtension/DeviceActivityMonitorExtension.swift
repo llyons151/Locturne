@@ -73,8 +73,9 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       // Held only with something to hold. An empty list (an emergency pause, or every pick
       // removed) holding the night would stop `restoreLocturneFallbackShield` taking a nap's
       // or a used-up limit's words off the always list until morning start. The lists were
-      // settled above, so picks an emergency parked until this bedtime count.
-      userDefaults?.set(locturneHasPicks("night"), forKey: LOCTURNE_NIGHT_HELD_KEY)
+      // settled above, so picks an emergency parked until this bedtime count. Typed-in websites
+      // alone count too: the web filter holds them (`locturneNightHasPicks`).
+      userDefaults?.set(locturneNightHasPicks(), forKey: LOCTURNE_NIGHT_HELD_KEY)
     }
 
     self.executeActionsForEvent(
@@ -579,6 +580,19 @@ func locturneHasPicks(_ id: String) -> Bool {
   return !locturneIsEmpty(selection)
 }
 
+/// Whether the bedtime list holds anything for a night: its picks, or websites typed in by hand,
+/// which the web filter blocks while the night is held (`reapplyLocturneWebsites`). Not the
+/// sites while the list still waits in the pending lists once they're settled: that's an
+/// emergency unlock's parked picks (`pauseNightUntil`), and the sites stay awake with them.
+/// Keep in step with `nightPickCount` in src/lib/screen-time.ts.
+func locturneNightHasPicks() -> Bool {
+  if locturneHasPicks("night") { return true }
+  let pending = userDefaults?.dictionary(forKey: LOCTURNE_PENDING_LISTS_KEY) ?? [:]
+  if pending["night"] != nil { return false }
+  let sites = userDefaults?.dictionary(forKey: LOCTURNE_SITES_KEY) as? [String: [String]] ?? [:]
+  return !(sites["night"] ?? []).isEmpty
+}
+
 /// The last night window ends at morning start. With the night still held, the bedtime apps
 /// now show the morning's words, whose button sends the notification that opens the wake-up
 /// screen, even if Locturne stayed closed all night. Nothing is shielded here: a night that
@@ -595,7 +609,7 @@ func showLocturneMorningShield(activity: String, now: Date = Date()) {
   // iOS may call a little early or late; earlier windows end at least 15 minutes before.
   let sinceMorning = (minute - morningStart + 1440) % 1440
   guard sinceMorning <= 30 || sinceMorning >= 1440 - 5 else { return }
-  if !locturneHasPicks("night") {
+  if !locturneNightHasPicks() {
     // No bedtime picks (an emergency pause, or a list emptied at bedtime): nothing to prove.
     // Let go of any hold the windows set on the empty list and put the day's words back, or
     // the night's would stay all day. Held or not: an emergency after the last window starts

@@ -16,7 +16,7 @@ import * as awakeLine from './awake-line.ts';
 const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
 type Tree = { type: unknown; props: Record<string, any>; children: Tree[] };
-type Hero = { title: string; body: string };
+type Hero = { title: string; body: string; aside?: string };
 
 const code = babel.transformSync(readFileSync(new URL('./home-screen.tsx', import.meta.url), 'utf8'), {
   filename: 'home-screen.tsx',
@@ -45,6 +45,10 @@ type Setup = {
   night?: number;
   /** A waiting bedtime-list change: when it lands and how many apps it leaves. */
   change?: { at: Date; size: number } | null;
+  /** What the morning walk reads while it's on (`useMorningWalk`). */
+  walk?: Record<string, unknown>;
+  /** The routine's wake-up method. */
+  method?: string;
 };
 
 /** Renders Home once and returns what it hands HomeContent. */
@@ -61,6 +65,8 @@ function home({
   armed = true,
   night = 3,
   change = null,
+  walk = { kind: 'counting', steps: 64, goal: 200 },
+  method = 'steps',
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
@@ -96,13 +102,17 @@ function home({
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
       bedtimeAppCount: () => night,
+      nightPickCount: () => night,
+      nightPickCountAfterChange: () => (change ? change.size : night),
       isScreenTimeAvailable: () => true,
       isStoodDown: () => false,
       nightLockArmed: () => armed,
       selectionSize: (list: string) => (list === 'always' ? always : list === 'night' ? night : 0),
       listChangeLandsAt: () => (change ? { at: change.at, waitsForOpen: false, sleepsFirst: false } : null),
       selectionSizeAfterChange: () => (change ? change.size : night),
+      shownSelection: () => ({ id: 'night', size: night }),
     },
+    '@/lib/websites': { getSites: () => [] },
     '@/lib/shield-copy': { clockLabel },
     '@/lib/trial-notice': { trialNotice },
     '@/theme': { Gap: {}, Space: {} },
@@ -113,7 +123,15 @@ function home({
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
     './use-moon-sink': { useMoonSink() {} },
-    './use-home-state': { useHomeState: () => ({ lock, routine: { method: 'steps', morningStart: 7 * 60 }, proof: null }) },
+    './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
+    'expo-keep-awake': { useKeepAwake() {} },
+    './morning': { scanMorning: (w: unknown) => morningOf('scan', w) },
+    './use-morning-stairs': { useMorningStairs: (on: boolean, w: unknown) => (on ? morningOf('stairs', w) : null) },
+    './use-morning-place': { useMorningPlace: (on: boolean, w: unknown) => (on ? morningOf('place', w) : null) },
+    '../dev/wake-lab/wake-preview': { pretendMethod: () => null },
+    '../dev/state-lab/app-states': { useHomeMock: () => null },
+    '../dev/state-lab/mock-bar': { MockBar: 'MockBar' },
+    './use-home-state': { useHomeState: () => ({ lock, routine: { method, morningStart: 7 * 60, stepGoal: 200 }, proof: null }) },
     './week': { weekDays: () => [] },
   };
   const exports = {} as { HomeScreen: () => Tree };
@@ -121,7 +139,28 @@ function home({
   const screen = exports.HomeScreen();
   const content = screen.children[0];
   const loc = screen.children[1];
-  return { ...(content.props as { hero: Hero; action: { label: string } }), mood: (loc.props as { mood: string }).mood };
+  return {
+    ...(content.props as {
+      hero: Hero;
+      action: { label: string };
+      alt?: { label: string };
+      icon?: { ios: string };
+      meter?: { value: string; caption: string; progress?: number };
+    }),
+    mood: (loc.props as { mood: string }).mood,
+  };
+}
+
+/** A stand-in for a method's morning hook: names the method, and whether it got the walk. */
+function morningOf(name: string, walk: unknown) {
+  const alt = { label: 'Other ways to wake them', onPress() {} };
+  return {
+    icon: { ios: `${name}.icon`, android: name },
+    hero: { title: `${name} hero`, body: walk ? 'walk counted' : 'no walk' },
+    meter: name === 'stairs' ? { value: '1.2', caption: 'm down of 2.5 m', progress: 0.48 } : undefined,
+    action: { label: `${name} action`, onPress() {} },
+    alt,
+  };
 }
 
 describe('Home in the trial’s last days (B4)', () => {
@@ -158,9 +197,10 @@ describe('Home in the trial’s last days (B4)', () => {
   });
 
   test('a night that sleeps keeps its own hero and action', () => {
-    const { hero, action } = home({ now: new Date(2026, 9, 10, 7, 30), phase: 'morning', trialEnd });
+    // Push-ups: the one morning that still opens its own screen from Home's button.
+    const { hero, action } = home({ now: new Date(2026, 9, 10, 7, 30), phase: 'morning', trialEnd, method: 'pushups' });
     assert.equal(hero.title, 'Time to get up');
-    assert.equal(action.label, 'Start walking');
+    assert.equal(action.label, 'Start push-ups');
   });
 });
 
@@ -286,5 +326,75 @@ describe('Loc on Home', () => {
 
   test('a night an emergency unlock paused is not asleep', () => {
     assert.equal(home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', pause: new Date(2026, 9, 10, 23) }).mood, 'awake');
+  });
+});
+
+describe('Home during a walk morning', () => {
+  const now = new Date(2026, 9, 9, 7, 10);
+
+  test('the live count is the hero, no Loc line under it, and the button offers the other ways', () => {
+    const { hero, meter, action } = home({ now, phase: 'morning' });
+    // Made in Home's own context, so it's copied out before comparing.
+    assert.deepEqual({ ...meter }, { value: '64', caption: 'of 200 steps', progress: 0.32 });
+    assert.equal(hero.title, '64 of 200 steps');
+    assert.equal(hero.body, '136 more and your apps wake up.');
+    assert.equal(hero.aside, undefined);
+    assert.equal(action.label, 'Other ways to wake them');
+  });
+
+  test('before the first reading it shows a dash, not zero', () => {
+    const { meter } = home({ now, phase: 'morning', walk: { kind: 'counting', steps: null, goal: 200 } });
+    assert.equal(meter?.value, '–');
+  });
+
+  test('Motion & Fitness off: says so and offers Settings, with no meter', () => {
+    const { hero, meter, action } = home({ now, phase: 'morning', walk: { kind: 'denied' } });
+    assert.equal(meter, undefined);
+    assert.equal(hero.title, "I can't hear you walking");
+    assert.equal(action.label, 'Open Settings');
+  });
+
+  test('by day there is no walk on Home', () => {
+    const { meter } = home({ now: new Date(2026, 9, 9, 13), phase: 'day' });
+    assert.equal(meter, undefined);
+  });
+});
+
+describe('Home during the other methods’ mornings', () => {
+  const now = new Date(2026, 9, 9, 7, 10);
+
+  test('downstairs runs on Home: its meter, icon, button and the quiet other ways, with steps counted under it', () => {
+    const { hero, meter, icon, action, alt } = home({ now, phase: 'morning', method: 'downstairs' });
+    assert.equal(hero.title, 'stairs hero');
+    assert.equal(hero.body, 'walk counted');
+    assert.equal(meter?.value, '1.2');
+    assert.equal(icon?.ios, 'stairs.icon');
+    assert.equal(action.label, 'stairs action');
+    assert.equal(alt?.label, 'Other ways to wake them');
+  });
+
+  test('the place check-in and the scan are Home’s morning too', () => {
+    for (const [method, name] of [['place', 'place'], ['scan', 'scan']]) {
+      const { hero, action, meter } = home({ now, phase: 'morning', method });
+      assert.equal(hero.title, `${name} hero`);
+      assert.equal(hero.body, 'walk counted');
+      assert.equal(action.label, `${name} action`);
+      assert.equal(meter, undefined);
+    }
+  });
+
+  test('push-ups keep their own screen, and no walk is counted for them', () => {
+    const { hero, action, alt, meter } = home({ now, phase: 'morning', method: 'pushups' });
+    assert.equal(hero.title, 'Time to get up');
+    assert.equal(action.label, 'Start push-ups');
+    assert.equal(alt, undefined);
+    assert.equal(meter, undefined);
+  });
+
+  test('the walk’s own meter is the walk icon, and nothing else leaks in by day', () => {
+    assert.equal(home({ now, phase: 'morning' }).icon?.ios, 'figure.walk');
+    const day = home({ now: new Date(2026, 9, 9, 13), phase: 'day', method: 'downstairs' });
+    assert.equal(day.icon, undefined);
+    assert.equal(day.alt, undefined);
   });
 });

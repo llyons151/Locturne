@@ -95,6 +95,14 @@ const SINK_DEPTH = 0.3;
 const SUNK_GLOW = 0.25;
 /** The Apps tab's moon: risen above its resting place, into the sky under the tiles. */
 export const MOON_RAISED = -0.35;
+/** The Routine and You tabs' moon: sunk well past a moon width (its blur pads the image), out of sight with its glow (user, 2026-10-13). */
+export const MOON_GONE = 1.6 / SINK_DEPTH;
+/**
+ * About where the gone moon's glow first shows on the way back up (measured, 2026-10-14).
+ * Coming back from MOON_GONE starts here, or the first half of the rise happens out of sight
+ * and reads as a pause before it moves (user, 2026-10-14).
+ */
+export const MOON_SHOWS_FROM = 2.4;
 
 /**
  * Whether the Apps tab has room under its tiles for the raised moon. Its page says (a third
@@ -264,7 +272,7 @@ export function NightSky({
       top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
       width: d.size * GLOW_PAD,
       height: d.size * GLOW_PAD,
-      opacity: progress.value * interpolate(moonSink.value, [0, 1], [1, SUNK_GLOW], Extrapolation.CLAMP),
+      opacity: progress.value * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
     };
   });
 

@@ -134,6 +134,12 @@ function fakeSdk(options: {
       listener = next;
     },
     async showManageSubscriptions() {},
+    async getPromotionalOffer() {
+      return undefined;
+    },
+    async purchaseDiscountedPackage(aPackage) {
+      return { customerInfo: customer({ productId: aPackage.product.identifier, trial: false, startedAt: 1000 }) };
+    },
   };
   return fake;
 }

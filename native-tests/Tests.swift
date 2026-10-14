@@ -1209,4 +1209,51 @@ func registerTests() {
     expectEqual(filtered(), ["x.com"], "wakes within the two minutes' slack of its new time")
     expect(userDefaults?.dictionary(forKey: LOCTURNE_SITES_PENDING_KEY)?["always"] == nil, "the removal is settled")
   }
+
+  test("a bedtime list of only typed websites holds the night, and its morning is held too") {
+    func filtered() -> Set<String>? {
+      guard case .specific(let domains)? = ManagedSettingsStore().webContent.blockedByFilter else { return nil }
+      return Set(domains.compactMap(\.domain))
+    }
+    set(LOCTURNE_SITES_KEY, ["night": ["youtube.com"]])
+    saveRoutine(routine())
+    armNight()
+    at("2026-10-05 23:00")
+    start("night-0")
+    expect(userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true, "websites alone hold the night")
+    expectEqual(filtered(), ["youtube.com"], "the bedtime list's site sleeps")
+    at("2026-10-06 07:00")
+    end("night-0")
+    expect(userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true, "the morning still holds them")
+    expectEqual(filtered(), ["youtube.com"])
+  }
+
+  test("an emergency unlock wakes a websites-only bedtime list for the rest of tonight, and it sleeps again next bedtime") {
+    func filtered() -> Set<String>? {
+      guard case .specific(let domains)? = ManagedSettingsStore().webContent.blockedByFilter else { return nil }
+      return Set(domains.compactMap(\.domain))
+    }
+    set(LOCTURNE_SITES_KEY, ["night": ["youtube.com"]])
+    saveRoutine(routine())
+    armNight()
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(filtered(), ["youtube.com"])
+    // 00:30: `pauseNightUntil` with no apps to park: an empty pause until the next bedtime.
+    at("2026-10-06 00:30")
+    set(LOCTURNE_PENDING_LISTS_KEY, ["night": ["from": ms(local("2026-10-06 23:00")), "empty": true]])
+    set(LOCTURNE_NIGHT_HELD_KEY, false)
+    reapplyLocturneBlocks(triggeredBy: "app")
+    expect(filtered() == nil, "the site wakes")
+    // The rest of tonight's windows, with the app closed: the sites stay awake.
+    at("2026-10-06 01:40")
+    start("night-1")
+    expect(userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == false, "a later window doesn't hold the paused night")
+    expect(filtered() == nil, "the site stays awake tonight")
+    // Next bedtime, app still closed.
+    at("2026-10-06 23:00")
+    start("night-0")
+    expect(userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true, "next bedtime holds the night again")
+    expectEqual(filtered(), ["youtube.com"], "and the site sleeps")
+  }
 }

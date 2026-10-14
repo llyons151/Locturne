@@ -33,6 +33,7 @@ import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
 import { awakeStatus } from '../wake/awake-status';
+import { announceWoke } from '../wake/use-prove-morning';
 import { awakeBody, savedBody } from './next-morning';
 import { nextLockedMorning } from './next-locked-morning';
 import { QrCode } from './qr';
@@ -156,8 +157,15 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
     const pretend = pretendPhase() !== null;
     const result = pretend ? (matches(shownScanCode(), data) ? 'unlocked' : 'wrongCode') : submitScan(data);
     if (result === 'unlocked') {
-      haptic.done();
-      if (pretend) pretendWoke();
+      if (pretend) {
+        haptic.done();
+        pretendWoke();
+      } else {
+        // Home is where the morning ends (docs/HOME_INTERACTIVE.md): the camera closes and the
+        // apps wake there, Loc's line and all.
+        announceWoke(readLock());
+        if (router.canGoBack()) return router.back();
+      }
       setStage({ kind: 'unlocked', morningKey: readLock().morningKey });
     } else if (result === 'notMorning') setStage(notMorning(pretendPhase() ?? readLock().phase) ?? { kind: 'awake' });
     else if (result === 'noCode') setStage({ kind: 'noCode' });

@@ -20,6 +20,7 @@ import { takePendingApproval } from '@/lib/pending-purchase';
 import { currentTrialEnd, isEntitled, isPurchasing, onEntitled } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, hasRoutine, saveRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
+import { getSites } from '@/lib/websites';
 
 /**
  * Asks whether there's a subscription and acts on it (`settleSubscription`): without one,
@@ -50,7 +51,7 @@ export function armIfPaid(): void {
       // "Bedtime in 15 minutes" keeps coming with nothing to block.
       rescheduleNotifications().catch(() => {});
       followTrial();
-      if (!paid || getArmedNight() || getAccess() !== 'approved' || shownSelection('night').size === 0) return;
+      if (!paid || getArmedNight() || getAccess() !== 'approved' || (shownSelection('night').size === 0 && getSites('night').length === 0)) return;
       // Paid with nothing saved (onboarding left before its setup step): the default routine
       // stands in, so there's always a bedtime rather than "No bedtime scheduled".
       if (!hasRoutine()) saveRoutine(DEFAULT_ROUTINE);

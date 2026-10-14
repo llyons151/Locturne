@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Image, Platform, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 
 import type { PlaceMapProps } from './PlaceMap.types';
 
 /**
- * Off iOS there's no MapKit. The web preview gets a still OpenStreetMap picture, darkened, with
- * the same pin and circle, so the screen can be laid out and saved from; it doesn't pan.
+ * Off iOS there's no MapKit. The web preview gets a still map from Esri's keyless dark gray tiles, with
+ * their labels on top (close to Apple's dark map), with the same pin and circle, so the screen can be laid out and saved from; it doesn't pan.
  */
 export const isPlaceMapAvailable = Platform.OS === 'web';
 
 const TILE = 256;
-/** Metres per pixel at zoom 0 on the equator (OpenStreetMap's 256-pixel tiles). */
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas';
+/** Metres per pixel at zoom 0 on the equator (256-pixel web map tiles). */
 const EQUATOR_MPP = 156_543.034;
 
 export function PlaceMap({ radius, target, onSettle, style }: PlaceMapProps) {
@@ -25,11 +26,11 @@ export function PlaceMap({ radius, target, onSettle, style }: PlaceMapProps) {
   if (!isPlaceMapAvailable) return null;
   const { width, height } = size;
   const ready = target && width > 0 && height > 0;
-  const tiles: { key: string; uri: string; left: number; top: number }[] = [];
+  const tiles: { key: string; uri: string; labels: string; left: number; top: number }[] = [];
   let ring = 0;
   if (ready) {
     const cos = Math.cos((target.latitude * Math.PI) / 180);
-    const zoom = Math.max(3, Math.min(18, Math.round(Math.log2((EQUATOR_MPP * cos * height) / target.span))));
+    const zoom = Math.max(3, Math.min(16, Math.round(Math.log2((EQUATOR_MPP * cos * height) / target.span))));
     const scale = TILE * 2 ** zoom;
     const x = ((target.longitude + 180) / 360) * scale;
     const lat = (target.latitude * Math.PI) / 180;
@@ -38,7 +39,7 @@ export function PlaceMap({ radius, target, onSettle, style }: PlaceMapProps) {
     const top = y - height / 2;
     for (let tx = Math.floor(left / TILE); tx <= Math.floor((left + width) / TILE); tx++) {
       for (let ty = Math.floor(top / TILE); ty <= Math.floor((top + height) / TILE); ty++) {
-        tiles.push({ key: `${tx},${ty}`, uri: `https://tile.openstreetmap.org/${zoom}/${tx}/${ty}.png`, left: tx * TILE - left, top: ty * TILE - top });
+        tiles.push({ key: `${tx},${ty}`, uri: `${ESRI}/World_Dark_Gray_Base/MapServer/tile/${zoom}/${ty}/${tx}`, labels: `${ESRI}/World_Dark_Gray_Reference/MapServer/tile/${zoom}/${ty}/${tx}`, left: tx * TILE - left, top: ty * TILE - top });
       }
     }
     ring = radius / ((EQUATOR_MPP * cos) / 2 ** zoom);
@@ -46,9 +47,12 @@ export function PlaceMap({ radius, target, onSettle, style }: PlaceMapProps) {
 
   return (
     <View style={[styles.map, style]} onLayout={(e) => setSize(e.nativeEvent.layout)}>
-      <View style={[StyleSheet.absoluteFill, styles.tiles]}>
+      <View style={StyleSheet.absoluteFill}>
         {tiles.map((t) => (
-          <Image key={t.key} source={{ uri: t.uri }} style={[styles.tile, { left: t.left, top: t.top }]} />
+          <View key={t.key} style={[styles.tile, { left: t.left, top: t.top }]}>
+            <Image source={{ uri: t.uri }} style={StyleSheet.absoluteFill} />
+            <Image source={{ uri: t.labels }} style={StyleSheet.absoluteFill} />
+          </View>
         ))}
       </View>
       {ready ? (
@@ -69,9 +73,7 @@ export function PlaceMap({ radius, target, onSettle, style }: PlaceMapProps) {
 }
 
 const styles = StyleSheet.create({
-  map: { backgroundColor: '#1C1C1E', overflow: 'hidden' },
-  // Dark like the iOS map.
-  tiles: Platform.select({ web: { filter: 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9)' } as ViewStyle }) ?? {},
+  map: { backgroundColor: '#262626', overflow: 'hidden' },
   tile: { position: 'absolute', width: TILE, height: TILE },
   ring: {
     position: 'absolute',

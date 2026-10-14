@@ -58,12 +58,18 @@ function harness() {
   };
   // These store queries run inside the success announcement.
   Object.assign(mocks['@/lib/lock-controller'] as object, { subscriptionEnded: () => false });
-  const code = babel.transformSync(readFileSync(new URL('./wake-screen.tsx', import.meta.url), 'utf8'), {
-    filename: 'wake-screen.tsx', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
-    plugins: [['@babel/plugin-transform-react-jsx', { runtime: 'classic' }], '@babel/plugin-transform-modules-commonjs'],
-  }).code;
-  const exports = {} as { WakeScreen: (props: object) => Tree };
-  runInNewContext(code, { exports, require: (id: string) => mocks[id], React: react });
+  const load = (file: string) => {
+    const code = babel.transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+      filename: file, configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+      plugins: [['@babel/plugin-transform-react-jsx', { runtime: 'classic' }], '@babel/plugin-transform-modules-commonjs'],
+    }).code;
+    const exports = {} as any;
+    runInNewContext(code, { exports, require: (id: string) => mocks[id], React: react });
+    return exports;
+  };
+  // Recording the proof is shared with Home's morning: run the real one against the stubs above.
+  mocks['./use-prove-morning'] = load('./use-prove-morning.ts');
+  const exports = load('./wake-screen.tsx') as { WakeScreen: (props: object) => Tree };
   const render = () => { index = 0; return exports.WakeScreen({}).children.at(-1)!; };
   return {
     render,

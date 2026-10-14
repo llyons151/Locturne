@@ -2,6 +2,7 @@
 // Reads the App Group stores during render (the morning proofs), which change outside
 // React, so the React Compiler stays out of here.
 
+import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,11 +12,12 @@ import { useHealth } from '@/hooks/use-health';
 import { askAccessAgain } from '@/lib/ask-access';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
-import { dateKey } from '@/lib/lock-state';
-import { getMorningsWon, getProofs } from '@/lib/morning-proof';
+import type { Health } from '@/lib/health';
+import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
+import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { getRoutineChange, nextNightOn, nightAt, nightWasOn } from '@/lib/routine';
+import { getRoutineChange, nextNightOn, nightAt, nightWasOn, type Routine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import {
   bedtimeAppCount,
@@ -23,9 +25,12 @@ import {
   isStoodDown,
   listChangeLandsAt,
   nightLockArmed,
+  nightPickCount,
+  nightPickCountAfterChange,
   selectionSize,
-  selectionSizeAfterChange,
+  shownSelection,
 } from '@/lib/screen-time';
+import { getSites } from '@/lib/websites';
 import { clockLabel } from '@/lib/shield-copy';
 import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
@@ -39,6 +44,13 @@ import { useReviewPrompt } from './review-prompt';
 import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
+import { scanMorning } from './morning';
+import { useMorningPlace } from './use-morning-place';
+import { useMorningStairs } from './use-morning-stairs';
+import { useMorningWalk, type MorningWalk } from './use-morning-walk';
+import { useHomeMock } from '../dev/state-lab/app-states';
+import { MockBar } from '../dev/state-lab/mock-bar';
+import { pretendMethod } from '../dev/wake-lab/wake-preview';
 import { weekDays } from './week';
 
 /** Dev only: fill Sunday through today with won days to preview the mist. */
@@ -56,25 +68,57 @@ const MORNING_ACTION = { downstairs: 'Go downstairs', steps: 'Start walking', sc
 /** The evening button names tomorrow's wake-up, the part of the night that's still to come. */
 const METHOD_NAME = { downstairs: 'Downstairs', steps: '200 steps', scan: 'Scan my code', place: 'Leave the house', pushups: 'Push-ups' } as const;
 
-export function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const tabInset = useTabBarInset();
-  const { width } = useWindowDimensions();
-  const { lock, routine, proof } = useHomeState();
-  useReviewPrompt(lock, proof);
-  useMoonSink();
-  const now = useMinute();
-  // Bumped each time Home opens, the app returns to the foreground or the day rolls over, so
-  // today's screen time redraws.
-  const visit = useVisit(dateKey(now));
+/** `pauseWording`'s answer: the paused night's words. */
+type PauseWords = ReturnType<typeof pauseWording>;
 
-  // Honest status (health.ts): access off or never given replaces everything. Also keeps the
-  // notifications in line when protection changes while Home is open.
-  const [health, recheckHealth] = useHealth();
-  const unprotected = health.protection === 'off' || health.protection === 'notSetUp';
+/**
+ * Everything Home reads from the stores, gathered in one place so the app-states lab (dev,
+ * features/dev/state-lab) can swap the lot for a made-up state. The rest of Home only turns
+ * these into words.
+ */
+export type HomeFacts = {
+  lock: Pick<LockState, 'phase' | 'morningKey' | 'nextChange' | 'blockNowUntil'>;
+  routine: Routine;
+  /** This morning's proof, if it's been unlocked. */
+  proof: MorningProof | null;
+  health: Health;
+  /** `heldPhase`: the clock's phase as far as what's asleep (a night nothing holds is day). */
+  held: Phase;
+  /** An emergency unlock paused the night until then (`getNightPause`), and its words. */
+  pause: Date | null;
+  pauseWords: PauseWords | null;
+  /** The wake-up Home's morning shows. */
+  method: WakeMethod;
+  /** The week strip: mornings got up, past mornings no night locked, and the lifetime count. */
+  won: Set<string>;
+  free: Set<string>;
+  mornings: number;
+  /** The next night that will really sleep, or null when every night is off. */
+  sleepsAt: Date | null;
+  /** Tonight's night is switched on in the routine (`nightAt`). */
+  tonightOn: boolean;
+  /** A bedtime-list change lands before the next bedtime, so the count isn't known yet. */
+  listChanges: boolean;
+  /** The bedtime list has apps at the next bedtime (or now, during a night). */
+  bedtimeApps: boolean;
+  /** A night lock is scheduled (`nightLockArmed`). */
+  armed: boolean;
+  /** No subscription, so nothing sleeps. */
+  stoodDown: boolean;
+  /** The always list has apps in it (or there's no Screen Time to ask). */
+  alwaysSleeps: boolean;
+  trialEnd: Date | null;
+  /** Bedtime apps and typed-in websites, or null while a list change is still to land. */
+  apps: number | null;
+  websites: number | null;
+  /** Put before Loc's moment keys, so a made-up state never uses up a real night's line. */
+  sayKey: string;
+};
+
+/** Home's facts as the stores have them now. */
+function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof useHomeState>, health: Health): HomeFacts {
   // An emergency unlock paused tonight: the windows still run, so the clock says night.
   const pause = getNightPause(now);
-  const method = methodInUse(routine.method);
   // Mornings you got up: a wake-up method's proof. Passes and emergencies neither count nor
   // subtract (HOME_10.md #7). The store keeps the last 30 proofs, enough for this week's dots;
   // the lifetime count is its own counter (`getMorningsWon`).
@@ -91,7 +135,6 @@ export function HomeScreen() {
       .filter((day) => day.key < lock.morningKey && !day.done && !nightWasOn(day.key, routine, change))
       .map((day) => day.key),
   );
-  const mornings = MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon();
   // The next night that will really sleep: not `lock.nextChange`, which is the end of the
   // window during an unheld night, and the start of a night that's switched off by day.
   const next = nextNightOn(pause ?? nextBedtime(now), now);
@@ -102,11 +145,68 @@ export function HomeScreen() {
   const handoff = listChangeLandsAt('night', now);
   const bedtimeAt = lock.phase === 'night' && !pause ? now : sleepsAt;
   const listChanges = !!handoff && !handoff.waitsForOpen && !!bedtimeAt && handoff.at <= bedtimeAt;
-  const bedtimeApps = !isScreenTimeAvailable() || (listChanges ? selectionSizeAfterChange('night') : selectionSize('night')) > 0;
+  return {
+    lock,
+    routine,
+    proof,
+    health,
+    held: heldPhase(lock.phase, now),
+    pause,
+    pauseWords: pause ? pauseWording(pause, now) : null,
+    // The wake preview (dev) can put any method's morning on Home.
+    method: pretendMethod() ?? methodInUse(routine.method),
+    won,
+    free,
+    mornings: MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon(),
+    sleepsAt,
+    tonightOn: nightAt(nextBedtime(now), now).on,
+    listChanges,
+    bedtimeApps: !isScreenTimeAvailable() || (listChanges ? nightPickCountAfterChange() : nightPickCount()) > 0,
+    armed: nightLockArmed(),
+    stoodDown: isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null),
+    alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
+    trialEnd: getTrialEnd(),
+    apps: listChanges ? null : shownSelection('night').size === 0 ? 0 : bedtimeAppCount('night'),
+    websites: listChanges ? null : getSites('night').length,
+    sayKey: '',
+  };
+}
+
+export function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const tabInset = useTabBarInset();
+  const { width } = useWindowDimensions();
+  const real = useHomeState();
+  // The real lock and proof, even under a made-up state: Apple's review sheet is no place for a mock.
+  useReviewPrompt(real.lock, real.proof);
+  useMoonSink();
+  const now = useMinute();
+  // Bumped each time Home opens, the app returns to the foreground or the day rolls over, so
+  // today's screen time redraws.
+  const visit = useVisit(dateKey(now));
+
+  // Honest status (health.ts): access off or never given replaces everything. Also keeps the
+  // notifications in line when protection changes while Home is open.
+  const [realHealth, recheckHealth] = useHealth();
+  // Dev only: a made-up state from You → Developer → App states (features/dev/state-lab).
+  const mock = useHomeMock();
+  const facts = mock ? mock.facts(now, real.routine) : readHomeFacts(now, real, realHealth);
+  const { lock, routine, proof, health, pause, method, won, free, mornings, sleepsAt, bedtimeApps } = facts;
+  const unprotected = health.protection === 'off' || health.protection === 'notSetUp';
   // Nothing is asleep on a night that isn't held (never bought, stood down, arming failed,
   // paused, past a lapse's last paid night, or an empty bedtime list), so it reads as day.
-  const held = heldPhase(lock.phase, now);
-  const phase = held === 'night' && !bedtimeApps ? 'day' : held;
+  const phase = facts.held === 'night' && !bedtimeApps ? 'day' : facts.held;
+  // The morning happens right here (docs/HOME_INTERACTIVE.md): a walk is counted on Home, the
+  // stairs and the place check-in run on it, and the scan opens only its camera. Push-ups keep
+  // their own screen: the phone lies on the floor with the camera filling it. Steps count under
+  // every method but push-ups, and prove the morning by themselves (GAME_PLAN: walking always
+  // works instead).
+  const morningHere = !unprotected && phase === 'morning';
+  const walked = useMorningWalk(morningHere && method !== 'pushups', routine);
+  const walk = method === 'steps' ? walked : null;
+  const stairs = useMorningStairs(morningHere && method === 'downstairs', walked);
+  const place = useMorningPlace(morningHere && method === 'place', walked, routine.stepGoal);
+  const here = stairs ?? place ?? (morningHere && method === 'scan' ? scanMorning(walked) : null);
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
   // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
@@ -114,27 +214,25 @@ export function HomeScreen() {
   // pending by day (the day after a night-time emergency) doesn't change that; only the paused
   // night itself has its own hero.
   const offTonight =
-    !(pause && lock.phase === 'night') && sleepsAt && !nightAt(nextBedtime(now), now).on ? sleepsAt.toLocaleDateString('en-US', { weekday: 'long' }) : null;
+    !(pause && lock.phase === 'night') && sleepsAt && !facts.tonightOn ? sleepsAt.toLocaleDateString('en-US', { weekday: 'long' }) : null;
 
   // By day (or a night nothing holds), never name a bedtime that won't lock: no subscription,
   // Ask to Buy waiting, arming failed or a lapse say so instead, and offer the plans when
   // that's the fix.
   const paused = !!pause && lock.phase === 'night';
   const attention = !unprotected && !paused && phase === 'day' && health.level === 'attention';
-  const armed = nightLockArmed();
-  const stoodDown = isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null);
+  const { armed, stoodDown, alwaysSleeps } = facts;
   // A Block now running by day, on a night off or on a night an emergency paused is what's
   // asleep, so it leads over the countdown to bedtime and the paused night's "Awake tonight"
   // (a status that needs attention still comes first).
   const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
-  const alwaysSleeps = !isScreenTimeAvailable() || selectionSize('always') > 0;
   // The trial's last days (B4): the paywall's "I remind you", kept even without notifications.
   // Leads by day, behind anything that needs fixing.
-  const trial = !unprotected && !attention && !paused && phase === 'day' ? trialNotice(getTrialEnd(), now) : null;
+  const trial = !unprotected && !attention && !paused && phase === 'day' ? trialNotice(facts.trialEnd, now) : null;
   const hero = unprotected
     ? { title: health.title, body: health.detail }
-    : pause && lock.phase === 'night' && !napping
-      ? pausedHero(pause, now)
+    : pause && lock.phase === 'night' && !napping && facts.pauseWords
+      ? pausedHero(facts.pauseWords)
       : trial
         ? trialHero(trial)
         : (phase === 'day' || phase === 'off') && napping
@@ -157,10 +255,16 @@ export function HomeScreen() {
               offTonight,
               alwaysSleeps: alwaysSleeps && !stoodDown,
               // A change still to land would make today's count wrong, so it just says "Your apps".
-              apps: listChanges ? null : bedtimeAppCount('night'),
+              // With only typed-in websites there's no selection to count: none, not unknown.
+              apps: facts.apps,
+              websites: facts.websites,
               quip: bedtimeQuip(lock.morningKey),
             })
-          : heroFor(phase, clockLabel(routine.morningStart));
+          : walk
+            ? walkHero(walk)
+            : here
+              ? here.hero
+              : heroFor(phase, clockLabel(routine.morningStart));
   // Tomorrow's morning will hold (tonight sleeps, or is asleep), so the button says how it
   // ends rather than offering the schedule. Nights off and nothing scheduled keep Edit schedule,
   // which is the fix there.
@@ -176,6 +280,12 @@ export function HomeScreen() {
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : trial
         ? { label: 'Manage subscription', onPress: manageTrial }
+        : walk?.kind === 'denied'
+          ? { label: 'Open Settings', onPress: () => Linking.openSettings() }
+        : walk
+          ? { label: 'Other ways to wake them', onPress: () => router.push('/exits'), opens: true }
+        : here
+          ? here.action
         : phase === 'morning'
           ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
           : !bedtimeApps && !stoodDown
@@ -193,11 +303,11 @@ export function HomeScreen() {
   const moment: LocMoment | null = quiet
     ? null
     : phase === 'night'
-      ? { kind: 'appsAsleep', key: `asleep:${lock.morningKey}` }
+      ? { kind: 'appsAsleep', key: `${facts.sayKey}asleep:${lock.morningKey}` }
       : phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency'
-        ? { kind: 'wakeDone', key: `woke:${proof.morningKey}` }
+        ? { kind: 'wakeDone', key: `${facts.sayKey}woke:${proof.morningKey}` }
         : phase === 'day' && armed && bedtimeApps && !offTonight && !napping && minutes !== null && minutes > 0 && minutes <= 60
-          ? { kind: 'bedtimeSoon', key: `soon:${lock.morningKey}` }
+          ? { kind: 'bedtimeSoon', key: `${facts.sayKey}soon:${lock.morningKey}` }
           : null;
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
@@ -212,13 +322,26 @@ export function HomeScreen() {
         free={free}
         revision={visit}
         hero={hero}
-        heroKey={minutes ?? 0}
+        heroKey={walk?.kind === 'counting' ? (walk.steps ?? 0) : here?.meter ? Number.parseFloat(here.meter.value) || 0 : (minutes ?? 0)}
+        meter={walk?.kind === 'counting' ? walkMeter(walk) : here?.meter}
+        icon={walk ? WALK_ICON : here?.icon}
         action={action}
+        alt={here && action === here.action ? here.alt : undefined}
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} moment={moment} floor={tabInset + moonArc} />
+      {here?.keepAwake ? <StayAwake /> : null}
+      {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>
   );
+}
+
+const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };
+
+/** The phone is in hand on the stairs; don't let it lock mid-session. */
+function StayAwake() {
+  useKeepAwake();
+  return null;
 }
 
 /** Apple's sheet (cancel, or switch plans); its web page where there's no sheet. Same as the You tab. */
@@ -239,9 +362,35 @@ function heroFor(phase: string, wake: string) {
   }
 }
 
+/** The morning walk on Home: the count is the hero (`walkMeter`), with no Loc line under it. */
+function walkHero(walk: MorningWalk) {
+  if (walk.kind === 'denied')
+    return {
+      title: "I can't hear you walking",
+      body: 'Motion & Fitness is off for Locturne, so I can’t count your steps. Turn it on in Settings, under Privacy & Security.',
+    };
+  if (walk.kind !== 'counting')
+    return {
+      title: "I can't count steps on this",
+      body: 'Steps need the iPhone’s motion sensor, and this device doesn’t have one I can read.',
+    };
+  const left = walk.goal - (walk.steps ?? 0);
+  return {
+    title: `${walk.steps ?? 0} of ${walk.goal} steps`,
+    body: left > 0 ? `${left} more and your apps wake up.` : 'That will do.',
+  };
+}
+
+function walkMeter(walk: Extract<MorningWalk, { kind: 'counting' }>) {
+  return {
+    value: walk.steps === null ? '–' : String(walk.steps),
+    caption: `of ${walk.goal} steps`,
+    progress: walk.goal > 0 ? (walk.steps ?? 0) / walk.goal : 1,
+  };
+}
+
 /** After an emergency unlock: awake tonight, and when they sleep again. */
-function pausedHero(pause: Date, now: Date) {
-  const words = pauseWording(pause, now);
+function pausedHero(words: PauseWords) {
   const back = words.resumes ? clockAt(words.resumes) : null;
   return {
     title: 'Awake tonight',

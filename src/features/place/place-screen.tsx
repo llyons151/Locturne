@@ -68,7 +68,7 @@ function firstStage(mode: PlaceMode | undefined): Stage {
 }
 
 /** A pretend morning's check-in: judged like the real one, but nothing is recorded. */
-function pretendCheck(fix: Fix): PlaceCheck {
+export function pretendCheck(fix: Fix): PlaceCheck {
   const place = shownPlace();
   if (!place) return { kind: 'noPlace' };
   const judged = judgeFix(place, fix, new Date());

@@ -25,7 +25,9 @@ import type {
   PurchasesOffering,
   PurchasesOfferings,
   PurchasesPackage,
+  PurchasesPromotionalOffer,
   PurchasesStoreProduct,
+  PurchasesStoreProductDiscount,
 } from 'react-native-purchases';
 
 import {
@@ -34,9 +36,11 @@ import {
   EXIT_ARMS,
   isExitArm,
   OFFERING_IDS,
+  percentOff,
   pickExitArm,
   planOf,
   resolveExitArm,
+  SAVE_OFFER_IDS,
   type ExitArm,
   type ExitOfferArm,
   type KeyValue,
@@ -44,7 +48,9 @@ import {
   type Offers,
   type PurchaseResult,
   type PurchasesProvider,
+  type PlanId,
   type PurchaseTarget,
+  type SaveOffer,
 } from './purchases.ts';
 
 /** The part of the `Purchases` class this provider uses. */
@@ -58,6 +64,9 @@ export type RevenueCatSdk = {
   setAttributes(attributes: { [key: string]: string | null }): Promise<void>;
   addCustomerInfoUpdateListener(listener: (info: CustomerInfo) => void): void;
   showManageSubscriptions(): Promise<void>;
+  /** Apple's signed promotional offer, or undefined when this Apple ID can't have it. */
+  getPromotionalOffer(product: PurchasesStoreProduct, discount: PurchasesStoreProductDiscount): Promise<PurchasesPromotionalOffer | undefined>;
+  purchaseDiscountedPackage(aPackage: PurchasesPackage, discount: PurchasesPromotionalOffer): Promise<{ customerInfo: CustomerInfo }>;
 };
 
 // The SDK's enum values, checked against its types. Importing the enums themselves would
@@ -191,6 +200,23 @@ function exitPackage(offerings: PurchasesOfferings, arm: ExitOfferArm): Purchase
 export function packageFor(offerings: PurchasesOfferings, target: PurchaseTarget): PurchasesPackage | null {
   if (target === 'annual' || target === 'monthly') return mainOffering(offerings)?.[target] ?? null;
   return exitPackage(offerings, target);
+}
+
+/**
+ * The paywall plan a subscriber is on and its save offer's discount (`SAVE_OFFER_IDS`), or null
+ * when they're on something else (an exit-offer product) or the product has no such offer.
+ */
+export function saveDiscountFor(
+  offerings: PurchasesOfferings,
+  productId: string,
+): { plan: PlanId; pkg: PurchasesPackage; discount: PurchasesStoreProductDiscount } | null {
+  for (const plan of ['annual', 'monthly'] as const) {
+    const pkg = packageFor(offerings, plan);
+    if (pkg?.product.identifier !== productId) continue;
+    const discount = pkg.product.discounts?.find((d) => d.identifier === SAVE_OFFER_IDS[plan]);
+    return discount ? { plan, pkg, discount } : null;
+  }
+  return null;
 }
 
 /** Every product the paywall and the exit offers might show, for one eligibility check. */
@@ -361,6 +387,19 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     sdk.setAttributes(attributes).catch(() => {});
   };
 
+  /**
+   * The save offer for the plan they're on, signed by Apple through RevenueCat. Null outside a
+   * paid plan: a free trial gets none, so a trial isn't a way to half price.
+   */
+  const saveOffer = async () => {
+    const record = await latest();
+    if (!record.active || !record.productId || record.trialStartedAt) return null;
+    const found = saveDiscountFor(await sdk.getOfferings(), record.productId);
+    if (!found) return null;
+    const signed = await sdk.getPromotionalOffer(found.pkg.product, found.discount);
+    return signed ? { ...found, signed } : null;
+  };
+
   const assignedArm = (): ExitArm => {
     const saved = store.get<string>(EXIT_ARM_KEY);
     if (isExitArm(saved)) return saved;
@@ -446,6 +485,33 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     async manageSubscriptions() {
       await sdk.showManageSubscriptions();
       return true;
+    },
+    async getSaveOffer() {
+      const found = await saveOffer().catch(() => null);
+      if (!found) return null;
+      const { plan, pkg, discount } = found;
+      return {
+        plan,
+        priceString: discount.priceString,
+        fullPriceString: pkg.product.priceString,
+        percentOff: percentOff(discount.price, pkg.product.price),
+        cycles: discount.cycles,
+      } satisfies SaveOffer;
+    },
+    async claimSaveOffer() {
+      inFlight += 1;
+      let reportedPaid = false;
+      try {
+        const found = await saveOffer();
+        if (!found) return { status: 'failed', message: 'That offer isn’t available any more.' };
+        const { customerInfo } = await sdk.purchaseDiscountedPackage(found.pkg, found.signed);
+        reportedPaid = remember(customerInfo).active;
+        return { status: 'purchased' };
+      } catch (error) {
+        return purchaseFailure(error);
+      } finally {
+        finishOperation(reportedPaid);
+      }
     },
     setAttributes: tag,
     onEntitled(listener) {

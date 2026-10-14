@@ -41,7 +41,7 @@ import {
   rearmNap,
   saveLimits,
   scheduleListSettle,
-  selectionSize,
+  nightPickCount,
   setAlwaysShieldText,
   setLimitShieldText,
   setMorningShieldText,
@@ -116,7 +116,7 @@ export function readLock(now = new Date()): LockState {
   // Read live picks, not the pending picker draft: removals still wait for bedtime.
   // Once a morning has read free this way it stays free (`noteEmptyMorning`): apps added back
   // during it join the live list at once, but no night held them, so they sleep from tonight.
-  const empty = (isScreenTimeAvailable() && selectionSize('night') === 0) || emptyMorning(morning);
+  const empty = (isScreenTimeAvailable() && nightPickCount() === 0) || emptyMorning(morning);
   const free = unrun || !inTime || renewedFree || empty;
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
   const state = getLockState(
@@ -258,7 +258,7 @@ export function syncLock(now = new Date()): LockState {
     // `readLock` reports a morning as locked only when its night was armed in time
     // (`armedInTime`: before the morning started), so a missed window or lost shields are put
     // back, but a morning nothing held overnight (an install's first) stays awake.
-    else if (asleep && !isNightHeld() && selectionSize('night') > 0 && getArmedNight()) {
+    else if (asleep && !isNightHeld() && nightPickCount() > 0 && getArmedNight()) {
       sleepApps('night');
       reapplyStandingBlocks();
     } else reapplyStandingBlocks();
@@ -293,7 +293,7 @@ const EMPTY_MORNING_KEY = 'locturne.emptyMorning';
  * can move past this morning's start): the night they return for still holds them.
  */
 function noteEmptyMorning(now: Date): void {
-  if (selectionSize('night') > 0 || isNightHeld() || listChangeStarts('night')) return;
+  if (nightPickCount() > 0 || isNightHeld() || listChangeStarts('night')) return;
   const morning = currentMorning(now, toLockSettings(judgedAt(now).routine));
   // Only once the morning has started: apps added during the night are held by it.
   if (now < morning.start) return;
@@ -595,7 +595,7 @@ async function arm(now: Date): Promise<ArmResult> {
   endPauseAtNextBedtime(now);
   // A pause that ended just now gives the bedtime picks back before they're put to sleep.
   settleListChanges(now, { limits: false });
-  if (readLock(now).phase === 'night' && selectionSize('night') > 0) sleepApps('night');
+  if (readLock(now).phase === 'night' && nightPickCount() > 0) sleepApps('night');
   syncLock(now);
   armChanged();
   return 'armed';
@@ -886,7 +886,7 @@ function applyShieldText(state: LockState, now: Date): void {
   // or after the last one a lapsed subscription covers gets the day's rules (Block now, a limit,
   // the always list), not "they wake up after 7 am" over apps that won't.
   const locked = state.phase === 'night' || state.phase === 'morning';
-  const emptyNight = isScreenTimeAvailable() && selectionSize('night') === 0;
+  const emptyNight = isScreenTimeAvailable() && nightPickCount() === 0;
   const unheld =
     locked &&
     (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now) || emptyNight)));

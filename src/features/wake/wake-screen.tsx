@@ -7,7 +7,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,7 @@ import { sym } from '@/components/grouped-list';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { currentProof, proveMorning, readLock, routineAt } from '@/lib/lock-controller';
-import { askForNotifications, shouldAskForNotifications } from '@/lib/notifications';
+import { currentProof, routineAt } from '@/lib/lock-controller';
 import { currentMorning, type LockState } from '@/lib/lock-state';
 import { getRoutine, pushupGoalOf, toLockSettings } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
@@ -27,13 +26,14 @@ import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { usePushupsPreview } from '../dev/wake-lab/pushups-preview';
 import { shownPlace, shownScanCode } from '../dev/wake-lab/stand-ins';
-import { pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
+import { useWakePreview } from '../dev/wake-lab/wake-preview';
 import { awakeStatus } from './awake-status';
 import { DownstairsView } from './downstairs-view';
 import { DAY_OPENER, morningDoneToday } from './morning-done';
 import { Body, TopBar, Voice } from './parts';
 import { PushupsView } from './pushups-view';
 import { StepsView } from './steps-view';
+import { useProveMorning } from './use-prove-morning';
 import { unheldWakeBody, wakeLabel, wakePhase } from './wake-words';
 
 export type WakeMethodShown = 'downstairs' | 'steps' | 'pushups';
@@ -75,26 +75,13 @@ export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   // A success can remain mounted while the phone is put away until the next night.
   const celebrating = unlocked !== null && phase === 'day' && unlocked.morningKey === lock.morningKey;
 
+  const prove = useProveMorning();
   const onMet = useCallback(
     (kind: WakeMethodShown) => {
-      if (pretend) {
-        haptic.done();
-        pretendWoke();
-        setUnlocked({ ...readLock(), phase: 'day' });
-        return;
-      }
-      const state = proveMorning(kind) ?? readLock();
-      if (state.phase !== 'day') return; // bedtime came round, or the night was off
-      haptic.done();
-      setUnlocked(state);
-      // The control VoiceOver was on goes away with the swap; say what happened.
-      AccessibilityInfo.announceForAccessibility(`I'm up. ${awakeStatus(state)}`);
-      // The first proven morning is the moment to ask (GAME_PLAN); iOS shows its own prompt once.
-      shouldAskForNotifications()
-        .then((ask) => (ask ? askForNotifications() : false))
-        .catch(() => {});
+      const state = prove(kind);
+      if (state) setUnlocked(state);
     },
-    [pretend],
+    [prove],
   );
   const onSteps = useCallback(() => onMet('steps'), [onMet]);
   const onDownstairs = useCallback(() => onMet('downstairs'), [onMet]);

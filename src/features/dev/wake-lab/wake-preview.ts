@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
+import type { WakeMethod } from '@/lib/routine';
+
 import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
 
 /**
@@ -10,8 +12,8 @@ import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
  * without walking, stairs, a printed code or a trip to the gym. Push-ups' own fakes live in
  * pushups-preview.ts. Kept in memory; a reload starts from the defaults.
  *
- * Every fake is named "Fake …" in the controls and listed by the FAKES badge on screen
- * (fake-badge.tsx), so it's always clear what's real. docs/WAKE_PREVIEW.md has the map.
+ * Every fake is named "Fake …" in the controls, so it's always clear what's real.
+ * docs/WAKE_PREVIEW.md has the map.
  */
 export type WakePreview = {
   /**
@@ -20,6 +22,8 @@ export type WakePreview = {
    * records nothing and moves no shields, and turns this to `woke`. `woke`: that morning done.
    */
   phase: 'real' | 'morning' | 'woke';
+  /** The wake-up Home's pretend morning shows: the routine's, or this one whatever the routine says. */
+  method: 'routine' | WakeMethod;
   /** The pedometer (expo-sensors) behind Walk steps. */
   steps: 'real' | 'walking' | 'halfway' | 'done' | 'still' | 'denied' | 'unavailable';
   /** The barometer (expo-sensors CMAltimeter) behind Go downstairs. */
@@ -30,20 +34,18 @@ export type WakePreview = {
   place: 'real' | 'walking' | 'there' | 'notThere' | 'unsure' | 'slow' | 'denied' | 'imprecise' | 'off' | 'failed';
   /** In a pretend morning with no code or place set up, use a made-up one instead of "There is no code". */
   standIns: boolean;
-  /** The FAKES badge at the bottom of the screen. */
-  badge: boolean;
 };
 
 // A browser has none of the sensors, so the fakes start on there; a phone starts real.
 const web = Platform.OS === 'web';
 const START: WakePreview = {
   phase: 'real',
+  method: 'routine',
   steps: web ? 'walking' : 'real',
   stairs: web ? 'down' : 'real',
   scan: web ? 'fake' : 'real',
   place: web ? 'walking' : 'real',
   standIns: true,
-  badge: true,
 };
 
 let current = START;
@@ -71,6 +73,10 @@ export function pretendPhase(): 'morning' | 'day' | null {
   return phase === 'real' ? null : phase === 'morning' ? 'morning' : 'day';
 }
 
+/** The method a pretend morning puts on Home, or null to use the routine's. */
+export const pretendMethod = (): WakeMethod | null =>
+  current.phase !== 'real' && current.method !== 'routine' ? current.method : null;
+
 /** A pretend morning's pass: nothing is recorded, the preview just moves on to "done". */
 export const pretendWoke = () => setWakePreview({ phase: 'woke' });
 
@@ -79,10 +85,11 @@ export const pretendWoke = () => setWakePreview({ phase: 'woke' });
  * picked in /wake-preview is kept; only "real" ones switch), so each morning screen can be seen
  * on the phone at any hour, without walking, stairs, a code, a trip or a set of push-ups.
  */
-export function fakeTheMorning() {
+export function fakeTheMorning(method: WakePreview['method'] = 'routine') {
   const p = current;
   setWakePreview({
     phase: 'morning',
+    method,
     steps: p.steps === 'real' ? 'walking' : p.steps,
     stairs: p.stairs === 'real' ? 'down' : p.stairs,
     scan: p.scan === 'real' ? 'fake' : p.scan,

@@ -69,6 +69,10 @@ export type Events = {
   night_checked: { verdict: NightVerdictEvent; late_by_minutes: number | null };
   notifications_permission: { granted: boolean };
   notification_opened: { kind: string };
+
+  /* The cancel flow (features/cancel): which step loses them, and what saves them */
+  cancel_flow_step: { step: string; reason: string | null; preview: boolean };
+  cancel_flow_ended: { outcome: 'kept' | 'helped' | 'claimed_offer' | 'to_apple'; reason: string | null; offer_shown: boolean; preview: boolean };
 };
 
 export type EventName = keyof Events;

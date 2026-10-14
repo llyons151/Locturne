@@ -182,3 +182,13 @@ test('a release build with no store key sells nothing and unlocks nothing', asyn
   assert.deepEqual(await closed.restore(), { entitled: false });
   assert.equal(await closed.isEntitled(), false);
 });
+
+test('the stub prices the cancel flow’s save offer for the plan bought, once', async () => {
+  const stub = createDevPurchases();
+  assert.deepEqual(await stub.getSaveOffer(), { plan: 'annual', priceString: '$29.99', fullPriceString: '$59.99', percentOff: 50, cycles: 1 });
+  await stub.purchase('monthly');
+  assert.deepEqual(await stub.getSaveOffer(), { plan: 'monthly', priceString: '$4.99', fullPriceString: '$9.99', percentOff: 50, cycles: 3 });
+  assert.deepEqual(await stub.claimSaveOffer(), { status: 'purchased' });
+  assert.equal(await stub.getSaveOffer(), null);
+  assert.equal(await createClosedPurchases().getSaveOffer(), null);
+});

@@ -15,13 +15,22 @@ export type { BarometerAccess };
  * session, and stops if the app leaves the foreground. The wake preview (/wake-preview, dev
  * only) can swap the barometer for a FAKE one that plays a scripted trip down the stairs.
  */
-export function useDownstairs() {
+export function useDownstairs(enabled = true) {
   const [access, setAccess] = useState<BarometerAccess>('checking');
   const [session, setSession] = useState<DownstairsSession | null>(null);
   const watch = useRef<DownstairsWatch | null>(null);
   const fake = useWakePreview().stairs;
 
+  // Home keeps this mounted all day; it only checks the barometer while it's the morning's
+  // method, and a session left over from the last morning goes with it.
+  const [wasEnabled, setWasEnabled] = useState(enabled);
+  if (wasEnabled !== enabled) {
+    setWasEnabled(enabled);
+    if (!enabled) setSession(null);
+  }
+
   useEffect(() => {
+    if (!enabled) return;
     const sensors = fake === 'real' ? { barometer: Barometer, pedometer: Pedometer, isIOS: Platform.OS === 'ios' } : fakeStairs(fake);
     const current = watchDownstairs({
       ...sensors,
@@ -34,7 +43,7 @@ export function useDownstairs() {
       current.dispose();
       if (watch.current === current) watch.current = null;
     };
-  }, [fake]);
+  }, [fake, enabled]);
 
   const start = useCallback(() => watch.current?.start() ?? Promise.resolve(), []);
   const stop = useCallback(() => watch.current?.stop(), []);

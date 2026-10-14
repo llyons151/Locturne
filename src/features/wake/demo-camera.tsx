@@ -14,7 +14,7 @@ const READ_MS = 66;
  * The wake lab's stand-in for the camera (Push-up preview): a dark frame and a pretend body
  * playing `scene`, fed to `onPose` like the real camera. With `fail` it fails as it opens, as a
  * broken camera would. The same props as PoseCameraView, so the screen can't tell. Tagged FAKE
- * under the top bar, since this screen is a modal the app-wide FAKES badge can't sit over.
+ * under the top bar.
  */
 export function DemoCamera({
   scene,

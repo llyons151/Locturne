@@ -80,6 +80,7 @@ export function dayHero({
   offTonight = null,
   alwaysSleeps = false,
   apps = null,
+  websites = null,
   quip = null,
 }: {
   /** `rollUpHealth` said `attention`: its title and detail, or null. */
@@ -104,6 +105,8 @@ export function dayHero({
   alwaysSleeps?: boolean;
   /** Apps on the bedtime list (`bedtimeAppCount`), or null when it also holds categories or sites. */
   apps?: number | null;
+  /** Websites typed in on the bedtime list (websites.ts), or null when a change is still to land. */
+  websites?: number | null;
   /** Loc's line for tonight (`bedtimeQuip`), in place of the plain "wind down" nudge. */
   quip?: string | null;
 }): { title: string; body: string; aside?: string } {
@@ -116,10 +119,18 @@ export function dayHero({
   }
   if (!scheduled) return { title: 'No bedtime scheduled', body: line };
   if (offTonight) return { title: 'Tonight is off', body: `Your next bedtime is ${sleepsAt} on ${offTonight}.` };
-  const who = apps ? `${apps} ${apps === 1 ? 'app goes' : 'apps go'}` : 'Your apps go';
+  const who = bedtimeWho(apps ?? null, websites ?? 0);
   const body = `${who} to sleep at ${sleepsAt}.`;
   // Loc's line stands apart from the fact, so it reads as him, not the app being snarky.
   return quip ? { title: `Bedtime in ${until}`, body, aside: quip } : { title: `Bedtime in ${until}`, body: `${body} Start winding down before then.` };
+}
+
+/** What goes to sleep, counted where it can be: "2 apps", "1 website", "3 apps and 2 websites". */
+function bedtimeWho(apps: number | null, websites: number): string {
+  const sites = `${websites} ${websites === 1 ? 'website' : 'websites'}`;
+  if (websites > 0 && apps === 0) return `${sites} ${websites === 1 ? 'goes' : 'go'}`;
+  if (websites > 0) return apps ? `${apps} ${apps === 1 ? 'app' : 'apps'} and ${sites} go` : 'Your apps and websites go';
+  return apps ? `${apps} ${apps === 1 ? 'app goes' : 'apps go'}` : 'Your apps go';
 }
 
 /** Loc's evening lines (docs/MASCOT_DIRECTION.md: tired, a bit sassy, never mean). */

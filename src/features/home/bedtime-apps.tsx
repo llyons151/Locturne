@@ -12,6 +12,7 @@ import type { LockState } from '@/lib/lock-state';
 import { nextNightOn } from '@/lib/routine';
 import { clockLabel } from '@/lib/shield-copy';
 import { isScreenTimeAvailable, shownSelection, type Protection } from '@/lib/screen-time';
+import { getSites } from '@/lib/websites';
 import { Nocturne, Radius, Space, Type } from '@/theme';
 
 import { APPS } from '../apps/catalog';
@@ -29,9 +30,13 @@ export function BedtimeApps({ lock, protection }: { lock: LockState; protection:
   useEffect(() => onLockChange(() => setRevision((value) => value + 1)), []);
   const live = isScreenTimeAvailable();
   const selection = live ? shownSelection('night') : null;
-  const count = selection?.size ?? PREVIEW.length;
-  const shown = Math.min(count, 3);
-  const remaining = count - (live && !isBlockedAppsViewAvailable ? 0 : shown);
+  // Typed-in websites sleep with the list too, and alone they still hold a night (user, 2026-10-13).
+  const sites = live ? getSites('night').length : 0;
+  const apps = selection?.size ?? PREVIEW.length;
+  const count = apps + sites;
+  // Icons are apps only; with none, one globe stands for the websites.
+  const shown = apps > 0 ? Math.min(apps, 3) : sites > 0 ? 1 : 0;
+  const remaining = count - (live && apps > 0 && !isBlockedAppsViewAvailable ? 0 : shown);
   const now = useMinute();
   const pause = getNightPause(now);
   const phase = heldPhase(lock.phase, now);
@@ -61,7 +66,11 @@ export function BedtimeApps({ lock, protection }: { lock: LockState; protection:
         <View style={styles.card}>
           <View style={styles.row}>
           <View style={styles.icons} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {selection && isBlockedAppsViewAvailable ? (
+            {apps === 0 && sites > 0 ? (
+              <View style={styles.tile}>
+                <SymbolView name={{ ios: 'globe', android: 'language', web: 'language' }} size={20} tintColor={Nocturne.text} />
+              </View>
+            ) : selection && isBlockedAppsViewAvailable ? (
               <BlockedAppsView
                 selectionId={selection.id}
                 revision={revision}
@@ -70,7 +79,7 @@ export function BedtimeApps({ lock, protection }: { lock: LockState; protection:
               />
             ) : !live ? (
               PREVIEW_ICONS.slice(0, shown).map((name) => <AppTile key={name} name={name} size={ICON} />)
-            ) : count > 0 ? (
+            ) : apps > 0 ? (
               <View style={styles.tile}>
                 <SymbolView name={{ ios: 'square.stack', android: 'apps', web: 'apps' }} size={20} tintColor={Nocturne.text} />
               </View>
