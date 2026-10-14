@@ -245,7 +245,7 @@ public class PlaceSearchModule: Module {
     let suggestions = completions.enumerated().map { index, completion in
       ["id": "\(generation):\(index)", "title": completion.title, "subtitle": completion.subtitle]
     }
-    promise.resolve(["suggestions": suggestions, "error": suggestions.isEmpty ? "none" : NSNull()])
+    promise.resolve(["suggestions": suggestions, "error": suggestions.isEmpty ? "none" as Any : NSNull()])
   }
 
   private static func answer(_ places: [[String: Any]], error: String?) -> [String: Any] {
