@@ -98,10 +98,21 @@ export function applyEdit(
   now: Date,
   armed: boolean | ArmedTimes = true,
   early = false,
+  idle = false,
 ): StoredRoutine {
   if (!stored) return { active: next, since: now.getTime() };
   const settled = settleRoutine(stored, now);
   if (!armed) return { active: next, since: now.getTime(), prior: settled.active };
+  // `idle`: the lock's day, with no night or unproven morning running. Nothing the routine sets
+  // is in use, so the edit is the routine from now, and Home, the warning and tonight's lock all
+  // follow it at once (user, 2026-10-14: a method switched at 9 pm still said "Tomorrow: 200
+  // steps"). Only bedtime fixes the night's routine. Not when now is already inside the edit's
+  // own night (a bedtime moved earlier than now): that waits for its bedtime like any edit,
+  // rather than locking the phone this second.
+  if (idle && !early) {
+    const { latest } = nightsAround(now, toLockSettings(next));
+    if (!(now >= latest.start && now < latest.end)) return { active: next, since: now.getTime(), prior: settled.active };
+  }
   // Promoted from inside its own early first night: in force from now, a night already running.
   const promoted = early && settled.pending;
   const active = promoted ? settled.pending!.routine : settled.active;
@@ -243,10 +254,11 @@ export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | 
 /**
  * Saves an edit and returns when it takes effect. Callers pass `inPendingFirstNight(now)`
  * (lock-controller.ts) as `early`, so an edit made inside a waiting edit's early first night
- * waits for the next bedtime instead of ending tonight (`applyEdit`).
+ * waits for the next bedtime instead of ending tonight (`applyEdit`), and whether the lock is in
+ * its day as `idle`, so an edit made before bedtime applies at once.
  */
-export function saveRoutine(next: Routine, now = new Date(), early = false): Date {
-  const stored = applyEdit(read(now), next, now, getArmedNight() ?? false, early);
+export function saveRoutine(next: Routine, now = new Date(), early = false, idle = false): Date {
+  const stored = applyEdit(read(now), next, now, getArmedNight() ?? false, early, idle);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;
 }

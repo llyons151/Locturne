@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/text';
@@ -13,16 +13,28 @@ import { PushupWheel } from './pushup-wheel';
 /**
  * How many push-ups a morning takes, in the Sleep sheet's floating card (user's ask,
  * 2026-10-10: "it should be a scroll wheel, you can pick as many as you want"). A title, the
- * wheel, and one white Done button, laid out like the Sleep sheet. Swiping it away keeps what
- * was set; Done saves, and like every routine edit it waits for the next bedtime.
+ * wheel, and one white Done button, laid out like the Sleep sheet. The number saves however the
+ * sheet closes, Done, a swipe or a tap outside (user, 2026-10-14: tapping out lost it), like
+ * every routine edit (apply-edit.ts).
  */
 export function PushupsSheet() {
   const [count, setCount] = useState(() => pushupGoalOf(getSetRoutine()));
+  const latest = useRef(count);
+  useEffect(() => {
+    latest.current = count;
+  }, [count]);
+
+  // Saved as the sheet goes, whichever way it's closed.
+  useEffect(
+    () => () => {
+      const set = getSetRoutine();
+      if (pushupGoalOf(set) !== latest.current) applyRoutineEdit({ ...set, pushupGoal: latest.current });
+    },
+    [],
+  );
 
   const done = () => {
     haptic.done();
-    const set = getSetRoutine();
-    if (pushupGoalOf(set) !== count) applyRoutineEdit({ ...set, pushupGoal: count });
     closeSleepSheet();
   };
 

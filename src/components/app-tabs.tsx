@@ -2,7 +2,8 @@
 // Reads the navigation state during render (`navigation.getState()`), which changes outside its
 // props. The React Compiler could cache that read, so it stays out here, like the screens (#130).
 
-import { router, useIsFocused } from 'expo-router';
+import { router } from 'expo-router';
+import { useNavigationState, useRoute } from 'expo-router/react-navigation';
 import { Tabs, type BottomTabBarProps, type BottomTabNavigationOptions } from 'expo-router/js-tabs';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -84,9 +85,14 @@ const SWITCH = { duration: 260, easing: Easing.out(Easing.cubic) };
 /** The first tab shown at launch appears without the fade; every switch after that fades. */
 let launched = false;
 
-/** One tab's page, fading in each time its tab is picked. */
+/**
+ * One tab's page, fading in each time its tab is picked. "Picked" is the tab navigator's own
+ * choice, not screen focus: a sheet opened over the tabs (Sleep, push-ups, a limit) takes focus,
+ * and the page must stay behind it, shrinking back, not vanish (user, 2026-10-14).
+ */
 function TabScene({ children }: { children: ReactNode }) {
-  const focused = useIsFocused();
+  const route = useRoute();
+  const focused = useNavigationState((state) => state.routes[state.index]?.key === route.key);
   const reduced = useReducedMotion();
   const [first] = useState(() => {
     const was = launched;

@@ -46,6 +46,19 @@ test('inside a waiting edit\'s early first night, that edit is in force and the 
   assert.deepEqual(applyEdit(waiting, later, at(15), true, false), { active: DEFAULT_ROUTINE, pending: { routine: later, from: at(23).getTime() } });
 });
 
+test('in the lock\'s day, an edit applies at once and drops a waiting one; from bedtime it waits', () => {
+  // 21:00, the lock's day: a switch to the place method is tomorrow morning's at once.
+  const place = { ...DEFAULT_ROUTINE, method: 'place' as const };
+  const waiting = { active: DEFAULT_ROUTINE, pending: { routine: later, from: at(23).getTime() } };
+  assert.deepEqual(applyEdit(waiting, place, at(21), true, false, true), { active: place, since: at(21).getTime(), prior: DEFAULT_ROUTINE });
+  // Not idle (a night or a locked morning): it waits, as before.
+  assert.equal(applyEdit({ active: DEFAULT_ROUTINE }, place, at(23, 30), true, false, false).pending?.from, at(23, 0, 2).getTime());
+  // A bedtime moved earlier than now: tonight's night has already started under the edit, so it
+  // waits for its bedtime rather than locking the phone this second.
+  const earlier = { ...DEFAULT_ROUTINE, bedtime: 20 * 60 };
+  assert.ok(applyEdit({ active: DEFAULT_ROUTINE }, earlier, at(21), true, false, true).pending);
+});
+
 test('nextNightOn skips nights off, at that night’s bedtime, and is null with every night off', () => {
   // Thursday Oct 1 and Friday Oct 2 off (getDay 4 and 5).
   saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 22 * 60, activeNights: [0, 1, 2, 3, 6] }, at(12));
