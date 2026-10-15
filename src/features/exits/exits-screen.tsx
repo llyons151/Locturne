@@ -22,19 +22,18 @@ import { currentProof, readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, previewPass, redeemPass, type PassRefusal } from '@/lib/passes';
 import { toLockSettings } from '@/lib/routine';
-import { getScanCode } from '@/lib/scan';
 import { isScreenTimeAvailable, isStoodDown, peekNap, selectionSize } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { Confirm } from './confirm';
-import { offBody, unheldBody, unheldNoCode } from './unheld-words';
+import { offBody, unheldBody } from './unheld-words';
 import { Voice } from './voice';
 
 /**
- * The way out (GAME_PLAN, "Humane exits"): a pass, two a month, and "I can't walk this
- * morning", which points to Scan your code. There is no unlimited emergency unlock (decided
- * 2026-10-14): a pass is the only way out early, at night as well as in the morning. It goes
+ * The way out (GAME_PLAN, "Humane exits"): a pass, two a month. There is no unlimited
+ * emergency unlock (decided 2026-10-14) and no scanning a code instead of the morning's own
+ * method (2026-10-15): a pass is the only way out early, at night as well as in the morning. It goes
  * through a short wait with "Go back to sleep" as the big button (NIGHT_PHONE_SCIENCE.md,
  * Principle 10: the delay plus a dismiss option is what worked), then the system's dialog.
  *
@@ -63,7 +62,7 @@ function opener(phase: Phase, left: number): { line: string; body: string } {
         body: left > 0 ? `A pass wakes your apps for the rest of tonight and the morning. ${passesLabel(left)} left this month.` : NONE_LEFT,
       };
     case 'morning':
-      return { line: 'Rough morning.', body: left > 0 ? "Use a pass, or scan your code if walking is hard today. I won't make it weird." : `${NONE_LEFT} Scan your code if walking is hard today.` };
+      return { line: 'Rough morning.', body: left > 0 ? "Use a pass. I won't make it weird." : `${NONE_LEFT} Up means up.` };
     // Only once today's morning really happened (`morningDoneToday`); otherwise `DAY_OPENER.notYet`.
     case 'day':
       return { line: "I'm awake. Technically.", body: 'Your morning is done. A pass can still end a Block now session.' };
@@ -180,19 +179,6 @@ export function ExitsScreen() {
   const unheld = (phase === 'night' || phase === 'morning') && heldPhase(phase) !== phase ? phase : null;
   const heldMorning = phase === 'morning' && !unheld;
 
-  const cantWalk = () => {
-    if (getScanCode()) return router.push('/scan?mode=morning');
-    if (unheld) return setStage({ kind: 'menu', notice: unheldNoCode(unheld) });
-    // A code can't be set up from bed (any barcode by the pillow would do), so say what can help.
-    if (phase === 'night' || phase === 'morning') {
-      const later = phase === 'morning' ? ' Set one up in the day for next time.' : '';
-      return setStage({
-        kind: 'menu',
-        notice: `No code yet, and it can’t be set up from bed. ${left > 0 ? 'A pass works now.' : 'No passes left this month.'}${later}`,
-      });
-    }
-    router.push('/scan?mode=setup');
-  };
 
   // What the day holds once the morning is woken, as the wake and scan screens say it: tonight
   // may be off, or nothing sleeps again after a lapse's last morning. A pass ends a Block now.
@@ -217,10 +203,6 @@ export function ExitsScreen() {
     }
     // The clock says night or morning, but nothing is asleep to wake: don't say bedtime wins.
     if (unheld) return { line: AWAKE_LINE, body: unheldBody(unheld, isStoodDown()) };
-    // Only the ways out that exist: no scan without a code.
-    if (phase === 'morning' && !getScanCode()) {
-      return { ...opener('morning', left), body: left > 0 ? "Use a pass. I won't make it weird." : `${NONE_LEFT} Up means up.` };
-    }
     if (phase === 'day') {
       // Before the day's first morning (00:33 ahead of a 01:00 bedtime, a night shift's 07:00,
       // an install's first day) nothing is done yet.
@@ -262,12 +244,6 @@ export function ExitsScreen() {
               title="Use a pass"
               value={passValue}
               onPress={begin}
-            />
-            <ValueRow
-              icon={sym('qrcode.viewfinder', 'qr_code_scanner')}
-              title="I can't walk this morning"
-              value={getScanCode() ? 'Scan' : 'No code'}
-              onPress={cantWalk}
               last
             />
           </Section>

@@ -27,10 +27,10 @@ describe('estimate', () => {
     assert.equal(e.weeklyMinutes, 455);
     assert.equal(e.morningWeeklyMinutes, 140);
     assert.equal(e.weeklyHours, 7.5); // 455 min rounds down to 7½ hours, never up
-    assert.equal(e.yearlyHours, 394); // 455 × 52 / 60 = 394.3
+    assert.equal(e.yearlyHours, 390); // the 7½ shown × 52, so the two numbers agree
     assert.equal(e.yearlyDays, 16);
     assert.equal(e.yearsLeft, 57);
-    assert.equal(e.lifetimeDays, 935); // 394 × 57 / 24 = 935.75
+    assert.equal(e.lifetimeDays, 926); // 390 × 57 / 24 = 926.25
     assert.equal(e.timeInBed, 450);
     assert.equal(e.sleepRoom, 450 - 45 - 15);
     assert.equal(e.lightUser, false);

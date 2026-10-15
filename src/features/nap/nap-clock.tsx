@@ -56,13 +56,24 @@ const TRAVELLED = 'rgba(221,240,248,0.32)';
 const EASE = Easing.bezier(0.65, 0, 0.35, 1);
 const FADE_MS = 400;
 
-/** 1453 s → 25 min; in the last minute, a countdown: "0:42". */
+/** 1453 s → 25 min; 7797 s → 2h 10m; in the last minute, a countdown: "0:42". */
 function remaining(seconds: number) {
   const s = Math.max(0, Math.ceil(seconds));
+  const m = Math.ceil(s / 60);
+  const plural = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const rest = m % 60;
+    return {
+      value: rest ? `${h}h ${rest}m` : `${h}h`,
+      unit: '',
+      label: rest ? `${plural(h, 'hour')} ${plural(rest, 'minute')}` : plural(h, 'hour'),
+    };
+  }
   // Exactly 60 s is still "1 min": as a countdown, 60 % 60 would read "0:00".
   return s >= 60
-    ? { value: String(Math.ceil(s / 60)), unit: 'min', label: `${Math.ceil(s / 60)} ${s > 60 ? 'minutes' : 'minute'}` }
-    : { value: `0:${String(s).padStart(2, '0')}`, unit: '', label: `${s} ${s === 1 ? 'second' : 'seconds'}` };
+    ? { value: String(m), unit: 'min', label: plural(m, 'minute') }
+    : { value: `0:${String(s).padStart(2, '0')}`, unit: '', label: plural(s, 'second') };
 }
 
 export function NapClock({

@@ -24,6 +24,8 @@ import {
   font,
   foregroundStyle,
   frame,
+  kerning,
+  lineLimit,
   multilineTextAlignment,
   monospacedDigit,
   offset,
@@ -40,11 +42,12 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { HOME_RISE_MS } from '@/components/night-sky';
 import { SearchingOrb } from '@/components/thinking-orb';
 import { getAccess } from '@/lib/screen-time';
-import { Nocturne, Space } from '@/theme';
+import { CTA_HEIGHT, Nocturne, Space } from '@/theme';
 import { isMistDotViewAvailable, MistDotView } from '../../../modules/mist-dot';
 import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/screen-time-report';
 
 import type { HomeContentProps } from './home-content';
+import { actionWeight, topLevel } from './home-look';
 import { SWAP_IN, SWAP_OUT, useHeroSwap } from './hero-swap';
 import { dayLabel, morningsLabel, weekDays } from './week';
 
@@ -82,22 +85,28 @@ export function HomeContent(props: HomeContentProps) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
-  const { content, visible } = useHeroSwap(props);
-  const { hero, heroKey, meter, icon, searching, action, alt } = content;
+  const { content, visible } = useHeroSwap(props, props.catchingUp);
+  const { hero, heroKey, meter, icon, searching, action, alt, look } = content;
+  const weight = actionWeight(look, action);
+  // Dim at night, gone for a problem (`topLevel`).
+  const top = topLevel(look);
+  // Held still while catching up after the background, so the digits change without rolling
+  // from hours-old numbers.
+  const rollKey = props.catchingUp ? -1 : heroKey;
   const [usageIn, setUsageIn] = useState(false);
 
   /** Piece `step`: opacity and blur, ending with everything else. */
-  const enter = (step: number): ModifierConfig[] => {
+  const enter = (step: number, level = 1): ModifierConfig[] => {
     const d = step * STAGGER;
     return [
-      opacity(shown ? 1 : 0),
+      opacity(shown ? level : 0),
       blur(shown || reduced ? 0 : BLUR),
       animation(Animation.spring({ duration: TOTAL - d, bounce: 0 }).delay(START + d), shown),
     ];
   };
 
   const days = weekDays(today, won, free);
-  const showUsage = isScreenTimeReportAvailable && getAccess() === 'approved';
+  const showUsage = isScreenTimeReportAvailable && getAccess() === 'approved' && look !== 'night';
   // Ready to fade the pill in again if Screen Time goes off and comes back.
   if (!showUsage && usageIn) setUsageIn(false);
 
@@ -110,83 +119,87 @@ export function HomeContent(props: HomeContentProps) {
           onAppear(() => setShown(true)),
         ]}
       >
-        <HStack modifiers={enter(0)}>
-          <HStack
-            spacing={6}
-            modifiers={[
-              padding({ horizontal: 14 }),
-              frame({ minHeight: 36 }),
-              background(PILL, shapes.capsule()),
-              accessibilityElement('ignore'),
-              accessibilityLabel(`${mornings} ${morningsLabel(mornings)} you got up`),
-            ]}
-          >
-            <Image systemName="sunrise.fill" size={14} color={Nocturne.text} />
-            <Text modifiers={[font({ textStyle: 'callout', weight: 'heavy' }), monospacedDigit(), foregroundStyle(Nocturne.text)]}>
-              {String(mornings)}
-            </Text>
-            <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>{morningsLabel(mornings)}</Text>
-          </HStack>
-          <Spacer />
-          {showUsage ? (
-            // Fades in when Screen Time is turned on, rather than popping in.
-            <ZStack
-              modifiers={[
-                opacity(usageIn ? 1 : 0),
-                animation(Animation.easeInOut({ duration: SWAP_IN }), usageIn),
-                onAppear(() => setUsageIn(true)),
-              ]}
-            >
-              <RNHostView matchContents>
-                {/* Drawn by Apple's report extension, the only place usage may be read. */}
-                <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
-              </RNHostView>
-            </ZStack>
-          ) : null}
-        </HStack>
-
-        <HStack modifiers={[padding({ top: Space.xl }), ...enter(1)]}>
-          {days.flatMap((day, i) => [
-            ...(i ? [<Spacer key={`gap-${day.key}`} />] : []),
-            <VStack
-              key={day.key}
-              spacing={Space.s}
-              modifiers={[accessibilityElement('ignore'), accessibilityLabel(dayLabel(day))]}
-            >
-              <Text
+        {top ? (
+          <VStack spacing={0}>
+            <HStack modifiers={enter(0, top)}>
+              <HStack
+                spacing={6}
                 modifiers={[
-                  font({ size: 13, weight: day.today ? 'semibold' : 'regular' }),
-                  foregroundStyle(day.today ? Nocturne.text : Nocturne.text3),
+                  padding({ horizontal: 14 }),
+                  frame({ minHeight: 36 }),
+                  background(PILL, shapes.capsule()),
+                  accessibilityElement('ignore'),
+                  accessibilityLabel(`${mornings} ${morningsLabel(mornings)} you got up`),
                 ]}
               >
-                {day.letter}
-              </Text>
-              <ZStack modifiers={[frame({ width: DOT, height: DOT }), opacity(day.future ? 0.4 : 1)]}>
-                {day.done && isMistDotViewAvailable ? (
-                  // A won day holds a little of the moon's mist, which sloshes as the phone moves.
+                <Image systemName="sunrise.fill" size={14} color={Nocturne.text} />
+                <Text modifiers={[font({ textStyle: 'callout', weight: 'heavy' }), monospacedDigit(), foregroundStyle(Nocturne.text)]}>
+                  {String(mornings)}
+                </Text>
+                <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>{morningsLabel(mornings)}</Text>
+              </HStack>
+              <Spacer />
+              {showUsage ? (
+                // Fades in when Screen Time is turned on, rather than popping in.
+                <ZStack
+                  modifiers={[
+                    opacity(usageIn ? 1 : 0),
+                    animation(Animation.easeInOut({ duration: SWAP_IN }), usageIn),
+                    onAppear(() => setUsageIn(true)),
+                  ]}
+                >
                   <RNHostView matchContents>
-                    <MistDotView paused={reduced} style={{ width: DOT, height: DOT }} />
+                    {/* Drawn by Apple's report extension, the only place usage may be read. */}
+                    <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
                   </RNHostView>
-                ) : null}
-                {day.done && !isMistDotViewAvailable ? (
-                  <Circle modifiers={[foregroundStyle(Nocturne.text)]} />
-                ) : (
-                  <Circle
+                </ZStack>
+              ) : null}
+            </HStack>
+    
+            <HStack modifiers={[padding({ top: Space.xl }), ...enter(1, top)]}>
+              {days.flatMap((day, i) => [
+                ...(i ? [<Spacer key={`gap-${day.key}`} />] : []),
+                <VStack
+                  key={day.key}
+                  spacing={Space.s}
+                  modifiers={[accessibilityElement('ignore'), accessibilityLabel(dayLabel(day))]}
+                >
+                  <Text
                     modifiers={[
-                      foregroundStyle('clear'),
-                      strokeBorder({
-                        content: day.today ? Nocturne.text : Nocturne.edge,
-                        style: { lineWidth: day.today ? 2 : 1.5 },
-                        shape: 'circle',
-                      }),
+                      font({ size: 13, weight: day.today ? 'semibold' : 'regular' }),
+                      foregroundStyle(day.today ? Nocturne.text : Nocturne.text3),
                     ]}
-                  />
-                )}
-                {day.done && !isMistDotViewAvailable ? <Image systemName="checkmark" color={Nocturne.bg} modifiers={[font({ size: 12, weight: 'bold' })]} /> : null}
-              </ZStack>
-            </VStack>,
-          ])}
-        </HStack>
+                  >
+                    {day.letter}
+                  </Text>
+                  <ZStack modifiers={[frame({ width: DOT, height: DOT }), opacity(day.future ? 0.4 : 1)]}>
+                    {day.done && isMistDotViewAvailable ? (
+                      // A won day holds a little of the moon's mist, which sloshes as the phone moves.
+                      <RNHostView matchContents>
+                        <MistDotView paused={reduced} style={{ width: DOT, height: DOT }} />
+                      </RNHostView>
+                    ) : null}
+                    {day.done && !isMistDotViewAvailable ? (
+                      <Circle modifiers={[foregroundStyle(Nocturne.text)]} />
+                    ) : (
+                      <Circle
+                        modifiers={[
+                          foregroundStyle('clear'),
+                          strokeBorder({
+                            content: day.today ? Nocturne.text : Nocturne.edge,
+                            style: { lineWidth: day.today ? 2 : 1.5 },
+                            shape: 'circle',
+                          }),
+                        ]}
+                      />
+                    )}
+                    {day.done && !isMistDotViewAvailable ? <Image systemName="checkmark" color={Nocturne.bg} modifiers={[font({ size: 12, weight: 'bold' })]} /> : null}
+                  </ZStack>
+                </VStack>,
+              ])}
+            </HStack>
+          </VStack>
+        ) : null}
 
         <Spacer />
 
@@ -207,6 +220,8 @@ export function HomeContent(props: HomeContentProps) {
                 <SearchingOrb />
               </RNHostView>
             </ZStack>
+          ) : look === 'problem' ? (
+            <Image systemName="exclamationmark.circle" size={30} color={Nocturne.text} modifiers={enter(2)} />
           ) : (
             <Image systemName={(icon?.ios ?? 'moon.fill') as SymbolName} size={18} color={Nocturne.text2} modifiers={enter(2)} />
           )}
@@ -216,18 +231,31 @@ export function HomeContent(props: HomeContentProps) {
               spacing={Space.xs}
               modifiers={[accessibilityElement('ignore'), accessibilityLabel(hero.title), accessibilityAddTraits(['isHeader']), ...enter(3)]}
             >
-              <Text
-                modifiers={[
-                  font({ size: 64, weight: 'light' }),
-                  monospacedDigit(),
-                  foregroundStyle(Nocturne.text),
-                  contentTransition('numericText'),
-                  animation(Animation.spring({ duration: 0.5, bounce: 0 }), heroKey),
-                ]}
-              >
-                {meter.value}
-              </Text>
-              <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(Nocturne.text2)]}>{meter.caption}</Text>
+              {meter.kicker ? (
+                // Type.label: small capitals, grey.
+                <Text modifiers={[font({ size: 12, weight: 'semibold' }), kerning(1.4), foregroundStyle(Nocturne.text2)]}>
+                  {meter.kicker.toUpperCase()}
+                </Text>
+              ) : null}
+              <HStack alignment="firstTextBaseline" spacing={6}>
+                <Text
+                  modifiers={[
+                    font({ size: 64, weight: 'light' }),
+                    monospacedDigit(),
+                    foregroundStyle(Nocturne.text),
+                    contentTransition('numericText', { countsDown: look === 'day' || look === 'evening' }),
+                    animation(Animation.spring({ duration: 0.5, bounce: 0 }), rollKey),
+                  ]}
+                >
+                  {meter.value}
+                </Text>
+                {meter.unit ? (
+                  <Text modifiers={[font({ size: 28, weight: 'light' }), foregroundStyle(Nocturne.text2)]}>{meter.unit}</Text>
+                ) : null}
+              </HStack>
+              {meter.caption ? (
+                <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(Nocturne.text2)]}>{meter.caption}</Text>
+              ) : null}
               {meter.progress !== undefined ? (
                 <ZStack alignment="leading" modifiers={[frame({ width: TRACK, height: 6 }), padding({ top: Space.s })]}>
                   <Capsule modifiers={[foregroundStyle(Nocturne.progressTrack)]} />
@@ -250,7 +278,7 @@ export function HomeContent(props: HomeContentProps) {
                 accessibilityAddTraits(['isHeader']),
                 // The countdown rolls its digits as the minutes change.
                 contentTransition('numericText', { countsDown: true }),
-                animation(Animation.spring({ duration: 0.5, bounce: 0 }), heroKey),
+                animation(Animation.spring({ duration: 0.5, bounce: 0 }), rollKey),
                 ...enter(3),
               ]}
             >
@@ -283,19 +311,45 @@ export function HomeContent(props: HomeContentProps) {
               {hero.aside}
             </Text>
           ) : null}
-          <Button
-            onPress={action.onPress}
-            modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}
-          >
-            <HStack spacing={6} modifiers={[padding({ vertical: 10, horizontal: 20 }), background(BUTTON, shapes.capsule())]}>
-              <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(Nocturne.text)]}>
+          {weight === 'primary' ? (
+            // The screen's one white button, as wide as the column (buttons.tsx's PrimaryButton).
+            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}>
+              <Text
+                modifiers={[
+                  font({ size: 17, weight: 'semibold' }),
+                  foregroundStyle(Nocturne.onCta),
+                  lineLimit(1),
+                  frame({ maxWidth: 10_000, minHeight: CTA_HEIGHT }),
+                  background(Nocturne.cta, shapes.capsule()),
+                ]}
+              >
                 {action.label}
               </Text>
-              {action.opens ? (
-                <Image systemName="chevron.right" color={Nocturne.text2} modifiers={[font({ size: 11, weight: 'semibold' })]} />
-              ) : null}
-            </HStack>
-          </Button>
+            </Button>
+          ) : weight === 'link' ? (
+            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}>
+              <HStack spacing={4} modifiers={[padding({ vertical: Space.xs })]}>
+                <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>{action.label}</Text>
+                {action.opens ? (
+                  <Image systemName="chevron.right" color={Nocturne.text3} modifiers={[font({ size: 10, weight: 'semibold' })]} />
+                ) : null}
+              </HStack>
+            </Button>
+          ) : (
+            <Button
+              onPress={action.onPress}
+              modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}
+            >
+              <HStack spacing={6} modifiers={[padding({ vertical: 10, horizontal: 20 }), background(BUTTON, shapes.capsule())]}>
+                <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(Nocturne.text)]}>
+                  {action.label}
+                </Text>
+                {action.opens ? (
+                  <Image systemName="chevron.right" color={Nocturne.text2} modifiers={[font({ size: 11, weight: 'semibold' })]} />
+                ) : null}
+              </HStack>
+            </Button>
+          )}
           {alt ? (
             <Button onPress={alt.onPress} modifiers={[buttonStyle('plain'), ...enter(5)]}>
               <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2), padding({ vertical: Space.xs })]}>

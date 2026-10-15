@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, ChoiceRow, sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
@@ -10,6 +9,7 @@ import { FakeTag } from '../wake-lab/fake-tag';
 import { APP_STATES, GROUPS, pickAppState, usePickedAppState, type StateGroup } from './app-states';
 
 const ICONS: Record<StateGroup, ReturnType<typeof sym>> = {
+  Looks: sym('square.on.square', 'filter_none'),
   Status: sym('lock.shield.fill', 'shield'),
   'Needs attention': sym('exclamationmark.triangle.fill', 'warning'),
   Day: sym('sun.max.fill', 'light_mode'),
@@ -33,7 +33,6 @@ function showHome() {
  * state the app gets into that Home has no words for.
  */
 export function AppStatesScreen() {
-  const insets = useSafeAreaInsets();
   const picked = usePickedAppState();
   const pick = (id: string | null) => {
     pickAppState(id);
@@ -43,14 +42,16 @@ export function AppStatesScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.l, paddingBottom: insets.bottom + Space.xxl }]}
+      contentContainerStyle={styles.content}
+      // A sheet (_layout.tsx): its scroll hands the drag back to the sheet at the top.
+      nestedScrollEnabled
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.head}>
         <Text style={styles.title}>App states</Text>
         <Text style={styles.note}>
           Home shows the state you pick, with nothing real changed: no shields, no stores, no notifications. Mornings run the
-          wake preview’s fake sensors. On Home, the arrows step through the list and the tag opens it again.
+          wake preview’s fake sensors. On Home, the arrows step through the list, and a swipe up or the tag opens it again. Swipe this down to close.
         </Text>
         <FakeTag what="on Home while one is picked" style={styles.centered} />
       </View>
@@ -86,7 +87,7 @@ export function AppStatesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Nocturne.bg },
-  content: { paddingHorizontal: Gap.gutter, gap: Gap.block },
+  content: { paddingHorizontal: Gap.gutter, paddingTop: Space.xxl, paddingBottom: Space.xxxl, gap: Gap.block },
   head: { alignItems: 'center', gap: Space.s },
   title: { ...Type.title, color: Nocturne.text },
   note: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },

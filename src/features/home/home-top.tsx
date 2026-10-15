@@ -21,6 +21,8 @@ export type HomeTopProps = {
   revision: number;
   /** Home's staggered entrance (entrance.ts): the pills are step 0, the week step 1. */
   enter: Entrance;
+  /** Today's screen time pill; off at night, when there's nothing to check. */
+  usage?: boolean;
 };
 
 type Symbol = SymbolViewProps['name'];
@@ -30,7 +32,7 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  * The web and Android top section (iOS draws it in SwiftUI, home-content.ios.tsx). Screen time can only be
  * drawn by Apple's report extension, so the web preview shows a sample.
  */
-export function HomeTop({ mornings, today, won, free, enter }: HomeTopProps) {
+export function HomeTop({ mornings, today, won, free, enter, usage = true }: HomeTopProps) {
   const days = weekDays(today, won, free);
   return (
     <View style={styles.top}>
@@ -40,7 +42,7 @@ export function HomeTop({ mornings, today, won, free, enter }: HomeTopProps) {
           <Text style={styles.pillValue}>{mornings}</Text>
           <Text style={styles.pillLabel}>{morningsLabel(mornings)}</Text>
         </View>
-        {Platform.OS === 'web' ? (
+        {Platform.OS === 'web' && usage ? (
           <View style={styles.pill} accessible accessibilityLabel="Sample: 2h 18m of screen time today">
             <SymbolView name={sym('hourglass', 'hourglass_empty')} size={15} tintColor={Nocturne.text} />
             <Text style={styles.pillValue}>2h 18m</Text>

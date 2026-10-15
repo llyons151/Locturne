@@ -57,6 +57,12 @@ test('in the lock\'s day, an edit applies at once and drops a waiting one; from 
   // waits for its bedtime rather than locking the phone this second.
   const earlier = { ...DEFAULT_ROUTINE, bedtime: 20 * 60 };
   assert.ok(applyEdit({ active: DEFAULT_ROUTINE }, earlier, at(21), true, false, true).pending);
+  // Unless they said to sleep now: then it's the routine from now, and tonight has begun.
+  assert.deepEqual(applyEdit({ active: DEFAULT_ROUTINE }, earlier, at(21), true, false, true, true), {
+    active: earlier,
+    since: at(21).getTime(),
+    prior: DEFAULT_ROUTINE,
+  });
 });
 
 test('nextNightOn skips nights off, at that night’s bedtime, and is null with every night off', () => {

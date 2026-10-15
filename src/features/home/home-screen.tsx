@@ -18,7 +18,7 @@ import { getTone } from '@/lib/tone';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { getRoutineChange, nextNightOn, nightAt, nightWasOn, type Routine, type WakeMethod } from '@/lib/routine';
+import { getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import {
   bedtimeAppCount,
@@ -37,21 +37,24 @@ import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
 import { awakeLine, bedtimeQuip, dayHero, napHero, offHero, trialHero } from './awake-line';
-import { HomeContent } from './home-content';
+import { HomeContent, type HomeMeter } from './home-content';
+import type { HomeLook } from './home-look';
 import { LocCue } from './loc';
 import type { LocMoment } from './loc-lines';
-import { duration, useMinute } from './night-meter';
+import { bigClock, duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
 import { useLocMind } from './use-loc-mind';
 import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
+import { useCatchingUp } from './catch-up';
 import { OTHER_WAYS, scanMorning } from './morning';
 import { useMorningPlace } from './use-morning-place';
+import { useMorningPushups } from './use-morning-pushups';
 import { useMorningStairs } from './use-morning-stairs';
 import { useMorningWalk, type MorningWalk } from './use-morning-walk';
 import { useHomeMock } from '../dev/state-lab/app-states';
-import { MockBar } from '../dev/state-lab/mock-bar';
+import { MockBar, MockSwipe } from '../dev/state-lab/mock-bar';
 import { pretendMethod } from '../dev/wake-lab/wake-preview';
 import { weekDays } from './week';
 
@@ -183,6 +186,7 @@ export function HomeScreen() {
   useReviewPrompt(real.lock, real.proof);
   useMoonSink();
   const now = useMinute();
+  const catchingUp = useCatchingUp();
   // Bumped each time Home opens, the app returns to the foreground or the day rolls over, so
   // today's screen time redraws.
   const visit = useVisit(dateKey(now));
@@ -199,16 +203,16 @@ export function HomeScreen() {
   // paused, past a lapse's last paid night, or an empty bedtime list), so it reads as day.
   const phase = facts.held === 'night' && !bedtimeApps ? 'day' : facts.held;
   // The morning happens right here (docs/HOME_INTERACTIVE.md): a walk is counted on Home, the
-  // stairs and the place check-in run on it, and the scan opens only its camera. Push-ups keep
-  // their own screen: the phone lies on the floor with the camera filling it. Steps count under
-  // every method but push-ups, and prove the morning by themselves (GAME_PLAN: walking always
-  // works instead).
+  // stairs and the place check-in run on it, and the scan and push-ups open only their camera
+  // (push-ups used to open the old wake page; user, 2026-10-15). Steps count under every
+  // method, and prove the morning by themselves (GAME_PLAN: walking always works instead).
   const morningHere = !unprotected && phase === 'morning';
-  const walked = useMorningWalk(morningHere && method !== 'pushups', routine);
+  const walked = useMorningWalk(morningHere, routine);
   const walk = method === 'steps' ? walked : null;
   const stairs = useMorningStairs(morningHere && method === 'downstairs', walked);
   const place = useMorningPlace(morningHere && method === 'place', walked, routine.stepGoal);
-  const here = stairs ?? place ?? (morningHere && method === 'scan' ? scanMorning(walked) : null);
+  const pushups = useMorningPushups(morningHere && method === 'pushups', walked, pushupGoalOf(routine), lock.morningKey);
+  const here = stairs ?? place ?? pushups?.morning ?? (morningHere && method === 'scan' ? scanMorning(walked) : null);
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
   // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
@@ -298,6 +302,49 @@ export function HomeScreen() {
               ? { label: `Tomorrow: ${METHOD_NAME[method]} at ${clockLabel(routine.morningStart)}`, onPress: () => router.push('/routine'), opens: true }
               : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
+  // Each state's look (`HomeLook`), so they differ by more than their words.
+  const problem = unprotected || (attention && health.needsSubscription) || (attention && !napping);
+  // The morning just won with a wake-up (not a pass), for three hours after.
+  const wonAt = phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency' && now.getTime() - proof.at < DONE_FOR ? proof : null;
+  // The countdown to a bedtime that will really sleep: the day's plain "Bedtime in" hero.
+  const countdown = phase === 'day' && !problem && !attention && !paused && !trial && !napping && !offTonight && armed && !stoodDown && bedtimeApps && minutes !== null && !!sleepsAt;
+  const asleep = phase === 'night' && !paused && !napping && !unprotected;
+  const look: HomeLook = problem
+    ? 'problem'
+    : phase === 'morning'
+      ? 'morning'
+      : asleep
+        ? 'night'
+        : wonAt && !trial && !napping
+          ? 'done'
+          : countdown
+            ? minutes <= 60
+              ? 'evening'
+              : 'day'
+            : 'plain';
+  const wake = bigClock(routine.morningStart);
+  const face: HomeMeter | undefined =
+    look === 'day' || look === 'evening'
+      ? {
+          kicker: 'Bedtime in',
+          value: duration(minutes ?? 0),
+          // The last hour fills toward bedtime.
+          progress: look === 'evening' ? 1 - (minutes ?? 0) / 60 : undefined,
+        }
+      : look === 'night'
+        ? // The last hour before wake-up counts down under the wake time.
+          { kicker: 'Asleep until', value: wake.value, unit: wake.unit, caption: minutes !== null && minutes <= 60 ? `in ${duration(minutes)}` : undefined }
+        : look === 'done' && wonAt
+          ? { kicker: 'Up at', ...bigClock(new Date(wonAt.at).getHours() * 60 + new Date(wonAt.at).getMinutes()) }
+          : undefined;
+  // The words under the big number: what it doesn't already say.
+  const shown =
+    look === 'night'
+      ? { title: hero.title, body: 'Phone down. They wake once you’re up and moving.' }
+      : look === 'done' && wonAt
+        ? { title: `Up at ${clockAt(new Date(wonAt.at))}`, body: `${DONE_WORDS[wonAt.kind as WakeMethod]}. Your apps are awake.` }
+        : hero;
+
   // Loc sleeps when the apps do (a held night, or Block now), is groggy through the locked
   // morning, and is up by day.
   const baseMood = (phase === 'night' && !paused) || napping ? 'asleep' : phase === 'morning' ? 'groggy' : 'awake';
@@ -333,7 +380,7 @@ export function HomeScreen() {
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;
 
-  return (
+  const screen = (
     <View style={[styles.container, { paddingTop: insets.top + Space.l, paddingBottom: tabInset + moonArc }]}>
       <HomeContent
         mornings={mornings}
@@ -341,9 +388,11 @@ export function HomeScreen() {
         won={won}
         free={free}
         revision={visit}
-        hero={hero}
+        hero={shown}
+        look={look}
+        catchingUp={catchingUp}
         heroKey={walk?.kind === 'counting' ? (walk.steps ?? 0) : here?.meter ? Number.parseFloat(here.meter.value) || 0 : (minutes ?? 0)}
-        meter={walk?.kind === 'counting' ? walkMeter(walk) : here?.meter}
+        meter={walk?.kind === 'counting' ? walkMeter(walk) : (here?.meter ?? face)}
         icon={walk ? WALK_ICON : here?.icon}
         searching={!walk && here?.searching}
         action={action}
@@ -352,10 +401,24 @@ export function HomeScreen() {
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
       {here?.keepAwake ? <StayAwake /> : null}
+      {pushups?.camera}
       {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>
   );
+  // Dev only: a made-up state's list is a swipe up away.
+  return mock ? <MockSwipe>{screen}</MockSwipe> : screen;
 }
+
+/** How long after the wake-up Home keeps showing it (`done`), in milliseconds. */
+const DONE_FOR = 3 * 3_600_000;
+/** The done look's line: what got them up. */
+const DONE_WORDS: Record<WakeMethod, string> = {
+  downstairs: 'Down the stairs',
+  steps: 'Steps walked',
+  scan: 'Code scanned',
+  place: 'Out the door',
+  pushups: 'Push-ups done',
+};
 
 const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };
 

@@ -56,10 +56,11 @@ Rules carried over from the previous plan:
 - The count resets each morning. Reopening the app never resets progress.
 - Bedtime takes precedence: no proof at night (stairs, steps, scan) unlocks apps.
 - 200 is a default to test, not a validated number. The target is adjustable.
-- The user controls the schedule and both app lists at all times, but **every
-  settings change takes effect from the next bedtime** (decided 2026-10-01). An edit
-  made during the night waits for the following night, so nothing can be loosened
-  from bed. The settings screen says so plainly.
+- **Routine (schedule) edits: awake, they apply at once; asleep, they're locked**
+  (decided 2026-10-15, replacing "every change waits for the next bedtime"). Asleep
+  means a held night or a morning not yet proven. A change whose night has already
+  begun (bedtime moved before now) asks first: "This puts your apps to sleep now".
+  Other settings (app lists, limits) still take effect from the next bedtime.
 - Nights can be switched off per weekday. A night that's off has no morning lock
   either (decided 2026-10-01). The always-blocked list still applies.
 - The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
@@ -108,8 +109,10 @@ different ways to prove it, each with its own lines from Loc. Details in
   yet", never a yes. Rules in `src/lib/place.ts`, screen at `/place`. Not built yet:
   the "~150 m from home" mode and the daylight check. Needs a new dev build
   (expo-location).
-- **Background unlock** (being tested): an "I'm up" tap on the shield, then a
-  second check downstairs, might unlock without opening the app
+- **Background unlock** (built 2026-10-15, not yet tried on a device): the morning
+  shield's button is "I'm up". It reads steps and floors since the morning start from
+  the motion chip's history and wakes the apps with Locturne closed: the step goal for
+  any method, or a floor with a few steps for downstairs
   ([docs/BACKGROUND_UNLOCK.md](docs/BACKGROUND_UNLOCK.md)). Don't promise it until
   it works on a device.
 - **More methods later:** a pool of 100 candidates, plus the "build your own

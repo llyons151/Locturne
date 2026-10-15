@@ -28,8 +28,3 @@ export function offBody({ alwaysSleeps, napUntil }: { alwaysSleeps: boolean; nap
     : ' A pass can still end a Block now session.';
   return `Bedtime apps awake tonight.${always}${nap}`;
 }
-
-/** "I can't walk this morning" with no code: it can't be set up from bed, and isn't needed. */
-export function unheldNoCode(phase: 'night' | 'morning'): string {
-  return `No code yet, and it can’t be set up from bed. Your bedtime apps are awake ${when(phase)} anyway.`;
-}

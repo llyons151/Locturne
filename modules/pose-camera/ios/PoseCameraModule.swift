@@ -139,6 +139,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   /// AVCaptureDevice.RotationCoordinator, iOS 17 on (main thread).
   private var coordinator: AnyObject?
   private var coordinatorWatch: NSKeyValueObservation?
+  private var orientationWatch: NSObjectProtocol?
   /// The frames come out stood up by the connection (iOS 17 on), under `lock`. Before, they're
   /// in the sensor's own orientation and turned here with Apple's older front-camera table.
   private var framesUpright = false
@@ -205,6 +206,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
   deinit {
     if let runtimeObserver { NotificationCenter.default.removeObserver(runtimeObserver) }
+    if let orientationWatch { NotificationCenter.default.removeObserver(orientationWatch) }
     if coordinator != nil {
       DispatchQueue.main.async { UIDevice.current.endGeneratingDeviceOrientationNotifications() }
     }
@@ -314,14 +316,26 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     UIDevice.current.beginGeneratingDeviceOrientationNotifications()
     let watched = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: previewLayer)
     coordinator = watched
-    coordinatorWatch = watched.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] c, _ in
-      let angle = c.videoRotationAngleForHorizonLevelCapture
-      DispatchQueue.main.async { self?.learnPortraitAngle(fromCapture: angle) }
+    coordinatorWatch = watched.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] _, _ in
+      DispatchQueue.main.async { self?.learnPortraitAngle() }
+    }
+    // The coordinator's angle and UIDevice's turn don't change at the same moment. Read on the
+    // coordinator's change alone, a turn sideways could pair its new angle with the phone's old
+    // turn and learn an upright a quarter turn out, and nothing read it again: the picture then
+    // turned with the phone, so a plank showed standing up (user, 2026-10-15). Reading both
+    // again when UIDevice's turn lands settles it on the right one.
+    orientationWatch = NotificationCenter.default.addObserver(
+      forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.learnPortraitAngle()
     }
   }
 
-  /// Main thread: the phone's own turn is read here, where UIDevice lives.
-  private func learnPortraitAngle(fromCapture capture: CGFloat) {
+  /// Main thread: the phone's own turn is read here, where UIDevice lives, with the
+  /// coordinator's angle read at the same moment.
+  private func learnPortraitAngle() {
+    guard #available(iOS 17.0, *), let watched = coordinator as? AVCaptureDevice.RotationCoordinator else { return }
+    let capture = watched.videoRotationAngleForHorizonLevelCapture
     let phone: [UIDeviceOrientation: CGFloat] = [.portrait: 0, .landscapeLeft: 90, .portraitUpsideDown: 180, .landscapeRight: 270]
     guard let offset = phone[UIDevice.current.orientation] else { return }
     // Whole quarter turns only.

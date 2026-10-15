@@ -37,7 +37,7 @@ function harness(source: string, nav: { canGoBack: () => boolean; back: () => vo
     '@/lib/emergency': { heldPhase: (phase: string) => phase, bedtimeAppsAhead: () => world.bedtimeApps },
     '@/lib/haptics': { done() {} },
     '@/lib/lock-controller': {
-      readLock: () => lock, routineAt: () => ({ morningStart: 420 }),
+      readLock: () => lock, routineAt: () => ({ morningStart: 420, method: 'scan' }),
       subscriptionEnded: () => world.ended, lapseStillCovers: () => world.lapseCovers,
     },
     '@/lib/lock-state': { nightsAround: () => ({ latest: { end: new Date() } }) },

@@ -106,11 +106,12 @@ export function registerScanCode(
   return null;
 }
 
-export type ScanResult = 'unlocked' | 'wrongCode' | 'noCode' | 'notMorning';
+export type ScanResult = 'unlocked' | 'wrongCode' | 'noCode' | 'notMorning' | 'notMethod';
 
 /**
  * A morning scan. The registered code records this morning's proof and wakes the apps;
- * anything else changes nothing.
+ * anything else changes nothing. Only on a scan morning: a code saved for later is not a way
+ * out of a steps or stairs morning (passes are the only way out early).
  */
 export function submitScan(data: string, now = new Date()): ScanResult {
   const code = getScanCode();
@@ -119,6 +120,7 @@ export function submitScan(data: string, now = new Date()): ScanResult {
   const state = readLock(now);
   // A morning after the last one a lapsed subscription covers holds nothing (`pastLastPaid`).
   if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return 'notMorning';
+  if (judgedAt(now).routine.method !== 'scan') return 'notMethod';
   recordProof({ morningKey: state.morningKey, kind: 'scan', at: now.getTime() }, judgedAt(now));
   syncLock(now);
   return 'unlocked';

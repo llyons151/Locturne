@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Linking } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, Linking } from 'react-native';
 
 import * as haptic from '@/lib/haptics';
 import { DOWNSTAIRS, heightProgress, holdProgress, type DownstairsSession } from '@/lib/wake/downstairs';
@@ -12,16 +12,27 @@ import { orWalk, OTHER_WAYS } from './morning';
 import type { MorningWalk } from './use-morning-walk';
 
 /**
- * Home's morning when the wake-up is "go downstairs" (docs/HOME_INTERACTIVE.md): Start in bed,
- * then the height meter fills right on Home, then the five-second hold, and the morning is
- * proved in place. What downstairs-view.tsx does on the wake screen, drawn as Home's hero.
- * Null while `enabled` is false. `walk` is the steps fallback, counted underneath.
+ * Home's morning when the wake-up is "go downstairs" (docs/HOME_INTERACTIVE.md): the barometer
+ * listens as soon as Home shows the morning, with no Start to tap (user, 2026-10-15), then the
+ * height meter fills right on Home, then the five-second hold, and the morning is proved in
+ * place. A session that finds no floor in five minutes starts again from where the phone is
+ * then, so it keeps listening for as long as Home is open. Null while `enabled` is false.
+ * `walk` is the steps fallback, counted underneath.
  */
 export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): HomeMorning | null {
-  const { access, session, start, stop, cancel } = useDownstairs(enabled);
+  const { access, session, start, stop } = useDownstairs(enabled);
   const prove = useProveMorning();
   const status = session?.status;
   const met = enabled && status === 'met';
+  const active = useActive();
+
+  // Listening starts by itself, and starts again after five minutes with no floor or a trip to
+  // the background (iOS pauses the barometer there, so the watch drops the session). Only in
+  // the foreground: a session begun in the background would judge a gap.
+  const idle = !session || status === 'timedOut';
+  useEffect(() => {
+    if (enabled && active && access === 'ready' && idle) void start();
+  }, [enabled, active, access, idle, start]);
 
   useEffect(() => {
     if (met) prove('downstairs');
@@ -72,39 +83,46 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
   const line = downstairsLine(status ?? 'idle', session ? heightProgress(session) : 0);
   const running = !!session && status !== 'met' && status !== 'timedOut';
 
-  if (!session || status === 'timedOut')
+  // Not listening yet (the barometer's being checked, or Motion & Fitness asked for), or
+  // listening with the height still: the meter shows once it starts to move. The screen stays
+  // on while listening, since a locked phone pauses the barometer and would lose the baseline.
+  if (!session || status === 'timedOut' || status === 'waiting')
     return {
       icon,
-      hero: {
-        title: session ? 'No stairs yet' : 'Go down a floor',
-        body: `${bodyFor(status)}${instead}`,
-        aside: line,
-      },
-      // Start asks for Motion & Fitness the first time; until the barometer's checked it waits.
-      action: { label: session ? 'Start again' : 'Start', onPress: access === 'checking' ? () => {} : start },
-      alt: OTHER_WAYS,
+      hero: { title: 'Go down a floor', body: `${bodyFor(undefined)}${instead}`, aside: line },
+      action: OTHER_WAYS,
+      keepAwake: running,
     };
 
   return {
     icon,
     hero: { title: meterLabel(session), body: bodyFor(status), aside: line },
     meter: heightMeter(session),
-    action: running ? { label: 'Stop', onPress: cancel } : { label: 'Start', onPress: start },
-    alt: OTHER_WAYS,
+    action: OTHER_WAYS,
     keepAwake: running,
   };
+}
+
+/** Whether the app is in the foreground, as it changes. */
+function useActive() {
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setActive(state === 'active'));
+    return () => sub.remove();
+  }, []);
+  return active;
 }
 
 function bodyFor(status: DownstairsSession['status'] | undefined): string {
   switch (status) {
     case undefined:
-      return 'Tap Start, then take the stairs with your phone. One floor down, or up, and stay there for five seconds.';
+      return 'Take the stairs with your phone. One floor down, or up, and stay there for five seconds.';
     case 'holding':
       return 'Stay on this floor for five seconds.';
     case 'met':
       return 'Floor reached.';
     case 'timedOut':
-      return 'Nothing like a floor in five minutes. Start again on the stairs.';
+      return 'Nothing like a floor yet. Still listening.';
     default:
       return 'Keep the screen on and take the stairs. Up counts too.';
   }

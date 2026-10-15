@@ -32,11 +32,12 @@ export default function WakeRoute() {
     method === 'steps' || ((method === 'downstairs' || method === 'pushups') && (pretend || routine.method === method))
       ? method
       : undefined;
-  // Walks, the stairs and the place check-in all happen on Home now; push-ups and the scan
-  // camera keep their own screens.
+  // Walks, the stairs, the place check-in and push-ups all happen on Home now (push-ups open
+  // their camera from there); the scan camera keeps its own screen.
   const homeMethod = methodInUse(routine.method);
-  if (!chosen && (homeMethod === 'steps' || homeMethod === 'downstairs' || homeMethod === 'place')) return <Redirect href="/" />;
-  if (chosen === 'downstairs' && !pretend) return <Redirect href="/" />;
+  if (!chosen && (homeMethod === 'steps' || homeMethod === 'downstairs' || homeMethod === 'place' || homeMethod === 'pushups'))
+    return <Redirect href="/" />;
+  if ((chosen === 'downstairs' || chosen === 'pushups') && !pretend) return <Redirect href="/" />;
   const scan = !chosen && routine.method === 'scan';
   if (scan && shownScanCode()) return <Redirect href="/scan?mode=morning" />;
   const place = !chosen && routine.method === 'place';

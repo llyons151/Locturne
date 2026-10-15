@@ -22,9 +22,9 @@ import { fakeTheMorning, setWakePreview, useWakePreview, type WakePreview } from
  * says today, as a place to start on it.
  */
 
-export type StateGroup = 'Status' | 'Needs attention' | 'Day' | 'Woken up' | 'Trial' | 'Week' | 'Nap' | 'Night' | 'Morning';
+export type StateGroup = 'Looks' | 'Status' | 'Needs attention' | 'Day' | 'Woken up' | 'Trial' | 'Week' | 'Nap' | 'Night' | 'Morning';
 
-export const GROUPS: StateGroup[] = ['Status', 'Needs attention', 'Day', 'Woken up', 'Trial', 'Week', 'Nap', 'Night', 'Morning'];
+export const GROUPS: StateGroup[] = ['Looks', 'Status', 'Needs attention', 'Day', 'Woken up', 'Trial', 'Week', 'Nap', 'Night', 'Morning'];
 
 export type AppState = {
   id: string;
@@ -164,6 +164,71 @@ const unsubscribed = (d: HomeFacts, now: Date): HomeFacts => ({
 });
 
 export const APP_STATES: AppState[] = [
+  // Looks: one state for each of Home's looks (`HomeLook`, home-content.tsx), to compare them.
+  {
+    id: 'look-day',
+    group: 'Looks',
+    label: 'Day: bedtime countdown',
+    note: 'The countdown to bedtime is the big number; the quiet pill under it.',
+    facts: (d) => d,
+  },
+  {
+    id: 'look-evening',
+    group: 'Looks',
+    label: 'Close to bedtime',
+    note: 'The last hour: the countdown over a track filling toward bedtime.',
+    facts: (d, now) => ({ ...d, sleepsAt: from(now, 25 / 60), lock: { ...d.lock, nextChange: from(now, 25 / 60) } }),
+  },
+  {
+    id: 'look-night',
+    group: 'Looks',
+    label: 'Asleep',
+    note: 'The wake time is the big number. The top dims, screen time goes, the button is plain text.',
+    facts: (d, now) => night(d, now),
+  },
+  {
+    id: 'look-wake-soon',
+    group: 'Looks',
+    label: 'Close to morning',
+    note: 'Asleep, inside the last hour before wake-up: “in 25m” under the wake time.',
+    facts: (d, now) => {
+      const n = night(d, now);
+      return { ...n, lock: { ...n.lock, nextChange: from(now, 25 / 60) } };
+    },
+  },
+  {
+    id: 'look-morning',
+    group: 'Looks',
+    label: 'Morning: time to get up',
+    note: 'The morning on Home: the stairs listen by themselves (no Start); a button it needs is the white primary one.',
+    morning: { method: 'downstairs', fakes: { stairs: 'down' } },
+    facts: (d, now) => morning(d, now, 'downstairs'),
+  },
+  {
+    id: 'look-done',
+    group: 'Looks',
+    label: 'Just got up',
+    note: '“Up at” the time they got up, for three hours after a wake-up (not a pass).',
+    facts: (d, now) => {
+      const w = woke(d, now, d.routine.method);
+      return { ...w, won: new Set([...w.won, w.lock.morningKey]), mornings: w.mornings + 1 };
+    },
+  },
+  {
+    id: 'look-problem',
+    group: 'Looks',
+    label: 'Something to fix',
+    note: 'Something to fix takes over: the top goes, and the fix is the primary button.',
+    facts: (d, now) => ({ ...d, health: health(now, { protection: 'notSetUp', access: 'notDetermined' }) }),
+  },
+  {
+    id: 'look-plain',
+    group: 'Looks',
+    label: 'Nap or pass',
+    note: 'Naps, passes, nights off and the trial keep the headline and line.',
+    facts: (d, now) => nap(d, now),
+  },
+
   // Status: access off or never given replaces everything (health.ts).
   {
     id: 'setup',

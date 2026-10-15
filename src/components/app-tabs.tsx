@@ -4,7 +4,7 @@
 
 import { router } from 'expo-router';
 import { useNavigationState, useRoute } from 'expo-router/react-navigation';
-import { Tabs, type BottomTabBarProps, type BottomTabNavigationOptions } from 'expo-router/js-tabs';
+import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 
 import { MoonWater } from '@/components/moon-water';
+import { Knockable, useNavKnock } from '@/components/nav-knock';
 import { tap } from '@/lib/haptics';
 import { Nocturne, Space } from '@/theme';
 
@@ -162,10 +163,13 @@ export default function AppTabs() {
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const height = tabStripHeight(insets.bottom);
+  // These bounce as Loc burrows under them (components/nav-knock): the tabs, then the moon.
+  const knock = useNavKnock(state.routes.length + 1, reduced);
 
   return (
-    <View style={[styles.strip, { height: tabStripHeight(insets.bottom) }]}>
-      <View style={styles.row}>
+    <View style={[styles.strip, { height }]}>
+      <View style={styles.row} onLayout={knock.row}>
         {state.routes.map((route, index) => {
           const tab = TABS[route.name];
           if (!tab) return null;
@@ -185,17 +189,15 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
           };
 
           return (
-            <TabButton
-              key={route.key}
-              tab={tab}
-              focused={focused}
-              reduced={reduced}
-              onPress={onPress}
-            />
+            <Knockable key={route.key} knock={knock} index={index}>
+              <TabButton tab={tab} focused={focused} reduced={reduced} onPress={onPress} />
+            </Knockable>
           );
         })}
         <View style={styles.spacer} />
-        <SleepButton reduced={reduced} />
+        <Knockable knock={knock} index={state.routes.length}>
+          <SleepButton reduced={reduced} />
+        </Knockable>
       </View>
     </View>
   );

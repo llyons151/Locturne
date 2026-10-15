@@ -354,14 +354,18 @@ struct PickedRowStyle: LabelStyle {
         .clipShape(Circle())
         // A faint edge, so black icons keep their shape on the black card.
         .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1 / UIScreen.main.scale))
-      VStack(alignment: .leading, spacing: 2) {
+      // Each line gets a fixed height: iOS draws the token's title with its own padding, which
+      // pushed the name and its kind below the icon's middle. Fixed lines center on the icon.
+      VStack(alignment: .leading, spacing: 0) {
         configuration.title
           .font(.system(size: 17, weight: .medium))
+          .frame(height: 21, alignment: .leading)
         // Only worth saying when it isn't a plain app: a whole category, or a website.
         if kind != "App" {
           Text(kind)
             .font(.system(size: 14))
             .foregroundStyle(secondary)
+            .frame(height: 17, alignment: .leading)
         }
       }
       Spacer(minLength: 8)

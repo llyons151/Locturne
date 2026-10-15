@@ -50,6 +50,7 @@ function screen(initial: Stored, now?: Date) {
     'expo-symbols': { SymbolView: 'SymbolView' },
     'react-native': {
       AccessibilityInfo: { announceForAccessibility() {} },
+      Alert: { alert() {} },
       AppState: { addEventListener: () => ({ remove() {} }) },
       Platform: { OS: 'ios' },
       Pressable: 'Pressable',
@@ -82,6 +83,9 @@ function screen(initial: Stored, now?: Date) {
     '@/hooks/use-top-on-leave': { useTopOnLeave() {} },
     '@/components/glass-card': { GlassCard: 'GlassCard' },
     './apply-edit': {
+      routineEditRefusal: () => null,
+      sleepsAtOnce: () => null,
+      ASLEEP_NOTE: '',
       applyRoutineEdit(r: Stored) {
         stored = r;
         saves.push(r);

@@ -286,7 +286,7 @@ const moodFor = (s: PushupsSession | null): LocMood => {
  * the top, and Loc on the black strip at the bottom, as on Home, saying what he thinks of it.
  * The phone is on the floor and you're looking down, so he says the count out loud too.
  */
-function PushupsCamera({
+export function PushupsCamera({
   target,
   instead,
   onMet,

@@ -80,6 +80,8 @@ function firstStage(mode: ScanMode | undefined): Stage {
   if (mode === 'morning' || (!mode && phase === 'morning' && code)) {
     // No code: from bed it can't be set up ("your usual way still works"); in the day it can.
     if (!code) return phase === 'night' || phase === 'morning' ? { kind: 'noCode' } : { kind: 'choose', source: 'qr' };
+    // A saved code only wakes a scan morning, never a steps or stairs one (`submitScan`).
+    if (!pretendPhase() && phase === 'morning' && routineAt(new Date()).method !== 'scan') return { kind: 'notMethod' };
     return notMorning(phase) ?? { kind: 'morning' };
   }
   if (getScanEditRefusal()) return { kind: 'asleep' };
@@ -111,6 +113,11 @@ function words(stage: Stage): { line: string; body: string } {
       return {
         line: 'There is no code.',
         body: 'You can set one up in the day, once you’re up. Until then, your usual way still works.',
+      };
+    case 'notMethod':
+      return {
+        line: 'Nice try.',
+        body: 'Your code only counts on mornings you wake with it. Do your usual morning, or use a pass.',
       };
     case 'asleep':
       return {
@@ -170,6 +177,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
       setStage({ kind: 'unlocked', morningKey: readLock().morningKey });
     } else if (result === 'notMorning') setStage(notMorning(pretendPhase() ?? readLock().phase) ?? { kind: 'awake' });
     else if (result === 'noCode') setStage({ kind: 'noCode' });
+    else if (result === 'notMethod') setStage({ kind: 'notMethod' });
     else {
       haptic.thud();
       setStage({ kind: 'morning', miss: true });
@@ -271,7 +279,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
           </>
         ) : null}
 
-        {finished || stage.kind === 'asleep' || stage.kind === 'notYet' || stage.kind === 'awake' || stage.kind === 'noCode' ? (
+        {finished || stage.kind === 'asleep' || stage.kind === 'notYet' || stage.kind === 'awake' || stage.kind === 'noCode' || stage.kind === 'notMethod' ? (
           <PrimaryButton label={finished ? 'Done' : 'Okay'} onPress={close} />
         ) : null}
       </View>

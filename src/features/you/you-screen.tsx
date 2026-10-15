@@ -33,11 +33,11 @@ import { getTone, setTone, type Tone } from '@/lib/tone';
 import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import type { WakeMethod } from '@/lib/routine';
-import { getScanCode } from '@/lib/scan';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
+import { APP_STATES, pickAppState } from '@/features/dev/state-lab/app-states';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
-import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
+import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from '@/features/routine/apply-edit';
 
 import { refusal, SIGN_OFF } from './fire-loc';
 import { DEMO_LINE, LocCard } from './loc-card';
@@ -76,6 +76,18 @@ function refillDate(now: Date) {
 const open = (url: string) => Linking.openURL(url).catch(() => {});
 
 /** Dev (You → UI): a morning screen with every sensor faked, at any hour. */
+/** The UI section's Home looks, by app-state id. */
+const LOOK_ICONS: Record<string, ReturnType<typeof sym>> = {
+  'look-day': sym('sun.max.fill', 'light_mode'),
+  'look-evening': sym('sunset.fill', 'wb_twilight'),
+  'look-night': sym('moon.zzz.fill', 'bedtime'),
+  'look-wake-soon': sym('sunrise.fill', 'wb_twilight'),
+  'look-morning': sym('alarm.fill', 'alarm'),
+  'look-done': sym('checkmark.circle.fill', 'check_circle'),
+  'look-problem': sym('exclamationmark.circle.fill', 'error'),
+  'look-plain': sym('moon.fill', 'dark_mode'),
+};
+
 function preview(href: Href, method?: WakeMethod) {
   fakeTheMorning(method);
   router.push(href);
@@ -169,7 +181,8 @@ export function YouScreen() {
   });
   const [{ inTrial, trialEnd, passesLeft, stepGoal, mornings }, setFacts] = useState(read);
   const setStepGoal = (goal: number) => {
-    applyRoutineEdit({ ...getSetRoutine(), stepGoal: goal });
+    // Not from bed (apply-edit.ts): says so, and the target stays as it was.
+    if (!refuseWhileAsleep()) applyRoutineEdit({ ...getSetRoutine(), stepGoal: goal });
     setFacts(read());
   };
 
@@ -189,12 +202,12 @@ export function YouScreen() {
     const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
     return () => sub.remove();
   }, [refresh]);
-  // Setting up a code is refused from bed (scan.ts): then the morning scan if there's a code,
-  // or the ways out that work without one.
+  // Setting up a code is refused from bed (scan.ts), and a code never stands in for the morning's
+  // own method: from bed, a pass is the way out.
   const cantWalk = () => {
     const { phase } = readLock();
     if (phase !== 'night' && phase !== 'morning') return router.push({ pathname: '/scan', params: { mode: 'setup' } });
-    router.push(getScanCode() ? '/scan?mode=morning' : '/exits');
+    router.push('/exits');
   };
   // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
   const manage = () => {
@@ -314,6 +327,23 @@ export function YouScreen() {
           <Text style={styles.heading} accessibilityRole="header">
             UI
           </Text>
+          {/* Home in each of its looks (`HomeLook`), from the app-states lab's Looks group. */}
+          <Card footer="Home dressed as each state, with nothing real changed. On Home, ‹ › steps through every state. All of them: Developer → App states.">
+            {APP_STATES.filter((s) => s.group === 'Looks').map((s, i, all) => (
+              <ValueRow
+                key={s.id}
+                icon={LOOK_ICONS[s.id] ?? sym('house.fill', 'home')}
+                title={s.label}
+                value=""
+                onPress={() => {
+                  pickAppState(s.id);
+                  router.push('/');
+                }}
+                last={i === all.length - 1}
+              />
+            ))}
+          </Card>
+
           {/* Each morning screen on the phone at any hour, every sensor faked (features/dev/wake-lab/wake-preview.ts). */}
           <Card footer="The real screens with fake sensors and a fake morning. Nothing is recorded. More states: Developer → Wake preview.">
             <ValueRow icon={sym('house.fill', 'home')} title="Home, morning" value="" onPress={() => preview('/')} />
@@ -362,6 +392,10 @@ export function YouScreen() {
           {/* Every move Loc makes, frame by frame, his style and his model sheet (features/dev/loc-studio). */}
           <Card footer="Loc on the real rig: every move frame by frame, his style, his model sheet and his art.">
             <ValueRow icon={sym('pawprint.fill', 'pets')} title="Loc studio" value="" onPress={() => router.push('/loc-studio')} last />
+          </Card>
+          {/* The nav buttons bouncing as Loc burrows, tuned live over Home (features/dev/knock-lab). */}
+          <Card footer="Sliders for how the nav buttons bounce when Loc burrows under them. Opens over Home.">
+            <ValueRow icon={sym('circle.grid.cross.fill', 'sports_baseball')} title="Knock lab" value="" onPress={() => router.push('/knock-lab')} last />
           </Card>
         </>
       ) : null}

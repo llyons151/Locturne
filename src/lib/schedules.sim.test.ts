@@ -41,7 +41,6 @@ const { armTonight } = await import('./arm.ts');
 
 type Draft = Omit<import('./schedules.ts').Schedule, 'pending'>;
 
-const MIN = 60_000;
 /** October 2026 (the 5th is a Monday), local time. */
 const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).getTime();
 const asleep = (app: string) => device.state.shielded.has(app);

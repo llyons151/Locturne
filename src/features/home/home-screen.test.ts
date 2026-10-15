@@ -47,6 +47,8 @@ type Setup = {
   change?: { at: Date; size: number } | null;
   /** What the morning walk reads while it's on (`useMorningWalk`). */
   walk?: Record<string, unknown>;
+  /** This morning's proof (`useHomeState`). */
+  proof?: { morningKey: string; kind: string; at: number } | null;
   /** The routine's wake-up method. */
   method?: string;
 };
@@ -67,6 +69,7 @@ function home({
   change = null,
   walk = { kind: 'counting', steps: 64, goal: 200 },
   method = 'steps',
+  proof = null,
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
@@ -98,7 +101,7 @@ function home({
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
+    '@/lib/routine': { pushupGoalOf: () => 20, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
       bedtimeAppCount: () => night,
@@ -119,21 +122,25 @@ function home({
     './awake-line': awakeLine,
     './home-content': { HomeContent: 'HomeContent' },
     './loc': { LocCue: 'LocCue' },
-    './night-meter': { duration: (m: number) => `${m} min`, useMinute: () => now },
+    './night-meter': { bigClock: (m: number) => ({ value: String(m), unit: '' }), duration: (m: number) => `${m} min`, useMinute: () => now },
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
     './use-loc-mind': { useLocMind: () => ({ proud: false, wary: 0, moment: null }) },
     '@/lib/tone': { getTone: () => 'grumpy' },
     './use-moon-sink': { useMoonSink() {} },
+    './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
     'expo-keep-awake': { useKeepAwake() {} },
     './morning': { scanMorning: (w: unknown) => morningOf('scan', w) },
     './use-morning-stairs': { useMorningStairs: (on: boolean, w: unknown) => (on ? morningOf('stairs', w) : null) },
     './use-morning-place': { useMorningPlace: (on: boolean, w: unknown) => (on ? morningOf('place', w) : null) },
+    './use-morning-pushups': {
+      useMorningPushups: (on: boolean, w: unknown) => (on ? { morning: morningOf('pushups', w), camera: null } : null),
+    },
     '../dev/wake-lab/wake-preview': { pretendMethod: () => null },
     '../dev/state-lab/app-states': { useHomeMock: () => null },
-    '../dev/state-lab/mock-bar': { MockBar: 'MockBar' },
-    './use-home-state': { useHomeState: () => ({ lock, routine: { method, morningStart: 7 * 60, stepGoal: 200 }, proof: null }) },
+    '../dev/state-lab/mock-bar': { MockBar: 'MockBar', MockSwipe: 'MockSwipe' },
+    './use-home-state': { useHomeState: () => ({ lock, routine: { method, morningStart: 7 * 60, stepGoal: 200 }, proof }) },
     './week': { weekDays: () => [] },
   };
   const exports = {} as { HomeScreen: () => Tree };
@@ -147,7 +154,8 @@ function home({
       action: { label: string };
       alt?: { label: string };
       icon?: { ios: string };
-      meter?: { value: string; caption: string; progress?: number };
+      meter?: { value: string; caption?: string; progress?: number; kicker?: string };
+      look: string;
     }),
     mood: (loc.props as { mood: string }).mood,
   };
@@ -199,10 +207,9 @@ describe('Home in the trial’s last days (B4)', () => {
   });
 
   test('a night that sleeps keeps its own hero and action', () => {
-    // Push-ups: the one morning that still opens its own screen from Home's button.
     const { hero, action } = home({ now: new Date(2026, 9, 10, 7, 30), phase: 'morning', trialEnd, method: 'pushups' });
-    assert.equal(hero.title, 'Time to get up');
-    assert.equal(action.label, 'Start push-ups');
+    assert.equal(hero.title, 'pushups hero');
+    assert.equal(action.label, 'pushups action');
   });
 });
 
@@ -356,9 +363,9 @@ describe('Home during a walk morning', () => {
     assert.equal(action.label, 'Open Settings');
   });
 
-  test('by day there is no walk on Home', () => {
+  test('by day there is no walk on Home, only the countdown to bedtime', () => {
     const { meter } = home({ now: new Date(2026, 9, 9, 13), phase: 'day' });
-    assert.equal(meter, undefined);
+    assert.equal(meter?.kicker, 'Bedtime in');
   });
 });
 
@@ -385,12 +392,13 @@ describe('Home during the other methods’ mornings', () => {
     }
   });
 
-  test('push-ups keep their own screen, and no walk is counted for them', () => {
-    const { hero, action, alt, meter } = home({ now, phase: 'morning', method: 'pushups' });
-    assert.equal(hero.title, 'Time to get up');
-    assert.equal(action.label, 'Start push-ups');
-    assert.equal(alt, undefined);
-    assert.equal(meter, undefined);
+  test('push-ups are Home’s morning too, with the walk counted under them', () => {
+    // They used to open the old wake page from Home's button (user, 2026-10-15).
+    const { hero, action, alt } = home({ now, phase: 'morning', method: 'pushups' });
+    assert.equal(hero.title, 'pushups hero');
+    assert.equal(hero.body, 'walk counted');
+    assert.equal(action.label, 'pushups action');
+    assert.equal(alt?.label, 'Other ways to wake them');
   });
 
   test('the walk’s own meter is the walk icon, and nothing else leaks in by day', () => {
@@ -398,5 +406,54 @@ describe('Home during the other methods’ mornings', () => {
     const day = home({ now: new Date(2026, 9, 9, 13), phase: 'day', method: 'downstairs' });
     assert.equal(day.icon, undefined);
     assert.equal(day.alt, undefined);
+  });
+});
+
+describe('Home’s looks', () => {
+  test('by day the countdown to bedtime is the big number, with no track', () => {
+    const { look, meter } = home({ now: new Date(2026, 9, 9, 13) });
+    assert.equal(look, 'day');
+    assert.deepEqual([meter?.kicker, meter?.value, meter?.progress], ['Bedtime in', '600 min', undefined]);
+  });
+
+  test('the last hour fills a track toward bedtime', () => {
+    const { look, meter } = home({ now: new Date(2026, 9, 9, 22, 30) });
+    assert.equal(look, 'evening');
+    assert.equal(meter?.progress, 0.5);
+  });
+
+  test('at night the wake time is the big number and the button is plain text', () => {
+    const { look, meter } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night' });
+    assert.equal(look, 'night');
+    assert.equal(meter?.kicker, 'Asleep until');
+  });
+
+  test('a locked morning wears the morning look', () => {
+    assert.equal(home({ now: new Date(2026, 9, 9, 7, 10), phase: 'morning', method: 'downstairs' }).look, 'morning');
+  });
+
+  test('Screen Time off takes over as a problem, even at night', () => {
+    const { look } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', health: { protection: 'off', title: 'Off', detail: 'x' } });
+    assert.equal(look, 'problem');
+  });
+
+  test('a morning won with a wake-up shows when they got up, for three hours', () => {
+    const at = new Date(2026, 9, 9, 7, 6).getTime();
+    const proof = { morningKey: '2026-10-09', kind: 'steps', at };
+    const soon = home({ now: new Date(2026, 9, 9, 8), proof });
+    assert.equal(soon.look, 'done');
+    assert.equal(soon.meter?.kicker, 'Up at');
+    assert.equal(home({ now: new Date(2026, 9, 9, 11), proof }).look, 'day');
+  });
+
+  test('a pass is no win: the day stays the day', () => {
+    const proof = { morningKey: '2026-10-09', kind: 'pass', at: new Date(2026, 9, 9, 7).getTime() };
+    assert.equal(home({ now: new Date(2026, 9, 9, 8), proof }).look, 'day');
+  });
+
+  test('a paused night stays plain, with no countdown', () => {
+    const { look, meter } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', pause: new Date(2026, 9, 10, 23) });
+    assert.equal(look, 'plain');
+    assert.equal(meter, undefined);
   });
 });

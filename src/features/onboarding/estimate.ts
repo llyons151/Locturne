@@ -51,7 +51,9 @@ export function estimate(input: EstimateInput): Estimate {
 
   const weeklyMinutes = (nightMinutes + morningMinutes) * nightsPerWeek;
   const weeklyHours = Math.floor(weeklyMinutes / 30) / 2;
-  const yearlyHours = Math.floor((weeklyMinutes * 52) / 60);
+  // From the week as shown, so "9 hours a week" reads as 468 a year, not 485. Under half an
+  // hour a week the reveal says minutes, and the year is counted from those.
+  const yearlyHours = weeklyHours > 0 ? weeklyHours * 52 : Math.floor((weeklyMinutes * 52) / 60);
   const yearlyDays = Math.floor(yearlyHours / 24);
   const yearsLeft = age === undefined ? 0 : Math.max(0, AVERAGE_LIFESPAN - age);
   const lifetimeDays = Math.floor((yearlyHours * yearsLeft) / 24);

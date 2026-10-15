@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AppState, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '@/components/text';
 
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
@@ -56,6 +56,11 @@ export function useMinute() {
     const id = setTimeout(() => setNow(new Date()), 60_000 - (Date.now() % 60_000) + 50);
     return () => clearTimeout(id);
   }, [now]);
+  // Timers stop while the app is suspended: catch up the moment it's back, not up to a minute later.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && setNow(new Date()));
+    return () => sub.remove();
+  }, []);
   return now;
 }
 

@@ -3,7 +3,7 @@ import type { Phase } from '../../lib/lock-state.ts';
 export type Stage =
   | { kind: 'morning'; miss?: boolean }
   | { kind: 'unlocked'; morningKey: string }
-  | { kind: 'notYet' | 'awake' | 'noCode' | 'asleep' | 'saved' }
+  | { kind: 'notYet' | 'awake' | 'noCode' | 'notMethod' | 'asleep' | 'saved' }
   | { kind: 'choose'; source: 'qr' | 'barcode' }
   | { kind: 'register'; source: 'qr' | 'barcode'; expect?: string; miss?: boolean };
 

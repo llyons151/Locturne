@@ -7,7 +7,7 @@ import * as haptic from '@/lib/haptics';
 import { pushupGoalOf } from '@/lib/routine';
 import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
-import { applyRoutineEdit, getSetRoutine } from './apply-edit';
+import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from './apply-edit';
 import { PushupWheel } from './pushup-wheel';
 
 /**
@@ -24,11 +24,12 @@ export function PushupsSheet() {
     latest.current = count;
   }, [count]);
 
-  // Saved as the sheet goes, whichever way it's closed.
+  // Saved as the sheet goes, whichever way it's closed. From bed (a deep link while the apps
+  // are asleep) it's refused, and says so rather than dropping the number quietly.
   useEffect(
     () => () => {
       const set = getSetRoutine();
-      if (pushupGoalOf(set) !== latest.current) applyRoutineEdit({ ...set, pushupGoal: latest.current });
+      if (pushupGoalOf(set) !== latest.current && !refuseWhileAsleep()) applyRoutineEdit({ ...set, pushupGoal: latest.current });
     },
     [],
   );

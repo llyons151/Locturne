@@ -4,6 +4,7 @@ import { IS_DOM } from 'expo/dom';
 import { useEffect, useRef } from 'react';
 
 import { LocRig, type LocMood } from './loc-rig';
+import { NAV_KNOCK, type BurrowPath, type NavKnockTune } from './nav-knock-tune';
 
 /**
  * Loc's canvas, as a DOM component (docs.expo.dev/guides/dom-components): the rig is WebGL and
@@ -23,6 +24,9 @@ export default function LocStage({
   ink,
   wary = 0,
   onCue,
+  onBurrow,
+  burrowNonce = 0,
+  knock,
 }: {
   mood: LocMood;
   share: number;
@@ -33,6 +37,12 @@ export default function LocStage({
   ink?: string;
   /** What just happened to him (a poke, popping back up...), for his speech bubble. A native action on iOS. */
   onCue?: (cue: 'poke' | 'angry' | 'hello' | 'hide') => void;
+  /** Each burrow's planned run, for the nav strip's bounce (components/nav-knock). A native action on iOS. */
+  onBurrow?: (path: BurrowPath) => void;
+  /** Bumped to send him under from outside (the knock lab's Burrow button). */
+  burrowNonce?: number;
+  /** The knock lab's live tuning; inside the webview this module is a copy, so it comes as a prop. */
+  knock?: NavKnockTune;
   dom?: import('expo/dom').DOMProps;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,6 +57,7 @@ export default function LocStage({
   const waryRef = useRef(wary);
   const lastTap = useRef(0);
   const onCueRef = useRef(onCue);
+  const onBurrowRef = useRef(onBurrow);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,6 +67,7 @@ export default function LocStage({
     rig.setShare(shareRef.current);
     rig.setWary(waryRef.current);
     rig.onCue = (cue) => onCueRef.current?.(cue);
+    rig.onBurrow = (path) => onBurrowRef.current?.(path);
     rigRef.current = rig;
     // He arrives from the `present` effect below, which runs after this one with the rig made.
     let frame = 0;
@@ -132,7 +144,18 @@ export default function LocStage({
 
   useEffect(() => {
     onCueRef.current = onCue;
-  }, [onCue]);
+    onBurrowRef.current = onBurrow;
+  }, [onCue, onBurrow]);
+
+  useEffect(() => {
+    if (knock) Object.assign(NAV_KNOCK, knock);
+  }, [knock]);
+
+  useEffect(() => {
+    if (!burrowNonce) return;
+    rigRef.current?.burrow();
+    wakeRef.current();
+  }, [burrowNonce]);
 
   useEffect(() => {
     waryRef.current = wary;

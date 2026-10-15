@@ -1,6 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
@@ -30,6 +32,26 @@ export function MockBar({ label, top }: { label: string; top: number }) {
       <Arrow name="chevron.right" android="chevron_right" label="Next state" onPress={() => stepAppState(1)} />
     </View>
   );
+}
+
+/** How far up, in points, a swipe has to go to open the list. */
+const SWIPE = 60;
+
+/**
+ * Dev only: while a made-up state shows, a swipe up on Home (above the moon, which is drawn
+ * over it) opens the list of states as a sheet (/app-states), so switching never means going
+ * back to the You tab.
+ */
+export function MockSwipe({ children }: { children: ReactNode }) {
+  // A drag rather than a fling: a fling wants a fast flick, and missed slow swipes.
+  const swipeUp = Gesture.Pan()
+    .activeOffsetY(-20)
+    .failOffsetX([-30, 30])
+    .runOnJS(true)
+    .onEnd((e) => {
+      if (e.translationY < -SWIPE) router.push('/app-states');
+    });
+  return <GestureDetector gesture={swipeUp}>{children}</GestureDetector>;
 }
 
 function Arrow({ name, android, label, onPress }: { name: string; android: string; label: string; onPress: () => void }) {

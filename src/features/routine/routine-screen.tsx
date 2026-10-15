@@ -6,7 +6,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Alert, AppState, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -50,7 +50,7 @@ import {
 
 import { NightDial } from './night-dial';
 import { fromWeekday, nightsToWeekdays, weekdaysToNights } from './nights';
-import { applyRoutineEdit } from './apply-edit';
+import { applyRoutineEdit, ASLEEP_NOTE, routineEditRefusal, sleepsAtOnce } from './apply-edit';
 import { pendingLine } from './pending-line';
 import { ShadowLoc } from './shadow-loc';
 
@@ -63,13 +63,15 @@ const SHADOW_LOC = false;
  * The wake-up method leads the screen (DOWNSTAIRS_METHOD.md): it's the part of the routine
  * nobody else has, so it gets a heading and a full list of choices, not a menu row.
  *
- * Every change waits for the next bedtime (GAME_PLAN, decided 2026-10-01), so nothing can
- * be loosened from bed. The screen shows what's set, and says plainly when it starts.
- * Because of that, edits apply as you make them, like Settings; there's no Save step.
+ * Awake, every change applies at once, like Settings; there's no Save step. While the apps are
+ * asleep (a held night, or a morning not yet proven) the controls are locked, so nothing can be
+ * loosened from bed (user, 2026-10-15, replacing "every change waits for the next bedtime",
+ * which kept a banner up for a day after an edit made just past bedtime). A change that would
+ * put the apps to sleep this moment asks first.
  *
  * The routine is the shared one (`src/lib/routine.ts`). The screen edits what the person has
- * set: the pending edit if there is one, otherwise the routine in force. Each change is
- * saved at once, and `saveRoutine` holds it until the next bedtime.
+ * set: an edit still waiting from before (the banner, with Undo) if there is one, otherwise the
+ * routine in force.
  */
 
 type Method = WakeMethod;
@@ -205,7 +207,15 @@ export function RoutineScreen() {
     return () => sub.remove();
   }, []);
 
+  // Bumped to put the dial back where the routine is, after a change that was turned down.
+  const [dialKey, setDialKey] = useState(0);
   const commit = (next: Routine) => {
+    if (routineEditRefusal()) {
+      haptic.thud();
+      setLoaded(load());
+      setDialKey((k) => k + 1);
+      return;
+    }
     // With nothing saved yet (onboarding left by its Exit) the tab shows the default routine,
     // and the first edit is saved over it as the first routine. It used to stay unsaved on the
     // tab, so switching tabs threw it away (user, 2026-10-13: "it still needs to save").
@@ -224,7 +234,20 @@ export function RoutineScreen() {
   };
   // From the store, not this render's `saved`: leaving the app mid-edit saves both time rows in
   // one AppState event, before React renders again, and the second would undo the first.
-  const set = (patch: Partial<Routine>) => commit({ ...load().saved, ...patch });
+  const set = (patch: Partial<Routine>) => {
+    const next = { ...load().saved, ...patch };
+    const moved = sleepsAtOnce(toStored(next));
+    if (!moved) return commit(next);
+    // Its night has already begun (a bedtime moved before now, a morning moved past now): say
+    // so before the apps sleep.
+    const why = moved === 'morning'
+      ? 'Your new wake-up time hasn’t come yet, so your apps sleep until then.'
+      : 'Your new bedtime has already passed, so tonight starts now.';
+    Alert.alert('This puts your apps to sleep now', why, [
+      { text: 'Cancel', style: 'cancel', onPress: () => setDialKey((k) => k + 1) },
+      { text: 'Sleep now', onPress: () => commit(next) },
+    ]);
+  };
 
   const place = getMorningPlace();
   const reps = pushupGoalOf(saved);
@@ -260,6 +283,8 @@ export function RoutineScreen() {
   };
 
   const now = new Date();
+  // While the apps are asleep the routine is locked (`routineEditRefusal`).
+  const asleep = routineEditRefusal(now) !== null;
 
   // An earlier bedtime saved in the day governs its own first night once that starts (#137).
   const bannerNote = pendingLine(from ?? now, saved.bedtime, now);
@@ -281,7 +306,9 @@ export function RoutineScreen() {
         >
           Routine
         </Text>
+        <View pointerEvents={asleep ? 'none' : 'auto'} style={asleep && styles.locked} accessibilityState={{ disabled: asleep }}>
         <NightDial
+          key={dialKey}
           bedtime={saved.bedtime}
           morningStart={saved.morningStart}
           nightsLabel={saved.nights.length === 0 ? 'Every night off' : nightsLabel(saved.nights)}
@@ -289,11 +316,12 @@ export function RoutineScreen() {
           onChange={edited((times: { bedtime: number; morningStart: number }) => set(times))}
           scrollRef={scroll}
         />
+        </View>
       </View>
 
       {/* The nights in a card like the methods', so the screen's controls share one surface. */}
-      <Card style={styles.daysCard}>
-        <View style={styles.days}>
+      <Card style={[styles.daysCard, asleep && styles.locked]}>
+        <View style={styles.days} pointerEvents={asleep ? 'none' : 'auto'}>
           <Text style={styles.daysLabel} maxFontSizeMultiplier={1.4}>
             Repeat on
           </Text>
@@ -304,7 +332,15 @@ export function RoutineScreen() {
           />
         </View>
       </Card>
-      {hintSeen ? null : (
+      {asleep ? (
+        <GlassCard dark style={styles.pendingCard}>
+          <View style={styles.pending}>
+            <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={17} tintColor={Nocturne.text} style={styles.pendingIcon} />
+            <Text style={styles.pendingText}>{noOrphan(ASLEEP_NOTE)}</Text>
+          </View>
+        </GlassCard>
+      ) : null}
+      {hintSeen || asleep ? null : (
         <Text style={styles.hint}>
           {noOrphan('Drag the moon or sun. Tap a day to skip it.')}
         </Text>
@@ -337,7 +373,7 @@ export function RoutineScreen() {
       </Text>
 
       {/* The heading sits above the card, so the card has none; each method carries its own icon. */}
-      <Animated.View style={[styles.methods, fade]}>
+      <Animated.View style={[styles.methods, fade, asleep && styles.locked]} pointerEvents={asleep ? 'none' : 'auto'}>
       <Card>
         {options.map((o, i) => (
           <ChoiceRow
@@ -397,6 +433,8 @@ const styles = StyleSheet.create({
   hint: { ...APP_FONT, ...Type.secondary, color: Nocturne.text3, textAlign: 'center', marginTop: -Space.s, marginBottom: Space.l },
 
   pendingCard: { marginBottom: Gap.section },
+  // The controls while the apps are asleep: still readable, plainly not for touching.
+  locked: { opacity: 0.45 },
   pending: {
     flexDirection: 'row',
     alignItems: 'flex-start',

@@ -4,6 +4,8 @@ import { AccessibilityInfo, StyleSheet, useWindowDimensions, View } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { tabStripHeight } from '@/components/app-tabs';
+import { knockNav } from '@/components/nav-knock';
+import { useKnockLab } from '@/features/dev/knock-lab/store';
 import { useTabSelected } from '@/hooks/use-tab-selected';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 import { getTone } from '@/lib/tone';
@@ -95,6 +97,8 @@ export function Loc() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { mood, wary, present, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
+  // The knock lab's Burrow button and live tuning (dev only; at rest it never changes).
+  const lab = useKnockLab();
   // The canvas runs the panel's full width, so the blanket lump can travel along the edge; he
   // sits in the middle, SHARE of it.
   const h = Math.round((width * SHARE * LOC_VIEW.height) / LOC_VIEW.width);
@@ -206,6 +210,9 @@ export function Loc() {
           share={SHARE}
           present={present}
           onCue={onCue}
+          onBurrow={knockNav}
+          burrowNonce={lab.nonce}
+          knock={lab.tune}
           dom={{
             style: { width, height: h, backgroundColor: 'transparent' },
             scrollEnabled: false,

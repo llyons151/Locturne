@@ -17,10 +17,7 @@ export function SearchingOrb({ size = 20, color = Nocturne.text, style }: { size
   const [t, setT] = useState(() => (reduced ? 0.6 : orbTime(size, performance.now() / 1000)));
 
   useEffect(() => {
-    if (reduced) {
-      setT(0.6);
-      return;
-    }
+    if (reduced) return;
     let frame = 0;
     const tick = () => {
       setT(orbTime(size, performance.now() / 1000));
@@ -38,7 +35,7 @@ export function SearchingOrb({ size = 20, color = Nocturne.text, style }: { size
       aria-hidden
     >
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {globeFrame(size, t).map((layer, i) =>
+        {globeFrame(size, reduced ? 0.6 : t).map((layer, i) =>
           layer.d ? <Path key={i} d={layer.d} fill={color} fillOpacity={layer.opacity} /> : null,
         )}
       </Svg>

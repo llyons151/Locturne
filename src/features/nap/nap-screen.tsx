@@ -108,10 +108,20 @@ function blocker(list: List): string | null {
 /** "1 minute", "3 minutes". */
 const plural = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
 
-/** 1453 seconds → "24:13". */
+/** 1453 seconds → "24:13"; an hour or more, "2:09:57", as a timer reads. */
 function clock(seconds: number) {
   const s = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600);
+  return h ? `${h}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : `${Math.floor(s / 60)}:${pad(s % 60)}`;
+}
+
+/** 7797 seconds → "2 hours 10 minutes"; under an hour, "25 minutes". */
+function spokenLeft(seconds: number) {
+  const m = Math.max(0, Math.ceil(seconds / 60));
+  const h = Math.floor(m / 60);
+  if (!h) return plural(m, 'minute');
+  return m % 60 ? `${plural(h, 'hour')} ${plural(m % 60, 'minute')}` : plural(h, 'hour');
 }
 
 const timeOf = (ms: number) => {
@@ -265,7 +275,7 @@ export function NapScreen() {
         <View
           style={styles.timer}
           accessible
-          accessibilityLabel={`${plural(Math.max(0, Math.ceil(left / 60)), 'minute')} left. ${napStatus}.`}
+          accessibilityLabel={`${spokenLeft(left)} left. ${napStatus}.`}
         >
           <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
             {clock(left)}

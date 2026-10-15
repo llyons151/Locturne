@@ -327,6 +327,10 @@ struct TodayPill: View {
           .transition(.opacity)
       }
     }
+    // One line always: "10h 30m screen time" wrapped "screen time" onto two lines in the
+    // 200-point frame. Too long for the frame, the whole pill's type shrinks a little instead.
+    .lineLimit(1)
+    .minimumScaleFactor(0.7)
     .animation(pillAnimation, value: configuration.total)
     .animation(pillAnimation, value: configuration.reported.isEmpty)
     .padding(.horizontal, 14)

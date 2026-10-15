@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { offBody, unheldBody, unheldNoCode } from './unheld-words.ts';
+import { offBody, unheldBody } from './unheld-words.ts';
 
 test('a night nothing holds keeps its words', () => {
   assert.equal(unheldBody('night', true), 'Nothing is asleep tonight.');
@@ -11,11 +11,10 @@ test('a night nothing holds keeps its words', () => {
     unheldBody('night', false),
     'Your bedtime apps are awake tonight. A pass can still end a Block now session.',
   );
-  assert.equal(unheldNoCode('night'), 'No code yet, and it can’t be set up from bed. Your bedtime apps are awake tonight anyway.');
 });
 
 test('a morning nothing holds (after the last paid one) never says tonight or offers a pass', () => {
-  for (const line of [unheldBody('morning', true), unheldBody('morning', false), unheldNoCode('morning')]) {
+  for (const line of [unheldBody('morning', true), unheldBody('morning', false)]) {
     // A pass can still end a Block now, but none is offered for the morning itself.
     assert.doesNotMatch(line, /tonight|use a pass|pass wakes/i);
     assert.match(line, /this morning/);

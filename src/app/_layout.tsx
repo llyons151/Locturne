@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
 import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { startPurchases } from '@/lib/purchases-start';
+import { Nocturne } from '@/theme';
 
 // RevenueCat, or the dev stub without a key. Before any screen asks about the subscription.
 startPurchases();
@@ -89,7 +90,11 @@ export default function RootLayout() {
           <Stack.Screen name="cancel" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
           <Stack.Screen name="(dev)/wake-lab" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="(dev)/wake-preview" options={{ presentation: 'fullScreenModal' }} />
-          <Stack.Screen name="(dev)/app-states" options={{ presentation: 'fullScreenModal' }} />
+          {/* A sheet over Home: swipe up on a made-up state to open it, down to close. */}
+          <Stack.Screen
+            name="(dev)/app-states"
+            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
+          />
           <Stack.Screen name="(dev)/loc-studio" options={{ presentation: 'fullScreenModal' }} />
         </Stack>
       </ThemeProvider>

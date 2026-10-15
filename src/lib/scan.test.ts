@@ -16,6 +16,7 @@ const scan = await import('./scan.ts');
 const { recordProof } = await import('./morning-proof.ts');
 const { currentProof } = await import('./lock-controller.ts');
 const { sharedRemove, sharedSet } = await import('./screen-time.ts');
+const rt = await import('./routine.ts');
 
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   sharedSet('locturne.armedNight', fake.armedNight());
   sharedRemove('locturne.scanCode');
   sharedRemove('locturne.morningProofs');
+  sharedRemove('locturne.routine');
 });
 
 test('generated codes carry the prefix and differ', () => {
@@ -73,6 +75,7 @@ test('the code can only change while the apps are awake', () => {
 });
 
 test('morning: only the registered code unlocks, and only after morning start', () => {
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, method: 'scan' }, at(10, 1, 12), false, false, true);
   assert.equal(scan.submitScan(CODE.data, at(10, 6, 8)), 'noCode');
   registerYesterday();
   assert.equal(scan.submitScan(CODE.data, at(10, 6, 3)), 'notMorning', 'bedtime wins');
@@ -80,6 +83,13 @@ test('morning: only the registered code unlocks, and only after morning start', 
   assert.equal(currentProof(at(10, 6, 8)), null);
   assert.equal(scan.submitScan(CODE.data, at(10, 6, 8)), 'unlocked');
   assert.equal(currentProof(at(10, 6, 8))?.kind, 'scan');
+});
+
+test('a saved code is no way out of a steps morning: passes are', () => {
+  registerYesterday();
+  assert.equal(rt.getRoutine().method, 'steps');
+  assert.equal(scan.submitScan(CODE.data, at(10, 6, 8)), 'notMethod');
+  assert.equal(currentProof(at(10, 6, 8)), null);
 });
 
 test('the QR to print stays the same until one is registered, then a new one is drawn', () => {

@@ -17,6 +17,7 @@
  */
 import { buildHand, fidgeting, newHandSim, splat, stepHand, traceHand, wristAt, type HandPose, type HandSim } from './loc-hands';
 import { LOC_HEIGHT, LOC_PATH } from './loc-path';
+import { NAV_KNOCK, type BurrowPath } from './nav-knock-tune';
 
 export type LocMood = 'asleep' | 'groggy' | 'awake' | 'smug' | 'betrayed';
 
@@ -224,6 +225,9 @@ const HIDDEN = { sink: 720, paw: 80 };
 // He lives under the covers, the nav strip (docs/LOC_SILHOUETTE.md, round 6). Off the edge the
 // lump runs to the right, toward the other tabs' buttons, and comes back in from there.
 const OFFSTAGE = 0.62;
+
+/** The width his burrow run is sized to: a phone's, stretched as the nav row stretches to its 520 pt cap. */
+const ROW_SPAN = 580;
 
 /** The same bit at another speed: every key and event `k` times as far in. */
 const timed = (bit: Bit, k: number): Bit => {
@@ -704,11 +708,14 @@ const POKE_UNHINGED: Bit = { ...UNHINGED, events: [...(UNHINGED.events ?? []), [
  * zigzag, a fake-out (a nudge one way, then a dash the other), or wriggling on the spot, with
  * random distances, pauses, peeks and hop rhythm. Returns when he pops out and the lump's tracks.
  */
-function burrowLump(rand: () => number = Math.random): { pop: number; lump: NonNullable<Bit['lump']> } {
+function burrowLump(rand: () => number = Math.random, fit = 1): { pop: number; lump: NonNullable<Bit['lump']> } {
   const side = rand() < 0.5 ? -1 : 1;
-  // Past about 0.3 of the width the lump hides in the panel's rounded corner.
-  const far = () => 0.14 + rand() * 0.16;
-  const near = () => 0.05 + rand() * 0.07;
+  // Out toward the strip's ends, so he knocks every button (NAV_KNOCK.reach; it was 0.3, where
+  // the lump starts to hide in the panel's rounded corner), and quick (NAV_KNOCK.scurry).
+  // `fit` keeps him over the nav buttons on a screen wider than a phone (see `burrow`).
+  const span = (NAV_KNOCK.reach / 0.3) * fit, pace = Math.max(0.2, NAV_KNOCK.scurry);
+  const far = () => (0.14 + rand() * 0.16) * span;
+  const near = () => (0.05 + rand() * 0.07) * span;
   const routes = [
     () => [side * far(), 0],
     () => [side * far(), -side * far(), 0],
@@ -725,14 +732,14 @@ function burrowLump(rand: () => number = Math.random): { pop: number; lump: NonN
   // Little hops while it runs: an uneven rhythm, never a metronome.
   const hops = (until: number) => {
     while (t + 70 < until) {
-      t += 75 + rand() * 60;
+      t += (75 + rand() * 60) / Math.sqrt(pace);
       h.push([t, high ? 1.1 + rand() * 0.15 : 0.75 + rand() * 0.12, 'io']);
       high = !high;
     }
   };
   for (const [i, stop] of stops.entries()) {
     const last = i === stops.length - 1;
-    const travel = (130 + Math.abs(stop - at) * 1900) * (0.8 + rand() * 0.4);
+    const travel = ((130 + Math.abs(stop - at) * 1900) * (0.8 + rand() * 0.4)) / pace;
     const start = t;
     hops(start + travel);
     // A hop can land just past the stop; the next keys follow it, never before it.
@@ -742,7 +749,7 @@ function burrowLump(rand: () => number = Math.random): { pop: number; lump: NonN
     at = stop;
     if (!last && rand() < 0.55) {
       // A pause, and now and then a peek: the lump rises as if he's listening.
-      const pause = 90 + rand() * 260;
+      const pause = (90 + rand() * 260) / Math.sqrt(pace);
       h.push([t + 40, 1, 'io']);
       if (rand() < 0.5) h.push([t + pause * 0.45, 1.35 + rand() * 0.2, 'out']);
       h.push([t + pause, 1, 'io']);
@@ -1020,9 +1027,25 @@ export class LocRig {
   burrow() {
     if (this.hidden) return;
     if (this.reduced) return this.play(BURROW_CALM);
-    const { pop, lump } = burrowLump();
+    // His run is a share of the canvas's width, which is the screen's; the nav buttons sit in a
+    // row at most 520 pt wide (app-tabs.tsx). On a wider screen (web on a computer) the run is cut
+    // to what it would be over a phone-shaped row, so he still runs into them.
+    const fit = Math.min(1, ROW_SPAN / (this.canvas.clientWidth || ROW_SPAN));
+    const { pop, lump } = burrowLump(Math.random, fit);
     this.play(burrowBit(pop, lump));
+    // The tab bar plays the bounce off the whole run, planned now (nav-knock.ts): one message,
+    // not one a frame, so the buttons move on the UI thread with nothing crossing per frame.
+    if (this.onBurrow) {
+      const from = this.bit!.lump, dt = 1 / 60, path: BurrowPath = { dt, x: [], h: [], pop: pop / 1000 };
+      for (let t = 0; t <= pop + 140; t += dt * 1000) {
+        path.x.push(Math.round((this.sample(lump.x, t, 'sink', from.x) ?? 0) * 1e4) / 1e4);
+        path.h.push(Math.round((this.sample(lump.h, t, 'sink', from.h) ?? 0) * 1e3) / 1e3);
+      }
+      this.onBurrow(path);
+    }
   }
+  /** Hears each burrow's planned run, for the nav strip's bounce. */
+  onBurrow: ((path: BurrowPath) => void) | null = null;
   /** Off Home he dives under the covers and runs off; back on Home he runs in and bursts out. */
   setPresent(present: boolean) {
     if (present === !this.hidden) return;
