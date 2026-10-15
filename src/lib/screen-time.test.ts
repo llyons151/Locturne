@@ -175,7 +175,7 @@ test('armNight: each window blocks the list at its start, repeating daily', asyn
   await st.armNight(windows, 'night', TIMES);
 
   const configured = calls.filter(([n]) => n === 'configureActions').map(([, c]) => c);
-  assert.equal(configured.length, 10);
+  assert.equal(configured.length, 7);
   assert.deepEqual(configured[0], {
     activityName: 'night-0',
     callbackName: 'intervalDidStart',
@@ -185,26 +185,27 @@ test('armNight: each window blocks the list at its start, repeating daily', asyn
   const started = calls.filter(([n]) => n === 'startMonitoring');
   assert.deepEqual(started[0].slice(1), [
     'night-0',
-    { intervalStart: { hour: 23, minute: 30 }, intervalEnd: { hour: 0, minute: 15 }, repeats: true },
+    { intervalStart: { hour: 23, minute: 30 }, intervalEnd: { hour: 23, minute: 45 }, repeats: true },
     [],
   ]);
   assert.deepEqual(started.at(-1)![2], {
-    intervalStart: { hour: 6, minute: 15 },
+    intervalStart: { hour: 6, minute: 30 },
     intervalEnd: { hour: 7, minute: 0 },
     repeats: true,
   });
   // Nothing is configured to unblock at morning start: the walk does that.
   assert.ok(!JSON.stringify(configured).includes('unblock'));
 
-  assert.equal(st.armedWindowNames().length, 10);
-  assert.equal(st.getArmedNight()?.windows, 10);
+  assert.equal(st.armedWindowNames().length, 7);
+  assert.equal(st.getArmedNight()?.windows, 7);
   assert.equal(st.getArmedNight()?.bedtime, TIMES.bedtime);
 });
 
 test('arming again replaces the old night instead of stacking', async () => {
   await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
   await st.armNight(planNightWindows(22 * 60, 23 * 60), 'night', { bedtime: 22 * 60, morningStart: 23 * 60 });
-  assert.deepEqual(st.armedWindowNames(), ['night-0', 'night-1']);
+  // A one-hour night: 15, 15 and 30 minutes.
+  assert.deepEqual(st.armedWindowNames(), ['night-0', 'night-1', 'night-2']);
 });
 
 test('re-arming keeps the record of the night armed while iOS registers the new windows', async () => {
@@ -236,9 +237,11 @@ test('if iOS refuses a window, nothing stays half-armed', async () => {
 });
 
 test('if iOS refuses a re-arm, the night armed before is handed back, not left unarmed', async () => {
-  await st.armNight(planNightWindows(TIMES.bedtime, TIMES.morningStart), 'night', TIMES);
+  // An hour's test night (three windows) re-armed as a long one (seven), refused at its sixth.
+  const short = { bedtime: 23 * 60 + 30, morningStart: 30 };
+  await st.armNight(planNightWindows(short.bedtime, short.morningStart), 'night', short);
   const before = st.getArmedNight();
-  failOnStart = 'night-12'; // the new night has 14 windows, the old one 10
+  failOnStart = 'night-5';
   await assert.rejects(st.armNight(planNightWindows(22 * 60, 8 * 60), 'night', { bedtime: 22 * 60, morningStart: 8 * 60 }));
   // The edit was refused, but tonight still locks on the old times and the morning stays locked.
   assert.deepEqual(st.getArmedNight(), before);

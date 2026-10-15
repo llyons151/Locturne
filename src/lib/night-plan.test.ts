@@ -9,17 +9,25 @@ const H = 60;
 const DAY = 24 * H;
 const len = (w: { start: number; end: number }) => (w.end - w.start + DAY) % DAY;
 
-test('23:30 to 07:00 is ten 45-minute windows that cross midnight', () => {
+test('23:30 to 07:00: short windows after bedtime and before the morning, one long one between', () => {
   const windows = planNightWindows(23 * H + 30, 7 * H);
-  assert.equal(windows.length, 10);
-  assert.ok(windows.every((w) => len(w) === 45));
+  assert.deepEqual(windows.map(len), [15, 15, 30, 60, 270, 30, 30]);
   assert.equal(formatMinutes(windows[0].start), '23:30');
-  assert.equal(formatMinutes(windows[1].start), '00:15');
+  assert.equal(formatMinutes(windows[4].start), '01:30');
+  assert.equal(formatMinutes(windows[5].start), '06:00');
   assert.equal(formatMinutes(windows.at(-1)!.end), '07:00');
   assert.deepEqual(
     windows.map((w) => w.name),
-    Array.from({ length: 10 }, (_, i) => `night-${i}`),
+    Array.from({ length: 7 }, (_, i) => `night-${i}`),
   );
+});
+
+test('short nights drop the edges that would leave a window under 15 minutes', () => {
+  assert.deepEqual(planNightWindows(22 * H, 1 * H).map(len), [15, 15, 30, 60, 30, 30]);
+  assert.deepEqual(planNightWindows(22 * H, 23 * H).map(len), [15, 15, 30]);
+  assert.deepEqual(planNightWindows(22 * H, 22 * H + 20).map(len), [20]);
+  // 12 hours still takes seven: the middle window grows.
+  assert.deepEqual(planNightWindows(20 * H, 8 * H).map(len), [15, 15, 30, 60, 540, 30, 30]);
 });
 
 test('every night length: contiguous, covers bedtime to morning, sizes within limits', () => {
@@ -36,15 +44,16 @@ test('every night length: contiguous, covers bedtime to morning, sizes within li
       assert.equal(windows.at(-1)!.end, morning);
       for (let i = 1; i < windows.length; i++) assert.equal(windows[i].start, windows[i - 1].end);
       assert.equal(windows.reduce((sum, w) => sum + len(w), 0), total);
+      // The first window starts at bedtime and the morning's last half hour has its own, once the night is long enough.
+      if (total >= 3 * H) assert.equal(len(windows.at(-1)!), 30);
       for (const w of windows) {
         assert.ok(len(w) >= MIN_WINDOW, `${bedtime}->${morning}: ${len(w)} too short`);
-        if (total <= MAX_WINDOWS * 45) assert.ok(len(w) <= 45, `${bedtime}->${morning}: ${len(w)} too long`);
       }
     }
   }
 });
 
-test('a 30-minute test night with 15-minute windows chains two of them', () => {
+test('the lab\'s 30-minute test night with even 15-minute windows chains two of them', () => {
   const windows = planNightWindows(14 * H, 14 * H + 30, 15);
   assert.equal(windows.length, 2);
   assert.deepEqual(windows.map(len), [15, 15]);

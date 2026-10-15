@@ -6,7 +6,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isBlockedAppsViewAvailable } from 'blocked-apps';
 
@@ -15,7 +15,8 @@ import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import { isLimitId, limitLabel } from '@/lib/daily-limits';
 import * as haptic from '@/lib/haptics';
-import { editedSelection, isScreenTimeAvailable } from '@/lib/screen-time';
+import { isScheduleId } from '@/lib/schedules';
+import { editedSelection, getSchedules, isScreenTimeAvailable, listChangeStarts } from '@/lib/screen-time';
 import { WebsitesCard } from '@/features/websites/websites-card';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
@@ -37,6 +38,8 @@ import {
 } from './apps-list';
 import { confirmRemoveLimit, openLimitSheet } from './limit-sheet';
 import { useListActions } from './list-actions';
+import { saveSchedule, scheduleStatus, scheduleSummary, schedulePendingNote, whenLabel } from './schedule-actions';
+import { openScheduleSheet } from './schedule-sheet';
 import {
   removePreviewLimit,
   savePreviewLimitApps,
@@ -65,7 +68,9 @@ function LiveListPage({ id }: { id: string }) {
   const { revision, limits, limitError, picker } = actions;
   const limit = isLimitId(id) ? limits.find((l) => l.id === id) : undefined;
   const group = LIVE_GROUPS.find((g) => g.key === id);
-  const list = group?.key ?? (limit ? limit.id : null);
+  // Re-read on every revision, as the picks are.
+  const schedule = isScheduleId(id) ? getSchedules().find((s) => s.id === id) : undefined;
+  const list = group?.key ?? (limit ? limit.id : schedule ? schedule.id : null);
   // Removed with nothing to wait for (`editLimit`), or a link to a list that isn't there: back to the tab.
   const gone = list === null;
   useEffect(() => {
@@ -76,6 +81,7 @@ function LiveListPage({ id }: { id: string }) {
   // Re-read on every revision: the picker or a swipe changes them outside React.
   void revision;
   const picks = editedSelection(list);
+  if (schedule) return <SchedulePage schedule={schedule} picks={picks} actions={actions} />;
   const daily = limit ? `${limitLabel(limit.minutes)} a day` : '';
   const title = group ? group.label : (limit!.name ?? daily);
 
@@ -125,6 +131,84 @@ function LiveListPage({ id }: { id: string }) {
       {limit && limit.pending?.minutes !== null ? (
         <RemoveButton onPress={() => confirmRemoveLimit(() => actions.setMinutes(limit.id, null))} />
       ) : null}
+    </Page>
+  );
+}
+
+/**
+ * An app schedule's page (schedules.ts): its times as one row that opens its sheet, how it
+ * stands now, its apps, and Delete schedule. A removal while it's blocking waits for the block
+ * to end, and the note under the apps says when.
+ */
+function SchedulePage({
+  schedule,
+  picks,
+  actions,
+}: {
+  schedule: import('@/lib/schedules').Schedule;
+  picks: { id: import('@/lib/screen-time').SelectionId; size: number };
+  actions: ReturnType<typeof useListActions>;
+}) {
+  const { revision, limitError, picker } = actions;
+  const now = new Date();
+  const status = scheduleStatus(schedule, now);
+  const removals = listChangeStarts(schedule.id);
+  const note = removals ? `Apps you removed wake ${whenLabel(removals, now)}, when this block is over.` : null;
+  const ending = schedule.pending?.schedule === null;
+  return (
+    <Page
+      title={schedule.name || 'Schedule'}
+      about={`Asleep ${scheduleSummary(schedule).replace(/^All day/, 'all day')}.`}
+      status={status && picks.size ? { icon: status.asleep ? sym('lock.fill', 'lock') : sym('calendar', 'calendar_today'), text: status.text } : null}
+      footer={limitError}
+      overlay={picker}
+    >
+      <ListCard note={schedulePendingNote(schedule, now) ? <Text style={styles.footer}>{schedulePendingNote(schedule, now)}</Text> : null}>
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            openScheduleSheet({ id: schedule.id, isNew: false });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Times, ${scheduleSummary(schedule)}`}
+          accessibilityHint="Changes the times and days"
+          style={({ pressed }) => [styles.timeRow, pressed && styles.rowPressed]}
+        >
+          <Text style={styles.timeLabel}>Times</Text>
+          <Text style={styles.timeValue} numberOfLines={1}>
+            {scheduleSummary(schedule)}
+          </Text>
+          <SymbolView name={sym('chevron.right', 'chevron_right')} size={14} weight="semibold" tintColor={Nocturne.text3} />
+        </Pressable>
+      </ListCard>
+      <Section label={`Apps · ${picks.size}`}>
+        <ListCard note={note ? <Text style={styles.footer}>{note}</Text> : null}>
+          <EditRow label={picks.size ? 'Add or remove apps' : 'Add apps'} onPress={() => actions.edit(schedule.id)} divided={picks.size > 0} />
+          {isBlockedAppsViewAvailable ? (
+            <PickedRows selectionId={picks.id} count={picks.size} revision={revision} onRemove={(pick) => actions.removed(schedule.id, pick)} />
+          ) : picks.size > 0 ? (
+            <Text style={styles.oldBuild}>{countPicks(picks.size)}. Install the latest build to see them.</Text>
+          ) : null}
+        </ListCard>
+      </Section>
+      {ending ? null : (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            const remove = () => saveSchedule(schedule.id, null);
+            if (Platform.OS === 'web') return remove();
+            Alert.alert('Delete this schedule?', 'Its apps stay awake at these times again.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete', style: 'destructive', onPress: remove },
+            ]);
+          }}
+          accessibilityRole="button"
+          hitSlop={8}
+          style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
+        >
+          <Text style={styles.removeLabel}>Delete schedule</Text>
+        </Pressable>
+      )}
     </Page>
   );
 }

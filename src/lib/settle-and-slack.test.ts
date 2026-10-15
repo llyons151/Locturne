@@ -163,8 +163,8 @@ for (const before of [90, 60, 30]) {
   });
 }
 
-test('F2: a waiting settle never takes the slot a 16-window re-arm, Block now or a third limit needs', async () => {
-  // 19:00 to 07:00: 16 windows.
+test('F2: a 12-hour night\'s re-arm, Block now, three limits and a waiting settle all fit', async () => {
+  // 19:00 to 07:00: seven windows (night-plan.ts), where it was 16 before 2026-10-14.
   await setup(at(5, 12), { ...rt.DEFAULT_ROUTINE, bedtime: 19 * 60, morningStart: 7 * 60 });
   await addLimits(3);
   runTo(at(6, 12));
@@ -175,18 +175,17 @@ test('F2: a waiting settle never takes the slot a 16-window re-arm, Block now or
   // An always-list removal waits for bedtime.
   listEdit('always', []);
   await open();
-  assert.ok(!device.state.monitored.has('locturne-settle'), 'no room for the settle next to 16 windows, Block now and three limits');
-  // A later 16-window bedtime by day: windows again, all 16 of them.
+  // A later 12-hour bedtime by day: seven windows again.
   mock.timers.setTime(Date.now() + 30 * MIN);
   await commit({ ...rt.getRoutine(), bedtime: 20 * 60, morningStart: 8 * 60 });
   await open();
   assert.deepEqual(refused, []);
-  assert.equal(st.armedWindowNames().length, 16);
+  assert.equal(st.armedWindowNames().length, 7);
   assert.equal(st.getArmedNight()?.bedtime, 20 * 60);
 });
 
-test('F2: the settle gives way when a re-arm needs its slot, and the change still lands when the Apps tab says', async () => {
-  // 23:00 to 07:00: 11 windows. An always-list removal by day waits for 23:00; a later bedtime
+test('F2: a settle next to re-arms, limits and Block now, and the change still lands when the Apps tab says', async () => {
+  // 23:00 to 07:00: seven windows. An always-list removal by day waits for 23:00; a later bedtime
   // (23:50) leaves no window then, so the settle is registered for it.
   await setup(at(5, 12), { ...rt.DEFAULT_ROUTINE });
   runTo(at(6, 12));
@@ -195,15 +194,14 @@ test('F2: the settle gives way when a re-arm needs its slot, and the change stil
   await open();
   await commit({ ...rt.getRoutine(), bedtime: 23 * 60 + 50 });
   await open();
-  assert.ok(device.state.monitored.has('locturne-settle'), 'room for it next to 11 windows');
-  // Then 19:00 to 07:00 (16 windows): the settle steps aside, and three limits and Block now fit.
+  assert.ok(device.state.monitored.has('locturne-settle'), 'room for it next to seven windows');
+  // Then 19:00 to 07:00 (seven windows too), three limits and Block now: nothing is refused.
   await commit({ ...rt.getRoutine(), bedtime: 19 * 60 });
   await open();
   await addLimits(3);
   await st.startNap('block', 30).catch(() => {});
   await open();
   assert.deepEqual(refused, []);
-  assert.ok(!device.state.monitored.has('locturne-settle'));
   assert.equal(st.getArmedNight()?.bedtime, 19 * 60);
   // Whatever the Apps tab says now comes true.
   const lands = st.listChangeLandsAt('always');

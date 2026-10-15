@@ -58,6 +58,15 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
+          {/* An app schedule's times, in the same floating card. */}
+          <Stack.Screen
+            name="schedule"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           {/* A daily limit's time, in the same floating card. */}
           <Stack.Screen
             name="limit"

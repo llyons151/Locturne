@@ -161,6 +161,21 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       userDefaults?.removeObject(forKey: LOCTURNE_NAP_KEY)
     }
 
+    // An app schedule's block ends (src/lib/schedules.ts): picks and edits waiting for it land,
+    // and its apps wake unless the schedule still holds them (a block running straight on into
+    // the next day's), maybe a little early as with the night windows. The re-apply below puts
+    // back whatever another rule holds.
+    if activity.rawValue.hasPrefix(LOCTURNE_SCHEDULE_PREFIX) {
+      settleLocturneLists(triggeredBy: "locturne_\(activity.rawValue)_settleLists")
+      let soon = Date().addingTimeInterval(120)
+      let schedule = locturneSchedules(now: soon).first { ($0["id"] as? String) == activity.rawValue }
+      if !(schedule.map { locturneScheduleBlocking($0, at: soon) } ?? false),
+        let picked = getFamilyActivitySelectionById(id: activity.rawValue)
+      {
+        unblockSelection(removeSelection: picked, triggeredBy: "locturne_\(activity.rawValue)_ended")
+      }
+    }
+
     self.executeActionsForEvent(
       activityName: activity.rawValue,
       callbackName: "intervalDidEnd",
@@ -661,6 +676,60 @@ func restoreLocturneFallbackShield(triggeredBy: String) {
   )
 }
 
+// MARK: - App schedules
+
+let LOCTURNE_SCHEDULES_KEY = "locturne.schedules"
+let LOCTURNE_SCHEDULE_PREFIX = "sched-"
+
+/// The app schedules saved (src/lib/schedules.ts), with any edit waiting for its block's end
+/// that's due by `now` put in force, and saved back if one was. Keep in step with
+/// `settleSchedules` there.
+func locturneSchedules(now: Date) -> [[String: Any]] {
+  guard let stored = userDefaults?.array(forKey: LOCTURNE_SCHEDULES_KEY) as? [[String: Any]] else { return [] }
+  var settled: [[String: Any]] = []
+  var changed = false
+  for schedule in stored {
+    guard let pending = schedule["pending"] as? [String: Any],
+      let from = (pending["from"] as? NSNumber)?.doubleValue,
+      from <= now.timeIntervalSince1970 * 1000
+    else {
+      settled.append(schedule)
+      continue
+    }
+    changed = true
+    if var next = pending["schedule"] as? [String: Any] {
+      next["id"] = schedule["id"]
+      settled.append(next)
+    }
+  }
+  if changed { userDefaults?.set(settled, forKey: LOCTURNE_SCHEDULES_KEY) }
+  return settled
+}
+
+/// Is an app schedule blocking at `now`? A block starts at `start` (minutes on the wall clock)
+/// on each of `days` (0 is Sunday) and runs to `end`, past midnight if need be; all day runs
+/// midnight to midnight. A block past midnight belongs to the day it started. The same rule as
+/// `blockAt` in src/lib/schedules.ts.
+func locturneScheduleBlocking(_ schedule: [String: Any], at now: Date) -> Bool {
+  guard let days = schedule["days"] as? [NSNumber] else { return false }
+  let allDay = (schedule["allDay"] as? Bool) == true
+  let start = allDay ? 0 : ((schedule["start"] as? NSNumber)?.intValue ?? 0)
+  let end = allDay ? 0 : ((schedule["end"] as? NSNumber)?.intValue ?? 0)
+  var length = ((end - start) % 1440 + 1440) % 1440
+  if allDay || length == 0 { length = 1440 }
+  let calendar = Calendar.current
+  for offset in [0, -1] {
+    guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
+      days.contains(where: { $0.intValue == calendar.component(.weekday, from: day) - 1 }),
+      let from = calendar.date(bySettingHour: start / 60, minute: start % 60, second: 0, of: day),
+      let endDay = calendar.date(byAdding: .day, value: (start + length) / 1440, to: day),
+      let to = calendar.date(bySettingHour: (start + length) % 1440 / 60, minute: (start + length) % 60, second: 0, of: endDay)
+    else { continue }
+    if now >= from && now < to { return true }
+  }
+  return false
+}
+
 /// Shields always-blocked, the night lock, a running nap and limits used up today. Only adds.
 /// Nothing at all without a subscription (`standDown` in src/lib/screen-time.ts).
 @available(iOS 15.0, *)
@@ -690,6 +759,13 @@ func reapplyLocturneBlocks(triggeredBy: String) {
         held.append(id)
       }
     }
+  }
+
+  // Two minutes on, as iOS can deliver a block's start or end a little early (as with the night
+  // windows): an early start still shields, and an early end isn't undone right after.
+  let soon = Date().addingTimeInterval(120)
+  for schedule in locturneSchedules(now: soon) where locturneScheduleBlocking(schedule, at: soon) {
+    if let id = schedule["id"] as? String { held.append(id) }
   }
 
   var selection = FamilyActivitySelection()
@@ -779,7 +855,7 @@ func settleLocturneLists(triggeredBy: String) {
   // The same two minutes' slack as `locturneNightIsOn`: an edit (or an emergency unlock's
   // parked bedtime list) is due at bedtime, and iOS can run the bedtime window a little
   // early. Without it, that window would shield the still-empty list after an emergency
-  // unlock, and nothing would sleep until the next window, up to 45 minutes later.
+  // unlock, and nothing would sleep until the next window, 15 minutes later at bedtime.
   let now = Date().timeIntervalSince1970 * 1000 + 120_000
   var changed = false
 
@@ -879,19 +955,25 @@ private func locturneDisjoint(_ a: (bedtime: Int, morningStart: Int), _ b: (bedt
   return max(start(a), start(b)) >= min(a.morningStart, b.morningStart)
 }
 
-/// The same partition as src/lib/night-plan.ts, with the same 16-slot budget and 15-minute floor.
+/// The same partition as src/lib/night-plan.ts: short windows in the two hours after bedtime and
+/// the hour before the morning, one long one between, each at least 15 minutes. Seven at most.
 func locturneNightEdges(bedtime: Int, morningStart: Int) -> [(start: Int, end: Int)] {
   let length = (morningStart - bedtime + 1440) % 1440
   guard length >= 15 else { return [] }
-  let count = min(16, max(1, length / 15), Int(ceil(Double(length) / 45)))
-  let edge: (Int) -> Int = { (bedtime + Int((Double($0 * length) / Double(count)).rounded())) % 1440 }
-  return (0..<count).map { (edge($0), edge($0 + 1)) }
+  let wanted = ([15, 30, 60, 120] + [60, 30].map { length - $0 }).sorted()
+  var edges = [0]
+  for cut in wanted {
+    if cut - edges[edges.count - 1] >= 15 && length - cut >= 15 { edges.append(cut) }
+  }
+  edges.append(length)
+  return (0..<(edges.count - 1)).map { ((bedtime + edges[$0]) % 1440, (bedtime + edges[$0 + 1]) % 1440) }
 }
 
 private func locturneStopNightGeneration(_ prefix: String) {
   let names = center.activities.filter { $0.rawValue.hasPrefix(prefix) }
   if !names.isEmpty { center.stopMonitoring(names) }
-  // The last registration may have failed after its action was written.
+  // The last registration may have failed after its action was written. Sixteen: nights armed
+  // before 2026-10-14 took up to that many.
   let configured = Set(names.map(\.rawValue) + (0..<16).map { "\(prefix)\($0)" })
   for name in configured {
     for callback in ["intervalDidStart", "intervalDidEnd", "intervalWillStartWarning", "intervalWillEndWarning"] {

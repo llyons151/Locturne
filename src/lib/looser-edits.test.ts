@@ -344,8 +344,8 @@ test('every night off, a night armed for five minutes and off again: a removal w
 });
 
 test("the Apps note names the moment the phone really swaps the list", async () => {
-  // An earlier bedtime's first night (22:00) is held, so its windows run at 22:00, 22:45 and
-  // 23:30: an always-list removal due at 23:00 lands at 23:30.
+  // An earlier bedtime's first night (22:00) is held, so its windows run at 22:00, 22:15, 22:30
+  // and 23:00: an always-list removal due at 23:00 lands at 23:00.
   await setUp(at(5, 12));
   runTo(at(6, 12));
   await open();
@@ -354,11 +354,11 @@ test("the Apps note names the moment the phone really swaps the list", async () 
   await open();
   editList('always', ['x']);
   const lands = st.listChangeLandsAt('always');
-  assert.equal(lands?.at.getTime(), at(6, 23, 30));
+  assert.equal(lands?.at.getTime(), at(6, 23));
   assert.equal(lands?.waitsForOpen, false);
-  runTo(at(6, 23, 28));
+  runTo(at(6, 22, 55));
   assert.ok(asleep('reddit'));
-  runTo(at(6, 23, 31));
+  runTo(at(6, 23, 1));
   assert.ok(!asleep('reddit'));
 });
 
@@ -380,14 +380,14 @@ test('the Apps note after a switch to a night shift names its first window', asy
 
 test('on the first night, the always list waits for midnight and the bedtime list for bedtime', async () => {
   // First armed at 15:00. The always list waits for the midnight after protection was first
-  // armed, and the windows (23:00, 23:44, 00:27, ...) swap it at the first one after then. The
+  // armed, and the windows (23:00, 23:15, 23:30, 00:00, ...) swap it at the first one from then. The
   // bedtime list, awake in the day, goes by its first night: a removed app never sleeps, rather
-  // than sleeping at 23:00 and waking at 00:27.
+  // than sleeping at 23:00 and waking at midnight.
   await setUp(at(5, 15));
   editList('always', ['x']);
   assert.equal(st.listChangeStarts('always')?.getTime(), at(6, 0));
   const lands = st.listChangeLandsAt('always');
-  assert.equal(lands?.at.getTime(), at(6, 0, 27));
+  assert.equal(lands?.at.getTime(), at(6, 0));
   assert.equal(lands?.sleepsFirst, true);
   editList('night', ['tiktok']);
   assert.equal(st.listChangeStarts('night')?.getTime(), at(5, 23));

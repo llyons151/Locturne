@@ -125,7 +125,11 @@ function callbacks(from: Date, to: Date): { at: Date; callback: Callback; activi
       }
     }
   }
-  return out.sort((a, b) => +a.at - +b.at || (a.callback === 'end' ? -1 : 1));
+  // At one moment iOS's order is its own. A limit's midnight goes first: a night window can now
+  // also start at midnight (11 pm bedtime), and the extension only adds shields there, so the
+  // used-up app it held yesterday waits for the limit's own start to come off.
+  const limitFirst = (x: { activity: string }) => (x.activity.startsWith('limit-') ? 0 : 1);
+  return out.sort((a, b) => +a.at - +b.at || limitFirst(a) - limitFirst(b) || (a.callback === 'end' ? -1 : 1));
 }
 
 /** What the app's rules say should be shielded at `now`, as app names. */

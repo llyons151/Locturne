@@ -127,11 +127,14 @@ export function DayStrip({
   value,
   tonight,
   onChange,
+  days,
 }: {
   value: number[];
   /** The night VoiceOver calls tonight, Monday first: the one in progress after midnight too. */
   tonight: number;
   onChange: (days: number[]) => void;
+  /** Days, not nights, for VoiceOver: an app schedule's ("Monday", not "Monday night"). */
+  days?: boolean;
 }) {
   const toggle = (day: number) => {
     haptic.tap();
@@ -149,7 +152,7 @@ export function DayStrip({
             <Pressable
               onPress={() => toggle(i)}
               accessibilityRole="checkbox"
-              accessibilityLabel={`${day.name} night${isTonight ? ', tonight' : ''}`}
+              accessibilityLabel={days ? day.name : `${day.name} night${isTonight ? ', tonight' : ''}`}
               accessibilityState={{ checked: on }}
               hitSlop={4}
               style={({ pressed }) => [styles.stripDay, on && styles.stripDayOn, pressed && styles.pressed]}

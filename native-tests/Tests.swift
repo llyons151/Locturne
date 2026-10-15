@@ -5,7 +5,7 @@ import Foundation
 
 func registerTests() {
 
-  test("native night partitions cover every supported duration within the activity budget") {
+  test("native night partitions: front- and back-loaded, every duration, within the activity budget") {
     for bedtime in [0, 1, 59, 480, 1380, 1439] {
       for length in 0..<1440 {
         let morning = (bedtime + length) % 1440
@@ -14,20 +14,90 @@ func registerTests() {
           expect(edges.isEmpty, "unsupported short night")
           continue
         }
-        expect(!edges.isEmpty && edges.count <= 16, "activity budget")
+        expect(!edges.isEmpty && edges.count <= 7, "activity budget")
         expectEqual(edges.first?.start, bedtime)
         expectEqual(edges.last?.end, morning)
         var total = 0
         for (index, edge) in edges.enumerated() {
           let duration = (edge.end - edge.start + 1440) % 1440
           expect(duration >= 15, "iOS minimum duration")
-          if length <= 720 { expect(duration <= 45, "ordinary-night recovery interval") }
+          if length >= 30 && index == 0 { expectEqual(duration, 15, "short first window at bedtime") }
+          if length >= 180 && index == edges.count - 1 { expectEqual(duration, 30, "short last window before the morning") }
           if index > 0 { expectEqual(edges[index - 1].end, edge.start, "no gaps") }
           total += duration
         }
         expectEqual(total, length, "each minute covered once")
       }
     }
+  }
+
+  // App schedules (src/lib/schedules.ts). 2026-10-05 is a Monday.
+  func workSchedule(start: Int = 9 * 60, end: Int = 17 * 60, days: [Int] = [1, 2, 3, 4, 5], pending: [String: Any]? = nil) -> [String: Any] {
+    var schedule: [String: Any] = ["id": "sched-0", "name": "Work", "start": start, "end": end, "days": days]
+    if let pending { schedule["pending"] = pending }
+    return schedule
+  }
+
+  test("a schedule's start shields its apps on a day it's on, and its end wakes them") {
+    pick("sched-0", ["youtube"]); pick("always", ["reddit"])
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule()])
+    at("2026-10-05 09:00"); start("sched-0")
+    expectEqual(shielded(), ["reddit", "youtube"])
+    at("2026-10-05 17:00"); end("sched-0")
+    expectEqual(shielded(), ["reddit"])
+  }
+
+  test("a schedule's start on a day off shields nothing, and an end a little early still wakes") {
+    pick("sched-0", ["youtube"])
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule()])
+    at("2026-10-10 09:00"); start("sched-0")
+    expectEqual(shielded(), [], "Saturday is off")
+    at("2026-10-12 09:00"); start("sched-0")
+    expectEqual(shielded(), ["youtube"])
+    at("2026-10-12 16:59"); end("sched-0")
+    expectEqual(shielded(), [], "iOS ends it a minute early")
+  }
+
+  test("any callback puts up a schedule that's due, even when its own start was missed") {
+    pick("sched-0", ["youtube"]); pick("night", ["tiktok"])
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule(start: 22 * 60, end: 23 * 60 + 30, days: [1])])
+    saveRoutine(routine()); armNight()
+    at("2026-10-05 23:00"); start("night-0")
+    expectEqual(shielded(), ["tiktok", "youtube"], "the bedtime window's re-apply holds the schedule too")
+  }
+
+  test("a schedule ending while the night holds the same app keeps it asleep") {
+    pick("sched-0", ["tiktok", "youtube"]); pick("night", ["tiktok"])
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule(start: 21 * 60, end: 23 * 60 + 30, days: [1])])
+    saveRoutine(routine()); armNight()
+    at("2026-10-05 21:00"); start("sched-0")
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-05 23:30"); end("sched-0")
+    expectEqual(shielded(), ["tiktok"], "youtube wakes; tiktok stays with the night")
+  }
+
+  test("an edit waiting for a schedule's block to end lands at its end") {
+    pick("sched-0", ["youtube"])
+    let shorter: [String: Any] = ["name": "Work", "start": 9 * 60, "end": 12 * 60, "days": [1, 2, 3, 4, 5]]
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule(pending: ["schedule": shorter, "from": ms(local("2026-10-05 17:00"))])])
+    at("2026-10-05 09:00"); start("sched-0")
+    at("2026-10-05 17:00"); end("sched-0")
+    expectEqual(shielded(), [])
+    let saved = get(LOCTURNE_SCHEDULES_KEY) as? [[String: Any]]
+    expectEqual((saved?.first?["end"] as? NSNumber)?.intValue, 12 * 60, "the shorter block is in force")
+    expectEqual(saved?.first?["id"] as? String, "sched-0")
+    expect(saved?.first?["pending"] == nil, "nothing waits any more")
+  }
+
+  test("a block past midnight wakes at its end the next morning, and belongs to the day it started") {
+    pick("sched-0", ["youtube"])
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule(start: 22 * 60, end: 2 * 60, days: [1])])
+    at("2026-10-05 22:00"); start("sched-0")
+    expectEqual(shielded(), ["youtube"])
+    at("2026-10-06 01:00"); start("sched-0")
+    expectEqual(shielded(), ["youtube"], "Monday night's block, early on Tuesday")
+    at("2026-10-06 02:00"); end("sched-0")
+    expectEqual(shielded(), [])
   }
 
   test("a delayed prior nap end cannot finish its replacement nap") {
@@ -58,7 +128,7 @@ func registerTests() {
     expectEqual(shielded(), ["reddit"], "the replacement names a morning no night ran into")
     let record = get(LOCTURNE_ARMED_KEY) as? [String: Any]
     expectEqual((record?["bedtime"] as? NSNumber)?.intValue, 1380)
-    expectEqual(DeviceActivityCenter.schedules.count, 11)
+    expectEqual(DeviceActivityCenter.schedules.count, 7)
     expect(DeviceActivityCenter.schedules.values.allSatisfy { $0.repeats }, "repeating windows")
     let prefix = record?["nativeWindowPrefix"] as? String ?? "missing"
     expect(DeviceActivityCenter.monitored.allSatisfy { $0.rawValue.hasPrefix(prefix) }, "only new generation remains")
@@ -133,17 +203,18 @@ func registerTests() {
     expectEqual((record?["bedtime"] as? NSNumber)?.intValue, 480, "old times restored")
     let prefix = record?["nativeWindowPrefix"] as? String ?? "missing"
     expect(DeviceActivityCenter.monitored.allSatisfy { $0.rawValue.hasPrefix(prefix) }, "no partial target generation")
-    expectEqual(DeviceActivityCenter.schedules.count, 11)
+    expectEqual(DeviceActivityCenter.schedules.count, 7)
     expectEqual(shielded(), ["tiktok"], "rollback still protects the old night")
     expect(get("locturne.nativeNightArmingError") != nil, "failure recorded")
   }
 
   test("native handoff keeps the activity budget and suppresses immediate callbacks") {
     pick("night", ["tiktok"])
-    // A 12-hour replacement uses every reserved night slot.
+    // A 12-hour replacement takes its seven windows, next to every limit, Block now and nine
+    // other activities (app schedules): 20 with no room for the settle.
     saveRoutine(routine(bedtime: 480, morningStart: 960), pending: (routine(bedtime: 1200, morningStart: 480), local("2026-10-06 08:00")))
     armNight(bedtime: 480, morningStart: 960)
-    for name in ["limit-0", "limit-1", "limit-2", "locturne-nap", "locturne-settle"] {
+    for name in ["limit-0", "limit-1", "limit-2", "locturne-nap", "locturne-settle"] + (0..<9).map({ "sched-\($0)" }) {
       DeviceActivityCenter.monitored.append(DeviceActivityName(name))
     }
     DeviceActivityCenter.onStart = { activity in

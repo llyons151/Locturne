@@ -13,7 +13,8 @@ import { useProtection } from '@/hooks/use-protection';
 import { editLimit, freeLimitId, isLimitId, keepName, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
 import { restoreBlocks } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
-import { looserEditsStartAt, onLockChange } from '@/lib/lock-controller';
+import { looserEditsStartAt, onLockChange, syncLock } from '@/lib/lock-controller';
+import { isScheduleId, scheduleRemovalsAt } from '@/lib/schedules';
 import { rescheduleNotifications } from '@/lib/notifications';
 import {
   armLimit,
@@ -23,11 +24,13 @@ import {
   finishListEdit,
   getArmedNight,
   getLimits,
+  getSchedules,
   isStoodDown,
   reapplyStandingBlocks,
   requestAccess,
   saveLimits,
   selectionSize,
+  settleListChanges,
   type StandingList,
 } from '@/lib/screen-time';
 
@@ -125,7 +128,18 @@ export function useListActions() {
    * bedtime (`finishListEdit`). Newly added apps may need shielding straight away.
    */
   const pickedList = (list: StandingList) => {
-    finishListEdit(list, looserEditsStartAt(new Date(), list));
+    const now = new Date();
+    if (isScheduleId(list)) {
+      // A schedule's removals wait only for the end of its block under way (schedules.ts), and
+      // land now outside one; the sync shields what's added and registers its activity.
+      const schedule = getSchedules(now).find((s) => s.id === list);
+      finishListEdit(list, schedule ? scheduleRemovalsAt(schedule, now) : now);
+      settleListChanges(now, { limits: false });
+      syncLock(now);
+      refresh();
+      return;
+    }
+    finishListEdit(list, looserEditsStartAt(now, list));
     if (isLimitId(list)) pickedLimit(list);
     reapplyStandingBlocks();
     // An empty bedtime list left the night unarmed (`armIfPaid` skips it): arm it now, as the

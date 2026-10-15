@@ -33,10 +33,11 @@ import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { freeLimitId, limitLabel, MAX_LIMITS, type DailyLimit } from '@/lib/daily-limits';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
-import { nextBedtime, readLock } from '@/lib/lock-controller';
+import { nextBedtime, onLockChange, readLock } from '@/lib/lock-controller';
 import {
   editedSelection,
   getArmedNight,
+  getSchedules,
   isScreenTimeAvailable,
   isStoodDown,
   limitUsedUpToday,
@@ -50,6 +51,9 @@ import { APPS, type AppEntry } from './catalog';
 import { useListActions } from './list-actions';
 import { pauseNote, removalNote, startsLabel } from './pending-note';
 import { openLimitSheet } from './limit-sheet';
+import { newScheduleId, scheduleStatus, scheduleSummary, schedulePendingNote } from './schedule-actions';
+import { openScheduleSheet } from './schedule-sheet';
+import { MAX_SCHEDULES, type ScheduleId } from '@/lib/schedules';
 import {
   removePreviewLimit,
   savePreviewLimitApps,
@@ -89,7 +93,8 @@ function useMoonRoom(tab: Tab, limits: number) {
 const TILE_ICONS = 4;
 
 const TABS: { value: Tab; label: string }[] = [
-  { value: 'bedtime', label: 'Bedtime' },
+  // Bedtime's list, the all-day list and each app schedule (user, 2026-10-14).
+  { value: 'bedtime', label: 'Schedules' },
   { value: 'limit', label: 'Limits' },
 ];
 /**
@@ -131,7 +136,8 @@ export function AppsList() {
 
 export const LIVE_GROUPS: { key: 'night' | 'always'; label: string; about: string; when: string }[] = [
   { key: 'night', label: 'Sleep at bedtime', about: 'Asleep from bedtime until your wake-up is done.', when: 'bedtime to wake-up' },
-  { key: 'always', label: 'Always asleep', about: 'Asleep all day, every day.', when: 'all day, every day' },
+  // "Always asleep" until 2026-10-14: now the all-day one among the schedules (docs/LOCK_V2.md).
+  { key: 'always', label: 'All day', about: 'Asleep all day, every day.', when: 'all day, every day' },
 ];
 
 /** Opens a list's page (`app/list.tsx`): the bedtime or always list, or a daily limit. */
@@ -266,6 +272,13 @@ function LiveAppsList() {
                 />
               );
             })}
+            <ScheduleTiles
+              revision={revision}
+              icons={(id) => {
+                const picks = editedSelection(id);
+                return { size: picks.size, node: tileIcons(picks.id, picks.size, <ListSymbol list="schedule" />) };
+              }}
+            />
           </View>
         )}
 
@@ -426,9 +439,15 @@ function IconStrip({ more, children }: { more: number; children: ReactNode }) {
 }
 
 /** A list's symbol in place of its icons while it has no apps: a moon, a lock or an hourglass. */
-function ListSymbol({ list }: { list: 'night' | 'always' | 'limit' }) {
+function ListSymbol({ list }: { list: 'night' | 'always' | 'limit' | 'schedule' }) {
   const symbol =
-    list === 'night' ? sym('moon.fill', 'bedtime') : list === 'always' ? sym('lock.fill', 'lock') : sym('hourglass', 'hourglass_empty');
+    list === 'night'
+      ? sym('moon.fill', 'bedtime')
+      : list === 'always'
+        ? sym('lock.fill', 'lock')
+        : list === 'schedule'
+          ? sym('calendar.badge.clock', 'schedule')
+          : sym('hourglass', 'hourglass_empty');
   return (
     <View style={[styles.symbolTile, list === 'limit' ? styles.limitTile : styles.listTile]}>
       <SymbolView name={symbol} size={ICON * 0.5} tintColor="#FFFFFF" />
@@ -502,15 +521,67 @@ function ListTile({
 }
 
 /** The limit tab's "New limit" capsule, under the tiles. */
-function NewLimitButton({ onPress }: { onPress: () => void }) {
+function NewLimitButton({ onPress, label = 'New limit' }: { onPress: () => void; label?: string }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       style={({ pressed }) => [styles.newLimit, pressed && styles.pressed]}
     >
-      <Text style={styles.newLimitLabel}>New limit</Text>
+      <Text style={styles.newLimitLabel}>{label}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * Each app schedule as a tile under the bedtime and all-day lists, then New schedule while
+ * there's room (`MAX_SCHEDULES`). A tile opens its sheet, whose Apps row opens its page, as a
+ * daily limit's does. `icons` draws a schedule's picks (none in the web preview).
+ */
+function ScheduleTiles({ revision, icons }: { revision: number; icons: (id: ScheduleId) => { size: number; node: ReactNode } }) {
+  void revision;
+  // A schedule is saved as its sheet goes (`saveSchedule`), which syncs the lock: redraw then.
+  const [, redraw] = useState(0);
+  useEffect(() => onLockChange(() => redraw((n) => n + 1)), []);
+  const now = new Date();
+  const schedules = [...getSchedules(now)].sort((a, b) => a.id.localeCompare(b.id));
+  const free = schedules.length < MAX_SCHEDULES ? newScheduleId(now) : null;
+  return (
+    <>
+      {schedules.map((schedule) => {
+        const { size, node } = icons(schedule.id);
+        const status = scheduleStatus(schedule, now);
+        const waiting = schedulePendingNote(schedule, now);
+        return (
+          <ListTile
+            key={schedule.id}
+            icons={node}
+            title={schedule.name || 'Schedule'}
+            detail={[size ? countPicks(size) : 'No apps yet', scheduleSummary(schedule)].join(' · ')}
+            status={
+              waiting
+                ? { icon: sym('clock', 'schedule'), text: waiting }
+                : status && size
+                  ? { icon: status.asleep ? sym('lock.fill', 'lock') : sym('calendar', 'calendar_today'), text: status.text }
+                  : null
+            }
+            onPress={() => {
+              haptic.tap();
+              openScheduleSheet({ id: schedule.id, isNew: false, apps: size ? countPicks(size) : 'None yet' });
+            }}
+          />
+        );
+      })}
+      {free ? (
+        <NewLimitButton
+          label="New schedule"
+          onPress={() => {
+            haptic.tap();
+            openScheduleSheet({ id: free, isNew: true });
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -586,6 +657,7 @@ function PreviewAppsList() {
                 />
               );
             })}
+            <ScheduleTiles revision={0} icons={() => ({ size: 0, node: <ListSymbol list="schedule" /> })} />
           </View>
         )}
 

@@ -150,6 +150,7 @@ test('a bedtime list edit re-plans tonight’s bedtime warning and morning note;
   let replans = 0;
   const context = {
     finishListEdit() {}, looserEditsStartAt: () => new Date(), isLimitId: (l: string) => l.startsWith('limit-'),
+    isScheduleId: (l: string) => l.startsWith('sched-'),
     pickedLimit() {}, reapplyStandingBlocks() {}, getArmedNight: () => ({}), armIfPaid() {}, refresh() {},
     rescheduleNotifications: async () => { replans += 1; },
     picked: undefined as unknown as (list: string) => void,

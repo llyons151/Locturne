@@ -123,9 +123,9 @@ different ways to prove it, each with its own lines from Loc. Details in
 ## Daytime controls (v1, decided 2026-10-01)
 
 People paying for a blocker will be upset if they can't block an app at 2pm, so v1
-gives them three plain controls on top of the night and morning loop:
+gives them four plain controls on top of the night and morning loop:
 
-1. **Always-blocked list.** Blocked in every state (already in the core loop).
+1. **Always-blocked list ("All day").** Blocked in every state (already in the core loop).
    The bedtime and always lists also take websites typed in by hand (reddit.com), blocked by
    iOS's web content filter while their list sleeps (user request, October 10; see
    docs/WEBSITE_BLOCKING.md).
@@ -137,9 +137,16 @@ gives them three plain controls on top of the night and morning loop:
    Screen Time usage-threshold events. When the limit is hit, the app is blocked
    until the next day. Like every other settings change, a looser limit takes
    effect from the next bedtime.
+4. **App schedules** (added October 14; docs/LOCK_V2.md). Each has a name, its own
+   apps, a From–To window or All day, and the days it repeats ("Work, 9 to 5,
+   weekdays"). Up to six. Starting points are presets (Work, Study, Mornings,
+   Weekdays, Custom).
+   - A stricter edit applies at once.
+   - A looser edit made while the schedule is blocking waits until that block ends.
+   - The emergency unlock doesn't end a schedule.
 
 Precedence, strongest first: always-blocked, then bedtime or morning lock, then
-Block now, then a reached daily limit. The morning proof never lifts Block now or a
+Block now, then a schedule that's on, then a reached daily limit. The morning proof never lifts Block now or a
 daily limit. All of this lives in `src/lib/lock-state.ts`.
 
 Guardrails:
@@ -147,7 +154,7 @@ Guardrails:
   bedtime chain first. Limits and sessions get whatever is left, and the app says
   so plainly if a new limit doesn't fit.
 - The nightly self-check and the revocation warnings also cover these controls.
-- **Out of scope:** multiple custom daytime schedules and website-only rules.
+- **Out of scope:** website-only rules, and typed-in websites on app schedules.
   Home includes a compact blue-gradient screen-time chart with a seven-day trend line
   (user reference, October 7). Usage is a dedicated page opened from Home, with screen-time totals, a bar chart
   and all reported apps ranked by time used (user request, October 7).
@@ -176,8 +183,14 @@ Guardrails:
 - The dependable unlock is a tap on the shield or opening the app to check steps.
   **Don't promise an automatic unlock** until it has been shown to work on a
   device.
-- Chain DeviceActivity schedules in short intervals (under about 45 minutes)
-  rather than one long schedule. Run a nightly self-check that shields applied.
+- Chain DeviceActivity schedules rather than using one long schedule, front- and
+  back-loaded (October 14):
+  - 15, 15, 30 and 60 minutes after bedtime;
+  - one long window while they sleep;
+  - two 30-minute windows before the morning.
+
+  Seven at most, which leaves iOS room for app schedules. Shields stay up once
+  applied. Run a nightly self-check that shields applied.
 - Detect when Screen Time access has been revoked or protection is off, and say so
   plainly. Never imply protection is active when it isn't.
 

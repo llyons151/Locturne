@@ -20,6 +20,8 @@ import { methodInUse } from './scan-code.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
 import {
   armedSince,
+  armSchedules,
+  liftIdleSchedules,
   currentNightWindowNames,
   armNight,
   delayListChanges,
@@ -262,6 +264,12 @@ export function syncLock(now = new Date()): LockState {
       sleepApps('night');
       reapplyStandingBlocks();
     } else reapplyStandingBlocks();
+    // App schedules (schedules.ts): a block that ended with no end call from iOS wakes, and each
+    // schedule's activity is registered for its times.
+    liftIdleSchedules(now);
+    armSchedules(now).catch(() => {
+      // iOS refused. The clock holds each block at every open, and the next sync tries again.
+    });
     // The shields above include a running Block now: make sure iOS still ends it.
     rearmNap(now).catch(() => {
       // iOS refused. The next sync tries again.
@@ -502,10 +510,10 @@ let armAgainAt: Date | null = null;
  * Hands iOS the night windows for the saved routine: the one in force at the next bedtime,
  * so a pending edit is armed as soon as that's safe (see wake/arming.ts). Onboarding calls it
  * once tonight's routine is saved and paid for; the Routine tab after each save. Uses
- * night-plan.ts's window budget (at most 16 of iOS's ~20 activities).
+ * night-plan.ts's window budget (at most seven of iOS's ~20 activities).
  *
- * Arming during the night also shields straight away, rather than waiting up to 45 minutes
- * for the next window. Throws if iOS refuses a window (nothing is left half-armed).
+ * Arming during the night also shields straight away, rather than waiting, in the middle of the
+ * night, hours for the next window. Throws if iOS refuses a window (nothing is left half-armed).
  */
 export function armRoutine(now = new Date()): Promise<ArmResult> {
   // One at a time: a second call while iOS is still registering waits for the first, then

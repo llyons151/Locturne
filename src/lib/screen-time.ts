@@ -43,16 +43,20 @@ import {
 import { keepName, MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
+import { blockEnds, isBlocking, MAX_SCHEDULES, scheduleInterval, settleSchedules, type Schedule, type ScheduleId } from './schedules.ts';
 import { formatPreset } from './text.ts';
 
 /**
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
- * Block now session picks, and one list per daily limit.
+ * Block now session picks, one list per daily limit and one per app schedule (schedules.ts).
  */
-export type SelectionId = 'night' | 'always' | 'block' | LimitId | DraftId;
+export type SelectionId = 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId;
 
-/** The lists that stand from day to day, and so follow the next-bedtime rule when edited. */
-export type StandingList = 'night' | 'always' | LimitId;
+/**
+ * The lists that stand from day to day, and so wait to loosen when edited: the next bedtime, or
+ * for a schedule's picks the end of its block under way.
+ */
+export type StandingList = 'night' | 'always' | LimitId | ScheduleId;
 
 /** Where Apple's picker writes while a standing list is edited (see `beginListEdit`). */
 export type DraftId = `${StandingList}-next`;
@@ -296,6 +300,8 @@ function heldLists(): SelectionId[] {
   const nap = readNap();
   if (nap && Date.now() < nap.end) held.push(nap.list);
   for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
+  const now = new Date();
+  for (const schedule of getSchedules()) if (isBlocking(schedule, now)) held.push(schedule.id);
   return [...new Set(held)].filter((id) => selectionSize(id) > 0);
 }
 
@@ -530,6 +536,7 @@ export function standDown(): void {
   disarmNight();
   endNap();
   stopLimits();
+  stopSchedules();
   unshield('always');
   wakeApps('night');
 }
@@ -1015,7 +1022,8 @@ export function finishListEdit(list: StandingList, takeEffectAt: Date): 'now' | 
   // waits for midnight forward to that bedtime).
   const from = waiting ? Math.max(waiting.from, takeEffectAt.getTime()) : takeEffectAt.getTime();
   const kept = !!waiting && waiting.from > takeEffectAt.getTime();
-  const dated = kept ? waiting.dated : Date.now();
+  // A schedule's removals land when its block ends, a moment no bedtime moves (`redateLooserEdits`).
+  const dated = kept ? waiting.dated : list.startsWith('sched-') ? undefined : Date.now();
   const awake = kept ? waiting.awake : list === 'night' && bedtimeListAwake ? bedtimeListAwake(new Date(dated!)) : undefined;
   setPending(list, {
     from,
@@ -1068,7 +1076,7 @@ export function delayListChanges(
 const SETTLE_ACTIVITY = 'locturne-settle';
 /** When the settle activity starts (ms), while one is registered. */
 const SETTLE_AT_KEY = 'locturne.settleAt';
-/** iOS monitors about 20 activities at once: 16 night windows at most, Block now, three limits. */
+/** iOS monitors about 20 activities at once: seven night windows at most, Block now, three limits, app schedules. */
 const ACTIVITY_CAP = 20;
 /** iOS's shortest monitoring interval. */
 const SHORTEST_INTERVAL_MS = 15 * 60_000;
@@ -1076,10 +1084,10 @@ const SHORTEST_INTERVAL_MS = 15 * 60_000;
 /**
  * Is there room for the settle activity next to `windows` night windows, with Block now and
  * every daily limit kept free? Those are registered later, when they're asked for, and iOS
- * refuses one past its cap: a 16-window night leaves no room (round 53).
+ * refuses one past its cap (round 53, when a night took up to 16 windows).
  */
 function settleFits(windows: number): boolean {
-  return windows + 1 + MAX_LIMITS + 1 <= ACTIVITY_CAP;
+  return windows + 1 + MAX_LIMITS + MAX_SCHEDULES + 1 <= ACTIVITY_CAP;
 }
 
 /**
@@ -1477,7 +1485,7 @@ export async function settleLimitChanges(now = new Date()): Promise<void> {
 
 /*
  * The emergency unlock's night pause (src/lib/emergency.ts). The night windows re-shield the
- * bedtime list every 45 minutes, and the monitor extension marks the night held at each
+ * bedtime list at each start, and the monitor extension marks the night held at each
  * start, so unshielding alone would only last until the next window. Instead the bedtime
  * picks are parked in the list's draft, exactly like an edit that removes apps: the live
  * list is empty for the rest of tonight, so each window start shields nothing, and at the
@@ -1520,4 +1528,105 @@ export function moveNightPause(until: Date): void {
   const waiting = getPendingLists().night;
   if (!waiting || waiting.from <= until.getTime() || selectionSize('night') > 0) return;
   setPending('night', { ...waiting, from: until.getTime() });
+}
+
+/*
+ * App schedules (schedules.ts, docs/LOCK_V2.md). Each has its own picks, under its id, and one
+ * repeating activity for its daily block. What blocks is worked out from the clock, here
+ * (`heldLists`) and in the monitor extension (`locturneScheduleBlocking`): a block's start puts
+ * it up and its end takes it down, and any other callback or app open does whichever is due.
+ * The activity has no actions of its own, so nothing it starts on a day off shields anything.
+ */
+
+const SCHEDULES_KEY = 'locturne.schedules';
+
+/** The schedules saved, a waiting edit kept with its schedule. Settled on read. */
+export function getSchedules(now = new Date()): Schedule[] {
+  const stored = sharedGet<Schedule[]>(SCHEDULES_KEY) ?? [];
+  const settled = settleSchedules(stored, now);
+  if (settled.length !== stored.length || settled.some((s, i) => s !== stored[i])) sharedSet(SCHEDULES_KEY, settled);
+  return settled;
+}
+
+export function saveSchedules(schedules: Schedule[]): void {
+  sharedSet(SCHEDULES_KEY, schedules);
+}
+
+/** The words on a schedule's apps: until when, in Loc's plainest voice. */
+export function setScheduleShieldText(id: ScheduleId, text: ShieldText): void {
+  if (!isAvailable()) return;
+  userDefaultsSet(`${CONFIG_FOR_LIST}${id}`, shieldConfig(text));
+  userDefaultsSet(`${ACTIONS_FOR_LIST}${id}`, shieldActions(null));
+}
+
+/** When a schedule's activity was registered for, so it's only registered again on a change. */
+const SCHEDULE_ARMED_KEY = 'locturne.schedulesArmed';
+
+/**
+ * Registers each schedule's daily activity and stops the ones no schedule needs (deleted, or no
+ * picks). Every block's times, so iOS can nudge at both ends. Nothing without a subscription.
+ * Safe to call at every sync: an activity is registered again only when its times change or iOS
+ * has dropped it.
+ */
+export async function armSchedules(now = new Date()): Promise<void> {
+  if (!isAvailable()) return;
+  const schedules = isStoodDown() ? [] : getSchedules(now);
+  const armed = sharedGet<Record<string, string>>(SCHEDULE_ARMED_KEY) ?? {};
+  const want: Record<string, string> = {};
+  for (const schedule of schedules) {
+    if (selectionSize(schedule.id) === 0 && selectionSize(draftId(schedule.id)) === 0) continue;
+    const { start, end } = scheduleInterval(schedule);
+    // iOS refuses intervals under 15 minutes; the clock still holds such a block at each open.
+    if ((((end - start) % 1440) + 1440) % 1440 < 15) continue;
+    want[schedule.id] = `${start}-${end}`;
+  }
+  const stale = getActivities().filter((name) => name.startsWith('sched-') && !(name in want));
+  if (stale.length > 0) {
+    stopMonitoring(stale);
+    for (const name of stale) cleanUpAfterActivity(name);
+  }
+  const next: Record<string, string> = {};
+  for (const [id, times] of Object.entries(want)) {
+    if (armed[id] === times && hasActivity(id)) {
+      next[id] = times;
+      continue;
+    }
+    const [start, end] = times.split('-').map(Number);
+    makeRoomFor(id);
+    try {
+      await startMonitoring(id, { intervalStart: hourMinute(start), intervalEnd: hourMinute(end), repeats: true }, []);
+      next[id] = times;
+    } catch {
+      // iOS refused (its cap, or access off): the clock still holds the block at each open, and
+      // the next sync tries again.
+    }
+  }
+  sharedSet(SCHEDULE_ARMED_KEY, next);
+}
+
+/** Stops every schedule's activity and wakes its apps, keeping the schedules. */
+function stopSchedules(): void {
+  const names = getActivities().filter((name) => name.startsWith('sched-'));
+  if (names.length > 0) stopMonitoring(names);
+  for (const name of names) cleanUpAfterActivity(name);
+  userDefaultsRemove(SCHEDULE_ARMED_KEY);
+  for (const schedule of getSchedules()) unshield(schedule.id);
+}
+
+/**
+ * Wakes the apps of every schedule that isn't blocking (its block ended with the app closed and
+ * iOS's end call never came, or an edit moved it), then puts back whatever other rules hold.
+ */
+export function liftIdleSchedules(now = new Date()): void {
+  if (!isAvailable()) return;
+  const idle = getSchedules(now).filter((s) => !isBlocking(s, now) && hasSelection(s.id));
+  if (idle.length === 0) return;
+  for (const schedule of idle) unshield(schedule.id);
+  reapplyStandingBlocks();
+}
+
+/** When a schedule's block under way ends, or null outside one. */
+export function scheduleBlockEnds(id: ScheduleId, now = new Date()): Date | null {
+  const schedule = getSchedules(now).find((s) => s.id === id);
+  return schedule ? blockEnds(schedule, now) : null;
 }

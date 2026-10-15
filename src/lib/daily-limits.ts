@@ -34,8 +34,8 @@ export const LIMIT_CHOICES = [15, 30, 60, 120];
 export const LIMIT_MAX = 24 * 60 - 1;
 
 /**
- * iOS monitors about 20 activities per app: up to 16 night windows (`night-plan.ts`), one
- * Block now session, and these.
+ * iOS monitors about 20 activities per app: up to seven night windows (`night-plan.ts`), one
+ * Block now session, these, and the app schedules.
  */
 export const MAX_LIMITS = 3;
 

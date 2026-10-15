@@ -18,6 +18,7 @@
  * `intervalDidStart`, `intervalDidEnd`, `eventDidReachThreshold` and the helpers below with it.
  */
 import { assertPlist } from './fake-device-activity.ts';
+import { isBlocking, settleSchedules, type Schedule as AppSchedule } from './schedules.ts';
 
 type Clock = { hour: number; minute: number; second?: number; year?: number; month?: number; day?: number };
 type Schedule = { intervalStart: Clock; intervalEnd: Clock; repeats?: boolean };
@@ -47,6 +48,7 @@ const NAP_KEY = 'locturne.nap';
 const NIGHT_HELD_KEY = 'locturne.nightHeld';
 const LIMITS_KEY = 'locturne.limits';
 const LIMIT_REACHED_PREFIX = 'locturne.limitReached.';
+const SCHEDULES_KEY = 'locturne.schedules';
 const LIMIT_REACHED_AT_PREFIX = 'locturne.limitReachedAt.';
 const PENDING_LISTS_KEY = 'locturne.pendingLists';
 const HEARTBEAT_KEY = 'locturne.heartbeat';
@@ -314,7 +316,18 @@ export function simDevice() {
     for (const limit of get<{ id?: unknown }[]>(LIMITS_KEY) ?? []) {
       if (typeof limit.id === 'string' && limitUsedUpToday(limit.id)) held.push(limit.id);
     }
+    // App schedules, two minutes on (iOS can be early at either end of a block).
+    const soon = new Date(now() + 120_000);
+    for (const schedule of schedules(soon)) if (isBlocking(schedule, soon)) held.push(schedule.id);
     for (const id of held) block(id);
+  }
+
+  /** `locturneSchedules`: the app schedules, with an edit due by `at` put in force and saved. */
+  function schedules(at: Date): AppSchedule[] {
+    const stored = get<AppSchedule[]>(SCHEDULES_KEY) ?? [];
+    const settled = settleSchedules(stored, at);
+    if (settled.length !== stored.length || settled.some((x, i) => x !== stored[i])) s.store[SCHEDULES_KEY] = settled;
+    return settled;
   }
 
   /**
@@ -644,6 +657,13 @@ export function simDevice() {
     if (activity === NAP_ACTIVITY && nap && nap.end > now() + 120_000) return;
     // The nap is over: forget it first, so the re-apply doesn't shield it again.
     if (activity === NAP_ACTIVITY) delete s.store[NAP_KEY];
+    // An app schedule's block ends: what waits for it lands, and its apps wake unless it still holds them.
+    if (activity.startsWith('sched-')) {
+      settleLists();
+      const soon = new Date(now() + 120_000);
+      const schedule = schedules(soon).find((x) => x.id === activity);
+      if (!(schedule && isBlocking(schedule, soon))) unblock(activity);
+    }
     execActions(activity, 'intervalDidEnd');
     showMorningShield(activity);
     // (A nap's end: `restoreLocturneFallbackShield`, words only.)
