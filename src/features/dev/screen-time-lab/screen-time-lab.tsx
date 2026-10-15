@@ -20,6 +20,7 @@ import {
   isScreenTimeAvailable,
   requestAccess,
   setShieldText,
+  sharedGet,
   sleepApps,
   wakeApps,
   windowStarts,
@@ -42,6 +43,14 @@ function spikeSettings(bedtime: number, morningStart: number): LockSettings {
 
 function setLocShield() {
   setShieldText({ title: 'Shh. I’m sleeping. So are they.', subtitle: 'Locturne', button: 'Fine' });
+}
+
+/** One "I'm up" tap, as the ShieldAction extension logs it (`locturneLogMorningCheck` in Locturne.swift). */
+type ImUpCheck = { at: number; verdict: string; steps?: number; floors?: number };
+
+function imUpLabel(check: ImUpCheck) {
+  const counts = check.steps !== undefined && check.steps >= 0 ? `, ${check.steps} steps, ${check.floors ?? 0} floors` : '';
+  return `${check.verdict} at ${time(new Date(check.at))}${counts}`;
 }
 
 function time(date: Date) {
@@ -140,6 +149,7 @@ export function ScreenTimeLab() {
 
   const nightPicked = hasSelection('night');
   const lastStart = windowStarts()[0];
+  const lastCheck = sharedGet<ImUpCheck[]>('locturne.morningChecks')?.[0];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -180,6 +190,8 @@ export function ScreenTimeLab() {
             value={armed ? `${formatMinutes(armed.bedtime)}–${formatMinutes(armed.morningStart)}, ${armedWindowNames().length} windows` : 'no'}
           />
           <Row label="Last window start" value={lastStart ? `${lastStart.window} at ${time(lastStart.at)}` : 'none yet'} />
+          {/* "I'm up" on the morning shield, with Locturne closed (targets/ShieldAction/LocturneMorningCheck.swift). */}
+          <Row label="Last I’m up" value={lastCheck ? imUpLabel(lastCheck) : 'none yet'} />
         </View>
         <TimeStepper label="Bedtime" minutes={bedtime} onChange={setBedtime} />
         <TimeStepper label="Morning start" minutes={morningStart} onChange={setMorningStart} />

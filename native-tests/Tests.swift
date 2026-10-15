@@ -1327,4 +1327,104 @@ func registerTests() {
     expect(userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true, "next bedtime holds the night again")
     expectEqual(filtered(), ["youtube.com"], "and the site sleeps")
   }
+
+  // MARK: "I'm up" on the morning shield (Locturne.swift, the ShieldAction extension)
+
+  /// Monday night held to Tuesday 07:00 with the app closed: tiktok on the bedtime list,
+  /// reddit always asleep. `method` is the routine's wake-up.
+  func heldMorning(method: String = "steps") {
+    pick("night", ["tiktok"]); pick("always", ["reddit"])
+    var r = routine(); r["method"] = method
+    saveRoutine(r); armNight(); appWritesNamed()
+    appShields("always")
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-06 07:00"); end("night-2")
+  }
+
+  func proofs() -> [[String: Any]] { (get(LOCTURNE_PROOFS_KEY) as? [Any])?.compactMap { $0 as? [String: Any] } ?? [] }
+
+  test("I'm up after the steps wakes the bedtime apps and records the morning, Locturne closed") {
+    heldMorning()
+    at("2026-10-06 07:40")
+    expect(locturneJudgeMorning(steps: 230, floors: 0), "woke")
+    expect(!nightHeld(), "the night's hold is let go")
+    expectEqual(shielded(), ["reddit"], "only the always app stays asleep")
+    expectEqual(shown("reddit").title, "Always words", "the day's words are back")
+    expectEqual(proofs().first?["morningKey"] as? String, "2026-10-06")
+    expectEqual(proofs().first?["kind"] as? String, "steps")
+    expectEqual((proofs().first?["morningStart"] as? NSNumber)?.intValue, 7 * 60, "saved with the times it was judged under")
+    expectEqual((get(LOCTURNE_WON_KEY) as? NSNumber)?.intValue, 1, "one more morning won")
+    expectEqual(get(LOCTURNE_FIRST_KEY) as? String, "2026-10-06", "the first morning noted")
+  }
+
+  test("I'm up short of the steps keeps them asleep and puts the count on the shield") {
+    heldMorning()
+    at("2026-10-06 07:20")
+    expect(!locturneJudgeMorning(steps: 120, floors: 0), "not yet")
+    expect(nightHeld(), "still held")
+    expect(shielded().contains("tiktok"), "tiktok still asleep")
+    let subtitle = (get("\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_night") as? [String: Any])?["subtitle"] as? String
+    expectEqual(subtitle, "120 of 200 steps. 80 more, then tap I’m up.")
+    expect(proofs().isEmpty, "nothing recorded")
+  }
+
+  test("go downstairs: a floor with a few steps proves it; a floor without steps doesn't") {
+    heldMorning(method: "downstairs")
+    at("2026-10-06 07:15")
+    expect(!locturneJudgeMorning(steps: 5, floors: 1), "a floor with five steps is a lift, or noise")
+    expect(nightHeld(), "still held")
+    expect(locturneJudgeMorning(steps: 40, floors: 1), "down the stairs")
+    expectEqual(proofs().first?["kind"] as? String, "downstairs")
+    expect(!shielded().contains("tiktok"), "tiktok awake")
+  }
+
+  test("I'm up does nothing during the night, however far they walked") {
+    heldMorning()
+    at("2026-10-06 03:00")
+    expect(!locturneJudgeMorning(steps: 900, floors: 3), "bedtime wins")
+    expect(nightHeld(), "still held")
+    expect(proofs().isEmpty, "nothing recorded")
+  }
+
+  test("a morning the app already proved: I'm up only does the missing wake, and counts nothing twice") {
+    heldMorning()
+    at("2026-10-06 07:30")
+    set(LOCTURNE_PROOFS_KEY, [["morningKey": "2026-10-06", "kind": "scan", "at": ms(local("2026-10-06 07:25"))]])
+    set(LOCTURNE_WON_KEY, 4)
+    expect(locturneJudgeMorning(steps: nil, floors: 0), "woke")
+    expect(!nightHeld(), "released")
+    expectEqual(proofs().count, 1, "no second proof")
+    expectEqual((get(LOCTURNE_WON_KEY) as? NSNumber)?.intValue, 4, "not counted twice")
+  }
+
+  test("yesterday's proof doesn't count for this morning") {
+    heldMorning()
+    set(LOCTURNE_PROOFS_KEY, [["morningKey": "2026-10-05", "kind": "steps", "at": ms(local("2026-10-05 07:30"))]])
+    set(LOCTURNE_WON_KEY, 1)
+    at("2026-10-06 07:30")
+    expect(!locturneJudgeMorning(steps: 10, floors: 0), "still short today")
+    expect(locturneJudgeMorning(steps: 210, floors: 0), "today's walk")
+    expectEqual(proofs().count, 2)
+    expectEqual((get(LOCTURNE_WON_KEY) as? NSNumber)?.intValue, 2)
+  }
+
+  test("I'm up with no step history says so and changes nothing") {
+    heldMorning()
+    at("2026-10-06 07:30")
+    expect(!locturneJudgeMorning(steps: nil, floors: 0), "nothing to judge")
+    expect(nightHeld(), "still held")
+    let subtitle = (get("\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_night") as? [String: Any])?["subtitle"] as? String
+    expect(subtitle?.contains("Open Locturne") == true, "points at the app: \(subtitle ?? "nil")")
+  }
+
+  test("I'm up after the steps keeps a limit used up today asleep") {
+    heldMorning()
+    pick("limit-0", ["tiktok"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    set("\(LOCTURNE_LIMIT_REACHED_AT_PREFIX)limit-0", ms(local("2026-10-06 07:10")))
+    at("2026-10-06 07:40")
+    expect(locturneJudgeMorning(steps: 300, floors: 0), "woke")
+    expect(!nightHeld(), "the night lets go")
+    expect(shielded().contains("tiktok"), "but the used-up limit still holds tiktok")
+  }
 }

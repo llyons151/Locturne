@@ -189,6 +189,11 @@ func handleAction(
       sortByGranularity: true
     ).first
     if let configForSelectedAction = shieldActionConfig[actionButton] as? [String: Any] {
+      // Locturne: "I'm up" on the morning shield checks the walk itself (LocturneMorningCheck.swift).
+      if configForSelectedAction["type"] as? String == LOCTURNE_MORNING_CHECK {
+        locturneMorningCheck(config: configForSelectedAction, completion: completionHandler)
+        return
+      }
       let placeholders: [String: String?] = [
         "action": actionButton,
         "applicationName": applicationToken != nil

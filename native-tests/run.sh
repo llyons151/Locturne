@@ -28,7 +28,7 @@ fi
 # Independent reviewers and timezone checks may run concurrently.
 build="$(mktemp -d "${TMPDIR:-/tmp}/locturne-native-tests.XXXXXX")"
 
-for file in Shared.swift DeviceActivityMonitorExtension.swift; do
+for file in Shared.swift Locturne.swift DeviceActivityMonitorExtension.swift; do
   { printf '#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n'
   sed -E \
     -e '/^import (DeviceActivity|FamilyControls|ManagedSettings|NotificationCenter|UIKit|WebKit|os)$/d' \
@@ -39,13 +39,15 @@ for file in Shared.swift DeviceActivityMonitorExtension.swift; do
     "$src/$file"; } >"$build/$file"
 done
 
-# All the copies of Shared.swift must be the same file: the tests run one of them.
-for other in "$root"/targets/*/Shared.swift; do
-  cmp -s "$other" "$src/Shared.swift" || { echo "targets differ: $other" >&2; exit 1; }
+# All the copies of Shared.swift and Locturne.swift must be the same file: the tests run one of them.
+for shared in Shared.swift Locturne.swift; do
+  for other in "$root"/targets/*/"$shared"; do
+    cmp -s "$other" "$src/$shared" || { echo "targets differ: $other" >&2; exit 1; }
+  done
 done
 
 swiftc -swift-version 5 -suppress-warnings -o "$build/native-tests" \
-  "$here/Shims.swift" "$build/Shared.swift" "$build/DeviceActivityMonitorExtension.swift" \
+  "$here/Shims.swift" "$build/Shared.swift" "$build/Locturne.swift" "$build/DeviceActivityMonitorExtension.swift" \
   "$here/Harness.swift" "$here/Tests.swift" "$here/Fixtures.swift" "$here/main.swift"
 
 # The handoff fixtures: the real app code's App Group writes, in this time zone.

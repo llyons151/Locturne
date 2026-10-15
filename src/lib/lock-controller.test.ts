@@ -269,7 +269,7 @@ describe('the shield', () => {
     const { registerScanCode } = await import('./scan.ts');
     saveRoutine({ ...DEFAULT_ROUTINE, method: 'scan' }, at(12, 0, 0));
     syncLock(at(15));
-    assert.match(morningSubtitles.at(-1) ?? '', /steps/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Walk \d+ steps/);
     assert.equal(registerScanCode({ kind: 'qr', data: 'LOCTURNE-abcd', type: 'qr' }, at(15)), null);
     assert.match(morningSubtitles.at(-1) ?? '', /scan your code/);
   });
@@ -293,10 +293,10 @@ describe('the words for a waiting edit', () => {
     saveRoutine({ ...DEFAULT_ROUTINE, method: 'steps' }, at(1, 0, 1)); // waits for tonight
     // 07:00, unproven: the last window's end can copy these words up to 30 minutes later.
     syncLock(at(7, 0, 1));
-    assert.match(morningSubtitles.at(-1) ?? '', /stairs/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Go down a floor/);
     // Proven: the next morning's are the edit's.
     proveMorning('downstairs', at(7, 10, 1));
-    assert.match(morningSubtitles.at(-1) ?? '', /steps/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Walk \d+ steps/);
   });
 
   test('a morning nobody proves gets the edit\'s words once the last window can no longer copy them', async () => {
@@ -304,11 +304,11 @@ describe('the words for a waiting edit', () => {
     nightHeld = true;
     saveRoutine({ ...DEFAULT_ROUTINE, method: 'steps' }, at(7, 20)); // waits for tonight
     syncLock(at(7, 20));
-    assert.match(morningSubtitles.at(-1) ?? '', /stairs/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Go down a floor/);
     // Never proven, so the morning lasts until bedtime. With the app closed overnight,
     // tomorrow's 07:00 copies whatever is written now, and tomorrow runs on the edit.
     assert.equal(syncLock(at(15)).phase, 'morning');
-    assert.match(morningSubtitles.at(-1) ?? '', /steps/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Walk \d+ steps/);
   });
 });
 

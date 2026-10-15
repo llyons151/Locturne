@@ -52,17 +52,17 @@ export function shieldRule(facts: ShieldFacts): ShieldRule {
 }
 
 /**
- * What the morning asks for, in the order that works. Steps count from history, so walking
- * first is fine. The barometer only listens after Start and the camera lives in the app, so
- * downstairs and scan start in Locturne: "go downstairs, then open Locturne" fails the morning
- * for anyone who obeys it.
+ * What the morning asks for, in the order that works. Steps and floors count from the motion
+ * chip's history, so the shield's I'm up button checks them with Locturne closed
+ * (`locturneMorningCheck`): walk or take the stairs first, then tap it. The camera and the
+ * place check-in live in the app, so those still open Locturne (or walk instead).
  */
 const PROOF: Record<WakeMethod, (stepGoal: number) => string> = {
-  downstairs: () => 'Open Locturne and tap Start. Then the stairs.',
-  steps: (goal) => `Walk ${goal} steps, then open Locturne. That wakes them.`,
-  scan: () => 'Open Locturne and scan your code. That wakes them.',
-  place: () => 'Go to your place, then open Locturne and check in. That wakes them.',
-  pushups: () => 'Open Locturne and tap Start. Then your push-ups on the floor.',
+  downstairs: (goal) => `Go down a floor, then tap I’m up. Or walk ${goal} steps.`,
+  steps: (goal) => `Walk ${goal} steps, then tap I’m up.`,
+  scan: (goal) => `Open Locturne and scan your code. Or walk ${goal} steps and tap I’m up.`,
+  place: (goal) => `Go to your place and check in from Locturne. Or walk ${goal} steps and tap I’m up.`,
+  pushups: (goal) => `Open Locturne for your push-ups. Or walk ${goal} steps and tap I’m up.`,
 };
 
 /**
@@ -81,10 +81,11 @@ const TONE_LINES: Record<ShieldRule, Record<Tone, { title: string; button: strin
     grumpy: { title: 'Why are we awake.', button: 'Back to bed' },
     unbearable: { title: 'It’s the middle of the night. Why.', button: 'Back to bed' },
   },
+  // The button checks the walk (`locturneMorningCheck`), so it says so at every tone.
   morning: {
-    mild: { title: 'Not yet.', button: 'Okay' },
-    grumpy: { title: 'No.', button: 'Fine' },
-    unbearable: { title: 'No. Get up.', button: 'Fine. Fine.' },
+    mild: { title: 'Not yet.', button: 'I’m up' },
+    grumpy: { title: 'No.', button: 'I’m up' },
+    unbearable: { title: 'No. Get up.', button: 'I’m up. Happy?' },
   },
   blockNow: {
     mild: { title: 'Napping. Back soon.', button: 'Okay' },
@@ -140,7 +141,7 @@ function shieldFacts(
       return {
         title: 'No.',
         subtitle: PROOF[routine.method](routine.stepGoal),
-        button: 'Fine',
+        button: 'I’m up',
       };
     case 'blockNow':
       return {

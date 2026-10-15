@@ -353,17 +353,27 @@ function shieldConfig({ title, subtitle, button }: ShieldText) {
 }
 
 /**
- * A shield button can't open the app, but it can send a notification that does
- * (`shieldTapNotification` in notifications.ts).
+ * The morning's button is "I'm up": the ShieldAction extension reads the steps and floors
+ * since the morning start and wakes the apps itself, with Locturne closed
+ * (`locturneMorningCheck`, targets/ShieldAction/LocturneMorningCheck.swift). A shield button
+ * can't open the app, so when the morning needs it (scan, place, push-ups) the extension sends
+ * the tap's notification, which does (`shieldTapNotification` in notifications.ts). An older
+ * extension doesn't know the type: it just sends the notification.
  */
 function shieldActions(tap: ShieldTap) {
+  if (!tap) return { primary: { behavior: 'close' as const } };
   return {
     primary: {
-      behavior: 'close' as const,
-      ...(tap ? { actions: [{ type: 'sendNotification' as const, payload: tap }] } : {}),
+      behavior: 'defer' as const,
+      // Not one of the library's types: Locturne's own (`LOCTURNE_MORNING_CHECK` in Locturne.swift).
+      type: MORNING_CHECK as unknown as 'sendNotification',
+      actions: [{ type: 'sendNotification' as const, payload: tap }],
     },
   };
 }
+
+/** The morning shield button's action type, handled by Locturne's ShieldAction code. */
+export const MORNING_CHECK = 'locturneMorningCheck';
 
 /**
  * The block screen's words. iOS draws the shield itself: a small icon, a title, a subtitle

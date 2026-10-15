@@ -4,6 +4,8 @@
 <dict>
 	<key>REACT_NATIVE_DEVICE_ACTIVITY_APP_GROUP</key>
   <string>$(REACT_NATIVE_DEVICE_ACTIVITY_APP_GROUP)</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Locturne reads your steps and floors since your wake-up time, to wake your apps when you tap I’m up.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
