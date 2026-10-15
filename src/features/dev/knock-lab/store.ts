@@ -3,9 +3,9 @@ import { useSyncExternalStore } from 'react';
 import { NAV_KNOCK, type NavKnockTune } from '@/features/home/nav-knock-tune';
 
 /**
- * The knock lab (/knock-lab): a panel over the real Home for tuning how the nav buttons bounce as Loc burrows
- * (nav-knock-tune.ts) live. Changes apply to the next burrow, are remembered in this browser,
- * and turn back into code to paste into nav-knock-tune.ts.
+ * The knock lab (/knock-lab): a panel over the real Home for tuning live how the nav buttons
+ * bounce as Loc burrows (nav-knock-tune.ts). Changes apply to the next burrow, are remembered in
+ * this browser, and turn back into code to paste into nav-knock-tune.ts.
  */
 const SHIPPED: NavKnockTune = { ...NAV_KNOCK };
 // Versioned: bumped when the shipped tuning changes, so an old saved spin can't bring back the whirl.
