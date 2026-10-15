@@ -90,7 +90,7 @@ export function ScheduleSheet() {
   if (!req) return null;
 
   const set = (patch: Partial<ScheduleDraft>) => setDraft((d) => ({ ...d, ...patch }));
-  const usePreset = (key: string) => {
+  const pickPreset = (key: string) => {
     const p = PRESETS.find((x) => x.key === key)!;
     haptic.tap();
     setPreset(key);
@@ -145,13 +145,15 @@ export function ScheduleSheet() {
             return (
               <Pressable
                 key={p.key}
-                onPress={() => usePreset(p.key)}
+                onPress={() => pickPreset(p.key)}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: on }}
                 accessibilityHint={p.about}
                 style={({ pressed }) => [styles.preset, on && styles.presetOn, pressed && styles.pressed]}
               >
-                <Text style={[styles.presetLabel, on && styles.presetLabelOn]}>{p.name || 'Custom'}</Text>
+                <Text style={[styles.presetLabel, on && styles.presetLabelOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                  {p.name || 'Custom'}
+                </Text>
               </Pressable>
             );
           })}
@@ -244,10 +246,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Nocturne.frost,
   },
-  presets: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Space.s },
+  // The four share one row.
+  presets: { flexDirection: 'row', gap: Space.s },
   preset: {
+    flex: 1,
     minHeight: 36,
-    paddingHorizontal: Space.l,
+    paddingHorizontal: Space.xs,
+    alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
     borderCurve: 'continuous',
@@ -277,6 +282,8 @@ const styles = StyleSheet.create({
     color: Nocturne.text,
     fontWeight: '500',
     textAlign: 'right',
+    // A line height on a one-line field pushes its text down on iOS, below the "Name" beside it.
+    lineHeight: undefined,
     ...Platform.select({ web: { outlineStyle: 'none' } as unknown as TextStyle }),
   },
   card: {

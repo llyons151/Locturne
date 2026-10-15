@@ -20,6 +20,7 @@ import {
   accessibilityLabel,
   datePickerStyle,
   foregroundStyle,
+  frame,
   labelsHidden,
   navigationTitle,
   pickerStyle,
@@ -54,6 +55,15 @@ import {
  *   and a checkmark list like Clock's "Repeat". Each tap applies straight away, so the sheet
  *   only needs the standard Close button.
  */
+
+/**
+ * A control's Host in a row: as wide as the control, as tall as the row, with the control
+ * centred in it. Matching the height too let the Host come out taller than the control in the
+ * Sleep sheet, and SwiftUI pins its content to the top (the schedule sheet, 2026-10-14).
+ */
+const IN_ROW = { matchContents: { horizontal: true }, style: { alignSelf: 'stretch' }, colorScheme: 'dark' } as const;
+/** No infinity across the bridge: a height no row reaches fills it, centred. */
+const CENTRED = frame({ maxHeight: 10_000 });
 
 const timeAsDate = (minutes: number) => new Date(2000, 0, 1, 0, minutes);
 
@@ -98,7 +108,7 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
   }, []);
   return (
     <ControlRow icon={icon} title={title} last={last}>
-      <Host matchContents colorScheme="dark" key={shown}>
+      <Host {...IN_ROW} key={shown}>
         <DatePicker
           selection={timeAsDate(held ?? value)}
           displayedComponents={['hourAndMinute']}
@@ -107,7 +117,7 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
             setHeld(minutes);
             pending.current?.push(minutes);
           }}
-          modifiers={[datePickerStyle('compact'), labelsHidden(), tint(Nocturne.text), accessibilityLabel(title)]}
+          modifiers={[datePickerStyle('compact'), labelsHidden(), tint(Nocturne.text), accessibilityLabel(title), CENTRED]}
         />
       </Host>
     </ControlRow>
@@ -117,11 +127,11 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
 export function MenuRow<T extends string | number>({ icon, title, value, options, onChange, last }: MenuRowProps<T>) {
   return (
     <ControlRow icon={icon} title={title} last={last}>
-      <Host matchContents colorScheme="dark">
+      <Host {...IN_ROW}>
         <Picker
           selection={value}
           onSelectionChange={(next: T) => onChange(next)}
-          modifiers={[pickerStyle('menu'), labelsHidden(), tint(Nocturne.text2), accessibilityLabel(title)]}
+          modifiers={[pickerStyle('menu'), labelsHidden(), tint(Nocturne.text2), accessibilityLabel(title), CENTRED]}
         >
           {options.map((o) => (
             <Text key={o.value} modifiers={[tag(o.value)]}>
@@ -185,8 +195,8 @@ export function NightsRow({ icon, value, onChange, last }: NightsRowProps) {
 export function SwitchRow({ icon, title, value, onChange, last }: SwitchRowProps) {
   return (
     <ControlRow icon={icon} title={title} last={last}>
-      <Host matchContents colorScheme="dark">
-        <Toggle isOn={value} onIsOnChange={onChange} modifiers={[labelsHidden(), accessibilityLabel(title)]} />
+      <Host {...IN_ROW}>
+        <Toggle isOn={value} onIsOnChange={onChange} modifiers={[labelsHidden(), accessibilityLabel(title), CENTRED]} />
       </Host>
     </ControlRow>
   );

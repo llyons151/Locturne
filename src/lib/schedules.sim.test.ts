@@ -188,14 +188,14 @@ test('a schedule ending while the night holds the same app leaves it asleep', as
   assert.ok(!asleep('youtube'));
 });
 
-test('the longest night, three limits, Block now and six schedules all fit in iOS\'s 20', async () => {
+test('the longest night, five limits, Block now and four schedules all fit in iOS\'s 20', async () => {
   // 19:00 to 07:00, saved by day: in force at once, seven windows.
   await setup(at(5, 8));
   rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, bedtime: 19 * 60, morningStart: 7 * 60 }, new Date(), false, true);
   await lc.armRoutine().catch(() => {});
   await flush();
   drain();
-  for (const [id, app] of [['limit-0', 'yt'], ['limit-1', 'fb'], ['limit-2', 'ig']] as const) {
+  for (const [id, app] of [['limit-0', 'yt'], ['limit-1', 'fb'], ['limit-2', 'ig'], ['limit-3', 'sc'], ['limit-4', 'tw']] as const) {
     pick(id, [app]);
     const limit = { id, minutes: 30 } as const;
     await st.armLimit(limit);

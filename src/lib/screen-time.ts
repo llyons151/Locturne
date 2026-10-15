@@ -1076,7 +1076,7 @@ export function delayListChanges(
 const SETTLE_ACTIVITY = 'locturne-settle';
 /** When the settle activity starts (ms), while one is registered. */
 const SETTLE_AT_KEY = 'locturne.settleAt';
-/** iOS monitors about 20 activities at once: seven night windows at most, Block now, three limits, app schedules. */
+/** iOS monitors about 20 activities at once: seven night windows at most, Block now, five limits, four app schedules. */
 const ACTIVITY_CAP = 20;
 /** iOS's shortest monitoring interval. */
 const SHORTEST_INTERVAL_MS = 15 * 60_000;

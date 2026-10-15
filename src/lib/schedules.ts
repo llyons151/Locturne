@@ -34,10 +34,11 @@ export type Schedule = {
 
 /**
  * iOS monitors about 20 activities per app: seven night windows (night-plan.ts), Block now,
- * three daily limits, a one-off settle and these, with two to spare for the monitor
- * extension's re-arming handoff.
+ * five daily limits, a one-off settle and these: 18, with two to spare for the monitor
+ * extension's re-arming handoff. Four schedules under Sleep at bedtime and five limits, so each
+ * tab holds five tiles (user, 2026-10-14).
  */
-export const MAX_SCHEDULES = 6;
+export const MAX_SCHEDULES = 4;
 
 const IDS: ScheduleId[] = Array.from({ length: MAX_SCHEDULES }, (_, i) => `sched-${i}` as ScheduleId);
 
@@ -62,7 +63,6 @@ export const PRESETS: { key: string; name: string; start: number; end: number; a
   { key: 'work', name: 'Work', start: 9 * 60, end: 17 * 60, days: WEEKDAYS, about: '9 am to 5 pm, weekdays' },
   { key: 'study', name: 'Study', start: 18 * 60, end: 21 * 60, days: [0, 1, 2, 3, 4], about: '6 pm to 9 pm, Sunday to Thursday' },
   { key: 'mornings', name: 'Mornings', start: 7 * 60, end: 10 * 60, days: ALL_DAYS, about: '7 am to 10 am, every day' },
-  { key: 'weekdays', name: 'Weekdays', start: 0, end: 0, allDay: true, days: WEEKDAYS, about: 'All day, Monday to Friday' },
   { key: 'custom', name: '', start: 12 * 60, end: 13 * 60, days: ALL_DAYS, about: 'Your own times' },
 ];
 

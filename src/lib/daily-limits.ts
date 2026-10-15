@@ -37,7 +37,7 @@ export const LIMIT_MAX = 24 * 60 - 1;
  * iOS monitors about 20 activities per app: up to seven night windows (`night-plan.ts`), one
  * Block now session, these, and the app schedules.
  */
-export const MAX_LIMITS = 3;
+export const MAX_LIMITS = 5;
 
 const IDS: LimitId[] = Array.from({ length: MAX_LIMITS }, (_, i) => `limit-${i}` as LimitId);
 

@@ -53,7 +53,7 @@ let fireOnRegister = false;
 /**
  * Registrations the simulated iOS itself refused (its cap of 20 activities, `device.state.cap`,
  * or an interval ending before it starts), not the forced refusals above. The night windows,
- * Block now, three limits and the list settle are budgeted to fit (night-plan.ts,
+ * Block now, five limits, the app schedules and the list settle are budgeted to fit (night-plan.ts,
  * `scheduleListSettle`), so any is a failure.
  */
 const iosRefused: string[] = [];

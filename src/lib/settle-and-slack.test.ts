@@ -133,7 +133,7 @@ function listEdit(list: StandingList, apps: string[]) {
 }
 
 async function addLimits(count: number) {
-  for (const [id, app] of ([['limit-0', 'yt'], ['limit-1', 'fb'], ['limit-2', 'x']] as const).slice(0, count)) {
+  for (const [id, app] of ([['limit-0', 'yt'], ['limit-1', 'fb'], ['limit-2', 'x'], ['limit-3', 'sc'], ['limit-4', 'tw']] as const).slice(0, count)) {
     device.exports.setFamilyActivitySelectionId({ id, familyActivitySelection: token([app]) });
     const limit = { id, minutes: 30 } as const;
     await st.armLimit(limit);
@@ -163,10 +163,10 @@ for (const before of [90, 60, 30]) {
   });
 }
 
-test('F2: a 12-hour night\'s re-arm, Block now, three limits and a waiting settle all fit', async () => {
+test('F2: a 12-hour night\'s re-arm, Block now, five limits and a waiting settle all fit', async () => {
   // 19:00 to 07:00: seven windows (night-plan.ts), where it was 16 before 2026-10-14.
   await setup(at(5, 12), { ...rt.DEFAULT_ROUTINE, bedtime: 19 * 60, morningStart: 7 * 60 });
-  await addLimits(3);
+  await addLimits(5);
   runTo(at(6, 12));
   await open();
   await st.startNap('night', 240);
@@ -195,10 +195,10 @@ test('F2: a settle next to re-arms, limits and Block now, and the change still l
   await commit({ ...rt.getRoutine(), bedtime: 23 * 60 + 50 });
   await open();
   assert.ok(device.state.monitored.has('locturne-settle'), 'room for it next to seven windows');
-  // Then 19:00 to 07:00 (seven windows too), three limits and Block now: nothing is refused.
+  // Then 19:00 to 07:00 (seven windows too), five limits and Block now: nothing is refused.
   await commit({ ...rt.getRoutine(), bedtime: 19 * 60 });
   await open();
-  await addLimits(3);
+  await addLimits(5);
   await st.startNap('block', 30).catch(() => {});
   await open();
   assert.deepEqual(refused, []);

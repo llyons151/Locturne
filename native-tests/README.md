@@ -82,7 +82,7 @@ On macOS with Xcode installed, `swiftc` is already on the PATH.
 `limit-10` to `limit-19`, and cleaning up `night-1` would wipe those of `night-10` to `night-15`.
 
 This can't bite today:
-- there are at most 3 limits (`MAX_LIMITS`);
+- there are at most 5 limits (`MAX_LIMITS`);
 - night windows are only ever cleaned up all together (`disarmNight`).
 
 If either of those changes, name the activities so that none is a prefix of another.
