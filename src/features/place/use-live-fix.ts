@@ -49,6 +49,8 @@ export function useLiveFix(active: boolean, retry: unknown): Fix | null {
     return () => {
       stopped = true;
       watch?.remove();
+      // Off (or restarting): never hand back yesterday's position as where you are now.
+      setFix(null);
     };
   }, [active, fake, retry]);
 

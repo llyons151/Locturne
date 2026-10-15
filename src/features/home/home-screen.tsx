@@ -14,6 +14,7 @@ import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
 import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
+import { getTone } from '@/lib/tone';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
@@ -41,10 +42,11 @@ import { LocCue } from './loc';
 import type { LocMoment } from './loc-lines';
 import { duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
+import { useLocMind } from './use-loc-mind';
 import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
-import { scanMorning } from './morning';
+import { OTHER_WAYS, scanMorning } from './morning';
 import { useMorningPlace } from './use-morning-place';
 import { useMorningStairs } from './use-morning-stairs';
 import { useMorningWalk, type MorningWalk } from './use-morning-walk';
@@ -272,6 +274,8 @@ export function HomeScreen() {
     !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
   // Asks right here (askAccessAgain), which offers Settings only if it's refused again.
   const turnAccessOn = () => askAccessAgain().then(recheckHealth);
+  // A walk with Motion & Fitness off: Settings, with the other ways under it.
+  const walkSettings = walk?.kind === 'denied' ? { label: 'Open Settings', onPress: () => Linking.openSettings() } : null;
   const action = unprotected
     ? health.protection === 'notSetUp'
       ? { label: 'Turn on Screen Time', onPress: turnAccessOn }
@@ -280,8 +284,8 @@ export function HomeScreen() {
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : trial
         ? { label: 'Manage subscription', onPress: manageTrial }
-        : walk?.kind === 'denied'
-          ? { label: 'Open Settings', onPress: () => Linking.openSettings() }
+        : walkSettings
+          ? walkSettings
         : walk
           ? { label: 'Other ways to wake them', onPress: () => router.push('/exits'), opens: true }
         : here
@@ -296,13 +300,29 @@ export function HomeScreen() {
 
   // Loc sleeps when the apps do (a held night, or Block now), is groggy through the locked
   // morning, and is up by day.
-  const mood = (phase === 'night' && !paused) || napping ? 'asleep' : phase === 'morning' ? 'groggy' : 'awake';
+  const baseMood = (phase === 'night' && !paused) || napping ? 'asleep' : phase === 'morning' ? 'groggy' : 'awake';
+  // What he remembers about you (lib/loc-mind.ts, docs/LOC_PERSONALITY.md): respect makes him
+  // smug by day, slipping out makes him wary, and some days he has something to bring up.
+  const mind = useLocMind({
+    sayKey: facts.sayKey,
+    phase,
+    morningKey: lock.morningKey,
+    todayKey: dateKey(now),
+    proof,
+    mornings,
+    now,
+    visit,
+    tone: getTone(),
+  });
+  const mood = baseMood === 'awake' && mind.proud ? 'smug' : baseMood;
   // What Loc has something to say about (loc-lines.ts), once each: bedtime within the hour, the
   // apps just gone to sleep, this morning's wake-up done. Keyed so each is said once per night.
   const quiet = unprotected || attention || paused || stoodDown;
   const moment: LocMoment | null = quiet
     ? null
-    : phase === 'night'
+    : mind.moment
+      ? mind.moment
+      : phase === 'night'
       ? { kind: 'appsAsleep', key: `${facts.sayKey}asleep:${lock.morningKey}` }
       : phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency'
         ? { kind: 'wakeDone', key: `${facts.sayKey}woke:${proof.morningKey}` }
@@ -325,11 +345,12 @@ export function HomeScreen() {
         heroKey={walk?.kind === 'counting' ? (walk.steps ?? 0) : here?.meter ? Number.parseFloat(here.meter.value) || 0 : (minutes ?? 0)}
         meter={walk?.kind === 'counting' ? walkMeter(walk) : here?.meter}
         icon={walk ? WALK_ICON : here?.icon}
+        searching={!walk && here?.searching}
         action={action}
-        alt={here && action === here.action ? here.alt : undefined}
+        alt={here && action === here.action ? here.alt : action === walkSettings ? OTHER_WAYS : undefined}
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
-      <LocCue mood={mood} moment={moment} floor={tabInset + moonArc} />
+      <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
       {here?.keepAwake ? <StayAwake /> : null}
       {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>

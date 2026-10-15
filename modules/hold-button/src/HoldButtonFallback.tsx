@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -35,11 +35,15 @@ export function HoldButtonFallback({
   const strip = width * (1 + FEATHER);
 
   const press = () => {
-    if (disabled) return;
+    // Full: it just completed and is draining back, so a tap now isn't a hold.
+    if (disabled || progress.get() >= 1) return;
     cancelAnimation(progress);
     progress.set(
       withTiming(1, { duration: duration * (1 - progress.get()), easing: Easing.linear }, (done) => {
-        if (done) scheduleOnRN(onComplete);
+        if (!done) return;
+        scheduleOnRN(onComplete);
+        // Ready again if the button stays on screen (say the start was refused), as the Swift one.
+        progress.set(withDelay(700, withTiming(0, { duration: DRAIN_MS, easing: Easing.out(Easing.quad) })));
       }),
     );
   };

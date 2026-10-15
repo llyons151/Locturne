@@ -19,7 +19,7 @@ import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { currentProof, routineAt } from '@/lib/lock-controller';
 import { currentMorning, type LockState } from '@/lib/lock-state';
-import { getRoutine, pushupGoalOf, toLockSettings } from '@/lib/routine';
+import { pushupGoalOf, toLockSettings } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
 import { PHASE_LINES } from '@/lib/wake/lines';
 import { Gap, Nocturne, Space, Type } from '@/theme';
@@ -58,8 +58,9 @@ function StayAwake() {
 export function WakeScreen({ method }: { method?: WakeMethodShown }) {
   const insets = useSafeAreaInsets();
   const lock = useLock();
-  // Read each render: left open across a bedtime, the next morning uses the routine then in force.
-  const routine = getRoutine();
+  // Read each render: left open across a bedtime, the next morning uses the routine then in force
+  // (Home reads the same one).
+  const routine = routineAt(new Date());
   const [shown, setShown] = useState<WakeMethodShown>(
     method ?? (routine.method === 'steps' ? 'steps' : routine.method === 'pushups' ? 'pushups' : 'downstairs'),
   );

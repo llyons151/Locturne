@@ -51,6 +51,7 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
         body: `Motion & Fitness is off for Locturne, so I can’t tell when you change floors. Turn it on in Settings, under Privacy & Security.${instead}`,
       },
       action: { label: 'Open Settings', onPress: () => Linking.openSettings() },
+      alt: OTHER_WAYS,
     };
 
   if (broken)
@@ -65,6 +66,7 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
         access === 'unavailable'
           ? OTHER_WAYS
           : { label: 'Try the stairs again', onPress: start },
+      alt: access === 'unavailable' ? undefined : OTHER_WAYS,
     };
 
   const line = downstairsLine(status ?? 'idle', session ? heightProgress(session) : 0);
@@ -88,6 +90,7 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
     hero: { title: meterLabel(session), body: bodyFor(status), aside: line },
     meter: heightMeter(session),
     action: running ? { label: 'Stop', onPress: cancel } : { label: 'Start', onPress: start },
+    alt: OTHER_WAYS,
     keepAwake: running,
   };
 }

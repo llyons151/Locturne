@@ -122,6 +122,8 @@ function home({
     './night-meter': { duration: (m: number) => `${m} min`, useMinute: () => now },
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
+    './use-loc-mind': { useLocMind: () => ({ proud: false, wary: 0, moment: null }) },
+    '@/lib/tone': { getTone: () => 'grumpy' },
     './use-moon-sink': { useMoonSink() {} },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
     'expo-keep-awake': { useKeepAwake() {} },

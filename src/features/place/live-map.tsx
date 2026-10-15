@@ -39,13 +39,18 @@ function fits(region: Region, points: Spot[], w: number, h: number) {
 /** The place alone, or the place and you, midway, zoomed out in steps until both fit. */
 function regionFor(place: Spot, you: Spot | null, w: number, h: number): Region {
   if (!you) return { ...place, span: MIN_SPAN };
-  const middle = { latitude: (place.latitude + you.latitude) / 2, longitude: (place.longitude + you.longitude) / 2 };
+  // Across the antimeridian the short way round is the middle, not the far side of the world.
+  const wrap = Math.abs(you.longitude - place.longitude) > 180 ? 360 : 0;
+  const mid = (place.longitude + you.longitude + (you.longitude < place.longitude ? wrap : -wrap)) / 2;
+  const middle = { latitude: (place.latitude + you.latitude) / 2, longitude: ((mid + 540) % 360) - 180 };
   // Near the place, it stays in the middle, so the circle doesn't drift as you arrive.
   if (fits({ ...place, span: MIN_SPAN }, [place, you], w, h)) return { ...place, span: MIN_SPAN };
   let span = MIN_SPAN * STEP;
   while (!fits({ ...middle, span }, [place, you], w, h) && span < 200_000) span *= STEP;
   return { ...middle, span };
 }
+
+const keyOf = (r: Region) => `${r.latitude.toFixed(5)},${r.longitude.toFixed(5)},${Math.round(r.span)}`;
 
 /** A street-ish grid step for the span: 50 m, 100 m, 200 m, 500 m, 1 km… */
 function gridStep(span: number) {
@@ -64,12 +69,14 @@ export function LiveMap({ place, you, width, height }: { place: Spot & { name: s
   const [region, setRegion] = useState<Region>(() => regionFor(place, you, width, height));
   const [map, setMap] = useState<{ uri: string; key: string } | null>(null);
 
-  // Re-framed only when you leave the picture, or come close enough that it should zoom in.
+  // Re-framed only when you leave the picture, or come close enough that it should zoom in. Only
+  // to a different region: hundreds of km off, even the widest one doesn't fit, and setting it
+  // again every render would loop.
   const wanted = regionFor(place, you, width, height);
   const stale = !fits(region, you ? [place, you] : [place], width, height) || wanted.span !== region.span;
-  if (stale) setRegion(wanted);
+  if (stale && keyOf(wanted) !== keyOf(region)) setRegion(wanted);
 
-  const key = `${region.latitude.toFixed(5)},${region.longitude.toFixed(5)},${Math.round(region.span)}`;
+  const key = keyOf(region);
   useEffect(() => {
     let live = true;
     PlaceSearch?.area?.(region.latitude, region.longitude, region.span, width, height)

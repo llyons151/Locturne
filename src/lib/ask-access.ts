@@ -7,19 +7,23 @@ import {
   getArmedNight,
   isStoodDown,
   reapplyStandingBlocks,
+  rearmNap,
   requestAccess,
 } from './screen-time.ts';
 
 /**
  * Access is back: put back what a revoke took. The shields of every list a rule still holds,
  * and, for someone paid, tonight's windows, which iOS stops on a revoke while the record of
- * the armed night stays (`getProtection` reads that gap as off).
+ * the armed night stays (`getProtection` reads that gap as off). A running nap's end is handed
+ * back too: the revoke stopped the window that wakes its apps. Resolves once iOS has them, so
+ * a caller re-reading protection doesn't still see the gap.
  */
-export function restoreBlocks(): void {
+export async function restoreBlocks(): Promise<void> {
   reapplyStandingBlocks();
+  await rearmNap().catch(() => {});
   const armed = getArmedNight();
   if (!armed || isStoodDown() || currentNightWindowNames().length === armed.windows) return;
-  armTonight()
+  await armTonight()
     .then(() => rescheduleNotifications())
     .catch(() => {});
 }
@@ -35,7 +39,7 @@ export function restoreBlocks(): void {
 export async function askAccessAgain(): Promise<boolean> {
   try {
     if ((await requestAccess()) === 'approved') {
-      restoreBlocks();
+      await restoreBlocks();
       return true;
     }
   } catch {

@@ -35,6 +35,7 @@ mock.module('./screen-time.ts', {
     getArmedNight: () => s.armed,
     currentNightWindowNames: () => Array.from({ length: s.running }, (_, i) => `night-${i}`),
     isStoodDown: () => s.stoodDown,
+    rearmNap: async () => {},
   },
 });
 mock.module('./arm.ts', { namedExports: { armTonight: async () => { s.armCalls += 1; return { status: 'armed', now: false }; } } });

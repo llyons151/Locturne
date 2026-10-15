@@ -41,6 +41,7 @@ import { applyRoutineEdit, getSetRoutine } from '@/features/routine/apply-edit';
 
 import { refusal, SIGN_OFF } from './fire-loc';
 import { DEMO_LINE, LocCard } from './loc-card';
+import { LocMindCard } from './loc-mind-card';
 import { LocProfile } from './loc-profile';
 
 /**
@@ -239,6 +240,7 @@ export function YouScreen() {
         Loc
       </Text>
       <LocCard tone={tone} onChange={changeTone} />
+      <LocMindCard mornings={mornings} />
 
       {/* Brink's profile (user reference, 2026-10-14): the plan's name and state, then what you can do about it. */}
       <Text style={styles.heading} accessibilityRole="header">

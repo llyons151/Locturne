@@ -7,7 +7,7 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { AppBackground } from '@/components/app-background';
 import { WakeScreen, type WakeMethodShown } from '@/features/wake/wake-screen';
-import { getRoutine } from '@/lib/routine';
+import { routineAt } from '@/lib/lock-controller';
 import { methodInUse } from '@/lib/scan-code';
 import { shownPlace, shownScanCode } from '@/features/dev/wake-lab/stand-ins';
 import { getWakePreview } from '@/features/dev/wake-lab/wake-preview';
@@ -24,19 +24,22 @@ export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
   // A pretend morning (/wake-preview) can open any method whatever the routine says.
   const pretend = getWakePreview().phase !== 'real';
+  // The routine in force, as Home reads it: with an edit waiting for tonight, the saved routine
+  // isn't this morning's, and Home's button would bounce back here.
+  const routine = routineAt(new Date());
   // Steps always (the fallback every morning offers); downstairs or push-ups only for their own routine.
   const chosen: WakeMethodShown | undefined =
-    method === 'steps' || ((method === 'downstairs' || method === 'pushups') && (pretend || getRoutine().method === method))
+    method === 'steps' || ((method === 'downstairs' || method === 'pushups') && (pretend || routine.method === method))
       ? method
       : undefined;
   // Walks, the stairs and the place check-in all happen on Home now; push-ups and the scan
   // camera keep their own screens.
-  const homeMethod = methodInUse(getRoutine().method);
+  const homeMethod = methodInUse(routine.method);
   if (!chosen && (homeMethod === 'steps' || homeMethod === 'downstairs' || homeMethod === 'place')) return <Redirect href="/" />;
   if (chosen === 'downstairs' && !pretend) return <Redirect href="/" />;
-  const scan = !chosen && getRoutine().method === 'scan';
+  const scan = !chosen && routine.method === 'scan';
   if (scan && shownScanCode()) return <Redirect href="/scan?mode=morning" />;
-  const place = !chosen && getRoutine().method === 'place';
+  const place = !chosen && routine.method === 'place';
   if (place && shownPlace()) return <Redirect href="/place?mode=morning" />;
   return (
     <AppBackground>

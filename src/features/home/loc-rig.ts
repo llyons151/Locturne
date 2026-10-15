@@ -15,6 +15,7 @@
  *   that squash, stretch and wobble like jelly. No sleep mask (user, October 10, 2026: "remove
  *   the sleep mask"): the lids carry every expression.
  */
+import { buildHand, fidgeting, newHandSim, splat, stepHand, traceHand, wristAt, type HandPose, type HandSim } from './loc-hands';
 import { LOC_HEIGHT, LOC_PATH } from './loc-path';
 
 export type LocMood = 'asleep' | 'groggy' | 'awake' | 'smug' | 'betrayed';
@@ -81,12 +82,12 @@ const INK = '#000000';
  *   animation on twos at 12, while his body moves smooth. 0 is smooth.
  * - `snapGaze`: the pupils snap to where he looks and lock, he blinks when his gaze shifts, the
  *   lids follow the pupils up and down, and blinks close fast and open slower.
- * - `hands`: raccoon hands (clawed grips on the ledge that can let go and act) instead of the
- *   round paws traced into his outline.
+ * - `hands`: clawed raccoon grips on the ledge (loc-hands.ts) instead of the round paws traced
+ *   into his outline. On in the app since October 14, 2026.
  */
 export const LOC_TUNE = {
   eyeWhite: '#FFFFFF', button: 34, pupil: 20, blinkLag: 0,
-  heavyLid: 0, faceSteps: 0, snapGaze: false, hands: false,
+  heavyLid: 0, faceSteps: 0, snapGaze: false, hands: true,
 };
 
 // ---- Channels and moods ----
@@ -107,12 +108,11 @@ export const LOC_BASE = {
   smile: 0,
   /** Leaning in toward you, 0..1: he grows from the ledge as if his face comes closer. */
   lean: 0,
-  // Hands (LOC_TUNE.hands), left and right. Rig units, from the ledge's frame: the wrist's x and
-  // y; the hand's angle (0 fingers up, 180 fingers down, gripping the ledge); finger spread and
-  // curl; size (above 1, toward you); the gap cut round it where it crosses him (0..1); and how
-  // much it rides his head instead of the ledge (0..1).
-  hLx: 64, hLy: 506, hLa: 180, hLs: 0.55, hLc: 0.55, hLz: 1, hLf: 0, hLb: 0,
-  hRx: 754, hRy: 506, hRa: 180, hRs: 0.55, hRc: 0.55, hRz: 1, hRf: 0, hRb: 0,
+  /** His body slides along the ledge, rig units (- left). The hands stay where they grip. */
+  slide: 0,
+  // Hands (LOC_TUNE.hands, loc-hands.ts), left and right: see HandPose there.
+  hLx: 102, hLy: 446, hLa: 180, hLs: 0.3, hLc: 0.85, hLz: 1, hLf: 0, hLb: 0, hLt: 0, hLw: 0,
+  hRx: 716, hRy: 446, hRa: 180, hRs: 0.3, hRc: 0.85, hRz: 1, hRf: 0, hRb: 0, hRt: 0, hRw: 0,
 };
 const BASE = LOC_BASE;
 export type LocChannel = keyof typeof BASE;
@@ -142,9 +142,10 @@ const SPRING: Record<Channel, [number, number]> = {
   gx: [700, 1], gy: [700, 1], pupilJit: [90, 1], sink: [60, 0.95], paw: [160, 0.6],
   // Loose on purpose: the eyes wobble like jelly after every kick.
   goo: [320, 0.2], swell: [240, 0.3],
-  swellR: [240, 0.5], eyeR: [240, 0.5], curve: [220, 1], smile: [220, 1], lean: [70, 0.9],
+  swellR: [240, 0.5], eyeR: [240, 0.5], curve: [220, 1], smile: [220, 1], lean: [70, 0.9], slide: [90, 0.9],
   hLx: [170, 0.7], hLy: [170, 0.7], hLa: [170, 0.7], hLs: [220, 0.8], hLc: [220, 0.8], hLz: [170, 0.7], hLf: [300, 1], hLb: [300, 1],
   hRx: [170, 0.7], hRy: [170, 0.7], hRa: [170, 0.7], hRs: [220, 0.8], hRc: [220, 0.8], hRz: [170, 0.7], hRf: [300, 1], hRb: [300, 1],
+  hLt: [300, 0.8], hLw: [200, 1], hRt: [300, 0.8], hRw: [200, 1],
 };
 const E = {
   lin: (t: number) => t,
@@ -467,6 +468,191 @@ const SINK: Bit = { ms: 3600, tracks: {
   gy: [[0, 0], [3600, 0]],
 } };
 
+
+// ---- Hands (LOC_TUNE.hands): only ever the grips on the ledge ----
+// User, October 14, 2026: no long arms or hands that change shape. The hands stay as they rest,
+// curled over the ledge; they can shift, lift a little, clench and tap. The acting is in his eyes.
+
+type HandProp = 'x' | 'y' | 'c' | 's' | 'w';
+/** A hand keyframe: at `ms`, these props ('S' start, 'T' rest, 'H' hold the last key), eased in. */
+type HandKey = [number, Partial<Record<HandProp, number | 'S' | 'T' | 'H'>>, Ease?];
+/** A hand's keys as tracks. A pose that leaves a prop out lets it carry on to its next key. */
+const handTracks = (side: 'L' | 'R', keys: HandKey[]): Partial<Record<Channel, Key[]>> => {
+  const out: Partial<Record<Channel, Key[]>> = {};
+  for (const [t, pose, ease] of keys) {
+    for (const [prop, given] of Object.entries(pose) as [HandProp, number | 'S' | 'T' | 'H'][]) {
+      const ch = `h${side}${prop}` as Channel;
+      const track = (out[ch] ??= [[0, 'S']]);
+      const v = given === 'H' ? track[track.length - 1][1] : given;
+      track.push(ease ? [t, v, ease] : [t, v]);
+    }
+  }
+  return out;
+};
+/** Joins key lists for the same channel, in order. */
+const joinTracks = (...parts: Partial<Record<Channel, Key[]>>[]) => {
+  const out: Partial<Record<Channel, Key[]>> = {};
+  for (const part of parts) for (const [k, keys] of Object.entries(part) as [Channel, Key[]][]) {
+    const prev = out[k];
+    out[k] = prev ? [...prev, ...keys.filter(([t]) => t > prev[prev.length - 1][0])] : keys;
+  }
+  return out;
+};
+const ft = (keys: [number, number | 'S' | 'T', Ease?][]): Key[] => keys.map(([t, v, e]) => (e ? [t, v, e] : [t, v]));
+/** Where each hand rests, and how high is "lifted" (a hop off the ledge, never more). */
+const REST_X = { L: 102, R: 716 };
+const REST_Y = 446;
+const LIFT_Y = 418;
+/** A step: the hand hops up a little, moves to `x`, and lands with a grip. */
+const step = (side: 'L' | 'R', at: number, x: number, ms = 220): HandKey[] => [
+  [at, { x: 'H', y: REST_Y, c: 'H' }],
+  [at + ms * 0.4, { y: LIFT_Y, c: 0.62 }, 'out'],
+  [at + ms, { x, y: REST_Y, c: 0.92 }, 'in'],
+];
+
+/**
+ * Hiding: he ducks behind the ledge, leaving his ears and his hands clutching the edge. His eyes
+ * come up just over it, look left, look right, and he ducks again; then up.
+ */
+const HIDE: Bit = { ms: 3500, tracks: joinTracks(
+  handTracks('L', [[0, { c: 'S' }], [140, { c: 0.7 }, 'out'], [330, { c: 1 }, 'in'], [2900, { c: 1 }], [3350, { c: 'T' }, 'io']]),
+  handTracks('R', [[0, { c: 'S' }], [180, { c: 0.72 }, 'out'], [380, { c: 1 }, 'in'], [2900, { c: 1 }], [3350, { c: 'T' }, 'io']]),
+  {
+    y: ft([[0, 'S'], [110, -8, 'out'], [380, 'T', 'io']]),
+    sink: ft([[0, 'S'], [110, -6, 'out'], [360, 305, 'in'], [420, 295, 'out'], [1300, 295], [1620, 228, 'io'], [2150, 228], [2300, 305, 'in'], [2800, 305], [3350, 0, 'io']]),
+    earL: ft([[0, 'S'], [300, -30, 'out'], [1300, -30], [1600, -6, 'io'], [2150, -6], [2300, -30, 'out'], [2900, -30], [3350, 'T', 'io']]),
+    earR: ft([[0, 'S'], [300, 30, 'out'], [1300, 30], [1600, 6, 'io'], [2150, 6], [2300, 30, 'out'], [2900, 30], [3350, 'T', 'io']]),
+    open: ft([[0, 'S'], [110, 1.15, 'out'], [1500, 1.15], [3350, 'T', 'io']]),
+    openR: ft([[0, 'S'], [110, 1.15, 'out'], [1500, 1.15], [3350, 'T', 'io']]),
+    gx: ft([[0, 0], [1620, 0], [1680, -22, 'out'], [1880, -22], [1940, 22, 'out'], [2140, 22], [2200, 0, 'out'], [3500, 0]]),
+    gy: ft([[0, 0], [3500, 0]]),
+  },
+), events: [[820, (r) => r.flick('R', 10)], [1700, (r) => r.pop(0.3)]] };
+
+/**
+ * Shuffling over: his eyes go left first, then he follows them, hand over hand along the ledge,
+ * his body sliding after. He takes a look from there, back at you, and shuffles home.
+ */
+const SCOOT: Bit = (() => {
+  const d = -95;
+  return { ms: 4300, tracks: joinTracks(
+    handTracks('L', [...step('L', 380, REST_X.L + d), ...step('L', 2700, REST_X.L)]),
+    handTracks('R', [...step('R', 560, REST_X.R + d), ...step('R', 2880, REST_X.R)]),
+    {
+      gx: ft([[0, 0], [120, -24, 'out'], [1500, -24], [1560, 20, 'out'], [2250, 20], [2310, 0, 'out'], [2500, 0], [2560, 22, 'out'], [3300, 22], [3360, 0, 'out'], [4300, 0]]),
+      gy: ft([[0, 0], [4300, 0]]),
+      slide: ft([[0, 0], [380, 0], [640, d * 0.45, 'io'], [800, d, 'out'], [2700, d], [2960, d * 0.55, 'io'], [3120, 0, 'out']]),
+      tilt: ft([[0, 'S'], [380, -6, 'io'], [800, 2, 'out'], [1100, 'T', 'io'], [2700, 'T'], [2900, 6, 'io'], [3200, 'T', 'io']]),
+      y: ft([[0, 'S'], [400, 8, 'io'], [560, -2, 'io'], [760, 8, 'io'], [1000, 'T', 'io'], [2700, 'T'], [2800, 8, 'io'], [3000, -2, 'io'], [3200, 'T', 'io']]),
+      open: ft([[0, 'S'], [1500, 'S'], [1560, 0.55, 'io'], [2250, 0.55], [2400, 'T', 'io']]),
+      openR: ft([[0, 'S'], [1500, 'S'], [1560, 0.5, 'io'], [2250, 0.5], [2400, 'T', 'io']]),
+    },
+  ), events: [[1480, (r) => r.blinkNow()], [3420, (r) => r.blinkNow()]] };
+})();
+
+/**
+ * Clutching the ledge: something startles him. His eyes go huge first, then his hands clench the
+ * edge, knuckles up, and he shrinks down, pupils trembling. It passes; he comes back up slowly,
+ * with a heavy-lidded side-eye at you, as if it was your fault.
+ */
+const CLUTCH: Bit = { ms: 3800, tracks: joinTracks(
+  handTracks('L', [[0, { c: 'S', y: 'S' }], [140, { c: 1, y: 452 }, 'out'], [1800, { c: 1, y: 452 }], [2500, { c: 'T', y: 'T' }, 'io']]),
+  handTracks('R', [[0, { c: 'S', y: 'S' }], [180, { c: 1, y: 452 }, 'out'], [1850, { c: 1, y: 452 }], [2550, { c: 'T', y: 'T' }, 'io']]),
+  {
+    open: ft([[0, 'S'], [70, 1.35, 'out'], [1700, 1.3], [2300, 0.45, 'io'], [3200, 0.45], [3700, 'T', 'io']]),
+    openR: ft([[0, 'S'], [70, 1.35, 'out'], [1700, 1.3], [2300, 0.4, 'io'], [3200, 0.4], [3700, 'T', 'io']]),
+    swell: ft([[0, 'S'], [70, 0.45, 'out'], [1700, 0.45], [2300, 'T', 'io']]),
+    pupilJit: ft([[0, 'S'], [200, 0.6, 'out'], [1600, 0.6], [1900, 'T', 'io']]),
+    sink: ft([[0, 'S'], [120, 'S'], [380, 120, 'out'], [1700, 118], [2400, 0, 'io']]),
+    earL: ft([[0, 'S'], [150, -34, 'out'], [1700, -32], [2400, 'T', 'io']]),
+    earR: ft([[0, 'S'], [150, 34, 'out'], [1700, 32], [2400, 'T', 'io']]),
+    gx: ft([[0, 0], [2300, 0], [2420, 18, 'out'], [3300, 18], [3450, 0, 'io'], [3800, 0]]),
+    gy: ft([[0, 0], [3800, 0]]),
+    slope: ft([[0, 'S'], [2200, 'S'], [2400, 8, 'io'], [3300, 8], [3700, 'T', 'io']]),
+  },
+), events: [[60, (r) => { r.kick(-0.06); r.pop(0.6); }]] };
+
+/**
+ * Pulling himself up to look: his hands press down on the ledge and he rises up tall, eyes wide,
+ * scanning left and right over the edge. Nothing. He lowers back down, not impressed.
+ */
+const PULL_UP: Bit = { ms: 3600, tracks: joinTracks(
+  handTracks('L', [[0, { c: 'S', y: 'S' }], [200, { c: 1, y: 452 }, 'out'], [2300, { c: 1, y: 452 }], [2800, { c: 'T', y: 'T' }, 'io']]),
+  handTracks('R', [[0, { c: 'S', y: 'S' }], [240, { c: 1, y: 452 }, 'out'], [2350, { c: 1, y: 452 }], [2850, { c: 'T', y: 'T' }, 'io']]),
+  {
+    y: ft([[0, 'S'], [200, 10, 'out'], [600, -46, 'out'], [700, -42, 'io'], [2300, -42], [2800, 'T', 'io']]),
+    stretch: ft([[0, 0], [200, -0.04, 'out'], [500, 0.08, 'out'], [800, 0, 'io']]),
+    open: ft([[0, 'S'], [500, 1.12, 'out'], [2200, 1.1], [2600, 0.5, 'io'], [3200, 0.5], [3600, 'T', 'io']]),
+    openR: ft([[0, 'S'], [500, 1.12, 'out'], [2200, 1.1], [2600, 0.46, 'io'], [3200, 0.46], [3600, 'T', 'io']]),
+    gx: ft([[0, 0], [700, 0], [760, -24, 'out'], [1250, -24], [1310, 24, 'out'], [1800, 24], [1860, 0, 'out'], [3600, 0]]),
+    gy: ft([[0, 0], [700, 0], [760, 4, 'out'], [1860, 4], [1900, 0, 'out'], [3600, 0]]),
+    earL: ft([[0, 'S'], [600, 6, 'out'], [2300, 6], [2800, -10, 'io'], [3300, 'T', 'io']]),
+    earR: ft([[0, 'S'], [600, -6, 'out'], [2300, -6], [2800, 10, 'io'], [3300, 'T', 'io']]),
+  },
+), events: [[1250, (r) => r.flick('L', -10)], [2400, (r) => r.blinkNow()]] };
+
+/**
+ * Slipping: his left hand slides off the edge and drops out of sight. He lurches, eyes huge. The
+ * hand scrabbles back up and hooks on; he hangs a beat, then a long relieved exhale.
+ */
+const SLIP: Bit = { ms: 3000, tracks: joinTracks(
+  handTracks('L', [
+    [0, { y: 'S', c: 'S' }], [80, { c: 0.6 }, 'in'], [230, { y: 540, c: 0.6 }, 'in'],
+    [560, { y: 540 }], [720, { y: LIFT_Y, c: 0.62 }, 'out'], [820, { y: REST_Y, c: 1 }, 'in'],
+    [1700, { c: 1 }], [2300, { c: 'T' }, 'io'],
+  ]),
+  handTracks('R', [[0, { c: 'S', y: 'S' }], [200, { c: 1, y: 454 }, 'out'], [1700, { c: 1, y: 454 }], [2300, { c: 'T', y: 'T' }, 'io']]),
+  {
+    sink: ft([[0, 'S'], [100, 'S'], [300, 80, 'in'], [760, 84], [960, -8, 'out'], [1150, 0, 'io']]),
+    tilt: ft([[0, 'S'], [300, -12, 'out'], [800, -10], [1150, 'T', 'io']]),
+    open: ft([[0, 'S'], [120, 1.3, 'out'], [1100, 1.25], [1500, 0.42, 'io'], [2400, 0.42], [2900, 'T', 'io']]),
+    openR: ft([[0, 'S'], [120, 1.3, 'out'], [1100, 1.25], [1500, 0.38, 'io'], [2400, 0.38], [2900, 'T', 'io']]),
+    swell: ft([[0, 'S'], [120, 1.5, 'out'], [1100, 1.5], [1500, 'T', 'io']]),
+    breathe: ft([[0, 'S'], [1400, 'S'], [1500, 1.4, 'io'], [2500, 1.4], [2900, 'T', 'io']]),
+    y: ft([[0, 'S'], [1500, 'S'], [1800, 14, 'io'], [2500, 14], [2900, 'T', 'io']]),
+    earL: ft([[0, 'S'], [200, 14, 'out'], [900, 10], [1300, -22, 'out'], [2300, -18], [2800, 'T', 'io']]),
+    earR: ft([[0, 'S'], [200, -14, 'out'], [900, -10], [1300, 22, 'out'], [2300, 18], [2800, 'T', 'io']]),
+    gx: ft([[0, 0], [3000, 0]]),
+    gy: ft([[0, 0], [120, 10, 'out'], [900, 10], [1100, 0, 'io'], [3000, 0]]),
+  },
+), events: [[820, (r) => { r.splat('L', 0.4); r.kick(-0.05); }], [100, (r) => r.pop(0.6)]] };
+
+/**
+ * Tapping the ledge, impatient: one hand lifts a little and taps down, three quick, a pause, one
+ * slow. Lids heavy, eyes on you the whole time. A slow blink to finish.
+ */
+const KNUCKLE_TAP: Bit = (() => {
+  const tap = (t: number, fast = true): HandKey[] => [[t, { y: 426, c: 0.85 }, 'out'], [t + (fast ? 110 : 260), { y: REST_Y, c: 0.95 }, 'in']];
+  return { ms: 3400, tracks: joinTracks(
+    handTracks('R', [[0, { y: 'S', c: 'S' }], ...tap(400), ...tap(620), ...tap(840), ...tap(1700, false), [2200, { y: 'T', c: 'T' }, 'io']]),
+    {
+      open: ft([[0, 'S'], [300, 0.46, 'io'], [2500, 0.46], [2700, 0.02, 'io'], [3000, 0.02], [3350, 'T', 'io']]),
+      openR: ft([[0, 'S'], [300, 0.42, 'io'], [2500, 0.42], [2720, 0.02, 'io'], [3020, 0.02], [3380, 'T', 'io']]),
+      curve: ft([[0, 0], [300, 3, 'io'], [3000, 3], [3350, 0, 'io']]),
+      tilt: ft([[0, 'S'], [300, 5, 'io'], [3000, 5], [3350, 'T', 'io']]),
+      gx: ft([[0, 0], [3400, 0]]),
+      gy: ft([[0, 0], [3400, 0]]),
+    },
+  ), events: [[510, (r) => r.splat('R', 0.12)], [730, (r) => r.splat('R', 0.12)], [950, (r) => r.splat('R', 0.12)], [1960, (r) => r.splat('R', 0.2)]] };
+})();
+
+/**
+ * Drumming his claws on the ledge: bored. Three rolls, pinky to index, from the grip, with dead
+ * eyes. One slow blink in the middle.
+ */
+const CLAW_DRUM: Bit = { ms: 3600, tracks: joinTracks(
+  handTracks('R', [[0, { c: 'S', w: 0 }], [200, { c: 1 }, 'out'], [260, { w: 1 }, 'lin'], [1500, { w: 1 }], [1560, { w: 0 }, 'lin'],
+    [1900, { w: 0 }], [1960, { w: 1 }, 'lin'], [2900, { w: 1 }], [2960, { w: 0 }, 'lin'], [3300, { c: 'T' }, 'io']]),
+  {
+    open: ft([[0, 'S'], [300, 0.45, 'io'], [3300, 0.45], [3600, 'T', 'io']]),
+    openR: ft([[0, 'S'], [300, 0.42, 'io'], [3300, 0.42], [3600, 'T', 'io']]),
+    y: ft([[0, 'S'], [300, 10, 'io'], [3300, 10], [3600, 'T', 'io']]),
+    tilt: ft([[0, 'S'], [300, 7, 'io'], [3300, 7], [3600, 'T', 'io']]),
+    gx: ft([[0, 0], [3600, 0]]),
+    gy: ft([[0, 0], [3600, 0]]),
+  },
+), events: [[1700, (r) => r.blinkNow()]] };
+
 /** The studio's explorations, by name. `poke-twos` is the same poke held on twos, to compare textures. */
 export const LOC_EXPLORE: Record<string, Bit> = {
   unhinged: UNHINGED,
@@ -477,7 +663,40 @@ export const LOC_EXPLORE: Record<string, Bit> = {
   sink: SINK,
   'poke-twos': { ...POKE, steps: 12 },
   'unhinged-twos': { ...UNHINGED, steps: 12 },
+  hide: HIDE,
+  scoot: SCOOT,
+  clutch: CLUTCH,
+  'pull-up': PULL_UP,
+  slip: SLIP,
+  'knuckle-tap': KNUCKLE_TAP,
+  'claw-drum': CLAW_DRUM,
 };
+
+/**
+ * What he does with himself, mood by mood, when nothing is happening (in the app since October
+ * 14, 2026). One is picked at random each time his habit comes round, weighted, so the old habit
+ * still turns up most and the bigger moves stay rare.
+ */
+const IDLE: Partial<Record<LocMood, [Bit, number][]>> = {
+  awake: [[HABITS.awake!, 4], [SCOOT, 2], [PULL_UP, 2], [KNUCKLE_TAP, 2], [COMMENT_LID, 1.5], [BORED, 1.5]],
+  groggy: [[HABITS.groggy!, 4], [CLAW_DRUM, 2], [KNUCKLE_TAP, 1]],
+  smug: [[HABITS.smug!, 4], [COMMENT_LID, 2], [KNUCKLE_TAP, 1.5], [SCOOT, 1]],
+  betrayed: [[SINK, 2], [CLUTCH, 1.5], [DEAD_STARE, 1]],
+  asleep: [[HABITS.asleep!, 1]],
+};
+const pickIdle = (mood: LocMood): Bit | undefined => {
+  const pool = IDLE[mood];
+  if (!pool) return HABITS[mood];
+  let r = Math.random() * pool.reduce((sum, [, w]) => sum + w, 0);
+  for (const [bit, w] of pool) if ((r -= w) <= 0) return bit;
+  return pool[0][0];
+};
+/** Gaps between idle moves, seconds: a base and a random extra. */
+const IDLE_GAP: Record<LocMood, [number, number]> = { awake: [6, 5], groggy: [5, 4], smug: [6, 4], betrayed: [5, 4], asleep: [6, 4] };
+
+/** Poked, now and then he does something other than the usual flinch: a clutch, or (rarely) the unhinged pop. */
+const POKE_CLUTCH: Bit = { ...CLUTCH, events: [...(CLUTCH.events ?? []), [260, (r) => r.say('poke')]] };
+const POKE_UNHINGED: Bit = { ...UNHINGED, events: [...(UNHINGED.events ?? []), [300, (r) => r.say('poke')]] };
 
 /**
  * A fresh route for the lump under the covers: one way and back, back and forth, a nervous
@@ -682,6 +901,8 @@ export class LocRig {
   private head: Mat = [1, 0, 0, 1, 0, 0];
   private blink = 0;
   private blinkR = 0;
+  /** The hands' secondary motion (loc-hands.ts). */
+  private hands: Record<'L' | 'R', HandSim> = { L: newHandSim(0.85, 2 + Math.random() * 4), R: newHandSim(0.85, 5 + Math.random() * 4) };
   /** The face's held pose, with `faceSteps`. */
   private faceHold: { tick: number; c: typeof BASE; gaze: Vec; gazeV: Vec; blink: number; blinkR: number; clock: number } | null = null;
   squeezing = false;
@@ -759,8 +980,8 @@ export class LocRig {
     t.restore();
     if (LOC_TUNE.hands) {
       t.globalCompositeOperation = 'destination-out';
-      t.fillRect(-40, 497, 170, 200);
-      t.fillRect(688, 497, 170, 200);
+      t.fillRect(-40, 497, 173, 200);
+      t.fillRect(685, 497, 173, 200);
     }
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
     gl.generateMipmap(gl.TEXTURE_2D);
@@ -781,6 +1002,18 @@ export class LocRig {
   }
 
   setShare(share: number) { this.share = share; }
+
+  /**
+   * How wary of you he is, 0..1 (lib/loc-mind.ts: you've been slipping out). It narrows his eyes
+   * a little and lowers the lids into a squint, on top of whatever mood he's in, and when he's
+   * idle he gives you the comment lid more often. Never when he's asleep.
+   */
+  private wary = 0;
+  setWary(wary: number) { this.wary = Math.max(0, Math.min(1, wary)); }
+  private waryOffset(k: Channel) {
+    if (!this.wary || this.mood === 'asleep') return 0;
+    return k === 'squint' ? 0.2 * this.wary : k === 'open' ? -0.12 * this.wary : k === 'openR' ? -0.2 * this.wary : 0;
+  }
   /** Under the covers (burrowing, or arriving or leaving by them): taps wait until he's out. */
   get burrowing() { return !!this.bit?.def.lump; }
   burrow() {
@@ -805,7 +1038,11 @@ export class LocRig {
    * stage stops its frame loop until something changes (loc-stage.tsx).
    */
   get idle() { return this.hidden && !this.bit; }
-  poke() { this.play(this.reduced ? POKE_CALM : POKE); }
+  poke() {
+    if (this.reduced) return this.play(POKE_CALM);
+    const r = Math.random();
+    this.play(r < 0.12 ? POKE_UNHINGED : r < 0.27 ? POKE_CLUTCH : POKE);
+  }
   kick(v: number) { this.vel.stretch += v * 14; }
   flick(side: 'L' | 'R', deg: number) { this.flicks[side] += deg; }
   /** Tells Home what just happened, so he can say something about it (loc-lines.ts). */
@@ -859,7 +1096,7 @@ export class LocRig {
         this.cur[k] = d;
       } else {
         const [kk, z] = SPRING[k];
-        const a = kk * ((k === 'stretch' ? 0 : this.goal[k]) - this.cur[k]) - 2 * Math.sqrt(kk) * z * this.vel[k];
+        const a = kk * ((k === 'stretch' ? 0 : this.goal[k] + this.waryOffset(k)) - this.cur[k]) - 2 * Math.sqrt(kk) * z * this.vel[k];
         this.vel[k] += a * dt; this.cur[k] += this.vel[k] * dt;
       }
     }
@@ -882,9 +1119,10 @@ export class LocRig {
       }
       this.nextHabit -= dt;
       if (this.nextHabit <= 0) {
-        const habit = HABITS[this.mood];
-        if (habit) this.play(habit);
-        this.nextHabit = habit?.every ? habit.every[0] + Math.random() * habit.every[1] : 6;
+        const move = this.wary > 0.3 && this.mood !== 'asleep' && Math.random() < 0.35 * this.wary ? COMMENT_LID : pickIdle(this.mood);
+        if (move) this.play(move);
+        const [base, extra] = IDLE_GAP[this.mood];
+        this.nextHabit = base + Math.random() * extra;
       }
     }
     this.blink = 0;
@@ -931,7 +1169,7 @@ export class LocRig {
     // The paws have their own drop, so they can let go after him and grab the edge last.
     const root = tr(0, c.paw);
     const near = 1 + c.lean * 0.35;
-    const body = mul(tr(0, c.sink), about(BONE.base, mul(rot(c.tilt * 0.38 + sway * 0.5), scale(sx * near, sy * near))));
+    const body = mul(tr(c.slide, c.sink), about(BONE.base, mul(rot(c.tilt * 0.38 + sway * 0.5), scale(sx * near, sy * near))));
     // Head: the rest of the lean plus a turn toward the gaze, swinging on the neck.
     const neckW = apply(body, BONE.neck), massW = apply(body, BONE.headMass);
     const aHead = this.track.head.step(massW, dt);
@@ -953,6 +1191,13 @@ export class LocRig {
     };
     this.bones = [root, body, head, ear('L', earLA - breath * 1.2), ear('R', earRA + breath * 1.2), cheek('L'), cheek('R')];
     this.head = head;
+    if (LOC_TUNE.hands) {
+      const life = !this.bit && !this.reduced && !this.hidden && !this.quiet;
+      for (const side of ['L', 'R'] as const) {
+        const other = this.hands[side === 'L' ? 'R' : 'L'];
+        stepHand(this.hands[side], this.handPose(side), wristAt(this.handPose(side), root, head), dt, life, Math.random, fidgeting(other));
+      }
+    }
   }
 
   /** Rig units to canvas pixels: his view box centred, `share` of the width, on the bottom edge. */
@@ -1156,82 +1401,30 @@ export class LocRig {
     ctx.restore();
   }
 
-  /**
-   * His hands: a fluffy forearm from behind the ledge, a palm and five long clawed fingers that
-   * spread and curl (raccoon hands, not paws or human hands). Where a hand crosses him, a thin
-   * gap is cut round it first, so it reads as a shape in front of him with no outline drawn.
-   */
+  /** One hand's channels. */
+  private handPose(side: 'L' | 'R'): HandPose {
+    const c = this.cur, k = (n: string) => c[`h${side}${n}` as Channel];
+    return { x: k('x'), y: k('y'), a: k('a'), s: k('s'), c: k('c'), z: k('z'), f: k('f'), b: k('b'), t: k('t'), w: k('w') };
+  }
+
+  /** A contact for one hand: its fingers kick open, then settle. */
+  splat(side: 'L' | 'R', amount: number) { splat(this.hands[side], amount); }
+
+  /** His hands (loc-hands.ts). Where one crosses him, a thin gap is cut round it first. */
   private drawHands(view: Mat) {
     const { ctx } = this;
-    const c = this.cur;
-    const root = this.bones[0], head = this.head;
+    const [root, body] = this.bones, head = this.head;
     const headAngle = (Math.atan2(head[1], head[0]) * 180) / Math.PI;
-    const shapes = (['L', 'R'] as const).map((side) => {
-      const k = (n: string) => c[`h${side}${n}` as Channel];
-      const mirror = side === 'L' ? 1 : -1;
-      const w: Vec = [k('x'), k('y')];
-      const onLedge = apply(root, w), onHead = apply(head, w);
-      const b = clamp(k('b'), 0, 1);
-      const P: Vec = [onLedge[0] + (onHead[0] - onLedge[0]) * b, onLedge[1] + (onHead[1] - onLedge[1]) * b];
-      const angle = ((k('a') + headAngle * b) * Math.PI) / 180;
-      const S = 1.55 * Math.max(0.3, k('z'));
-      const cos = Math.cos(angle), sin = Math.sin(angle);
-      // Hand space: wrist at 0,0, fingers up the -y axis.
-      const at = (x: number, y: number): Vec => [P[0] + (mirror * x * S) * cos - (y * S) * sin, P[1] + (mirror * x * S) * sin + (y * S) * cos];
-      const spread = k('s'), curl = clamp(k('c'), 0, 1);
-      // The forearm comes up from below the ledge, under the wrist and out toward his side.
-      const elbow = apply(root, [w[0] + (w[0] - 409) * 0.18, LEDGE + 160]);
-      const fingers = [-2, -1, 0, 1, 2].map((i) => {
-        const base = at(i * 7.5, -24);
-        const lens = [22, 31, 34, 31, 24];
-        const len = lens[i + 2] * (1 - 0.55 * curl);
-        const dir = i * 0.3 * spread * (1 - 0.35 * curl);
-        const tipLocal: [number, number] = [i * 7.5 + Math.sin(dir) * len, -24 - Math.cos(dir) * len];
-        const tip = at(tipLocal[0], tipLocal[1]);
-        const claw = at(tipLocal[0] + Math.sin(dir) * 7, tipLocal[1] - Math.cos(dir) * 7);
-        return { base, tip, claw, dir };
-      });
-      return { P, S, at, elbow, fingers, gap: clamp(k('f'), 0, 1) };
-    });
+    const built = (['L', 'R'] as const).map((side) => buildHand(side, this.handPose(side), this.hands[side], root, body, head, headAngle));
     ctx.save();
     ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const trace = (h: (typeof shapes)[number], grow: number) => {
-      const { P, S, at, elbow, fingers } = h;
-      // Forearm: thick and fluffy, narrowing to the wrist.
-      ctx.lineWidth = 30 * S + grow * 2;
-      ctx.beginPath(); ctx.moveTo(elbow[0], elbow[1]); ctx.lineTo(P[0], P[1]); ctx.stroke();
-      // Palm.
-      const palm = at(0, -14);
-      ctx.beginPath(); ctx.ellipse(palm[0], palm[1], 17 * S + grow, 18 * S + grow, 0, 0, Math.PI * 2); ctx.fill();
-      // Fingers, then claws.
-      for (const f of fingers) {
-        ctx.lineWidth = 8.5 * S + grow * 2;
-        ctx.beginPath(); ctx.moveTo(f.base[0], f.base[1]); ctx.lineTo(f.tip[0], f.tip[1]); ctx.stroke();
-        ctx.lineWidth = 3 * S + grow * 2;
-        ctx.beginPath(); ctx.moveTo(f.tip[0], f.tip[1]); ctx.lineTo(f.claw[0], f.claw[1]); ctx.stroke();
-      }
-      // Tufts of fur on the outside of the forearm.
-      const ax = P[0] - elbow[0], ay = P[1] - elbow[1], len = Math.hypot(ax, ay) || 1;
-      const nx = -ay / len, ny = ax / len, out = P[0] < 409 ? -1 : 1;
-      const side = Math.sign(nx * out) || 1;
-      ctx.lineWidth = grow * 2;
-      for (const t of [0.35, 0.55, 0.75]) {
-        const bx = elbow[0] + ax * t + nx * side * 13 * S, by = elbow[1] + ay * t + ny * side * 13 * S;
-        ctx.beginPath();
-        ctx.moveTo(bx - (ax / len) * 7 * S, by - (ay / len) * 7 * S);
-        ctx.lineTo(bx + nx * side * 9 * S - (ax / len) * 6 * S, by + ny * side * 9 * S - (ay / len) * 6 * S);
-        ctx.lineTo(bx + (ax / len) * 6 * S, by + (ay / len) * 6 * S);
-        ctx.closePath(); ctx.fill(); if (grow) ctx.stroke();
-      }
-    };
-    // First the gaps (cut through him, so the moon shows), then the hands themselves.
+    ctx.lineJoin = 'round';
     ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = '#000'; ctx.strokeStyle = '#000';
-    for (const h of shapes) if (h.gap > 0.01) trace(h, 5 * h.gap);
+    for (const h of built) if (h.gap > 0.01) traceHand(ctx, h, 6 * h.gap);
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = this.inkHex; ctx.strokeStyle = this.inkHex;
-    for (const h of shapes) trace(h, 0);
+    for (const h of built) traceHand(ctx, h, 0);
     ctx.restore();
   }
 

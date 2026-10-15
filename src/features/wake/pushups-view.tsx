@@ -12,7 +12,7 @@ import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import { pushupsLine, spokenRep } from '@/lib/wake/lines';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
-import { PUSHUPS, repProgress, type PushupsSession } from '@/lib/wake/pushups';
+import { PUSHUPS, repProgress, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -39,6 +39,8 @@ const STRIP = 132;
 const STRIP_SIDE = 84;
 /** A beat on the last rep before the apps wake, so the count and his line land. */
 const MET_BEAT_MS = 1_600;
+/** Out of sight at least this long before he says "Go on." again on finding you. */
+const GO_AGAIN_MS = 8_000;
 
 /**
  * Push-ups (GAME_PLAN, "Wake-up methods"; camera version 2026-10-10): stand the phone on the
@@ -247,14 +249,17 @@ function useTurn(live: boolean, finding: boolean, preview?: PushupsPreview): { t
  * The wake lab's numbers, for tuning on a phone (docs/PUSHUP_TESTS.md): what the rules see right
  * now against what a rep needs. The thresholds are JS, so they can be changed by update, not build.
  */
-function TuningReadout({ session }: { session: PushupsSession | null }) {
+function TuningReadout({ session, pose }: { session: PushupsSession | null; pose: PoseFrame | null }) {
   if (!session) return null;
   const n = (v: number | null, digits = 0) => (v === null ? '–' : v.toFixed(digits));
   const lines = [
     `${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · miss ${session.miss}` : ''}`,
     `elbow ${n(session.elbow)}°  (down ≤${PUSHUPS.downDeg}, up ≥${PUSHUPS.upDeg})`,
-    `drop ${n(session.drop, 2)}  (need ${PUSHUPS.minDrop})  low frames ${session.lowFrames}`,
+    `drop ${n(session.drop, 2)}  (need ${PUSHUPS.minDrop}, or ${PUSHUPS.deepDrop} held)  low frames ${session.lowFrames}`,
   ];
+  // What the iPhone handed over: the picture's size, how Vision read it, and how sure it was.
+  const info = pose?.info;
+  if (info) lines.push(`${info.w}×${info.h} ${info.upright ? 'stood up' : 'old table'} · read ${info.read} · seen ${info.score.toFixed(2)}/4`);
   return (
     <View style={styles.tuning} pointerEvents="none">
       {lines.map((l) => (
@@ -353,22 +358,35 @@ function PushupsCamera({
     silent.current = quiet || screenReader;
   }, [quiet, screenReader]);
 
-  // Each rep: the count out loud, and a tap.
-  const said = useRef(0);
+  // Each rep: the count out loud, and a tap. Not the morning's saved total the session opens on.
+  const said = useRef<number | null>(null);
+  const live = session !== null;
   useEffect(() => {
-    if (reps > said.current) {
+    if (!live) return;
+    if (said.current !== null && reps > said.current) {
       haptic.tick();
       if (!silent.current) say(spokenRep(reps, target));
       AccessibilityInfo.announceForAccessibility(`${reps} of ${target}`);
     }
     said.current = reps;
-  }, [reps, target]);
+  }, [live, reps, target]);
 
-  // Found you: say go, out loud, since you may already be down there.
+  // Found you: say go, out loud, since you may already be down there. Once, and again only after
+  // you've been out of sight a good while: when the camera keeps losing and finding you, it said
+  // "Go." every time it found you again (user, 2026-10-14).
   const seen = status === 'counting';
+  const lostAt = useRef<number | null>(null);
+  const saidGo = useRef(false);
   useEffect(() => {
-    if (!seen || silent.current) return;
-    say(said.current > 0 ? 'Go on.' : 'Go.');
+    if (!seen) {
+      if (saidGo.current && lostAt.current === null) lostAt.current = Date.now();
+      return;
+    }
+    const away = lostAt.current === null ? 0 : Date.now() - lostAt.current;
+    lostAt.current = null;
+    if (silent.current || (saidGo.current && away < GO_AGAIN_MS)) return;
+    say(saidGo.current || (said.current ?? 0) > 0 ? 'Go on.' : 'Go.');
+    saidGo.current = true;
   }, [seen]);
 
   // Read when the beat ends, so a parent re-rendering meanwhile doesn't restart it.
@@ -471,7 +489,7 @@ function PushupsCamera({
             <Text style={styles.of}>{`of ${target} push-ups`}</Text>
           </View>
 
-          {preview?.readout ? <TuningReadout session={session} /> : null}
+          {preview?.readout ? <TuningReadout session={session} pose={pose} /> : null}
 
           {pill ? (
             <Animated.View

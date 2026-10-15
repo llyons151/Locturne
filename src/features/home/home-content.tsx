@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Text } from '@/components/text';
+import { SearchingOrb } from '@/components/thinking-orb';
 import { noOrphan } from '@/lib/text';
 import { APP_FONT, Nocturne, Space, Type } from '@/theme';
 
@@ -31,6 +32,8 @@ export type HomeContentProps = {
   meter?: HomeMeter;
   /** The symbol over the headline; the moon unless the morning names its method's. */
   icon?: HomeIcon;
+  /** Waiting on a location read: a searching orb takes the symbol's place. */
+  searching?: boolean;
   action: HomeAction;
   /** A quiet second way, as plain text under the button ("Other ways to wake them"). */
   alt?: HomeAction;
@@ -50,6 +53,7 @@ export type HomeIcon = { ios: string; android: string };
  */
 export type HomeMorning = {
   icon: HomeIcon;
+  searching?: boolean;
   hero: HomeContentProps['hero'];
   meter?: HomeMeter;
   action: HomeAction;
@@ -67,7 +71,7 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  * The web and Android stand-in for home-content.ios.tsx (SwiftUI): the same layout, with the
  * same entrance in Reanimated (entrance.ts).
  */
-export function HomeContent({ mornings, today, won, free, revision, hero, meter, icon, action, alt }: HomeContentProps) {
+export function HomeContent({ mornings, today, won, free, revision, hero, meter, icon, searching, action, alt }: HomeContentProps) {
   const { group, piece: enter } = useEntrance();
   return (
     <View style={styles.flex}>
@@ -75,7 +79,11 @@ export function HomeContent({ mornings, today, won, free, revision, hero, meter,
       <HomeTop mornings={mornings} today={today} won={won} free={free} revision={revision} enter={enter} />
       <Animated.View style={[styles.hero, group]}>
         <Animated.View style={enter(2)}>
-          <SymbolView name={icon ? sym(icon.ios, icon.android) : sym('moon.fill', 'bedtime')} size={18} tintColor={Nocturne.text2} />
+          {searching ? (
+            <SearchingOrb />
+          ) : (
+            <SymbolView name={icon ? sym(icon.ios, icon.android) : sym('moon.fill', 'bedtime')} size={18} tintColor={Nocturne.text2} />
+          )}
         </Animated.View>
         {meter ? (
           <Animated.View style={[styles.meter, enter(3)]} accessible accessibilityRole="header" accessibilityLabel={hero.title}>

@@ -1,7 +1,8 @@
 import { StyleSheet, View } from 'react-native';
+import { CountText } from '@/components/count-text';
 import { Text } from '@/components/text';
 
-import { Nocturne, NUMBER_FONT, Type } from '@/theme';
+import { Nocturne, Type } from '@/theme';
 
 /**
  * The count and its track, from the morning wake-up screen. Onboarding's practice walk uses
@@ -12,9 +13,7 @@ import { Nocturne, NUMBER_FONT, Type } from '@/theme';
 export function BigNumber({ value, caption }: { value: string; caption: string }) {
   return (
     <View>
-      <Text style={styles.number} maxFontSizeMultiplier={1.2}>
-        {value}
-      </Text>
+      <CountText value={value} />
       <Text style={styles.caption}>{caption}</Text>
     </View>
   );
@@ -30,7 +29,6 @@ export function Track({ progress }: { progress: number }) {
 }
 
 const styles = StyleSheet.create({
-  number: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 72, lineHeight: 80, fontVariant: ['tabular-nums'] },
   caption: { ...Type.body, color: Nocturne.text2 },
   track: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },

@@ -179,6 +179,16 @@ describe('push-up session', () => {
     assert.equal(s.miss, null);
   });
 
+  test('a deep drop counts with the elbow only past shallow (Vision reads the elbow worst), held two frames', () => {
+    const held = feed(startPushups(0), 0, [165, 165, [125, 0.4], [125, 0.7], [125, 0.7], [125, 0.4], 165, 165]);
+    assert.equal(held.reps, 1);
+    const once = feed(startPushups(0), 0, [165, 165, [125, 0.4], [125, 0.7], [125, 0.4], 165, 165]);
+    assert.equal(once.reps, 0);
+    // Two lone deep frames in a half dip aren't a run.
+    const apart = feed(startPushups(0), 0, [165, 165, [125, 0.4], [125, 0.7], [125, 0.4], [125, 0.7], [125, 0.4], 165, 165]);
+    assert.equal(apart.reps, 0);
+  });
+
   test('one frame at the bottom is a spike, not a rep', () => {
     const s = feed(startPushups(0), 0, [165, 165, [130, 0.3], [60, 0.7], [130, 0.3], 165, 165]);
     assert.equal(s.reps, 0);

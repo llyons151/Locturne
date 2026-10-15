@@ -44,12 +44,13 @@ const saidOnce = {
 // what he says can be read; until then his news waits.
 // `floor`: how high Home keeps its content off the panel's bottom edge, in points; his bubble
 // stays under it, clear of Home's button.
-type State = { mood: LocMood; present: boolean; seen: boolean; moment: LocMoment | null; floor: number };
-let state: State = { mood: 'awake', present: false, seen: false, moment: null, floor: 0 };
+type State = { mood: LocMood; wary: number; present: boolean; seen: boolean; moment: LocMoment | null; floor: number };
+let state: State = { mood: 'awake', wary: 0, present: false, seen: false, moment: null, floor: 0 };
 const listeners = new Set<() => void>();
 const publish = (next: State) => {
   const same =
     next.mood === state.mood &&
+    next.wary === state.wary &&
     next.present === state.present &&
     next.seen === state.seen &&
     next.floor === state.floor &&
@@ -68,14 +69,14 @@ const snapshot = () => state;
  * Home's say over Loc: his mood, that he's out while Home is the picked tab, and what he has
  * to say something about (`moment`). Draws nothing.
  */
-export function LocCue({ mood, moment = null, floor }: { mood: LocMood; moment?: LocMoment | null; floor: number }) {
+export function LocCue({ mood, wary = 0, moment = null, floor }: { mood: LocMood; wary?: number; moment?: LocMoment | null; floor: number }) {
   const present = useTabSelected();
   const seen = useIsFocused() && present;
   const key = moment?.key;
   const kind = moment?.kind;
   useEffect(
-    () => publish({ mood, present, seen, floor, moment: key && kind ? { key, kind } : null }),
-    [mood, present, seen, floor, key, kind],
+    () => publish({ mood, wary, present, seen, floor, moment: key && kind ? { key, kind } : null }),
+    [mood, wary, present, seen, floor, key, kind],
   );
   useEffect(() => () => publish({ ...state, present: false, seen: false }), []);
   return null;
@@ -90,7 +91,7 @@ export function LocCue({ mood, moment = null, floor }: { mood: LocMood; moment?:
 export function Loc() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { mood, present, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
+  const { mood, wary, present, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
   // The canvas runs the panel's full width, so the blanket lump can travel along the edge; he
   // sits in the middle, SHARE of it.
   const h = Math.round((width * SHARE * LOC_VIEW.height) / LOC_VIEW.width);
@@ -198,6 +199,7 @@ export function Loc() {
       >
         <LocStage
           mood={mood}
+          wary={wary}
           share={SHARE}
           present={present}
           onCue={onCue}

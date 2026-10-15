@@ -26,8 +26,10 @@
 export const PUSHUPS = {
   /** The default target; the routine's `pushupGoal` sets the real one. */
   reps: 10,
-  /** A joint below this confidence isn't there. */
-  minConfidence: 0.3,
+  /** A joint below this confidence isn't there. Apple Vision rates a side-on plank's joints lower
+   * than MediaPipe did (2026-10-14, the first phone test found the arm but lost the body); Apple's
+   * own samples keep joints from 0.1. */
+  minConfidence: 0.2,
   /** The elbow at or under this, in degrees, is the bottom of a rep. (Real reps read 25–112°.) */
   downDeg: 115,
   /** At or over this, the arms are straight again: the top. Some people never quite lock out. */
@@ -36,6 +38,10 @@ export const PUSHUPS = {
   shallowDeg: 135,
   /** The shoulders have to drop this share of the torso's length (shoulder to hip) below the top for a rep. */
   minDrop: 0.4,
+  /** A drop this deep is a rep with the elbow only past `shallowDeg`: the shoulders are the surer
+   * sign, and Vision's elbow is the joint it reads worst side-on. Real reps drop 0.51 or more;
+   * jitter at most 0.33. */
+  deepDrop: 0.6,
   /** The top's shoulder height is forgotten after this long without a new high, so an old reading can't stand in for it. */
   topMemoryMs: 2_000,
   /** Frames at the bottom (elbow at or under `downDeg`) a rep needs. Even quick reps spend three or four
@@ -77,7 +83,13 @@ export type Joint = (typeof JOINTS)[number];
 export type JointPoint = { x: number; y: number; c: number };
 
 /** One frame's pose: whatever joints were found, maybe none. */
-export type PoseFrame = { at: number; joints: Partial<Record<Joint, JointPoint>> };
+export type PoseFrame = {
+  at: number;
+  joints: Partial<Record<Joint, JointPoint>>;
+  /** From the iPhone, for the wake lab's readout: the picture's size, which quarter turn Vision
+   * read it at, whether the camera stood it up, and the best side's summed confidence (0–4). */
+  info?: { w: number; h: number; read: string; upright: boolean; score: number };
+};
 
 export type PushupsStatus =
   /** No plank in view yet, or lost it. */
@@ -104,6 +116,8 @@ export type PushupsSession = {
   down: boolean;
   /** Frames at the bottom in this dip so far. */
   lowFrames: number;
+  /** Frames in this dip both bent past `shallowDeg` and down `deepDrop`, for the deep-drop rep: spikes last one. */
+  deepFrames: number;
   /** The deepest elbow angle since the arms were last straight, or null when not dipping. */
   dip: number | null;
   /** The elbow angle in the last plank frame, null with no plank in view. Unsmoothed: on the real
@@ -147,6 +161,7 @@ export function startPushups(
     reps: done,
     down: false,
     lowFrames: 0,
+    deepFrames: 0,
     dip: null,
     elbow: null,
     topY: null,
@@ -258,6 +273,7 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
       next.elbow = null;
       next.down = false;
       next.lowFrames = 0;
+      next.deepFrames = 0;
       next.dip = null;
       next.topY = null;
       next.topAt = null;
@@ -277,6 +293,7 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
     next.status = 'counting';
     next.down = false;
     next.lowFrames = 0;
+    next.deepFrames = 0;
     next.dip = null;
     next.topY = read.shoulderY;
     next.topAt = at;
@@ -290,7 +307,14 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
       next.lowFrames += 1;
       if (next.lowFrames >= PUSHUPS.downFrames) next.down = true;
     }
-    if (next.topY !== null) next.drop = Math.max(next.drop, (read.shoulderY - next.topY) / read.torso);
+    if (next.topY !== null) {
+      const drop = (read.shoulderY - next.topY) / read.torso;
+      next.drop = Math.max(next.drop, drop);
+      // In a row: lone jittery frames in a half dip mustn't add up to a rep. A run long enough
+      // is kept to the top.
+      if (elbow <= PUSHUPS.shallowDeg && drop >= PUSHUPS.deepDrop) next.deepFrames += 1;
+      else if (next.deepFrames < PUSHUPS.downFrames) next.deepFrames = 0;
+    }
     return next;
   }
 
@@ -298,11 +322,14 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
   const dip = next.dip;
   const dropped = next.drop;
   const wentDown = next.down;
+  const deepFrames = next.deepFrames;
   next.dip = null;
   next.down = false;
   next.lowFrames = 0;
+  next.deepFrames = 0;
   next.drop = 0;
-  const counts = wentDown && dropped >= PUSHUPS.minDrop;
+  const deep = deepFrames >= PUSHUPS.downFrames;
+  const counts = (wentDown && dropped >= PUSHUPS.minDrop) || deep;
   // A dip measures from the highest the shoulders have been since the last rep. Only a rep moves
   // that down to here: a one-frame spike that "straightens" the arm mid-rep mustn't restart the
   // measure from halfway down.
@@ -338,6 +365,7 @@ export function tick(s: PushupsSession, now: number): PushupsSession {
     next.elbow = null;
     next.down = false;
     next.lowFrames = 0;
+    next.deepFrames = 0;
     next.dip = null;
     next.topY = null;
     next.topAt = null;

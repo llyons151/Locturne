@@ -371,9 +371,14 @@ final class HoldButtonView: ExpoView {
   // MARK: Accessibility
 
   override func accessibilityActivate() -> Bool {
-    guard !disabled else { return false }
+    // Once per activation: a quick double-tap mustn't start it twice, as `complete` guards a hold.
+    guard !disabled, !finished else { return false }
+    finished = true
     UINotificationFeedbackGenerator().notificationOccurred(.success)
     onComplete()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+      self?.finished = false
+    }
     return true
   }
 }

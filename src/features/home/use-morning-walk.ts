@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { useSmoothSteps } from '@/hooks/use-smooth-steps';
 import { useStepCount } from '@/hooks/use-step-count';
 import { currentMorning } from '@/lib/lock-state';
 import { toLockSettings, type Routine } from '@/lib/routine';
@@ -22,6 +23,8 @@ export function useMorningWalk(enabled: boolean, routine: Routine): MorningWalk 
   const { status, steps } = useStepCount(enabled, morningStart, goal);
   const prove = useProveMorning();
   const walked = enabled && status === 'counting' && steps >= goal;
+  // Shown a step at a time between the pedometer's batches; proved on the raw count above.
+  const shown = useSmoothSteps(enabled && status === 'counting' ? Math.min(steps, goal) : null);
 
   useEffect(() => {
     if (walked) prove('steps');
@@ -31,7 +34,7 @@ export function useMorningWalk(enabled: boolean, routine: Routine): MorningWalk 
   if (status === 'denied' || status === 'unavailable') return { kind: status };
   return {
     kind: 'counting',
-    steps: status === 'starting' ? null : Math.min(steps, goal),
+    steps: status === 'starting' ? null : (shown ?? Math.min(steps, goal)),
     goal,
   };
 }

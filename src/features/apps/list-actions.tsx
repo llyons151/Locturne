@@ -191,7 +191,7 @@ export function useListActions() {
     setLimitError(null);
     try {
       if ((await requestAccess()) !== 'approved') throw new Error('refused');
-      restoreBlocks();
+      await restoreBlocks();
       return true;
     } catch {
       setLimitError("Screen Time access wasn't turned on. You can try again when you're ready.");

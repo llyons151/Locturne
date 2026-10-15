@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BigNumber, Track } from '@/components/meter';
+import { useSmoothSteps } from '@/hooks/use-smooth-steps';
 import { useStepCount } from '@/hooks/use-step-count';
 import { formatPreset } from '@/lib/text';
 import { stepsLine } from '@/lib/wake/lines';
@@ -33,6 +34,8 @@ export function StepsView({
 }) {
   const { status, steps } = useStepCount(true, morningStart, goal);
   const walked = status === 'counting' && steps >= goal;
+  // Shown a step at a time between the pedometer's batches; met on the raw count.
+  const smooth = useSmoothSteps(status === 'counting' ? Math.min(steps, goal) : null);
 
   useEffect(() => {
     if (walked) onMet();
@@ -68,8 +71,9 @@ export function StepsView({
     );
   }
 
-  const shown = Math.min(steps, goal);
-  const left = Math.max(0, goal - steps);
+  const shown = smooth ?? Math.min(steps, goal);
+  // From the number on screen, so "N more" adds up with it.
+  const left = Math.max(0, goal - shown);
   const since = formatPreset(morningStart.getHours() * 60 + morningStart.getMinutes());
 
   return (

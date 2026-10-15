@@ -5,18 +5,19 @@
 
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { Text } from '@/components/text';
+import { SearchingOrb } from '@/components/thinking-orb';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
-import { distanceMeters, getPlaceEditRefusal, judgeFix, PLACE_RADIUS_M, submitPlaceFix, type Fix, type PlaceCheck } from '@/lib/place';
+import { distanceMeters, getPlaceEditRefusal, judgeFix, PLACE_RADIUS_M, sharpFix, submitPlaceFix, type Fix, type PlaceCheck } from '@/lib/place';
 import { getRoutine } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
 import { Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
@@ -129,7 +130,8 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
   const live = morning || stage.kind === 'checking';
   const you = useLiveFix(live, stage.kind);
   const target = shownPlace();
-  const away = you && target ? distanceMeters(you, target) : null;
+  // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
+  const away = you && target && sharpFix(you) ? distanceMeters(you, target) : null;
   const mapW = screen.width - Gap.gutter * 2;
   const mapH = Math.round(mapW * (screen.height < 700 ? 0.5 : 0.72));
 
@@ -172,7 +174,7 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
         </View>
       ) : null}
 
-      {stage.kind === 'checking' ? <ActivityIndicator style={styles.spinner} color={Nocturne.text2} /> : null}
+      {stage.kind === 'checking' ? <SearchingOrb size={64} style={styles.spinner} /> : null}
 
       <View style={styles.flex} />
 
@@ -222,7 +224,7 @@ const styles = StyleSheet.create({
     paddingVertical: Space.m,
   },
   note: { ...Type.secondary, color: Nocturne.text2 },
-  spinner: { marginTop: Space.xl },
+  spinner: { alignSelf: 'center', marginTop: Space.xl },
   live: { marginTop: Gap.block, gap: Space.l },
   reading: { alignItems: 'center', gap: Space.xs },
   distance: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 44, lineHeight: 52, fontVariant: ['tabular-nums'] },

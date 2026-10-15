@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Linking } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, Linking } from 'react-native';
 
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
-import { distanceMeters, PLACE_RADIUS_M, submitPlaceFix, type MorningPlace } from '@/lib/place';
+import { distanceMeters, PLACE_RADIUS_M, sharpFix, submitPlaceFix, type MorningPlace } from '@/lib/place';
 
 import { shownPlace } from '../dev/wake-lab/stand-ins';
 import { pretendPhase } from '../dev/wake-lab/wake-preview';
@@ -37,6 +37,20 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     if (!enabled) setStage({ kind: 'morning' });
   }
   const you = useLiveFix(enabled, stage.kind);
+  // Back from Settings (location turned on, or Precise Location): start over, so Check in and
+  // the live distance come back instead of Open Settings for the rest of the morning.
+  const stuck = stage.kind === 'noFix';
+  useEffect(() => {
+    if (!stuck) return;
+    // Only after the background (a trip to Settings): the location alert itself only makes the
+    // app inactive for a moment.
+    let away = false;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background') away = true;
+      else if (state === 'active' && away) setStage({ kind: 'morning' });
+    });
+    return () => sub.remove();
+  }, [stuck]);
 
   if (!enabled) return null;
   // The wake preview's pretend morning can stand in a place, and its check-in records nothing.
@@ -78,7 +92,8 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     imperial,
     now,
   });
-  const away = you ? distanceMeters(you, place) : null;
+  // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
+  const away = you && sharpFix(you) ? distanceMeters(you, place) : null;
   const here = away !== null && away <= PLACE_RADIUS_M;
   // The live distance is right above, so a miss doesn't repeat the check-in's older one.
   const said = stage.kind === 'notThere' && away !== null ? 'Not there yet. Keep going, then try again.' : body;
@@ -87,6 +102,7 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
 
   return {
     icon: { ios: 'location.fill', android: 'location_on' },
+    searching: stage.kind === 'checking',
     hero: { title: titleFor(stage, place, away, imperial), body: here && stage.kind === 'morning' ? 'Tap Check in.' : `${said}${offersWalk ? '' : orWalk(walk)}`, aside: line },
     meter: away !== null && away > PLACE_RADIUS_M ? { value: formatDistance(away - PLACE_RADIUS_M, imperial), caption: `to ${place.name}` } : undefined,
     action:

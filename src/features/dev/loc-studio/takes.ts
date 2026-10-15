@@ -40,6 +40,13 @@ const explore = (id: string, label: string, note: string, mood?: LocMood): LocAc
 });
 
 export const ACTIONS: LocAction[] = [
+  explore('scoot', 'Hands: shuffles over', 'Eyes lead left, then he shuffles hand over hand along the ledge after them, takes a look, and shuffles home.'),
+  explore('clutch', 'Hands: clutches the ledge', 'Startled: eyes huge first, then his hands clench the edge and he shrinks. It passes; a heavy-lidded side-eye at you.'),
+  explore('pull-up', 'Hands: pulls up to look', 'Presses down on the ledge and rises tall, scanning left and right. Nothing. Lowers back, not impressed.'),
+  explore('hide', 'Hands: ducks and hides', 'Ducks behind the ledge, ears and clutching hands showing; peeks over, looks left and right, ducks again.'),
+  explore('slip', 'Hands: slips', 'One hand slides off and drops out of sight; he lurches, it scrabbles back and hooks on. A long relieved exhale.'),
+  explore('knuckle-tap', 'Hands: taps the ledge', 'Impatient: one hand lifts a little and taps, three quick and one slow, lids heavy, eyes on you.'),
+  explore('claw-drum', 'Hands: drums his claws', 'Bored: rolls of the claws from the grip, with dead eyes and one slow blink.'),
   explore('unhinged', 'Unhinged pop', 'The crazy look. A one-frame cut to mismatched pupils, flat lids and a lean in; dead still while one lid twitches; then a double blink and a glance away, as if nothing happened.'),
   explore('unhinged-twos', 'Unhinged pop, on twos', 'The same, with the face holding each pose for two frames, like drawn animation. Compare the texture.'),
   explore('dead-stare', 'Dead stare', 'For a deadpan doom line. Pupils small and centred, lids flat, and no blink for three and a half seconds. The missing blink is the joke. One long slow blink to end.'),

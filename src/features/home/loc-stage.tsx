@@ -21,11 +21,14 @@ export default function LocStage({
   share,
   present,
   ink,
+  wary = 0,
   onCue,
 }: {
   mood: LocMood;
   share: number;
   present: boolean;
+  /** How wary of you he is, 0..1 (lib/loc-mind.ts). */
+  wary?: number;
   /** His body's colour, `#RRGGBB`; black (in front of the moon) when left out. */
   ink?: string;
   /** What just happened to him (a poke, popping back up...), for his speech bubble. A native action on iOS. */
@@ -41,6 +44,7 @@ export default function LocStage({
   const wakeRef = useRef<() => void>(() => {});
   // Read once, when the rig is made.
   const inkRef = useRef(ink);
+  const waryRef = useRef(wary);
   const lastTap = useRef(0);
   const onCueRef = useRef(onCue);
 
@@ -50,6 +54,7 @@ export default function LocStage({
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const rig = new LocRig(canvas, moodRef.current, reduced, inkRef.current);
     rig.setShare(shareRef.current);
+    rig.setWary(waryRef.current);
     rig.onCue = (cue) => onCueRef.current?.(cue);
     rigRef.current = rig;
     // He arrives from the `present` effect below, which runs after this one with the rig made.
@@ -128,6 +133,11 @@ export default function LocStage({
   useEffect(() => {
     onCueRef.current = onCue;
   }, [onCue]);
+
+  useEffect(() => {
+    waryRef.current = wary;
+    rigRef.current?.setWary(wary);
+  }, [wary]);
 
   useEffect(() => {
     moodRef.current = mood;

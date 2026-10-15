@@ -37,7 +37,7 @@ function harness() {
     '@/hooks/use-lock': { useLock: () => lock },
     '@/lib/emergency': { heldPhase: (phase: string) => phase },
     '@/lib/haptics': { done() {}, tap() {} },
-    '@/lib/lock-controller': { proveMorning: () => { lock = { ...lock, phase: 'day' }; return lock; } },
+    '@/lib/lock-controller': { proveMorning: () => { lock = { ...lock, phase: 'day' }; return lock; }, routineAt: () => routine },
     '@/lib/notifications': { shouldAskForNotifications: async () => false },
     '@/lib/lock-state': { currentMorning: () => ({ start: new Date() }) },
     '@/lib/routine': { getRoutine: () => routine, toLockSettings: (r: unknown) => r, nightAt: () => ({ start: new Date(), on: true }) },

@@ -232,9 +232,25 @@ const LATE: Pool = {
 };
 
 /** Something Home tells him about, said once per `key` (a night or a morning). */
-export type LocMoment = { kind: 'bedtimeSoon' | 'appsAsleep' | 'wakeDone'; key: string };
+export type LocMoment = { kind: MomentKind; key: string };
+/**
+ * The first three come from Home's clock; the rest from what Loc remembers about you
+ * (lib/loc-mind.ts, docs/LOC_PERSONALITY.md), each said once.
+ */
+export type MomentKind =
+  | 'bedtimeSoon'
+  | 'appsAsleep'
+  | 'wakeDone'
+  | 'firstMorning'
+  | 'roommate'
+  | 'accomplice'
+  | 'rideOrDie'
+  | 'welcomeBack'
+  | 'smallHours'
+  | 'exitAfter'
+  | 'wakeProud';
 
-const MOMENTS: Record<LocMoment['kind'], Pool> = {
+const MOMENTS: Record<MomentKind, Pool> = {
   bedtimeSoon: {
     mild: ['Bedtime soon. I’m fluffing the void.', 'An hour till bed. The moon is stretching.'],
     grumpy: ['Bedtime soon. I’m sharpening my blanket.', 'One hour. Then I eat the apps.', 'Bedtime soon. Gerald is warming up.'],
@@ -257,6 +273,47 @@ const MOMENTS: Record<LocMoment['kind'], Pool> = {
       'YOU HAVE DEFEATED THE MORNING. I HATE IT.',
       'Victory. I will eat a celebratory dad.',
     ],
+  },
+  // What he remembers (lib/loc-mind.ts). Never a dig at you: the doom is aimed at the world.
+  firstMorning: {
+    mild: ['Your first morning. I wrote it on the wall.', 'You got up. I didn’t know humans could.'],
+    grumpy: ['First morning. I’m telling everyone. Nobody listens to me.', 'You did a morning. I’ve updated my files.'],
+    unbearable: ['THE FIRST MORNING. THE PROPHECY BEGINS.', 'One morning. The moon has been notified.'],
+  },
+  roommate: {
+    mild: ['Seven mornings. We’re roommates now. Don’t touch my bin.', 'Seven. You can call me Loc. You already did.'],
+    grumpy: ['Seven mornings. Fine. We’re roommates. My half is all of it.', 'A week. I’ve stopped plotting against you. Mostly.'],
+    unbearable: ['SEVEN MORNINGS. YOU MAY NOW SEE MY BIN.', 'Seven. We are bonded. I bit the contract.'],
+  },
+  accomplice: {
+    mild: ['Thirty mornings. You’re my accomplice now.', 'Thirty. I made you a badge. I ate it.'],
+    grumpy: ['Thirty mornings. We’re accomplices. Crimes TBD.', 'Thirty. The pigeons are scared of you now.'],
+    unbearable: ['THIRTY. WE RIDE AT DAWN. YOU’RE ALREADY UP.', 'Thirty mornings. The sun fears us both.'],
+  },
+  rideOrDie: {
+    mild: ['A hundred mornings. I’d share my bin with you.', 'One hundred. I’m keeping you.'],
+    grumpy: ['A hundred mornings. Ride or die. Mostly ride.', 'One hundred. I fear you now.'],
+    unbearable: ['ONE HUNDRED MORNINGS. YOU ARE THE DOOM NOW.', 'A hundred. I have carved your name into the moon.'],
+  },
+  welcomeBack: {
+    mild: ['Oh. You’re back. I kept your spot warm.', 'You’re alive. I was only a little worried.'],
+    grumpy: ['Oh. You’re alive. I already sold your bed.', 'You’re back. I told Gerald you died. Awkward.'],
+    unbearable: ['YOU RETURN. I HAD STARTED A NEW LIFE.', 'Back from the dead. Same, honestly.'],
+  },
+  smallHours: {
+    mild: ['It’s very late. Even the moon is yawning.', 'Small hours. Your pillow misses you.'],
+    grumpy: ['It is 3am. I am doom. Go to bed.', 'This is my hour. Leave.', 'The small hours. Nobody good is up.'],
+    unbearable: ['IT IS THE HOUR OF THE RACCOON. BEGONE.', 'You are awake. I am awake. Only one of us should be.'],
+  },
+  exitAfter: {
+    mild: ['We don’t talk about this morning.', 'This morning didn’t happen. I saw nothing.'],
+    grumpy: ['We don’t talk about this morning.', 'I saw what happened. I’m not mad. I’m writing it down.'],
+    unbearable: ['THIS MORNING IS SEALED IN THE VAULT.', 'The apps escaped. I have questions. Many.'],
+  },
+  wakeProud: {
+    mild: ['Again? You’re scaring me.', 'Another morning. I’m starting to respect you. Gross.'],
+    grumpy: ['Who ARE you.', 'Again. I fear you now.', 'You keep getting up. It’s unsettling.'],
+    unbearable: ['YOU ARE UNSTOPPABLE. I AM CALLING THE MOON.', 'Again?? I have to lie down.'],
   },
 };
 
@@ -384,9 +441,9 @@ function say(pool: readonly string[], quotes: readonly string[] | undefined, ran
 }
 
 /** His line for a moment Home told him about, a poke streak, or his birthday. */
-export function locSpecial(kind: LocMoment['kind'] | 'streak' | 'birthday', tone: Tone, random: () => number = Math.random): string {
+export function locSpecial(kind: MomentKind | 'streak' | 'birthday', tone: Tone, random: () => number = Math.random): string {
   const pool = kind === 'streak' ? STREAK : kind === 'birthday' ? BIRTHDAY : MOMENTS[kind];
-  return say(pool[tone], QUOTES[kind], random);
+  return say(pool[tone], (QUOTES as unknown as Partial<Record<string, readonly string[]>>)[kind], random);
 }
 
 /** How often he says hello when you come back to Home: rarely enough to stay a surprise. */

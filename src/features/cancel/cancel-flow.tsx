@@ -60,6 +60,10 @@ export function CancelFlow() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [mornings] = useState(getMorningsWon);
   const offerShown = useRef(false);
+  /** A reason tap waits a beat before moving on; a second tap in that beat is ignored. */
+  const choosing = useRef(false);
+  /** Apple's sheet reports the outcome once, however often it's reopened. */
+  const ended = useRef(false);
 
   // Priced while they read the first screens, so the last one never waits.
   useEffect(() => {
@@ -69,9 +73,11 @@ export function CancelFlow() {
       .catch(() => setOffer(preview ? sampleOffer() : null));
   }, [preview, usedUp]);
 
+  // Once per step: picking a reason isn't a step of its own.
   useEffect(() => {
     track('cancel_flow_step', { step, reason, preview });
-  }, [step, reason, preview]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, preview]);
 
   const go = (next: Step) => {
     setHistory((h) => [...h, step]);
@@ -91,7 +97,8 @@ export function CancelFlow() {
 
   /** Apple's manage-subscriptions sheet, or its web page where there's no sheet. */
   const toApple = () => {
-    end('to_apple');
+    if (!ended.current) end('to_apple');
+    ended.current = true;
     if (preview) return go('done');
     const pageUrl = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
     manageSubscriptions()
@@ -109,8 +116,14 @@ export function CancelFlow() {
   };
 
   const choose = (picked: CancelReason) => {
+    if (choosing.current) return;
+    choosing.current = true;
     setReason(picked);
-    setTimeout(() => (fixFor(picked) ? go('fix') : toOffer()), 250);
+    setTimeout(() => {
+      choosing.current = false;
+      if (fixFor(picked)) go('fix');
+      else toOffer();
+    }, 250);
   };
 
   const fix = fixFor(reason);
@@ -142,6 +155,8 @@ export function CancelFlow() {
     } else if (result.status === 'failed') {
       haptic.thud();
       setClaimError(result.message);
+      // The App Store never applied it, so it isn't used up on this install.
+      sharedSet(OFFER_SHOWN_KEY, false);
     } else if (result.status === 'pending') {
       setClaimError('The App Store is waiting on an approval. It applies once that comes through.');
     }

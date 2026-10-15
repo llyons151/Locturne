@@ -129,6 +129,8 @@ export function PlacePick({ select }: { select: boolean }) {
     placed.current = true;
     asked.current++;
     setTarget({ latitude: place.latitude, longitude: place.longitude, span, key: `${place.latitude},${place.longitude},${Date.now()}` });
+    // Saved where it's flying to, not where the map was when Save beat the landing.
+    setSpot(null);
     setLabel({ name: place.name, address: place.address });
     setName(place.name || place.address);
     setQuery(place.name || place.address);
@@ -205,6 +207,7 @@ export function PlacePick({ select }: { select: boolean }) {
           onPoiPress={(place) => {
             placed.current = true;
             asked.current++;
+            setSpot({ latitude: place.latitude, longitude: place.longitude });
             setLabel({ name: place.name, address: place.address });
             setName(place.name || place.address);
             setQuery(place.name || place.address);

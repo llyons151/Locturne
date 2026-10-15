@@ -38,6 +38,7 @@ import { useState, type ComponentProps } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { HOME_RISE_MS } from '@/components/night-sky';
+import { SearchingOrb } from '@/components/thinking-orb';
 import { getAccess } from '@/lib/screen-time';
 import { Nocturne, Space } from '@/theme';
 import { isMistDotViewAvailable, MistDotView } from '../../../modules/mist-dot';
@@ -76,7 +77,7 @@ const BLUR = 8;
  */
 export function HomeContent(props: HomeContentProps) {
   'use no memo';
-  const { mornings, today, won, free, revision, hero, heroKey, meter, icon, action, alt } = props;
+  const { mornings, today, won, free, revision, hero, heroKey, meter, icon, searching, action, alt } = props;
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
 
@@ -181,7 +182,15 @@ export function HomeContent(props: HomeContentProps) {
             animation(Animation.spring({ duration: TOTAL, bounce: 0 }).delay(START), shown),
           ]}
         >
-          <Image systemName={(icon?.ios ?? 'moon.fill') as SymbolName} size={18} color={Nocturne.text2} modifiers={enter(2)} />
+          {searching ? (
+            <ZStack modifiers={[frame({ width: 20, height: 20 }), ...enter(2)]}>
+              <RNHostView matchContents>
+                <SearchingOrb />
+              </RNHostView>
+            </ZStack>
+          ) : (
+            <Image systemName={(icon?.ios ?? 'moon.fill') as SymbolName} size={18} color={Nocturne.text2} modifiers={enter(2)} />
+          )}
           {meter ? (
             // The morning's live count in place of the headline, rolling as it climbs.
             <VStack
