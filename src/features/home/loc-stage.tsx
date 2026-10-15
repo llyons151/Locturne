@@ -26,6 +26,7 @@ export default function LocStage({
   onCue,
   onBurrow,
   burrowNonce = 0,
+  zoomNonce = 0,
   knock,
 }: {
   mood: LocMood;
@@ -41,6 +42,8 @@ export default function LocStage({
   onBurrow?: (path: BurrowPath) => void;
   /** Bumped to send him under from outside (the knock lab's Burrow button). */
   burrowNonce?: number;
+  /** Bumped to send him under with the zoomies (the knock lab's Zoomies button). */
+  zoomNonce?: number;
   /** The knock lab's live tuning; inside the webview this module is a copy, so it comes as a prop. */
   knock?: NavKnockTune;
   dom?: import('expo/dom').DOMProps;
@@ -156,6 +159,12 @@ export default function LocStage({
     rigRef.current?.burrow();
     wakeRef.current();
   }, [burrowNonce]);
+
+  useEffect(() => {
+    if (!zoomNonce) return;
+    rigRef.current?.burrow(true);
+    wakeRef.current();
+  }, [zoomNonce]);
 
   useEffect(() => {
     waryRef.current = wary;

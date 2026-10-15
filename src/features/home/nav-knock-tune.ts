@@ -17,10 +17,15 @@
  * - `squash`: stretched tall going up, wide coming down; 0 keeps them round.
  * - `blast`: how hard they jump when he bursts out.
  * - `haptics`: a light tick on the bigger bounces (iPhone only).
+ * - `zoomAfter`, `zoomWindow`: this many burrows inside this many seconds and he gets the
+ *   zoomies, tearing along the bottom edge to edge (loc-zoomies.ts), and again on each
+ *   burrow after while they keep coming that fast.
+ * - `zoomSpeed`: how fast he tears about, times `scurry`.
+ * - `zoomLaps`: how long he goes on: twice this many wild moves.
  */
 export const NAV_KNOCK = {
   scurry: 2.2, reach: 0.43, width: 46, bounce: 2.05, jiggle: 0.5, tempo: 2.8, sway: 1, spin: 0.25,
-  squash: 1, blast: 1, haptics: true,
+  squash: 1, blast: 1, haptics: true, zoomAfter: 3, zoomWindow: 60, zoomSpeed: 1.2, zoomLaps: 3,
 };
 
 export type NavKnockTune = typeof NAV_KNOCK;

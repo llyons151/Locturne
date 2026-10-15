@@ -18,14 +18,15 @@
 import { buildHand, fidgeting, newHandSim, splat, stepHand, traceHand, wristAt, type HandPose, type HandSim } from './loc-hands';
 import { LOC_HEIGHT, LOC_PATH } from './loc-path';
 import { NAV_KNOCK, type BurrowPath } from './nav-knock-tune';
+import { zoomLump } from './loc-zoomies';
 
 export type LocMood = 'asleep' | 'groggy' | 'awake' | 'smug' | 'betrayed';
 
 type Vec = [number, number];
 type Mat = [number, number, number, number, number, number];
-type Key = [number, number | 'S' | 'T', Ease?];
+export type Key = [number, number | 'S' | 'T', Ease?];
 type Ease = keyof typeof E;
-type Bit = {
+export type Bit = {
   ms: number;
   every?: [number, number];
   tracks: Partial<Record<Channel, Key[]>>;
@@ -1024,14 +1025,20 @@ export class LocRig {
   }
   /** Under the covers (burrowing, or arriving or leaving by them): taps wait until he's out. */
   get burrowing() { return !!this.bit?.def.lump; }
-  burrow() {
+  /** When he was last sent under, in ms, for the zoomies (`zoomLump`). */
+  private burrows: number[] = [];
+  /** Sends him under the covers. `zoom` forces the zoomies (the knock lab's button). */
+  burrow(zoom = false) {
     if (this.hidden) return;
     if (this.reduced) return this.play(BURROW_CALM);
+    const now = Date.now();
+    this.burrows = [...this.burrows.filter((at) => now - at < NAV_KNOCK.zoomWindow * 1000), now];
+    const extra = this.burrows.length - Math.max(1, Math.round(NAV_KNOCK.zoomAfter));
     // His run is a share of the canvas's width, which is the screen's; the nav buttons sit in a
     // row at most 520 pt wide (app-tabs.tsx). On a wider screen (web on a computer) the run is cut
     // to what it would be over a phone-shaped row, so he still runs into them.
     const fit = Math.min(1, ROW_SPAN / (this.canvas.clientWidth || ROW_SPAN));
-    const { pop, lump } = burrowLump(Math.random, fit);
+    const { pop, lump } = zoom || extra >= 0 ? zoomLump(Math.random, fit, Math.max(0, extra)) : burrowLump(Math.random, fit);
     this.play(burrowBit(pop, lump));
     // The tab bar plays the bounce off the whole run, planned now (nav-knock.ts): one message,
     // not one a frame, so the buttons move on the UI thread with nothing crossing per frame.

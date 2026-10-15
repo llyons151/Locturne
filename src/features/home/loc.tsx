@@ -212,6 +212,7 @@ export function Loc() {
           onCue={onCue}
           onBurrow={knockNav}
           burrowNonce={lab.nonce}
+          zoomNonce={lab.zoomNonce}
           knock={lab.tune}
           dom={{
             style: { width, height: h, backgroundColor: 'transparent' },

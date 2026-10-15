@@ -18,8 +18,8 @@ export const KNOCK_PRESETS: Record<'Gentle' | 'Shipped' | 'Lively', NavKnockTune
   Lively: { ...SHIPPED, scurry: 2.6, width: 62, bounce: 2.6, jiggle: 0.75, tempo: 3.4, sway: 1.4, squash: 1.4, blast: 1.5 },
 };
 
-type Lab = { open: boolean; nonce: number; tune: NavKnockTune };
-let lab: Lab = { open: false, nonce: 0, tune: { ...NAV_KNOCK } };
+type Lab = { open: boolean; nonce: number; zoomNonce: number; tune: NavKnockTune };
+let lab: Lab = { open: false, nonce: 0, zoomNonce: 0, tune: { ...NAV_KNOCK } };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<Lab>) => {
   lab = { ...lab, ...patch };
@@ -39,7 +39,12 @@ if (labsOn) {
   try {
     const raw = storage()?.getItem(SAVED);
     if (raw) {
-      Object.assign(NAV_KNOCK, JSON.parse(raw));
+      // Saved before the zoomies were slowed down (they looked like teleporting): keep the
+      // bounce settings, drop the old zoom ones.
+      const saved = JSON.parse(raw) as Partial<NavKnockTune> & { zoomed?: number };
+      if (saved.zoomed !== 2) for (const key of ['zoomAfter', 'zoomWindow', 'zoomSpeed', 'zoomLaps'] as const) delete saved[key];
+      delete saved.zoomed;
+      Object.assign(NAV_KNOCK, saved);
       lab = { ...lab, tune: { ...NAV_KNOCK } };
     }
   } catch {}
@@ -49,7 +54,7 @@ export function setKnockTune(patch: Partial<NavKnockTune>) {
   Object.assign(NAV_KNOCK, patch);
   set({ tune: { ...NAV_KNOCK } });
   try {
-    storage()?.setItem(SAVED, JSON.stringify(NAV_KNOCK));
+    storage()?.setItem(SAVED, JSON.stringify({ ...NAV_KNOCK, zoomed: 2 }));
   } catch {}
 }
 
@@ -65,6 +70,8 @@ export function resetKnockTune(to: NavKnockTune = SHIPPED) {
 export const openKnockLab = (open: boolean) => set({ open });
 /** Sends Loc under the covers, as a double tap would. */
 export const fireBurrow = () => set({ nonce: lab.nonce + 1 });
+/** Sends him under with the zoomies, without the taps it takes. */
+export const fireZoomies = () => set({ zoomNonce: lab.zoomNonce + 1 });
 
 /** The tuning as code, for nav-knock-tune.ts. */
 export function knockCode(t: NavKnockTune = lab.tune) {
@@ -72,7 +79,7 @@ export function knockCode(t: NavKnockTune = lab.tune) {
   return (
     'export const NAV_KNOCK = {\n' +
     `  scurry: ${n(t.scurry)}, reach: ${n(t.reach)}, width: ${n(t.width)}, bounce: ${n(t.bounce)}, jiggle: ${n(t.jiggle)}, tempo: ${n(t.tempo)}, sway: ${n(t.sway)}, spin: ${n(t.spin)},\n` +
-    `  squash: ${n(t.squash)}, blast: ${n(t.blast)}, haptics: ${t.haptics},\n` +
+    `  squash: ${n(t.squash)}, blast: ${n(t.blast)}, haptics: ${t.haptics}, zoomAfter: ${n(t.zoomAfter)}, zoomWindow: ${n(t.zoomWindow)}, zoomSpeed: ${n(t.zoomSpeed)}, zoomLaps: ${n(t.zoomLaps)},\n` +
     '};'
   );
 }
