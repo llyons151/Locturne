@@ -78,7 +78,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
-  segment: { flex: 1, minHeight: 32, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  label: { color: 'rgba(235, 235, 245, 0.6)', fontSize: 14, fontWeight: '500' },
+  // The large control size, like the iPhone's (segmented.ios.tsx).
+  segment: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  label: { color: 'rgba(235, 235, 245, 0.6)', fontSize: 15, fontWeight: '500' },
   labelOn: { color: '#FFFFFF', fontWeight: '600' },
 });

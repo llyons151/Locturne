@@ -28,9 +28,9 @@ export function GlassCard({
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   /**
-   * Darkened glass (user's ask, 2026-10-08, for the app lists): the same liquid glass with a
-   * black tint, so it still refracts and catches the light but reads as smoked glass. The
-   * sheen and rim are quieter to match.
+   * Darkened glass (user's ask, 2026-10-08, for the app lists): smoked glass that reads as a
+   * solid card. A tinted pane on every platform, never Liquid Glass (see below). The sheen
+   * and rim are quieter to match.
    */
   dark?: boolean;
   /** One colour for the whole rim instead of the lit top edge: a card that needs fixing. */
@@ -57,7 +57,10 @@ export function GlassCard({
     />
   );
 
-  if (isLiquidGlassAvailable()) {
+  // Smoked cards skip Liquid Glass: under the 0.82 tint the glass barely shows, and on iPhone it
+  // split the card in two, frosted on top and a flat shade below (user, 2026-10-14). The pane
+  // is the same smoked fill the web preview already draws.
+  if (isLiquidGlassAvailable() && !dark) {
     return (
       <GlassView
         glassEffectStyle="regular"

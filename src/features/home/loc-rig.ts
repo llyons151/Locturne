@@ -29,6 +29,11 @@ type Bit = {
   tracks: Partial<Record<Channel, Key[]>>;
   events?: [number, (r: LocRig) => void][];
   /**
+   * Poses held this many times a second, like drawn animation on twos (12) instead of smooth
+   * 60: the keys jump from pose to pose. Springs and physics still run smooth under them.
+   */
+  steps?: number;
+  /**
    * A lump in the blanket while he's under it: height (0..1) and offset along the edge (share of
    * width). 'S' is where the lump was when the bit started.
    */
@@ -61,36 +66,75 @@ const MESH = { x0: -24, x1: 842, y0: -64, y1: 1000, step: 20 };
 export const LOC_VIEW = { x: -40, y: -200, width: 898, height: 752 };
 
 const INK = '#000000';
-/** Solid white eyes (user, October 10, 2026), not holes, with black pupils. */
-const EYE_WHITE = '#FFFFFF';
 /**
- * Button eyes (user's pick, October 10, 2026: docs/design-references/loc-animation/eye-study.html
- * option 04, "with all the eye animations very dramatised"): round whites this big, in rig units,
- * with big pupils. Every move is exaggerated: blinks squash them flat and they bounce back
- * open, glances overshoot and stretch the eyes along the way, and a shock balloons them.
+ * The look of his face, in rig units. The Loc studio (/loc-studio) changes these live.
+ * - `eyeWhite`: solid white eyes (user, October 10, 2026), not holes, with black pupils.
+ * - `button`, `pupil`: button eyes (user's pick, October 10, 2026:
+ *   docs/design-references/loc-animation/eye-study.html option 04, "with all the eye animations
+ *   very dramatised"): round whites this big, with big pupils. Every move is exaggerated: blinks
+ *   squash them flat and they bounce back open, glances overshoot and stretch the eyes along the
+ *   way, and a shock balloons them.
+ * - `blinkLag`: ms the right eye blinks after the left. 0 keeps them together.
+ * Signature traits, being explored in the Loc studio (docs/LOC_ANIMATION_REVIEW.md). Off by default:
+ * - `heavyLid`: the right lid always sits this much lower (0..0.3), except when he's shocked wide.
+ * - `faceSteps`: the face (eyes, lids, pupils) holds poses this many times a second, like drawn
+ *   animation on twos at 12, while his body moves smooth. 0 is smooth.
+ * - `snapGaze`: the pupils snap to where he looks and lock, he blinks when his gaze shifts, the
+ *   lids follow the pupils up and down, and blinks close fast and open slower.
+ * - `hands`: raccoon hands (clawed grips on the ledge that can let go and act) instead of the
+ *   round paws traced into his outline.
  */
-const BUTTON = 34;
-const PUPIL = 20;
+export const LOC_TUNE = {
+  eyeWhite: '#FFFFFF', button: 34, pupil: 20, blinkLag: 0,
+  heavyLid: 0, faceSteps: 0, snapGaze: false, hands: false,
+};
 
 // ---- Channels and moods ----
-const BASE = {
+export const LOC_BASE = {
   y: 0, tilt: 0, earL: 0, earR: 0, open: 0.8, openR: 0.8, slope: 2, squint: 0.12,
   breathe: 0.45, pupils: 1, pupilR: 11.5, stretch: 0, gx: 0, gy: 0, pupilJit: 0, sink: 0, paw: 0,
   /** The eyeballs' squash and stretch: + tall and thin, - short and wide. Kicked by `pop`. */
   goo: 0,
   /** Pupil size on top of `pupilR`: they swell when he's startled and shrink to dots when he glares. */
   swell: 1,
+  /** The right pupil against the left: above 1 it's bigger, below smaller (the lopsided, unhinged look). */
+  swellR: 1,
+  /** The right eye's size against the left. */
+  eyeR: 1,
+  /** The top lids' edge: + sags in the middle (soft, sleepy), - arches (sharp, wary). Straight at 0. */
+  curve: 0,
+  /** The bottom lids push up in the middle, 0..1: a smiling squint. */
+  smile: 0,
+  /** Leaning in toward you, 0..1: he grows from the ledge as if his face comes closer. */
+  lean: 0,
+  // Hands (LOC_TUNE.hands), left and right. Rig units, from the ledge's frame: the wrist's x and
+  // y; the hand's angle (0 fingers up, 180 fingers down, gripping the ledge); finger spread and
+  // curl; size (above 1, toward you); the gap cut round it where it crosses him (0..1); and how
+  // much it rides his head instead of the ledge (0..1).
+  hLx: 64, hLy: 506, hLa: 180, hLs: 0.55, hLc: 0.55, hLz: 1, hLf: 0, hLb: 0,
+  hRx: 754, hRy: 506, hRa: 180, hRs: 0.55, hRc: 0.55, hRz: 1, hRf: 0, hRb: 0,
 };
-type Channel = keyof typeof BASE;
+const BASE = LOC_BASE;
+export type LocChannel = keyof typeof BASE;
+type Channel = LocChannel;
 const KEYS = Object.keys(BASE) as Channel[];
-const MOODS: Record<LocMood, { set: Partial<Record<Channel, number>>; rate: number; blinks: false | 'slow' | 'normal' }> = {
+/** Each mood's resting pose (`set`, on top of BASE), breathing rate and blinks. The Loc studio changes these live. */
+export const LOC_MOODS: Record<LocMood, { set: Partial<Record<Channel, number>>; rate: number; blinks: false | 'slow' | 'normal' }> = {
   asleep: { set: { y: 46, tilt: 5, earL: -22, earR: 22, open: 0, openR: 0, breathe: 1, pupils: 0 }, rate: 0.19, blinks: false },
   groggy: { set: { y: 20, tilt: 7, earL: -10, earR: 13, open: 0.34, openR: 0.27, squint: 0.15, breathe: 0.7 }, rate: 0.24, blinks: 'slow' },
   awake: { set: {}, rate: 0.3, blinks: 'normal' },
   smug: { set: { y: -8, tilt: -6, earL: 7, earR: -7, open: 0.42, openR: 0.6, slope: -8, squint: 0.35 }, rate: 0.3, blinks: 'normal' },
   betrayed: { set: { y: -12, earL: -34, earR: 34, open: 1.2, openR: 1.2, slope: -12, pupilR: 8, breathe: 0.25, pupilJit: 0.35 }, rate: 0.5, blinks: false },
 };
+const MOODS = LOC_MOODS;
 const TARGET = Object.fromEntries(Object.entries(MOODS).map(([k, m]) => [k, { ...BASE, ...m.set }])) as Record<LocMood, typeof BASE>;
+/** After changing LOC_MOODS (the Loc studio): every rig's moods pick up the new poses. */
+export function retuneLoc() {
+  for (const mood of Object.keys(MOODS) as LocMood[]) {
+    for (const k of KEYS) delete (TARGET[mood] as Partial<typeof BASE>)[k];
+    Object.assign(TARGET[mood], BASE, MOODS[mood].set);
+  }
+}
 // Stiffness and damping ratio: head firm, eyes fast, pupils fastest.
 const SPRING: Record<Channel, [number, number]> = {
   y: [90, 0.9], tilt: [90, 0.85], earL: [150, 0.42], earR: [150, 0.42], open: [280, 1], openR: [280, 1], slope: [220, 1], squint: [220, 1],
@@ -98,6 +142,9 @@ const SPRING: Record<Channel, [number, number]> = {
   gx: [700, 1], gy: [700, 1], pupilJit: [90, 1], sink: [60, 0.95], paw: [160, 0.6],
   // Loose on purpose: the eyes wobble like jelly after every kick.
   goo: [320, 0.2], swell: [240, 0.3],
+  swellR: [240, 0.5], eyeR: [240, 0.5], curve: [220, 1], smile: [220, 1], lean: [70, 0.9],
+  hLx: [170, 0.7], hLy: [170, 0.7], hLa: [170, 0.7], hLs: [220, 0.8], hLc: [220, 0.8], hLz: [170, 0.7], hLf: [300, 1], hLb: [300, 1],
+  hRx: [170, 0.7], hRy: [170, 0.7], hRa: [170, 0.7], hRs: [220, 0.8], hRc: [220, 0.8], hRz: [170, 0.7], hRf: [300, 1], hRb: [300, 1],
 };
 const E = {
   lin: (t: number) => t,
@@ -317,6 +364,121 @@ const burrowBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => ({ ms: p
   [pop + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); r.say('angry'); }],
 ], lump });
 
+// ---- Explorations (docs/LOC_ANIMATION_REVIEW.md): new acting, played only from the Loc studio ----
+
+/**
+ * The unhinged pop: a cut, not a move. On one frame his pupils go mismatched (one a pinpoint, one
+ * huge), the lids go flat and level and he leans in; it holds dead still while one lower lid
+ * twitches in two bursts; then a double blink at normal speed and a glance away, as if nothing
+ * happened. The cut in and the clean exit keep it funny, not creepy (benign violation).
+ */
+const UNHINGED: Bit = { ms: 2700, tracks: {
+  open: [[0, 'S'], [17, 0.95, 'lin'], [1250, 0.95], [1500, 'T', 'io']],
+  openR: [[0, 'S'], [17, 1.45, 'lin'], [1250, 1.45], [1500, 'T', 'io']],
+  eyeR: [[0, 1], [17, 1.3, 'lin'], [1250, 1.32], [1450, 1, 'io']],
+  slope: [[0, 'S'], [17, 0, 'lin'], [1250, 0], [1500, 'T', 'io']],
+  squint: [[0, 'S'], [17, 0.12, 'lin'], [420, 0.12], [437, 0.34, 'lin'], [470, 0.12, 'lin'], [505, 0.36, 'lin'], [540, 0.12, 'lin'],
+    [880, 0.12], [897, 0.34, 'lin'], [930, 0.12, 'lin'], [1250, 0.12], [1500, 'T', 'io']],
+  swell: [[0, 'S'], [17, 0.3, 'lin'], [1250, 0.3], [1450, 'T', 'io']],
+  swellR: [[0, 1], [17, 5.5, 'lin'], [1250, 5.5], [1450, 1, 'io']],
+  lean: [[0, 0], [17, 0.12, 'lin'], [1250, 0.15], [1500, 0, 'io']],
+  tilt: [[0, 'S'], [17, -9, 'lin'], [1250, -10], [1600, 'T', 'io']],
+  earL: [[0, 'S'], [17, -28, 'lin'], [1250, -28], [1600, 'T', 'io']],
+  earR: [[0, 'S'], [17, 28, 'lin'], [1250, 28], [1600, 'T', 'io']],
+  gx: [[0, 0], [1700, 0], [1760, -22, 'out'], [2350, -22], [2420, 0, 'out'], [2700, 0]],
+  gy: [[0, 0], [1700, 0], [1760, 4, 'out'], [2350, 4], [2420, 0, 'out'], [2700, 0]],
+}, events: [[1330, (r) => r.blinkNow()], [1600, (r) => r.blinkNow()]] };
+
+/**
+ * The dead stare, for a deadpan doom line ("I am doom."): pupils small and dead centre, lids flat
+ * at about a third, and no blink for three and a half seconds; only a slow drift. The joke is the
+ * blink that never comes. It ends in one long, slow blink.
+ */
+const DEAD_STARE: Bit = { ms: 5000, tracks: {
+  open: [[0, 'S'], [260, 0.5, 'io'], [3900, 0.5], [4020, 0, 'in'], [4100, 0], [4600, 'T', 'out']],
+  openR: [[0, 'S'], [260, 0.48, 'io'], [3900, 0.48], [4030, 0, 'in'], [4110, 0], [4620, 'T', 'out']],
+  slope: [[0, 'S'], [260, 0, 'io'], [4100, 0], [4600, 'T', 'io']],
+  squint: [[0, 'S'], [260, 0.2, 'io'], [4100, 0.2], [4600, 'T', 'io']],
+  swell: [[0, 'S'], [260, 0.55, 'io'], [4100, 0.55], [4600, 'T', 'io']],
+  gx: [[0, 0], [5000, 0]],
+  gy: [[0, 0], [5000, 0]],
+  tilt: [[0, 'S'], [3900, 3, 'io'], [4600, 'T', 'io']],
+  y: [[0, 'S'], [3900, 8, 'io'], [4600, 'T', 'io']],
+} };
+
+/**
+ * The comment lid ("save a move", Glen Keane): he looks straight at you, holds a beat, then one
+ * lid drops, sagging, and stays down. A silent "really." It's the subtle beat after a reaction.
+ */
+const COMMENT_LID: Bit = { ms: 2600, tracks: {
+  gx: [[0, 0], [2600, 0]],
+  gy: [[0, 0], [2600, 0]],
+  openR: [[0, 'S'], [330, 'S'], [400, 0.46, 'out'], [2050, 0.46], [2500, 'T', 'io']],
+  curve: [[0, 0], [330, 0], [400, 4, 'out'], [2050, 4], [2500, 0, 'io']],
+  swell: [[0, 'S'], [330, 'S'], [400, 0.85, 'out'], [2050, 0.85], [2500, 'T', 'io']],
+}, events: [[410, (r) => r.flick('R', 9)]] };
+
+/**
+ * Bored of you: he looks right at you, pupils big, for two seconds; then loses interest and his
+ * gaze drifts up and away to the moon, the lids sinking a little and the ears going slack.
+ */
+const BORED: Bit = { ms: 4600, tracks: {
+  gx: [[0, 0], [2100, 0], [2700, 16, 'io'], [4100, 16], [4600, 0, 'io']],
+  gy: [[0, 0], [2100, 0], [2700, -9, 'io'], [4100, -9], [4600, 0, 'io']],
+  swell: [[0, 'S'], [150, 1.3, 'out'], [2100, 1.3], [2700, 0.95, 'io'], [4100, 0.95], [4600, 'T', 'io']],
+  open: [[0, 'S'], [2100, 'S'], [2800, 0.6, 'io'], [4100, 0.6], [4600, 'T', 'io']],
+  openR: [[0, 'S'], [2100, 'S'], [2850, 0.56, 'io'], [4100, 0.56], [4600, 'T', 'io']],
+  earL: [[0, 'S'], [2200, 'S'], [2900, -9, 'io'], [4100, -9], [4600, 'T', 'io']],
+  earR: [[0, 'S'], [2200, 'S'], [2900, 9, 'io'], [4100, 9], [4600, 'T', 'io']],
+  tilt: [[0, 'S'], [2200, 'S'], [2900, 4, 'io'], [4100, 4], [4600, 'T', 'io']],
+} };
+
+/**
+ * The slow blink: what a cat does when it trusts you. The lids come down soft and curved, the
+ * bottom ones pushing up into a smile, and he holds it, then opens slowly. The quiet, warm one;
+ * for the morning you actually got up.
+ */
+const SLOW_BLINK: Bit = { ms: 2500, tracks: {
+  gx: [[0, 0], [2300, 0]],
+  gy: [[0, 0], [2300, 0]],
+  open: [[0, 'S'], [600, 0, 'io'], [1300, 0], [2000, 'T', 'io']],
+  openR: [[0, 'S'], [650, 0, 'io'], [1330, 0], [2050, 'T', 'io']],
+  smile: [[0, 0], [400, 0.8, 'io'], [1350, 0.8], [2000, 0, 'io']],
+  curve: [[0, 0], [550, 5, 'io'], [1150, 5], [1900, 0, 'io']],
+  y: [[0, 'S'], [600, 10, 'io'], [1200, 10], [2000, 'T', 'io']],
+  earL: [[0, 'S'], [600, -8, 'io'], [1200, -8], [2000, 'T', 'io']],
+  earR: [[0, 'S'], [600, 8, 'io'], [1200, 8], [2000, 'T', 'io']],
+} };
+
+/**
+ * Sinking (the peek height as the emotion): betrayed, he slowly sinks until only his eyes are
+ * over the edge, ears flat, and stays there, then comes back up. It reads from the outline alone,
+ * so it works at any size.
+ */
+const SINK: Bit = { ms: 3600, tracks: {
+  sink: [[0, 'S'], [900, 215, 'io'], [2700, 215], [3500, 0, 'io']],
+  earL: [[0, 'S'], [700, -40, 'io'], [2700, -40], [3400, 'T', 'io']],
+  earR: [[0, 'S'], [700, 40, 'io'], [2700, 40], [3400, 'T', 'io']],
+  open: [[0, 'S'], [500, 1.08, 'io'], [2700, 1.08], [3400, 'T', 'io']],
+  openR: [[0, 'S'], [500, 1.08, 'io'], [2700, 1.08], [3400, 'T', 'io']],
+  slope: [[0, 'S'], [500, -16, 'io'], [2700, -16], [3400, 'T', 'io']],
+  swell: [[0, 'S'], [500, 0.8, 'io'], [2700, 0.8], [3400, 'T', 'io']],
+  gx: [[0, 0], [1300, 0], [1500, -10, 'out'], [2000, -10], [2200, 0, 'out'], [3600, 0]],
+  gy: [[0, 0], [3600, 0]],
+} };
+
+/** The studio's explorations, by name. `poke-twos` is the same poke held on twos, to compare textures. */
+export const LOC_EXPLORE: Record<string, Bit> = {
+  unhinged: UNHINGED,
+  'dead-stare': DEAD_STARE,
+  'comment-lid': COMMENT_LID,
+  bored: BORED,
+  'slow-blink': SLOW_BLINK,
+  sink: SINK,
+  'poke-twos': { ...POKE, steps: 12 },
+  'unhinged-twos': { ...UNHINGED, steps: 12 },
+};
+
 /**
  * A fresh route for the lump under the covers: one way and back, back and forth, a nervous
  * zigzag, a fake-out (a nudge one way, then a dash the other), or wriggling on the spot, with
@@ -463,13 +625,32 @@ const torque = (pivot: Vec, tip: Vec, acc: Vec) => {
   return ((r[0] * -acc[1] - r[1] * -acc[0]) / (r[0] * r[0] + r[1] * r[1])) * 57.3;
 };
 
+/** A frozen copy of a rig's state (`LocRig.snapshot`). */
+export type LocSnapshot = { readonly __loc: unique symbol };
+/** The rig's fields that are drawing machinery, not state. */
+const NOT_STATE = new Set(['canvas', 'ctx', 'gl', 'glCanvas', 'eyeLayer', 'texHands', 'inkHex', 'posBuf', 'resLoc', 'inkLoc', 'skinned', 'onCue']);
+/** A deep copy of rig state. Bit definitions (with their event functions) are shared, not copied. */
+function copyState(v: unknown): unknown {
+  if (v === null || typeof v !== 'object') return v;
+  if (v instanceof Set) return new Set(v);
+  if (Array.isArray(v)) return v.map(copyState);
+  if (ArrayBuffer.isView(v)) return (v as Float32Array).slice();
+  const out = Object.create(Object.getPrototypeOf(v)) as Record<string, unknown>;
+  for (const [k, x] of Object.entries(v)) out[k] = k === 'def' ? x : copyState(x);
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 export class LocRig {
   private ctx: CanvasRenderingContext2D;
   private gl: WebGLRenderingContext | null;
   private glCanvas = document.createElement('canvas');
+  /** Where each eye is drawn before it goes on him (see `draw`). */
+  private eyeLayer = document.createElement('canvas');
   private posBuf: WebGLBuffer | null = null;
   private resLoc: WebGLUniformLocation | null = null;
+  private inkLoc: WebGLUniformLocation | null = null;
+  private inkHex = INK;
   private skinned = new Float32Array(NV * 2);
   private cur = { ...BASE };
   private vel = Object.fromEntries(KEYS.map((k) => [k, 0])) as Record<Channel, number>;
@@ -500,6 +681,9 @@ export class LocRig {
   private bones: Mat[] = [];
   private head: Mat = [1, 0, 0, 1, 0, 0];
   private blink = 0;
+  private blinkR = 0;
+  /** The face's held pose, with `faceSteps`. */
+  private faceHold: { tick: number; c: typeof BASE; gaze: Vec; gazeV: Vec; blink: number; blinkR: number; clock: number } | null = null;
   squeezing = false;
   /** His view box's width as a share of the canvas: the canvas is wider, so the lump can travel. */
   private share = 1;
@@ -533,16 +717,6 @@ export class LocRig {
     const gl = this.gl;
     if (!gl) return;
     const m = buildMesh();
-    const tex = document.createElement('canvas');
-    const T = 2048;
-    tex.width = T; tex.height = T;
-    const t = tex.getContext('2d')!;
-    const sx = T / (MESH.x1 - MESH.x0), sy = T / (MESH.y1 - MESH.y0);
-    t.setTransform(sx, 0, 0, sy, -MESH.x0 * sx, -MESH.y0 * sy);
-    t.fillStyle = INK;
-    t.fillRect(2, LEDGE - 14, 814, MESH.y1 - LEDGE + 20); // his base continues below the ledge
-    t.translate(0, 552); t.scale(0.1, -0.1);
-    t.fill(new Path2D(LOC_PATH));
     const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
     const prog = gl.createProgram()!;
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p; attribute vec2 uv; uniform vec2 res; varying vec2 v; void main(){ v = uv; gl_Position = vec4(p.x / res.x * 2.0 - 1.0, 1.0 - p.y / res.y * 2.0, 0.0, 1.0); }'));
@@ -554,17 +728,43 @@ export class LocRig {
     const uvLoc = gl.getAttribLocation(prog, 'uv'); gl.enableVertexAttribArray(uvLoc); gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
     const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW);
     const texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    this.paintTexture();
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.resLoc = gl.getUniformLocation(prog, 'res');
-    const rgb = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(ink)?.slice(1).map((h) => parseInt(h, 16) / 255) ?? [0, 0, 0];
-    gl.uniform3f(gl.getUniformLocation(prog, 'ink'), rgb[0], rgb[1], rgb[2]);
+    this.inkLoc = gl.getUniformLocation(prog, 'ink');
+    this.setInk(ink);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearColor(0, 0, 0, 0);
+  }
+
+  /** His silhouette as the mesh's texture. With hands on, the round paws traced into it are rubbed out. */
+  private texHands: boolean | null = null;
+  private paintTexture() {
+    const gl = this.gl;
+    if (!gl) return;
+    const tex = document.createElement('canvas');
+    const T = 2048;
+    tex.width = T; tex.height = T;
+    const t = tex.getContext('2d')!;
+    const sx = T / (MESH.x1 - MESH.x0), sy = T / (MESH.y1 - MESH.y0);
+    t.setTransform(sx, 0, 0, sy, -MESH.x0 * sx, -MESH.y0 * sy);
+    t.fillStyle = INK;
+    t.fillRect(2, LEDGE - 14, 814, MESH.y1 - LEDGE + 20); // his base continues below the ledge
+    t.save();
+    t.translate(0, 552); t.scale(0.1, -0.1);
+    t.fill(new Path2D(LOC_PATH));
+    t.restore();
+    if (LOC_TUNE.hands) {
+      t.globalCompositeOperation = 'destination-out';
+      t.fillRect(-40, 497, 170, 200);
+      t.fillRect(688, 497, 170, 200);
+    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    this.texHands = LOC_TUNE.hands;
   }
 
   /** Change mood. Parts move in sequence: going to sleep the eyes close, then he sinks. */
@@ -644,8 +844,9 @@ export class LocRig {
     if (this.bit) {
       const b = this.bit;
       b.t += dt * 1000;
+      const held = b.def.steps ? Math.floor(b.t / (1000 / b.def.steps)) * (1000 / b.def.steps) : b.t;
       for (const [key, track] of Object.entries(b.def.tracks) as [Channel, Key[]][]) {
-        const v = this.sample(track, b.t, key);
+        const v = this.sample(track, held, key);
         if (v !== null) driven[key] = v;
       }
       (b.def.events ?? []).forEach(([ms, fn], i) => { if (!b.fired.has(i) && b.t >= ms) { b.fired.add(i); fn(this); } });
@@ -665,14 +866,17 @@ export class LocRig {
     this.flicks.L *= Math.pow(0.004, dt); this.flicks.R *= Math.pow(0.004, dt);
 
     const mood = MOODS[this.mood];
-    if (!this.bit && !this.reduced && !this.hidden) {
+    if (!this.bit && !this.reduced && !this.hidden && !this.quiet) {
       if (mood.blinks) {
         this.nextBlink -= dt;
         if (this.nextBlink <= 0) { this.blinkAt = this.clock; this.nextBlink = mood.blinks === 'slow' ? 3 + Math.random() * 3 : Math.random() < 0.2 ? 0.3 : 2 + Math.random() * 3; }
       }
       this.nextGlance -= dt;
       if (this.nextGlance <= 0) {
+        const was = this.glance;
         this.glance = Math.random() < 0.45 ? [0, 0] : [(Math.random() - 0.5) * 24, (Math.random() - 0.4) * 10];
+        // A thought-blink: a big shift of gaze takes a blink with it.
+        if (LOC_TUNE.snapGaze && Math.hypot(this.glance[0] - was[0], this.glance[1] - was[1]) > 9 && this.blinkAt < 0) this.blinkAt = this.clock;
         this.nextGlance = 1.2 + Math.random() * 2.6;
         if (Math.random() < 0.2) this.flick(Math.random() < 0.5 ? 'L' : 'R', Math.random() < 0.5 ? -16 : 16);
       }
@@ -684,12 +888,18 @@ export class LocRig {
       }
     }
     this.blink = 0;
+    this.blinkR = 0;
     if (this.blinkAt >= 0) {
-      const len = mood.blinks === 'slow' ? 0.55 : 0.19;
+      const len = mood.blinks === 'slow' ? 0.55 : LOC_TUNE.snapGaze ? 0.23 : 0.19;
+      // Real blinks close fast and open slower (Disney Research); with snapGaze, 80 ms shut, 150 ms open.
+      const shut = LOC_TUNE.snapGaze ? 0.33 : 0.4;
+      const shape = (p: number) => (p < 0 || p >= 1 ? 0 : p < shut ? E.out(p / shut) : 1 - (LOC_TUNE.snapGaze ? E.out : E.io)((p - shut) / (1 - shut)));
       const p = (this.clock - this.blinkAt) / len;
+      const pR = (this.clock - this.blinkAt - LOC_TUNE.blinkLag / 1000) / len;
+      this.blink = shape(p);
+      this.blinkR = shape(pR);
       // They bounce back open, overshooting into a tall stretch.
-      if (p >= 1) { this.blinkAt = -1; this.pop(0.3); }
-      else if (p >= 0) this.blink = p < 0.4 ? E.out(p / 0.4) : 1 - E.io((p - 0.4) / 0.6);
+      if (p >= 1 && pR >= 1) { this.blinkAt = -1; this.pop(0.3); }
     }
   }
 
@@ -703,7 +913,7 @@ export class LocRig {
     const hasGaze = !!this.bit && 'gx' in this.bit.def.tracks;
     const gx = hasGaze ? c.gx : this.glance[0], gy = hasGaze ? c.gy : this.glance[1];
     // The pupils dart on an underdamped spring, so every glance overshoots and settles.
-    const gk = 900, gz = this.reduced ? 1 : 0.42;
+    const gk = LOC_TUNE.snapGaze ? 5200 : 900, gz = this.reduced ? 1 : LOC_TUNE.snapGaze ? 0.8 : 0.42;
     for (const i of [0, 1] as const) {
       const a = gk * ((i ? gy : gx) - this.gaze[i]) - 2 * Math.sqrt(gk) * gz * this.gazeV[i];
       this.gazeV[i] += a * dt; this.gaze[i] += this.gazeV[i] * dt;
@@ -720,7 +930,8 @@ export class LocRig {
     const sx = (1 - (posture * (1 + c.stretch) - 1) * 0.45) * (1 + breath * 0.007);
     // The paws have their own drop, so they can let go after him and grab the edge last.
     const root = tr(0, c.paw);
-    const body = mul(tr(0, c.sink), about(BONE.base, mul(rot(c.tilt * 0.38 + sway * 0.5), scale(sx, sy))));
+    const near = 1 + c.lean * 0.35;
+    const body = mul(tr(0, c.sink), about(BONE.base, mul(rot(c.tilt * 0.38 + sway * 0.5), scale(sx * near, sy * near))));
     // Head: the rest of the lean plus a turn toward the gaze, swinging on the neck.
     const neckW = apply(body, BONE.neck), massW = apply(body, BONE.headMass);
     const aHead = this.track.head.step(massW, dt);
@@ -796,6 +1007,7 @@ export class LocRig {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     if (!gl || cw === 0 || ch === 0) return;
+    if (this.texHands !== LOC_TUNE.hands) this.paintTexture();
     const view = this.view();
     const s = view[0];
     const ledgePx = Math.min(ch, Math.round(view[5] + LEDGE * s));
@@ -821,27 +1033,35 @@ export class LocRig {
     gl.drawElements(gl.TRIANGLES, m.idx.length, gl.UNSIGNED_SHORT, 0);
     ctx.drawImage(this.glCanvas, 0, 0);
 
-    // Face: rides the head bone.
-    const c = this.cur;
+    // Face: rides the head bone. With `faceSteps` it holds each pose for a beat (see LOC_TUNE).
+    let c = this.cur, gaze: Vec = this.gaze, gazeV: Vec = this.gazeV, blinkL = this.blink, blinkR = this.blinkR, fclock = this.clock;
+    if (LOC_TUNE.faceSteps > 0 && !this.reduced) {
+      const tick = Math.floor(this.clock * LOC_TUNE.faceSteps);
+      if (!this.faceHold || tick !== this.faceHold.tick) {
+        this.faceHold = { tick, c: { ...this.cur }, gaze: [this.gaze[0], this.gaze[1]], gazeV: [this.gazeV[0], this.gazeV[1]], blink: this.blink, blinkR: this.blinkR, clock: this.clock };
+      }
+      ({ c, gaze, gazeV, blink: blinkL, blinkR, clock: fclock } = this.faceHold);
+    }
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, cw, ledgePx); ctx.clip();
     const H = mul(view, this.head);
     const at = (local: Mat) => { const q = mul(H, local); ctx.setTransform(q[0], q[1], q[2], q[3], q[4], q[5]); };
-    const quiver = this.mood === 'betrayed' && !this.bit ? Math.sin(this.clock * 31) * 0.05 : 0;
-    const jit = c.pupilJit > 0.01 && !this.reduced ? [Math.sin(this.clock * 97) * 4 * c.pupilJit, Math.cos(this.clock * 83) * 3 * c.pupilJit] : [0, 0];
+    const quiver = this.mood === 'betrayed' && !this.bit ? Math.sin(fclock * 31) * 0.05 : 0;
+    const jit = c.pupilJit > 0.01 && !this.reduced ? [Math.sin(fclock * 97) * 4 * c.pupilJit, Math.cos(fclock * 83) * 3 * c.pupilJit] : [0, 0];
     const goo = this.reduced ? 0 : clamp(c.goo, -0.45, 0.6);
     // Moving fast, they stretch along the way they're looking.
-    const dart = this.reduced ? 0 : clamp(Math.hypot(this.gazeV[0], this.gazeV[1]) * 0.0009, 0, 0.18);
+    const dart = this.reduced ? 0 : clamp(Math.hypot(gazeV[0], gazeV[1]) * 0.0009, 0, 0.18);
     if (this.squeezing && this.squeezeAt < 0) this.squeezeAt = this.clock;
     if (!this.squeezing) this.squeezeAt = -1;
     const eyes: { pos: Vec; o: number; side: 1 | -1; squeeze: string }[] = [
       { pos: EYE_L, o: Math.max(0, c.open + quiver), side: 1, squeeze: 'M-26,-24 L20,0 L-26,24' },
-      { pos: EYE_R, o: Math.max(0, c.openR + quiver), side: -1, squeeze: 'M26,-24 L-20,0 L26,24' },
+      { pos: EYE_R, o: Math.max(0, c.openR + quiver - (c.openR < 0.95 ? LOC_TUNE.heavyLid : 0)), side: -1, squeeze: 'M26,-24 L-20,0 L26,24' },
     ];
+    const sparkle = c.slope < 14 && Math.min(c.open, c.openR) > 0.3;
     for (const e of eyes) {
-      at(chain(tr(e.pos[0] + this.gaze[0] * 0.12, e.pos[1] + this.gaze[1] * 0.12), rot(FACE)));
+      at(chain(tr(e.pos[0] + gaze[0] * 0.12, e.pos[1] + gaze[1] * 0.12), rot(FACE)));
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = EYE_WHITE; ctx.strokeStyle = EYE_WHITE;
+      ctx.fillStyle = LOC_TUNE.eyeWhite; ctx.strokeStyle = LOC_TUNE.eyeWhite;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       if (this.squeezing) {
         // Slammed shut: the > < punch in oversized and shudder.
@@ -860,59 +1080,248 @@ export class LocRig {
       const k = e.o / 0.8;
       const grow = 1 + 0.45 * Math.max(0, k - 1);
       const lidded = 1 - Math.min(1, k);
-      const rx = BUTTON * grow * (1 + 0.3 * this.blink + dart - 0.5 * goo);
-      const ry = BUTTON * grow * (1 - this.blink) * (1 - 0.6 * dart + goo);
+      const right = e.side === -1;
+      const size = LOC_TUNE.button * grow * (right ? Math.max(0.3, c.eyeR) : 1);
+      const blink = right ? blinkR : blinkL;
+      const rx = size * (1 + 0.3 * blink + dart - 0.5 * goo);
+      const ry = size * (1 - blink) * (1 - 0.6 * dart + goo);
       // Lids: the top one comes down as he closes and slants with his mood (+ angry, - worried);
       // the bottom one rises as he squints.
       const lift = Math.max(0, c.squint - 0.12) * 0.9 * ry;
-      const top = -ry - 2 + lidded * 1.84 * ry;
-      if (ry < 5 || top > ry - lift - 4) {
+      // With snapGaze the top lid follows the pupil: looking down, it comes down with it.
+      const top = -ry - 2 + lidded * 1.84 * ry + (LOC_TUNE.snapGaze ? Math.max(-4, gaze[1] * 0.7) : 0);
+      // A smiling bottom lid closes the eye from below too.
+      if (ry < 5 || top > ry - lift - c.smile * ry * 0.65 - 4) {
         // Closed: a soft curve, not a sliver.
         ctx.lineWidth = 10;
-        ctx.beginPath(); ctx.moveTo(-rx, 0); ctx.quadraticCurveTo(0, 12, rx, 0); ctx.stroke();
+        // Smiling, the closed eye arches up (^), content; otherwise it sags (‿), asleep.
+        ctx.beginPath(); ctx.moveTo(-rx, 0); ctx.quadraticCurveTo(0, 12 - c.smile * 40, rx, 0); ctx.stroke();
         continue;
       }
-      const white = new Path2D();
-      white.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
       const inner = top + Math.max(0, c.slope - 4) * 1.1;
       const outer = top + Math.max(0, -c.slope) * 1.1 + Math.max(0, c.slope - 4) * 0.15;
       const xi = e.side * (rx + 6), xo = -e.side * (rx + 6);
-      const lids = new Path2D(`M${xo},${outer} L${xi},${inner} L${xi},${ry - lift} L${xo},${ry - lift} Z`);
-      ctx.save();
-      ctx.clip(lids);
-      ctx.fill(white);
-      ctx.clip(white);
-      const pr = c.pupils > 0.5 ? Math.min(PUPIL * (c.pupilR / 11.5) * Math.max(0.3, c.swell), 0.7 * BUTTON * grow) : 0;
+      const far = ry + 20;
+      // Drawn on their own layer with smooth edges: the white, then the lids rubbed out of it,
+      // then the pupil only where white is left. (Cutting them with clip() gave jagged edges:
+      // canvas clips aren't anti-aliased.)
+      const q = mul(H, chain(tr(e.pos[0] + gaze[0] * 0.12, e.pos[1] + gaze[1] * 0.12), rot(FACE)));
+      const box = [[-rx - 12, -far], [rx + 12, -far], [rx + 12, far], [-rx - 12, far]].map((p) => apply(q, p as Vec));
+      const x0 = Math.max(0, Math.floor(Math.min(...box.map((p) => p[0])))), x1 = Math.min(cw, Math.ceil(Math.max(...box.map((p) => p[0]))));
+      const y0 = Math.max(0, Math.floor(Math.min(...box.map((p) => p[1])))), y1 = Math.min(ch, Math.ceil(Math.max(...box.map((p) => p[1]))));
+      if (x1 <= x0 || y1 <= y0) continue;
+      const layer = this.eyeLayer;
+      if (layer.width < cw || layer.height < ch) { layer.width = cw; layer.height = ch; }
+      const lc = layer.getContext('2d')!;
+      lc.setTransform(1, 0, 0, 1, 0, 0);
+      lc.globalCompositeOperation = 'source-over';
+      lc.clearRect(x0, y0, x1 - x0, y1 - y0);
+      lc.setTransform(q[0], q[1], q[2], q[3], q[4], q[5]);
+      lc.fillStyle = LOC_TUNE.eyeWhite;
+      lc.beginPath(); lc.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); lc.fill();
+      lc.globalCompositeOperation = 'destination-out';
+      // Lid edges are curves: `curve` sags or arches the top one, `smile` pushes the bottom one up.
+      const sag = (inner + outer) / 2 + c.curve * 2.2;
+      const rise = ry - lift - c.smile * ry * 1.3;
+      lc.fill(new Path2D(`M${xo},${-far} L${xi},${-far} L${xi},${inner} Q0,${sag * 2 - (inner + outer) / 2} ${xo},${outer} Z`));
+      lc.fill(new Path2D(`M${xo},${ry - lift} Q0,${rise * 2 - (ry - lift)} ${xi},${ry - lift} L${xi},${far} L${xo},${far} Z`));
+      lc.globalCompositeOperation = 'source-atop';
+      const swell = Math.max(0.3, c.swell) * (right ? Math.max(0.2, c.swellR) : 1);
+      const pr = c.pupils > 0.5 ? Math.min(LOC_TUNE.pupil * (c.pupilR / 11.5) * swell * (size / (LOC_TUNE.button * grow)), 0.7 * size) : 0;
       // Squashed nearly flat (mid-blink), the white reads cleaner as a plain pill.
-      if (pr > 0 && ry / (BUTTON * grow) > 0.4) {
+      if (pr > 0 && ry / size > 0.4) {
         // Under a heavy lid the pupil sinks, so it still peeks out below it.
-        let px = this.gaze[0] + jit[0], py = 4 + lidded * ry * 0.45 + this.gaze[1] + jit[1];
+        let px = gaze[0] + jit[0], py = 4 + lidded * ry * 0.45 + gaze[1] + jit[1];
         // Keep the pupil in the white however far he looks. Never bigger than 70% of it, so the white always shows.
         const n = Math.hypot(px / Math.max(1, rx - pr * 0.6), py / Math.max(1, ry - pr * 0.6));
         if (n > 1) { px /= n; py /= n; }
         // The pupil is part of the jelly: it squashes and stretches with the white around it.
-        const psx = clamp(rx / (BUTTON * grow), 0.7, 1.5), psy = clamp(ry / (BUTTON * grow), 0.15, 1.5);
-        ctx.save();
-        ctx.translate(px, py); ctx.scale(psx, psy);
-        ctx.fillStyle = INK;
-        ctx.beginPath(); ctx.arc(0, 0, pr, 0, Math.PI * 2); ctx.fill();
-        if (pr >= 8) {
-          ctx.fillStyle = EYE_WHITE;
-          ctx.beginPath(); ctx.arc(-pr * 0.36, -pr * 0.4, Math.min(7.5, pr * 0.3), 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(pr * 0.32, pr * 0.3, pr * 0.1, 0, Math.PI * 2); ctx.fill();
+        const psx = clamp(rx / size, 0.7, 1.5), psy = clamp(ry / size, 0.15, 1.5);
+        lc.translate(px, py); lc.scale(psx, psy);
+        lc.fillStyle = INK;
+        lc.beginPath(); lc.arc(0, 0, pr, 0, Math.PI * 2); lc.fill();
+        // Catchlights only when the eyes are open enough to show them; in a glare or under heavy
+        // lids they read as specks. Both eyes go by the same rule, so they never disagree.
+        if (pr >= 8 && sparkle) {
+          lc.fillStyle = LOC_TUNE.eyeWhite;
+          lc.beginPath(); lc.arc(-pr * 0.36, -pr * 0.4, Math.min(7.5, pr * 0.3), 0, Math.PI * 2); lc.fill();
+          lc.beginPath(); lc.arc(pr * 0.32, pr * 0.3, pr * 0.1, 0, Math.PI * 2); lc.fill();
         }
-        ctx.restore();
       }
-      ctx.restore();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(layer, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
     }
+    if (LOC_TUNE.hands) this.drawHands(view);
+    ctx.restore();
+  }
+
+  /**
+   * His hands: a fluffy forearm from behind the ledge, a palm and five long clawed fingers that
+   * spread and curl (raccoon hands, not paws or human hands). Where a hand crosses him, a thin
+   * gap is cut round it first, so it reads as a shape in front of him with no outline drawn.
+   */
+  private drawHands(view: Mat) {
+    const { ctx } = this;
+    const c = this.cur;
+    const root = this.bones[0], head = this.head;
+    const headAngle = (Math.atan2(head[1], head[0]) * 180) / Math.PI;
+    const shapes = (['L', 'R'] as const).map((side) => {
+      const k = (n: string) => c[`h${side}${n}` as Channel];
+      const mirror = side === 'L' ? 1 : -1;
+      const w: Vec = [k('x'), k('y')];
+      const onLedge = apply(root, w), onHead = apply(head, w);
+      const b = clamp(k('b'), 0, 1);
+      const P: Vec = [onLedge[0] + (onHead[0] - onLedge[0]) * b, onLedge[1] + (onHead[1] - onLedge[1]) * b];
+      const angle = ((k('a') + headAngle * b) * Math.PI) / 180;
+      const S = 1.55 * Math.max(0.3, k('z'));
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      // Hand space: wrist at 0,0, fingers up the -y axis.
+      const at = (x: number, y: number): Vec => [P[0] + (mirror * x * S) * cos - (y * S) * sin, P[1] + (mirror * x * S) * sin + (y * S) * cos];
+      const spread = k('s'), curl = clamp(k('c'), 0, 1);
+      // The forearm comes up from below the ledge, under the wrist and out toward his side.
+      const elbow = apply(root, [w[0] + (w[0] - 409) * 0.18, LEDGE + 160]);
+      const fingers = [-2, -1, 0, 1, 2].map((i) => {
+        const base = at(i * 7.5, -24);
+        const lens = [22, 31, 34, 31, 24];
+        const len = lens[i + 2] * (1 - 0.55 * curl);
+        const dir = i * 0.3 * spread * (1 - 0.35 * curl);
+        const tipLocal: [number, number] = [i * 7.5 + Math.sin(dir) * len, -24 - Math.cos(dir) * len];
+        const tip = at(tipLocal[0], tipLocal[1]);
+        const claw = at(tipLocal[0] + Math.sin(dir) * 7, tipLocal[1] - Math.cos(dir) * 7);
+        return { base, tip, claw, dir };
+      });
+      return { P, S, at, elbow, fingers, gap: clamp(k('f'), 0, 1) };
+    });
+    ctx.save();
+    ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const trace = (h: (typeof shapes)[number], grow: number) => {
+      const { P, S, at, elbow, fingers } = h;
+      // Forearm: thick and fluffy, narrowing to the wrist.
+      ctx.lineWidth = 30 * S + grow * 2;
+      ctx.beginPath(); ctx.moveTo(elbow[0], elbow[1]); ctx.lineTo(P[0], P[1]); ctx.stroke();
+      // Palm.
+      const palm = at(0, -14);
+      ctx.beginPath(); ctx.ellipse(palm[0], palm[1], 17 * S + grow, 18 * S + grow, 0, 0, Math.PI * 2); ctx.fill();
+      // Fingers, then claws.
+      for (const f of fingers) {
+        ctx.lineWidth = 8.5 * S + grow * 2;
+        ctx.beginPath(); ctx.moveTo(f.base[0], f.base[1]); ctx.lineTo(f.tip[0], f.tip[1]); ctx.stroke();
+        ctx.lineWidth = 3 * S + grow * 2;
+        ctx.beginPath(); ctx.moveTo(f.tip[0], f.tip[1]); ctx.lineTo(f.claw[0], f.claw[1]); ctx.stroke();
+      }
+      // Tufts of fur on the outside of the forearm.
+      const ax = P[0] - elbow[0], ay = P[1] - elbow[1], len = Math.hypot(ax, ay) || 1;
+      const nx = -ay / len, ny = ax / len, out = P[0] < 409 ? -1 : 1;
+      const side = Math.sign(nx * out) || 1;
+      ctx.lineWidth = grow * 2;
+      for (const t of [0.35, 0.55, 0.75]) {
+        const bx = elbow[0] + ax * t + nx * side * 13 * S, by = elbow[1] + ay * t + ny * side * 13 * S;
+        ctx.beginPath();
+        ctx.moveTo(bx - (ax / len) * 7 * S, by - (ay / len) * 7 * S);
+        ctx.lineTo(bx + nx * side * 9 * S - (ax / len) * 6 * S, by + ny * side * 9 * S - (ay / len) * 6 * S);
+        ctx.lineTo(bx + (ax / len) * 6 * S, by + (ay / len) * 6 * S);
+        ctx.closePath(); ctx.fill(); if (grow) ctx.stroke();
+      }
+    };
+    // First the gaps (cut through him, so the moon shows), then the hands themselves.
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = '#000'; ctx.strokeStyle = '#000';
+    for (const h of shapes) if (h.gap > 0.01) trace(h, 5 * h.gap);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = this.inkHex; ctx.strokeStyle = this.inkHex;
+    for (const h of shapes) trace(h, 0);
     ctx.restore();
   }
 
   step(dt: number) {
+    this.simulate(dt);
+    this.render(dt);
+  }
+
+  /** Move him on by `dt` without drawing. */
+  simulate(dt: number) {
     this.animate(dt);
     this.pose(dt);
+  }
+
+  /** Draw where he is now. */
+  render(dt: number) {
     this.draw();
     this.drawLump(dt);
+  }
+
+  /** His body's colour, `#RRGGBB`. */
+  setInk(ink: string) {
+    this.inkHex = ink;
+    const rgb = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(ink)?.slice(1).map((h) => parseInt(h, 16) / 255) ?? [0, 0, 0];
+    this.gl?.uniform3f(this.inkLoc, rgb[0], rgb[1], rgb[2]);
+  }
+
+  // ---- Dev only: the Loc studio (src/features/dev/loc-studio) ----
+
+  /** No random blinks, glances or habits: only what's asked for plays. */
+  quiet = false;
+
+  /** Jump straight to `mood`, up on the edge or out of sight, with nothing playing. */
+  place(present: boolean, mood: LocMood) {
+    this.mood = mood;
+    this.hidden = !present;
+    this.bit = null;
+    this.pending = [];
+    this.blinkAt = -1;
+    this.squeezing = false;
+    const away = present || this.reduced ? { sink: 0, paw: 0 } : HIDDEN;
+    Object.assign(this.cur, TARGET[mood], away);
+    Object.assign(this.goal, TARGET[mood], away);
+    for (const k of KEYS) this.vel[k] = 0;
+    this.lag = { tilt: this.cur.tilt, earL: this.cur.earL, earR: this.cur.earR, gazeTurn: 0 };
+    if (this.reduced) this.canvas.style.opacity = present ? '1' : '0';
+  }
+
+  /** After `retuneLoc()`: spring to the current mood's new pose. */
+  refit() {
+    for (const k of KEYS) if (k !== 'sink' && k !== 'paw') this.goal[k] = TARGET[this.mood][k];
+  }
+
+  /** The current mood's habit, now. */
+  playHabit() {
+    const habit = HABITS[this.mood];
+    if (habit) this.play(habit);
+  }
+
+  blinkNow() { this.blinkAt = this.clock; }
+
+  /** One of the studio's explorations (LOC_EXPLORE). */
+  playExplore(id: string) {
+    const bit = LOC_EXPLORE[id];
+    if (bit) this.play(bit);
+  }
+
+  /** Something is still playing: a bit, a staggered mood change or a blink. */
+  get busy() { return !!this.bit || this.pending.length > 0 || this.blinkAt >= 0; }
+
+  get currentMood() { return this.mood; }
+
+  /** Every channel's value right now. */
+  get channels(): Record<LocChannel, number> { return { ...this.cur }; }
+
+  /** Everything that moves him, copied, so a frame can be drawn again later (`restore`, then `render`). */
+  snapshot(): LocSnapshot {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(this)) if (!NOT_STATE.has(key)) out[key] = copyState((this as unknown as Record<string, unknown>)[key]);
+    return out as LocSnapshot;
+  }
+
+  restore(snap: LocSnapshot) {
+    for (const [key, value] of Object.entries(snap)) (this as unknown as Record<string, unknown>)[key] = copyState(value);
+  }
+
+  /** Frees the WebGL context. */
+  dispose() {
+    this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    this.gl = null;
   }
 
   /** Where a tap lands, in rig units, is on him (so the area around him stays free). */

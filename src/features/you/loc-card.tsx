@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Card } from '@/components/grouped-list';
-import { Segmented } from '@/components/segmented';
+import { Split, SplitHalf } from '@/components/split-choice';
 import { Text } from '@/components/text';
 import { TONE_LABEL, TONES, type Tone } from '@/lib/tone';
 import { Nocturne, Space, Type } from '@/theme';
@@ -28,15 +28,19 @@ export function LocCard({ tone, onChange }: { tone: Tone; onChange: (tone: Tone)
   return (
     <Card>
       <View style={styles.controls}>
-        <Segmented
-          value={tone}
-          options={OPTIONS}
-          label="How grumpy Loc is"
-          onChange={(next) => {
-            if (next === tone) return;
-            onChange(next);
-          }}
-        />
+        {/* The nap sheet's split row (user's ask, 2026-10-14): squarer than the system control's pill. */}
+        <Split label="How grumpy Loc is" compact>
+          {OPTIONS.map((o) => (
+            <SplitHalf
+              key={o.value}
+              title={o.label}
+              selected={o.value === tone}
+              onPress={() => {
+                if (o.value !== tone) onChange(o.value);
+              }}
+            />
+          ))}
+        </Split>
         <Text style={styles.note}>How Loc talks</Text>
       </View>
     </Card>

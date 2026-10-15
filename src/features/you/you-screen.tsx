@@ -358,6 +358,10 @@ export function YouScreen() {
           <Card footer="Home in any state: night, morning, naps, pauses, trial, lapses, access off. Nothing real changes.">
             <ValueRow icon={sym('square.stack.3d.up.fill', 'layers')} title="App states" value="" onPress={() => router.push('/app-states')} last />
           </Card>
+          {/* Every move Loc makes, frame by frame, his style and his model sheet (features/dev/loc-studio). */}
+          <Card footer="Loc on the real rig: every move frame by frame, his style, his model sheet and his art.">
+            <ValueRow icon={sym('pawprint.fill', 'pets')} title="Loc studio" value="" onPress={() => router.push('/loc-studio')} last />
+          </Card>
         </>
       ) : null}
 

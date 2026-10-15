@@ -27,7 +27,10 @@ export function Split({ label, compact, children }: { label?: string; compact?: 
   );
 }
 
-/** One half of the split row: a round icon, then the title over a grey line. */
+/**
+ * One half of the split row: a round icon, then the title over a grey line. With no icon or
+ * line it's a plain word, for a row of three short choices (the You tab's Loc card).
+ */
 export function SplitHalf({
   icon,
   title,
@@ -36,9 +39,9 @@ export function SplitHalf({
   compact,
   onPress,
 }: {
-  icon: Symbol;
+  icon?: Symbol;
   title: string;
-  detail: string;
+  detail?: string;
   selected: boolean;
   compact?: boolean;
   onPress: () => void;
@@ -51,15 +54,23 @@ export function SplitHalf({
       }}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${title}. ${detail}`}
-      style={({ pressed }) => [styles.half, compact && styles.halfCompact, selected && styles.halfOn, pressed && styles.pressed]}
+      accessibilityLabel={detail ? `${title}. ${detail}` : title}
+      style={({ pressed }) => [
+        styles.half,
+        compact && styles.halfCompact,
+        !icon && !detail && styles.halfWord,
+        selected && styles.halfOn,
+        pressed && styles.pressed,
+      ]}
     >
-      <View style={[styles.icon, selected && styles.iconOn]}>
-        <SymbolView name={icon} size={13} tintColor={selected ? Nocturne.onCta : INK2} />
-      </View>
+      {icon ? (
+        <View style={[styles.icon, selected && styles.iconOn]}>
+          <SymbolView name={icon} size={13} tintColor={selected ? Nocturne.onCta : INK2} />
+        </View>
+      ) : null}
       <View style={styles.text}>
         <Text style={[styles.title, !selected && styles.titleOff]} numberOfLines={1}>{title}</Text>
-        <Text style={styles.detail} numberOfLines={1}>{detail}</Text>
+        {detail ? <Text style={styles.detail} numberOfLines={1}>{detail}</Text> : null}
       </View>
     </Pressable>
   );
@@ -87,6 +98,8 @@ const styles = StyleSheet.create({
   },
   splitCompact: { borderRadius: 18 },
   halfCompact: { paddingVertical: Space.xs + 2, borderRadius: 14 },
+  // A word alone: 44pt tall, so the corners match the nap sheet's without turning into a pill.
+  halfWord: { paddingVertical: Space.m, borderRadius: 14 },
   halfOn: { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
   pressed: { opacity: 0.7 },
   icon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: GLASS },

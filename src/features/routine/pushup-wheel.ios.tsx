@@ -11,7 +11,7 @@ const COUNTS = Array.from({ length: PUSHUP_MAX - PUSHUP_MIN + 1 }, (_, i) => PUS
 /** Apple's own wheel picker (HIG: Pickers), as in the Apps tab's daily limit. */
 export function PushupWheel({ value, onChange }: PushupWheelProps) {
   return (
-    <Host matchContents colorScheme="dark" style={{ alignSelf: 'stretch' }}>
+    <Host matchContents={{ vertical: true }} style={{ alignSelf: 'stretch' }} colorScheme="dark">
       <Picker
         selection={value}
         onSelectionChange={(next: number) => onChange(next)}

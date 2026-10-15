@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import type { HoldButtonProps } from './HoldButton.types';
 
-/** The gap between the fill and the pill's edge: none, it covers the whole pill (user, October 12, 2026). */
-const INSET = 0;
+/** How far the light's soft front fades out, as a fraction of the width (as in the Swift button). */
+const FEATHER = 0.38;
 /** Letting go early, the fill drains back this fast. */
 const DRAIN_MS = 260;
 
 /**
  * Where the Swift button isn't in the binary (web, Android, a dev build older than the module):
- * the same hold, drawn in React Native. Press and a pill fills it from the left, edge to edge, the
- * label turning `filledTextColor` wherever the fill has passed; let go
- * early and it drains back. Reaching the end completes it.
+ * the same hold, drawn in React Native. Press and blue light sweeps in from the very left edge
+ * with a soft, feathered front (no drifting clouds here), the label turning `filledTextColor`
+ * where it's full; let go early and it drains back. Reaching the end completes it.
  */
 export function HoldButtonFallback({
   label,
@@ -31,9 +31,8 @@ export function HoldButtonFallback({
 }: HoldButtonProps) {
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
   const progress = useSharedValue(0);
-  const inner = Math.max(0, width - INSET * 2);
-  // The fill starts as a circle the inner pill's height, so its left end is round from the start.
-  const dot = Math.min(inner, Math.max(0, height - INSET * 2));
+  // The light is the pill plus its fading front, slid in from wholly off the left edge.
+  const strip = width * (1 + FEATHER);
 
   const press = () => {
     if (disabled) return;
@@ -50,15 +49,13 @@ export function HoldButtonFallback({
     progress.set(withTiming(0, { duration: DRAIN_MS * progress.get(), easing: Easing.out(Easing.quad) }));
   };
 
-  const fill = useAnimatedStyle(() => {
-    const p = progress.get();
-    return { width: dot + (inner - dot) * p, opacity: Math.min(1, p * 12) };
-  });
-  // The second label is clipped to the fill's right end, so it changes colour where the fill has passed.
-  const clip = useAnimatedStyle(() => {
-    const p = progress.get();
-    return { width: p > 0 ? INSET + dot + (inner - dot) * p : 0 };
-  });
+  const edge = (p: number) => {
+    'worklet';
+    return -FEATHER + (1 + FEATHER) * (1 - Math.pow(1 - p, 1.6));
+  };
+  const fill = useAnimatedStyle(() => ({ transform: [{ translateX: (edge(progress.get()) - 1) * width }] }));
+  // The second label is clipped a little into the front, where the blue is deep enough to read on.
+  const clip = useAnimatedStyle(() => ({ width: Math.max(0, (edge(progress.get()) + 0.03) * width) }));
 
   return (
     <Pressable
@@ -76,17 +73,24 @@ export function HoldButtonFallback({
       <Text style={[styles.label, { color: textColor }]} numberOfLines={1}>
         {label}
       </Text>
-      <Animated.View pointerEvents="none" style={[styles.fill, { backgroundColor: fillColor }, fill]}>
-        {/* The shading spans the whole pill, so it doesn't stretch as the fill grows. */}
-        {fillTopColor ? (
-          <Svg width={inner} height={dot} style={styles.shade}>
+      <Animated.View pointerEvents="none" style={[styles.fill, { width: strip }, fill]}>
+        {strip > 0 && height > 0 ? (
+          <Svg width={strip} height={height}>
             <Defs>
-              <LinearGradient id="hold-fill" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={fillTopColor} />
+              <LinearGradient id="hold-shade" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={fillTopColor ?? fillColor} />
                 <Stop offset="1" stopColor={fillColor} />
               </LinearGradient>
+              <LinearGradient id="hold-front" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#FFFFFF" stopOpacity={1} />
+                <Stop offset={1 / (1 + FEATHER)} stopColor="#FFFFFF" stopOpacity={1} />
+                <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+              </LinearGradient>
+              <Mask id="hold-mask">
+                <Rect width={strip} height={height} fill="url(#hold-front)" />
+              </Mask>
             </Defs>
-            <Rect width={inner} height={dot} fill="url(#hold-fill)" />
+            <Rect width={strip} height={height} fill="url(#hold-shade)" mask="url(#hold-mask)" />
           </Svg>
         ) : null}
       </Animated.View>
@@ -104,8 +108,7 @@ export function HoldButtonFallback({
 const styles = StyleSheet.create({
   pill: { alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingHorizontal: 16, overflow: 'hidden' },
   label: { fontSize: 17, fontWeight: '600' },
-  fill: { position: 'absolute', left: INSET, top: INSET, bottom: INSET, borderRadius: 999, borderCurve: 'continuous', overflow: 'hidden' },
-  shade: { position: 'absolute', left: 0, top: 0 },
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   clip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
   filled: { position: 'absolute', left: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   dim: { opacity: 0.7 },

@@ -26,9 +26,10 @@ function harness(source: string, nav: { canGoBack: () => boolean; back: () => vo
     },
   };
   const mocks: Record<string, unknown> = {
-    react, 'expo-router': { useRouter: () => nav },
+    react, 'expo-router': { useRouter: () => nav }, 'expo-symbols': { SymbolView: 'Symbol' },
+    '@/components/grouped-list': { sym: (ios: string) => ios },
     '@/components/text': { Text: 'text', TextInput: 'input' },
-    'react-native': { StyleSheet: { create: (s: unknown) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text' },
+    'react-native': { StyleSheet: { create: (s: unknown) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text', Pressable: 'Pressable' },
     'react-native-reanimated': { default: { View: 'Animated' }, __esModule: true, FadeIn: { duration() {} } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@/components/buttons': { PrimaryButton: 'Button', TextButton: 'Button' }, '@/components/segmented': {},

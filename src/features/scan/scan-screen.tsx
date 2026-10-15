@@ -3,21 +3,22 @@
 // React. The React Compiler would cache those reads from the first render (Home mounts under
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
+import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
+import { sym } from '@/components/grouped-list';
 import { Segmented } from '@/components/segmented';
 import { useLock } from '@/hooks/use-lock';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
-import { getRoutine } from '@/lib/routine';
 import {
   draftQrData,
   getScanCode,
@@ -193,6 +194,40 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
   const scanning = stage.kind === 'morning' || stage.kind === 'register';
   const finished = stage.kind === 'unlocked' || stage.kind === 'saved';
 
+  // Scanning is the camera and nothing else (user, 2026-10-14): edge to edge, an X, and a
+  // square to put the code in. A wrong code says so under the square for a moment. The other
+  // ways to wake the apps are on Home, where the X goes back to.
+  if (scanning) {
+    return (
+      <View style={styles.camera}>
+        <Scanner
+          fill
+          onScan={stage.kind === 'morning' ? onMorningScan : onRegisterScan(stage.source, stage.expect)}
+          expected={stage.kind === 'morning' ? shownScanCode()?.data : stage.expect}
+          overlay={
+            <View pointerEvents="none" style={styles.aim}>
+              <View style={styles.square} />
+              {stage.miss ? (
+                <Animated.View key={`${stage.kind}-miss`} entering={FadeIn.duration(200)} style={styles.missPill}>
+                  <Text style={styles.miss}>{line}</Text>
+                </Animated.View>
+              ) : null}
+            </View>
+          }
+        />
+        <Pressable
+          onPress={() => (stage.kind === 'register' ? setStage({ kind: 'choose', source: stage.source }) : close())}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={stage.kind === 'register' ? 'Back' : 'Close'}
+          style={[styles.x, { top: insets.top + Space.s }]}
+        >
+          <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor="#FFFFFF" />
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -211,26 +246,6 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
       <View style={styles.flex} />
 
       <View style={styles.bottom}>
-        {scanning ? (
-          <Scanner
-            onScan={
-              stage.kind === 'morning' ? onMorningScan : onRegisterScan(stage.source, stage.expect)
-            }
-            expected={stage.kind === 'morning' ? shownScanCode()?.data : stage.expect}
-          />
-        ) : null}
-
-        {/* Every morning offers walking instead (GAME_PLAN): the camera off, the printout lost. */}
-        {stage.kind === 'morning' ? (
-          <>
-            <TextButton
-              label={`Walk ${getRoutine().stepGoal} steps instead`}
-              onPress={() => router.replace({ pathname: '/wake', params: { method: 'steps' } })}
-            />
-            <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />
-          </>
-        ) : null}
-
         {stage.kind === 'choose' ? (
           <>
             <Segmented
@@ -256,10 +271,6 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
           </>
         ) : null}
 
-        {stage.kind === 'register' ? (
-          <TextButton label="Back" onPress={() => setStage({ kind: 'choose', source: stage.source })} />
-        ) : null}
-
         {finished || stage.kind === 'asleep' || stage.kind === 'notYet' || stage.kind === 'awake' || stage.kind === 'noCode' ? (
           <PrimaryButton label={finished ? 'Done' : 'Okay'} onPress={close} />
         ) : null}
@@ -277,4 +288,29 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minHeight: Space.xl },
   bottom: { gap: Space.l, paddingBottom: Space.s },
   qr: { alignSelf: 'center', borderRadius: Space.m, overflow: 'hidden' },
+
+  camera: { flex: 1, backgroundColor: '#000000' },
+  aim: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  // Where to hold the code: a plain white outline, a little smaller than the screen's width.
+  square: { width: 250, height: 250, borderRadius: 28, borderCurve: 'continuous', borderWidth: 3, borderColor: '#FFFFFF' },
+  missPill: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: 125 + Space.l,
+    paddingHorizontal: Space.l,
+    paddingVertical: Space.s,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  miss: { ...Type.body, color: '#FFFFFF', fontWeight: '600' },
+  x: {
+    position: 'absolute',
+    left: Gap.gutter,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
 });

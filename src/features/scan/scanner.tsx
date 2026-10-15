@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions, type BarcodeType } from 'expo-camera';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsFocused } from 'expo-router';
 import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
@@ -29,11 +29,17 @@ export function Scanner({
   onScan,
   active = true,
   expected,
+  fill,
+  overlay,
 }: {
   onScan: (scan: Scan) => void;
   active?: boolean;
   /** The code the screen wants, for the fake viewfinder's "right code" button only. */
   expected?: string;
+  /** The whole screen, edge to edge, instead of a rounded square (the scan screen). */
+  fill?: boolean;
+  /** Drawn over the camera once it's showing (not over the permission ask). */
+  overlay?: ReactNode;
 }) {
   const focused = useIsFocused();
   const scanning = active && focused;
@@ -57,12 +63,13 @@ export function Scanner({
     return () => subscription.remove();
   }, [getPermission]);
   const last = useRef<{ data: string; at: number } | null>(null);
+  const frame = fill ? styles.fill : styles.frame;
 
-  if (!permission) return <View style={styles.frame} />;
+  if (!permission) return <View style={frame} />;
 
   if (!permission.granted) {
     return (
-      <View style={[styles.frame, styles.ask]}>
+      <View style={[frame, styles.ask]}>
         <Text style={styles.askText}>
           {permission.canAskAgain
             ? 'The camera only looks for your code. Nothing is recorded.'
@@ -78,11 +85,16 @@ export function Scanner({
   }
 
   if (fake !== 'real') {
-    return <FakeViewfinder style={styles.frame} expected={expected} onScan={scanning ? onScan : undefined} />;
+    return (
+      <View style={frame}>
+        <FakeViewfinder style={StyleSheet.absoluteFill} expected={expected} onScan={scanning ? onScan : undefined} />
+        {overlay}
+      </View>
+    );
   }
 
   return (
-    <View style={styles.frame}>
+    <View style={frame}>
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"
@@ -99,6 +111,7 @@ export function Scanner({
             : undefined
         }
       />
+      {overlay}
     </View>
   );
 }
@@ -111,6 +124,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: Nocturne.surface,
   },
+  fill: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
   ask: { justifyContent: 'center', padding: Space.xl, gap: Space.l },
   askText: { ...Type.body, color: Nocturne.text2, textAlign: 'center' },
 });

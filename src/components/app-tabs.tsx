@@ -2,12 +2,13 @@
 // Reads the navigation state during render (`navigation.getState()`), which changes outside its
 // props. The React Compiler could cache that read, so it stays out here, like the screens (#130).
 
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { Tabs, type BottomTabBarProps, type BottomTabNavigationOptions } from 'expo-router/js-tabs';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useEffect, useRef, useState } from 'react';
-import { Easing, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
+  Easing,
   interpolateColor,
   useAnimatedStyle,
   useReducedMotion,
@@ -68,50 +69,51 @@ const FADE = { duration: 180 };
 
 /**
  * Switching tabs: a quiet "fade through" (docs/PAGE_TRANSITIONS.md). The sky, the moon and
- * the strip never move; only the page on the panel changes. The old page is gone within the
- * first ~40 ms, then the new one fades in and settles from 98% to full size on a long, soft
- * ease-out. Short, because tabs are switched often (HIG: no lingering motion on frequent
- * interactions), and a tap mid-transition simply retargets it.
+ * the strip never move; only the page on the panel changes. The old page goes at once, and
+ * the new one fades in and settles from 98% to full size on a long, soft ease-out. Short,
+ * because tabs are switched often (HIG: no lingering motion on frequent interactions).
+ *
+ * Drawn by Reanimated in `TabScene`, not by the navigator's `animation`/`sceneStyleInterpolator`
+ * (2026-10-14). That one runs React Native's Animated on the native driver, and on the iPhone a
+ * tab tapped mid-fade could leave the new page stuck at its hidden values (1% opacity, parked
+ * off the panel): blank until you switched away and back. With no navigator animation, hidden
+ * tabs are simply detached and the shown one is always on top.
  */
-const SWITCH: BottomTabNavigationOptions['transitionSpec'] = {
-  animation: 'timing',
-  config: { duration: 260, easing: Easing.out(Easing.cubic) },
-};
+const SWITCH = { duration: 260, easing: Easing.out(Easing.cubic) };
 
-/**
- * A hidden page's opacity. Not 0: at opacity 0 iOS stops drawing liquid glass in the page
- * (expo-glass-effect's known issue), and it stays flat after the page fades back in, which is
- * what left the Apps list's glass cards plain on device. 1% is invisible.
- */
-const HIDDEN = 0.01;
+/** The first tab shown at launch appears without the fade; every switch after that fades. */
+let launched = false;
 
-/**
- * Once a page is fully hidden it moves far off the panel. 1% opacity alone left every hidden
- * page faintly burned into the sky behind the shown one, glass cards most of all; off the
- * panel nothing of it is drawn, and its glass stays alive for when it fades back in.
- */
-const parked = (progress: Parameters<NonNullable<BottomTabNavigationOptions['sceneStyleInterpolator']>>[0]['current']['progress']) =>
-  progress.interpolate({ inputRange: [-1, -0.999, 0.999, 1], outputRange: [100000, 0, 0, 100000] });
+/** One tab's page, fading in each time its tab is picked. */
+function TabScene({ children }: { children: ReactNode }) {
+  const focused = useIsFocused();
+  const reduced = useReducedMotion();
+  const [first] = useState(() => {
+    const was = launched;
+    launched = true;
+    return !was;
+  });
+  const shown = useSharedValue(first && focused ? 1 : 0);
 
-/** `progress` is 0 for the shown tab and ±1 for the others (React Navigation). */
-const fadeThrough: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
-  sceneStyle: {
-    // Out by 40% of the way, so the two pages barely overlap: no double image on the sky.
-    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [HIDDEN, HIDDEN, 1, HIDDEN, HIDDEN] }),
+  useEffect(() => {
+    if (!focused) shown.set(0);
+    else if (shown.get() < 1) shown.set(withTiming(1, SWITCH));
+  }, [focused, shown]);
+
+  const style = useAnimatedStyle(() => ({
+    // Never quite 0: at opacity 0 iOS stops drawing liquid glass in the page (expo-glass-effect's
+    // known issue), and it stayed flat after fading back in. 1% is invisible.
+    opacity: 0.01 + 0.99 * shown.value,
     transform: [
-      { translateX: parked(current.progress) },
-      { scale: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1, 0.98] }) },
+      // A hidden page also moves far off the panel: at 1% it still showed faintly behind the
+      // shown one, glass cards most of all (web keeps hidden tabs mounted and in place).
+      { translateX: shown.value === 0 ? 100000 : 0 },
+      { scale: reduced ? 1 : 0.98 + 0.02 * shown.value },
     ],
-  },
-});
+  }));
 
-/** Reduce Motion: the same timing as a plain fade, nothing scales. */
-const fadeOnly: BottomTabNavigationOptions['sceneStyleInterpolator'] = ({ current }) => ({
-  sceneStyle: {
-    opacity: current.progress.interpolate({ inputRange: [-1, -0.4, 0, 0.4, 1], outputRange: [HIDDEN, HIDDEN, 1, HIDDEN, HIDDEN] }),
-    transform: [{ translateX: parked(current.progress) }],
-  },
-});
+  return <Animated.View style={[styles.scene, style]}>{children}</Animated.View>;
+}
 
 /** The strip's height under the panel: the buttons, with the home indicator below them. */
 export function tabStripHeight(safeBottom: number) {
@@ -127,26 +129,20 @@ export function useTabBarInset() {
 }
 
 export default function AppTabs() {
-  const reduced = useReducedMotion();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        // `animation` turns on the navigator's transition handling; the interpolator draws it.
-        animation: 'fade',
-        transitionSpec: SWITCH,
-        sceneStyleInterpolator: reduced ? fadeOnly : fadeThrough,
+        // No navigator animation: `TabScene` draws the switch (see SWITCH).
         sceneStyle: {
           backgroundColor: 'transparent',
           // The panel: content scrolls under its rounded bottom edge, not under the strip.
           borderBottomLeftRadius: PANEL_RADIUS,
           borderBottomRightRadius: PANEL_RADIUS,
           overflow: 'hidden',
-          // No `display: none` for hidden tabs on web any more: the navigator already fades
-          // them to nothing and detaches them, and toggling `display` cut the fade off and
-          // replayed Reanimated entrances out of place (October 8, 2026).
         },
       }}
+      screenLayout={({ children }) => <TabScene>{children}</TabScene>}
       tabBar={(props) => <TabBar {...props} />}
     >
       <Tabs.Screen name='index' />
@@ -330,6 +326,7 @@ const styles = StyleSheet.create({
     gap: Space.s,
   },
   spacer: { flex: 1 },
+  scene: { flex: 1 },
   circle: {
     width: BUTTON,
     height: BUTTON,

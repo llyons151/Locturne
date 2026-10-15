@@ -6,9 +6,10 @@ import UIKit
  The Sleep sheet's "Hold to tuck him in" button (user's ask, 2026-10-08: "a clean hold animation
  using really pretty hd swift stuff like how opal does").
 
- A white pill. Press and it settles in a little; keep holding and a night-blue pill fills it from
- the left, edge to edge, and the label turns moon-white wherever the fill
- has passed. A Core Haptics hum rises with it. Let go early and the fill drains back. Reaching
+ A white pill. Press and it settles in a little; keep holding and the night sky's blue light
+ sweeps in from the very left edge: soft drifting haze with a feathered front, no hard shape
+ (user, 2026-10-14: "a wispy thing of blue ... like a glow", like the app's background). The
+ label turns moon-white where the light is full. A Core Haptics hum rises with it. Let go early and the fill drains back. Reaching
  the end gives a success tap, a small spring back, and `onComplete`.
 
  Drawn with Core Animation on a display link (up to 120 Hz) so the fill tracks the finger with no
@@ -60,13 +61,21 @@ final class HoldButtonView: ExpoView {
 
   /** Everything that moves: scaled as one so the press reads as the whole button. */
   private let content = UIView()
+  /** The light, always the whole pill; `reveal` decides how much of it shows. */
   private let fill = UIView()
   /** The fill's glassy shading, top to bottom. */
   private let fillShade = CAGradientLayer()
+  /** Soft clouds of brighter blue drifting inside the light, like the sky behind the app. */
+  private let wisps = (0..<3).map { _ in CAGradientLayer() }
+  /** A brighter cloud riding the front of the light, so the leading edge is where it's lit. */
+  private let front = CAGradientLayer()
+  /** Opaque behind the front, fading to clear over `feather`: the light's soft leading edge. */
+  private let reveal = CAGradientLayer()
   /** The label twice: dark on the white, and moon-white on the fill, clipped to it. */
   private let baseLabel = LabelStack()
   private let filledLabel = LabelStack()
-  private let filledMask = CAShapeLayer()
+  private let filledMask = CAGradientLayer()
+  private var drifting = CGSize.zero
 
   private var baseColor = UIColor.white
   private var fillColor = UIColor(red: 0.04, green: 0.08, blue: 0.16, alpha: 1)
@@ -83,9 +92,6 @@ final class HoldButtonView: ExpoView {
   private var lastTick: CFTimeInterval = 0
   private let haptics = HoldHaptics()
 
-  /** The gap between the fill and the pill's edge: none, it covers the whole pill (user, October 12, 2026). */
-  private let inset: CGFloat = 0
-
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     backgroundColor = .clear
@@ -95,9 +101,19 @@ final class HoldButtonView: ExpoView {
     content.layer.masksToBounds = true
     addSubview(content)
 
-    fill.layer.cornerCurve = .continuous
     fill.layer.masksToBounds = true
     fill.layer.addSublayer(fillShade)
+    for cloud in wisps + [front] {
+      cloud.type = .radial
+      cloud.startPoint = CGPoint(x: 0.5, y: 0.5)
+      cloud.endPoint = CGPoint(x: 1, y: 1)
+      fill.layer.addSublayer(cloud)
+    }
+    for mask in [reveal, filledMask] {
+      mask.startPoint = CGPoint(x: 0, y: 0.5)
+      mask.endPoint = CGPoint(x: 1, y: 0.5)
+    }
+    fill.layer.mask = reveal
     content.addSubview(fill)
     content.addSubview(baseLabel)
     content.addSubview(filledLabel)
@@ -148,7 +164,15 @@ final class HoldButtonView: ExpoView {
   private func applyColors() {
     content.backgroundColor = baseColor
     fill.backgroundColor = fillColor
-    fillShade.colors = [(fillTopColor ?? fillColor).cgColor, fillColor.cgColor]
+    let top = fillTopColor ?? fillColor
+    fillShade.colors = [top.cgColor, fillColor.cgColor]
+    // The sky's light: its top colour, and a paler one for the brightest cloud.
+    let pale = top.mixed(with: .white, 0.22)
+    let shades = [top.withAlphaComponent(0.75), pale.withAlphaComponent(0.55), top.withAlphaComponent(0.6)]
+    for (cloud, shade) in zip(wisps, shades) {
+      cloud.colors = [shade.cgColor, shade.withAlphaComponent(0).cgColor]
+    }
+    front.colors = [pale.withAlphaComponent(0.8).cgColor, pale.withAlphaComponent(0).cgColor]
     baseLabel.tint(textColor)
     filledLabel.tint(filledTextColor)
   }
@@ -162,26 +186,77 @@ final class HoldButtonView: ExpoView {
     content.layer.cornerRadius = bounds.height / 2
     baseLabel.frame = content.bounds
     filledLabel.frame = content.bounds
+    if drifting != bounds.size {
+      drifting = bounds.size
+      layOutClouds()
+    }
     draw()
+  }
+
+  /**
+   Three wide soft clouds spread along the pill, each drifting and breathing on its own slow
+   loop so the light never sits still. Reduce Motion keeps them where they are.
+   */
+  private func layOutClouds() {
+    let w = bounds.width, h = bounds.height
+    guard w > 0, h > 0 else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    fill.frame = CGRect(origin: .zero, size: bounds.size)
+    fillShade.frame = fill.bounds
+    reveal.frame = fill.bounds
+    filledMask.frame = content.bounds
+    let spots: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [(0.18, 0.2, 0.55), (0.55, 0.85, 0.6), (0.88, 0.3, 0.5)]
+    for (i, (cloud, spot)) in zip(wisps, spots).enumerated() {
+      cloud.removeAllAnimations()
+      cloud.bounds = CGRect(x: 0, y: 0, width: w * spot.size, height: h * 2.2)
+      cloud.position = CGPoint(x: w * spot.x, y: h * spot.y)
+      guard !UIAccessibility.isReduceMotionEnabled else { continue }
+      let drift = CABasicAnimation(keyPath: "position")
+      drift.toValue = CGPoint(x: w * spot.x + w * (i == 1 ? -0.12 : 0.12), y: h * (1 - spot.y))
+      let breathe = CABasicAnimation(keyPath: "opacity")
+      breathe.fromValue = 1
+      breathe.toValue = 0.55
+      for (anim, seconds) in [(drift, 4.6 + Double(i) * 1.3), (breathe, 3.2 + Double(i) * 0.9)] {
+        anim.duration = seconds
+        anim.autoreverses = true
+        anim.repeatCount = .infinity
+        anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        anim.isRemovedOnCompletion = false
+        cloud.add(anim, forKey: anim.keyPath)
+      }
+    }
+    front.bounds = CGRect(x: 0, y: 0, width: w * 0.42, height: h * 2.4)
+    CATransaction.commit()
   }
 
   /** Puts the fill (and the white label's clip) where `progress` says. */
   private func draw() {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    let track = content.bounds.insetBy(dx: inset, dy: inset)
-    let height = track.height
-    // It grows from a dot at the left into the full inner pill, round at both ends throughout.
-    let width = progress <= 0 ? 0 : height + (track.width - height) * ease(progress)
-    let rect = CGRect(x: track.minX, y: track.minY, width: width, height: height)
-    fill.frame = rect
-    fill.layer.cornerRadius = height / 2
-    // The shading spans the whole pill, so it doesn't stretch as the fill grows.
-    fillShade.frame = CGRect(x: 0, y: 0, width: track.width, height: height)
-    fill.alpha = progress <= 0 ? 0 : min(1, progress * 12)
-    filledMask.path = UIBezierPath(roundedRect: rect, cornerRadius: height / 2).cgPath
-    filledLabel.alpha = fill.alpha
+    // The light's full part ends at `edge` (in fractions of the width) and fades out over
+    // `feather` past it. It starts wholly off the left edge, so the first thing seen is a faint
+    // haze at the very left, and ends with the fade pushed off the right: the whole pill lit.
+    let feather: CGFloat = 0.38
+    let edge = -feather + (1 + feather) * ease(progress)
+    shape(reveal, edge: edge, feather: feather)
+    // The white label follows a tighter fade a little behind the front, where the blue is deep
+    // enough to read on.
+    shape(filledMask, edge: edge - 0.04, feather: 0.14)
+    front.position = CGPoint(x: bounds.width * (edge + feather * 0.25), y: bounds.height * 0.5)
+    front.opacity = Float(min(1, progress * 5))
     CATransaction.commit()
+  }
+
+  /**
+   Sets a horizontal mask to fully opaque left of `edge`, fading linearly to clear at
+   `edge + feather`. The four stops land on the fade's kinks, so the gradient is exact.
+   */
+  private func shape(_ mask: CAGradientLayer, edge: CGFloat, feather: CGFloat) {
+    let alpha = { (x: CGFloat) in min(1, max(0, (edge + feather - x) / feather)) }
+    let stops = [0, min(1, max(0, edge)), min(1, max(0, edge + feather)), 1]
+    mask.locations = stops.map { NSNumber(value: Double($0)) }
+    mask.colors = stops.map { UIColor(white: 1, alpha: alpha($0)).cgColor }
   }
 
   /** Quick off the mark, then steady: the hold feels like it's answering at once. */
@@ -300,6 +375,18 @@ final class HoldButtonView: ExpoView {
     UINotificationFeedbackGenerator().notificationOccurred(.success)
     onComplete()
     return true
+  }
+}
+
+private extension UIColor {
+  /** This colour moved `amount` of the way toward `other`. */
+  func mixed(with other: UIColor, _ amount: CGFloat) -> UIColor {
+    var (r1, g1, b1, a1, r2, g2, b2, a2): (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) =
+      (0, 0, 0, 0, 0, 0, 0, 0)
+    getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+    other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+    return UIColor(
+      red: r1 + (r2 - r1) * amount, green: g1 + (g2 - g1) * amount, blue: b1 + (b2 - b1) * amount, alpha: a1)
   }
 }
 
