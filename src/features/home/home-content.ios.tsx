@@ -45,6 +45,7 @@ import { isMistDotViewAvailable, MistDotView } from '../../../modules/mist-dot';
 import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/screen-time-report';
 
 import type { HomeContentProps } from './home-content';
+import { SWAP_IN, SWAP_OUT, useHeroSwap } from './hero-swap';
 import { dayLabel, morningsLabel, weekDays } from './week';
 
 type SymbolName = NonNullable<ComponentProps<typeof Image>['systemName']>;
@@ -77,9 +78,13 @@ const BLUR = 8;
  */
 export function HomeContent(props: HomeContentProps) {
   'use no memo';
-  const { mornings, today, won, free, revision, hero, heroKey, meter, icon, searching, action, alt } = props;
+  const { mornings, today, won, free, revision } = props;
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
+  // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
+  const { content, visible } = useHeroSwap(props);
+  const { hero, heroKey, meter, icon, searching, action, alt } = content;
+  const [usageIn, setUsageIn] = useState(false);
 
   /** Piece `step`: opacity and blur, ending with everything else. */
   const enter = (step: number): ModifierConfig[] => {
@@ -93,6 +98,8 @@ export function HomeContent(props: HomeContentProps) {
 
   const days = weekDays(today, won, free);
   const showUsage = isScreenTimeReportAvailable && getAccess() === 'approved';
+  // Ready to fade the pill in again if Screen Time goes off and comes back.
+  if (!showUsage && usageIn) setUsageIn(false);
 
   return (
     <Host style={{ flex: 1 }} colorScheme="dark">
@@ -122,10 +129,19 @@ export function HomeContent(props: HomeContentProps) {
           </HStack>
           <Spacer />
           {showUsage ? (
-            <RNHostView matchContents>
-              {/* Drawn by Apple's report extension, the only place usage may be read. */}
-              <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
-            </RNHostView>
+            // Fades in when Screen Time is turned on, rather than popping in.
+            <ZStack
+              modifiers={[
+                opacity(usageIn ? 1 : 0),
+                animation(Animation.easeInOut({ duration: SWAP_IN }), usageIn),
+                onAppear(() => setUsageIn(true)),
+              ]}
+            >
+              <RNHostView matchContents>
+                {/* Drawn by Apple's report extension, the only place usage may be read. */}
+                <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
+              </RNHostView>
+            </ZStack>
           ) : null}
         </HStack>
 
@@ -180,6 +196,9 @@ export function HomeContent(props: HomeContentProps) {
             // Only the middle rises; the top above it stays put.
             offset({ y: shown || reduced ? 0 : RISE }),
             animation(Animation.spring({ duration: TOTAL, bounce: 0 }).delay(START), shown),
+            opacity(visible ? 1 : 0),
+            blur(visible || reduced ? 0 : BLUR / 2),
+            animation(visible ? Animation.easeOut({ duration: SWAP_IN }) : Animation.easeIn({ duration: SWAP_OUT }), visible),
           ]}
         >
           {searching ? (

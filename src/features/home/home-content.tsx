@@ -1,6 +1,6 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { Text } from '@/components/text';
 import { SearchingOrb } from '@/components/thinking-orb';
@@ -8,6 +8,7 @@ import { noOrphan } from '@/lib/text';
 import { APP_FONT, Nocturne, Space, Type } from '@/theme';
 
 import { useEntrance } from './entrance';
+import { SWAP_IN, SWAP_OUT, useHeroSwap } from './hero-swap';
 import { HomeTop } from './home-top';
 
 export type HomeContentProps = {
@@ -71,13 +72,20 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  * The web and Android stand-in for home-content.ios.tsx (SwiftUI): the same layout, with the
  * same entrance in Reanimated (entrance.ts).
  */
-export function HomeContent({ mornings, today, won, free, revision, hero, meter, icon, searching, action, alt }: HomeContentProps) {
+export function HomeContent(props: HomeContentProps) {
+  const { mornings, today, won, free, revision } = props;
   const { group, piece: enter } = useEntrance();
+  // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
+  const { content, visible } = useHeroSwap(props);
+  const { hero, meter, icon, searching, action, alt } = content;
+  const swap = useAnimatedStyle(() => ({
+    opacity: withTiming(visible ? 1 : 0, visible ? { duration: SWAP_IN * 1000, easing: Easing.out(Easing.quad) } : { duration: SWAP_OUT * 1000, easing: Easing.in(Easing.quad) }),
+  }));
   return (
     <View style={styles.flex}>
       {/* The top only fades in, where it sits; only the middle rises (`group`). */}
       <HomeTop mornings={mornings} today={today} won={won} free={free} revision={revision} enter={enter} />
-      <Animated.View style={[styles.hero, group]}>
+      <Animated.View style={[styles.hero, group, swap]}>
         <Animated.View style={enter(2)}>
           {searching ? (
             <SearchingOrb />
