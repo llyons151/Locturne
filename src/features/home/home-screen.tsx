@@ -36,7 +36,7 @@ import { clockLabel } from '@/lib/shield-copy';
 import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
-import { awakeLine, bedtimeQuip, dayHero, napHero, offHero, trialHero } from './awake-line';
+import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent, type HomeMeter } from './home-content';
 import type { HomeLook } from './home-look';
 import { LocCue } from './loc';
@@ -264,7 +264,6 @@ export function HomeScreen() {
               // With only typed-in websites there's no selection to count: none, not unknown.
               apps: facts.apps,
               websites: facts.websites,
-              quip: bedtimeQuip(lock.morningKey),
             })
           : walk
             ? walkHero(walk)
@@ -280,6 +279,13 @@ export function HomeScreen() {
   const turnAccessOn = () => askAccessAgain().then(recheckHealth);
   // A walk with Motion & Fitness off: Settings, with the other ways under it.
   const walkSettings = walk?.kind === 'denied' ? { label: 'Open Settings', onPress: () => Linking.openSettings() } : null;
+  // The locked morning's method and time. "Tomorrow" until midnight; past it, the morning is
+  // today. In its last hour the line above already gives the time, so just the method.
+  const nextMorningLabel = () => {
+    const today = phase === 'night' && !!target && target.toDateString() === now.toDateString();
+    if (today && minutes !== null && minutes <= 60) return `This morning: ${METHOD_NAME[method]}`;
+    return `${today ? 'This morning' : 'Tomorrow'}: ${METHOD_NAME[method]} at ${clockLabel(routine.morningStart)}`;
+  };
   const action = unprotected
     ? health.protection === 'notSetUp'
       ? { label: 'Turn on Screen Time', onPress: turnAccessOn }
@@ -299,7 +305,7 @@ export function HomeScreen() {
           : !bedtimeApps && !stoodDown
             ? { label: 'Pick bedtime apps', onPress: () => router.push('/apps') }
             : tomorrowLocked
-              ? { label: `Tomorrow: ${METHOD_NAME[method]} at ${clockLabel(routine.morningStart)}`, onPress: () => router.push('/routine'), opens: true }
+              ? { label: nextMorningLabel(), onPress: () => router.push('/routine'), opens: true }
               : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // Each state's look (`HomeLook`), so they differ by more than their words.
@@ -323,8 +329,13 @@ export function HomeScreen() {
               : 'day'
             : 'plain';
   const wake = bigClock(routine.morningStart);
-  const face: HomeMeter | undefined =
-    look === 'day' || look === 'evening'
+  // The last hour before wake-up: like the last hour before bedtime, the countdown is the big
+  // number over a track filling toward it, and the wake time moves into the line under it
+  // ("Asleep until 7:00 am", a lone "in 26m", then the line, read as scraps: user, 2026-10-15).
+  const wakeSoon = look === 'night' && minutes !== null && minutes <= 60;
+  const face: HomeMeter | undefined = wakeSoon
+    ? { kicker: 'Wake-up in', value: duration(minutes ?? 0), progress: 1 - (minutes ?? 0) / 60 }
+    : look === 'day' || look === 'evening'
       ? {
           kicker: 'Bedtime in',
           value: duration(minutes ?? 0),
@@ -332,14 +343,14 @@ export function HomeScreen() {
           progress: look === 'evening' ? 1 - (minutes ?? 0) / 60 : undefined,
         }
       : look === 'night'
-        ? // The last hour before wake-up counts down under the wake time.
-          { kicker: 'Asleep until', value: wake.value, unit: wake.unit, caption: minutes !== null && minutes <= 60 ? `in ${duration(minutes)}` : undefined }
+        ? { kicker: 'Asleep until', value: wake.value, unit: wake.unit }
         : look === 'done' && wonAt
           ? { kicker: 'Up at', ...bigClock(new Date(wonAt.at).getHours() * 60 + new Date(wonAt.at).getMinutes()) }
           : undefined;
   // The words under the big number: what it doesn't already say.
-  const shown =
-    look === 'night'
+  const shown = wakeSoon
+    ? { title: hero.title, body: `Phone down. Your apps wake at ${clockLabel(routine.morningStart)}.` }
+    : look === 'night'
       ? { title: hero.title, body: 'Phone down. They wake once you’re up and moving.' }
       : look === 'done' && wonAt
         ? { title: `Up at ${clockAt(new Date(wonAt.at))}`, body: `${DONE_WORDS[wonAt.kind as WakeMethod]}. Your apps are awake.` }

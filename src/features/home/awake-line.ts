@@ -81,7 +81,6 @@ export function dayHero({
   alwaysSleeps = false,
   apps = null,
   websites = null,
-  quip = null,
 }: {
   /** `rollUpHealth` said `attention`: its title and detail, or null. */
   attention: { title: string; detail: string } | null;
@@ -107,8 +106,6 @@ export function dayHero({
   apps?: number | null;
   /** Websites typed in on the bedtime list (websites.ts), or null when a change is still to land. */
   websites?: number | null;
-  /** Loc's line for tonight (`bedtimeQuip`), in place of the plain "wind down" nudge. */
-  quip?: string | null;
 }): { title: string; body: string; aside?: string } {
   if (attention) return { title: attention.title, body: attention.detail };
   if (!sleepsAt || !until) {
@@ -120,9 +117,9 @@ export function dayHero({
   if (!scheduled) return { title: 'No bedtime scheduled', body: line };
   if (offTonight) return { title: 'Tonight is off', body: `Your next bedtime is ${sleepsAt} on ${offTonight}.` };
   const who = bedtimeWho(apps ?? null, websites ?? 0);
-  const body = `${who} to sleep at ${sleepsAt}.`;
-  // Loc's line stands apart from the fact, so it reads as him, not the app being snarky.
-  return quip ? { title: `Bedtime in ${until}`, body, aside: quip } : { title: `Bedtime in ${until}`, body: `${body} Start winding down before then.` };
+  // Just the facts: no line from Loc under it (his evening quips were cut, user, October 15,
+  // 2026; he talks in his speech bubble) and no "start winding down" nudge.
+  return { title: `Bedtime in ${until}`, body: `${who} to sleep at ${sleepsAt}.` };
 }
 
 /** What goes to sleep, counted where it can be: "2 apps", "1 website", "3 apps and 2 websites". */
@@ -131,24 +128,6 @@ function bedtimeWho(apps: number | null, websites: number): string {
   if (websites > 0 && apps === 0) return `${sites} ${websites === 1 ? 'goes' : 'go'}`;
   if (websites > 0) return apps ? `${apps} ${apps === 1 ? 'app' : 'apps'} and ${sites} go` : 'Your apps and websites go';
   return apps ? `${apps} ${apps === 1 ? 'app goes' : 'apps go'}` : 'Your apps go';
-}
-
-/** Loc's evening lines (docs/MASCOT_DIRECTION.md: tired, a bit sassy, never mean). */
-const QUIPS = [
-  'The feed will still be there tomorrow. Sadly.',
-  'Nothing good gets posted after bedtime. I’ve checked.',
-  'Finish the episode, not the season.',
-  'I’ll guard the apps. You guard the pillow.',
-  'One more scroll is how they get you.',
-  'Phone on the charger, not on your face.',
-  'Tomorrow-you already says thanks.',
-];
-
-/** One of Loc's lines, fixed for the day (`dateKey`) so it doesn't change each time Home opens. */
-export function bedtimeQuip(day: string): string {
-  let hash = 0;
-  for (const ch of day) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return QUIPS[hash % QUIPS.length];
 }
 
 /**

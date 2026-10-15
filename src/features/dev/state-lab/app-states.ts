@@ -348,7 +348,7 @@ export const APP_STATES: AppState[] = [
     id: 'day',
     group: 'Day',
     label: 'Bedtime in 3 hours',
-    note: 'The plain day: countdown, what sleeps, Loc’s quip.',
+    note: 'The plain day: countdown and what sleeps.',
     facts: (d) => d,
   },
   {

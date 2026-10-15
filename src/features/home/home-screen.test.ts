@@ -49,6 +49,8 @@ type Setup = {
   walk?: Record<string, unknown>;
   /** This morning's proof (`useHomeState`). */
   proof?: { morningKey: string; kind: string; at: number } | null;
+  /** When the lock next changes (the wake-up at night); an hour from `now` when left out. */
+  nextChange?: Date;
   /** The routine's wake-up method. */
   method?: string;
 };
@@ -70,11 +72,12 @@ function home({
   walk = { kind: 'counting', steps: 64, goal: 200 },
   method = 'steps',
   proof = null,
+  nextChange,
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
   };
-  const lock = { phase, morningKey: '2026-10-09', nextChange: new Date(now.getTime() + 3_600_000), blockNowUntil };
+  const lock = { phase, morningKey: '2026-10-09', nextChange: nextChange ?? new Date(now.getTime() + 3_600_000), blockNowUntil };
   const mocks: Record<string, unknown> = {
     react,
     'expo-router': { router: { push() {} } },
@@ -423,9 +426,24 @@ describe('Home’s looks', () => {
   });
 
   test('at night the wake time is the big number and the button is plain text', () => {
-    const { look, meter } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night' });
+    const { look, meter, hero, action } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', nextChange: new Date(2026, 9, 10, 7) });
     assert.equal(look, 'night');
     assert.equal(meter?.kicker, 'Asleep until');
+    assert.equal(hero.body, 'Phone down. They wake once you’re up and moving.');
+    // Before midnight the locked morning is tomorrow's.
+    assert.match(action.label, /^Tomorrow: /);
+  });
+
+  test('in the last hour before wake-up the countdown leads, and the morning is this morning', () => {
+    const { look, meter, hero, action } = home({ now: new Date(2026, 9, 10, 6, 34), phase: 'night', nextChange: new Date(2026, 9, 10, 7) });
+    assert.equal(look, 'night');
+    assert.equal(meter?.kicker, 'Wake-up in');
+    assert.equal(meter?.value, '26 min');
+    assert.ok(meter?.progress !== undefined && Math.abs(meter.progress - 34 / 60) < 1e-9);
+    assert.match(hero.body, /^Phone down\. Your apps wake at /);
+    // The line above gives the time, so the button just names the method.
+    assert.match(action.label, /^This morning: /);
+    assert.doesNotMatch(action.label, / at /);
   });
 
   test('a locked morning wears the morning look', () => {
