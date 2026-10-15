@@ -764,8 +764,27 @@ function burrowLump(rand: () => number = Math.random, fit = 1): { pop: number; l
   return { pop, lump: { h, x } };
 }
 
+/** The panel's bottom corners, in points: PANEL_RADIUS in components/app-tabs.tsx (this runs in the webview, so it's copied). */
+const PANEL_CORNER = 44;
+
+/**
+ * The covers' edge, `u` px along it from the left side of the screen: up the left wall, round the
+ * corner (radius `R`, a quarter turn `bend` long), along the bottom and round the right corner.
+ * Returns the point and the unit normal pointing up out of the covers.
+ */
+function coverEdge(u: number, cw: number, ch: number, R: number, bend: number): [number, number, number, number] {
+  if (u < bend) {
+    const a = u / R;
+    return [R - R * Math.cos(a), ch - R + R * Math.sin(a), Math.cos(a), -Math.sin(a)];
+  }
+  const flat = cw - 2 * R;
+  if (u <= bend + flat) return [R + u - bend, ch, 0, -1];
+  const a = Math.min(Math.PI / 2, (u - bend - flat) / R);
+  return [cw - R + R * Math.sin(a), ch - R + R * Math.cos(a), -Math.sin(a), -Math.cos(a)];
+}
+
 // ---- Small math ----
-const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const clamp =(v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const smooth = (e0: number, e1: number, x: number) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
 const mul = (A: Mat, B: Mat): Mat => [A[0] * B[0] + A[2] * B[1], A[1] * B[0] + A[3] * B[1], A[0] * B[2] + A[2] * B[3], A[1] * B[2] + A[3] * B[3],
   A[0] * B[4] + A[2] * B[5] + A[4], A[1] * B[4] + A[3] * B[5] + A[5]];
@@ -1262,14 +1281,24 @@ export class LocRig {
     // A ripple trails whichever way he's moving, so it flows like a wave.
     const dir = Math.sign(vx);
     const ripple = this.reduced ? 0 : top * 0.42 * Math.min(1, Math.abs(vx) * 1.6) * (0.65 + 0.35 * Math.sin(this.clock * 10));
+    // The covers' edge isn't flat all the way: at the ends it bends up into the panel's rounded
+    // corners. Run flat into a bend, the lump met it in a notch (user, October 15, 2026), so it
+    // follows the edge instead: placed by distance along it (the same pace round the bend) and
+    // pushed out square to it, so near the ends it climbs the curve, tilted with it.
+    const R = Math.min(PANEL_CORNER * dpr, cw / 2), bend = (Math.PI / 2) * R, run = 2 * bend + cw - 2 * R;
+    const at = clamp(bend + cx - R, R * 0.4, run - R * 0.4);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = INK;
     ctx.beginPath();
     ctx.moveTo(0, ch);
-    for (let px = 0; px <= cw; px += Math.max(1, dpr)) {
-      const d = (px - cx) / w, r = (px - (cx - dir * 1.7 * w)) / (0.7 * w);
-      ctx.lineTo(px, ch - top * Math.exp(-d * d) - ripple * Math.exp(-r * r));
+    for (let u = 0; u <= run; u += Math.max(1, dpr)) {
+      const d = (u - at) / w, r = (u - (at - dir * 1.7 * w)) / (0.7 * w);
+      const lift = top * Math.exp(-d * d) + ripple * Math.exp(-r * r);
+      const [px, py, nx, ny] = coverEdge(u, cw, ch, R, bend);
+      // Fading out as the edge turns upright: the screen's sides never bend, only the bottom.
+      const k = lift * -ny;
+      ctx.lineTo(px + nx * k, py + ny * k);
     }
     ctx.lineTo(cw, ch);
     ctx.closePath();
