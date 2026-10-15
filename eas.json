@@ -18,6 +18,13 @@
         "EXPO_PUBLIC_FREE_TESTING": "1"
       }
     },
+    "purchases": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DEV_LABS": "1",
+        "EXPO_PUBLIC_FREE_TESTING": "0"
+      }
+    },
     "production": {
       "autoIncrement": true
     }

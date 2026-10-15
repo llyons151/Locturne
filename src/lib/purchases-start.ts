@@ -13,7 +13,8 @@
  * Free testing: with `EXPO_PUBLIC_FREE_TESTING=1` (eas.json's development and preview
  * profiles, and .env for `expo start`) the stub starts already subscribed, whatever the key,
  * so onboarding skips the paywall and nothing asks to be paid for. app.config.js refuses a
- * production build with it set. Remove it from those three places to test the paywall.
+ * production build with it set. To test the paywall and sandbox purchases on a phone, build
+ * the `purchases` profile: the preview build with free testing off.
  */
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';

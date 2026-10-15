@@ -83,11 +83,12 @@ const INK = '#000000';
  * - `snapGaze`: the pupils snap to where he looks and lock, he blinks when his gaze shifts, the
  *   lids follow the pupils up and down, and blinks close fast and open slower.
  * - `hands`: clawed raccoon grips on the ledge (loc-hands.ts) instead of the round paws traced
- *   into his outline. On in the app since October 14, 2026.
+ *   into his outline. Off: on a phone they looked bad and stayed on screen after he hid (user,
+ *   October 14, 2026: "I want those reverted").
  */
 export const LOC_TUNE = {
   eyeWhite: '#FFFFFF', button: 34, pupil: 20, blinkLag: 0,
-  heavyLid: 0, faceSteps: 0, snapGaze: false, hands: true,
+  heavyLid: 0, faceSteps: 0, snapGaze: false, hands: false,
 };
 
 // ---- Channels and moods ----

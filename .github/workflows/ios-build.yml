@@ -12,7 +12,7 @@ on:
       profile:
         description: eas.json build profile
         type: choice
-        options: [development, preview, production]
+        options: [development, preview, purchases, production]
         default: development
 
 env:
