@@ -7,7 +7,7 @@ import * as unheldWords from './unheld-words.ts';
 const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
 
-test('a nap-only confirmation cannot silently pause a bedtime that began while the dialog was open', () => {
+test('a Block now pass confirmation cannot silently pause a bedtime that began while the dialog was open', () => {
   const source = readFileSync(new URL('./exits-screen.tsx', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('  const unlock ='), source.indexOf('  // A night or morning by the clock'));
   const original = { pauseNight: false, unlockMorning: false, endBlockNow: true, resumesAt: null as number | null };
@@ -17,22 +17,23 @@ test('a nap-only confirmation cannot silently pause a bedtime that began while t
   const context = {
     plan: original,
     setConfirming() {},
-    previewEmergency: () => current,
+    previewPass: () => current,
+    samePlan: (a: typeof original, b: typeof original) => JSON.stringify(a) === JSON.stringify(b),
     setPlan: (next: typeof original) => { shown = next; },
     setPhase() {}, readLock: () => ({ phase: 'night', nextChange: new Date(Date.now() + 3600000) }), setStage() {},
-    emergencyUnlock: () => { applied++; return current; },
-    track() {}, haptic: { done() {} }, setLeft() {}, getPassesLeft: () => 3,
-    invoke: undefined as unknown as (kind: string) => void,
+    redeemPass: () => { applied++; return { refusal: null, night: { ...current, phase: 'night' } }; },
+    track() {}, haptic: { done() {} }, setLeft() {}, getPassesLeft: () => 2,
+    invoke: undefined as unknown as (night: boolean) => void,
   };
   const code = babel.transformSync(`${handler}\nglobalThis.invoke = unlock;`, {
     filename: 'handler.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
   }).code;
   runInNewContext(code, context);
-  context.invoke('emergency');
+  context.invoke(true);
   assert.equal(applied, 0, 'must show the broader effect before applying it');
   assert.deepEqual(shown, current);
   context.plan = current;
-  context.invoke('emergency');
+  context.invoke(true);
   assert.equal(applied, 1);
 });
 
@@ -61,17 +62,22 @@ function screenHarness(awakeLine = 'Apps awake until 10:00 PM.', emergency: any 
     '@/hooks/use-lock': { useLock: () => lock },
     '@/lib/lock-controller': { readLock: () => lock },
     '@/lib/emergency': {
-      heldPhase: (p: string) => p, previewEmergency: () => emergency, EMERGENCY_WAIT_SECONDS: 0,
-      emergencyUnlock: () => { lock = { phase: 'day', nextChange: new Date(2026, 9, 6, 22) }; return emergency; },
-      pauseWording: () => ({}),
+      heldPhase: (p: string) => p, EMERGENCY_WAIT_SECONDS: 0, pauseWording: () => ({}),
     },
     '@/features/wake/awake-status': { awakeStatus: (state: any) => {
       assert.equal(state.blockNowUntil, null, 'both exits end a Block now');
       return awakeLine;
     } },
-    '@/lib/passes': { getPassesLeft: () => 3, getPassRefusal: () => null, spendPass: () => {
-      lock = { phase: 'day', nextChange: new Date(2026, 9, 6, 22) }; return null;
-    } },
+    // A pass outside a held morning lifts what `emergency` describes (the night or a Block now).
+    '@/lib/passes': {
+      getPassesLeft: () => 2, getPassRefusal: () => null,
+      previewPass: () => (lock.phase === 'morning' ? null : emergency),
+      redeemPass: () => {
+        const night = lock.phase === 'morning' ? null : { ...emergency, phase: lock.phase };
+        lock = { phase: 'day', nextChange: new Date(2026, 9, 6, 22) };
+        return { refusal: null, night };
+      },
+    },
     '@/lib/scan': { getScanCode: () => true },
     '@/lib/text': { formatPreset: (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` },
     '@/lib/screen-time': { peekNap: () => null, isStoodDown: () => false, isScreenTimeAvailable: () => true, selectionSize: () => 0, ...screenTime },
@@ -104,11 +110,11 @@ function textOf(tree: any): string {
 
 test('exit menu follows morning and a completed pass stops claiming awake at bedtime', () => {
   const h = screenHarness();
-  assert.match(textOf(h.render()), /Passes wait for the morning/);
+  assert.match(textOf(h.render()), /A pass wakes your apps for the rest of tonight/);
   h.change('morning', new Date(2026, 9, 6, 7));
   let tree = h.render();
-  assert.equal(nodes(tree).find((n) => n.props?.title === 'Use a pass').props.value, '3 left');
-  assert.doesNotMatch(textOf(tree), /Passes wait for the morning/);
+  assert.equal(nodes(tree).find((n) => n.props?.title === 'Use a pass').props.value, '2 left');
+  assert.doesNotMatch(textOf(tree), /rest of tonight/);
   nodes(tree).find((n) => n.props?.title === 'Use a pass').props.onPress();
   tree = h.render();
   nodes(tree).find((n) => n.type === 'Confirm').props.onConfirm();
@@ -116,12 +122,24 @@ test('exit menu follows morning and a completed pass stops claiming awake at bed
   h.change('night', new Date(2026, 9, 6, 22));
   tree = h.render();
   assert.doesNotMatch(textOf(tree), /Apps awake until 10:00 PM/);
-  assert.match(textOf(tree), /Passes wait for the morning/);
-  assert.ok(nodes(tree).find((n) => n.props?.title === 'Emergency unlock'));
+  assert.match(textOf(tree), /A pass wakes your apps for the rest of tonight/);
+  assert.equal(nodes(tree).find((n) => n.props?.title === 'Emergency unlock'), undefined, 'no unlimited unlock');
 });
 
-test('a pass or a morning emergency unlock before a night off never promises a bedtime', () => {
-  for (const exit of ['Use a pass', 'Emergency unlock']) {
+test('at night a pass pauses the night and says what it wakes', () => {
+  const plan = { pauseNight: true, unlockMorning: true, endBlockNow: false, resumesAt: new Date(2026, 9, 6, 22).getTime() };
+  const h = screenHarness(undefined, plan);
+  nodes(h.render()).find((n) => n.props?.title === 'Use a pass').props.onPress();
+  let tree = h.render();
+  assert.match(textOf(tree), /wake for the rest of tonight/);
+  assert.match(textOf(tree), /You have 2 passes this month/);
+  nodes(tree).find((n) => n.type === 'Confirm').props.onConfirm();
+  tree = h.render();
+  assert.match(textOf(tree), /left this month/);
+});
+
+test('a morning pass before a night off never promises a bedtime', () => {
+  for (const exit of ['Use a pass']) {
     const plan = { pauseNight: false, unlockMorning: true, endBlockNow: false, resumesAt: null };
     const h = screenHarness('Apps awake. Tonight is off.', plan);
     h.change('morning', new Date(2026, 9, 10, 7, 30));

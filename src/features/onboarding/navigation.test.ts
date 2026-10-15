@@ -61,9 +61,10 @@ describe('forward', () => {
   });
 
   test('the times come before the quiz, so the questions can speak in them', () => {
-    assert.ok(STEPS.indexOf('bedtime') < STEPS.indexOf('nights'));
+    assert.ok(STEPS.indexOf('bedtime') < STEPS.indexOf('mornings'));
     assert.ok(STEPS.indexOf('wake') < STEPS.indexOf('night-minutes'));
     assert.ok(STEPS.indexOf('found') < STEPS.indexOf('plans'), 'attribution is asked before the paywall');
+    assert.ok(STEPS.indexOf('found') > STEPS.indexOf('reveal'), 'attribution waits until after the payoff');
     assert.ok(!(STEPS as readonly string[]).includes('age'), 'no age question');
   });
 
@@ -84,7 +85,7 @@ describe('forward', () => {
 
 describe('back', () => {
   test('goes to the step before, and not past the first', () => {
-    const nav = reach('nights');
+    const nav = reach('morning-minutes');
     assert.equal(currentStep(navigate(nav, back)), 'wake');
     const first = startNav('hello', initialAnswers);
     assert.equal(canGoBack(first), false);
@@ -98,7 +99,9 @@ describe('back', () => {
 
   test('what they would do with the time comes after the number', () => {
     assert.equal(nextStep('reveal'), 'time-back');
-    assert.equal(nextStep('time-back'), 'method');
+    assert.equal(nextStep('time-back'), 'found');
+    assert.equal(nextStep('found'), 'founder');
+    assert.equal(nextStep('founder'), 'method');
   });
 
   test('a second next from the same screen does nothing', () => {

@@ -92,7 +92,7 @@ const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
  * through the last, so it doesn't bob between screens, then sinks for the math. `time-back`
  * comes after the math, so it stays on the sunk moon.
  */
-const MOON_QUIZ: StepId[] = STEPS.slice(STEPS.indexOf('nights'), STEPS.indexOf('tried') + 1);
+const MOON_QUIZ: StepId[] = STEPS.slice(STEPS.indexOf('morning-minutes'), STEPS.indexOf('tried') + 1);
 
 /** Text entrance per page (see motion.tsx). Anything not listed uses Word Drift. */
 const MOTION: Partial<Record<StepId, TextMotion>> = {
@@ -101,7 +101,7 @@ const MOTION: Partial<Record<StepId, TextMotion>> = {
 
 // Plausible answers for jumping straight to a later screen with `?step=`.
 const PREVIEW_ANSWERS: Partial<Answers> = {
-  nights: 'one-more',
+  mornings: 'behind',
   nightMinutes: 60,
   morningMinutes: 20,
   nightsPerWeek: 7,
@@ -379,7 +379,6 @@ export function OnboardingFlow({
     set(key, value);
     advanceOnce(next);
   };
-  const [showMoreMethods, setShowMoreMethods] = useState(false);
 
   /* Screen Time access: Apple's prompt, then Face ID or the passcode. */
   const [screenTime, setScreenTime] = useState<'idle' | 'asking' | 'refused'>('idle');
@@ -802,8 +801,6 @@ export function OnboardingFlow({
     compact,
     exitArm,
     editing: returnTo !== null,
-    showMoreMethods,
-    showMethods: () => setShowMoreMethods(true),
     offers,
     offersFailed,
     retryOffers,

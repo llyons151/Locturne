@@ -19,7 +19,8 @@ export type Choice<T> = { label: string; value: T };
 const spoken = (minutes: number) => formatWhen(minutes).replace(':00', '');
 
 export type Answers = {
-  nights?: string;
+  /** How the morning feels (`mornings`): his reply, the reveal's second beat, the offer headline. */
+  mornings?: string;
   nightMinutes?: number;
   nightsPerWeek?: number;
   /** The nights picked on the day circles, Monday = 0. Their count is `nightsPerWeek`. */
@@ -42,7 +43,7 @@ export type Answers = {
    * saves opaque tokens in the App Group, so no copy may name an app.
    */
   apps: string[];
-  /** How they prove they're up, from the stairs question after `wake`. */
+  /** How they prove they're up (`method`). A skip leaves 200 steps. */
   method?: WakeMethod;
   plan: 'annual' | 'monthly';
   /** Works nights: the schedule is a block window, not a sleep window. */
@@ -65,22 +66,55 @@ export { STEPS, type StepId } from './navigation';
 
 /**
  * The progress bar's three chapters (Headway's split bar, docs/ONBOARDING_10.md): your
- * nights, your mornings, your apps. Welcome, offer and post-purchase screens hide the bar, so
+ * mornings, your nights, your setup. Welcome, offer and post-purchase screens hide the bar, so
  * the paywall never reads as one more step.
  */
 export const CHAPTERS: StepId[][] = [
-  ['voice', 'found', 'bedtime', 'wake', 'nights', 'night-minutes', 'nights-per-week'],
-  ['morning-minutes', 'tried', 'reveal', 'time-back', 'method', 'tomorrow', 'walk'],
-  ['screen-time', 'apps', 'commit'],
+  ['bedtime', 'wake', 'morning-minutes', 'mornings'],
+  ['night-minutes', 'nights-per-week', 'tried', 'reveal', 'time-back', 'found', 'founder'],
+  ['method', 'voice', 'tomorrow', 'walk', 'screen-time', 'apps', 'commit'],
 ];
 
-// Values are deliberately at or below each bucket's midpoint, so the number never overstates.
-export const NIGHTS: Choice<string>[] = [
-  { label: 'One more video. Then twelve more.', value: 'one-more' },
-  { label: "I can't sleep, so I scroll.", value: 'cant-sleep' },
-  { label: 'I lose track of time.', value: 'lose-track' },
-  { label: 'Honestly, all of it.', value: 'all' },
+/**
+ * "How do your mornings usually go?": the stakes in feelings, not hours. Each answer comes
+ * back three times: his reply, the reveal's second beat, and the offer's headline.
+ */
+export const MORNINGS: Choice<string>[] = [
+  { label: 'Tired before I’ve started.', value: 'tired' },
+  { label: 'Late. Always rushing.', value: 'rushed' },
+  { label: 'Behind before I’m out of bed.', value: 'behind' },
+  { label: 'Gone before I notice.', value: 'gone' },
+  { label: 'Honestly? Fine.', value: 'fine' },
 ];
+
+/** About him or the phone, never the user, and no health claims (VOICE). */
+export const MORNINGS_REPLY: Record<string, string> = {
+  tired: 'Tired is my job. Not yours.',
+  rushed: 'You ran late. The feed ran on time.',
+  behind: 'The day started without you. Rude.',
+  gone: 'Your phone had a lovely morning.',
+  fine: 'Fine. I’ll keep it that way.',
+};
+
+/** The reveal's second beat, from `mornings`: the bad news lands on the apps (VOICE). */
+export function revealBeat(mornings: string | undefined): string {
+  return MORNINGS_BEAT[mornings ?? ''] ?? REVEAL_SECOND_BEAT;
+}
+
+const MORNINGS_BEAT: Record<string, string> = {
+  tired: 'Your apps had a great week. You had a tired one.',
+  rushed: 'Your apps had a great week. Your mornings ran late.',
+  behind: 'Your apps had a great week. Your mornings started without you.',
+  gone: 'Your apps had a great week. Your mornings went missing.',
+};
+
+/** The offer's headline, from `mornings`: the morning they said they don't have. None for "fine". */
+export const MORNINGS_OFFER: Record<string, string> = {
+  tired: 'Mornings you’re actually awake for.',
+  rushed: 'Mornings with time left over.',
+  behind: 'Mornings that start with you.',
+  gone: 'Mornings you get to keep.',
+};
 
 /**
  * "In bed at 11:30 PM. When does the phone actually go down?" Answered in their own clock
@@ -102,18 +136,6 @@ export const NIGHT_MINUTES_REPLY: Record<number, string> = {
   60: 'An hour. I was up for all of it.',
   90: 'Ninety minutes. I’ve had shorter naps.',
   150: 'Raccoon hours. I know them well.',
-};
-
-/**
- * His reply under each answer, on the question's own screen (docs/ONBOARDING_10.md, rule 1:
- * every answer gets a visible reaction). Deadpan, about him or the phone, never the user, and
- * never a health claim: "can't sleep" gets sympathy, not advice.
- */
-export const NIGHTS_REPLY: Record<string, string> = {
-  'one-more': 'It’s never one more. I’ve checked.',
-  'cant-sleep': 'Scrolling isn’t sleeping. I’d know.',
-  'lose-track': 'Time’s fine. It’s right where you left it.',
-  all: 'Honest. I respect that. Bit worrying.',
 };
 
 /** "Alarm at 7:00 AM. When do your feet hit the floor?" The alarm plus `value` minutes. */
@@ -145,13 +167,13 @@ export const TRIED: Choice<string>[] = [
 
 /**
  * His reply under "what have you tried?": the objection, then how Locturne differs. The
- * body stays literal, and never claims there's no way out (emergency unlock exists).
- * Method-neutral, because the stairs question comes later.
+ * body stays literal, and never claims there's no way out (two passes a month, PASSES_PER_MONTH).
+ * Method-neutral, because the method question comes later.
  */
 export const TRIED_REPLY: Record<string, { line: string; body: string }> = {
   'screen-time': {
     line: 'Screen Time has an Ignore button. I don’t.',
-    body: 'Its limits end with one tap. Mine end when you’re out of bed. There’s an emergency unlock, but it takes more than a tap.',
+    body: 'Its limits end with one tap. Mine end when you’re out of bed. You get two passes a month for bad days. That’s it.',
   },
   blocker: {
     line: 'Clocks don’t check if you’re up. I do.',
@@ -251,12 +273,12 @@ export const REPLY_BUTTON: Partial<Record<StepId, string>> = {
   found: 'That’s how.',
   bedtime: 'That’s bedtime.',
   wake: 'That’s the alarm.',
-  nights: 'That’s me.',
+  mornings: 'That’s me.',
   'night-minutes': 'Roughly.',
   'nights-per-week': 'That’s the lot.',
   'morning-minutes': 'Sounds right.',
   tried: 'Fair point.',
-  'time-back': 'Deal.',
+  'time-back': 'That’s the plan.',
   method: 'That’s my morning.',
 };
 
@@ -301,16 +323,14 @@ export function trialVoice(days: number): string {
 }
 
 /**
- * "Are there stairs between your bed and your coffee?" (GAME_PLAN, "Wake-up methods"),
- * right after `wake`. Yes picks the hero method, no picks steps, and a link shows the rest.
+ * "How will you show me you're up?": every way, 200 steps first (the default since
+ * 2026-10-10). Skippable: a skip keeps 200 steps, and Routine changes it later.
+ * `steps` and `reps`: the goals in use (`morningGoals`), so a rerun names Routine's.
  */
-export const METHOD_CHOICES: Choice<WakeMethod>[] = [
-  { label: 'Yes, there are stairs', value: 'downstairs' },
-  { label: 'No, it’s all one floor', value: 'steps' },
-];
-/** The rest, behind "Other ways to wake them". `reps`: the push-up count in use (`morningGoals`). */
-export function moreMethods(reps: number = DEFAULT_PUSHUP_GOAL): Choice<WakeMethod>[] {
+export function methodChoices(steps = 200, reps: number = DEFAULT_PUSHUP_GOAL): Choice<WakeMethod>[] {
   return [
+    { label: `Walk ${steps} steps`, value: 'steps' },
+    { label: 'Go downstairs', value: 'downstairs' },
     { label: 'Scan a code in another room', value: 'scan' },
     { label: 'Get to a place, like the gym', value: 'place' },
     { label: `${reps} push-ups on the floor`, value: 'pushups' },
@@ -510,6 +530,22 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
 export function isNewYearWeek(now = new Date()): boolean {
   return now.getMonth() === 0 && now.getDate() <= 9;
 }
+
+/**
+ * `founder`: why Locturne exists, in the maker's own words. Not Loc: plain, first person.
+ * DRAFT (2026-10-14): written by Claude from what's known (a student, building it alone).
+ * Luke rewrites the story lines in his own words before shipping; only true things go here.
+ */
+export const FOUNDER = {
+  eyebrow: 'From the person who made this',
+  lines: [
+    'Hi, I’m Luke. I’m a student, and I made Locturne on my own.',
+    'I kept losing the first hour of the day to my phone, still in bed. Screen Time never stopped me. The Ignore button was right there.',
+    'So I made the one thing that worked: the apps stay asleep until I’m actually up.',
+  ],
+  sign: 'Luke',
+  aside: 'He made me. I didn’t ask for this.',
+};
 
 export const NEW_YEAR = {
   hello: { head: 'New year. Same bed.', sub: 'I’m Loc. I don’t do resolutions. I do locks.' },

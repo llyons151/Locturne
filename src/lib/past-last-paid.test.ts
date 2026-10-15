@@ -82,7 +82,7 @@ test('offline in a morning after the last paid one: a pass, a scan and a walk pr
   let proofs = 0;
   const off = mp.onProofChange(() => proofs++);
   try {
-    assert.equal(ps.getPassRefusal(), 'notMorning');
+    assert.equal(ps.getPassRefusal(), 'nothingAsleep');
     assert.equal(ps.spendPass(), 'notMorning');
     assert.equal(ps.getPassesLeft(), ps.PASSES_PER_MONTH, 'no pass spent');
     assert.equal(sc.submitScan('LOCTURNE-ABCDEFGH'), 'notMorning');

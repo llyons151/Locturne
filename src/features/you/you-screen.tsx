@@ -30,7 +30,7 @@ import {
 import { onLockChange, readLock, syncLock } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import { getTone, setTone, type Tone } from '@/lib/tone';
-import { getPassesLeft } from '@/lib/passes';
+import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import type { WakeMethod } from '@/lib/routine';
 import { getScanCode } from '@/lib/scan';
@@ -272,9 +272,8 @@ export function YouScreen() {
       <Text style={styles.heading} accessibilityRole="header">
         Ways out
       </Text>
-      <Card footer={`For sick days and travel. Refills ${refillDate(new Date())}.`}>
+      <Card footer={`${PASSES_PER_MONTH} a month, for sick days, travel and emergencies. The only way out early. Refills ${refillDate(new Date())}.`}>
         <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} />
-        <ValueRow icon={sym('light.beacon.max.fill', 'emergency')} title="Emergency unlock" value="" onPress={() => router.push('/exits')} />
         <ValueRow icon={sym('figure.roll', 'accessible')} title="Can’t walk or use stairs" value="" onPress={cantWalk} last />
       </Card>
 

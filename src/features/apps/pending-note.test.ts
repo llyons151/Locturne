@@ -55,12 +55,12 @@ describe('removalNote', () => {
 describe('pauseNote', () => {
   test('the night of the unlock names tonight and the morning', () => {
     const line = pauseNote({ morning: 'tomorrow morning', resumes: at(6, 23), weekday: null }, true);
-    assert.equal(line, `Awake tonight and tomorrow morning after an emergency unlock. They sleep again at ${clock(at(6, 23))}.`);
+    assert.equal(line, `Awake tonight and tomorrow morning after a pass. They sleep again at ${clock(at(6, 23))}.`);
   });
 
   test('the next day drops "tonight"', () => {
     const line = pauseNote({ morning: 'this morning', resumes: at(6, 23), weekday: null }, false);
-    assert.equal(line, `Awake after an emergency unlock. They sleep again at ${clock(at(6, 23))}.`);
+    assert.equal(line, `Awake after a pass. They sleep again at ${clock(at(6, 23))}.`);
     assert.doesNotMatch(line, /tonight/);
   });
 
@@ -83,7 +83,7 @@ describe('pauseNote', () => {
 
   test('an empty bedtime list by then: nothing sleeps after this, and no time named', () => {
     const line = pauseNote({ morning: 'tomorrow morning', resumes: null, weekday: null, noApps: true }, false);
-    assert.equal(line, 'Awake after an emergency unlock. No bedtime apps are picked, so nothing sleeps after that.');
+    assert.equal(line, 'Awake after a pass. No bedtime apps are picked, so nothing sleeps after that.');
   });
 });
 

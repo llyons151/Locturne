@@ -139,10 +139,11 @@ export function plansStep(ctx: StepContext): StepView {
         {compact && compare ? null : (
           <View style={[styles.checks, compact && styles.checksCompact]}>
             {/* Never an app's name: Apple's picker only hands back opaque tokens. Bedtime is in
-                his line above, so the list starts at the morning, then the two ways out. */}
+                his line above, so the list starts at the morning, then the way out. */}
             <Check text={ctx.scheduledNight ? method.check : 'Turn nights on in Routine anytime'} />
-            <Check text="Emergency unlock, anytime" />
-            <Check text="Passes for sick days and travel" />
+            {/* Two passes a month are the only way out early (PASSES_PER_MONTH, decided 2026-10-14). */}
+            <Check text="Two passes a month for bad days" />
+            <Check text="Only the apps you pick" />
           </View>
         )}
         <View accessibilityRole="radiogroup" style={styles.planCards}>

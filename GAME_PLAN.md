@@ -130,8 +130,8 @@ gives them four plain controls on top of the night and morning loop:
    iOS's web content filter while their list sleeps (user request, October 10; see
    docs/WEBSITE_BLOCKING.md).
 2. **Block now.** Pick apps and a duration, then tap go. Loc "naps" for the session.
-   It starts right away, because it only tightens things. Only an emergency unlock
-   or a pass can end it early. Built on the same code as naps, which move up from
+   It starts right away, because it only tightens things. Only a pass can end it
+   early. Built on the same code as naps, which move up from
    v1.1 to v1.
 3. **Daily time limits.** For example, Instagram for 30 minutes a day, using the
    Screen Time usage-threshold events. When the limit is hit, the app is blocked
@@ -139,11 +139,12 @@ gives them four plain controls on top of the night and morning loop:
    effect from the next bedtime.
 4. **App schedules** (added October 14; docs/LOCK_V2.md). Each has a name, its own
    apps, a From–To window or All day, and the days it repeats ("Work, 9 to 5,
-   weekdays"). Up to six. Starting points are presets (Work, Study, Mornings,
-   Weekdays, Custom).
+   weekdays"). Up to four, and up to five daily limits, so each tab fills one screen
+   at its most. Starting points are presets (Work, Study, Mornings, Custom). The old
+   all-day list only shows while it still has apps; a schedule's All day switch replaces it.
    - A stricter edit applies at once.
    - A looser edit made while the schedule is blocking waits until that block ends.
-   - The emergency unlock doesn't end a schedule.
+   - A pass doesn't end a schedule.
 
 Precedence, strongest first: always-blocked, then bedtime or morning lock, then
 Block now, then a schedule that's on, then a reached daily limit. The morning proof never lifts Block now or a
@@ -163,14 +164,18 @@ Guardrails:
 
 ## Humane exits (required for v1)
 
-- **Passes:** a few scarce passes a month for sick days, travel or a baby asleep
-  in the room, written in his voice. Using one unlocks the morning without
-  walking. Exact count and duration are to be tuned.
-- **Emergency unlock:** always available, deliberate, and never clears the
-  always-blocked list silently.
+- **Passes:** two a month (decided October 14), the only way out early. In the
+  morning one unlocks the morning without walking; at night it wakes the bedtime
+  apps for the rest of the night and the morning after; any time, it ends a Block
+  now session. Same short wait and "Go back to sleep" button as before. Never lifts
+  the always-blocked list.
+- **No unlimited emergency unlock** (removed October 14). In the persona study
+  (docs/onboarding-sim/SUMMARY.md) a free way out read as the loophole that made
+  other blockers fail. A real emergency uses a pass; with none left, iOS Settings
+  (removing Screen Time access) is the deliberate last resort. Calls always work.
 - **Accessible alternative:** a way to wake him for users who can't walk 200 steps
   or take stairs. Scan your code (a short walk to one spot) is the leading
-  candidate; passes and the emergency unlock cover everyone else. Not final.
+  candidate; passes cover everyone else. Not final.
 - No money stakes, penalties, streak shaming or "neglect" states.
 
 ## Reliability is a feature
@@ -291,7 +296,7 @@ most of Step 2 and Step 4's screens, all on one lock controller (`syncLock`):
 - The method-agnostic morning gate.
 - Steps (history plus live, a cadence cap) and downstairs (barometer).
 - Scan your code.
-- Passes (3 a month, open decision 4) and the emergency unlock (pauses tonight only).
+- Passes (2 a month, decided October 14): mornings, the rest of a night, or a Block now.
 - Off nights skipped by the monitor extension.
 - Heartbeat log, nightly self-check, honest status and the diagnostics screen.
 - Local notifications.
@@ -312,7 +317,7 @@ ugly UI is fine.
   so adding a method never touches the lock rules.
 - Steps (history plus live, light anti-shake), downstairs, scan, leave the house,
   push-ups.
-- Passes, emergency unlock (pausing the night windows), the accessible option.
+- Passes (pausing the night windows at night), the accessible option.
 - Honest status: revocation on every open, an extension heartbeat log in the App
   Group, the nightly self-check, a hidden diagnostics screen for beta testers.
 - Notifications: morning start, bedtime warning, shield tap, day-5 trial reminder,
@@ -331,7 +336,7 @@ of trial starters who complete a first morning unlock.
 - Night, morning and day home states.
 - Wake-up screens: downstairs (Start, live height meter, "steps instead" link),
   the live walk with his lines, scan, leave the house, push-ups (rep count in his voice).
-- Custom shield text per state; passes, emergency and can't-sleep path.
+- Custom shield text per state; passes and can't-sleep path.
 - Morning share card ("Bed 11:41. Downstairs 7:02. Still disappointed.").
 - App icon and splash (the template ones are still in `app.json`).
 - A VoiceOver pass on a real device.

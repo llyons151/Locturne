@@ -13,22 +13,27 @@ import type { Answers } from './content.ts';
 export const STEPS = [
   'hello',
   'deal',
-  // How grumpy he is: his words from here on, on the shield and in notifications.
-  'voice',
-  // Attribution early, before the build-up to the reveal, and before the paywall so that
-  // conversion can still be split by channel for people who don't buy.
-  'found',
   'bedtime',
   'wake',
-  'nights',
+  // Mornings first: the hook is "no apps until you're out of bed", so the quiz starts there,
+  // with how the morning feels (echoed on the reveal and the offer), then the night before.
+  'morning-minutes',
+  'mornings',
   'night-minutes',
   'nights-per-week',
-  'morning-minutes',
   'tried',
   // The bad news, then what they'd do with the time: the number first, so the dream is in it.
   'reveal',
   'time-back',
+  // Attribution once they've had the payoff, so the first stretch of questions is all about
+  // them, and still before the paywall so conversion splits by channel for non-buyers too.
+  'found',
+  // Why this exists, from the person who made it: the bridge from the problem to the setup,
+  // and the only social proof there is before real reviews.
+  'founder',
   'method',
+  // How grumpy he is, right before the demo shows the shield saying it at that tone.
+  'voice',
   // See it, then try it: the demo shows tomorrow morning, then the walk is a 20-step taste of
   // it. Skipped late at night (`skip` on `next`), when they're in bed (ONBOARDING_OPTIMIZATION §7).
   'tomorrow',

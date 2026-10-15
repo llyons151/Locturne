@@ -3,7 +3,7 @@
 // which changes outside React: the React Compiler would cache it (#130), so it stays out here.
 
 import type { ReactNode } from 'react';
-import { Linking, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GlassCard } from '@/components/glass-card';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,19 +29,20 @@ import { DisplayFont, Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/th
 import {
   FOUND,
   FOUND_REPLY,
+  FOUNDER,
   initialAnswers,
   LIGHT_OFFER_HEADLINE,
-  METHOD_CHOICES,
   METHOD_COPY,
-  moreMethods,
+  methodChoices,
   morningGoals,
   methodCopy,
   MORNING_MINUTES_REPLY,
   morningMinuteChoices,
   NIGHT_MINUTES_REPLY,
   nightMinuteChoices,
-  NIGHTS,
-  NIGHTS_REPLY,
+  MORNINGS,
+  MORNINGS_OFFER,
+  MORNINGS_REPLY,
   NEW_YEAR,
   OFFER_HEADLINES,
   REPLY_BUTTON,
@@ -91,9 +92,6 @@ export type StepContext = {
   simulate: (message: string, then: () => void) => void;
   /** Short phone: layouts tighten so nothing scrolls. */
   compact: boolean;
-  /** The stairs question's "Other ways" link was tapped. */
-  showMoreMethods: boolean;
-  showMethods: () => void;
   /** Onboarding is happening inside the bedtime window, e.g. at 12:40 AM. */
   lateNight: boolean;
   /** January 1–9: the New Year copy (`isNewYearWeek`), or `?newyear=1` in review. */
@@ -178,7 +176,7 @@ export type StepView = {
 
 /** What each step shows. One case per step, in the order of STEPS in content.ts. */
 export function renderStep(ctx: StepContext): StepView {
-  const { step, answers, numbers, set, next, edit, exit, simulate, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
+  const { step, answers, numbers, set, next, edit, exit, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
   const schedule = scheduleCopy(ctx.scheduledNight, new Date());
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
@@ -241,7 +239,7 @@ export function renderStep(ctx: StepContext): StepView {
                 is said where it matters, on `screen-time`. Quiz answers go to analytics
                 (docs/ANALYTICS.md), so no "stays on your phone" here. */}
             <View style={page.gapSection} />
-            <Body>{`Two minutes of questions first. No name, no email.${ctx.newYear ? ` ${NEW_YEAR.deal}` : ''}`}</Body>
+            <Body>{`A few minutes of questions first. No name, no email.${ctx.newYear ? ` ${NEW_YEAR.deal}` : ''}`}</Body>
           </View>
         ),
         footer: <PrimaryButton label="Ask away" onPress={next} />,
@@ -250,12 +248,13 @@ export function renderStep(ctx: StepContext): StepView {
     case 'voice': {
       // CARROT's personality slider: his words from here on, shown as the real morning shield.
       const tone = TONE_STEP[answers.tone];
-      const shield = shieldCopy('morning', { morningStart: answers.wake, method: 'downstairs', stepGoal: 200 }, null, answers.tone);
+      // Asked after the method, so the preview is their own morning: their alarm, their way up.
+      const shield = shieldCopy('morning', { morningStart: answers.wake, method: answers.method ?? 'steps', stepGoal: goals.steps }, null, answers.tone);
       return {
         body: (
           <View style={page.top}>
             <Title>How grumpy should I be?</Title>
-            <Body style={styles.sub}>It’s how I talk to you at bedtime and in the morning. Change it anytime in You.</Body>
+            <Body style={styles.sub}>It’s how I talk to you at bedtime and in the morning. You’ll see it next. Change it anytime in You.</Body>
             <View style={styles.toneSlider}>
               <ToneSlider value={answers.tone} onChange={(value) => set('tone', value)} />
               <View style={styles.toneLabels}>
@@ -268,7 +267,7 @@ export function renderStep(ctx: StepContext): StepView {
             </View>
             <Reply text={tone.line} />
             <View style={styles.shieldPreview} accessible accessibilityLabel={`Your morning screen will say: ${shield.title}`}>
-              <Text style={styles.shieldEyebrow}>WHAT YOUR APPS SAY AT 7 AM</Text>
+              <Text style={styles.shieldEyebrow}>{`WHAT YOUR APPS SAY AT ${wake}`}</Text>
               <Text key={shield.title} style={styles.shieldTitle}>{shield.title}</Text>
               <View style={styles.shieldButton}>
                 <Text style={styles.shieldButtonText}>{shield.button}</Text>
@@ -296,24 +295,43 @@ export function renderStep(ctx: StepContext): StepView {
         footer: replyButton(answers.found !== undefined),
       };
 
-    case 'nights':
+    case 'mornings':
       return {
         ...moonQuestion(
-          `It’s ${formatWhen(answers.bedtime)}. You’re in bed. Then what?`,
-          undefined,
-          <Options options={NIGHTS} value={answers.nights} onChoose={(value) => set('nights', value)} tone="moon" dense />,
-          answers.nights ? NIGHTS_REPLY[answers.nights] : undefined,
+          'How do your mornings usually go?',
+          'Pick the closest.',
+          <Options options={MORNINGS} value={answers.mornings} onChoose={(value) => set('mornings', value)} tone="moon" dense />,
+          answers.mornings ? MORNINGS_REPLY[answers.mornings] : undefined,
           undefined,
           compact,
         ),
-        footer: replyButton(answers.nights !== undefined),
+        footer: replyButton(answers.mornings !== undefined),
+      };
+
+    case 'founder':
+      // Plain and first person: the only screen not in his voice, so it reads as a real note.
+      return {
+        body: (
+          <View style={page.top}>
+            <Eyebrow>{FOUNDER.eyebrow}</Eyebrow>
+            <View style={styles.founder}>
+              {FOUNDER.lines.map((line) => (
+                <Body key={line}>{line}</Body>
+              ))}
+              <Text style={styles.founderSign}>{`— ${FOUNDER.sign}`}</Text>
+            </View>
+            <View style={page.gapAside} />
+            <Voice text={FOUNDER.aside} size={VoiceSize.aside} delay={900} sub />
+          </View>
+        ),
+        footer: <PrimaryButton label="Show me how" onPress={next} />,
       };
 
     case 'night-minutes':
       return {
         ...moonQuestion(
           `In bed at ${formatWhen(answers.bedtime)}. When does the phone actually go down?`,
-          undefined,
+          'Now the night before.',
           <Options
             options={nightMinuteChoices(answers.bedtime)}
             value={answers.nightMinutes}
@@ -331,7 +349,7 @@ export function renderStep(ctx: StepContext): StepView {
     case 'nights-per-week': {
       const days = answers.scrollDays ?? [];
       // The running total starts here and keeps adding up to the reveal (Imprint, Cal AI).
-      const soFar = nightMinutes * days.length;
+      const soFar = (nightMinutes + (answers.morningMinutes ?? 0)) * days.length;
       return {
         ...moonQuestion(
           'Which nights does that happen?',
@@ -423,20 +441,19 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'method': {
-      // One question, not a menu (GAME_PLAN). The third way stays behind a link until asked for.
-      const showAll =
-        answers.method === 'scan' || answers.method === 'place' || answers.method === 'pushups' || ctx.showMoreMethods;
+      // Every way on one list, steps first. Skip keeps 200 steps; Routine changes it later.
       return {
         body: (
           <View style={page.top}>
-            <Title>Are there stairs between your bed and your coffee?</Title>
-            <Body style={styles.sub}>That’s how you’ll show me you’re up.</Body>
+            <Title>How will you show me you’re up?</Title>
+            <Body style={styles.sub}>Your apps wake once you’ve done it. Change it anytime in Routine.</Body>
             <View style={styles.methodOptions}>
               <Options
-                options={showAll ? [...METHOD_CHOICES, ...moreMethods(goals.reps)] : METHOD_CHOICES}
+                options={methodChoices(goals.steps, goals.reps)}
                 value={answers.method}
                 // No auto-advance: his reaction is worth a beat, then Continue.
                 onChoose={(value) => set('method', value)}
+                dense={compact}
               />
             </View>
             {answers.method ? (
@@ -458,17 +475,26 @@ export function renderStep(ctx: StepContext): StepView {
             />
           </Ready>
         ),
-        secondary: showAll ? undefined : <TextButton label="Other ways to wake them" onPress={ctx.showMethods} />,
+        // Not sure yet: the default carries them through, and nothing here is final.
+        secondary:
+          editing || answers.method ? undefined : (
+            <TextButton
+              label={`Skip for now. ${goals.steps} steps it is.`}
+              onPress={() => {
+                set('method', 'steps');
+                next();
+              }}
+            />
+          ),
       };
     }
 
     case 'morning-minutes': {
-      const total = numbers.weeklyMinutes;
       const reply = answers.morningMinutes !== undefined ? MORNING_MINUTES_REPLY[answers.morningMinutes] : undefined;
       return {
         ...moonQuestion(
           `Alarm at ${formatWhen(answers.wake)}. When do your feet hit the floor?`,
-          'Enough about nights. Mornings are worse.',
+          'Mornings first. They’re the worst part.',
           <Options
             options={morningMinuteChoices(answers.wake)}
             value={answers.morningMinutes}
@@ -477,7 +503,7 @@ export function renderStep(ctx: StepContext): StepView {
             dense
           />,
           reply,
-          reply && total >= 30 ? `Running total: about ${weeklyAmount(total)} a week.` : undefined,
+          undefined,
           compact,
         ),
         footer: replyButton(answers.morningMinutes !== undefined),
@@ -517,7 +543,7 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'reveal':
       return {
-        body: <RevealScreen numbers={numbers} onPayoff={ctx.onPayoff} />,
+        body: <RevealScreen numbers={numbers} mornings={answers.mornings} onPayoff={ctx.onPayoff} />,
         footer: (
           <Ready ready={ctx.payoff}>
             <PrimaryButton
@@ -526,15 +552,6 @@ export function renderStep(ctx: StepContext): StepView {
               onPress={next}
             />
           </Ready>
-        ),
-        secondary: (
-          <TextButton
-            label="Share this"
-            onPress={() => {
-              const message = `About ${weeklyAmount(numbers.weeklyMinutes)} a week on my phone in bed. My raccoon is disappointed.`;
-              Share.share({ message }).catch(() => simulate(`The share sheet opens here: “${message}”`, () => {}));
-            }}
-          />
         ),
       };
 
@@ -714,7 +731,9 @@ export function renderStep(ctx: StepContext): StepView {
         ),
         footer: (
           <PrimaryButton
-            label={!picked ? 'Add apps' : editing ? 'Save' : live ? 'Put them to sleep' : `Put ${pickCount} to sleep`}
+            // On an iPhone nothing sleeps until bedtime, so the button confirms the list; the
+            // preview's falling-asleep animation keeps its own label.
+            label={!picked ? 'Add apps' : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
             // Editing from the summary just saves; the first time, they watch them fall asleep.
             onPress={!picked ? openPicker : editing ? next : sleep}
           />
@@ -744,7 +763,7 @@ export function renderStep(ctx: StepContext): StepView {
             {lateNight ? (
               <Body>{compact ? 'I start the second you’re in.' : `It’s already past ${bed}. I start the second you’re in.`}</Body>
             ) : compact ? null : (
-              <Body>Passes cover sick days and travel. Tap anything to change it.</Body>
+              <Body>Two passes a month for bad days. Tap anything to change it.</Body>
             )}
             {compact ? null : (
               <>
@@ -760,9 +779,11 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'offer': {
       if (!offers) return storeStep(ctx);
-      const headline = numbers.lightUser
-        ? LIGHT_OFFER_HEADLINE
-        : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else);
+      // The morning they said they don't have comes first; the plans page then spends the
+      // hours on what they'd do with them, so the two money screens echo different answers.
+      const headline =
+        MORNINGS_OFFER[answers.mornings ?? ''] ??
+        (numbers.lightUser ? LIGHT_OFFER_HEADLINE : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else));
       const trialDays = offers.annual.trialDays;
       return {
         body: (
@@ -815,7 +836,7 @@ export function renderStep(ctx: StepContext): StepView {
               </View>
             )}
             <Reveal>
-              <Text style={styles.reassure}>{noOrphan('Only the apps you pick. Emergency unlock, anytime.')}</Text>
+              <Text style={styles.reassure}>{noOrphan('Only the apps you pick. Two passes a month for bad days.')}</Text>
             </Reveal>
           </View>
         ),
@@ -862,8 +883,8 @@ export function renderStep(ctx: StepContext): StepView {
                   <View style={page.gapBlock} />
                   <Body>
                     {answers.remindTrial && ctx.trialEnds !== null
-                      ? `First, iOS asks if I can send notifications. At least two days before your free trial ends on ${trialDay(ctx.trialEnds)}, I’ll remind you, so the charge is never a surprise.`
-                      : 'First, iOS asks if I can send notifications. Bedtime and morning, once a night is on. That’s it.'}
+                      ? `First, iOS asks about notifications, so I can remind you two days before your free trial ends on ${trialDay(ctx.trialEnds)}.`
+                      : 'First, iOS asks about notifications. Just bedtime and morning.'}
                   </Body>
                 </>
               ) : null}
@@ -904,14 +925,15 @@ export function renderStep(ctx: StepContext): StepView {
               header
             />
             <View style={page.gapHeadline} />
-            <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : `iOS has your schedule. ${schedule.sleep}`}</Body>
+            {/* The headline already says when, so the body doesn't repeat it. */}
+            <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : 'iOS has your schedule.'}</Body>
             {asksNotifications ? (
               <>
                 <View style={page.gapBlock} />
                 <Body>
                   {reminds
-                    ? `Next, iOS asks if I can send notifications. Bedtime in ${BEDTIME_WARNING} minutes. Morning’s started. And at least two days before your free trial ends on ${trialDay(trialEnds)}, so the charge is never a surprise.`
-                    : `Next, iOS asks if I can send notifications. Two kinds: bedtime in ${BEDTIME_WARNING} minutes, and morning’s started. That’s it.`}
+                    ? `Next, iOS asks about notifications: bedtime, morning, and two days before your free trial ends on ${trialDay(trialEnds)}.`
+                    : 'Next, iOS asks about notifications. Just bedtime and morning.'}
                 </Body>
               </>
             ) : null}
@@ -924,17 +946,7 @@ export function renderStep(ctx: StepContext): StepView {
             {motion === null ? (
               <>
                 <View style={page.gapBlock} />
-                <Body>{`${asksNotifications ? 'Then' : 'Next,'} iOS asks about Motion & Fitness. It’s ${MOTION_WHY[answers.method ?? 'steps'].replace('{goal}', methodCopy('steps').short.split(' ')[0])}.`}</Body>
-              </>
-            ) : null}
-            {asksNotifications && !compact ? (
-              <>
-                <View style={page.gapBlock} />
-                <NotePreview
-                  time={formatClock(answers.bedtime - BEDTIME_WARNING)}
-                  title={TONE_COPY[answers.tone].bedtime.title}
-                  body={TONE_COPY[answers.tone].bedtime.body}
-                />
+                <Body>{`${asksNotifications ? 'Then' : 'Next,'} Motion & Fitness. It’s ${MOTION_WHY[answers.method ?? 'steps'].replace('{goal}', methodCopy('steps').short.split(' ')[0])}.`}</Body>
               </>
             ) : null}
             {asksNotifications ? (
@@ -1180,6 +1192,8 @@ const styles = StyleSheet.create({
   stopGap: { paddingBottom: Space.m },
   stopTitle: { color: Nocturne.text, ...Type.body, fontWeight: '600', fontVariant: ['tabular-nums'] },
   stopBody: { color: Nocturne.text2, ...Type.secondary, marginTop: 2 },
+  founder: { marginTop: Gap.headline, gap: Space.l },
+  founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic' },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },
   stripGap: { marginTop: Gap.block },
   foundOptions: { marginTop: Gap.block },

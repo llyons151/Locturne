@@ -1,7 +1,11 @@
 /**
- * Passes (GAME_PLAN, "Humane exits"): a few a month for a sick day, travel or a baby asleep
- * in the room. One wakes this morning's apps without the wake-up method. It never works at
- * night (bedtime wins) and never lifts the always-blocked list.
+ * Passes (GAME_PLAN, "Humane exits"): the only way out early, two a month, for a sick day,
+ * travel, a baby asleep in the room or a real emergency. In the morning one wakes this
+ * morning's apps without the wake-up method (`spendPass`). At night it wakes the bedtime apps
+ * for the rest of tonight and the morning after; at any time it ends a Block now session
+ * (`redeemPass`, through the night pause in emergency.ts). It never lifts the always-blocked list.
+ * Decided 2026-10-14: no unlimited emergency unlock, because a free way out is the loophole
+ * that made other blockers fail for the people who need one.
  *
  * The allowance belongs to the month of the *morning* a pass unlocks, not the wall clock.
  * With a 01:00 bedtime, 00:30 on November 1 still belongs to October 31's morning, so a pass
@@ -14,13 +18,13 @@ import { endNap, getNap, sharedGet, sharedSet } from './screen-time.ts';
 import { judgedAt, pastLastPaid, readLock, syncLock } from './lock-controller.ts';
 import type { LockState } from './lock-state.ts';
 import { recordProof } from './morning-proof.ts';
+import { emergencyUnlock, previewEmergency, type EmergencyUse } from './emergency.ts';
 
 /**
- * Passes per month. Open decision #4 in GAME_PLAN ("how many a month and how long each
- * lasts"): 3 is a placeholder to tune with beta data. A pass lasts the rest of that morning,
- * until the next bedtime.
+ * Passes per month (decided 2026-10-14). A morning pass lasts the rest of that morning, until
+ * the next bedtime; a night pass lasts the rest of the night and the morning after it.
  */
-export const PASSES_PER_MONTH = 3;
+export const PASSES_PER_MONTH = 2;
 
 export type SpentPass = {
   /** `LockState.morningKey` of the morning it unlocked, YYYY-MM-DD. */
@@ -44,8 +48,12 @@ export function passesLeft(ledger: PassLedger | undefined, morningKey: string): 
   return Math.max(0, PASSES_PER_MONTH - used);
 }
 
-/** Why a pass can't be used right now, or null if it can. */
-export type PassRefusal = 'notMorning' | 'noneLeft' | 'alreadyUsed';
+/**
+ * Why a pass can't be used right now, or null if it can. `notMorning` is the morning rule
+ * alone (`passRefusal`); `nothingAsleep` is the whole picture (`getPassRefusal`): no morning
+ * to wake, no night under way and no Block now running.
+ */
+export type PassRefusal = 'notMorning' | 'noneLeft' | 'alreadyUsed' | 'nothingAsleep';
 
 export function passRefusal(ledger: PassLedger | undefined, phase: string, morningKey: string): PassRefusal | null {
   if (ledger?.spent.some((p) => p.morningKey === morningKey)) return 'alreadyUsed';
@@ -82,16 +90,47 @@ function passPhase(state: LockState): string {
   return pastLastPaid(state.morningKey) ? 'day' : state.phase;
 }
 
+/**
+ * What a pass would lift now, outside a held morning: the rest of tonight, a Block now
+ * session, or both (`previewEmergency`). Null in a held morning (`spendPass` covers it) or
+ * when nothing is asleep.
+ */
+export function previewPass(now = new Date()) {
+  return passPhase(readLock(now)) === 'morning' ? null : previewEmergency(now);
+}
+
 /** Why a pass can't be used now, or null. */
 export function getPassRefusal(now = new Date()): PassRefusal | null {
   const state = readLock(now);
-  return passRefusal(getPassLedger(), passPhase(state), state.morningKey);
+  const ledger = getPassLedger();
+  if (passPhase(state) === 'morning') return passRefusal(ledger, 'morning', state.morningKey);
+  if (!previewEmergency(now)) return 'nothingAsleep';
+  return passesLeft(ledger, state.morningKey) === 0 ? 'noneLeft' : null;
+}
+
+/**
+ * Uses a pass on whatever is asleep: this morning (`spendPass`), or the rest of tonight and a
+ * running Block now (the night pause, logged in the emergency log for diagnostics). Returns the
+ * refusal when it can't be used, or the night use for the screen's wording.
+ */
+export function redeemPass(now = new Date()): { refusal: PassRefusal } | { refusal: null; night: EmergencyUse | null } {
+  const state = readLock(now);
+  if (passPhase(state) === 'morning') {
+    const refusal = spendPass(now);
+    return refusal ? { refusal } : { refusal: null, night: null };
+  }
+  const refusal = getPassRefusal(now);
+  if (refusal) return { refusal };
+  const use = emergencyUnlock(now);
+  if (!use) return { refusal: 'nothingAsleep' };
+  sharedSet(KEY, withSpent(getPassLedger(), state.morningKey, now.getTime()));
+  return { refusal: null, night: use };
 }
 
 /**
  * Spends a pass on this morning: records it as the morning's proof and wakes the apps. A
- * running Block now session ends too (GAME_PLAN: only a pass or an emergency unlock can end
- * one early). Returns the refusal instead when it can't be used.
+ * running Block now session ends too (GAME_PLAN: only a pass can end one early). Returns the
+ * refusal instead when it can't be used.
  */
 export function spendPass(now = new Date()): PassRefusal | null {
   const state = readLock(now);

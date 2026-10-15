@@ -410,18 +410,18 @@ function walkMeter(walk: Extract<MorningWalk, { kind: 'counting' }>) {
   };
 }
 
-/** After an emergency unlock: awake tonight, and when they sleep again. */
+/** After a night pass: awake tonight, and when they sleep again. */
 function pausedHero(words: PauseWords) {
   const back = words.resumes ? clockAt(words.resumes) : null;
   return {
     title: 'Awake tonight',
     body: !back && words.ended
-      ? `Emergency unlock: your apps are awake tonight and ${words.morning}. There’s no subscription, so nothing sleeps after that.`
+      ? `Pass used: your apps are awake tonight and ${words.morning}. There’s no subscription, so nothing sleeps after that.`
       : !back && words.noApps
-      ? `Emergency unlock: your apps are awake tonight and ${words.morning}. No bedtime apps are picked, so nothing sleeps after that.`
+      ? `Pass used: your apps are awake tonight and ${words.morning}. No bedtime apps are picked, so nothing sleeps after that.`
       : !back
-      ? `Emergency unlock: your apps are awake tonight and ${words.morning}. Every night is switched off, so they stay awake.`
-      : `Emergency unlock: your apps are awake tonight and ${words.morning}. They sleep again at ${words.weekday ? `${back} on ${words.weekday}` : back}.`,
+      ? `Pass used: your apps are awake tonight and ${words.morning}. Every night is switched off, so they stay awake.`
+      : `Pass used: your apps are awake tonight and ${words.morning}. They sleep again at ${words.weekday ? `${back} on ${words.weekday}` : back}.`,
   };
 }
 

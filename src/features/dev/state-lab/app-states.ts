@@ -427,8 +427,8 @@ export const APP_STATES: AppState[] = [
   {
     id: 'woke-emergency',
     group: 'Woken up',
-    label: 'Woken with an emergency unlock',
-    note: 'An emergency unlock in the morning: Home just reads as day.',
+    label: 'Woken with a night pass',
+    note: 'A pass used overnight covers the morning: Home just reads as day.',
     gap: true,
     facts: (d, now) => woke(d, now, 'emergency'),
   },
@@ -566,7 +566,7 @@ export const APP_STATES: AppState[] = [
   {
     id: 'paused',
     group: 'Night',
-    label: 'Emergency unlock, paused tonight',
+    label: 'Night pass, paused tonight',
     note: '“Awake tonight”: they sleep again at the next bedtime.',
     facts: (d, now) => paused(d, now),
   },

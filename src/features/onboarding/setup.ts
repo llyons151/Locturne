@@ -25,7 +25,7 @@ export const ATTRIBUTION_KEY = 'locturne.attribution';
  */
 const QUIZ_KEY = 'locturne.quizAnswers';
 const QUIZ_FIELDS = [
-  'nights',
+  'mornings',
   'nightMinutes',
   'nightsPerWeek',
   'scrollDays',

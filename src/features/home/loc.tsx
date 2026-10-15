@@ -30,9 +30,12 @@ const STREAK_MS = 30_000;
 // date. Saved, so a relaunch doesn't make him say it again; only the newest few are kept.
 const SAID_KEY = 'locturne.loc.said';
 const SAID_KEPT = 30;
+/** The app states lab's made-up moments: kept for the session only, so they don't push the real ones out. */
+const mockSaid = new Set<string>();
 const saidOnce = {
-  has: (key: string) => (sharedGet<string[]>(SAID_KEY) ?? []).includes(key),
+  has: (key: string) => mockSaid.has(key) || (sharedGet<string[]>(SAID_KEY) ?? []).includes(key),
   add(key: string) {
+    if (key.startsWith('mock:')) return void mockSaid.add(key);
     const kept = (sharedGet<string[]>(SAID_KEY) ?? []).filter((k) => k !== key);
     sharedSet(SAID_KEY, [...kept, key].slice(-SAID_KEPT));
   },

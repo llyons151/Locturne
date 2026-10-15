@@ -7,7 +7,7 @@ import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
-import { REVEAL_SECOND_BEAT } from '../content';
+import { revealBeat } from '../content';
 import { formatHalves, weeklyAmount, yearAmount, type Estimate } from '../estimate';
 import { RollingNumber } from '../rolling-number';
 import { Body, page, Voice } from '../ui';
@@ -22,9 +22,12 @@ const SECOND_BEAT_MS = 1100;
  */
 export function RevealScreen({
   numbers,
+  mornings,
   onPayoff,
 }: {
   numbers: Estimate;
+  /** How the morning feels (`mornings`): picks the second beat. */
+  mornings?: string;
   onPayoff?: () => void;
 }) {
   const [landed, setLanded] = useState(false);
@@ -79,7 +82,7 @@ export function RevealScreen({
         </Reveal>
       ) : null}
       <View style={styles.beat}>
-        {secondBeat ? <Voice text={REVEAL_SECOND_BEAT} size={VoiceSize.headline} center /> : null}
+        {secondBeat ? <Voice text={revealBeat(mornings)} size={VoiceSize.headline} center /> : null}
       </View>
     </View>
   );

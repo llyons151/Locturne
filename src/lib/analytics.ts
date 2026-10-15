@@ -64,8 +64,8 @@ export type Events = {
     /** How many mornings this install has proved, counting this one (up to 30 kept). */
     morning_number: number;
   };
-  pass_used: { passes_left: number };
-  emergency_unlock: { phase: string; paused_night: boolean; ended_block_now: boolean; unlocked_morning: boolean };
+  /** `phase`: 'morning' for a morning pass, else the lock's phase when a night or Block now pass ran. */
+  pass_used: { passes_left: number; phase: string; paused_night: boolean; ended_block_now: boolean };
   night_checked: { verdict: NightVerdictEvent; late_by_minutes: number | null };
   notifications_permission: { granted: boolean };
   notification_opened: { kind: string };
@@ -206,7 +206,7 @@ export function ageBracket(age: number): AgeBracket | null {
 
 /** The onboarding answers that may leave the phone, and the question each step asks. */
 type QuizAnswers = {
-  nights?: string;
+  mornings?: string;
   nightMinutes?: number;
   nightsPerWeek?: number;
   morningMinutes?: number;
@@ -219,7 +219,7 @@ type QuizAnswers = {
 };
 
 const QUESTION_FOR_STEP: Record<string, keyof QuizAnswers> = {
-  nights: 'nights',
+  mornings: 'mornings',
   'night-minutes': 'nightMinutes',
   'nights-per-week': 'nightsPerWeek',
   'morning-minutes': 'morningMinutes',

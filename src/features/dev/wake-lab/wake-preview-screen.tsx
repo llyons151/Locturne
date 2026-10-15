@@ -149,7 +149,7 @@ export function WakePreviewScreen() {
       >
         <MenuRow title="Location" value={p.place} options={PLACE} onChange={(place) => setWakePreview({ place })} />
         <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'place')} />
-        <ValueRow title="Open the old screen" value="" onPress={() => open('/place?mode=morning')} last />
+        <ValueRow title="Open the old screen" value="" onPress={() => open('/place?mode=morning', 'place')} last />
       </Card>
 
       <Card>
