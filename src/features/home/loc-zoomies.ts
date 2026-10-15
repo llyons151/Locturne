@@ -6,8 +6,10 @@ type Lump = NonNullable<Bit['lump']>;
 /**
  * The zoomies (user, October 15, 2026): sent under too often (`NAV_KNOCK.zoomAfter` burrows
  * inside `zoomWindow` seconds), he loses it under the covers, then brakes in the middle,
- * crouches and bursts out like any burrow. `extra` is how many burrows past the trigger this
- * one is: the more he's pushed, the longer he goes (up to four more moves).
+ * crouches and bursts out like any burrow. Short and furious: at six moves, growing with each
+ * burrow past the trigger, he stayed under three to five seconds, "burrows for too long when
+ * he's super triggered" (user, October 15, 2026), so it's a few moves, every time, and no
+ * calm freezes among them.
  *
  * Not laps: "too clean and consistent... I want it to not seem like it was pre-made, just that
  * he's going crazy" (user, same day). So it's a string of moves picked at random each time:
@@ -16,11 +18,11 @@ type Lump = NonNullable<Bit['lump']>;
  * hits each edge, so every button gets its bounce. Fast but always followable: at first it
  * crossed the screen in a fifth of a second, "like he's teleporting" (user, same day).
  */
-export function zoomLump(rand: () => number = Math.random, fit = 1, extra = 0): { pop: number; lump: Lump } {
+export function zoomLump(rand: () => number = Math.random, fit = 1): { pop: number; lump: Lump } {
   const pace = Math.max(0.2, NAV_KNOCK.scurry) * Math.max(0.5, NAV_KNOCK.zoomSpeed);
   // Nearly to the screen's edges: past every button, the moon too.
   const edge = 0.45 * fit;
-  const moves = Math.max(2, Math.round(NAV_KNOCK.zoomLaps)) * 2 + Math.min(4, Math.max(0, extra) * 2);
+  const moves = Math.max(1, Math.round(NAV_KNOCK.zoomLaps));
   const side = rand() < 0.5 ? -1 : 1;
   const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)];
   const clampX = (v: number) => Math.max(-edge, Math.min(edge, v));
@@ -96,10 +98,8 @@ export function zoomLump(rand: () => number = Math.random, fit = 1, extra = 0): 
       dash(at + dir * edge * (0.2 + rand() * 0.3), 1.1 + rand() * 0.3, 'out');
       freeze(70 + rand() * 90);
       dash(-dir * edge * (0.6 + rand() * 0.4), 1 + rand() * 0.3, pick<Key[2]>(['out', 'back']));
-    } else if (r < 0.72) {
+    } else if (r < 0.8) {
       spaz();
-    } else if (r < 0.86) {
-      freeze(120 + rand() * 260);
     } else {
       // Stutter steps: a few short bursts the same way with dead stops between.
       const dir = at > 0 ? -1 : 1;

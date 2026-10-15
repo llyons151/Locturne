@@ -24,6 +24,7 @@ export default function LocStage({
   ink,
   wary = 0,
   onCue,
+  onTap,
   onBurrow,
   burrowNonce = 0,
   zoomNonce = 0,
@@ -38,6 +39,8 @@ export default function LocStage({
   ink?: string;
   /** What just happened to him (a poke, popping back up...), for his speech bubble. A native action on iOS. */
   onCue?: (cue: 'poke' | 'angry' | 'hello' | 'hide') => void;
+  /** A tap landed on him, the moment it lands, for the phone's buzz. A native action on iOS. */
+  onTap?: (kind: 'poke' | 'burrow') => void;
   /** Each burrow's planned run, for the nav strip's bounce (components/nav-knock). A native action on iOS. */
   onBurrow?: (path: BurrowPath) => void;
   /** Bumped to send him under from outside (the knock lab's Burrow button). */
@@ -60,6 +63,7 @@ export default function LocStage({
   const waryRef = useRef(wary);
   const lastTap = useRef(0);
   const onCueRef = useRef(onCue);
+  const onTapRef = useRef(onTap);
   const onBurrowRef = useRef(onBurrow);
 
   useEffect(() => {
@@ -147,8 +151,9 @@ export default function LocStage({
 
   useEffect(() => {
     onCueRef.current = onCue;
+    onTapRef.current = onTap;
     onBurrowRef.current = onBurrow;
-  }, [onCue, onBurrow]);
+  }, [onCue, onTap, onBurrow]);
 
   useEffect(() => {
     if (knock) Object.assign(NAV_KNOCK, knock);
@@ -193,7 +198,9 @@ export default function LocStage({
           const scale = canvas.width / r.width;
           if (!rig.hits((e.clientX - r.left) * scale, (e.clientY - r.top) * scale)) return;
           const now = performance.now();
-          if (now - lastTap.current < SECOND_HIT_MS) { lastTap.current = 0; rig.burrow(); }
+          const burrow = now - lastTap.current < SECOND_HIT_MS;
+          onTapRef.current?.(burrow ? 'burrow' : 'poke');
+          if (burrow) { lastTap.current = 0; rig.burrow(); }
           else { lastTap.current = now; rig.poke(); }
           wakeRef.current();
         }}

@@ -7,6 +7,7 @@ import { tabStripHeight } from '@/components/app-tabs';
 import { knockNav } from '@/components/nav-knock';
 import { useKnockLab } from '@/features/dev/knock-lab/store';
 import { useTabSelected } from '@/hooks/use-tab-selected';
+import { thud, tick } from '@/lib/haptics';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 import { getTone } from '@/lib/tone';
 
@@ -27,6 +28,13 @@ const LINE_MS = 3200;
 /** This many pokes inside `STREAK_MS` and he says something about it instead. */
 const STREAK = 5;
 const STREAK_MS = 30_000;
+
+// A tap always gets his face; a line only now and then, so it stays his choice (user request,
+// October 15, 2026). Never on two taps in a row, nor soon after he last spoke.
+const POKE_LINE_CHANCE = 1 / 3;
+const POKE_QUIET_MS = 20_000;
+/** Burrowing is the joke on its own; he grumbles about it only once in a while. */
+const ANGRY_LINE_CHANCE = 1 / 4;
 
 // What he's already said once: each moment's key (per night or morning), and his birthday's
 // date. Saved, so a relaunch doesn't make him say it again; only the newest few are kept.
@@ -116,6 +124,8 @@ export function Loc() {
   // He came up while a screen was over Home: the hello waits until it's gone.
   const helloDue = useRef(false);
   const pokes = useRef<number[]>([]);
+  const lastSpoke = useRef(0);
+  const pokeSpoke = useRef(false);
   useEffect(() => {
     moodRef.current = mood;
     momentRef.current = moment;
@@ -123,6 +133,7 @@ export function Loc() {
   }, [mood, moment, seen]);
   const speak = useCallback((line: string | null) => {
     if (!line) return;
+    lastSpoke.current = Date.now();
     setSaid((prev) => ({ line, id: (prev?.id ?? 0) + 1 }));
     AccessibilityInfo.announceForAccessibility(`Loc: ${line}`);
   }, []);
@@ -170,17 +181,29 @@ export function Loc() {
         return hello();
       }
       if (cue === 'poke') {
+        // Tapped before he got to say hello: his news (bedtime, the apps asleep) still gets said.
+        if (!greeted.current) {
+          greeted.current = true;
+          const line = news();
+          if (line) return speak(line);
+        }
         const now = Date.now();
         pokes.current = [...pokes.current.filter((t) => now - t < STREAK_MS), now];
         if (pokes.current.length >= STREAK) {
           pokes.current = [];
+          pokeSpoke.current = true;
           return speak(locSpecial('streak', getTone()));
         }
+        const quiet = pokeSpoke.current || now - lastSpoke.current < POKE_QUIET_MS || Math.random() >= POKE_LINE_CHANCE;
+        pokeSpoke.current = !quiet;
+        if (quiet) return;
       }
+      if (cue === 'angry' && Math.random() >= ANGRY_LINE_CHANCE) return;
       speak(locLine(cue, moodRef.current, getTone(), new Date().getHours()));
     },
-    [hello, speak],
+    [hello, news, speak],
   );
+  const onTap = useCallback((kind: 'poke' | 'burrow') => (kind === 'burrow' ? thud() : tick()), []);
   // A moment that starts while he's already out (bedtime comes up, the apps fall asleep) gets
   // said right away, or once the screen over Home is gone (the wake-up's done line, after the
   // wake-up screen closes); otherwise it waits for his hello.
@@ -210,6 +233,7 @@ export function Loc() {
           share={SHARE}
           present={present}
           onCue={onCue}
+          onTap={onTap}
           onBurrow={knockNav}
           burrowNonce={lab.nonce}
           zoomNonce={lab.zoomNonce}

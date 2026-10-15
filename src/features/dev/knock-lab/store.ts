@@ -39,10 +39,10 @@ if (labsOn) {
   try {
     const raw = storage()?.getItem(SAVED);
     if (raw) {
-      // Saved before the zoomies were slowed down (they looked like teleporting): keep the
-      // bounce settings, drop the old zoom ones.
+      // Saved before the zoomies were last retuned (slowed down: they looked like teleporting;
+      // then cut short: he stayed under too long): keep the bounce settings, drop the old zoom ones.
       const saved = JSON.parse(raw) as Partial<NavKnockTune> & { zoomed?: number };
-      if (saved.zoomed !== 2) for (const key of ['zoomAfter', 'zoomWindow', 'zoomSpeed', 'zoomLaps'] as const) delete saved[key];
+      if (saved.zoomed !== 3) for (const key of ['zoomAfter', 'zoomWindow', 'zoomSpeed', 'zoomLaps'] as const) delete saved[key];
       delete saved.zoomed;
       Object.assign(NAV_KNOCK, saved);
       lab = { ...lab, tune: { ...NAV_KNOCK } };
@@ -54,7 +54,7 @@ export function setKnockTune(patch: Partial<NavKnockTune>) {
   Object.assign(NAV_KNOCK, patch);
   set({ tune: { ...NAV_KNOCK } });
   try {
-    storage()?.setItem(SAVED, JSON.stringify({ ...NAV_KNOCK, zoomed: 2 }));
+    storage()?.setItem(SAVED, JSON.stringify({ ...NAV_KNOCK, zoomed: 3 }));
   } catch {}
 }
 

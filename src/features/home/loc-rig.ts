@@ -48,6 +48,8 @@ export type Bit = {
     /** 0..1, a tremble while he strains against it. */
     shake?: Key[];
   };
+  /** In a bit with a lump: from this far in he's through the covers, so a tap counts again. Left out, not till it ends. */
+  outAt?: number;
 };
 
 // ---- Geometry, in the traced path's 818 x 552 box; the ledge is y = 552 ----
@@ -235,7 +237,8 @@ const timed = (bit: Bit, k: number): Bit => {
   const keys = (track: Key[]) => track.map(([t, v, e]): Key => (e ? [t * k, v, e] : [t * k, v]));
   const tracks = Object.fromEntries(Object.entries(bit.tracks).map(([c, track]) => [c, keys(track)]));
   const lump = bit.lump && (Object.fromEntries(Object.entries(bit.lump).map(([c, track]) => [c, keys(track)])) as Bit['lump']);
-  return { ...bit, ms: bit.ms * k, tracks, events: bit.events?.map(([t, fn]) => [t * k, fn]), lump };
+  const outAt = bit.outAt === undefined ? undefined : bit.outAt * k;
+  return { ...bit, ms: bit.ms * k, tracks, events: bit.events?.map(([t, fn]) => [t * k, fn]), lump, outAt };
 };
 
 // Coming back (all at 0.7 of the authored times: "still too slow", user, October 12, 2026):
@@ -267,7 +270,7 @@ const ARRIVE: Bit = timed({ ms: POP + 1580, tracks: {
   [POP + 780, (r) => r.pop(0.2)],
   [POP + 1020, (r) => { r.flick('R', 10); r.pop(0.2); }],
   [POP + 1330, (r) => r.say('hello')],
-], lump: {
+], outAt: POP + 360, lump: {
   h: [[0, 'S'], [80, 1, 'out'], [880, 1], [960, 1.4, 'out'], [1030, 1, 'io'], [1110, 0.6, 'io'], [1180, 0.6],
     [1260, 1.55, 'out'], [1310, 1.35, 'io'], [1370, 2.3, 'out'], [1395, 2.05, 'io'], [POP, 2.5, 'out'],
     [POP + 80, 1.4, 'out'], [POP + 190, 0.45, 'io'], [POP + 280, 0.8, 'io'], [POP + 380, 0.2, 'io'], [POP + 480, 0.35, 'io'], [POP + 600, 0, 'io']],
@@ -284,7 +287,7 @@ const ASLEEP_RISE: Bit = timed({ ms: RISE + 1000, events: [
   [RISE + 220, (r) => r.flick('L', -8)],
   [RISE + 560, (r) => r.kick(-0.04)],
   [RISE + 780, (r) => r.flick('R', 8)],
-], tracks: {
+], outAt: RISE + 560, tracks: {
   sink: [[0, HIDDEN.sink], [950, HIDDEN.sink], [1120, 650, 'io'], [1240, 685, 'io'], [1400, 620, 'io'], [RISE, 610], [RISE + 560, -8, 'io'], [RISE + 680, 0, 'io']],
   paw: [[0, HIDDEN.paw], [RISE + 420, HIDDEN.paw], [RISE + 530, -8, 'out'], [RISE + 640, 0, 'io']],
   stretch: [[0, 0], [RISE, 0], [RISE + 300, 0.05, 'io'], [RISE + 560, -0.04, 'io'], [RISE + 720, 0, 'io']],
@@ -348,7 +351,7 @@ const LEAVE: Bit = { ms: 1300, events: [[0, (r) => r.say('hide')]], tracks: {
 // 2026: faster, and pop up with an angry face): pupils shrunk to trembling dots, lids slanted,
 // ears pinned. Where the lump goes is new every time (`burrowLump`): "he shouldn't feel so
 // programmatic". `pop` is when he bursts out, which depends on how far he ran.
-const burrowBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => ({ ms: pop + 1700, tracks: {
+const burrowBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => ({ ms: pop + 1700, outAt: pop + 140, tracks: {
   stretch: [[0, 0], [150, -0.08, 'out'], [300, 0.12, 'in'], [460, 0, 'out'], [pop, 0], [pop + 90, 0.16, 'out'], [pop + 200, -0.1, 'io'], [pop + 320, 0.03, 'io'], [pop + 480, 0, 'io']],
   sink: [[0, 'S'], [150, -6, 'out'], [460, HIDDEN.sink, 'in3'], [pop, HIDDEN.sink], [pop + 130, -60, 'out'], [pop + 260, 12, 'in'], [pop + 340, -4, 'out'], [pop + 460, 0, 'io']],
   paw: [[0, 'S'], [300, 'S'], [460, HIDDEN.paw, 'in'], [pop + 220, HIDDEN.paw], [pop + 280, -12, 'out'], [pop + 400, 0, 'io']],
@@ -940,6 +943,7 @@ export class LocRig {
   private hidden = true;
   private lumpX = 0;
   private lumpH = 0;
+  private lumpW = 1;
 
   /**
    * `ink` is his body's colour, `#RRGGBB`: black on Home, in front of the moon; light where
@@ -1042,8 +1046,15 @@ export class LocRig {
     if (!this.wary || this.mood === 'asleep') return 0;
     return k === 'squint' ? 0.2 * this.wary : k === 'open' ? -0.12 * this.wary : k === 'openR' ? -0.2 * this.wary : 0;
   }
-  /** Under the covers (burrowing, or arriving or leaving by them): taps wait until he's out. */
-  get burrowing() { return !!this.bit?.def.lump; }
+  /**
+   * Under the covers (burrowing, or arriving or leaving by them): taps wait until he's out. Once
+   * he's through (`outAt`), a tap cuts the rest of the bit short (user, October 15, 2026: a tap
+   * should always get a reaction).
+   */
+  get burrowing() {
+    const b = this.bit;
+    return !!b?.def.lump && (b.def.outAt === undefined || b.t < b.def.outAt);
+  }
   /** When he was last sent under, in ms, for the zoomies (`zoomLump`). */
   private burrows: number[] = [];
   /** Sends him under the covers. `zoom` forces the zoomies (the knock lab's button). */
@@ -1057,7 +1068,7 @@ export class LocRig {
     // row at most 520 pt wide (app-tabs.tsx). On a wider screen (web on a computer) the run is cut
     // to what it would be over a phone-shaped row, so he still runs into them.
     const fit = Math.min(1, ROW_SPAN / (this.canvas.clientWidth || ROW_SPAN));
-    const { pop, lump } = zoom || extra >= 0 ? zoomLump(Math.random, fit, Math.max(0, extra)) : burrowLump(Math.random, fit);
+    const { pop, lump } = zoom || extra >= 0 ? zoomLump(Math.random, fit) : burrowLump(Math.random, fit);
     this.play(burrowBit(pop, lump));
     // The tab bar plays the bounce off the whole run, planned now (nav-knock.ts): one message,
     // not one a frame, so the buttons move on the UI thread with nothing crossing per frame.
@@ -1260,18 +1271,23 @@ export class LocRig {
   /** The blanket lump: the strip's black, bulging up from the bottom edge where he is. */
   private drawLump(dt: number) {
     const lump = this.bit?.def.lump;
-    if (!lump) { this.lumpX = 0; this.lumpH = 0; return; }
+    let h = 0, x = this.lumpX, wide = this.lumpW, shake = 0;
+    if (lump) {
+      const t = this.bit!.t;
+      const from = this.bit!.lump;
+      h = this.sample(lump.h, t, 'sink', from.h) ?? 0;
+      x = this.sample(lump.x, t, 'sink', from.x) ?? 0;
+      wide = lump.w ? this.sample(lump.w, t, 'sink', 1) ?? 1 : 1;
+      shake = lump.shake && !this.reduced ? this.sample(lump.shake, t, 'sink', 0) ?? 0 : 0;
+    } else if (this.lumpH > 0.001) {
+      // A tap cut his pop out short: the covers still settle flat behind him, not vanish.
+      h = this.lumpH * Math.pow(0.002, dt);
+    }
+    const vx = dt > 0 ? (x - this.lumpX) / dt : 0;
+    this.lumpX = h > 0.001 ? x : 0; this.lumpH = h > 0.001 ? h : 0; this.lumpW = wide;
+    if (h <= 0.001) return;
     const { ctx, canvas } = this;
     const cw = canvas.width, ch = canvas.height;
-    const t = this.bit!.t;
-    const from = this.bit!.lump;
-    const h = this.sample(lump.h, t, 'sink', from.h) ?? 0;
-    const x = this.sample(lump.x, t, 'sink', from.x) ?? 0;
-    const wide = lump.w ? this.sample(lump.w, t, 'sink', 1) ?? 1 : 1;
-    const shake = lump.shake && !this.reduced ? this.sample(lump.shake, t, 'sink', 0) ?? 0 : 0;
-    const vx = dt > 0 ? (x - this.lumpX) / dt : 0;
-    this.lumpX = x; this.lumpH = h;
-    if (h <= 0.001) return;
     const dpr = cw / (canvas.clientWidth || cw);
     // Low and wide (user, October 10, 2026): about 9 pt high, roughly a fifth of the width across.
     // Straining, it trembles: quick and uneven, so it reads as effort, not a vibration.

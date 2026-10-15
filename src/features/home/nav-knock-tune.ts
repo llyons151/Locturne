@@ -21,7 +21,7 @@
  *   zoomies, tearing along the bottom edge to edge (loc-zoomies.ts), and again on each
  *   burrow after while they keep coming that fast.
  * - `zoomSpeed`: how fast he tears about, times `scurry`.
- * - `zoomLaps`: how long he goes on: twice this many wild moves.
+ * - `zoomLaps`: how long he goes on: this many wild moves.
  */
 export const NAV_KNOCK = {
   scurry: 2.2, reach: 0.43, width: 46, bounce: 2.05, jiggle: 0.5, tempo: 2.8, sway: 1, spin: 0.25,
