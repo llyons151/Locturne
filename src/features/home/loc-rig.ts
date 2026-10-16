@@ -18,6 +18,7 @@
 import { buildHand, fidgeting, newHandSim, splat, stepHand, traceHand, wristAt, type HandPose, type HandSim } from './loc-hands';
 import { LOC_HEIGHT, LOC_PATH } from './loc-path';
 import { NAV_KNOCK, type BurrowPath } from './nav-knock-tune';
+import { frameAt, glide } from './glide';
 import { seeded, ultraNav, ultraRun } from './loc-ultra';
 import { zoomLump } from './loc-zoomies';
 import type { Rim } from './rim';
@@ -49,6 +50,8 @@ export type Bit = {
     w?: Key[];
     /** 0..1, a tremble while he strains against it. */
     shake?: Key[];
+    /** `x` as it's drawn, every 60th of a second: the planned route followed smoothly (glide.ts). */
+    glide?: number[];
   };
   /** In a bit with a lump: from this far in he's through the covers, so a tap counts again. Left out, not till it ends. */
   outAt?: number;
@@ -238,7 +241,8 @@ const ROW_SPAN = 580;
 const timed = (bit: Bit, k: number): Bit => {
   const keys = (track: Key[]) => track.map(([t, v, e]): Key => (e ? [t * k, v, e] : [t * k, v]));
   const tracks = Object.fromEntries(Object.entries(bit.tracks).map(([c, track]) => [c, keys(track)]));
-  const lump = bit.lump && (Object.fromEntries(Object.entries(bit.lump).map(([c, track]) => [c, keys(track)])) as Bit['lump']);
+  // Keyed tracks only: a smoothed `glide` is made per run, never on a timed bit.
+  const lump = bit.lump && (Object.fromEntries(Object.entries(bit.lump).filter(([c]) => c !== 'glide').map(([c, track]) => [c, keys(track as Key[])])) as unknown as Bit['lump']);
   const outAt = bit.outAt === undefined ? undefined : bit.outAt * k;
   return { ...bit, ms: bit.ms * k, tracks, events: bit.events?.map(([t, fn]) => [t * k, fn]), lump, outAt };
 };
@@ -1143,6 +1147,8 @@ export class LocRig {
     const { pop, lump } = round
       ? { pop: round.run.pop, lump: round.lump }
       : force || count >= Math.max(1, Math.round(NAV_KNOCK.zoomAfter)) ? zoomLump(Math.random, fit) : burrowLump(Math.random, fit);
+    // Followed smoothly, so the lump never stops dead or snaps round between two frames (glide.ts).
+    if (!round) lump.glide = glide((t) => this.sample(lump.x, t, 'sink', this.lumpX) ?? 0, pop + 400);
     this.play(round ? ultraBit(pop, lump) : burrowBit(pop, lump));
     // The tab bar plays the bounce off the whole run, planned now (nav-knock.ts): one message,
     // not one a frame, so the buttons move on the UI thread with nothing crossing per frame.
@@ -1158,10 +1164,15 @@ export class LocRig {
           path.h.push(away.h[i]);
           continue;
         }
-        path.x.push(Math.round((this.sample(lump.x, t, 'sink', from.x) ?? 0) * 1e4) / 1e4);
+        const x = lump.glide ? frameAt(lump.glide, t) : this.sample(lump.x, t, 'sink', from.x) ?? 0;
+        path.x.push(Math.round(x * 1e4) / 1e4);
         path.h.push(Math.round((this.sample(lump.h, t, 'sink', from.h) ?? 0) * 1e3) / 1e3);
       }
-      if (round) path.ultra = round.seed;
+      if (round) {
+        path.ultra = round.seed;
+        // When he dove, so the app's overlay starts its run in step with him, however late it hears.
+        path.at = Date.now();
+      }
       this.onBurrow(path);
     }
   }
@@ -1360,7 +1371,7 @@ export class LocRig {
       const t = this.bit!.t;
       const from = this.bit!.lump;
       h = this.sample(lump.h, t, 'sink', from.h) ?? 0;
-      x = this.sample(lump.x, t, 'sink', from.x) ?? 0;
+      x = lump.glide ? frameAt(lump.glide, t) : this.sample(lump.x, t, 'sink', from.x) ?? 0;
       wide = lump.w ? this.sample(lump.w, t, 'sink', 1) ?? 1 : 1;
       shake = lump.shake && !this.reduced ? this.sample(lump.shake, t, 'sink', 0) ?? 0 : 0;
     } else if (this.lumpH > 0.001) {

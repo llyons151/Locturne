@@ -37,6 +37,12 @@ const STREAK_MS = 30_000;
 // October 15, 2026). Never on two taps in a row, nor soon after he last spoke.
 const POKE_LINE_CHANCE = 1 / 3;
 const POKE_QUIET_MS = 20_000;
+/**
+ * A hidden one (user, October 16, 2026): every fourth touch inside `STREAK_MS`, one time in
+ * three, he says "Pineapple". Taps that send him under count too; then he says it coming out.
+ */
+const PINEAPPLE_AT = 4;
+const PINEAPPLE_CHANCE = 1 / 3;
 /** Burrowing is the joke on its own; he grumbles about it only once in a while. */
 const ANGRY_LINE_CHANCE = 1 / 4;
 
@@ -137,6 +143,8 @@ export function Loc() {
   // He came up while a screen was over Home: the hello waits until it's gone.
   const helloDue = useRef(false);
   const pokes = useRef<number[]>([]);
+  const touches = useRef<number[]>([]);
+  const pineappleDue = useRef(false);
   const lastSpoke = useRef(0);
   const pokeSpoke = useRef(false);
   useEffect(() => {
@@ -185,6 +193,11 @@ export function Loc() {
   const onCue = useCallback(
     (cue: Cue | 'ultra') => {
       if (cue === 'hide') return setSaid(null);
+      // A fourth touch that drew the pineapple: whatever he'd have said, it's this.
+      if (pineappleDue.current && (cue === 'poke' || cue === 'angry' || cue === 'ultra')) {
+        pineappleDue.current = false;
+        return speak('Pineapple');
+      }
       // Back from round the whole screen: always worth a word.
       if (cue === 'ultra') return speak(locSpecial('ultra', getTone()));
       if (cue === 'hello') {
@@ -218,13 +231,22 @@ export function Loc() {
     },
     [hello, news, speak],
   );
-  const onTap = useCallback((kind: 'poke' | 'burrow') => (kind === 'burrow' ? thud() : tick()), []);
+  const onTap = useCallback((kind: 'poke' | 'burrow') => {
+    if (kind === 'burrow') thud();
+    else tick();
+    const now = Date.now();
+    touches.current = [...touches.current.filter((t) => now - t < STREAK_MS), now];
+    if (touches.current.length >= PINEAPPLE_AT) {
+      touches.current = [];
+      pineappleDue.current = Math.random() < PINEAPPLE_CHANCE;
+    }
+  }, []);
   const onBurrow = useCallback((path: BurrowPath) => {
     // The nav strip only needs the bottom edge; the run round the screen goes to its own layer.
-    const { ultra, ...strip } = path;
+    const { ultra, at, ...strip } = path;
     knockNav(strip);
     // The same run his canvas planned, from its seed and the same screen edge.
-    if (ultra !== undefined && rimRef.current) runRim(ultraRun(rimRef.current, seeded(ultra)).run);
+    if (ultra !== undefined && rimRef.current) runRim(ultraRun(rimRef.current, seeded(ultra)).run, at);
   }, []);
   // Off Home mid-run, the lump going round the screen fades instead of finishing without him.
   useEffect(() => {

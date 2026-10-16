@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   statValue: { ...NUMBER_FONT, fontSize: 22, color: Nocturne.text },
   statLabel: { ...Type.caption, color: Nocturne.text3 },
   statRule: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: Nocturne.edge },
-  week: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', maxWidth: 340, width: '100%' },
+  week: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'center', maxWidth: 340, width: '100%' },
   day: { alignItems: 'center', gap: Space.s },
   dayLetter: { ...Type.caption, color: Nocturne.text3 },
   dayLetterToday: { color: Nocturne.text, fontWeight: '600' },

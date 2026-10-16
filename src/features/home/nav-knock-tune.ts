@@ -40,4 +40,6 @@ export type BurrowPath = {
   dt: number; x: number[]; h: number[]; pop: number;
   /** The ultra zoomies' seed: the app plans the same run round the screen from it (loc-ultra.ts) and draws it (components/loc-rim). */
   ultra?: number;
+  /** With `ultra`: when he dove (ms since 1970, the same clock in the webview and the app). */
+  at?: number;
 };

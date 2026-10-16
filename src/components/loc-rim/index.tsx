@@ -19,19 +19,22 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
  */
 // Kept on the global object, so a hot reload of this file (in development) shares one channel
 // instead of Loc sending runs to an old copy that's no longer drawn: the lump just didn't show.
-const shared = globalThis as { __locRim?: { current: ReturnType<typeof makeMutable<UltraRun | null>>; listeners: Set<(on: boolean) => void> } };
+const shared = globalThis as { __locRim?: { current: ReturnType<typeof makeMutable<UltraRun | null>>; listeners: Set<(run: UltraRun | null, at?: number) => void> } };
 shared.__locRim ??= { current: makeMutable<UltraRun | null>(null), listeners: new Set() };
 const { current, listeners } = shared.__locRim;
 
 /** Draw this run, from now. */
-export function runRim(run: UltraRun) {
+/** Draw this run, started at `at` (ms since 1970: when he dove in his canvas), or now. */
+export function runRim(run: UltraRun, at?: number) {
   current.set(run);
-  listeners.forEach((l) => l(true));
+  // Handed over as it is: on the iPhone `current` only reaches the UI thread a moment later, so
+  // reading it straight back here could come up empty, and the lump never showed.
+  listeners.forEach((l) => l(run, at));
 }
 
 /** He left Home mid-run: the lump fades away. */
 export function stopRim() {
-  listeners.forEach((l) => l(false));
+  listeners.forEach((l) => l(null));
 }
 
 /** Both drawn a moment together at the hand-off, black on black, so there's never a frame without him. */
@@ -40,7 +43,7 @@ const HANDOFF = 80;
 const BLEED = 3;
 /**
  * The top of Home is near black, and so is he: off the bottom edge the bulge gets a thin edge
- * edge on its outside, so it reads going up the sides and over the top (user, October 15, 2026:
+ * on its outside, so it reads going up the sides and over the top (user, October 15, 2026:
  * "add the little shadow on the outside back so we can better see him"), only a shade lighter
  * than black ("less grey... just enough u can tell what ur looking at"). A plain line, never a
  * blur or a tint: no glow (CLAUDE.md).
@@ -60,21 +63,23 @@ export function LocRim() {
       timers.current.forEach(clearTimeout);
       timers.current = [];
     };
-    const listen = (start: boolean) => {
+    const listen = (run: UltraRun | null, at?: number) => {
       clear();
-      const run = current.get();
-      if (!start || !run) {
+      if (!run) {
         fade.set(withTiming(0, { duration: FADE_MS }));
         timers.current.push(setTimeout(() => setOn(0), FADE_MS + 20));
         return;
       }
       const end = run.home + HANDOFF;
+      // Caught up to where his canvas is: on the iPhone the run comes from the webview a little
+      // late, and the two lumps met out of step at the hand-off.
+      const late = at ? Math.max(0, Math.min(500, Date.now() - at)) : 0;
       cancelAnimation(clock);
       fade.set(1);
-      clock.set(0);
-      clock.set(withTiming(end, { duration: end, easing: Easing.linear }));
-      for (const [ms, kind] of run.taps) timers.current.push(setTimeout(kind === 'thud' ? thud : tick, ms));
-      timers.current.push(setTimeout(() => setOn(0), end + 30));
+      clock.set(late);
+      clock.set(withTiming(end, { duration: Math.max(1, end - late), easing: Easing.linear }));
+      for (const [ms, kind] of run.taps) if (ms >= late) timers.current.push(setTimeout(kind === 'thud' ? thud : tick, ms - late));
+      timers.current.push(setTimeout(() => setOn(0), end - late + 30));
       setOn((n) => n + 1);
     };
     listeners.add(listen);

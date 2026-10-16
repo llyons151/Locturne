@@ -13,7 +13,7 @@ type Lump = NonNullable<Bit['lump']>;
  *
  * Not laps: "too clean and consistent... I want it to not seem like it was pre-made, just that
  * he's going crazy" (user, same day). So it's a string of moves picked at random each time:
- * dashes at any speed that stop dead or skid past, fake-outs that turn back halfway, spazzing
+ * dashes at any speed that brake hard or run flat out, fake-outs that turn back halfway, spazzing
  * on the spot, stutter steps, and freezes where the lump rises to listen or trembles. Some dash
  * hits each edge, so every button gets its bounce. Fast but always followable: at first it
  * crossed the screen in a fifth of a second, "like he's teleporting" (user, same day).
@@ -90,14 +90,14 @@ export function zoomLump(rand: () => number = Math.random, fit = 1): { pop: numb
   const moveOnce = () => {
     const r = rand();
     if (r < 0.38) {
-      // A dash: any speed, braking hard, skidding past and back, or flat out to the end.
-      dash(far(), 0.7 + rand() * 0.6, pick<Key[2]>(['out', 'out', 'back', 'in', 'io']));
+      // A dash: any speed, braking hard or flat out to the end.
+      dash(far(), 0.7 + rand() * 0.6, pick<Key[2]>(['out', 'out', 'in', 'io']));
     } else if (r < 0.55) {
       // A fake-out: off one way, a split-second hold, then flat out the other way.
       const dir = at > 0 ? -1 : at < 0 ? 1 : pick([-1, 1]);
       dash(at + dir * edge * (0.2 + rand() * 0.3), 1.1 + rand() * 0.3, 'out');
       freeze(70 + rand() * 90);
-      dash(-dir * edge * (0.6 + rand() * 0.4), 1 + rand() * 0.3, pick<Key[2]>(['out', 'back']));
+      dash(-dir * edge * (0.6 + rand() * 0.4), 1 + rand() * 0.3, 'out');
     } else if (r < 0.8) {
       spaz();
     } else {
@@ -111,10 +111,10 @@ export function zoomLump(rand: () => number = Math.random, fit = 1): { pop: numb
   };
 
   // Off like a shot to one edge; to the other somewhere in the middle of it all.
-  dash(side * edge * (0.9 + rand() * 0.1), 1 + rand() * 0.3, pick<Key[2]>(['out', 'back']));
+  dash(side * edge * (0.9 + rand() * 0.1), 1 + rand() * 0.3, 'out');
   const half = Math.floor(moves / 2);
   for (let i = 1; i < moves; i++) {
-    if (i === half && !(side > 0 ? left : right)) dash(-side * edge * (0.9 + rand() * 0.1), 1 + rand() * 0.3, pick<Key[2]>(['out', 'back']));
+    if (i === half && !(side > 0 ? left : right)) dash(-side * edge * (0.9 + rand() * 0.1), 1 + rand() * 0.3, 'out');
     else moveOnce();
   }
   if (!left) dash(-edge, 1.1, 'out');

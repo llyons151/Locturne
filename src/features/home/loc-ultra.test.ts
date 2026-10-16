@@ -59,7 +59,7 @@ test('every run goes all the way round and comes home, at a followable pace', ()
       assert.ok(run.pop > run.home && run.pop < run.home + 400, `seed ${seed}: pops at ${run.pop}`);
       for (let i = 1; i < run.taps.length; i++) assert.ok(run.taps[i][0] >= run.taps[i - 1][0], `seed ${seed}: buzzes out of order`);
       assert.deepEqual(run.taps.at(-1), [run.pop, 'thud']);
-      for (const track of Object.values(lump)) {
+      for (const track of [lump.h, lump.x, lump.w, lump.shake]) {
         for (let i = 1; i < track!.length; i++) assert.ok(track![i][0] >= track![i - 1][0], `seed ${seed}: canvas keys out of order`);
       }
     }

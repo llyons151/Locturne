@@ -1,5 +1,6 @@
 import type { Bit } from './loc-rig.ts';
 import { NAV_KNOCK } from './nav-knock-tune.ts';
+import { frameAt, glide } from './glide.ts';
 import { rimMarks, rimPoint, type Rim } from './rim.ts';
 
 type Lump = NonNullable<Bit['lump']>;
@@ -180,12 +181,17 @@ export function ultraRun(rim: Rim, rand: () => number = Math.random): { run: Ult
     end += side * L;
   }
   // Home in a skid: past the middle, braking hard, and back.
-  go(side, end + side * (16 + rand() * 14), true, 0.95 + rand() * 0.25);
+  go(side, end + side * (6 + rand() * 6), true, 0.95 + rand() * 0.25);
   go(-side, end, true, 0.35);
   hold(130, () => { hT = 1; wT = 1; sT = 0; });
   // Exactly where the canvas picks the lump up.
   u = end; h = 1; w = 1; shake = 0; hop = 0;
   record(true);
+  // Followed smoothly (glide.ts): the revving jerks and the turn at home stay fluid, never a
+  // one-frame snap. Tighter than the burrows' (7 Hz), since the run's own speed is already smooth.
+  const planned = run.u;
+  run.u = glide((ms) => frameAt(planned, ms), (planned.length - 1) * (1000 / 60), 7).map((v) => Math.round(v * 10) / 10);
+  run.u[run.u.length - 1] = end;
   run.home = Math.round(t);
   run.pop = Math.round(t + 160 + rand() * 100);
   run.taps.push([run.pop, 'thud']);

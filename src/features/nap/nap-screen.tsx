@@ -4,7 +4,7 @@
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
 import { SymbolView } from 'expo-symbols';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
@@ -226,7 +226,6 @@ export function NapScreen() {
     }
   };
   // Early exits use the same deliberate emergency/pass flow as every other lock.
-  const wake = () => router.push('/exits');
 
   // A pass, an emergency unlock or a lapse can end the nap with only `setNap` above.
   const shown = shownLine(line, nap !== null);
@@ -333,8 +332,8 @@ export function NapScreen() {
 
       {nap ? (
         <View style={styles.actions}>
+          {/* No way to wake him early from here (user, October 16, 2026): never nudge anyone out of a nap. */}
           <SheetButton label="Done" onPress={closeSleepSheet} />
-          <SheetButton outline label="Wake him early" onPress={wake} />
         </View>
       ) : (
         /* Held, not tapped (user's ask): the fill sweeps across and he's tucked in at the end.

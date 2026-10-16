@@ -14,7 +14,7 @@ const seeded = (seed: number) => {
 test('every run reaches both edges, keeps its keys in order, and bursts out where he lives', () => {
   for (let seed = 1; seed <= 200; seed++) {
     const { pop, lump } = zoomLump(seeded(seed), 1);
-    for (const [name, track] of Object.entries(lump)) {
+    for (const [name, track] of Object.entries({ h: lump.h, x: lump.x, w: lump.w, shake: lump.shake })) {
       for (let i = 1; i < track!.length; i++) assert.ok(track![i][0] >= track![i - 1][0], `seed ${seed}: ${name} keys out of order at ${i}`);
     }
     const xs = lump.x.map(([, v]) => v as number);
