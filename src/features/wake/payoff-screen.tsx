@@ -1,11 +1,12 @@
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
-import { useEffect, useMemo } from 'react';
-import { Share, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { Share, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { cubicBezier, FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppBackground } from '@/components/app-background';
+import { restingMoonNow } from '@/components/night-sky';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
@@ -15,6 +16,7 @@ import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type
 
 import LocStage from '../home/loc-stage';
 import { dayLabel, weekDays } from '../home/week';
+import Moonrise, { type Disc } from './moonrise';
 import { clockParts, payoffKicker, payoffLine, shareText } from './payoff';
 
 /** Everything the payoff shows. The route reads it from the stores, or the wake preview makes it up. */
@@ -35,20 +37,65 @@ const SIZE = 176;
 const CANVAS = Math.round(SIZE * 1.2);
 const LOC_H = SIZE - 8;
 
-/** One step of the entrance: each piece comes in a beat after the one above it. */
+/** The moon behind Loc: a little bigger than his circle, so its edge and light show all round. */
+const MOON_R = Math.round((SIZE / 2) * 1.24);
+
+/** One step of the entrance, after the moon is in: each piece comes in a beat after the one above it. */
 const STEP_MS = 120;
-const rise = (i: number) => FadeInDown.duration(420).delay(200 + i * STEP_MS);
+
+/** The page's entrance curve: quick out, long settle. Native wants cubicBezier(), not a CSS string. */
+const SETTLE = cubicBezier(0.2, 0.8, 0.2, 1);
+
+/** If the moonrise's webview never reports in, the page comes in anyway. */
+const ARRIVE_FALLBACK_MS = 4500;
 
 /**
  * The morning payoff (docs/APP_RATING_2026-10-15.md, "Build the morning payoff"): the moment the
- * apps wake, made into one. Loc, smug and silent (no lines here: user, 2026-10-15); the time you got up is the big number; the
- * morning's count and this week's dots under it. Done goes back to Home. Monochrome, no glow.
+ * apps wake, made into one. The sky's moon rises from the bottom to sit behind Loc, the
+ * week strip's mist pouring off it and fading (moonrise.tsx, moon-mist.ts; user, 2026-10-15),
+ * and the page comes in once it's there. Loc, smug and silent (no lines here: user, 2026-10-15); the time you got up is
+ * the big number; the morning's count and this week's dots under it. Done goes back to Home.
  * Opened once per morning by Home (`usePayoff`), and from the wake preview with made-up facts.
  */
 export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+  const { width, height } = useWindowDimensions();
   const { method, upAt, start, mornings, today, won } = facts;
-  useEffect(() => haptic.done(), []);
+  // Where the sky's moon is as the screen opens: the rise starts from there.
+  const [rest] = useState(() => restingMoonNow(width, height));
+  // The stage's size, and Loc's circle measured in it: where the moon ends.
+  const stageRef = useRef<View>(null);
+  const avatarRef = useRef<View>(null);
+  const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
+  const [target, setTarget] = useState<Disc | null>(null);
+  // The moonrise has drawn its first frame (the sky's moon can go), and has the moon behind Loc.
+  const [handedOff, setHandedOff] = useState(false);
+  const [arrived, setArrived] = useState(false);
+  const measure = useCallback(() => {
+    const avatar = avatarRef.current;
+    const root = stageRef.current;
+    if (!avatar || !root) return;
+    root.measureInWindow((rx, ry) => {
+      avatar.measureInWindow((x, y, w, h) => {
+        if (w > 0) setTarget({ x: x - rx + w / 2, y: y - ry + h / 2, r: MOON_R });
+      });
+    });
+  }, []);
+  const onStage = (e: LayoutChangeEvent) => {
+    setStage({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
+    measure();
+  };
+  const onReady = useCallback(() => setHandedOff(true), []);
+  const onArrive = useCallback(() => setArrived(true), []);
+  useEffect(() => {
+    const id = setTimeout(() => setArrived(true), ARRIVE_FALLBACK_MS);
+    return () => clearTimeout(id);
+  }, []);
+  // The buzz lands with the moon.
+  useEffect(() => {
+    if (arrived) haptic.done();
+  }, [arrived]);
   const days = weekDays(today, won);
   const week = days.filter((d) => d.done).length;
   const up = clockParts(upAt);
@@ -68,22 +115,41 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   );
 
   return (
-    <AppBackground>
+    <AppBackground moonless={handedOff}>
+      <View ref={stageRef} style={StyleSheet.absoluteFill} pointerEvents="none" onLayout={onStage}>
+        {stage && target ? (
+          <Moonrise
+            from={rest.disc}
+            to={target}
+            glow={rest.glow}
+            reduced={reduced}
+            onReady={onReady}
+            onArrive={onArrive}
+            dom={{
+              style: { width: stage.width, height: stage.height, backgroundColor: 'transparent' },
+              scrollEnabled: false,
+              bounces: false,
+              contentInsetAdjustmentBehavior: 'never',
+              pointerEvents: 'none',
+            }}
+          />
+        ) : null}
+      </View>
       <View style={[styles.screen, { paddingTop: insets.top + Space.l, paddingBottom: insets.bottom + Space.l }]}>
         <Animated.Text entering={FadeIn.duration(400)} style={styles.kicker}>
           {payoffKicker(mornings)}
         </Animated.Text>
 
         <View style={styles.middle}>
-          <Animated.View entering={FadeIn.duration(500).delay(100)} style={styles.locWrap}>
-            <View style={styles.avatar}>
+          <View ref={avatarRef} onLayout={measure} style={styles.locWrap}>
+            <In shown={arrived} step={0} from={0.94} style={styles.avatar}>
               <View style={[styles.loc, { width: CANVAS, height: LOC_H }]}>
                 <LocStage mood="smug" share={0.9} present dom={dom} />
               </View>
-            </View>
-          </Animated.View>
+            </In>
+          </View>
 
-          <Animated.View entering={rise(1)} style={styles.time} accessible accessibilityRole="header" accessibilityLabel={`Up at ${up.value} ${up.unit}`}>
+          <In shown={arrived} step={1} style={styles.time} accessible accessibilityRole="header" accessibilityLabel={`Up at ${up.value} ${up.unit}`}>
             <Text style={styles.timeKicker}>Up at</Text>
             <View style={styles.timeRow}>
               <Text style={styles.timeValue} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
@@ -93,19 +159,19 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
                 {up.unit}
               </Text>
             </View>
-          </Animated.View>
+          </In>
 
-          <Animated.Text entering={rise(2)} style={styles.line}>
-            {payoffLine(method, upAt, start)}
-          </Animated.Text>
+          <In shown={arrived} step={2}>
+            <Text style={styles.line}>{payoffLine(method, upAt, start)}</Text>
+          </In>
 
-          <Animated.View entering={rise(3)} style={styles.stats}>
+          <In shown={arrived} step={3} style={styles.stats}>
             <Stat value={String(mornings)} label={mornings === 1 ? 'morning up' : 'mornings up'} icon={sym('sunrise.fill', 'wb_twilight')} />
             <View style={styles.statRule} />
             <Stat value={`${week}/7`} label="this week" icon={sym('calendar', 'calendar_today')} />
-          </Animated.View>
+          </In>
 
-          <Animated.View entering={rise(4)} style={styles.week}>
+          <In shown={arrived} step={4} style={styles.week}>
             {days.map((day) => (
               <View key={day.key} style={styles.day} accessible accessibilityLabel={dayLabel(day)}>
                 <Text style={[styles.dayLetter, day.today && styles.dayLetterToday]}>{day.letter}</Text>
@@ -114,15 +180,53 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
                 </View>
               </View>
             ))}
-          </Animated.View>
+          </In>
         </View>
 
-        <Animated.View entering={rise(5)} style={styles.actions}>
+        <In shown={arrived} step={5} style={styles.actions}>
           <PrimaryButton label="Done" onPress={close} />
           <TextButton label="Share" onPress={share} />
-        </Animated.View>
+        </In>
       </View>
     </AppBackground>
+  );
+}
+
+/**
+ * A piece of the page, laid out from the start (so Loc's circle doesn't move once measured) but
+ * unseen until the moon is in, then rising in its turn. `from` scales it up instead of lifting it.
+ */
+function In({
+  shown,
+  step,
+  from,
+  style,
+  children,
+  ...rest
+}: PropsWithChildren<{ shown: boolean; step: number; from?: number; style?: StyleProp<ViewStyle> } & Omit<React.ComponentProps<typeof View>, 'style'>>) {
+  const reduced = useReducedMotion();
+  const enter = shown && !reduced;
+  return (
+    <Animated.View
+      {...rest}
+      pointerEvents={shown ? 'auto' : 'none'}
+      style={[
+        style,
+        { opacity: shown ? 1 : 0 },
+        enter && {
+          animationName: {
+            from: { opacity: 0, transform: from ? [{ scale: from }] : [{ translateY: 14 }] },
+            to: { opacity: 1, transform: from ? [{ scale: 1 }] : [{ translateY: 0 }] },
+          },
+          animationDuration: from ? '700ms' : '480ms',
+          animationDelay: `${step === 0 ? 0 : 180 + step * STEP_MS}ms`,
+          animationTimingFunction: SETTLE,
+          animationFillMode: 'backwards',
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -144,8 +248,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: Gap.gutter },
   kicker: { ...Type.label, textAlign: 'center' },
   middle: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Space.xl },
-  locWrap: { alignItems: 'center' },
-  // As on the You tab: a light ring round a frosted circle. No shadow, no glow.
+  // Room round the circle for the moon's light, so it doesn't run under the time.
+  locWrap: { alignItems: 'center', marginVertical: Space.xl },
+  // As on the You tab: a light ring round a frosted circle, here in front of the risen moon.
   avatar: {
     width: SIZE,
     height: SIZE,

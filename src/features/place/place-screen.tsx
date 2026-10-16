@@ -83,7 +83,15 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
   const insets = useSafeAreaInsets();
   const lock = useLock();
   const [storedStage, setStage] = useState<Stage>(() => firstStage(mode));
-  const stage = livePlaceStage(storedStage, firstStage(mode), lock, getPlaceEditRefusal() !== null);
+  const held = livePlaceStage(storedStage, firstStage(mode), lock, getPlaceEditRefusal() !== null);
+  // The live view while there's a place to get to: the map, you on it, and how far is left.
+  const live = ['morning', 'checking', 'notThere', 'unsure', 'noFix'].includes(held.kind);
+  const you = useLiveFix(live, held.kind);
+  const target = shownPlace();
+  // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
+  const away = you && target && sharpFix(you) ? distanceMeters(you, target) : null;
+  // Got there since a check-in said "not there yet": that miss is old news, so it's Check in again.
+  const stage: Stage = away !== null && away <= PLACE_RADIUS_M && held.kind === 'notThere' ? { kind: 'morning' } : held;
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const routine = getRoutine();
@@ -125,13 +133,7 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
   const morning = stage.kind === 'morning' || stage.kind === 'notThere' || stage.kind === 'unsure' || stage.kind === 'noFix';
   const steps = () => router.replace({ pathname: '/wake', params: { method: 'steps' } });
 
-  // The live view while there's a place to get to: the map, you on it, and how far is left.
   const screen = useWindowDimensions();
-  const live = morning || stage.kind === 'checking';
-  const you = useLiveFix(live, stage.kind);
-  const target = shownPlace();
-  // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
-  const away = you && target && sharpFix(you) ? distanceMeters(you, target) : null;
   const mapW = screen.width - Gap.gutter * 2;
   const mapH = Math.round(mapW * (screen.height < 700 ? 0.5 : 0.72));
 

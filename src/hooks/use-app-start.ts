@@ -102,9 +102,10 @@ export function useAppStart(): void {
   const pathname = usePathname();
   // The dev labs (`app/(dev)`: Wake preview, Loc studio, the onboarding preview…) open by URL
   // in a browser, where storage is in memory and there's never a routine.
-  const devLab = (useSegments() as string[])[0] === '(dev)';
-  // `/scan` sets up the code or scans it: only the scan is a wake-up screen.
-  const { mode } = useGlobalSearchParams<{ mode?: string }>();
+  // `/scan` sets up the code or scans it: only the scan is a wake-up screen. `?demo=1` is a
+  // screen with made-up facts (the morning payoff), opened by URL like a lab.
+  const { mode, demo } = useGlobalSearchParams<{ mode?: string; demo?: string }>();
+  const devLab = (useSegments() as string[])[0] === '(dev)' || !!demo;
   const shown = useRef({ pathname, mode });
   useEffect(() => {
     shown.current = { pathname, mode };

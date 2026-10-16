@@ -15,7 +15,7 @@ import { NightSky } from './night-sky';
  * With `panel` (the tabs), the sky ends in rounded bottom corners above the black strip
  * that holds the tab buttons, as in the user's nav reference.
  */
-export function AppBackground({ children, panel }: PropsWithChildren<{ panel?: boolean }>) {
+export function AppBackground({ children, panel, moonless }: PropsWithChildren<{ panel?: boolean; moonless?: boolean }>) {
   const insets = useSafeAreaInsets();
   const floor = panel ? tabStripHeight(insets.bottom) : 0;
   return (
@@ -23,7 +23,7 @@ export function AppBackground({ children, panel }: PropsWithChildren<{ panel?: b
       <View style={[styles.sky, panel && { bottom: floor }, panel && styles.panel]}>
         {/* The moon stays at the panel's bottom edge on every tab, Home included: the user
             asked for it there, poking up, its light rising into the black. */}
-        <NightSky floor={floor} />
+        <NightSky floor={floor} moonless={moonless} />
       </View>
       {children}
       {panel ? <PanelCorners bottom={floor} /> : null}

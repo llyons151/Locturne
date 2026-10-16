@@ -302,9 +302,7 @@ export function YouScreen() {
       </Text>
       <Card
         footer={
-          permission === 'denied'
-            ? 'Notifications are off for Locturne in Settings, so these stay quiet until you turn them on there.'
-            : 'He keeps it short. No streaks, no guilt.'
+          permission === 'denied' ? 'Notifications are off for Locturne in Settings, so these stay quiet until you turn them on there.' : undefined
         }
       >
         <SwitchRow icon={sym('moon.fill', 'bedtime')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
@@ -356,7 +354,9 @@ export function YouScreen() {
               onPress={() => preview('/wake?method=pushups')}
             />
             <ValueRow icon={sym('barcode.viewfinder', 'barcode_scanner')} title="Scan a code (on Home)" value="" onPress={() => preview('/', 'scan')} />
-            <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Get to a place (on Home)" value="" onPress={() => preview('/', 'place')} last />
+            <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Get to a place (on Home)" value="" onPress={() => preview('/', 'place')} />
+            {/* The screen after a wake-up, moonrise and all, with made-up facts (app/morning-won.tsx). */}
+            <ValueRow icon={sym('moon.stars.fill', 'bedtime')} title="Morning payoff" value="" onPress={() => router.push('/morning-won?demo=1')} last />
           </Card>
 
           <Text style={styles.heading} accessibilityRole="header">

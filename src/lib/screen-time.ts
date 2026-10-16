@@ -50,7 +50,10 @@ import { formatPreset } from './text.ts';
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
  * Block now session picks, one list per daily limit and one per app schedule (schedules.ts).
  */
-export type SelectionId = 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId;
+export type SelectionId = 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId | typeof BLOCK_DRAFT;
+
+/** Where Apple's picker writes while apps are added to a running Block now (`beginBlockAdd`). */
+export const BLOCK_DRAFT = 'block-next';
 
 /**
  * The lists that stand from day to day, and so wait to loosen when edited: the next bedtime, or
@@ -807,6 +810,38 @@ export async function rearmNap(now = new Date()): Promise<void> {
   } finally {
     napStarting = false;
   }
+}
+
+/**
+ * Adding apps to a running Block now of picked apps (`block`). iOS unshields a list by the apps
+ * it holds *then*, so an app taken off mid-nap would never wake: the picker edits a copy, and
+ * closing it only ever adds (`finishBlockAdd`). The bedtime list has its own draft rules
+ * (`beginListEdit`); nap-add.ts picks between the two.
+ */
+export function beginBlockAdd(): typeof BLOCK_DRAFT {
+  copySelection('block', BLOCK_DRAFT);
+  return BLOCK_DRAFT;
+}
+
+/**
+ * Merges the picker's copy into `block` and shields the new apps if the nap still runs.
+ * `dropped`: something was deselected, which stays asleep anyway until the nap ends.
+ */
+export function finishBlockAdd(): { added: number; dropped: boolean } {
+  const before = selectionSize('block');
+  let dropped = false;
+  if (selectionSize(BLOCK_DRAFT) > 0) {
+    dropped = before > 0 && !containsAll('block', BLOCK_DRAFT);
+    if (before === 0) copySelection(BLOCK_DRAFT, 'block');
+    else union({ activitySelectionId: 'block' }, { activitySelectionId: BLOCK_DRAFT }, { persistAsActivitySelectionId: 'block', stripToken: true });
+  } else {
+    // Everything deselected: an emptied pick, not a reason to wake anything.
+    dropped = before > 0 && hasSelection(BLOCK_DRAFT);
+  }
+  clearSelection(BLOCK_DRAFT);
+  // Only a running nap of `block` holds it (`heldLists`); one that ended meanwhile shields nothing.
+  reapplyStandingBlocks();
+  return { added: Math.max(0, selectionSize('block') - before), dropped };
 }
 
 function readNap(): ActiveNap | null {

@@ -184,7 +184,7 @@ const HELLO = { head: 'No apps until you’re out of bed.', sub: 'I’m Loc. Rac
 export type StepView = {
   body: ReactNode;
   footer?: ReactNode;
-  /** One text link, shown just above the primary button so the button stays at the bottom. */
+  /** One text link, shown just under the primary button. */
   secondary?: ReactNode;
 };
 

@@ -25,11 +25,6 @@ export function commitMind(mind: Mind) {
   cached = mind;
   listeners.forEach((l) => l());
 }
-/** Reads it again from storage (after "Make Loc forget" or the switch on the You tab). */
-export function refreshMind() {
-  cached = readMind();
-  listeners.forEach((l) => l());
-}
 /** The mind, kept up to date. */
 export const useMind = () => useSyncExternalStore(subscribe, snapshot, snapshot);
 
@@ -79,7 +74,6 @@ export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, morning
   }, [real, proofKey, phase, morningKey, hour]);
 
   const { proud, wary } = attitude(mind, tone);
-  const remembers = !mind.off;
   let moment: LocMoment | null = null;
   const exit = proof && (proof.kind === 'pass' || proof.kind === 'emergency');
   if (phase === 'day' && proof && !exit) {
@@ -88,11 +82,11 @@ export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, morning
     if (mornings === 1) moment = { kind: 'firstMorning', key: `${sayKey}mind:first` };
     else if (stage) moment = { kind: stage, key: `${sayKey}mind:stage:${mornings}` };
     else if (proud) moment = { kind: 'wakeProud', key: `${sayKey}woke:${proof.morningKey}` };
-  } else if (remembers && phase === 'day' && exit) {
+  } else if (phase === 'day' && exit) {
     moment = { kind: 'exitAfter', key: `${sayKey}mind:exit:${proof.morningKey}` };
   }
-  if (!moment && remembers && mind.back === todayKey) moment = { kind: 'welcomeBack', key: `${sayKey}mind:back:${todayKey}` };
-  if (!moment && remembers && phase === 'night' && hour >= 1 && hour < 5) moment = { kind: 'smallHours', key: `${sayKey}mind:late:${morningKey}` };
+  if (!moment && mind.back === todayKey) moment = { kind: 'welcomeBack', key: `${sayKey}mind:back:${todayKey}` };
+  if (!moment && phase === 'night' && hour >= 1 && hour < 5) moment = { kind: 'smallHours', key: `${sayKey}mind:late:${morningKey}` };
 
   return { mind, proud, wary, moment };
 }

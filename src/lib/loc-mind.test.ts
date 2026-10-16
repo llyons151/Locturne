@@ -71,10 +71,9 @@ test('stages follow the mornings count', () => {
   assert.equal(stageFor(250).stage, 'rideOrDie');
 });
 
-test('mild tone and "off" are never wary', () => {
+test('mild tone is never wary', () => {
   const m = { ...freshMind(T0), suspicion: 90, respect: 90 };
   assert.ok(attitude(m, 'grumpy').wary > 0);
   assert.equal(attitude(m, 'mild').wary, 0);
-  assert.deepEqual(attitude({ ...m, off: true }, 'grumpy'), { proud: false, wary: 0 });
   assert.equal(attitude(m, 'mild').proud, true);
 });

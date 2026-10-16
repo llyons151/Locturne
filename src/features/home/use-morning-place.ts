@@ -81,9 +81,15 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     } else setStage({ kind: 'morning' });
   };
 
+  // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
+  const away = you && sharpFix(you) ? distanceMeters(you, place) : null;
+  const here = away !== null && away <= PLACE_RADIUS_M;
+  // Got there since a check-in said "not there yet": that miss is old news, so it's Check in again.
+  const shown: Check = here && stage.kind === 'notThere' ? { kind: 'morning' } : stage;
+
   const now = new Date();
   const imperial = usesMiles();
-  const { line, body } = placeWords(stage, {
+  const { line, body } = placeWords(shown, {
     place: place.name,
     awake: '',
     next: nextLockedMorning(now),
@@ -92,23 +98,20 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     imperial,
     now,
   });
-  // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
-  const away = you && sharpFix(you) ? distanceMeters(you, place) : null;
-  const here = away !== null && away <= PLACE_RADIUS_M;
   // The live distance is right above, so a miss doesn't repeat the check-in's older one.
-  const said = stage.kind === 'notThere' && away !== null ? 'Not there yet. Keep going, then try again.' : body;
+  const said = shown.kind === 'notThere' && away !== null ? 'Not there yet. Keep going, then try again.' : body;
 
   return {
     icon: { ios: 'location.fill', android: 'location_on' },
-    searching: stage.kind === 'checking',
-    hero: { title: titleFor(stage, place, away, imperial), body: here && stage.kind === 'morning' ? 'Tap Check in.' : said, aside: line },
+    searching: shown.kind === 'checking',
+    hero: { title: titleFor(shown, place, away, imperial), body: here && shown.kind === 'morning' ? 'Tap Check in.' : said, aside: line },
     meter: away !== null && away > PLACE_RADIUS_M ? { value: formatDistance(away - PLACE_RADIUS_M, imperial), caption: `to ${place.name}` } : undefined,
     action:
-      stage.kind === 'noFix' && settingsCanFix(stage.why)
+      shown.kind === 'noFix' && settingsCanFix(shown.why)
         ? { label: 'Open Settings', onPress: () => Linking.openSettings() }
-        : stage.kind === 'checking'
+        : shown.kind === 'checking'
           ? { label: 'Checking…', onPress: () => {} }
-          : { label: stage.kind === 'morning' ? 'Check in' : 'Try again', onPress: () => void onCheckIn() },
+          : { label: shown.kind === 'morning' ? 'Check in' : 'Try again', onPress: () => void onCheckIn() },
     alt: WALK_INSTEAD,
   };
 }

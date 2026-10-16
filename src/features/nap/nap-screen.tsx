@@ -33,6 +33,7 @@ import {
   shownSelection,
   startNap,
   type ActiveNap,
+  type SelectionId,
 } from '@/lib/screen-time';
 import { formatPreset, noOrphan } from '@/lib/text';
 import {
@@ -45,6 +46,7 @@ import {
 
 import { HoldButton } from '../../../modules/hold-button';
 import { LengthRuler } from './length-ruler';
+import { closeNapAdd, openNapAdd } from './nap-add';
 import { NapClock } from './nap-clock';
 import { shownLine, type NapLine } from './nap-line';
 import { closeSleepSheet, SHEET_PADDING } from './sleep-sheet';
@@ -142,6 +144,8 @@ export function NapScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [focused, setFocused] = useState(false);
+  /** Apple's picker is open to add apps to the running nap: the list it writes (`openNapAdd`). */
+  const [adding, setAdding] = useState<SelectionId | null>(null);
   // Turning the phone on its side mid-nap shows the moon clock. Only listens while it could.
   const side = useSideways(nap !== null && focused && protection === 'on');
 
@@ -254,6 +258,33 @@ export function NapScreen() {
     }
     setPicking(true);
   };
+  // Mid-nap: more apps join at once (user, 2026-10-15). Taking any off waits for the end (nap-add.ts).
+  const addApps = async () => {
+    if (!nap || isPickerSettling(nap.list)) return;
+    if (getProtection() !== 'on') {
+      const allowed = await askAccessAgain();
+      recheckProtection();
+      if (!allowed) return;
+    }
+    setNotice(null);
+    setAdding(openNapAdd());
+  };
+  const addClosed = (list: SelectionId) => {
+    setAdding(null);
+    const napList = nap?.list ?? 'block';
+    // The library saves the picks a moment after Done (see the Apps tab).
+    settlePicker(napList, () => {
+      const { added, dropped } = closeNapAdd(list);
+      const running = peekNap();
+      refreshPicks();
+      if (!running) return;
+      const parts = [
+        added > 0 ? `${added === 1 ? 'One more' : `${added} more`} asleep until ${timeOf(running.end)}.` : null,
+        dropped ? 'Anything you took off stays asleep until the nap ends.' : null,
+      ].filter(Boolean);
+      if (parts.length) refuse(parts.join(' '));
+    });
+  };
   // A nap running while access is off: ask again, and the shields come back (`restoreBlocks`).
   const turnAccessOn = async () => {
     haptic.tap();
@@ -353,10 +384,21 @@ export function NapScreen() {
           style={styles.hold}
         />
       )}
+      {/* Under the main button, like every secondary link. Only adds: see nap-add.ts. */}
+      {nap && napProtected ? <TextButton label="Add apps" onPress={addApps} /> : null}
       {/* Never imply protection is on when it isn't (GAME_PLAN, "Reliability"). */}
       {notice && <Text style={styles.notice}>{notice}</Text>}
 
       {nap ? <NapClock side={side} progress={done} left={left} until={napStatus} /> : null}
+
+      {adding && nap && (
+        <ScreenTimePicker
+          list={adding}
+          header="Add to this nap"
+          footer={`They sleep until ${timeOf(nap.end)}. Taking one off waits until the nap ends.`}
+          onClose={() => addClosed(adding)}
+        />
+      )}
 
       {picking && (
         <ScreenTimePicker

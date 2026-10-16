@@ -93,6 +93,18 @@ export const moonSink = makeMutable(0);
 /** How much of the moon's width it drops when sunk, and how much of its glow stays. */
 const SINK_DEPTH = 0.3;
 const SUNK_GLOW = 0.25;
+/**
+ * The resting moon as it is right now, sink included, and how much of its glow shows: where a
+ * screen that takes the moon over (the payoff's moonrise) has to start it. Read on the JS thread.
+ */
+export function restingMoonNow(width: number, height: number) {
+  const disc = restingMoonDisc(width, height);
+  const sink = moonSink.value;
+  return {
+    disc: { x: disc.cx, y: disc.cy + sink * disc.r * 2 * SINK_DEPTH, r: disc.r },
+    glow: interpolate(sink, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
+  };
+}
 /** The Apps tab's moon: risen above its resting place, into the sky under the tiles. */
 export const MOON_RAISED = -0.35;
 /** The Routine and You tabs' moon: sunk well past a moon width (its blur pads the image), out of sight with its glow (user, 2026-10-13). */
@@ -190,8 +202,11 @@ export function NightSky({
   quiz = false,
   home = false,
   floor = 0,
+  moonless = false,
 }: {
   opening?: boolean;
+  /** Hide the moon and its glow, leaving the sky: a screen drawing its own (the payoff's moonrise). */
+  moonless?: boolean;
   quiz?: boolean;
   /**
    * How far above the screen's bottom the sky ends (the tabs' panel stops above the tab
@@ -287,24 +302,27 @@ export function NightSky({
         contentPosition="top right"
         accessible={false}
       />
-      {MOON_REST === 'bottom' ? (
-        <Animated.View style={[styles.moon, glowStyle]}>
+      {/* A wrapper's opacity, since the glow's own is animated and would win. */}
+      <View style={[StyleSheet.absoluteFill, moonless && styles.hidden]}>
+        {MOON_REST === 'bottom' ? (
+          <Animated.View style={[styles.moon, glowStyle]}>
+            <Image
+              source={require('@/assets/onboarding/moon-glow.png')}
+              style={StyleSheet.absoluteFill}
+              contentFit="contain"
+              accessible={false}
+            />
+          </Animated.View>
+        ) : null}
+        <Animated.View style={[styles.moon, moonStyle]}>
           <Image
-            source={require('@/assets/onboarding/moon-glow.png')}
+            source={require('@/assets/onboarding/moon-frosted.png')}
             style={StyleSheet.absoluteFill}
             contentFit="contain"
             accessible={false}
           />
         </Animated.View>
-      ) : null}
-      <Animated.View style={[styles.moon, moonStyle]}>
-        <Image
-          source={require('@/assets/onboarding/moon-frosted.png')}
-          style={StyleSheet.absoluteFill}
-          contentFit="contain"
-          accessible={false}
-        />
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -312,5 +330,6 @@ export function NightSky({
 const styles = StyleSheet.create({
   clip: { overflow: 'hidden' },
   moon: { position: 'absolute' },
+  hidden: { opacity: 0 },
   flipped: { transform: [{ scaleY: -1 }] },
 });

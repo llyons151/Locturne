@@ -7,8 +7,7 @@
  *   small hours raise it; it fades in a couple of days.
  * Nothing here ever punishes: a missed morning changes nothing, the numbers only colour his
  * mood and lines, and stages (from the mornings count) only go up. Mild tone keeps him from
- * acting suspicious. "Loc remembers you" off freezes him neutral; "Make Loc forget" resets
- * the numbers.
+ * acting suspicious. It's always on: not a setting.
  */
 import { sharedGet, sharedSet } from './screen-time.ts';
 import type { Tone } from './tone.ts';
@@ -24,8 +23,6 @@ export type Mind = {
   lastVisit: number;
   /** The day he greets you back, if you were away three days or more (a date key). */
   back: string | null;
-  /** Off: he acts neutral, whatever happened. */
-  off?: boolean;
 };
 
 const KEY = 'locturne.loc.mind';
@@ -109,9 +106,8 @@ export const STAGES: { stage: Stage; from: number; label: string }[] = [
 export const stageFor = (mornings: number) => [...STAGES].reverse().find((s) => mornings >= s.from)!;
 
 export type Attitude = { proud: boolean; wary: number };
-/** How the numbers colour him. Off, or Mild tone, he's never wary. */
+/** How the numbers colour him. On Mild tone he's never wary. */
 export function attitude(mind: Mind, tone: Tone): Attitude {
-  if (mind.off) return { proud: false, wary: 0 };
   const wary = tone === 'mild' ? 0 : Math.max(0, Math.min(1, (mind.suspicion - WARY_AT) / 40));
   return { proud: mind.respect >= PROUD_AT, wary };
 }
@@ -132,12 +128,4 @@ export function readMind(now = Date.now()): Mind {
 }
 export function writeMind(mind: Mind) {
   sharedSet(KEY, mind);
-}
-/** "Make Loc forget": the numbers back to where they start. What was counted stays counted. */
-export function forgetMind(now = Date.now()) {
-  const mind = readMind(now);
-  writeMind({ ...freshMind(now), seen: mind.seen, off: mind.off });
-}
-export function setMindOn(on: boolean, now = Date.now()) {
-  writeMind({ ...readMind(now), off: !on });
 }

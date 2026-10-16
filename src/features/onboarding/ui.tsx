@@ -272,8 +272,7 @@ const FOOTER_DELAY_MS = 450;
 
 /**
  * Footer buttons fade up shortly after the page's first line starts, without waiting for it to finish.
- * A text link goes above the primary button, never under it, so the button sits at the
- * bottom on every screen (docs/onboarding-consistency).
+ * A text link (Skip, Restore, Not now) always goes under the primary button, never above it.
  */
 export function FooterEnter({ children, secondary }: PropsWithChildren<{ secondary?: ReactNode }>) {
   const reduced = useReducedMotion();
@@ -301,8 +300,8 @@ export function FooterEnter({ children, secondary }: PropsWithChildren<{ seconda
         },
       ]}
     >
-      {secondary}
       {children}
+      {secondary}
     </Animated.View>
   );
 }
