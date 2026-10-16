@@ -76,18 +76,12 @@ function save() {
 export function load() {
   try {
     const raw = localStorage.getItem(SAVED);
-    // The studio starts with the raccoon hands on; the app keeps its paws until they ship.
-    if (!raw) {
-      LOC_TUNE.hands = true;
-      return;
-    }
+    if (!raw) return;
     const saved = JSON.parse(raw) as { tune: typeof LOC_TUNE; moods: Moods };
     Object.assign(LOC_TUNE, saved.tune);
     for (const m of MOODS) if (saved.moods[m]) Object.assign(LOC_MOODS[m], saved.moods[m]);
     retuneLoc();
-  } catch {
-    LOC_TUNE.hands = true;
-  }
+  } catch {}
 }
 
 /** What's different from what shipped, one line each. */

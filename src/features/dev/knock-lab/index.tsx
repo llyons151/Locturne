@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import KnockPanel from './knock-panel';
-import { fireBurrow, fireZoomies, KNOCK_PRESETS, knockCode, openKnockLab, resetKnockTune, setKnockTune, useKnockLab } from './store';
+import { fireBurrow, fireUltra, fireZoomies, KNOCK_PRESETS, knockCode, openKnockLab, resetKnockTune, setKnockTune, useKnockLab } from './store';
 
 /** Dev only: the knock lab's panel, over the top of the tabs while it's open (store.ts). */
 export function KnockLab() {
@@ -19,6 +19,7 @@ export function KnockLab() {
         onPreset={(name) => resetKnockTune(KNOCK_PRESETS[name as keyof typeof KNOCK_PRESETS])}
         onBurrow={fireBurrow}
         onZoomies={fireZoomies}
+        onUltra={fireUltra}
         onClose={() => openKnockLab(false)}
         dom={{ matchContents: true, scrollEnabled: false, style: { backgroundColor: 'transparent' } }}
       />

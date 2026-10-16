@@ -10,7 +10,7 @@ import { poseOf, startKnock, stepKnock, type KnockWorld } from './physics.ts';
 const homes = [46, 106, 166, 226, 347].map((x) => ({ x, y: 40 }));
 const TUNE = {
   scurry: 2.2, reach: 0.43, width: 46, bounce: 2.05, jiggle: 0.5, tempo: 2.8, sway: 1, spin: 0.25,
-  squash: 1, blast: 1, haptics: false, zoomAfter: 3, zoomWindow: 60, zoomSpeed: 2.5, zoomLaps: 4,
+  squash: 1, blast: 1, haptics: false, zoomAfter: 3, zoomWindow: 60, zoomSpeed: 2.5, zoomLaps: 4, ultraAfter: 5, ultraSpeed: 1,
 };
 
 /** A run with little hops: dives in the middle, runs left past every tab, back, and pops out. */

@@ -9,8 +9,11 @@ export const FPS = 60;
 export const DT = 1 / FPS;
 export const MOODS: LocMood[] = ['asleep', 'groggy', 'awake', 'smug', 'betrayed'];
 
-export type ActionGroup = 'New: explorations' | 'Comes and goes' | 'Reactions' | 'Habits' | 'Little moves' | 'Mood changes' | 'Idle';
-export const GROUPS: ActionGroup[] = ['New: explorations', 'Comes and goes', 'Reactions', 'Habits', 'Little moves', 'Mood changes', 'Idle'];
+export type ActionGroup =
+  | 'Your expressions' | 'New: expressions' | 'New: explorations' | 'Comes and goes' | 'Reactions' | 'Habits' | 'Little moves' | 'Mood changes' | 'Idle';
+export const GROUPS: ActionGroup[] = [
+  'Your expressions', 'New: expressions', 'New: explorations', 'Comes and goes', 'Reactions', 'Habits', 'Little moves', 'Mood changes', 'Idle',
+];
 
 export type LocAction = {
   id: string;

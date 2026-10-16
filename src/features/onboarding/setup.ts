@@ -25,6 +25,10 @@ export const ATTRIBUTION_KEY = 'locturne.attribution';
  */
 const QUIZ_KEY = 'locturne.quizAnswers';
 const QUIZ_FIELDS = [
+  // The branch and its feeling answer, so "See plans" speaks to the same pain.
+  'pain',
+  'nightFeel',
+  'afterFeel',
   'mornings',
   'nightMinutes',
   'nightsPerWeek',

@@ -7,8 +7,8 @@ import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
-import { revealBeat } from '../content';
-import { formatHalves, weeklyAmount, yearAmount, type Estimate } from '../estimate';
+import { revealBeat, type Answers } from '../content';
+import { formatClock, formatHalves, formatWhen, LEAD_WHERE, leadFor, weeklyAmount, yearAmount, type Estimate } from '../estimate';
 import { RollingNumber } from '../rolling-number';
 import { Body, page, Voice } from '../ui';
 
@@ -19,15 +19,17 @@ const SECOND_BEAT_MS = 1100;
  * The big number in two beats (Opal's bad news then good news, Noom's reveal in beats): the
  * hours a week on the phone in bed rolls up with the year it adds up to, then his line says
  * who had a good time. What they'd do with the hours is the next step (`time-back`).
+ * The number is their branch's end of the night when it's big enough (`leadFor`), with one
+ * clock fact from their own answers under it; never a statistic.
  */
 export function RevealScreen({
   numbers,
-  mornings,
+  answers,
   onPayoff,
 }: {
   numbers: Estimate;
-  /** How the morning feels (`mornings`): picks the second beat. */
-  mornings?: string;
+  /** The branch and its feeling answer pick the number and the second beat. */
+  answers: Pick<Answers, 'pain' | 'mornings' | 'nightFeel' | 'afterFeel' | 'bedtime' | 'wake'>;
   onPayoff?: () => void;
 }) {
   const [landed, setLanded] = useState(false);
@@ -60,29 +62,38 @@ export function RevealScreen({
     );
   }
 
-  const amount = weeklyAmount(numbers.weeklyMinutes);
+  const lead = leadFor(numbers, answers.pain);
+  const amount = weeklyAmount(lead.minutes);
+  const short = (minutes: number) => formatClock(minutes).replace(/\s?[AP]M$/i, '');
+  const clockFact =
+    lead.scope === 'night'
+      ? `Phone down around ${formatWhen(numbers.phoneDown)}. Bedtime ${short(answers.bedtime)}.`
+      : lead.scope === 'morning'
+        ? `Alarm ${short(answers.wake)}. Feet down around ${short(numbers.feetDown)}.`
+        : null;
   return (
     <View style={styles.wrap}>
       <Reveal>
         <Body style={styles.lead}>Based on your answers, you spend about…</Body>
       </Reveal>
-      <View accessible accessibilityRole="header" accessibilityLabel={`About ${amount} a week on your phone in bed`}>
+      <View accessible accessibilityRole="header" accessibilityLabel={`About ${amount} a week ${LEAD_WHERE[lead.scope]}`}>
         <RollingNumber
-          value={numbers.weeklyHours}
+          value={lead.weeklyHours}
           format={(v) => `${formatHalves(v)} ${v === 1 ? 'hour' : 'hours'}`}
           onLanded={setLanded}
           rowHeight={compact ? 52 : 72}
           fontSize={compact ? 48 : 64}
         />
       </View>
-      <Body style={styles.sub}>…a week on your phone in bed.</Body>
+      <Body style={styles.sub}>{`…a week ${LEAD_WHERE[lead.scope]}.`}</Body>
       {landed ? (
         <Reveal delay={200}>
-          <Text style={styles.year}>{`That’s ${yearAmount(numbers.yearlyHours, 'hour')}`}</Text>
+          <Text style={styles.year}>{`That’s ${yearAmount(lead.yearlyHours, 'hour')}`}</Text>
+          {clockFact ? <Text style={styles.fact}>{clockFact}</Text> : null}
         </Reveal>
       ) : null}
       <View style={styles.beat}>
-        {secondBeat ? <Voice text={revealBeat(mornings)} size={VoiceSize.headline} center /> : null}
+        {secondBeat ? <Voice text={revealBeat(answers, lead.scope)} size={VoiceSize.headline} center /> : null}
       </View>
     </View>
   );
@@ -93,5 +104,6 @@ const styles = StyleSheet.create({
   lead: { textAlign: 'center', color: Nocturne.text, ...Type.body, marginBottom: Space.s },
   sub: { marginTop: Space.s, textAlign: 'center' },
   year: { ...NUMBER_FONT, color: Nocturne.text2, fontSize: 20, lineHeight: 26, textAlign: 'center', marginTop: Space.l },
+  fact: { color: Nocturne.text2, ...Type.secondary, textAlign: 'center', marginTop: Space.s },
   beat: { flex: 1, justifyContent: 'center' },
 });

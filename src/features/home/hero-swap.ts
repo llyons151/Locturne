@@ -14,7 +14,7 @@ type Middle = Pick<HomeContentProps, 'hero' | 'heroKey' | 'meter' | 'icon' | 'se
  * turned on, bedtime starting) swaps.
  */
 export function sceneKey({ hero, meter, icon, action, look }: Middle) {
-  const words = `${look}|${hero.title}|${action.label}|${meter ? 'meter' : ''}|${icon?.ios ?? ''}`;
+  const words = `${look}|${hero.title}|${action?.label ?? ''}|${meter ? 'meter' : ''}|${icon?.ios ?? ''}`;
   return words.replace(/\d[\d:.,]*\s*(h|m)?\b/g, '').replace(/\s+/g, ' ');
 }
 

@@ -34,6 +34,8 @@ export type WakePreview = {
   place: 'real' | 'walking' | 'there' | 'notThere' | 'unsure' | 'slow' | 'denied' | 'imprecise' | 'off' | 'failed';
   /** In a pretend morning with no code or place set up, use a made-up one instead of "There is no code". */
   standIns: boolean;
+  /** The pretend morning just won, and with what: Home opens the payoff for it, made up. */
+  won: { method: WakeMethod; at: number } | null;
 };
 
 // A browser has none of the sensors, so the fakes start on there; a phone starts real.
@@ -46,6 +48,7 @@ const START: WakePreview = {
   scan: web ? 'fake' : 'real',
   place: web ? 'walking' : 'real',
   standIns: true,
+  won: null,
 };
 
 let current = START;
@@ -77,8 +80,12 @@ export function pretendPhase(): 'morning' | 'day' | null {
 export const pretendMethod = (): WakeMethod | null =>
   current.phase !== 'real' && current.method !== 'routine' ? current.method : null;
 
-/** A pretend morning's pass: nothing is recorded, the preview just moves on to "done". */
-export const pretendWoke = () => setWakePreview({ phase: 'woke' });
+/**
+ * A pretend morning won: nothing is recorded, the preview just moves on to "done". With the
+ * method that won it, Home then opens the payoff (/morning-won) with made-up facts.
+ */
+export const pretendWoke = (method?: WakeMethod) =>
+  setWakePreview({ phase: 'woke', won: method ? { method, at: Date.now() } : null });
 
 /**
  * One tap from You → Developer → UI: a pretend morning with every sensor faked (a fake already

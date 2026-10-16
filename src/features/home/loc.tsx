@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { AccessibilityInfo, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { tabStripHeight } from '@/components/app-tabs';
+import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
+import { runRim, stopRim } from '@/components/loc-rim';
 import { knockNav } from '@/components/nav-knock';
 import { useKnockLab } from '@/features/dev/knock-lab/store';
 import { useTabSelected } from '@/hooks/use-tab-selected';
@@ -15,6 +16,9 @@ import { LocBubble } from './loc-bubble';
 import { HELLO_CHANCE, isLocBirthday, locLine, locSpecial, type LocCue as Cue, type LocMoment } from './loc-lines';
 import { LOC_VIEW, type LocMood } from './loc-rig';
 import LocStage from './loc-stage';
+import { seeded, ultraRun } from './loc-ultra';
+import type { BurrowPath } from './nav-knock-tune';
+import { RIM_TOP_CORNER, type Rim } from './rim';
 
 /** His width as a share of the screen (the old static peek was 0.23). */
 const SHARE = 0.27;
@@ -50,6 +54,9 @@ const saidOnce = {
     sharedSet(SAID_KEY, [...kept, key].slice(-SAID_KEPT));
   },
 };
+
+/** Counts `key` as said, so Home doesn't say it again (the payoff already said the wake-up's line). */
+export const markLocSaid = (key: string) => saidOnce.add(key);
 
 // Home decides his mood and whether he's out; he's drawn by the tabs layout, which stays on
 // screen across tabs, so his exit is seen instead of fading away with Home's page. `seen`: Home
@@ -102,7 +109,7 @@ export function LocCue({ mood, wary = 0, moment = null, floor }: { mood: LocMood
  * (docs/LOC_SILHOUETTE.md, round 6).
  */
 export function Loc() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { mood, wary, present, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
   // The knock lab's Burrow button and live tuning (dev only; at rest it never changes).
@@ -114,6 +121,12 @@ export function Loc() {
   const tail = Math.round(h * BUBBLE_AT);
   // The bubble's height, up to just under Home's content, with a gap kept.
   const room = floor > 0 ? Math.max(0, floor - tail - 8) : undefined;
+  // The panel's outline, for the ultra zoomies' run round it (rim.ts).
+  const rim: Rim = { W: width, H: height - tabStripHeight(insets.bottom), Rb: PANEL_RADIUS, Rt: RIM_TOP_CORNER };
+  const rimRef = useRef(rim);
+  useEffect(() => {
+    rimRef.current = rim;
+  });
 
   // His line: what he says when something happens to him (loc-lines.ts).
   const [said, setSaid] = useState<{ line: string; id: number } | null>(null);
@@ -170,8 +183,10 @@ export function Loc() {
     }
   }, [present, seen, hello]);
   const onCue = useCallback(
-    (cue: Cue) => {
+    (cue: Cue | 'ultra') => {
       if (cue === 'hide') return setSaid(null);
+      // Back from round the whole screen: always worth a word.
+      if (cue === 'ultra') return speak(locSpecial('ultra', getTone()));
       if (cue === 'hello') {
         if (greeted.current) return;
         if (!seenRef.current) {
@@ -204,6 +219,17 @@ export function Loc() {
     [hello, news, speak],
   );
   const onTap = useCallback((kind: 'poke' | 'burrow') => (kind === 'burrow' ? thud() : tick()), []);
+  const onBurrow = useCallback((path: BurrowPath) => {
+    // The nav strip only needs the bottom edge; the run round the screen goes to its own layer.
+    const { ultra, ...strip } = path;
+    knockNav(strip);
+    // The same run his canvas planned, from its seed and the same screen edge.
+    if (ultra !== undefined && rimRef.current) runRim(ultraRun(rimRef.current, seeded(ultra)).run);
+  }, []);
+  // Off Home mid-run, the lump going round the screen fades instead of finishing without him.
+  useEffect(() => {
+    if (!present) stopRim();
+  }, [present]);
   // A moment that starts while he's already out (bedtime comes up, the apps fall asleep) gets
   // said right away, or once the screen over Home is gone (the wake-up's done line, after the
   // wake-up screen closes); otherwise it waits for his hello.
@@ -234,9 +260,11 @@ export function Loc() {
           present={present}
           onCue={onCue}
           onTap={onTap}
-          onBurrow={knockNav}
+          onBurrow={onBurrow}
           burrowNonce={lab.nonce}
           zoomNonce={lab.zoomNonce}
+          ultraNonce={lab.ultraNonce}
+          rim={rim}
           knock={lab.tune}
           dom={{
             style: { width, height: h, backgroundColor: 'transparent' },

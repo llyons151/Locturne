@@ -24,7 +24,7 @@ export function useProveMorning() {
     (kind: WakeMethodShown): LockState | null => {
       if (pretend) {
         haptic.done();
-        pretendWoke();
+        pretendWoke(kind);
         return { ...readLock(), phase: 'day' };
       }
       const state = proveMorning(kind) ?? readLock();

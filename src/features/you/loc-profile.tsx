@@ -48,7 +48,7 @@ export function LocProfile({ line, say, mornings, onLongPress }: { line: string;
   }, [said]);
   const again = () => setSaid((n) => (n ?? 0) + 1000);
   // A poke on him (handled in his webview) says it again; hiding doesn't.
-  const onCue = useCallback((cue: 'poke' | 'angry' | 'hello' | 'hide') => {
+  const onCue = useCallback((cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') => {
     if (cue === 'poke' || cue === 'angry') setSaid((n) => (n ?? 0) + 1000);
   }, []);
   const dom = useMemo(

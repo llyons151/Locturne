@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import { LocRig, type LocMood } from './loc-rig';
 import { NAV_KNOCK, type BurrowPath, type NavKnockTune } from './nav-knock-tune';
+import type { Rim } from './rim';
 
 /**
  * Loc's canvas, as a DOM component (docs.expo.dev/guides/dom-components): the rig is WebGL and
@@ -28,6 +29,8 @@ export default function LocStage({
   onBurrow,
   burrowNonce = 0,
   zoomNonce = 0,
+  ultraNonce = 0,
+  rim,
   knock,
 }: {
   mood: LocMood;
@@ -38,7 +41,7 @@ export default function LocStage({
   /** His body's colour, `#RRGGBB`; black (in front of the moon) when left out. */
   ink?: string;
   /** What just happened to him (a poke, popping back up...), for his speech bubble. A native action on iOS. */
-  onCue?: (cue: 'poke' | 'angry' | 'hello' | 'hide') => void;
+  onCue?: (cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') => void;
   /** A tap landed on him, the moment it lands, for the phone's buzz. A native action on iOS. */
   onTap?: (kind: 'poke' | 'burrow') => void;
   /** Each burrow's planned run, for the nav strip's bounce (components/nav-knock). A native action on iOS. */
@@ -47,6 +50,10 @@ export default function LocStage({
   burrowNonce?: number;
   /** Bumped to send him under with the zoomies (the knock lab's Zoomies button). */
   zoomNonce?: number;
+  /** Bumped to send him round the whole screen (the knock lab's Ultra button). */
+  ultraNonce?: number;
+  /** The screen's edge, for the ultra zoomies (rim.ts); left out, he never goes round it. */
+  rim?: Rim;
   /** The knock lab's live tuning; inside the webview this module is a copy, so it comes as a prop. */
   knock?: NavKnockTune;
   dom?: import('expo/dom').DOMProps;
@@ -65,6 +72,7 @@ export default function LocStage({
   const onCueRef = useRef(onCue);
   const onTapRef = useRef(onTap);
   const onBurrowRef = useRef(onBurrow);
+  const rimRef = useRef<Rim | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,6 +81,7 @@ export default function LocStage({
     const rig = new LocRig(canvas, moodRef.current, reduced, inkRef.current);
     rig.setShare(shareRef.current);
     rig.setWary(waryRef.current);
+    rig.setRim(rimRef.current);
     rig.onCue = (cue) => onCueRef.current?.(cue);
     rig.onBurrow = (path) => onBurrowRef.current?.(path);
     rigRef.current = rig;
@@ -167,9 +176,22 @@ export default function LocStage({
 
   useEffect(() => {
     if (!zoomNonce) return;
-    rigRef.current?.burrow(true);
+    rigRef.current?.burrow('zoom');
     wakeRef.current();
   }, [zoomNonce]);
+
+  useEffect(() => {
+    if (!ultraNonce) return;
+    rigRef.current?.burrow('ultra');
+    wakeRef.current();
+  }, [ultraNonce]);
+
+  // Plain numbers, so a new object with the same edge (every render) changes nothing.
+  const rimW = rim?.W, rimH = rim?.H, rimRb = rim?.Rb, rimRt = rim?.Rt;
+  useEffect(() => {
+    rimRef.current = rimW && rimH && rimRb !== undefined && rimRt !== undefined ? { W: rimW, H: rimH, Rb: rimRb, Rt: rimRt } : null;
+    rigRef.current?.setRim(rimRef.current);
+  }, [rimW, rimH, rimRb, rimRt]);
 
   useEffect(() => {
     waryRef.current = wary;

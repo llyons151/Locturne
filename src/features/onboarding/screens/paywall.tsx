@@ -13,7 +13,7 @@ import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } fr
 import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
 import { methodCopy, NEW_YEAR, plansHeadline } from '../content';
-import { dateFromToday, weeklyAmount } from '../estimate';
+import { dateFromToday, formatWhen, leadFor, weeklyAmount } from '../estimate';
 import { scheduleCopy } from '../schedule-copy';
 import { NightCompare } from './night-compare';
 import type { StepContext, StepView } from '../steps';
@@ -77,9 +77,17 @@ export function plansStep(ctx: StepContext): StepView {
       nightMinutes={answers.nightMinutes ?? 0}
       morningMinutes={answers.morningMinutes ?? 0}
       method={answers.method ?? 'steps'}
+      morningFirst={answers.pain === 'morning'}
     />
   );
   const method = methodCopy(answers.method ?? 'steps');
+  // The branch's own end of the night, when it's big enough to lead with (`leadFor`).
+  const lead = leadFor(numbers, answers.pain);
+  const firstCheck = !ctx.scheduledNight
+    ? 'Turn nights on in Routine anytime'
+    : answers.pain === 'night'
+      ? `Asleep from ${formatWhen(answers.bedtime)} on your nights`
+      : method.check;
   const trialDays = offers.annual.trialDays;
   const annual = offers.annual.priceString;
   const monthly = offers.monthly.priceString;
@@ -110,7 +118,7 @@ export function plansStep(ctx: StepContext): StepView {
             `time-back` (docs/ONBOARDING_MOBBIN.md). Never "Try free": Apple 3.1.2 rejects
             trial wording that's bigger than the billed price. A light user has no hours to sell. */}
         <Voice
-          text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(numbers.weeklyMinutes), answers.timeBack)}
+          text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(lead.minutes), answers.timeBack)}
           size={compact ? 26 : 30}
           header
           center
@@ -140,10 +148,11 @@ export function plansStep(ctx: StepContext): StepView {
           <View style={[styles.checks, compact && styles.checksCompact]}>
             {/* Never an app's name: Apple's picker only hands back opaque tokens. Bedtime is in
                 his line above, so the list starts at the morning, then the way out. */}
-            <Check text={ctx.scheduledNight ? method.check : 'Turn nights on in Routine anytime'} />
+            <Check text={firstCheck} />
             {/* Two passes a month are the only way out early (PASSES_PER_MONTH, decided 2026-10-14). */}
             <Check text="Two passes a month for bad days" />
-            <Check text="Only the apps you pick" />
+            {/* Overall: the daytime half is real in v1 (GAME_PLAN, Daytime controls), so say it once. */}
+            <Check text={answers.pain === 'overall' ? 'Daytime schedules and limits too' : 'Only the apps you pick'} />
           </View>
         )}
         <View accessibilityRole="radiogroup" style={styles.planCards}>

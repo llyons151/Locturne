@@ -3,7 +3,8 @@
 // React, so the React Compiler stays out of here.
 
 import { useKeepAwake } from 'expo-keep-awake';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,7 +12,7 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { useHealth } from '@/hooks/use-health';
 import { askAccessAgain } from '@/lib/ask-access';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
-import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
+import { lapseStillCovers, nextBedtime, routineAt, subscriptionEnded } from '@/lib/lock-controller';
 import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getTone } from '@/lib/tone';
@@ -24,6 +25,8 @@ import {
   bedtimeAppCount,
   isScreenTimeAvailable,
   isStoodDown,
+  sharedGet,
+  sharedSet,
   listChangeLandsAt,
   nightLockArmed,
   nightPickCount,
@@ -37,9 +40,9 @@ import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
 import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
-import { HomeContent, type HomeMeter } from './home-content';
+import { HomeContent, type HomeAction, type HomeMeter } from './home-content';
 import type { HomeLook } from './home-look';
-import { LocCue } from './loc';
+import { LocCue, markLocSaid } from './loc';
 import type { LocMoment } from './loc-lines';
 import { bigClock, duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -48,14 +51,14 @@ import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
 import { useCatchingUp } from './catch-up';
-import { OTHER_WAYS, scanMorning } from './morning';
+import { scanMorning, WALK_INSTEAD } from './morning';
 import { useMorningPlace } from './use-morning-place';
 import { useMorningPushups } from './use-morning-pushups';
 import { useMorningStairs } from './use-morning-stairs';
 import { useMorningWalk, type MorningWalk } from './use-morning-walk';
 import { useHomeMock } from '../dev/state-lab/app-states';
 import { MockBar, MockSwipe } from '../dev/state-lab/mock-bar';
-import { pretendMethod } from '../dev/wake-lab/wake-preview';
+import { pretendMethod, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { weekDays } from './week';
 
 /** Dev only: fill Sunday through today with won days to preview the mist. */
@@ -196,6 +199,9 @@ export function HomeScreen() {
   const [realHealth, recheckHealth] = useHealth();
   // Dev only: a made-up state from You → Developer → App states (features/dev/state-lab).
   const mock = useHomeMock();
+  // The payoff opens over Home once, the moment a real wake-up wakes the apps.
+  usePayoff(real.proof, !mock);
+  usePretendPayoff(!mock);
   const facts = mock ? mock.facts(now, real.routine) : readHomeFacts(now, real, realHealth);
   const { lock, routine, proof, health, pause, method, won, free, mornings, sleepsAt, bedtimeApps } = facts;
   const unprotected = health.protection === 'off' || health.protection === 'notSetUp';
@@ -208,11 +214,21 @@ export function HomeScreen() {
   // method, and prove the morning by themselves (GAME_PLAN: walking always works instead).
   const morningHere = !unprotected && phase === 'morning';
   const walked = useMorningWalk(morningHere, routine);
-  const walk = method === 'steps' ? walked : null;
-  const stairs = useMorningStairs(morningHere && method === 'downstairs', walked);
-  const place = useMorningPlace(morningHere && method === 'place', walked, routine.stepGoal);
-  const pushups = useMorningPushups(morningHere && method === 'pushups', walked, pushupGoalOf(routine), lock.morningKey);
-  const here = stairs ?? place ?? pushups?.morning ?? (morningHere && method === 'scan' ? scanMorning(walked) : null);
+  // "Walk 200 steps instead" turns this morning's Home into the walk (user, 2026-10-15). Kept
+  // per morning, so tomorrow starts on the routine's own method again.
+  const [walkingFor, setWalkingFor] = useState<string | null>(null);
+  const canWalk = walked?.kind === 'counting';
+  const walkingInstead = morningHere && method !== 'steps' && canWalk && walkingFor === lock.morningKey;
+  const walkInstead = canWalk && method !== 'steps' ? { label: `Walk ${walked.goal} steps instead`, onPress: () => setWalkingFor(lock.morningKey) } : undefined;
+  const walk = method === 'steps' || walkingInstead ? walked : null;
+  const own = morningHere && !walkingInstead;
+  const stairs = useMorningStairs(own && method === 'downstairs', walked);
+  const place = useMorningPlace(own && method === 'place', walked, routine.stepGoal);
+  const pushups = useMorningPushups(own && method === 'pushups', walked, pushupGoalOf(routine), lock.morningKey, () => walkInstead?.onPress());
+  const morningHero = stairs ?? place ?? pushups?.morning ?? (own && method === 'scan' ? scanMorning() : null);
+  // The method's "walk instead" placeholder, made real; never the passes (they stay in You).
+  const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));
+  const here = morningHero && { ...morningHero, action: made(morningHero.action) ?? null, alt: made(morningHero.alt) };
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
   const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
   // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
@@ -297,7 +313,7 @@ export function HomeScreen() {
         : walkSettings
           ? walkSettings
         : walk
-          ? { label: 'Other ways to wake them', onPress: () => router.push('/exits'), opens: true }
+          ? null
         : here
           ? here.action
         : phase === 'morning'
@@ -407,7 +423,7 @@ export function HomeScreen() {
         icon={walk ? WALK_ICON : here?.icon}
         searching={!walk && here?.searching}
         action={action}
-        alt={here && action === here.action ? here.alt : action === walkSettings ? OTHER_WAYS : undefined}
+        alt={here && action === here.action && here.alt !== here.action ? here.alt : undefined}
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
@@ -432,6 +448,60 @@ const DONE_WORDS: Record<WakeMethod, string> = {
 };
 
 const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };
+
+/** A wake-up older than this, found on opening the app, gets Home's done look but no payoff. */
+const PAYOFF_FOR = 15 * 60_000;
+/** The morning key whose payoff was last shown: each morning's opens once. */
+const PAYOFF_KEY = 'locturne.payoffShown';
+
+/**
+ * Opens the morning payoff (/morning-won) once per morning, as soon as Home is on top after a
+ * real wake-up (not a pass): straight away for a walk or the stairs on Home, after the camera
+ * closes for a scan or push-ups. Loc's wake-up line on Home counts as said: the payoff is the moment.
+ */
+function usePayoff(proof: MorningProof | null, live: boolean) {
+  const focused = useIsFocused();
+  const won = !!proof && proof.kind !== 'pass' && proof.kind !== 'emergency';
+  const key = won ? proof.morningKey : null;
+  const at = won ? proof.at : 0;
+  useEffect(() => {
+    if (!live || !focused || !key || Date.now() - at > PAYOFF_FOR || sharedGet<string>(PAYOFF_KEY) === key) return;
+    sharedSet(PAYOFF_KEY, key);
+    markLocSaid(`woke:${key}`);
+    router.push('/morning-won');
+  }, [live, focused, key, at]);
+}
+
+/** The pretend morning's win last opened (its `won.at`): each opens the payoff once. */
+let pretendShown = 0;
+
+/**
+ * Dev: a pretend morning won in the wake preview records nothing, so `usePayoff` never sees
+ * it. Opens the payoff with made-up facts for the method that won, the time now and the real
+ * count plus this one.
+ */
+function usePretendPayoff(live: boolean) {
+  const focused = useIsFocused();
+  const { won } = useWakePreview();
+  useEffect(() => {
+    if (!live || !focused || !won || pretendShown === won.at) return;
+    pretendShown = won.at;
+    const at = new Date(won.at);
+    const upAt = at.getHours() * 60 + at.getMinutes();
+    // A pretend morning runs at any hour: past three hours after the real morning start, call it on time.
+    const start = routineAt(at).morningStart;
+    router.push({
+      pathname: '/morning-won',
+      params: {
+        demo: '1',
+        method: won.method,
+        at: String(upAt),
+        start: String(upAt >= start && upAt - start <= 180 ? start : upAt),
+        mornings: String(getMorningsWon() + 1),
+      },
+    });
+  }, [live, focused, won]);
+}
 
 /** The phone is in hand on the stairs; don't let it lock mid-session. */
 function StayAwake() {

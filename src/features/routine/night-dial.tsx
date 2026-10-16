@@ -28,13 +28,13 @@ import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 const DAY = 1440;
 const SNAP = 15;
 /** The width of the track and the night band. */
-const BAND = 24;
+const BAND = 16;
 /** The handles are the band's rounded ends: the same width, so they read as one shape. */
 const KNOB = BAND;
 /** How far from a handle's centre a touch still grabs it. */
 const GRAB = 30;
 /** How far either side of the ring a touch still grabs the night. */
-const RING_GRAB = BAND / 2 + 13;
+const RING_GRAB = BAND / 2 + 19;
 /** Every two hours; the four quarters sit brighter, and only midnight and noon carry am/pm. */
 const LABELS = Array.from({ length: 12 }, (_, i) => {
   const h = i * 2;
@@ -254,7 +254,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
       >
         <SymbolView
           name={part === 'bed' ? sym('moon.fill', 'bedtime') : sym('sunrise.fill', 'wb_twilight')}
-          size={12}
+          size={9}
           tintColor={Nocturne.onCta}
         />
       </View>
@@ -323,7 +323,7 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
   centre: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  length: { ...NUMBER_FONT, fontWeight: '800', color: Nocturne.text, fontSize: 34, lineHeight: 40, fontVariant: ['tabular-nums'] },
+  length: { ...NUMBER_FONT, fontWeight: '700', color: Nocturne.text, fontSize: 34, lineHeight: 40, fontVariant: ['tabular-nums'] },
   lengthUnit: { fontSize: 20, fontWeight: '400', color: Nocturne.text2 },
   number: {
     position: 'absolute',
@@ -353,6 +353,6 @@ const styles = StyleSheet.create({
   time: { flex: 1, alignItems: 'center', gap: 2 },
   timeName: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   timeLabel: { ...Type.secondary, color: Nocturne.text2 },
-  timeValue: { ...NUMBER_FONT, fontWeight: '800', color: Nocturne.text, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
+  timeValue: { ...NUMBER_FONT, fontWeight: '700', color: Nocturne.text, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
   timeUnit: { fontSize: 16, fontWeight: '400', color: Nocturne.text2 },
 });

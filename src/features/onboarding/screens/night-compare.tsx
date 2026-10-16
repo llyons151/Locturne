@@ -23,12 +23,15 @@ export function NightCompare({
   nightMinutes,
   morningMinutes,
   method,
+  morningFirst = false,
 }: {
   bedtime: number;
   wake: number;
   nightMinutes: number;
   morningMinutes: number;
   method: WakeMethod;
+  /** The morning branch: their end of the night goes on top. */
+  morningFirst?: boolean;
 }) {
   const upWithMe = wake + UP_AFTER[method];
   const rows: Row[] = [
@@ -38,6 +41,7 @@ export function NightCompare({
       : null,
   ].filter((row): row is Row => row !== null);
   if (rows.length === 0) return null;
+  if (morningFirst) rows.reverse();
   return (
     <View
       style={styles.table}

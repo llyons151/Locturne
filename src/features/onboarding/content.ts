@@ -11,7 +11,7 @@ import type { Tone } from '@/lib/tone';
 
 import { formatWhen } from './estimate';
 
-import type { StepId } from './navigation';
+import { stepsFor, type Pain, type StepId } from './navigation';
 
 export type Choice<T> = { label: string; value: T };
 
@@ -19,8 +19,17 @@ export type Choice<T> = { label: string; value: T };
 const spoken = (minutes: number) => formatWhen(minutes).replace(':00', '');
 
 export type Answers = {
+  /**
+   * The pain they picked first (`pain`): which end of the night the flow leads with
+   * (docs/ONBOARDING_BRANCHES.md). Missing reads as `all`, today's flow.
+   */
+  pain?: Pain;
   /** How the morning feels (`mornings`): his reply, the reveal's second beat, the offer headline. */
   mornings?: string;
+  /** `night-feel` (night branch): what the late scrolling is, mostly. Echoed like `mornings`. */
+  nightFeel?: string;
+  /** `after-feel` (overall branch): how it is when the phone finally goes down. Echoed like `mornings`. */
+  afterFeel?: string;
   nightMinutes?: number;
   nightsPerWeek?: number;
   /** The nights picked on the day circles, Monday = 0. Their count is `nightsPerWeek`. */
@@ -62,18 +71,123 @@ export const initialAnswers: Answers = {
 };
 
 /** The step order lives with the rules for moving through it. */
-export { STEPS, type StepId } from './navigation';
+export { PAINS, STEPS, stepsFor, type Pain, type StepId } from './navigation';
 
 /**
  * The progress bar's three chapters (Headway's split bar, docs/ONBOARDING_10.md): your
  * mornings, your nights, your setup. Welcome, offer and post-purchase screens hide the bar, so
  * the paywall never reads as one more step.
  */
-export const CHAPTERS: StepId[][] = [
-  ['bedtime', 'wake', 'morning-minutes', 'mornings'],
-  ['night-minutes', 'nights-per-week', 'tried', 'reveal', 'time-back', 'found', 'founder'],
-  ['method', 'voice', 'tomorrow', 'walk', 'screen-time', 'apps', 'commit'],
+export function chaptersFor(pain: Pain | undefined): StepId[][] {
+  const steps = stepsFor(pain);
+  const at = (step: StepId) => steps.indexOf(step);
+  // The first four after `deal` are the first chapter: the times and the branch's own end of
+  // the night. `pain` and `deal` have no bar, like `hello`.
+  const first = at('deal') + 1;
+  return [
+    steps.slice(first, first + 4),
+    steps.slice(first + 4, at('founder') + 1),
+    steps.slice(at('method'), at('commit') + 1),
+  ];
+}
+
+/** `all`'s chapters: your mornings, your nights, your setup. */
+export const CHAPTERS: StepId[][] = chaptersFor('all');
+
+/*
+ * The branches (docs/ONBOARDING_BRANCHES.md). One question near the start picks which end of
+ * the night the flow leads with. The mechanism is the same for everyone (apps sleep at bedtime,
+ * wake when you're up), so each branch tells it from the end that hurts. Copy is DRAFT for the
+ * founder's voice pass, like every Loc line.
+ */
+
+/**
+ * "Which one sounds like you?" Options are things that happen to them, not confessions.
+ * `night` first: it's the most common in-bed pain and the largest minutes. "All of it" last,
+ * as the catch-all, and it gets today's flow.
+ */
+export const PAIN: Choice<Pain>[] = [
+  { label: 'Bedtime turns into 1 AM.', value: 'night' },
+  { label: 'I wake up and scroll instead of getting up.', value: 'morning' },
+  { label: 'Too much phone. All day.', value: 'overall' },
+  { label: 'Honestly? All of it.', value: 'all' },
 ];
+
+export const PAIN_REPLY: Record<Pain, string> = {
+  night: 'Late nights are my thing. Not yours.',
+  morning: 'Mornings. My nemesis. Yours too, apparently.',
+  overall: 'Bold thing to admit to an app.',
+  all: 'All of it. I’ll start with the bed.',
+};
+
+/** `deal`'s three beats, in the order that leads with their pain. */
+export const DEAL_BEATS: Record<Pain, { label: string; text: string }[]> = {
+  all: [
+    { label: 'Bedtime', text: 'Your apps go to sleep. So do I.' },
+    { label: 'Morning', text: 'They stay asleep until you’re up. Same as me.' },
+    { label: 'Up means up', text: 'A trip downstairs or a short walk. Then we all wake up.' },
+  ],
+  // Answers "it's punishment" first: the evening stays theirs.
+  night: [
+    { label: 'Your evening', text: 'Still yours. Right up to bedtime.' },
+    { label: 'Bedtime', text: 'Your apps go to sleep. So do I. No arguing.' },
+    { label: 'Morning', text: 'They wake once you’re up. Not before.' },
+  ],
+  morning: [
+    { label: 'Alarm', text: 'Your apps are still asleep. So am I.' },
+    { label: 'Up means up', text: 'A short walk or a trip downstairs. Then they wake.' },
+    { label: 'Bedtime', text: 'They go to sleep first. So there’s nothing to grab.' },
+  ],
+  // Starts where it's worst (in bed, at both ends), and is honest that daytime is extra.
+  overall: [
+    { label: 'Bedtime', text: 'Your apps go to sleep. So do I.' },
+    { label: 'Morning', text: 'They stay asleep until you’re up.' },
+    { label: 'Daytime', text: 'Schedules and limits, if you want them.' },
+  ],
+};
+
+/** `night-feel`: "What's the late scrolling, mostly?" `mine` is revenge bedtime procrastination. */
+export const NIGHT_FEEL: Choice<string>[] = [
+  { label: 'The only time that’s mine.', value: 'mine' },
+  { label: 'One more video. Then it’s 1 AM.', value: 'one-more' },
+  { label: 'My hand just does it.', value: 'reflex' },
+  { label: 'I can’t sleep, so I scroll.', value: 'cant-sleep' },
+  { label: 'Honestly? It’s fine.', value: 'fine' },
+];
+
+/** About him or the phone, never blame. `cant-sleep` promises nothing about sleep and gives no advice. */
+export const NIGHT_FEEL_REPLY: Record<string, string> = {
+  mine: 'Then have it before bed. I’ll take after.',
+  'one-more': 'One more. The oldest lie in bed.',
+  reflex: 'Your hand’s not invited tonight.',
+  'cant-sleep': 'Lying there’s bad enough. The phone can go.',
+  fine: 'Fine. Then I’ll just keep it that way.',
+};
+
+/** `after-feel`: "When you finally put it down, how is it?" */
+export const AFTER_FEEL: Choice<string>[] = [
+  { label: 'Where did that hour go.', value: 'vanished' },
+  { label: 'I didn’t even enjoy it.', value: 'meh' },
+  { label: 'Behind on everything.', value: 'behind' },
+  { label: 'Tired, somehow.', value: 'tired' },
+  { label: 'Honestly? Fine.', value: 'fine' },
+];
+
+export const AFTER_FEEL_REPLY: Record<string, string> = {
+  vanished: 'Ask your apps. They kept it.',
+  meh: 'Neither did I. I was trying to sleep.',
+  behind: 'The feed’s never behind. Rude.',
+  tired: 'Same. And I didn’t even scroll.',
+  fine: 'Fine. I’ll keep it that way.',
+};
+
+/** The subtitles that say which end comes first, by branch. */
+export const MINUTES_SUB: Record<Pain, { night: string; morning: string }> = {
+  all: { night: 'Now the night before.', morning: 'Mornings first. They’re the worst part.' },
+  night: { night: 'Nights first. They’re the worst part.', morning: 'And the morning after.' },
+  morning: { night: 'Now the night before.', morning: 'Mornings first. They’re the worst part.' },
+  overall: { night: 'Start with the night.', morning: 'Now the morning.' },
+};
 
 /**
  * "How do your mornings usually go?": the stakes in feelings, not hours. Each answer comes
@@ -87,8 +201,19 @@ export const MORNINGS: Choice<string>[] = [
   { label: 'Honestly? Fine.', value: 'fine' },
 ];
 
+/**
+ * The morning branch swaps "Behind before I'm out of bed." for the snooze loop, its own
+ * words for it ("I used to set 20 alarms"). A joke about it, not a warning: snoozing itself
+ * isn't clearly harmful (Sundelin 2024).
+ */
+export function morningsChoices(pain: Pain | undefined): Choice<string>[] {
+  if (pain !== 'morning') return MORNINGS;
+  return MORNINGS.map((choice) => (choice.value === 'behind' ? { label: 'Snooze. Scroll. Snooze.', value: 'snooze' } : choice));
+}
+
 /** About him or the phone, never the user, and no health claims (VOICE). */
 export const MORNINGS_REPLY: Record<string, string> = {
+  snooze: 'The snooze-and-scroll. Even I’m impressed.',
   tired: 'Tired is my job. Not yours.',
   rushed: 'You ran late. The feed ran on time.',
   behind: 'The day started without you. Rude.',
@@ -96,12 +221,36 @@ export const MORNINGS_REPLY: Record<string, string> = {
   fine: 'Fine. I’ll keep it that way.',
 };
 
-/** The reveal's second beat, from `mornings`: the bad news lands on the apps (VOICE). */
-export function revealBeat(mornings: string | undefined): string {
-  return MORNINGS_BEAT[mornings ?? ''] ?? REVEAL_SECOND_BEAT;
+/**
+ * The reveal's second beat, from the branch's feeling answer: the bad news lands on the apps
+ * (VOICE). `scope` is what the number counted (`leadFor`): a night person whose nights were too
+ * light to lead with gets the combined number, so the night line would be untrue.
+ */
+export function revealBeat(answers: Pick<Answers, 'pain' | 'mornings' | 'nightFeel' | 'afterFeel'>, scope: 'night' | 'morning' | 'both'): string {
+  if (answers.pain === 'night') {
+    if (scope !== 'night') return REVEAL_SECOND_BEAT;
+    return NIGHT_FEEL_BEAT[answers.nightFeel ?? ''] ?? 'Your apps had a great week. Your nights didn’t.';
+  }
+  if (answers.pain === 'overall') return AFTER_FEEL_BEAT[answers.afterFeel ?? ''] ?? 'And that’s only the hours in bed.';
+  return MORNINGS_BEAT[answers.mornings ?? ''] ?? REVEAL_SECOND_BEAT;
 }
 
+const NIGHT_FEEL_BEAT: Record<string, string> = {
+  mine: 'Your apps got your free time. And your night.',
+  'one-more': 'Your apps had a great week. Your nights ran late.',
+  reflex: 'Your apps had a great week. Your hand did too.',
+  'cant-sleep': 'Your apps had a great week. Your nights didn’t.',
+};
+
+const AFTER_FEEL_BEAT: Record<string, string> = {
+  vanished: 'Your apps had a great week. Your hours went missing.',
+  meh: 'Your apps had a great week. Nobody enjoyed it.',
+  behind: 'Your apps had a great week. Your to-do list didn’t.',
+  tired: 'Your apps had a great week. You had a tired one.',
+};
+
 const MORNINGS_BEAT: Record<string, string> = {
+  snooze: 'Your apps had a great week. Your snooze button too.',
   tired: 'Your apps had a great week. You had a tired one.',
   rushed: 'Your apps had a great week. Your mornings ran late.',
   behind: 'Your apps had a great week. Your mornings started without you.',
@@ -110,6 +259,7 @@ const MORNINGS_BEAT: Record<string, string> = {
 
 /** The offer's headline, from `mornings`: the morning they said they don't have. None for "fine". */
 export const MORNINGS_OFFER: Record<string, string> = {
+  snooze: 'Mornings with one alarm.',
   tired: 'Mornings you’re actually awake for.',
   rushed: 'Mornings with time left over.',
   behind: 'Mornings that start with you.',
@@ -156,6 +306,30 @@ export const MORNING_MINUTES_REPLY: Record<number, string> = {
   75: 'Later. Now I like you.',
 };
 
+/**
+ * The offer's headline from the branch's feeling answer, before the `time-back` fallbacks.
+ * `{phoneDown}` is when the phone usually goes down. None for "fine".
+ */
+export function feelingOffer(answers: Pick<Answers, 'pain' | 'mornings' | 'nightFeel' | 'afterFeel'>, phoneDown: string): string | undefined {
+  if (answers.pain === 'night') return NIGHT_FEEL_OFFER[answers.nightFeel ?? '']?.replace('{phoneDown}', phoneDown);
+  if (answers.pain === 'overall') return AFTER_FEEL_OFFER[answers.afterFeel ?? ''];
+  return MORNINGS_OFFER[answers.mornings ?? ''];
+}
+
+const NIGHT_FEEL_OFFER: Record<string, string> = {
+  mine: 'Your evening. Then actual sleep.',
+  'one-more': 'Nights that end when you said.',
+  reflex: 'Nothing to reach for at {phoneDown}.',
+  'cant-sleep': 'Dark, quiet, nothing to open.',
+};
+
+const AFTER_FEEL_OFFER: Record<string, string> = {
+  vanished: 'Hours you get to keep.',
+  meh: 'Less of the bit you don’t enjoy.',
+  behind: 'The ends of your day, back.',
+  tired: 'Mornings you’re actually awake for.',
+};
+
 // Single choice, so the question asks for the one that lasted longest.
 export const TRIED: Choice<string>[] = [
   { label: 'Screen Time limits', value: 'screen-time' },
@@ -191,7 +365,32 @@ export const TRIED_REPLY: Record<string, { line: string; body: string }> = {
     line: 'I’m your first, then. Be gentle.',
     body: 'The apps you pick sleep at bedtime. Getting out of bed wakes them up.',
   },
+  'sleep-focus': {
+    line: 'Downtime has an Ignore button. In bed.',
+    body: 'Sleep Focus quiets the buzzing. The apps still open. Mine don’t, until you’re up. You get two passes a month for bad days.',
+  },
+  alarm: {
+    line: 'And you walked back to bed. Classic.',
+    body: 'An alarm checks you’re awake. I check you’re up, and the apps stay asleep till then.',
+  },
+  delete: {
+    line: 'And reinstalling them. Every time.',
+    body: 'Deleting lasts until the App Store. Mine stay installed and asleep, so there’s nothing to reinstall at 1 AM.',
+  },
 };
+
+/** Each branch adds the thing its people most often tried, so every list is six (`all` keeps five). */
+const TRIED_EXTRA: Partial<Record<Pain, Choice<string>>> = {
+  night: { label: 'Sleep Focus or Downtime', value: 'sleep-focus' },
+  morning: { label: 'An alarm across the room', value: 'alarm' },
+  overall: { label: 'Deleting the apps', value: 'delete' },
+};
+
+export function triedChoices(pain: Pain | undefined): Choice<string>[] {
+  const extra = TRIED_EXTRA[pain ?? 'all'];
+  // Above "Nothing yet", which stays last.
+  return extra ? [...TRIED.slice(0, -1), extra, TRIED[TRIED.length - 1]] : TRIED;
+}
 
 export const TIME_BACK: Choice<string>[] = [
   { label: 'Sleep more', value: 'sleep' },
@@ -200,6 +399,17 @@ export const TIME_BACK: Choice<string>[] = [
   { label: 'Slow mornings', value: 'mornings' },
   { label: 'Something else', value: 'else' },
 ];
+
+/** `time-back`'s choices with the branch's likeliest answer first. */
+export function timeBackChoices(pain: Pain | undefined): Choice<string>[] {
+  const order = TIME_BACK_ORDER[pain ?? 'all'];
+  return order ? order.map((value) => TIME_BACK.find((c) => c.value === value)!) : TIME_BACK;
+}
+
+const TIME_BACK_ORDER: Partial<Record<Pain, string[]>> = {
+  night: ['sleep', 'read', 'mornings', 'workout', 'else'],
+  morning: ['mornings', 'workout', 'sleep', 'read', 'else'],
+};
 
 export const TIME_BACK_REPLY: Record<string, string> = {
   sleep: 'Sleep. Bold. I support it.',
@@ -270,6 +480,9 @@ export const TONE_STEP: Record<Tone, { line: string; button: string }> = {
  * Friend, Duolingo's "I'm committed"). Shown once an answer is picked.
  */
 export const REPLY_BUTTON: Partial<Record<StepId, string>> = {
+  pain: 'That’s the one.',
+  'night-feel': 'That’s me.',
+  'after-feel': 'That’s me.',
   found: 'That’s how.',
   bedtime: 'That’s bedtime.',
   wake: 'That’s the alarm.',

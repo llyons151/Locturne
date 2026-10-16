@@ -25,7 +25,16 @@ export const SHOWN = [6, 0, 1, 2, 3, 4, 5];
  * Health's "Days Active" card (docs/DAY_PICKER_REFERENCES.md): one grouped card, picked
  * days are solid circles, unpicked days are bare letters.
  */
-export function DayPicker({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
+export function DayPicker({
+  value,
+  onChange,
+  unit = 'night',
+}: {
+  value: number[];
+  onChange: (days: number[]) => void;
+  /** What a day stands for: onboarding's morning branch counts mornings. */
+  unit?: 'night' | 'morning';
+}) {
   const everyNight = value.length === DAYS.length;
   const toggle = (day: number) => {
     haptic.tap();
@@ -36,7 +45,7 @@ export function DayPicker({ value, onChange }: { value: number[]; onChange: (day
     <Reveal style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.count} maxFontSizeMultiplier={1.4} accessibilityLiveRegion="polite">
-          {value.length === 0 ? 'No nights picked' : `${value.length} ${value.length === 1 ? 'night' : 'nights'} a week`}
+          {value.length === 0 ? `No ${unit}s picked` : `${value.length} ${value.length === 1 ? unit : `${unit}s`} a week`}
         </Text>
         <Pressable
           onPress={() => {
@@ -48,7 +57,7 @@ export function DayPicker({ value, onChange }: { value: number[]; onChange: (day
           style={({ pressed }) => pressed && styles.pressed}
         >
           <Text style={styles.all} maxFontSizeMultiplier={1.4}>
-            {everyNight ? 'Clear' : 'Every night'}
+            {everyNight ? 'Clear' : `Every ${unit}`}
           </Text>
         </Pressable>
       </View>
@@ -61,7 +70,7 @@ export function DayPicker({ value, onChange }: { value: number[]; onChange: (day
               key={day.name}
               onPress={() => toggle(i)}
               accessibilityRole="checkbox"
-              accessibilityLabel={`${day.name} night`}
+              accessibilityLabel={`${day.name} ${unit}`}
               accessibilityState={{ checked: on }}
               hitSlop={4}
               style={({ pressed }) => [styles.day, on && styles.dayOn, pressed && styles.pressed]}

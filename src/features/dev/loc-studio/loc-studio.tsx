@@ -6,6 +6,10 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { LOC_PATH, LOC_HEIGHT, LOC_WIDTH } from '@/features/home/loc-path';
 import { LOC_BASE, LOC_MOODS, LOC_TUNE, LocRig, type LocChannel, type LocMood, type LocSnapshot } from '@/features/home/loc-rig';
 
+import { grid, keep, keepButton, paintLater, Segmented, Select, Slider, Toggle } from './controls';
+import { EXPRESSIONS, faceAction, loadMine, type Expression } from './expressions';
+import { setNote, useNotes } from './notes';
+import { ExpressionsPage, NotesPage, PAGES_CSS, UsagePage, UsedLine, VerdictBar } from './pages';
 import { BACKDROPS, download, locHeight, paintBackdrop, type Backdrop } from './paint';
 import { ACTIONS, DT, FPS, GROUPS, MOODS, record, rest, STILLS, stillFrame, type LocAction, type Take } from './takes';
 import { asCode, changes, load, POSE, poseValue, resetAll, setMoodTiming, setPose, setSignature, setTune, signatureOn } from './tune';
@@ -13,18 +17,26 @@ import { asCode, changes, load, POSE, poseValue, resetAll, setMoodTiming, setPos
 /**
  * Dev tool, /loc-studio: everything Loc can do, on the real rig (loc-rig.ts), in one place.
  * - Animate: every move, recorded frame by frame. Play it at any speed, step or scrub it, see
- *   every channel's curve and every frame in a filmstrip, or play with him live.
+ *   every channel's curve and every frame in a filmstrip, or play with him live. Each says where
+ *   it's seen in the app, and takes a good or bad mark. The move list scrolls on its own, so he
+ *   stays in view; the curves and filmstrip are under Frame tools.
+ * - Expressions: new faces, and a builder for your own (pages.tsx, expressions.ts).
+ * - In the app: where he's on screen, in which mood and why, and what makes each move play.
  * - Style: change his eyes and each mood's pose and see it at once; copy the result as code.
  * - Model sheet: his expressions, the key poses of each move, and how he reads at every size.
+ * - Notes: every good and bad mark (saved to docs/loc-studio-notes.json when run on its own).
  * - Images: the art he's made from.
- * It's a DOM component, so the same page runs in a browser and in the app.
+ * It's a DOM component, and on its own in a browser too (studio/, `npm run studio`), so the same page runs in a browser and in the app.
  */
 type Image = { title: string; note: string; uri: string };
-type Tab = 'animate' | 'style' | 'sheet' | 'images';
+type Tab = 'animate' | 'faces' | 'usage' | 'style' | 'sheet' | 'notes' | 'images';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'animate', label: 'Animate' },
+  { id: 'faces', label: 'Expressions' },
+  { id: 'usage', label: 'In the app' },
   { id: 'style', label: 'Style' },
   { id: 'sheet', label: 'Model sheet' },
+  { id: 'notes', label: 'Notes' },
   { id: 'images', label: 'Images' },
 ];
 
@@ -34,6 +46,8 @@ const INKS = [
 ];
 const SPEEDS = [1, 0.5, 0.25, 0.1];
 const STRIP = 28;
+/** The stage canvas's widest, in real pixels. */
+const STAGE_MAX_PX = 1100;
 const SECOND_HIT_MS = 2500;
 const LIVE_READOUT_MS = 120;
 const CURVE_COLORS = ['#7AA2FF', '#FF8A65', '#7BD389', '#F2C14E', '#C792EA', '#4DD0E1', '#FF6B9A', '#B0B0B0'];
@@ -71,6 +85,28 @@ function frameStore(): FrameStore {
 }
 const useFrame = (store: FrameStore) => useSyncExternalStore(store.subscribe, store.get, store.get);
 
+/** The frame, at most once every `ms` (and always the last one): for the readout's 50 rows, too many to redraw 60 times a second. */
+function useFrameEvery(store: FrameStore, ms: number) {
+  const [frame, setFrame] = useState(store.get);
+  useEffect(() => {
+    let last = 0;
+    let late: ReturnType<typeof setTimeout> | undefined;
+    const off = store.subscribe(() => {
+      clearTimeout(late);
+      const now = performance.now();
+      if (now - last >= ms) {
+        last = now;
+        setFrame(store.get());
+      } else late = setTimeout(() => setFrame(store.get()), ms);
+    });
+    return () => {
+      off();
+      clearTimeout(late);
+    };
+  }, [store, ms]);
+  return frame;
+}
+
 export default function LocStudio({ images, onClose }: { images: Image[]; onClose?: () => void; dom?: import('expo/dom').DOMProps }) {
   const [tab, setTab] = useState<Tab>('animate');
   const [mood, setMood] = useState<LocMood>('awake');
@@ -89,12 +125,19 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
   const [live, setLive] = useState(false);
   const [curves, setCurves] = useState<LocChannel[]>(DEFAULT_CURVES);
   const [filmStep, setFilmStep] = useState(2);
+  // The curves, channel chips, frame saving and filmstrip: off until asked for.
+  const [tools, setTools] = useState(false);
+  const notes = useNotes();
   // Style changes saved in this browser come back first.
   const [tuned, setTuned] = useState(() => {
     load();
     return 0;
   });
   const [ready, setReady] = useState(false);
+  const [mine, setMine] = useState<Expression[]>(loadMine);
+  // Every move: the rig's, then the expressions as moves (the built-in ideas and yours).
+  const actions = useMemo(() => [...ACTIONS, ...EXPRESSIONS.map(faceAction), ...mine.map(faceAction)], [mine]);
+  const nameOf = useCallback((id: string) => actions.find((a) => a.id === id)?.label ?? id, [actions]);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -126,7 +169,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
     return () => hidden.forEach(([el, was]) => (el.style.visibility = was));
   }, []);
 
-  const action = ACTIONS.find((a) => a.id === actionId)!;
+  const action = actions.find((a) => a.id === actionId) ?? ACTIONS.find((a) => a.id === 'poke')!;
   const getBase = useCallback(() => baseRef.current, []);
   const getRender = useCallback(() => renderRef.current, []);
 
@@ -223,7 +266,9 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
     const w = wrap.clientWidth;
     width.current = w;
     const h = locHeight(w, zoom);
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // Sharp, but no bigger than it needs to be: every frame the rig copies its WebGL canvas into
+    // this one, and at 2x on a wide window that's millions of pixels a frame.
+    const dpr = Math.min(2, window.devicePixelRatio || 1, STAGE_MAX_PX / w);
     canvas.style.height = `${h}px`;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -343,7 +388,11 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
     if (live && rigRef.current) rigRef.current.quiet = !life;
   }, [live, life]);
 
-  // Keys: space plays, arrows step (shift: 10 frames), Home and End jump, L goes live.
+  const notesRef = useRef(notes);
+  useLayoutEffect(() => {
+    notesRef.current = notes;
+  });
+  // Keys: space plays, arrows step (shift: 10 frames), Home and End jump, L goes live, G and B mark it good or bad.
   useEffect(() => {
     if (tab !== 'animate') return;
     const onKey = (e: KeyboardEvent) => {
@@ -355,7 +404,11 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
       else if (e.key === 'Home') seek(0);
       else if (e.key === 'End') seek(Infinity);
       else if (e.key === 'l' || e.key === 'L') goLive();
-      else return;
+      else if (e.key === 'g' || e.key === 'G' || e.key === 'b' || e.key === 'B') {
+        const v = e.key.toLowerCase() === 'g' ? 'good' : 'bad';
+        const a = live$.current.take?.action;
+        if (a) setNote(a.id, { verdict: notesRef.current[a.id]?.verdict === v ? undefined : v }, a.label);
+      } else return;
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
@@ -381,6 +434,18 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
   };
 
   const getRig = useCallback(() => rigRef.current, []);
+  /** Opens a move in Animate (from Expressions, In the app or Notes), in a mood if given. */
+  const openMove = useCallback(
+    (id: string, m?: LocMood) => {
+      setTab('animate');
+      if (m) setMood(m);
+      setPlaying(true);
+      if (id === actionId && !m) shoot(actions.find((a) => a.id === id), seed);
+      setActionId(id);
+      rootRef.current?.scrollTo?.({ top: 0 });
+    },
+    [actionId, actions, seed, shoot],
+  );
   const paintThumb = useCallback(
     (c: HTMLCanvasElement, f: number) => {
       const t = live$.current.take;
@@ -398,7 +463,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
 
   return (
     <div className="studio" ref={rootRef}>
-      <style>{CSS}</style>
+      <style>{CSS + PAGES_CSS}</style>
       <header className="bar">
         <div className="title">
           <strong>Loc studio</strong>
@@ -447,10 +512,10 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
 
       <div className={`page animate ${tab === 'animate' ? '' : 'hidden'}`}>
         <aside className="library">
-          {GROUPS.map((g) => (
+          {GROUPS.filter((g) => actions.some((a) => a.group === g)).map((g) => (
             <div key={g} className="group">
               <h3>{g}</h3>
-              {ACTIONS.filter((a) => a.group === g).map((a) => (
+              {actions.filter((a) => a.group === g).map((a) => (
                 <button
                   key={a.id}
                   className={`move ${a.id === actionId && !live ? 'on' : ''}`}
@@ -460,6 +525,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
                     if (a.id === actionId) shoot(a, seed);
                   }}
                 >
+                  <span className={`mark ${notes[a.id]?.verdict ?? ''}`} />
                   {a.label}
                   {a.mood ? <span className="dim"> · {a.mood}</span> : null}
                 </button>
@@ -476,6 +542,12 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
                 ? 'He runs in real time. Tap him to poke him, twice to burrow. Mood and idle life change him as the app would.'
                 : action.note}
             </span>
+            {live ? null : (
+              <>
+                <UsedLine id={action.id} />
+                <VerdictBar key={action.id} id={action.id} label={action.label} />
+              </>
+            )}
           </div>
 
           <div className="stage" ref={wrapRef}>
@@ -503,9 +575,13 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
             ) : null}
           </div>
 
+          {take && !live ? <Clock take={take} frames={frames} onSeek={seek} /> : null}
           {take && !live ? (
+            <Toggle label="Frame tools" hint="curves, channels, saving frames, filmstrip" on={tools} onChange={setTools} />
+          ) : null}
+
+          {take && !live && tools ? (
             <>
-              <Clock take={take} frames={frames} onSeek={seek} />
               <Curves take={take} frames={frames} channels={curves} onSeek={seek} />
               <div className="chips">
                 {(Object.keys(LOC_BASE) as LocChannel[]).map((c) => {
@@ -529,7 +605,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
             </>
           ) : null}
 
-          {take && !live ? (
+          {take && !live && tools ? (
             <Filmstrip
               take={take}
               step={filmStep}
@@ -558,7 +634,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
           ) : null}
           <h3>Zoom</h3>
           <input type="range" min={0.2} max={0.95} step={0.01} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
-          <p className="dim small">Keys: space plays, ← → step a frame (shift: 10), Home and End jump, L goes live.</p>
+          <p className="dim small">Keys: space plays, ← → step a frame (shift: 10), Home and End jump, L goes live, G marks it good, B bad.</p>
         </aside>
       </div>
 
@@ -576,6 +652,21 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
         />
       ) : null}
       {tab === 'sheet' && ready ? <SheetPage paintStill={paintStill} backdrop={backdrop} getBase={getBase} getRender={getRender} tuned={tuned} /> : null}
+      {tab === 'faces' && ready ? (
+        <ExpressionsPage
+          paintStill={paintStill}
+          backdrop={backdrop}
+          getBase={getBase}
+          getRender={getRender}
+          mood={mood}
+          tuned={tuned}
+          mine={mine}
+          setMine={setMine}
+          onPlay={openMove}
+        />
+      ) : null}
+      {tab === 'usage' ? <UsagePage name={nameOf} onPlay={openMove} /> : null}
+      {tab === 'notes' ? <NotesPage name={nameOf} onPlay={openMove} /> : null}
       {tab === 'images' ? <ImagesPage images={images} /> : null}
     </div>
   );
@@ -604,7 +695,7 @@ function Clock({ take, frames, onSeek }: { take: Take; frames: FrameStore; onSee
 
 /** Every channel's number, for the frame on show, or live (a few times a second). */
 function Readout({ take, frames, live, getRig }: { take: Take | null; frames: FrameStore; live: boolean; getRig: () => LocRig | null }) {
-  const frame = useFrame(frames);
+  const frame = useFrameEvery(frames, LIVE_READOUT_MS);
   const [now, setNow] = useState<Record<LocChannel, number> | null>(null);
   useEffect(() => {
     if (!live) return;
@@ -800,27 +891,6 @@ const Filmstrip = memo(function Filmstrip({
   );
 });
 
-/** Lays canvases out in a labelled grid, for saving as one PNG. */
-function grid(cells: { canvas: HTMLCanvasElement; label: string }[], cols: number, bg: string) {
-  const cw = Math.max(...cells.map((c) => c.canvas.width)), ch = Math.max(...cells.map((c) => c.canvas.height));
-  const label = 22, pad = 8;
-  const rows = Math.ceil(cells.length / cols);
-  const out = document.createElement('canvas');
-  out.width = Math.min(cols, cells.length) * (cw + pad) + pad;
-  out.height = rows * (ch + label + pad) + pad;
-  const ctx = out.getContext('2d')!;
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.font = '13px -apple-system, system-ui, sans-serif';
-  cells.forEach((c, i) => {
-    const x = pad + (i % cols) * (cw + pad), y = pad + Math.floor(i / cols) * (ch + label + pad);
-    ctx.drawImage(c.canvas, x, y);
-    ctx.fillStyle = '#C9CAD1';
-    ctx.fillText(c.label, x + 2, y + ch + 16);
-  });
-  return out;
-}
-
 // ---- Style ----
 
 type Paint = (target: HTMLCanvasElement, snap: LocSnapshot, w: number, share: number, bg: Backdrop, strip: number, transparent?: boolean) => void;
@@ -990,30 +1060,34 @@ function SheetPage({
   useEffect(() => {
     const base = getBase(), render = getRender();
     if (!base || !render) return;
-    // Rest poses, settled on the render rig, then drawn (paintStill restores each one).
+    // Rest poses, settled on the render rig, then drawn (paintStill restores each one). Painted a
+    // few a frame (paintLater) so the page doesn't lock up, and by size so the canvas isn't resized
+    // between each one.
     const rests = new Map(MOODS.map((m) => [m, rest(render.rig, base, m)]));
-    for (const m of MOODS) {
+    const jobs: (() => void)[] = [];
+    for (const m of MOODS) jobs.push(() => {
       const c = faces.get(m);
       if (c) paintStill(c, rests.get(m)!, 360, 0.9, backdrop, 8);
-    }
+    });
     const takes = new Map<string, Take>();
-    for (const s of STILLS) {
+    for (const s of STILLS) jobs.push(() => {
       const a = ACTIONS.find((x) => x.id === s.action)!;
       if (!takes.has(a.id)) takes.set(a.id, record(render.rig, base, a, a.mood ?? 'awake', 7, false));
       const t = takes.get(a.id)!;
       const c = stills.get(s.label);
       if (c) paintStill(c, t.frames[stillFrame(t, s)], 360, 0.9, backdrop, 8);
-    }
-    for (const bg of ['moon', 'night'] as Backdrop[]) {
-      for (const m of MOODS) {
-        for (const size of SIZES) {
+    });
+    for (const size of SIZES) {
+      for (const bg of ['moon', 'night'] as Backdrop[]) {
+        for (const m of MOODS) jobs.push(() => {
           const c = sizes.get(`${bg}|${m}|${size.label}`);
-          if (!c) continue;
+          if (!c) return;
           paintStill(c, rests.get(m)!, size.w * 2, 0.9, bg, 4);
           c.style.width = `${size.w}px`;
-        }
+        });
       }
     }
+    return paintLater(jobs);
   }, [getBase, getRender, paintStill, backdrop, tuned, faces, stills, sizes]);
 
   const save = (map: Map<string, HTMLCanvasElement>, labels: string[], name: string, cols: number) => {
@@ -1109,72 +1183,6 @@ function ImagesPage({ images }: { images: Image[] }) {
   );
 }
 
-// ---- Small controls ----
-
-const keepButton = (map: Map<number, HTMLButtonElement>, key: number) => (b: HTMLButtonElement | null) => {
-  if (b) map.set(key, b);
-  else map.delete(key);
-};
-
-/** A ref that keeps the canvas in `map` under `key` while it's mounted. */
-const keep = <K,>(map: Map<K, HTMLCanvasElement>, key: K) => (c: HTMLCanvasElement | null) => {
-  if (c) map.set(key, c);
-  else map.delete(key);
-};
-
-function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { id: T; label: string }[]; onChange: (v: T) => void }) {
-  return (
-    <div className="field">
-      <span>{label}</span>
-      <div className="seg">
-        {options.map((o) => (
-          <button key={o.id} className={o.id === value ? 'on' : ''} onClick={() => onChange(o.id)}>
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Select({ label, value, options, onChange }: { label: string; value: string; options: { id: string; label: string }[]; onChange: (v: string) => void }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function Toggle({ label, hint, on, onChange }: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="field toggle">
-      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
-      <span>
-        {label}
-        {hint ? <span className="dim"> ({hint})</span> : null}
-      </span>
-    </label>
-  );
-}
-
-function Slider({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
-  return (
-    <label className="slider">
-      <span>
-        {label} <strong>{Math.round(value * 100) / 100}</strong>
-      </span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
-  );
-}
-
 const CSS = `
 .studio { position: absolute; inset: 0; overflow: auto; background: #0E0F13; color: #E7E7EA;
   font: 14px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
@@ -1204,7 +1212,17 @@ const CSS = `
 .studio .seg button { padding: 5px 9px; border-radius: 6px; font-size: 13px; }
 
 .studio .page { padding: 12px 16px 48px; }
-.studio .animate { display: grid; grid-template-columns: 200px minmax(0, 1fr) 230px; gap: 18px; }
+.studio .animate { display: grid; grid-template-columns: 220px minmax(0, 1fr) 230px; gap: 18px; }
+/* Wide screens: the Animate page fills the window and each column scrolls on its own, so he stays
+   in view while you go down the list of moves. */
+@media (min-width: 1001px) {
+  .studio { display: flex; flex-direction: column; }
+  .studio > .bar, .studio > .controls { flex: none; }
+  .studio > .page { flex: none; }
+  .studio > .page.animate { flex: 1 1 0; min-height: 0; padding-bottom: 0; }
+  .studio .animate > .library, .studio .animate > .center, .studio .animate > .readout { overflow-y: auto; min-height: 0; padding-bottom: 24px; }
+  .studio .animate > .library { padding-right: 6px; }
+}
 .studio .library .group h3:first-child { margin-top: 4px; }
 .studio .move { display: block; width: 100%; text-align: left; margin-bottom: 4px; }
 .studio .note { min-height: 40px; margin-bottom: 8px; }

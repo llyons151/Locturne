@@ -38,8 +38,9 @@ export type HomeContentProps = {
   icon?: HomeIcon;
   /** Waiting on a location read: a searching orb takes the symbol's place. */
   searching?: boolean;
-  action: HomeAction;
-  /** A quiet second way, as plain text under the button ("Other ways to wake them"). */
+  /** Null: nothing to press (the morning walk: just walk). */
+  action: HomeAction | null;
+  /** A quiet second way, as plain text under the button ("Walk 200 steps instead"). */
   alt?: HomeAction;
   /** Which of Home's looks the state wears (`HomeLook`). */
   look: HomeLook;
@@ -66,7 +67,7 @@ export type HomeMorning = {
   searching?: boolean;
   hero: HomeContentProps['hero'];
   meter?: HomeMeter;
-  action: HomeAction;
+  action: HomeAction | null;
   alt?: HomeAction;
   keepAwake?: boolean;
 };
@@ -137,6 +138,7 @@ export function HomeContent(props: HomeContentProps) {
             {noOrphan(hero.aside)}
           </Animated.Text>
         ) : null}
+        {action ? (
         <Animated.View style={[enter(5), weight === 'primary' && styles.primaryWrap]}>
           {weight === 'primary' ? (
             <Pressable onPress={action.onPress} accessibilityRole="button" style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
@@ -160,6 +162,7 @@ export function HomeContent(props: HomeContentProps) {
             </Pressable>
           )}
         </Animated.View>
+        ) : null}
         {alt ? (
           <Animated.View style={enter(5)}>
             <Pressable onPress={alt.onPress} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.alt, pressed && styles.pressed]}>

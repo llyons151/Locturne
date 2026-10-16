@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react';
-import { router } from 'expo-router';
 import { Linking } from 'react-native';
 
 import { getRepsDone } from '@/lib/wake/pushups-done';
@@ -9,7 +8,7 @@ import { useCameraAccess } from '../wake/camera-access';
 import { PushupsCamera } from '../wake/pushups-view';
 import { useProveMorning } from '../wake/use-prove-morning';
 import type { HomeMorning } from './home-content';
-import { orWalk, OTHER_WAYS } from './morning';
+import { WALK_INSTEAD } from './morning';
 import type { MorningWalk } from './use-morning-walk';
 
 const ICON = { ios: 'figure.strengthtraining.functional', android: 'fitness_center' };
@@ -26,6 +25,8 @@ export function useMorningPushups(
   walk: MorningWalk | null,
   target: number,
   morning: string,
+  /** "Walk N steps instead" in the camera: Home turns into the walk. */
+  onWalk: () => void,
 ): { morning: HomeMorning; camera: ReactNode } | null {
   const camera = useCameraAccess();
   const prove = useProveMorning();
@@ -37,7 +38,7 @@ export function useMorningPushups(
   // Read each render: closing the camera re-renders Home with the total so far.
   const done = Math.min(target, getRepsDone(morning));
   const left = Math.max(0, target - done);
-  const instead = walk?.kind === 'counting' ? `Walk ${walk.goal} steps instead` : 'Other ways to wake them';
+  const instead = walk?.kind === 'counting' ? `Walk ${walk.goal} steps instead` : 'Not now';
   const restricted = camera.access === 'restricted' || failed === 'restricted';
   const denied = camera.access === 'denied' || (failed === 'denied' && camera.access !== 'granted');
   const meter = { value: String(done), caption: `of ${target} push-ups`, progress: target > 0 ? done / target : 1 };
@@ -55,9 +56,9 @@ export function useMorningPushups(
     return {
       morning: {
         icon: ICON,
-        hero: { title: "I can't see you", body: `${why}${orWalk(walk)}` },
-        action: retry ? { label: 'Try again', onPress: () => setFailed(null) } : OTHER_WAYS,
-        alt: retry ? OTHER_WAYS : undefined,
+        hero: { title: "I can't see you", body: why },
+        action: retry ? { label: 'Try again', onPress: () => setFailed(null) } : WALK_INSTEAD,
+        alt: retry ? WALK_INSTEAD : undefined,
       },
       camera: null,
     };
@@ -69,10 +70,10 @@ export function useMorningPushups(
         icon: ICON,
         hero: {
           title: 'I need the camera for this',
-          body: `Camera access is off for Locturne, so I can’t count push-ups. Turn it on in Settings.${orWalk(walk)}`,
+          body: 'Camera access is off for Locturne, so I can’t count push-ups. Turn it on in Settings.',
         },
         action: { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
-        alt: OTHER_WAYS,
+        alt: WALK_INSTEAD,
       },
       camera: null,
     };
@@ -92,7 +93,7 @@ export function useMorningPushups(
         title: `${done} of ${target} push-ups`,
         body: `Lean me on my side on the floor, two steps away and side-on to you. ${
           done > 0 ? `${left} more to go.` : `${target} push-ups.`
-        } I count out loud.${orWalk(walk)}`,
+        } I count out loud.`,
       },
       meter,
       // The phone lies on the floor untouched through the set: auto-lock would stop the camera.
@@ -105,7 +106,7 @@ export function useMorningPushups(
         },
         opens: true,
       },
-      alt: OTHER_WAYS,
+      alt: WALK_INSTEAD,
     },
     camera: open ? (
       <PushupsCamera
@@ -116,10 +117,10 @@ export function useMorningPushups(
           setOpen(false);
           prove('pushups');
         }}
-        // Steps count on Home all along, so walking is just closing the camera.
+        // Steps count on Home all along, so walking is closing the camera onto the walk.
         onSteps={() => {
           setOpen(false);
-          if (walk?.kind !== 'counting') router.push('/exits');
+          onWalk();
         }}
         onClose={() => setOpen(false)}
         onError={(reason) => {

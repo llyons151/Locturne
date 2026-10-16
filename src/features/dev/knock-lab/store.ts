@@ -18,8 +18,8 @@ export const KNOCK_PRESETS: Record<'Gentle' | 'Shipped' | 'Lively', NavKnockTune
   Lively: { ...SHIPPED, scurry: 2.6, width: 62, bounce: 2.6, jiggle: 0.75, tempo: 3.4, sway: 1.4, squash: 1.4, blast: 1.5 },
 };
 
-type Lab = { open: boolean; nonce: number; zoomNonce: number; tune: NavKnockTune };
-let lab: Lab = { open: false, nonce: 0, zoomNonce: 0, tune: { ...NAV_KNOCK } };
+type Lab = { open: boolean; nonce: number; zoomNonce: number; ultraNonce: number; tune: NavKnockTune };
+let lab: Lab = { open: false, nonce: 0, zoomNonce: 0, ultraNonce: 0, tune: { ...NAV_KNOCK } };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<Lab>) => {
   lab = { ...lab, ...patch };
@@ -72,6 +72,8 @@ export const openKnockLab = (open: boolean) => set({ open });
 export const fireBurrow = () => set({ nonce: lab.nonce + 1 });
 /** Sends him under with the zoomies, without the taps it takes. */
 export const fireZoomies = () => set({ zoomNonce: lab.zoomNonce + 1 });
+/** Sends him round the whole screen, the ultra zoomies, without the five burrows it takes. */
+export const fireUltra = () => set({ ultraNonce: lab.ultraNonce + 1 });
 
 /** The tuning as code, for nav-knock-tune.ts. */
 export function knockCode(t: NavKnockTune = lab.tune) {
@@ -80,6 +82,7 @@ export function knockCode(t: NavKnockTune = lab.tune) {
     'export const NAV_KNOCK = {\n' +
     `  scurry: ${n(t.scurry)}, reach: ${n(t.reach)}, width: ${n(t.width)}, bounce: ${n(t.bounce)}, jiggle: ${n(t.jiggle)}, tempo: ${n(t.tempo)}, sway: ${n(t.sway)}, spin: ${n(t.spin)},\n` +
     `  squash: ${n(t.squash)}, blast: ${n(t.blast)}, haptics: ${t.haptics}, zoomAfter: ${n(t.zoomAfter)}, zoomWindow: ${n(t.zoomWindow)}, zoomSpeed: ${n(t.zoomSpeed)}, zoomLaps: ${n(t.zoomLaps)},\n` +
+    `  ultraAfter: ${n(t.ultraAfter)}, ultraSpeed: ${n(t.ultraSpeed)},\n` +
     '};'
   );
 }

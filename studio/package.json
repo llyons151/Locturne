@@ -1,0 +1,15 @@
+{
+  "name": "locturne-loc-studio",
+  "private": true,
+  "description": "Loc studio: Loc's real rig in its own browser app, outside the Expo app (no onboarding in the way).",
+  "type": "module",
+  "scripts": {
+    "start": "vite build && vite preview",
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.4"
+  }
+}

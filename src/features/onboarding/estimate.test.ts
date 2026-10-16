@@ -14,6 +14,7 @@ import {
   formatHoursFromMinutes,
   formatWhen,
   isInsideBedtime,
+  leadFor,
   lifetimeSentence,
   weeklyAmount,
   type EstimateInput,
@@ -140,5 +141,38 @@ describe('isInsideBedtime', () => {
 
   test('bedtime equal to wake is never inside', () => {
     assert.equal(isInsideBedtime(0, 0, at(0, 0)), false);
+  });
+});
+
+describe('the lead number per branch (ONBOARDING_BRANCHES §5.5)', () => {
+  const e = estimate(input); // 45 min a night, 20 a morning, 7 nights
+
+  test('night leads with the nights, morning with the mornings', () => {
+    assert.deepEqual(leadFor(e, 'night'), { minutes: 315, scope: 'night', weeklyHours: 5, yearlyHours: 260 });
+    assert.deepEqual(leadFor(e, 'morning'), { minutes: 140, scope: 'morning', weeklyHours: 2, yearlyHours: 104 });
+  });
+
+  test('overall, all and no answer lead with both ends', () => {
+    for (const pain of ['overall', 'all', undefined] as const) {
+      const lead = leadFor(e, pain);
+      assert.equal(lead.scope, 'both');
+      assert.equal(lead.minutes, e.weeklyMinutes);
+      assert.equal(lead.weeklyHours, e.weeklyHours, 'the same rounding as the combined number');
+      assert.equal(lead.yearlyHours, e.yearlyHours);
+    }
+  });
+
+  test('under an hour a week, a branch falls back to both ends', () => {
+    const straightToSleep = estimate({ ...input, nightMinutes: 5 }); // 35 min a week at night
+    assert.equal(leadFor(straightToSleep, 'night').scope, 'both');
+    const straightUp = estimate({ ...input, morningMinutes: 3, nightsPerWeek: 7 }); // 21 min a week
+    assert.equal(leadFor(straightUp, 'morning').scope, 'both');
+    assert.equal(leadFor(estimate({ ...input, nightMinutes: 30, nightsPerWeek: 2 }), 'night').scope, 'night', 'exactly an hour leads');
+  });
+
+  test('the clock facts come from their own answers', () => {
+    assert.equal(e.phoneDown, 23 * 60 + 30 + 45);
+    assert.equal(formatWhen(e.phoneDown), '12:15\u00A0AM');
+    assert.equal(e.feetDown, 7 * 60 + 20);
   });
 });

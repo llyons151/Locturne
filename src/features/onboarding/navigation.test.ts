@@ -17,6 +17,8 @@ import {
   nextStep,
   startNav,
   STEPS,
+  stepsFor,
+  PAINS,
   type Nav,
   type NavAction,
   type StepId,
@@ -44,7 +46,12 @@ function reach(to: StepId, from: Nav = startNav('hello', initialAnswers)): Nav {
 describe('forward', () => {
   test('Continue goes through every step in order, and stops at the last', () => {
     const nav = reach('first-morning');
-    assert.deepEqual(nav.history, [...STEPS]);
+    assert.deepEqual(nav.history, stepsFor('all'));
+    assert.deepEqual(
+      stepsFor('all'),
+      STEPS.filter((s) => s !== 'night-feel' && s !== 'after-feel'),
+      '`all` is the flow as it was, plus the pain question',
+    );
     assert.equal(currentStep(navigate(nav, next)), 'first-morning');
   });
 
@@ -227,4 +234,79 @@ test('a permission callback cannot advance a different visit at the same stack d
   assert.equal(moved.history.length, original.history.length);
   assert.equal(currentStep(moved), 'method');
   assert.equal(navigate(moved, callback), moved, 'old Screen Time completion must not submit a later method edit');
+});
+
+describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
+  /** Walks a whole branch: answers `pain` on screen 2, then Continue to the end. */
+  const walk = (pain: (typeof PAINS)[number]) => {
+    let nav = run(startNav('hello', initialAnswers), next, set({ pain }));
+    for (let i = 0; currentStep(nav) !== 'first-morning'; i++) {
+      assert.ok(i < STEPS.length, `${pain} never reached the end`);
+      nav = navigate(nav, next);
+    }
+    return nav.history;
+  };
+
+  test('every branch reaches the paywall and the end, the same length as the others', () => {
+    const lengths = PAINS.map((pain) => {
+      const history = walk(pain);
+      assert.deepEqual(history, stepsFor(pain));
+      assert.ok(history.includes('plans'));
+      return history.indexOf('plans');
+    });
+    assert.equal(new Set(lengths).size, 1, `screens to the paywall: ${lengths.join(', ')}`);
+  });
+
+  test('the question comes right after hello, before the deal', () => {
+    for (const pain of PAINS) assert.deepEqual(stepsFor(pain).slice(0, 3), ['hello', 'pain', 'deal']);
+  });
+
+  test('each branch asks its own end of the night first, and only its own feeling question', () => {
+    const night = stepsFor('night');
+    const morning = stepsFor('morning');
+    const overall = stepsFor('overall');
+    assert.ok(night.indexOf('night-minutes') < night.indexOf('morning-minutes'));
+    assert.ok(night.includes('night-feel') && !night.includes('mornings') && !night.includes('after-feel'));
+    assert.ok(morning.indexOf('wake') < morning.indexOf('bedtime'), 'the alarm first');
+    assert.ok(morning.includes('mornings') && !morning.includes('night-feel'));
+    assert.ok(overall.includes('after-feel') && !overall.includes('mornings') && !overall.includes('night-feel'));
+  });
+
+  test('every branch asks both minutes questions, so the estimate is whole', () => {
+    for (const pain of PAINS) {
+      const steps = stepsFor(pain);
+      for (const s of ['bedtime', 'wake', 'night-minutes', 'morning-minutes', 'nights-per-week', 'tried', 'reveal'] as const)
+        assert.ok(steps.includes(s), `${pain} asks ${s}`);
+      assert.ok(steps.indexOf('nights-per-week') < steps.indexOf('reveal'));
+    }
+  });
+
+  test('no answer yet reads as all', () => {
+    assert.deepEqual(stepsFor(undefined), stepsFor('all'));
+    assert.equal(nextStep('deal'), 'bedtime');
+  });
+
+  test('Back to the question and a different pick carries on in the new order', () => {
+    let nav = run(startNav('hello', initialAnswers), next, set({ pain: 'night' }), next, next, next, next);
+    assert.equal(currentStep(nav), 'night-minutes');
+    nav = run(nav, back, back, back, back);
+    assert.equal(currentStep(nav), 'pain');
+    nav = run(nav, set({ pain: 'morning' }), next, next);
+    assert.equal(currentStep(nav), 'wake', 'morning asks the alarm first');
+  });
+
+  test('a step from another branch carries on to the next step this branch has', () => {
+    assert.equal(nextStep('night-feel', [], 'all'), 'nights-per-week');
+    assert.equal(nextStep('after-feel', [], 'morning'), 'nights-per-week');
+    assert.equal(nextStep('mornings', [], 'night'), 'night-minutes');
+  });
+
+  test('editing from commit still returns, in any branch', () => {
+    for (const pain of PAINS) {
+      let nav = startNav('hello', { ...initialAnswers, pain });
+      while (currentStep(nav) !== 'commit') nav = navigate(nav, next);
+      nav = run(nav, edit('wake'), next);
+      assert.equal(currentStep(nav), 'commit', pain);
+    }
+  });
 });

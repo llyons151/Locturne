@@ -6,6 +6,8 @@
  * less sleep, not 60, so a minute-for-minute sleep claim would overstate it.
  */
 
+import type { Pain } from './navigation.ts';
+
 /** U.S. life expectancy at birth, rounded (CDC NCHS, 2024 data). */
 export const AVERAGE_LIFESPAN = 79;
 
@@ -25,6 +27,12 @@ export type Estimate = {
   weeklyMinutes: number;
   /** The part of weeklyMinutes spent in bed after the alarm. */
   morningWeeklyMinutes: number;
+  /** The part of weeklyMinutes spent on the phone after getting into bed. */
+  nightWeeklyMinutes: number;
+  /** When the phone usually goes down, in minutes after midnight (may pass 24 hours). */
+  phoneDown: number;
+  /** When their feet usually hit the floor, in minutes after midnight. */
+  feetDown: number;
   /** Weekly hours rounded down to the nearest half hour. */
   weeklyHours: number;
   yearlyHours: number;
@@ -50,10 +58,7 @@ export function estimate(input: EstimateInput): Estimate {
   const { nightMinutes, morningMinutes, nightsPerWeek, bedtime, wake, age } = input;
 
   const weeklyMinutes = (nightMinutes + morningMinutes) * nightsPerWeek;
-  const weeklyHours = Math.floor(weeklyMinutes / 30) / 2;
-  // From the week as shown, so "9 hours a week" reads as 468 a year, not 485. Under half an
-  // hour a week the reveal says minutes, and the year is counted from those.
-  const yearlyHours = weeklyHours > 0 ? weeklyHours * 52 : Math.floor((weeklyMinutes * 52) / 60);
+  const { weeklyHours, yearlyHours } = weekAndYear(weeklyMinutes);
   const yearlyDays = Math.floor(yearlyHours / 24);
   const yearsLeft = age === undefined ? 0 : Math.max(0, AVERAGE_LIFESPAN - age);
   const lifetimeDays = Math.floor((yearlyHours * yearsLeft) / 24);
@@ -68,6 +73,9 @@ export function estimate(input: EstimateInput): Estimate {
   return {
     weeklyMinutes,
     morningWeeklyMinutes: morningMinutes * nightsPerWeek,
+    nightWeeklyMinutes: nightMinutes * nightsPerWeek,
+    phoneDown: bedtime + nightMinutes,
+    feetDown: wake + morningMinutes,
     weeklyHours,
     yearlyHours,
     yearlyDays,
@@ -81,6 +89,49 @@ export function estimate(input: EstimateInput): Estimate {
     scheduleLooksWrong: timeInBed < 3 * 60 || timeInBed > 14 * 60,
   };
 }
+
+/**
+ * Weekly minutes as the reveal shows them: hours rounded down to the half, and the year from
+ * the week as shown, so "9 hours a week" reads as 468 a year, not 485. Under half an hour a
+ * week the reveal says minutes, and the year is counted from those.
+ */
+export function weekAndYear(weeklyMinutes: number): { weeklyHours: number; yearlyHours: number } {
+  const weeklyHours = Math.floor(weeklyMinutes / 30) / 2;
+  const yearlyHours = weeklyHours > 0 ? weeklyHours * 52 : Math.floor((weeklyMinutes * 52) / 60);
+  return { weeklyHours, yearlyHours };
+}
+
+/** Under this many minutes a week, a branch's own end of the night is too small to lead with. */
+const LEAD_FLOOR = 60;
+
+/**
+ * The number the reveal, `time-back` and the paywall lead with (ONBOARDING_BRANCHES §5.5):
+ * the branch's own end of the night, even when it's the smaller one, because their problem
+ * persuades where a bigger number that's mostly someone else's doesn't. Under an hour a week
+ * it falls back to both ends together; `overall` and `all` always use both.
+ */
+export type Lead = {
+  /** Weekly minutes. */
+  minutes: number;
+  /** Which part of the night they are: after getting into bed, before getting up, or both. */
+  scope: 'night' | 'morning' | 'both';
+  weeklyHours: number;
+  yearlyHours: number;
+};
+
+export function leadFor(numbers: Estimate, pain: Pain | undefined): Lead {
+  const pick = (minutes: number, scope: Lead['scope']): Lead => ({ minutes, scope, ...weekAndYear(minutes) });
+  if (pain === 'night' && numbers.nightWeeklyMinutes >= LEAD_FLOOR) return pick(numbers.nightWeeklyMinutes, 'night');
+  if (pain === 'morning' && numbers.morningWeeklyMinutes >= LEAD_FLOOR) return pick(numbers.morningWeeklyMinutes, 'morning');
+  return pick(numbers.weeklyMinutes, 'both');
+}
+
+/** Where the lead's minutes go, after "…a week": "on your phone after bedtime". */
+export const LEAD_WHERE: Record<Lead['scope'], string> = {
+  night: 'on your phone after bedtime',
+  morning: 'in bed after the alarm',
+  both: 'on your phone in bed',
+};
 
 /** "About 25 minutes", "About half an hour", "About 1 hour", "About 7½ hours". */
 export function weeklyAmount(weeklyMinutes: number): string {

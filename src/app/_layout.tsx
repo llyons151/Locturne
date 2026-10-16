@@ -86,6 +86,8 @@ export default function RootLayout() {
             options={{ presentation: 'fullScreenModal', contentStyle: { backgroundColor: '#000000' } }}
           />
           <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
+          {/* The morning payoff: fades in over Home the moment the apps wake. */}
+          <Stack.Screen name="morning-won" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
           {/* Cancelling: full-screen, no swipe away mid-step; every step has its own way out. */}
           <Stack.Screen name="cancel" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
           <Stack.Screen name="(dev)/wake-lab" options={{ presentation: 'fullScreenModal' }} />

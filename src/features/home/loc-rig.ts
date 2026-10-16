@@ -18,7 +18,9 @@
 import { buildHand, fidgeting, newHandSim, splat, stepHand, traceHand, wristAt, type HandPose, type HandSim } from './loc-hands';
 import { LOC_HEIGHT, LOC_PATH } from './loc-path';
 import { NAV_KNOCK, type BurrowPath } from './nav-knock-tune';
+import { seeded, ultraNav, ultraRun } from './loc-ultra';
 import { zoomLump } from './loc-zoomies';
+import type { Rim } from './rim';
 
 export type LocMood = 'asleep' | 'groggy' | 'awake' | 'smug' | 'betrayed';
 
@@ -374,6 +376,64 @@ const burrowBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => ({ ms: p
   [pop + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); r.say('angry'); }],
 ], lump });
 
+/** Pairs of [ms, value]: his eyes rolling round in circles, wide to start and settling, `turns` times. */
+const rolling = (from: number, to: number, turns: number, rx: number, ry: number): { gx: Key[]; gy: Key[] } => {
+  const gx: Key[] = [], gy: Key[] = [];
+  for (let t = from; t <= to; t += 50) {
+    const p = (t - from) / (to - from), a = p * turns * Math.PI * 2, k = 1 - 0.55 * p;
+    gx.push([t, Math.round(Math.sin(a) * rx * k * 10) / 10, 'lin']);
+    gy.push([t, Math.round(-Math.cos(a) * ry * k * 10) / 10, 'lin']);
+  }
+  return { gx, gy };
+};
+
+// After the ultra zoomies (loc-ultra.ts) he bursts out like any burrow, but he's been round the
+// whole screen: he comes up dazed. One eye wide with a huge pupil, the other half shut on a
+// pinpoint, the eyes rolling round in circles, the head wobbling and the ears flopping, slumped.
+// Then he shakes it off like a wet dog, a blink, and snaps into the glare.
+const ultraBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => {
+  const P = pop, end = P + 3800;
+  const roll = rolling(P + 300, P + 1800, 2.25, 24, 9);
+  const base = burrowBit(pop, lump);
+  return { ...base, ms: end, tracks: {
+    ...base.tracks,
+    y: [[0, 'S'], [P + 260, 'S'], [P + 340, -10, 'out'], [P + 560, 16, 'io'], [P + 1880, 16], [P + 2040, -12, 'out'], [P + 3200, -10], [end, 'T', 'io']],
+    tilt: [[0, 'S'], [P + 300, 'S'], [P + 520, 15, 'io'], [P + 820, -13, 'io'], [P + 1120, 11, 'io'], [P + 1400, -8, 'io'], [P + 1660, 4, 'io'],
+      [P + 1880, 0, 'io'], [P + 1940, 11, 'out'], [P + 2000, -11, 'io'], [P + 2060, 9, 'io'], [P + 2120, -7, 'io'], [P + 2180, 4, 'io'],
+      [P + 2260, 0, 'io'], [end, 'T', 'io']],
+    earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [P, 16], [P + 120, -34, 'out'], [P + 440, 20, 'io'], [P + 780, -6, 'io'],
+      [P + 1120, 24, 'io'], [P + 1480, 0, 'io'], [P + 1880, 14, 'io'], [P + 1960, -32, 'out'], [P + 3200, -30], [end, 'T', 'io']],
+    earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [P, -16], [P + 120, 34, 'out'], [P + 560, 4, 'io'], [P + 900, 26, 'io'],
+      [P + 1260, -2, 'io'], [P + 1600, 20, 'io'], [P + 1880, -10, 'io'], [P + 1960, 32, 'out'], [P + 3200, 30], [end, 'T', 'io']],
+    open: [[0, 'S'], [P + 200, 'S'], [P + 280, 1.15, 'out'], [P + 1880, 1.1], [P + 1940, 0, 'in'], [P + 2120, 0], [P + 2260, 0.5, 'out'], [P + 3200, 0.5], [end, 'T', 'io']],
+    openR: [[0, 'S'], [P + 200, 'S'], [P + 280, 0.5, 'out'], [P + 1880, 0.55], [P + 1940, 0, 'in'], [P + 2140, 0], [P + 2260, 0.58, 'out'], [P + 3200, 0.58], [end, 'T', 'io']],
+    squint: [[0, 'S'], [P + 200, 'S'], [P + 280, 0.1, 'out'], [P + 2120, 0.1], [P + 2260, 0.36, 'out'], [P + 3200, 0.36], [end, 'T', 'io']],
+    slope: [[0, 'S'], [P + 200, 'S'], [P + 280, -4, 'out'], [P + 2120, -4], [P + 2260, 28, 'out'], [P + 3200, 28], [end, 'T', 'io']],
+    swell: [[0, 'S'], [P + 200, 'S'], [P + 280, 1.7, 'out'], [P + 1880, 1.6], [P + 2260, 0.6, 'out'], [P + 3200, 0.6], [end, 'T', 'io']],
+    swellR: [[0, 1], [P + 200, 1], [P + 280, 0.35, 'out'], [P + 1880, 0.4], [P + 2260, 1, 'out'], [end, 1]],
+    eyeR: [[0, 1], [P + 200, 1], [P + 280, 0.85, 'out'], [P + 1880, 0.85], [P + 2260, 1, 'out'], [end, 1]],
+    pupilJit: [[0, 'S'], [P + 280, 'S'], [P + 320, 0.2, 'out'], [P + 2120, 0.2], [P + 2280, 0.7, 'out'], [P + 3200, 0.7], [P + 3600, 'T', 'io']],
+    gx: [[0, 0], [P + 280, 0], ...roll.gx, [P + 1900, 0, 'io'], [end, 0]],
+    gy: [[0, 0], [P + 280, 0], ...roll.gy, [P + 1900, 0, 'io'], [end, 0]],
+  }, events: [
+    [0, (r) => { r.squeezing = true; r.say('hide'); }],
+    [460, (r) => { r.squeezing = false; }],
+    [pop, (r) => { r.squeezing = true; }],
+    // Out, the eyes spring open tall: boing.
+    [P + 200, (r) => { r.squeezing = false; r.pop(0.8); }],
+    [P + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); }],
+    [P + 520, (r) => r.say('ultra')],
+    [P + 820, (r) => r.pop(0.25)],
+    [P + 1400, (r) => r.pop(0.2)],
+    // Shaking it off.
+    [P + 1940, (r) => { r.flick('L', -18); r.flick('R', 18); r.pop(0.35); }],
+    [P + 2060, (r) => { r.flick('L', 14); r.flick('R', -14); r.kick(0.04); }],
+    [P + 2180, (r) => { r.flick('L', -10); r.flick('R', 10); }],
+    // Into the glare.
+    [P + 2260, (r) => { r.pop(-0.45); r.kick(-0.05); }],
+  ] };
+};
+
 // ---- Explorations (docs/LOC_ANIMATION_REVIEW.md): new acting, played only from the Loc studio ----
 
 /**
@@ -702,6 +762,10 @@ const pickIdle = (mood: LocMood): Bit | undefined => {
 };
 /** Gaps between idle moves, seconds: a base and a random extra. */
 const IDLE_GAP: Record<LocMood, [number, number]> = { awake: [6, 5], groggy: [5, 4], smug: [6, 4], betrayed: [5, 4], asleep: [6, 4] };
+/** A poke's odds of something other than the usual flinch. */
+const POKE_ODDS = { unhinged: 0.12, clutch: 0.15 };
+/** The Loc studio's "In the app" page reads what plays when from these same tables. */
+export { HABITS as LOC_HABITS, IDLE as LOC_IDLE, IDLE_GAP as LOC_IDLE_GAP, POKE_ODDS as LOC_POKE_ODDS };
 
 /** Poked, now and then he does something other than the usual flinch: a clutch, or (rarely) the unhinged pop. */
 const POKE_CLUTCH: Bit = { ...CLUTCH, events: [...(CLUTCH.events ?? []), [260, (r) => r.say('poke')]] };
@@ -1055,29 +1119,49 @@ export class LocRig {
     const b = this.bit;
     return !!b?.def.lump && (b.def.outAt === undefined || b.t < b.def.outAt);
   }
-  /** When he was last sent under, in ms, for the zoomies (`zoomLump`). */
+  /** When he was last sent under, in ms, for the zoomies (`zoomLump`) and the ultra zoomies (`ultraRun`). */
   private burrows: number[] = [];
-  /** Sends him under the covers. `zoom` forces the zoomies (the knock lab's button). */
-  burrow(zoom = false) {
+  /** The screen's edge, for the ultra zoomies' run round it; without it (the studio) they're plain zoomies. */
+  private rim: Rim | null = null;
+  setRim(rim: Rim | null) { this.rim = rim; }
+  /** Sends him under the covers. `force` sets off the zoomies or the ultra zoomies (the knock lab's buttons). */
+  burrow(force: false | 'zoom' | 'ultra' = false) {
     if (this.hidden) return;
     if (this.reduced) return this.play(BURROW_CALM);
     const now = Date.now();
     this.burrows = [...this.burrows.filter((at) => now - at < NAV_KNOCK.zoomWindow * 1000), now];
-    const extra = this.burrows.length - Math.max(1, Math.round(NAV_KNOCK.zoomAfter));
+    const count = this.burrows.length;
+    const ultra = !!this.rim && (force === 'ultra' || (!force && count >= Math.max(2, Math.round(NAV_KNOCK.ultraAfter))));
+    // Once round the screen, he has to be worked up all over again.
+    if (ultra) this.burrows = [];
     // His run is a share of the canvas's width, which is the screen's; the nav buttons sit in a
     // row at most 520 pt wide (app-tabs.tsx). On a wider screen (web on a computer) the run is cut
     // to what it would be over a phone-shaped row, so he still runs into them.
     const fit = Math.min(1, ROW_SPAN / (this.canvas.clientWidth || ROW_SPAN));
-    const { pop, lump } = zoom || extra >= 0 ? zoomLump(Math.random, fit) : burrowLump(Math.random, fit);
-    this.play(burrowBit(pop, lump));
+    const seed = Math.floor(Math.random() * 2147483646) + 1;
+    const round = ultra ? { seed, ...ultraRun(this.rim!, seeded(seed)) } : null;
+    const { pop, lump } = round
+      ? { pop: round.run.pop, lump: round.lump }
+      : force || count >= Math.max(1, Math.round(NAV_KNOCK.zoomAfter)) ? zoomLump(Math.random, fit) : burrowLump(Math.random, fit);
+    this.play(round ? ultraBit(pop, lump) : burrowBit(pop, lump));
     // The tab bar plays the bounce off the whole run, planned now (nav-knock.ts): one message,
     // not one a frame, so the buttons move on the UI thread with nothing crossing per frame.
+    // Round the screen, the lump is drawn by an overlay (components/loc-rim) until he's home. Only
+    // the run's seed goes with it, like any burrow's numbers; the app plans the same run from it
+    // (the run itself wouldn't cross from the iPhone's webview: "not serializable").
     if (this.onBurrow) {
       const from = this.bit!.lump, dt = 1 / 60, path: BurrowPath = { dt, x: [], h: [], pop: pop / 1000 };
-      for (let t = 0; t <= pop + 140; t += dt * 1000) {
+      const away = round ? ultraNav(round.run) : null;
+      for (let t = 0, i = 0; t <= pop + 140; t += dt * 1000, i++) {
+        if (away && round && t < round.run.home && i < away.x.length) {
+          path.x.push(away.x[i]);
+          path.h.push(away.h[i]);
+          continue;
+        }
         path.x.push(Math.round((this.sample(lump.x, t, 'sink', from.x) ?? 0) * 1e4) / 1e4);
         path.h.push(Math.round((this.sample(lump.h, t, 'sink', from.h) ?? 0) * 1e3) / 1e3);
       }
+      if (round) path.ultra = round.seed;
       this.onBurrow(path);
     }
   }
@@ -1102,13 +1186,13 @@ export class LocRig {
   poke() {
     if (this.reduced) return this.play(POKE_CALM);
     const r = Math.random();
-    this.play(r < 0.12 ? POKE_UNHINGED : r < 0.27 ? POKE_CLUTCH : POKE);
+    this.play(r < POKE_ODDS.unhinged ? POKE_UNHINGED : r < POKE_ODDS.unhinged + POKE_ODDS.clutch ? POKE_CLUTCH : POKE);
   }
   kick(v: number) { this.vel.stretch += v * 14; }
   flick(side: 'L' | 'R', deg: number) { this.flicks[side] += deg; }
   /** Tells Home what just happened, so he can say something about it (loc-lines.ts). */
-  onCue: ((cue: 'poke' | 'angry' | 'hello' | 'hide') => void) | null = null;
-  say(cue: 'poke' | 'angry' | 'hello' | 'hide') { this.onCue?.(cue); }
+  onCue: ((cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') => void) | null = null;
+  say(cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') { this.onCue?.(cue); }
   /** Kick the eyeballs' jelly: + springs them tall, - squashes them wide. */
   pop(v: number) { if (!this.reduced) this.vel.goo += v * 18; }
 
@@ -1567,6 +1651,9 @@ export class LocRig {
     const bit = LOC_EXPLORE[id];
     if (bit) this.play(bit);
   }
+
+  /** Any bit, now: the studio's expressions. */
+  playBit(bit: Bit) { this.play(bit); }
 
   /** Something is still playing: a bit, a staggered mood change or a blink. */
   get busy() { return !!this.bit || this.pending.length > 0 || this.blinkAt >= 0; }

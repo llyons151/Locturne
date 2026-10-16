@@ -1,4 +1,5 @@
 import { router, type Href } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -60,6 +61,31 @@ const PLACE: MenuOption<WakePreview['place']>[] = [
   { value: 'off', label: 'Fake: services off' },
   { value: 'failed', label: 'Fake: no answer' },
 ];
+
+const PAYOFF_METHOD: MenuOption<string>[] = [
+  { value: 'steps', label: 'Steps' },
+  { value: 'downstairs', label: 'Downstairs' },
+  { value: 'pushups', label: 'Push-ups' },
+  { value: 'scan', label: 'Scan' },
+  { value: 'place', label: 'Place' },
+];
+
+const PAYOFF_MORNINGS: MenuOption<string>[] = [
+  { value: '1', label: 'First morning' },
+  { value: '4', label: '4' },
+  { value: '7', label: 'A week (7)' },
+  { value: '12', label: '12' },
+  { value: '100', label: '100' },
+  { value: '1234', label: '1,234' },
+];
+
+const PAYOFF_LATE: MenuOption<string>[] = [
+  { value: '0', label: 'Right on time' },
+  { value: '6', label: '6 min late' },
+  { value: '72', label: '1 h 12 min late' },
+];
+
+const PAYOFF_WEEK: MenuOption<string>[] = ['1', '3', '5', '7'].map((value) => ({ value, label: `${value} of 7` }));
 
 /** Starts a pretend morning (unless one is already running) and opens the real screen. */
 function open(href: Href, method: WakePreview['method'] = 'routine') {
@@ -152,6 +178,8 @@ export function WakePreviewScreen() {
         <ValueRow title="Open the old screen" value="" onPress={() => open('/place?mode=morning', 'place')} last />
       </Card>
 
+      <PayoffCard />
+
       <Card>
         <ValueRow
           title="Reset everything"
@@ -164,6 +192,33 @@ export function WakePreviewScreen() {
         <ValueRow title="Close" value="" onPress={close} last />
       </Card>
     </ScrollView>
+  );
+}
+
+/** The morning payoff with made-up facts (/morning-won?demo=1). Its real facts need a real wake-up. */
+function PayoffCard() {
+  const [method, setMethod] = useState('steps');
+  const [mornings, setMornings] = useState('12');
+  const [late, setLate] = useState('6');
+  const [week, setWeek] = useState('3');
+  const start = 7 * 60;
+  const openPayoff = () =>
+    router.push({
+      pathname: '/morning-won',
+      params: { demo: '1', method, mornings, week, start: String(start), at: String(start + Number(late)) },
+    });
+  return (
+    <Card
+      icon={sym('sun.max.fill', 'wb_sunny')}
+      title="Morning payoff"
+      footer="The screen after a wake-up wakes the apps; Home opens it once per morning. Facts here are made up (7:00 am start). Screen: src/features/wake/payoff-screen.tsx, words: payoff.ts"
+    >
+      <MenuRow title="Method" value={method} options={PAYOFF_METHOD} onChange={setMethod} />
+      <MenuRow title="Mornings" value={mornings} options={PAYOFF_MORNINGS} onChange={setMornings} />
+      <MenuRow title="Up" value={late} options={PAYOFF_LATE} onChange={setLate} />
+      <MenuRow title="This week" value={week} options={PAYOFF_WEEK} onChange={setWeek} />
+      <ValueRow title="Open the payoff" value="" onPress={openPayoff} last />
+    </Card>
   );
 }
 

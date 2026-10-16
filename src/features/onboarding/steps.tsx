@@ -27,6 +27,10 @@ import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
 import {
+  AFTER_FEEL,
+  AFTER_FEEL_REPLY,
+  DEAL_BEATS,
+  feelingOffer,
   FOUND,
   FOUND_REPLY,
   FOUNDER,
@@ -34,28 +38,33 @@ import {
   LIGHT_OFFER_HEADLINE,
   METHOD_COPY,
   methodChoices,
+  MINUTES_SUB,
   morningGoals,
   methodCopy,
   MORNING_MINUTES_REPLY,
   morningMinuteChoices,
+  morningsChoices,
+  NIGHT_FEEL,
+  NIGHT_FEEL_REPLY,
   NIGHT_MINUTES_REPLY,
   nightMinuteChoices,
-  MORNINGS,
-  MORNINGS_OFFER,
   MORNINGS_REPLY,
   NEW_YEAR,
   OFFER_HEADLINES,
+  PAIN,
+  PAIN_REPLY,
   REPLY_BUTTON,
-  TIME_BACK,
+  timeBackChoices,
   TIME_BACK_REPLY,
   timeBackQuestion,
   TONE_STEP,
-  TRIED,
+  triedChoices,
   TRIED_REPLY,
   WALK_GOAL,
   walkLine,
   type Answers,
   type ExitOffer,
+  type Pain,
   type StepId,
 } from './content';
 import type { MotionAccess } from './motion';
@@ -64,6 +73,8 @@ import {
   formatClock,
   formatHoursFromMinutes,
   formatWhen,
+  LEAD_WHERE,
+  leadFor,
   weeklyAmount,
   type Estimate,
 } from './estimate';
@@ -72,7 +83,7 @@ import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { RevealScreen } from './screens/reveal-screen';
 import { WalkMeter } from './screens/walk-meter';
 import { ToneSlider } from './tone/tone-slider';
-import { TomorrowDemo } from './screens/tomorrow-demo';
+import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
 import { Body, Chip, Eyebrow, HoldButton, NotePreview, Options, page, PreviewNote, Ready, Reply, Title, TonightStrip, Voice } from './ui';
 import { wakeDayFor, walkCopy } from './walk-copy';
 
@@ -158,6 +169,9 @@ export type WalkState = {
 
 // Four presets: one row under the time wheel.
 const BEDTIME_PRESETS = [22 * 60, 23 * 60, 23 * 60 + 30, 0];
+// The night branch starts where they really are, half an hour later: an aspirational bedtime
+// lands the lock while the evening still feels unspent, which reads as punishment.
+const NIGHT_BEDTIME_PRESETS = [23 * 60, 23 * 60 + 30, 0, 30];
 const WAKE_PRESETS = [6 * 60, 7 * 60, 7 * 60 + 30, 8 * 60];
 // Night-shift schedules: sleep in the morning, up in the afternoon.
 const SHIFT_BEDTIME_PRESETS = [7 * 60, 8 * 60, 9 * 60, 10 * 60];
@@ -199,6 +213,13 @@ export function renderStep(ctx: StepContext): StepView {
     </Ready>
   );
   const nightMinutes = answers.nightMinutes ?? 0;
+  // Which end of the night this visit leads with (docs/ONBOARDING_BRANCHES.md), and the number
+  // it leads with: theirs, or both ends when theirs is too small.
+  const pain = answers.pain ?? 'all';
+  const lead = leadFor(numbers, answers.pain);
+  const phoneDown = formatWhen(numbers.phoneDown);
+  // The morning branch asks the alarm first, so bedtime is still the default on `wake`.
+  const bedtimeAsked = pain !== 'morning' || editing;
   // Tonight, filling in as setup goes: the times, how they'll prove they're up, the apps.
   const tonight = (upTo: 'times' | 'method' | 'apps') => [
     `${formatClock(answers.bedtime)} → ${wake}`,
@@ -224,15 +245,31 @@ export function renderStep(ctx: StepContext): StepView {
       };
     }
 
+    case 'pain':
+      // On the sunk moon, like `time-back`: rising it here would bob it down again for `deal`.
+      return {
+        ...moonQuestion(
+          'Which one sounds like you?',
+          'Pick the one that costs you most. You get the whole thing either way.',
+          <Options options={PAIN} value={answers.pain} onChoose={(value) => set('pain', value)} tone="moon" />,
+          answers.pain ? PAIN_REPLY[answers.pain] : undefined,
+          undefined,
+          compact,
+          false,
+        ),
+        footer: replyButton(answers.pain !== undefined),
+      };
+
     case 'deal':
       return {
         body: (
           <View style={page.top}>
             <Title>Here’s the deal.</Title>
+            {/* The beats lead with their pain: the first proof that the answer did something. */}
             <View style={styles.beats}>
-              <Beat label="Bedtime" text="Your apps go to sleep. So do I." />
-              <Beat label="Morning" text="They stay asleep until you’re up. Same as me." />
-              <Beat label="Up means up" text="A trip downstairs or a short walk. Then we all wake up." />
+              {DEAL_BEATS[pain].map((beat) => (
+                <Beat key={beat.label} label={beat.label} text={beat.text} />
+              ))}
             </View>
             {/* Was its own screen ("intro"). Folded in so the first tap comes one screen sooner;
                 kept to one line so screen 2 isn't a wall. The picked apps staying on the phone
@@ -300,12 +337,38 @@ export function renderStep(ctx: StepContext): StepView {
         ...moonQuestion(
           'How do your mornings usually go?',
           'Pick the closest.',
-          <Options options={MORNINGS} value={answers.mornings} onChoose={(value) => set('mornings', value)} tone="moon" dense />,
+          <Options options={morningsChoices(answers.pain)} value={answers.mornings} onChoose={(value) => set('mornings', value)} tone="moon" dense />,
           answers.mornings ? MORNINGS_REPLY[answers.mornings] : undefined,
           undefined,
           compact,
         ),
         footer: replyButton(answers.mornings !== undefined),
+      };
+
+    case 'night-feel':
+      return {
+        ...moonQuestion(
+          'What’s the late scrolling, mostly?',
+          'Pick the closest.',
+          <Options options={NIGHT_FEEL} value={answers.nightFeel} onChoose={(value) => set('nightFeel', value)} tone="moon" dense />,
+          answers.nightFeel ? NIGHT_FEEL_REPLY[answers.nightFeel] : undefined,
+          undefined,
+          compact,
+        ),
+        footer: replyButton(answers.nightFeel !== undefined),
+      };
+
+    case 'after-feel':
+      return {
+        ...moonQuestion(
+          'When you finally put it down, how is it?',
+          'Pick the closest.',
+          <Options options={AFTER_FEEL} value={answers.afterFeel} onChoose={(value) => set('afterFeel', value)} tone="moon" dense />,
+          answers.afterFeel ? AFTER_FEEL_REPLY[answers.afterFeel] : undefined,
+          undefined,
+          compact,
+        ),
+        footer: replyButton(answers.afterFeel !== undefined),
       };
 
     case 'founder':
@@ -331,7 +394,7 @@ export function renderStep(ctx: StepContext): StepView {
       return {
         ...moonQuestion(
           `In bed at ${formatWhen(answers.bedtime)}. When does the phone actually go down?`,
-          'Now the night before.',
+          MINUTES_SUB[pain].night,
           <Options
             options={nightMinuteChoices(answers.bedtime)}
             value={answers.nightMinutes}
@@ -352,9 +415,11 @@ export function renderStep(ctx: StepContext): StepView {
       const soFar = (nightMinutes + (answers.morningMinutes ?? 0)) * days.length;
       return {
         ...moonQuestion(
-          'Which nights does that happen?',
+          // A night and its morning come as a pair, so the count multiplies both either way.
+          pain === 'morning' ? 'Which mornings does that happen?' : 'Which nights does that happen?',
           'Tap every one that counts.',
           <DayPicker
+            unit={pain === 'morning' ? 'morning' : 'night'}
             value={days}
             onChange={(picked) => {
               set('scrollDays', picked);
@@ -379,19 +444,24 @@ export function renderStep(ctx: StepContext): StepView {
       return {
         body: (
           <View style={page.top}>
-            <Title>When do you get into bed?</Title>
-            <Body style={styles.sub}>Getting in. Not falling asleep. Those are different.</Body>
+            <Title>{pain === 'morning' && !editing ? 'And when do you get into bed?' : 'When do you get into bed?'}</Title>
+            <Body style={styles.sub}>
+              {pain === 'night' ? 'The time you really get in. You keep everything before it.' : 'Getting in. Not falling asleep. Those are different.'}
+            </Body>
             <View style={styles.timeWrap}>
               <TimeWheel
                 value={answers.bedtime}
                 onChange={(v) => set('bedtime', v)}
-                presets={answers.shift ? SHIFT_BEDTIME_PRESETS : BEDTIME_PRESETS}
+                presets={answers.shift ? SHIFT_BEDTIME_PRESETS : pain === 'night' ? NIGHT_BEDTIME_PRESETS : BEDTIME_PRESETS}
                 // Room for the notification preview under it (short phones are five rows anyway).
                 short
               />
             </View>
-            {/* Wake time isn't set yet here, so only warn when editing a finished schedule. */}
-            {editing && !answers.shift && numbers.scheduleLooksWrong ? <ScheduleWarning minutes={numbers.timeInBed} /> : null}
+            {/* Wake time isn't set yet here (except in the morning branch, which asked it first),
+                so only warn when it is. */}
+            {(editing || pain === 'morning') && !answers.shift && numbers.scheduleLooksWrong ? (
+              <ScheduleWarning minutes={numbers.timeInBed} />
+            ) : null}
             <View style={styles.shiftRow}>
               <Chip
                 label="I work nights"
@@ -406,7 +476,12 @@ export function renderStep(ctx: StepContext): StepView {
             </View>
             {answers.shift ? (
               <Voice text="Nights are your days. I’ll adjust. Grudgingly." size={VoiceSize.aside} sub />
-            ) : compact ? null : (
+            ) : compact ? null : pain === 'morning' && !editing ? (
+              // The alarm came first here, so the night's length lives on this screen instead of `wake`.
+              numbers.scheduleLooksWrong ? null : (
+                <TonightStrip parts={[...tonight('times').slice(0, 1), `${formatHoursFromMinutes(numbers.timeInBed)} hours in bed`]} />
+              )
+            ) : (
               <NotePreview time={formatClock(answers.bedtime - BEDTIME_WARNING)} title={note.title} body={note.body} />
             )}
           </View>
@@ -428,7 +503,12 @@ export function renderStep(ctx: StepContext): StepView {
                 presets={answers.shift ? SHIFT_WAKE_PRESETS : WAKE_PRESETS}
               />
             </View>
-            {numbers.scheduleLooksWrong ? (
+            {!bedtimeAsked ? (
+              <>
+                <View style={page.gapAside} />
+                <Voice text="My least favourite sound." size={VoiceSize.aside} sub />
+              </>
+            ) : numbers.scheduleLooksWrong ? (
               <ScheduleWarning minutes={numbers.timeInBed} />
             ) : (
               <View style={styles.stripGap}>
@@ -494,7 +574,7 @@ export function renderStep(ctx: StepContext): StepView {
       return {
         ...moonQuestion(
           `Alarm at ${formatWhen(answers.wake)}. When do your feet hit the floor?`,
-          'Mornings first. They’re the worst part.',
+          MINUTES_SUB[pain].morning,
           <Options
             options={morningMinuteChoices(answers.wake)}
             value={answers.morningMinutes}
@@ -516,7 +596,7 @@ export function renderStep(ctx: StepContext): StepView {
         ...moonQuestion(
           'What have you tried?',
           'Pick the one that lasted longest.',
-          <Options options={TRIED} value={answers.tried} onChoose={(value) => set('tried', value)} tone="moon" dense />,
+          <Options options={triedChoices(answers.pain)} value={answers.tried} onChoose={(value) => set('tried', value)} tone="moon" dense />,
           reply?.line,
           reply?.body,
           compact,
@@ -530,9 +610,9 @@ export function renderStep(ctx: StepContext): StepView {
         ...moonQuestion(
           numbers.lightUser
             ? 'Say you got those minutes back. What would you do with them?'
-            : timeBackQuestion(weeklyAmount(numbers.weeklyMinutes)),
+            : timeBackQuestion(weeklyAmount(lead.minutes)),
           undefined,
-          <Options options={TIME_BACK} value={answers.timeBack} onChoose={(value) => set('timeBack', value)} tone="moon" dense />,
+          <Options options={timeBackChoices(answers.pain)} value={answers.timeBack} onChoose={(value) => set('timeBack', value)} tone="moon" dense />,
           answers.timeBack ? TIME_BACK_REPLY[answers.timeBack] : undefined,
           undefined,
           compact,
@@ -543,7 +623,7 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'reveal':
       return {
-        body: <RevealScreen numbers={numbers} mornings={answers.mornings} onPayoff={ctx.onPayoff} />,
+        body: <RevealScreen numbers={numbers} answers={answers} onPayoff={ctx.onPayoff} />,
         footer: (
           <Ready ready={ctx.payoff}>
             <PrimaryButton
@@ -640,6 +720,8 @@ export function renderStep(ctx: StepContext): StepView {
           <TomorrowDemo
             when={`${wakeDay}, ${wake}`}
             clock={wake.replace(/\s?[AP]M$/i, '')}
+            // Night people see their half first: the reach at bedtime, the night shield, then the morning.
+            night={pain === 'night' ? nightPrelude(answers.bedtime, numbers.phoneDown, answers.wake) : undefined}
             method={answers.method ?? 'steps'}
             reps={goals.reps}
             tone={answers.tone}
@@ -700,8 +782,12 @@ export function renderStep(ctx: StepContext): StepView {
       return {
         body: (
           <View style={page.top}>
-            <Title>Which apps keep you up?</Title>
-            <Body style={styles.sub}>They sleep at bedtime and wake once you’re up. Phone calls always get through.</Body>
+            <Title>{pain === 'overall' ? 'Which apps eat the most time?' : 'Which apps keep you up?'}</Title>
+            <Body style={styles.sub}>
+              {pain === 'overall'
+                ? 'They sleep at bedtime and wake once you’re up. Daytime limits are in the Apps tab later. Phone calls always get through.'
+                : 'They sleep at bedtime and wake once you’re up. Phone calls always get through.'}
+            </Body>
             <View style={styles.appsCard}>
               <AppsCard
                 apps={answers.apps}
@@ -763,7 +849,13 @@ export function renderStep(ctx: StepContext): StepView {
             {lateNight ? (
               <Body>{compact ? 'I start the second you’re in.' : `It’s already past ${bed}. I start the second you’re in.`}</Body>
             ) : compact ? null : (
-              <Body>Two passes a month for bad days. Tap anything to change it.</Body>
+              // Night: the rested self sets the rule, and can change it anytime they're awake
+              // (the schedule-edits rule), which answers "it's a punishment".
+              <Body>
+                {pain === 'night'
+                  ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days.'
+                  : 'Two passes a month for bad days. Tap anything to change it.'}
+              </Body>
             )}
             {compact ? null : (
               <>
@@ -782,7 +874,7 @@ export function renderStep(ctx: StepContext): StepView {
       // The morning they said they don't have comes first; the plans page then spends the
       // hours on what they'd do with them, so the two money screens echo different answers.
       const headline =
-        MORNINGS_OFFER[answers.mornings ?? ''] ??
+        feelingOffer(answers, phoneDown) ??
         (numbers.lightUser ? LIGHT_OFFER_HEADLINE : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else));
       const trialDays = offers.annual.trialDays;
       return {
@@ -790,12 +882,12 @@ export function renderStep(ctx: StepContext): StepView {
           <View style={page.top}>
             <Voice text={headline} size={VoiceSize.headline} header />
             <View style={page.gapHeadline} />
-            <Body>{noOrphan(method.offer)}</Body>
+            <Body>{noOrphan(pain === 'night' ? `Phone down at ${bed}. You keep the evening. ${method.offer}` : method.offer)}</Body>
             {/* Short phones keep the timeline whole and drop this line: the paywall headline says it next. */}
             {numbers.lightUser || compact ? null : (
               <>
                 <View style={page.gapAside} />
-                <Body>{`Week one: about ${weeklyAmount(numbers.weeklyMinutes)} back.`}</Body>
+                <Body>{`Week one: about ${weeklyAmount(lead.minutes)} back.`}</Body>
               </>
             )}
             {trialDays ? (
@@ -807,12 +899,19 @@ export function renderStep(ctx: StepContext): StepView {
                 {ctx.scheduledNight ? (
                   <>
                     {/* Past bedtime already, arming shields at once (`commit` said so too). */}
+                    {/* Their end of the night reads brighter: weight only, no colour. */}
                     <TrailStop
                       title={schedule.when === 'Now' ? 'Now' : `${schedule.when}, ${schedule.bedAt}`}
                       body={schedule.when === 'Now' ? 'Your apps sleep as soon as you’re in. $0 today.' : 'Your apps go to sleep. $0 today.'}
                       filled
+                      strong={pain === 'night'}
                     />
-                    <TrailStop title={`${schedule.wakeWhen}, ${schedule.wakeAt}`} body={`They stay asleep until ${method.until}.`} filled />
+                    <TrailStop
+                      title={`${schedule.wakeWhen}, ${schedule.wakeAt}`}
+                      body={`They stay asleep until ${method.until}.`}
+                      filled
+                      strong={pain === 'morning'}
+                    />
                   </>
                 ) : (
                   <TrailStop title="Today" body={`${schedule.sleep} $0 today.`} filled />
@@ -830,7 +929,7 @@ export function renderStep(ctx: StepContext): StepView {
             ) : (
               <View style={styles.plan}>
                 {!numbers.lightUser ? (
-                  <PlanRow when="Now" what={`About ${weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed.`} />
+                  <PlanRow when="Now" what={`About ${weeklyAmount(lead.minutes)} a week ${LEAD_WHERE[lead.scope]}.`} />
                 ) : null}
                 <PlanRow when="Schedule" what={schedule.sleep} />
               </View>
@@ -999,11 +1098,7 @@ export function renderStep(ctx: StepContext): StepView {
             />
             <View style={styles.gap8} />
             <Voice
-              text={
-                answers.morningMinutes !== undefined && answers.morningMinutes > 3
-                  ? `You said feet down around ${formatWhen(answers.wake + answers.morningMinutes)}. We’ll see.`
-                  : 'I’ll be asleep. Don’t wake me.'
-              }
+              text={lastWord(answers, pain, bed)}
               size={VoiceSize.aside}
               delay={1300}
               sub
@@ -1098,8 +1193,46 @@ function PlanRow({ when, what }: { when: string; what: string }) {
   );
 }
 
+/**
+ * His last word on `first-morning`: the time they confessed to, from their end of the night.
+ * Night echoes the phone going down; overall whichever end they gave; the rest the feet.
+ */
+function lastWord(answers: Answers, pain: Pain, bed: string): string {
+  const feet = answers.morningMinutes !== undefined && answers.morningMinutes > 3;
+  const late = answers.nightMinutes !== undefined && answers.nightMinutes > 5;
+  const nightEcho = `You said phone down around ${formatWhen(answers.bedtime + (answers.nightMinutes ?? 0))}. Tonight it’s ${bed}.`;
+  const feetEcho = `You said feet down around ${formatWhen(answers.wake + (answers.morningMinutes ?? 0))}. We’ll see.`;
+  if (pain === 'night' && late) return nightEcho;
+  if (feet) return feetEcho;
+  if (pain === 'overall' && late) return nightEcho;
+  return 'I’ll be asleep. Don’t wake me.';
+}
+
+/**
+ * The night branch's opening to the demo: the reach a little after getting into bed (or when
+ * the phone usually goes down, if that's sooner), the night shield, then tomorrow morning.
+ */
+function nightPrelude(bedtime: number, phoneDown: number, wake: number): NightPrelude {
+  const at = Math.min(bedtime + 22, Math.max(bedtime + 5, phoneDown));
+  const clock = formatClock(at);
+  return { when: `Tonight, ${clock}`, clock: clock.replace(/\s?[AP]M$/i, ''), wake };
+}
+
 /** One stop on the trial timeline: a dot on the rail, the day in white, what happens under it. */
-function TrailStop({ title, body, filled, last }: { title: string; body: string; filled?: boolean; last?: boolean }) {
+function TrailStop({
+  title,
+  body,
+  filled,
+  last,
+  strong,
+}: {
+  title: string;
+  body: string;
+  filled?: boolean;
+  last?: boolean;
+  /** Their end of the night: the line under it reads in full white. */
+  strong?: boolean;
+}) {
   return (
     <Reveal style={styles.stop}>
       <View style={styles.rail}>
@@ -1108,7 +1241,7 @@ function TrailStop({ title, body, filled, last }: { title: string; body: string;
       </View>
       <View style={[styles.stopText, !last && styles.stopGap]}>
         <Text style={styles.stopTitle}>{title}</Text>
-        <Text style={styles.stopBody}>{body}</Text>
+        <Text style={[styles.stopBody, strong && styles.stopBodyStrong]}>{body}</Text>
       </View>
     </Reveal>
   );
@@ -1192,6 +1325,7 @@ const styles = StyleSheet.create({
   stopGap: { paddingBottom: Space.m },
   stopTitle: { color: Nocturne.text, ...Type.body, fontWeight: '600', fontVariant: ['tabular-nums'] },
   stopBody: { color: Nocturne.text2, ...Type.secondary, marginTop: 2 },
+  stopBodyStrong: { color: Nocturne.text },
   founder: { marginTop: Gap.headline, gap: Space.l },
   founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic' },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },

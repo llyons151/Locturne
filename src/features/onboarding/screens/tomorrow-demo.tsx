@@ -55,6 +55,24 @@ const LIFT_AFTER_MS = 800;
 const REDUCED_APP_AT = 2800;
 const REDUCED_AWAKE_AT = 4300;
 
+/**
+ * The night branch's opening, before all of the above: the reach a little after bedtime (as
+ * late as the morning's, so the page has finished coming in), the night shield, the screen
+ * going dark, then morning. The phone is already up by then, so the morning's tap comes
+ * 0.7 s after it, not TAP_AT: PRELUDE_MS moves the whole morning script that much later.
+ */
+const NIGHT_TAP_AT = TAP_AT;
+const NIGHT_SHIELD_AT = SHIELD_AT;
+const NIGHT_FINE_AT = 2550;
+const NIGHT_DARK_AT = 2700;
+const NIGHT_MORNING_AT = 3200;
+const PRELUDE_MS = NIGHT_MORNING_AT + 700 - TAP_AT;
+/** Reduced motion: the night shield, then dark, as still states. */
+const REDUCED_NIGHT_DARK_AT = NIGHT_DARK_AT;
+
+/** The night opening's eyebrow and status-bar clock ("Tonight, 11:52 PM"), and their alarm for the shield. */
+export type NightPrelude = { when: string; clock: string; wake: number };
+
 /** Apple's iPhone 17 bezel image (Apple Design Resources), 1350×2760, and its screen opening. */
 const FRAME = require('@/assets/onboarding/iphone-frame.png');
 const PHONE_RATIO = 1350 / 2760;
@@ -157,7 +175,8 @@ const TAP_NOTE = shieldTap('morning')!;
 /** How far the phone leans under a finger or cursor, in degrees. */
 const MAX_TILT = 14;
 
-type Phase = 'home' | 'shield' | 'banner' | 'app' | 'awake';
+type Phase = 'night' | 'nightShield' | 'nightDark' | 'home' | 'shield' | 'banner' | 'app' | 'awake';
+const NIGHT_PHASES: Phase[] = ['night', 'nightShield', 'nightDark'];
 type SharedNumber = ReturnType<typeof useSharedValue<number>>;
 
 /**
@@ -170,10 +189,13 @@ export function TomorrowDemo({
   method,
   reps = PUSHUPS.reps,
   tone = 'grumpy',
+  night,
   onPayoff,
 }: {
   when: string;
   clock: string;
+  /** The night branch: open on the reach at bedtime and the night shield first. */
+  night?: NightPrelude;
   method: WakeMethod;
   /** Push-ups the morning takes, for the push-ups demo (`morningGoals`). */
   reps?: number;
@@ -183,10 +205,13 @@ export function TomorrowDemo({
   onPayoff?: () => void;
 }) {
   const copy = useMemo(() => (method === 'pushups' ? pushupsDemo(reps) : METHOD_DEMO[method]), [method, reps]);
-  const shield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL }, null, tone);
+  const morningShield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL }, null, tone);
+  const nightShield = shieldCopy('night', { morningStart: night?.wake ?? 0, method, stepGoal: STEP_GOAL }, null, tone);
   const reduced = useReducedMotion();
   const compact = useCompact();
-  const [phase, setPhase] = useState<Phase>('home');
+  const [phase, setPhase] = useState<Phase>(night ? 'night' : 'home');
+  const atNight = NIGHT_PHASES.includes(phase);
+  const shield = atNight ? nightShield : morningShield;
   const [steps, setSteps] = useState(0);
   const [area, setArea] = useState({ width: 0, height: 0 });
 
@@ -198,13 +223,37 @@ export function TomorrowDemo({
   const app = useSharedValue(0);
   const start = useSharedValue(1);
   const lift = useSharedValue(0);
+  /** The screen going dark between the night and the morning. */
+  const dark = useSharedValue(0);
   const [started, setStarted] = useState(!copy.start);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
+    // With the night opening, the morning runs after it.
+    const offset = night ? PRELUDE_MS : 0;
+    const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms + offset));
+    const atNightTime = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
+    const toMorning = () => {
+      open.value = 0;
+      setPhase('home');
+    };
     const announce = () =>
       AccessibilityInfo.announceForAccessibility(`${copy.done} Your apps are awake. I’m up. Don’t talk to me yet.`);
+
+    if (night && reduced) {
+      atNightTime(NIGHT_SHIELD_AT, () => {
+        open.value = 1;
+        setPhase('nightShield');
+      });
+      atNightTime(REDUCED_NIGHT_DARK_AT, () => {
+        dark.value = 1;
+        setPhase('nightDark');
+      });
+      atNightTime(NIGHT_MORNING_AT, () => {
+        toMorning();
+        dark.value = 0;
+      });
+    }
 
     if (reduced) {
       at(TAP_AT, () => {
@@ -230,6 +279,23 @@ export function TomorrowDemo({
       haptic.tap();
       value.value = withSequence(withTiming(depth, { duration: 100 }), withTiming(1, { duration: 160 }));
     };
+    if (night) {
+      atNightTime(NIGHT_TAP_AT, () => tap(press, 0.86));
+      atNightTime(NIGHT_SHIELD_AT, () => {
+        setPhase('nightShield');
+        open.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+      });
+      atNightTime(NIGHT_FINE_AT, () => tap(fine));
+      atNightTime(NIGHT_DARK_AT, () => {
+        setPhase('nightDark');
+        dark.value = withTiming(1, { duration: 450, easing: Easing.in(Easing.cubic) });
+      });
+      // Morning comes up out of the dark: the shield is gone under it, the clock has moved.
+      atNightTime(NIGHT_MORNING_AT, () => {
+        toMorning();
+        dark.value = withTiming(0, { duration: 380, easing: Easing.out(Easing.cubic) });
+      });
+    }
     at(TAP_AT, () => tap(press, 0.86));
     at(SHIELD_AT, () => {
       setPhase('shield');
@@ -298,7 +364,7 @@ export function TomorrowDemo({
             <Tilt width={phoneWidth} height={phoneHeight} still={reduced}>
               <Phone
                 width={phoneWidth}
-                clock={clock}
+                clock={atNight && night ? night.clock : clock}
                 phase={phase}
                 shieldTitle={shield.title}
                 shieldLine={shield.subtitle}
@@ -310,6 +376,7 @@ export function TomorrowDemo({
                 bannerPress={bannerPress}
                 app={app}
                 lift={lift}
+                dark={dark}
                 appScreen={
                   <WakeApp
                     k={phoneWidth * SCREEN.width / 402}
@@ -327,7 +394,7 @@ export function TomorrowDemo({
       ) : null,
     // Shared values are stable refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [phoneWidth, phoneHeight, reduced, clock, phase, copy, shield, appTick, started],
+    [phoneWidth, phoneHeight, reduced, clock, phase, copy, shield, appTick, started, night, atNight],
   );
 
   const awake = phase === 'awake';
@@ -337,7 +404,9 @@ export function TomorrowDemo({
   const count = copy.count(steps);
   // "Fine. *Fine.*": the second one in italic.
   const line =
-    phase === 'home' ? null : phase === 'shield' ? (
+    phase === 'home' || phase === 'night' ? null : phase === 'nightShield' || phase === 'nightDark' ? (
+      'Put it down. I’m asleep.'
+    ) : phase === 'shield' ? (
       `${shield.title} Tap ${shield.button.replace(/\.$/, '')}.`
     ) : phase === 'banner' ? (
       'That’s me. Tap it.'
@@ -355,7 +424,7 @@ export function TomorrowDemo({
 
   return (
     <View style={styles.wrap}>
-      <Eyebrow>{when}</Eyebrow>
+      <Eyebrow>{atNight && night ? night.when : when}</Eyebrow>
       <Title>You reach for your phone.</Title>
 
       <View style={[styles.phoneArea, compact && styles.phoneAreaCompact]} onLayout={onArea}>
@@ -364,14 +433,15 @@ export function TomorrowDemo({
 
       <Reveal style={[styles.walk, compact && styles.walkCompact]}>
         <Text
-          style={[styles.walkCount, compact && styles.walkCountCompact]}
+          // The count is the morning's: hidden, but holding its place, while it's still night.
+          style={[styles.walkCount, compact && styles.walkCountCompact, atNight && styles.hidden]}
           maxFontSizeMultiplier={1.3}
           accessibilityLabel={`${count.value}${count.unit}`}
         >
           {count.value}
           <Text style={styles.walkGoal}>{count.unit}</Text>
         </Text>
-        <View style={styles.walkTrack}>
+        <View style={[styles.walkTrack, atNight && styles.hidden]}>
           <View style={[styles.walkFill, { width: `${(steps / STEP_GOAL) * 100}%` }]} />
         </View>
         <Text style={[styles.walkLine, compact && styles.walkLineCompact]} accessibilityLiveRegion="polite">
@@ -455,6 +525,7 @@ function Phone({
   bannerPress,
   app,
   lift,
+  dark,
   appScreen,
 }: {
   width: number;
@@ -470,6 +541,7 @@ function Phone({
   bannerPress: SharedNumber;
   app: SharedNumber;
   lift: SharedNumber;
+  dark: SharedNumber;
   appScreen: ReactNode;
 }) {
   const height = width / PHONE_RATIO;
@@ -504,6 +576,7 @@ function Phone({
       transform: [{ translateY: (1 - a) * -sh * 0.35 - l * 24 * k }, { scale: (0.4 + 0.6 * a) * (1 + l * 0.04) }],
     };
   });
+  const darkStyle = useAnimatedStyle(() => ({ opacity: dark.value }));
   const bannerStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, banner.value * 1.5),
     // `k`, not `pt`: a plain function called on the UI thread throws, and kills a release build.
@@ -581,6 +654,8 @@ function Phone({
             <Glyph name="battery" size={pt(27)} />
           </View>
         </View>
+        {/* The screen switching off for the night, over everything, status bar too. */}
+        <Animated.View pointerEvents="none" style={[styles.dark, darkStyle]} />
       </View>
       <Image source={FRAME} style={StyleSheet.absoluteFill} contentFit="fill" pointerEvents="none" />
     </View>
@@ -907,4 +982,6 @@ const styles = StyleSheet.create({
   walkLine: { ...DisplayFont, color: Nocturne.text, fontSize: VoiceSize.aside, lineHeight: 24, minHeight: 48 },
   walkLineCompact: { fontSize: 19, lineHeight: 23, minHeight: 46 },
   emphasis: { fontStyle: 'italic' },
+  hidden: { opacity: 0 },
+  dark: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
 });

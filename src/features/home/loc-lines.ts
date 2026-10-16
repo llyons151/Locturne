@@ -48,6 +48,7 @@ const POKE: Partial<Record<LocMood, Pool>> = {
       'No thoughts. Only hunger.',
       'I am the trash king. Kneel.',
       'Touch me again. I bite the moon.',
+      'We are going to steal the moooooon.',
       'Gerald will hear about this.',
       'Peace was never an option.',
       'I have opened bins stronger than you.',
@@ -253,7 +254,7 @@ export type MomentKind =
 const MOMENTS: Record<MomentKind, Pool> = {
   bedtimeSoon: {
     mild: ['Bedtime soon. I’m fluffing the void.', 'An hour till bed. The moon is stretching.'],
-    grumpy: ['Bedtime soon. I’m sharpening my blanket.', 'One hour. Then I eat the apps.', 'Bedtime soon. Gerald is warming up.'],
+    grumpy: ['Bedtime soon. I’m sharpening my blanket.', 'One hour. Then I eat the apps.', 'Bedtime soon. Gerald is warming up.', 'One hour. Then we steal the moooooon.'],
     unbearable: ['One hour. Then the void.', 'BEDTIME APPROACHES. HIDE YOUR DAD.', 'The night is coming. So am I.'],
   },
   appsAsleep: {
@@ -327,6 +328,13 @@ const STREAK: Pool = {
     'FIVE POKES. I AM NOW A GHOST.',
     'This is how villains are made.',
   ],
+};
+
+/** Back from the ultra zoomies, round the whole screen (loc-ultra.ts): dazed, changed. */
+const ULTRA: Pool = {
+  mild: ['I went all the way round. Nobody waved.', 'The top of the screen is cold. Don’t go.'],
+  grumpy: ['I touched the ceiling. I am changed.', 'I lapped your phone. Get me a medal.', 'Five. You did five. I saw God.'],
+  unbearable: ['I HAVE BEEN TO THE EDGE OF THE WORLD.', 'THE ISLAND SPOKE TO ME.', 'I AM THE PERIMETER NOW.', 'My skeleton is in another postcode.'],
 };
 
 /** His birthday: the day the mascot became a raccoon (September 23, 2026). */
@@ -433,6 +441,10 @@ const QUOTES = {
     'Somebody stop me!', // The Mask
   ],
   birthday: ['It’s my birthday. Treat yo self.'], // Parks and Recreation
+  ultra: [
+    'I’m the king of the world!', // Titanic
+    'I feel the need. The need for speed.', // Top Gun
+  ],
 } satisfies Record<string, readonly string[] | Partial<Record<LocMood, readonly string[]>>>;
 
 /** One of his lines from `pool`, or now and then a movie or TV line from `quotes`. */
@@ -440,9 +452,9 @@ function say(pool: readonly string[], quotes: readonly string[] | undefined, ran
   return quotes?.length && random() < QUOTE_CHANCE ? draw(quotes, random) : draw(pool, random);
 }
 
-/** His line for a moment Home told him about, a poke streak, or his birthday. */
-export function locSpecial(kind: MomentKind | 'streak' | 'birthday', tone: Tone, random: () => number = Math.random): string {
-  const pool = kind === 'streak' ? STREAK : kind === 'birthday' ? BIRTHDAY : MOMENTS[kind];
+/** His line for a moment Home told him about, a poke streak, the ultra zoomies, or his birthday. */
+export function locSpecial(kind: MomentKind | 'streak' | 'birthday' | 'ultra', tone: Tone, random: () => number = Math.random): string {
+  const pool = kind === 'streak' ? STREAK : kind === 'birthday' ? BIRTHDAY : kind === 'ultra' ? ULTRA : MOMENTS[kind];
   return say(pool[tone], (QUOTES as unknown as Partial<Record<string, readonly string[]>>)[kind], random);
 }
 

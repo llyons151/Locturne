@@ -22,13 +22,22 @@
  *   burrow after while they keep coming that fast.
  * - `zoomSpeed`: how fast he tears about, times `scurry`.
  * - `zoomLaps`: how long he goes on: this many wild moves.
+ * - `ultraAfter`: this many burrows inside `zoomWindow` and he gets the ultra zoomies, the
+ *   lump tearing round the whole screen, up its sides and over the top (loc-ultra.ts). Hidden;
+ *   the count starts over after.
+ * - `ultraSpeed`: how fast he goes round, times his ultra pace (about 2 pt a millisecond).
  */
 export const NAV_KNOCK = {
   scurry: 2.2, reach: 0.43, width: 46, bounce: 2.05, jiggle: 0.5, tempo: 2.8, sway: 1, spin: 0.25,
   squash: 1, blast: 1, haptics: true, zoomAfter: 3, zoomWindow: 60, zoomSpeed: 1.2, zoomLaps: 3,
+  ultraAfter: 5, ultraSpeed: 1,
 };
 
 export type NavKnockTune = typeof NAV_KNOCK;
 
 /** The lump's whole run, planned when he dives: where it is (share of width from the middle) and how high, every `dt` seconds. */
-export type BurrowPath = { dt: number; x: number[]; h: number[]; pop: number };
+export type BurrowPath = {
+  dt: number; x: number[]; h: number[]; pop: number;
+  /** The ultra zoomies' seed: the app plans the same run round the screen from it (loc-ultra.ts) and draws it (components/loc-rim). */
+  ultra?: number;
+};

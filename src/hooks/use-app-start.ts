@@ -1,4 +1,4 @@
-import { router, useGlobalSearchParams, usePathname } from 'expo-router';
+import { router, useGlobalSearchParams, usePathname, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
@@ -100,6 +100,9 @@ function followTrial(): void {
 export function useAppStart(): void {
   // At launch: where a cold deep link put the app. After that: what's in front, for a tap.
   const pathname = usePathname();
+  // The dev labs (`app/(dev)`: Wake preview, Loc studio, the onboarding preview…) open by URL
+  // in a browser, where storage is in memory and there's never a routine.
+  const devLab = (useSegments() as string[])[0] === '(dev)';
   // `/scan` sets up the code or scans it: only the scan is a wake-up screen.
   const { mode } = useGlobalSearchParams<{ mode?: string }>();
   const shown = useRef({ pathname, mode });
@@ -110,7 +113,8 @@ export function useAppStart(): void {
     if (!hasRoutine()) {
       // Not when a link already opened it (`/onboarding?…` on a fresh install): a second copy
       // would be pushed on top, and finishing one would land on the other.
-      if (pathname !== '/onboarding') router.push('/onboarding');
+      // Nor over a dev lab: it's what they came to look at.
+      if (pathname !== '/onboarding' && !devLab) router.push('/onboarding');
       armIfPaid();
       return;
     }

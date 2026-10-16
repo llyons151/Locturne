@@ -76,11 +76,13 @@ function home({
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
+    useEffect() {},
+    useState: (v: unknown) => [typeof v === 'function' ? (v as () => unknown)() : v, () => {}],
   };
   const lock = { phase, morningKey: '2026-10-09', nextChange: nextChange ?? new Date(now.getTime() + 3_600_000), blockNowUntil };
   const mocks: Record<string, unknown> = {
     react,
-    'expo-router': { router: { push() {} } },
+    'expo-router': { router: { push() {} }, useIsFocused: () => true },
     'react-native': {
       Linking: { openSettings() {}, openURL: async () => {} },
       StyleSheet: { create: (s: unknown) => s },
@@ -107,6 +109,8 @@ function home({
     '@/lib/routine': { pushupGoalOf: () => 20, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
+      sharedGet: () => undefined,
+      sharedSet() {},
       bedtimeAppCount: () => night,
       nightPickCount: () => night,
       nightPickCountAfterChange: () => (change ? change.size : night),
@@ -124,7 +128,7 @@ function home({
     '@/theme': { Gap: {}, Space: {} },
     './awake-line': awakeLine,
     './home-content': { HomeContent: 'HomeContent' },
-    './loc': { LocCue: 'LocCue' },
+    './loc': { LocCue: 'LocCue', markLocSaid() {} },
     './night-meter': { bigClock: (m: number) => ({ value: String(m), unit: '' }), duration: (m: number) => `${m} min`, useMinute: () => now },
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
@@ -134,13 +138,13 @@ function home({
     './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
     'expo-keep-awake': { useKeepAwake() {} },
-    './morning': { scanMorning: (w: unknown) => morningOf('scan', w) },
+    './morning': { scanMorning: () => morningOf('scan', true), WALK_INSTEAD },
     './use-morning-stairs': { useMorningStairs: (on: boolean, w: unknown) => (on ? morningOf('stairs', w) : null) },
     './use-morning-place': { useMorningPlace: (on: boolean, w: unknown) => (on ? morningOf('place', w) : null) },
     './use-morning-pushups': {
       useMorningPushups: (on: boolean, w: unknown) => (on ? { morning: morningOf('pushups', w), camera: null } : null),
     },
-    '../dev/wake-lab/wake-preview': { pretendMethod: () => null },
+    '../dev/wake-lab/wake-preview': { pretendMethod: () => null, useWakePreview: () => ({ won: null }) },
     '../dev/state-lab/app-states': { useHomeMock: () => null },
     '../dev/state-lab/mock-bar': { MockBar: 'MockBar', MockSwipe: 'MockSwipe' },
     './use-home-state': { useHomeState: () => ({ lock, routine: { method, morningStart: 7 * 60, stepGoal: 200 }, proof }) },
@@ -165,8 +169,11 @@ function home({
 }
 
 /** A stand-in for a method's morning hook: names the method, and whether it got the walk. */
+/** The hooks' "walk instead" placeholder, which Home turns into the real link. */
+const WALK_INSTEAD = { label: 'Walk instead', onPress() {} };
+
 function morningOf(name: string, walk: unknown) {
-  const alt = { label: 'Other ways to wake them', onPress() {} };
+  const alt = WALK_INSTEAD;
   return {
     icon: { ios: `${name}.icon`, android: name },
     hero: { title: `${name} hero`, body: walk ? 'walk counted' : 'no walk' },
@@ -344,14 +351,14 @@ describe('Loc on Home', () => {
 describe('Home during a walk morning', () => {
   const now = new Date(2026, 9, 9, 7, 10);
 
-  test('the live count is the hero, no Loc line under it, and the button offers the other ways', () => {
+  test('the live count is the hero, no Loc line under it, and nothing to press: no pass is offered', () => {
     const { hero, meter, action } = home({ now, phase: 'morning' });
     // Made in Home's own context, so it's copied out before comparing.
     assert.deepEqual({ ...meter }, { value: '64', caption: 'of 200 steps', progress: 0.32 });
     assert.equal(hero.title, '64 of 200 steps');
     assert.equal(hero.body, '136 more and your apps wake up.');
     assert.equal(hero.aside, undefined);
-    assert.equal(action.label, 'Other ways to wake them');
+    assert.equal(action, null);
   });
 
   test('before the first reading it shows a dash, not zero', () => {
@@ -375,14 +382,14 @@ describe('Home during a walk morning', () => {
 describe('Home during the other methods’ mornings', () => {
   const now = new Date(2026, 9, 9, 7, 10);
 
-  test('downstairs runs on Home: its meter, icon, button and the quiet other ways, with steps counted under it', () => {
+  test('downstairs runs on Home: its meter, icon, button and walking instead, with steps counted under it', () => {
     const { hero, meter, icon, action, alt } = home({ now, phase: 'morning', method: 'downstairs' });
     assert.equal(hero.title, 'stairs hero');
     assert.equal(hero.body, 'walk counted');
     assert.equal(meter?.value, '1.2');
     assert.equal(icon?.ios, 'stairs.icon');
     assert.equal(action.label, 'stairs action');
-    assert.equal(alt?.label, 'Other ways to wake them');
+    assert.equal(alt?.label, 'Walk 200 steps instead');
   });
 
   test('the place check-in and the scan are Home’s morning too', () => {
@@ -401,7 +408,7 @@ describe('Home during the other methods’ mornings', () => {
     assert.equal(hero.title, 'pushups hero');
     assert.equal(hero.body, 'walk counted');
     assert.equal(action.label, 'pushups action');
-    assert.equal(alt?.label, 'Other ways to wake them');
+    assert.equal(alt?.label, 'Walk 200 steps instead');
   });
 
   test('the walk’s own meter is the walk icon, and nothing else leaks in by day', () => {

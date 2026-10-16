@@ -15,7 +15,7 @@
 import type { WakeMethod } from './routine.ts';
 
 /** Bump when the onboarding changes enough that old and new funnels shouldn't be mixed. */
-export const ONBOARDING_VERSION = '2026-10-04';
+export const ONBOARDING_VERSION = '2026-10-15';
 
 export type AgeBracket = '13-17' | '18-24' | '25-34' | '35+';
 export type ProofKindEvent = WakeMethod | 'pass' | 'emergency';
@@ -206,7 +206,10 @@ export function ageBracket(age: number): AgeBracket | null {
 
 /** The onboarding answers that may leave the phone, and the question each step asks. */
 type QuizAnswers = {
+  pain?: string;
   mornings?: string;
+  nightFeel?: string;
+  afterFeel?: string;
   nightMinutes?: number;
   nightsPerWeek?: number;
   morningMinutes?: number;
@@ -219,7 +222,10 @@ type QuizAnswers = {
 };
 
 const QUESTION_FOR_STEP: Record<string, keyof QuizAnswers> = {
+  pain: 'pain',
   mornings: 'mornings',
+  'night-feel': 'nightFeel',
+  'after-feel': 'afterFeel',
   'night-minutes': 'nightMinutes',
   'nights-per-week': 'nightsPerWeek',
   'morning-minutes': 'morningMinutes',
@@ -251,4 +257,4 @@ export function answerFor(step: string, answers: QuizAnswers): { question: strin
  * Answers worth having on every later event, so a paywall or an unlock can be split by them
  * ("conversion by where they found us", "retention by wake-up method").
  */
-export const SUPER_QUESTIONS = new Set(['found', 'method', 'age_bracket', 'timeBack', 'tone']);
+export const SUPER_QUESTIONS = new Set(['pain', 'found', 'method', 'age_bracket', 'timeBack', 'tone']);

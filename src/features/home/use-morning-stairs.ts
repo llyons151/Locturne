@@ -8,7 +8,7 @@ import { downstairsLine } from '@/lib/wake/lines';
 import { useDownstairs } from '../wake/use-downstairs';
 import { useProveMorning } from '../wake/use-prove-morning';
 import type { HomeMorning } from './home-content';
-import { orWalk, OTHER_WAYS } from './morning';
+import { WALK_INSTEAD } from './morning';
 import type { MorningWalk } from './use-morning-walk';
 
 /**
@@ -52,17 +52,15 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
 
   if (!enabled) return null;
   const icon = { ios: 'figure.stairs', android: 'stairs' };
-  const instead = orWalk(walk);
-
   if (access === 'denied')
     return {
       icon,
       hero: {
         title: "I can't feel the stairs",
-        body: `Motion & Fitness is off for Locturne, so I can’t tell when you change floors. Turn it on in Settings, under Privacy & Security.${instead}`,
+        body: 'Motion & Fitness is off for Locturne, so I can’t tell when you change floors. Turn it on in Settings, under Privacy & Security.',
       },
       action: { label: 'Open Settings', onPress: () => Linking.openSettings() },
-      alt: OTHER_WAYS,
+      alt: WALK_INSTEAD,
     };
 
   if (broken)
@@ -70,14 +68,14 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
       icon,
       hero: {
         title: 'The stairs aren’t reading',
-        body: access === 'unavailable' ? `This phone has no barometer I can read.${instead}` : `It may be the sensor, or the phone.${instead}`,
+        body: access === 'unavailable' ? 'This phone has no barometer I can read.' : 'It may be the sensor, or the phone.',
         aside: downstairsLine('flat', 0),
       },
       action:
         access === 'unavailable'
-          ? OTHER_WAYS
+          ? WALK_INSTEAD
           : { label: 'Try the stairs again', onPress: start },
-      alt: access === 'unavailable' ? undefined : OTHER_WAYS,
+      alt: access === 'unavailable' ? undefined : WALK_INSTEAD,
     };
 
   const line = downstairsLine(status ?? 'idle', session ? heightProgress(session) : 0);
@@ -89,8 +87,8 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
   if (!session || status === 'timedOut' || status === 'waiting')
     return {
       icon,
-      hero: { title: 'Go down a floor', body: `${bodyFor(undefined)}${instead}`, aside: line },
-      action: OTHER_WAYS,
+      hero: { title: 'Go down a floor', body: bodyFor(undefined), aside: line },
+      action: WALK_INSTEAD,
       keepAwake: running,
     };
 
@@ -98,7 +96,7 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
     icon,
     hero: { title: meterLabel(session), body: bodyFor(status), aside: line },
     meter: heightMeter(session),
-    action: OTHER_WAYS,
+    action: WALK_INSTEAD,
     keepAwake: running,
   };
 }

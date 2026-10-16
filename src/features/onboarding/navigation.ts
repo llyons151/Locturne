@@ -7,19 +7,28 @@
 import type { Answers } from './content.ts';
 
 /**
- * Every step, in order (docs/ONBOARDING_10.md). One side step isn't in it: `declined` (the
- * paywall exit). The times come first, so every later screen can speak in them.
+ * Every step (docs/ONBOARDING_10.md), in the `all` branch's order with the other branches'
+ * feeling questions slotted in. A visit follows its branch (`stepsFor`), never this list
+ * directly. One side step isn't in it: `declined` (the paywall exit). The times come first,
+ * so every later screen can speak in them.
  */
 export const STEPS = [
   'hello',
+  // Which pain is theirs (docs/ONBOARDING_BRANCHES.md): the order and words from here on lean
+  // toward it. Same mechanism, same setup, same length for every answer.
+  'pain',
   'deal',
   'bedtime',
   'wake',
-  // Mornings first: the hook is "no apps until you're out of bed", so the quiz starts there,
-  // with how the morning feels (echoed on the reveal and the offer), then the night before.
+  // Mornings first in `all`: the hook is "no apps until you're out of bed", so the quiz starts
+  // there, with how the morning feels (echoed on the reveal and the offer), then the night before.
   'morning-minutes',
   'mornings',
   'night-minutes',
+  // `night`'s feeling question: what the late scrolling is, mostly.
+  'night-feel',
+  // `overall`'s: how it is when the phone finally goes down.
+  'after-feel',
   'nights-per-week',
   'tried',
   // The bad news, then what they'd do with the time: the number first, so the dream is in it.
@@ -49,6 +58,39 @@ export const STEPS = [
 ] as const;
 
 export type StepId = (typeof STEPS)[number] | 'declined';
+
+/**
+ * The pain they picked on `pain`: up late, can't get up, too much phone overall, or all of it.
+ * Missing (saved answers from before the branches) reads as `all`, today's flow.
+ */
+export type Pain = 'night' | 'morning' | 'overall' | 'all';
+
+export const PAINS: Pain[] = ['night', 'morning', 'overall', 'all'];
+
+/**
+ * The stretch that differs between branches, from the times to the night count. Bedtime and
+ * the alarm always come first, so the quiz can speak in their clock. `morning` asks the alarm
+ * first (Hatch's "rise rested", Alarmy, Sleep Cycle all open on it); each branch asks its own
+ * end of the night first, and its own feeling question.
+ */
+const BRANCH_QUIZ: Record<Pain, StepId[]> = {
+  all: ['bedtime', 'wake', 'morning-minutes', 'mornings', 'night-minutes', 'nights-per-week'],
+  night: ['bedtime', 'wake', 'night-minutes', 'night-feel', 'morning-minutes', 'nights-per-week'],
+  morning: ['wake', 'bedtime', 'morning-minutes', 'mornings', 'night-minutes', 'nights-per-week'],
+  overall: ['bedtime', 'wake', 'night-minutes', 'morning-minutes', 'after-feel', 'nights-per-week'],
+};
+
+/** Every step of one branch, in order. The same length for all four. */
+export function stepsFor(pain: Pain | undefined): StepId[] {
+  const quiz = BRANCH_QUIZ[pain ?? 'all'];
+  const from = STEPS.indexOf('nights-per-week') + 1;
+  return ['hello', 'pain', 'deal', ...quiz, ...STEPS.slice(from)];
+}
+
+/** The quiz questions asked on the risen moon: everything after the times, through `tried`. */
+export function moonQuizFor(pain: Pain | undefined): StepId[] {
+  return [...BRANCH_QUIZ[pain ?? 'all'].slice(2), 'tried'];
+}
 
 /**
  * Steps that can be edited and then return: `bedtime`, `wake`, `method` and `apps` from the
@@ -91,11 +133,19 @@ export function isStep(value: string | undefined): value is StepId {
   return value === 'declined' || (STEPS as readonly string[]).includes(value ?? '');
 }
 
-export function nextStep(step: StepId, skip: StepId[] = []): StepId {
+export function nextStep(step: StepId, skip: StepId[] = [], pain?: Pain): StepId {
   if (step === 'declined') return 'plans';
-  let index = STEPS.indexOf(step) + 1;
-  while (index < STEPS.length - 1 && skip.includes(STEPS[index])) index += 1;
-  return STEPS[Math.min(index, STEPS.length - 1)];
+  const order = stepsFor(pain);
+  let index = order.indexOf(step);
+  // A step from another branch (a `?step=` jump, or `pain` changed after it): carry on from the
+  // next step after it that this branch has.
+  if (index < 0) {
+    const later = STEPS.slice(STEPS.indexOf(step as (typeof STEPS)[number]) + 1).find((s) => order.includes(s));
+    index = order.indexOf(later ?? order[order.length - 1]) - 1;
+  }
+  index += 1;
+  while (index < order.length - 1 && skip.includes(order[index])) index += 1;
+  return order[Math.min(index, order.length - 1)];
 }
 
 export function startNav(step: StepId, answers: Answers): Nav {
@@ -125,7 +175,7 @@ export function navigate(nav: Nav, action: NavAction): Nav {
         const at = nav.history.lastIndexOf(nav.returnTo!);
         return finishEdit({ ...nav, visit: nav.visit + 1, history: nav.history.slice(0, at + 1) });
       }
-      return navigate(nav, { type: 'go', to: nextStep(currentStep(nav), action.skip) });
+      return navigate(nav, { type: 'go', to: nextStep(currentStep(nav), action.skip, nav.answers.pain) });
     }
 
     case 'edit':

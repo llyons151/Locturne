@@ -167,7 +167,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
     if (result === 'unlocked') {
       if (pretend) {
         haptic.done();
-        pretendWoke();
+        pretendWoke('scan');
       } else {
         // Home is where the morning ends (docs/HOME_INTERACTIVE.md): the camera closes and the
         // apps wake there, Loc's line and all.

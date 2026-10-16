@@ -69,12 +69,12 @@ final class NightDialView: ExpoView {
   /** The widest the dial gets; narrower columns shrink it. */
   /** 260 (from 300), so the wake-up methods start on the first screen. Matches `DIAL_MAX` in JS. */
   private let maxDial: CGFloat = 260
-  /** The track and band width. The handles are the same size, so they read as the band's ends. */
-  private let band: CGFloat = 36
+  /** The track and band width: 22 (from 36), thin like the app's type. The handles are the same size, so they read as the band's ends. */
+  private let band: CGFloat = 22
   /** How far from a handle's centre a touch still grabs it. */
   private let grabRadius: CGFloat = 32
   /** How far either side of the ring a touch on the band still grabs the night. */
-  private let ringSlop: CGFloat = 10
+  private let ringSlop: CGFloat = 17
   /** The columns under the dial. Matches `NIGHT_DIAL_ROW` in JS. */
   private let rowHeight: CGFloat = 72
   private let rowGap: CGFloat = 20
@@ -181,7 +181,7 @@ final class NightDialView: ExpoView {
     }
 
     lengthLabel.textAlignment = .center
-    lengthLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 34, weight: .heavy)
+    lengthLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 34, weight: .bold)
     captionLabel.textAlignment = .center
     for label in [lengthLabel, captionLabel] {
       label.isAccessibilityElement = false
@@ -342,7 +342,7 @@ final class NightDialView: ExpoView {
     // Home's type (user's ask, October 9, 2026): the number heavy, its unit regular and dimmer,
     // like "7 mornings"; the caption in sentence case, like Home's lines.
     lengthLabel.attributedText = off
-      ? NSAttributedString(string: "Off", attributes: [.font: UIFont.systemFont(ofSize: 34, weight: .heavy), .foregroundColor: textColor])
+      ? NSAttributedString(string: "Off", attributes: [.font: UIFont.systemFont(ofSize: 34, weight: .bold), .foregroundColor: textColor])
       : Self.valueUnit(Self.length(night), size: 34, unitSize: 20, color: textColor, unitColor: text2Color)
     captionLabel.attributedText = NSAttributedString(
       string: caption,
@@ -624,7 +624,7 @@ final class NightDialView: ExpoView {
     let out = NSMutableAttributedString()
     let split = text.range(of: " ", options: .backwards)
     let value = split.map { String(text[..<$0.lowerBound]) } ?? text
-    out.append(NSAttributedString(string: value, attributes: [.font: UIFont.monospacedDigitSystemFont(ofSize: size, weight: .heavy), .foregroundColor: color]))
+    out.append(NSAttributedString(string: value, attributes: [.font: UIFont.monospacedDigitSystemFont(ofSize: size, weight: .bold), .foregroundColor: color]))
     if let split {
       out.append(NSAttributedString(string: " " + text[split.upperBound...], attributes: [.font: UIFont.systemFont(ofSize: unitSize, weight: .regular), .foregroundColor: unitColor]))
     }
@@ -654,7 +654,7 @@ private final class Knob: UIView {
     disc.layer.shadowOffset = CGSize(width: 0, height: 1)
     addSubview(disc)
     icon.image = UIImage(systemName: symbol)
-    icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+    icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
     icon.contentMode = .center
     disc.addSubview(icon)
   }

@@ -15,7 +15,7 @@ import { useLiveFix } from '../place/use-live-fix';
 import { nextLockedMorning } from '../scan/next-locked-morning';
 import { announceWoke } from '../wake/use-prove-morning';
 import type { HomeMorning } from './home-content';
-import { orWalk, OTHER_WAYS } from './morning';
+import { WALK_INSTEAD } from './morning';
 import type { MorningWalk } from './use-morning-walk';
 
 /** The morning's own stages of the place flow (place-stage.ts). */
@@ -97,13 +97,11 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
   const here = away !== null && away <= PLACE_RADIUS_M;
   // The live distance is right above, so a miss doesn't repeat the check-in's older one.
   const said = stage.kind === 'notThere' && away !== null ? 'Not there yet. Keep going, then try again.' : body;
-  // Those that can't check in at all already offer the walk.
-  const offersWalk = stage.kind === 'noFix' && stage.why !== 'failed' && stage.why !== 'vague';
 
   return {
     icon: { ios: 'location.fill', android: 'location_on' },
     searching: stage.kind === 'checking',
-    hero: { title: titleFor(stage, place, away, imperial), body: here && stage.kind === 'morning' ? 'Tap Check in.' : `${said}${offersWalk ? '' : orWalk(walk)}`, aside: line },
+    hero: { title: titleFor(stage, place, away, imperial), body: here && stage.kind === 'morning' ? 'Tap Check in.' : said, aside: line },
     meter: away !== null && away > PLACE_RADIUS_M ? { value: formatDistance(away - PLACE_RADIUS_M, imperial), caption: `to ${place.name}` } : undefined,
     action:
       stage.kind === 'noFix' && settingsCanFix(stage.why)
@@ -111,7 +109,7 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
         : stage.kind === 'checking'
           ? { label: 'Checking…', onPress: () => {} }
           : { label: stage.kind === 'morning' ? 'Check in' : 'Try again', onPress: () => void onCheckIn() },
-    alt: OTHER_WAYS,
+    alt: WALK_INSTEAD,
   };
 }
 

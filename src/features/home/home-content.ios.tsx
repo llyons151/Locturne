@@ -311,7 +311,7 @@ export function HomeContent(props: HomeContentProps) {
               {hero.aside}
             </Text>
           ) : null}
-          {weight === 'primary' ? (
+          {!action ? null : weight === 'primary' ? (
             // The screen's one white button, as wide as the column (buttons.tsx's PrimaryButton).
             <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}>
               <Text

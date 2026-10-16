@@ -74,7 +74,7 @@ export function pretendCheck(fix: Fix): PlaceCheck {
   if (!place) return { kind: 'noPlace' };
   const judged = judgeFix(place, fix, new Date());
   if (judged.kind !== 'there') return judged;
-  pretendWoke();
+  pretendWoke('place');
   return { kind: 'unlocked' };
 }
 
@@ -187,7 +187,6 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
             ) : null}
             {/* Every morning offers walking instead (GAME_PLAN): no signal, a closed gym, a sick day. */}
             <TextButton label={`Walk ${routine.stepGoal} steps instead`} onPress={steps} />
-            <TextButton label="Other ways to wake them" onPress={() => router.push('/exits')} />
           </>
         ) : null}
 

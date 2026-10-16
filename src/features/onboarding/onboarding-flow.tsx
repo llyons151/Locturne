@@ -60,10 +60,10 @@ import { getTone } from '@/lib/tone';
 import { Nocturne } from '@/theme';
 
 import { firstEnabledNight, scheduleCopy } from './schedule-copy';
-import { CHAPTERS, initialAnswers, isNewYearWeek, STEPS, WALK_GOAL, type Answers, type ExitOffer, type StepId } from './content';
+import { chaptersFor, initialAnswers, isNewYearWeek, PAINS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type Pain, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
-import { canGoBack, currentStep, isStep, navigate, startNav } from './navigation';
+import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
 import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
@@ -87,12 +87,11 @@ const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
  */
 
 
-/**
- * The quiz happens on the risen moon: it rises once at the first question and stays up
- * through the last, so it doesn't bob between screens, then sinks for the math. `time-back`
- * comes after the math, so it stays on the sunk moon.
+/*
+ * The quiz happens on the risen moon (`moonQuizFor`): it rises once at the first question and
+ * stays up through the last, so it doesn't bob between screens, then sinks for the math.
+ * `time-back` comes after the math, so it stays on the sunk moon; so does `pain`, before the times.
  */
-const MOON_QUIZ: StepId[] = STEPS.slice(STEPS.indexOf('morning-minutes'), STEPS.indexOf('tried') + 1);
 
 /** Text entrance per page (see motion.tsx). Anything not listed uses Word Drift. */
 const MOTION: Partial<Record<StepId, TextMotion>> = {
@@ -102,6 +101,8 @@ const MOTION: Partial<Record<StepId, TextMotion>> = {
 // Plausible answers for jumping straight to a later screen with `?step=`.
 const PREVIEW_ANSWERS: Partial<Answers> = {
   mornings: 'behind',
+  nightFeel: 'one-more',
+  afterFeel: 'vanished',
   nightMinutes: 60,
   morningMinutes: 20,
   nightsPerWeek: 7,
@@ -116,13 +117,14 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
 /** Head start so a chapter's bar never opens empty (endowed progress). */
 const PROGRESS_START = 0.12;
 
-/** Which chapter and how far into it, or null on screens that hide the bar. */
-function progressFor(step: StepId): Progress | null {
-  const chapter = CHAPTERS.findIndex((steps) => steps.includes(step));
+/** Which chapter of their branch and how far into it, or null on screens that hide the bar. */
+function progressFor(step: StepId, pain: Pain | undefined): Progress | null {
+  const chapters = chaptersFor(pain);
+  const chapter = chapters.findIndex((steps) => steps.includes(step));
   if (chapter < 0) return null;
-  const steps = CHAPTERS[chapter];
+  const steps = chapters[chapter];
   const done = (steps.indexOf(step) + 1) / steps.length;
-  return { chapter, value: PROGRESS_START + (1 - PROGRESS_START) * done, chapters: CHAPTERS.length };
+  return { chapter, value: PROGRESS_START + (1 - PROGRESS_START) * done, chapters: chapters.length };
 }
 
 /**
@@ -136,16 +138,20 @@ function progressFor(step: StepId): Progress | null {
  */
 /** Steps whose button waits for the payoff (B6), and the most it ever waits. */
 const PAYOFF_STEPS: StepId[] = ['reveal', 'tomorrow'];
-const PAYOFF_BACKSTOP_MS = 12000;
+// The night branch's demo opens on the night first, so its payoff comes ~2.4 s later.
+const PAYOFF_BACKSTOP_MS = 15000;
 
 export function OnboardingFlow({
   initialStep,
   exitOffer,
   resumeAtPaywall = false,
   newYear: previewNewYear = false,
+  pain: previewPain,
 }: {
   initialStep?: string;
   exitOffer?: string;
+  /** Review only: start a `?step=` jump inside this branch (`?pain=night`). */
+  pain?: string;
   /** Review only: the New Year week copy on any date. */
   newYear?: boolean;
   /** Open on the offer with the saved setup's times and method, skipping the quiz. */
@@ -171,7 +177,15 @@ export function OnboardingFlow({
     }
     const jump = isStep(initialStep) ? initialStep : 'hello';
     // A rerun starts from the tone they already have, so passing through `voice` keeps it.
-    return startNav(jump, { ...initialAnswers, tone: getTone(), ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}) });
+    const pain = PAINS.find((p) => p === previewPain);
+    return startNav(jump, {
+      ...initialAnswers,
+      tone: getTone(),
+      ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}),
+      ...(pain && jump !== 'hello' && jump !== 'pain' ? { pain } : {}),
+      // The morning branch's list has the snooze loop where `behind` is.
+      ...(pain === 'morning' && jump !== 'hello' ? { mornings: 'snooze' } : {}),
+    });
   });
   const { history, answers, returnTo } = nav;
   const [simulated, setSimulated] = useState<Simulated | null>(null);
@@ -737,7 +751,7 @@ export function OnboardingFlow({
   // waits so text enters once it lands.
   const reducedMotion = useReducedMotion();
   const opening = step === 'hello';
-  const quiz = MOON_QUIZ.includes(step);
+  const quiz = moonQuizFor(answers.pain).includes(step);
   const moonPlace = opening ? 'opener' : quiz ? 'quiz' : 'rest';
   const [lastMoonPlace, setLastMoonPlace] = useState(moonPlace);
   const [moonMoving, setMoonMoving] = useState(0);
@@ -835,7 +849,7 @@ export function OnboardingFlow({
       <NightSky opening={opening} quiz={quiz} />
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
         <Shell
-          progress={progressFor(step)}
+          progress={progressFor(step, answers.pain)}
           onBack={back}
           onExit={canLeave ? leave : undefined}
           footer={

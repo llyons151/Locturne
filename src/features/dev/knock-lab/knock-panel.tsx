@@ -42,6 +42,13 @@ const GROUPS: { title: string; rows: { key: Num; label: string; min: number; max
       { key: 'zoomLaps', label: 'How long he goes on', min: 1, max: 8, step: 1 },
     ],
   },
+  {
+    title: 'Ultra zoomies (round the screen)',
+    rows: [
+      { key: 'ultraAfter', label: 'Burrows that set them off', min: 3, max: 10, step: 1 },
+      { key: 'ultraSpeed', label: 'Speed round the screen', min: 0.5, max: 1.6, step: 0.05 },
+    ],
+  },
 ];
 
 /**
@@ -56,6 +63,7 @@ export default function KnockPanel({
   onPreset,
   onBurrow,
   onZoomies,
+  onUltra,
   onClose,
 }: {
   tune: NavKnockTune;
@@ -65,6 +73,7 @@ export default function KnockPanel({
   onPreset: (name: string) => void;
   onBurrow: () => void;
   onZoomies: () => void;
+  onUltra: () => void;
   onClose: () => void;
   dom?: import('expo/dom').DOMProps;
 }) {
@@ -83,6 +92,7 @@ export default function KnockPanel({
       <div className="bar">
         <button className="go" onClick={onBurrow}>Burrow</button>
         <button onClick={onZoomies}>Zoomies</button>
+        <button onClick={onUltra}>Ultra</button>
         <button onClick={() => setFolded(!folded)}>{folded ? 'Show controls' : 'Hide controls'}</button>
         <span className="grow" />
         <button aria-label="Close the knock lab" onClick={onClose}>✕</button>

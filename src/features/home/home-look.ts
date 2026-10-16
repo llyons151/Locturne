@@ -13,9 +13,9 @@ import type { HomeAction } from './home-content';
 export type HomeLook = 'day' | 'evening' | 'night' | 'morning' | 'done' | 'problem' | 'plain';
 
 /** How the action is drawn: the white primary button, the quiet glass pill, or plain text. */
-export function actionWeight(look: HomeLook, action: HomeAction): 'primary' | 'pill' | 'link' {
+export function actionWeight(look: HomeLook, action: HomeAction | null): 'primary' | 'pill' | 'link' {
   if (look === 'problem') return 'primary';
-  if (look === 'morning') return action.opens ? 'link' : 'primary';
+  if (look === 'morning') return action?.opens ? 'link' : 'primary';
   return look === 'night' ? 'link' : 'pill';
 }
 
