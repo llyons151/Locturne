@@ -45,16 +45,16 @@ const FRAME = 4;
  * Not keyframed: the lump is run by a little physics, so it moves like something with weight.
  * It speeds up and brakes, slows climbing a wall in big straining hops, slides down the far side
  * faster and stretched flat, and lands back on the bottom with a bump. The route is new every
- * time: a revving spaz on the spot, then off one way, sometimes slipping back down the first wall
- * and taking a run-up, sometimes stopping dead at the top of the screen to listen (right under
- * the Dynamic Island) or faking a turn back, now and then a second lap, and home in a skid.
+ * time: a revving spaz on the spot, then one unbroken loop either way at its own pace, now and
+ * then a second lap, and home in a skid.
  * Much faster than the zoomies on purpose: round a whole phone in about a second flat out.
  */
 export function ultraRun(rim: Rim, rand: () => number = Math.random): { run: UltraRun; lump: Lump } {
   const { flat, wallUp, cornerT, topIn, L } = rimMarks(rim);
   // Flat out: he's lost it (user, October 15, 2026: "he should go faster, it should look crazy").
-  const V = 2 * Math.max(0.4, NAV_KNOCK.ultraSpeed);
-  const VMAX = 2.9 * Math.max(0.4, NAV_KNOCK.ultraSpeed);
+  // Then a touch slower (user, same day: "slow it down just a tiny bit").
+  const V = 1.8 * Math.max(0.4, NAV_KNOCK.ultraSpeed);
+  const VMAX = 2.6 * Math.max(0.4, NAV_KNOCK.ultraSpeed);
   const ACC = 0.013, DEC = 0.015;
 
   const run: UltraRun = { rim, dt: 1 / 60, u: [], h: [], w: [], shake: [], home: 0, pop: 0, taps: [] };
@@ -168,44 +168,19 @@ export function ultraRun(rim: Rim, rand: () => number = Math.random): { run: Ult
   hold(170, () => { hT = 1.25; wT = 1; });
   spaz();
 
-  // Up the first wall. Sometimes he doesn't make it: he slows, hangs there trembling, slides
-  // back down, backs off for a run-up and charges it.
-  if (rand() < 0.33) {
-    const reach = side * (wallUp + (cornerT - wallUp) * (0.28 + rand() * 0.27));
-    go(side, reach, true, 0.95);
-    buzz('tick');
-    hold(100 + rand() * 100, (p) => { hT = 1.25 + 0.1 * Math.sin(p * Math.PI); wT = 0.95; sT = 1; });
-    go(-side, side * (flat - 40 - rand() * 90), true);
-    buzz('thud');
-    hold(110 + rand() * 90, () => { hT = 0.75; wT = 1.35; sT = 0.7; });
-    go(side, side * (flat + 10), false, 1.25);
-  }
-  go(side, side * (L / 2 - 140), false, 1.1);
-
-  // The top of the screen: a dead stop to listen, a fake turn back, or straight past.
-  const top = rand();
-  if (top < 0.5) {
-    go(side, side * (L / 2 + (rand() - 0.5) * 40), true);
-    buzz('tick');
-    hold(220 + rand() * 160, (p) => {
-      hT = p < 0.2 ? 1.15 : p < 0.75 ? 1.75 : 1.1;
-      wT = p < 0.75 ? 0.9 : 1.1;
-      sT = p > 0.3 && p < 0.75 ? 0.8 : 0;
-    });
-  } else if (top < 0.75) {
-    go(side, side * (L / 2 - 30), true);
-    go(-side, side * (L / 2 - 90 - rand() * 50), true, 1.1);
-    hold(80 + rand() * 80, () => { hT = 1.2; sT = 0.6; });
-  }
+  // One unbroken loop, never stopping on the way (user, October 15, 2026: "he should not stop
+  // half way around it should be continuous"): off one way, up the side, over the top and down
+  // the other side, his pace different on each stretch.
+  go(side, side * (L / 2), false, 0.95 + rand() * 0.25);
   // Down the far side and along the bottom; now and then he blows straight through home and
   // goes round again (not on a big screen, where a lap is long enough).
   let end = side * L;
   if (L < 3000 && rand() < 0.15) {
-    go(side, end + side * 60, false, 1.15);
+    go(side, end + side * 60, false, 1 + rand() * 0.2);
     end += side * L;
   }
   // Home in a skid: past the middle, braking hard, and back.
-  go(side, end + side * (16 + rand() * 14), true, 1.1);
+  go(side, end + side * (16 + rand() * 14), true, 0.95 + rand() * 0.25);
   go(-side, end, true, 0.35);
   hold(130, () => { hT = 1; wT = 1; sT = 0; });
   // Exactly where the canvas picks the lump up.

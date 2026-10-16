@@ -17,8 +17,11 @@ export type Rim = {
   Rt: number;
 };
 
-/** The phone's own top corners, near enough on every recent iPhone. */
-export const RIM_TOP_CORNER = 48;
+/**
+ * The top corners, a little rounder than the phone's own (about 55 pt on recent iPhones), so the
+ * lump rounding them stays on the screen instead of slipping behind its curve.
+ */
+export const RIM_TOP_CORNER = 64;
 
 /** Where each stretch of the right half starts, and the whole loop's length `L`. */
 export function rimMarks(r: Rim) {

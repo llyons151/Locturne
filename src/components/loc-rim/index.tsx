@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
-import Animated, { Easing, cancelAnimation, makeMutable, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, cancelAnimation, makeMutable, useAnimatedProps, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import type { UltraRun } from '@/features/home/loc-ultra';
@@ -38,6 +38,14 @@ export function stopRim() {
 const HANDOFF = 80;
 /** Out past the screen's edge, so no hairline shows between the lump and the edge. */
 const BLEED = 3;
+/**
+ * The top of Home is near black, and so is he: off the bottom edge the bulge gets a thin edge
+ * edge on its outside, so it reads going up the sides and over the top (user, October 15, 2026:
+ * "add the little shadow on the outside back so we can better see him"), only a shade lighter
+ * than black ("less grey... just enough u can tell what ur looking at"). A plain line, never a
+ * blur or a tint: no glow (CLAUDE.md).
+ */
+const EDGE = '#1B1C21';
 const FADE_MS = 160;
 
 export function LocRim() {
@@ -76,8 +84,8 @@ export function LocRim() {
     };
   }, [clock, fade]);
 
-  const props = useAnimatedProps(() => {
-    const none = { d: 'M0 0' };
+  const shape = useDerivedValue(() => {
+    const none = { fill: 'M0 0', edge: 'M0 0', edgeOpacity: 0 };
     const run = current.value;
     const n = run ? run.u.length : 0;
     if (!run || n < 2) return none;
@@ -100,7 +108,7 @@ export function LocRim() {
     const c = u + strain * 2;
     const trail = c - dir * 1.7 * sig;
     const lo = c - 4 * sig, hi = c + 4 * sig, step = Math.max(2, sig / 10);
-    let front = '', back = '';
+    let front = '', back = '', edge = '', open = false;
     for (let s = lo; s <= hi + 0.01; s += step) {
       const p = rimPoint(s, run.rim);
       const d = (s - c) / sig, r = (s - trail) / (0.7 * sig);
@@ -108,15 +116,25 @@ export function LocRim() {
       const x = (p[0] + p[2] * lift).toFixed(1), y = (p[1] + p[3] * lift).toFixed(1);
       front += `${front ? 'L' : 'M'}${x} ${y}`;
       back = `L${(p[0] - p[2] * BLEED).toFixed(1)} ${(p[1] - p[3] * BLEED).toFixed(1)}` + back;
+      // The edge only where the covers stand off the screen's edge, not along the edge itself.
+      if (lift > 0.6) {
+        edge += `${open ? 'L' : 'M'}${x} ${y}`;
+        open = true;
+      } else open = false;
     }
-    return { d: `${front}${back}Z` };
+    // None on the bottom edge, where his canvas draws none; it fades in round the bottom corners.
+    const under = Math.max(0, -rimPoint(c, run.rim)[3]);
+    return { fill: `${front}${back}Z`, edge: edge || 'M0 0', edgeOpacity: (1 - under * under) * Math.min(1, h * 2) };
   });
+  const fillProps = useAnimatedProps(() => ({ d: shape.value.fill }));
+  const edgeProps = useAnimatedProps(() => ({ d: shape.value.edge, strokeOpacity: shape.value.edgeOpacity }));
 
   if (!on) return null;
   return (
     // Sized outright: on web an SVG left to fill its box falls back to 300 x 150.
     <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
-      <AnimatedPath animatedProps={props} fill="#000000" />
+      <AnimatedPath animatedProps={fillProps} fill="#000000" />
+      <AnimatedPath animatedProps={edgeProps} fill="none" stroke={EDGE} strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
