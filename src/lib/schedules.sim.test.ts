@@ -178,6 +178,49 @@ test('apps removed from a schedule inside its block wake when it ends, not befor
   assert.ok(!asleep('x'), 'x is out of the schedule');
 });
 
+test('a delete waiting for the block\'s end stays a delete, and wakes its apps even if iOS misses the end', async () => {
+  await setup(at(5, 8));
+  pick('sched-0', ['youtube']);
+  await save('sched-0', WORK);
+  runTo(at(5, 10));
+  await save('sched-0', null);
+  // Stored without the null (plists can't hold one), read back as a delete.
+  assert.equal(st.getSchedules()[0].pending?.schedule, null);
+  assert.equal(sc.asSet(st.getSchedules()[0]), null);
+  assert.ok(asleep('youtube'), 'asleep until 5');
+  // iOS's 17:00 end never comes; Locturne opens at 6.
+  mock.timers.setTime(at(5, 18));
+  await open();
+  assert.deepEqual(st.getSchedules(), []);
+  assert.ok(!asleep('youtube'));
+  assert.equal(st.selectionSize('sched-0'), 0, 'a new schedule in the slot starts empty');
+});
+
+test('a schedule deleted outside its block leaves no picks for the next one in its slot', async () => {
+  await setup(at(5, 8));
+  pick('sched-0', ['youtube']);
+  await save('sched-0', WORK);
+  await save('sched-0', null);
+  assert.equal(sc.freeScheduleId(st.getSchedules()), 'sched-0');
+  assert.equal(st.selectionSize('sched-0'), 0);
+});
+
+test('an open in the two minutes iOS can call early doesn\'t undo the start or the end', async () => {
+  await setup(at(5, 8));
+  pick('sched-0', ['youtube']);
+  await save('sched-0', WORK);
+  mock.timers.setTime(at(5, 8, 59));
+  device.fire('sched-0', 'intervalDidStart');
+  drain();
+  await open();
+  assert.ok(asleep('youtube'), 'an early start stays');
+  mock.timers.setTime(at(5, 16, 59));
+  device.fire('sched-0', 'intervalDidEnd');
+  drain();
+  await open();
+  assert.ok(!asleep('youtube'), 'an early end stays');
+});
+
 test('a schedule ending while the night holds the same app leaves it asleep', async () => {
   await setup(at(5, 20));
   pick('sched-0', ['tiktok', 'youtube']);

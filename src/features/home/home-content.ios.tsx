@@ -243,7 +243,7 @@ export function HomeContent(props: HomeContentProps) {
                     font({ size: 64, weight: 'light' }),
                     monospacedDigit(),
                     foregroundStyle(Nocturne.text),
-                    contentTransition('numericText', { countsDown: look === 'day' || look === 'evening' }),
+                    contentTransition('numericText', { countsDown: !!meter.countsDown }),
                     animation(Animation.spring({ duration: 0.5, bounce: 0 }), rollKey),
                   ]}
                 >

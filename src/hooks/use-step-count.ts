@@ -37,7 +37,9 @@ export function useStepCount(enabled: boolean, morningStart: Date, goal: number)
   useEffect(() => {
     if (!enabled) return;
     const sensor = fake === 'real' ? { pedometer: Pedometer, isIOS: Platform.OS === 'ios' } : { pedometer: fakePedometer(fake, goal), isIOS: true };
-    return watchSteps({ ...sensor, onAppState }, { morningStart: startMs, goal, onStatus: setStatus, onCount: setCount });
+    // A pretend morning (the real clock may be before its start) still has its history: read from the past.
+    const from = fake === 'real' ? startMs : Math.min(startMs, Date.now() - 1_000);
+    return watchSteps({ ...sensor, onAppState }, { morningStart: from, goal, onStatus: setStatus, onCount: setCount });
   }, [enabled, startMs, goal, fake]);
 
   return { status, steps: count ? stepsOf(count) : 0, count };

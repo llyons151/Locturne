@@ -23,6 +23,14 @@ export function knockNav(path: BurrowPath) {
   starters.forEach((start) => start());
 }
 
+/** Loc left mid-run (off Home): the buttons ring down where they are, with no lump under them. */
+export function stopKnock() {
+  const now = run.get();
+  if (!now) return;
+  run.set({ id: ++runs, path: { dt: 1, x: [], h: [], pop: 0 }, tune: { ...now.tune, haptics: false } });
+  starters.forEach((start) => start());
+}
+
 type Pose = { x: number; y: number; a: number; sx: number; sy: number };
 export type NavKnock = { poses: SharedValue<Pose[]>; layout: (index: number) => (e: LayoutChangeEvent) => void; row: (e: LayoutChangeEvent) => void };
 
@@ -54,7 +62,10 @@ export function useNavKnock(count: number, reduced: boolean): NavKnock {
   const behind = useSharedValue(0);
   // Turns the frame callback off once the buttons are home (it's made below, after this).
   const frameRef = useRef<{ setActive: (on: boolean) => void } | null>(null);
-  const stop = useCallback(() => frameRef.current?.setActive(false), []);
+  // A run that ended as a newer one started leaves the newer one playing.
+  const stop = useCallback((id: number) => {
+    if (id === runs) frameRef.current?.setActive(false);
+  }, []);
 
   const frame = useFrameCallback((info) => {
     const now = run.get();
@@ -94,7 +105,7 @@ export function useNavKnock(count: number, reduced: boolean): NavKnock {
     if (k.done) {
       run.set(null);
       sim.set(null);
-      scheduleOnRN(stop);
+      scheduleOnRN(stop, now.id);
     }
   }, false);
 
@@ -126,8 +137,10 @@ export function useNavKnock(count: number, reduced: boolean): NavKnock {
 
 /** One button the burrow bounces: moved, rolled and squashed, laid out as normal. */
 export function Knockable({ knock, index, children }: { knock: NavKnock; index: number; children: ReactNode }) {
+  // Only the poses go to the UI thread, not the layout callbacks with them.
+  const poses = knock.poses;
   const style = useAnimatedStyle(() => {
-    const p = knock.poses.value[index] ?? { x: 0, y: 0, a: 0, sx: 1, sy: 1 };
+    const p = poses.value[index] ?? { x: 0, y: 0, a: 0, sx: 1, sy: 1 };
     return { transform: [{ translateX: p.x }, { translateY: p.y }, { rotate: `${p.a}rad` }, { scaleX: p.sx }, { scaleY: p.sy }] };
   });
   return (

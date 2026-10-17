@@ -108,7 +108,7 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     meter: away !== null && away > PLACE_RADIUS_M ? { value: formatDistance(away - PLACE_RADIUS_M, imperial), caption: `to ${place.name}` } : undefined,
     action:
       shown.kind === 'noFix' && settingsCanFix(shown.why)
-        ? { label: 'Open Settings', onPress: () => Linking.openSettings() }
+        ? { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) }
         : shown.kind === 'checking'
           ? { label: 'Checking…', onPress: () => {} }
           : { label: shown.kind === 'morning' ? 'Check in' : 'Try again', onPress: () => void onCheckIn() },

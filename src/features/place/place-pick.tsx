@@ -270,7 +270,7 @@ export function PlacePick({ select }: { select: boolean }) {
               </View>
             ) : null}
             {hereFailed ? <Text style={styles.cardDetail}>{hereFailedWords(hereFailed)}</Text> : null}
-            {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+            {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : null}
             {failed ? <Text style={styles.cardDetail}>That spot didn’t save. Move the pin a little, or search for it.</Text> : null}
             <PrimaryButton label="Save this place" onPress={onSave} disabled={!label || naming} />
           </Glass>
@@ -447,7 +447,7 @@ function Dropdown({
         ) : null}
         {lost ? <Text style={styles.hint}>Couldn’t find where that one is. Try another, or choose it on the map.</Text> : null}
         {hereFailed ? <Text style={styles.hint}>{hereFailedWords(hereFailed)}</Text> : null}
-        {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings()} /> : null}
+        {hereFailed && settingsCanFix(hereFailed) ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : null}
       </ScrollView>
     </Glass>
   );

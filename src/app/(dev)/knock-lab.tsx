@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 
+import { leaveLab } from '@/components/leave-route';
 import { openKnockLab } from '@/features/dev/knock-lab/store';
 
 /**
@@ -10,8 +11,10 @@ import { openKnockLab } from '@/features/dev/knock-lab/store';
  */
 export default function KnockLabRoute() {
   useEffect(() => {
-    if (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1') openKnockLab(true);
-    router.dismissTo('/');
+    if (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1') {
+      openKnockLab(true);
+      router.dismissTo('/');
+    } else leaveLab();
   }, []);
   return null;
 }

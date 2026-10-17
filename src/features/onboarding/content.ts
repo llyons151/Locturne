@@ -211,6 +211,16 @@ export function morningsChoices(pain: Pain | undefined): Choice<string>[] {
   return MORNINGS.map((choice) => (choice.value === 'behind' ? { label: 'Snooze. Scroll. Snooze.', value: 'snooze' } : choice));
 }
 
+/**
+ * A new pain answer, plus what it undoes: a mornings answer the new branch doesn't offer
+ * ("snooze" after leaving the morning branch) is dropped, so it's asked again rather than
+ * carried into the reveal and the offer unseen.
+ */
+export function painAnswer(answers: Pick<Answers, 'mornings'>, pain: Pain): Partial<Answers> {
+  const stale = answers.mornings !== undefined && !morningsChoices(pain).some((c) => c.value === answers.mornings);
+  return stale ? { pain, mornings: undefined } : { pain };
+}
+
 /** About him or the phone, never the user, and no health claims (VOICE). */
 export const MORNINGS_REPLY: Record<string, string> = {
   snooze: 'The snooze-and-scroll. Even I’m impressed.',

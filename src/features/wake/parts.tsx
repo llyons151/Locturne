@@ -55,7 +55,7 @@ export function MotionOff({ what }: { what: string }) {
         Motion &amp; Fitness is off for Locturne, so I can&apos;t {what}. Turn it on in Settings, under
         Privacy &amp; Security.
       </Body>
-      <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings()} />
+      <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
     </View>
   );
 }

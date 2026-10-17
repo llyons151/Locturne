@@ -39,6 +39,8 @@ type Input = {
   now: Date;
   /** Bumps each time Home is opened (use-visit). */
   visit: number;
+  /** Home is the screen showing: the app coming back on another tab isn't a visit to him. */
+  focused: boolean;
   tone: Tone;
 };
 
@@ -48,30 +50,35 @@ type Input = {
  * Returns how that colours him (`proud`, `wary`) and the remembered moment he has to say, if any.
  * A made-up state records nothing.
  */
-export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, mornings, now, visit, tone }: Input) {
+export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, mornings, now, visit, focused, tone }: Input) {
   const mind = useMind();
   const real = sayKey === '';
   const hour = now.getHours();
   const proofKey = proof ? `${proof.kind}:${proof.morningKey}` : '';
 
   useEffect(() => {
-    if (!real) return;
+    if (!real || !focused) return;
     let next = readMind();
     next = onVisit(next, Date.now(), todayKey);
     commitMind(next);
     // Once per visit to Home.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [real, visit]);
+  }, [real, visit, focused]);
 
   useEffect(() => {
     if (!real) return;
     let next = readMind();
     if (proof) next = proof.kind === 'pass' || proof.kind === 'emergency' ? onExit(next, proof.morningKey) : onMorning(next, proof.morningKey);
-    if (phase === 'night') next = onSmallHours(next, morningKey, hour);
     commitMind(next);
     // proofKey stands in for `proof`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [real, proofKey, phase, morningKey, hour]);
+  }, [real, proofKey]);
+
+  // Home open in the small hours, on Home itself (once an hour, `onSmallHours`).
+  useEffect(() => {
+    if (!real || !focused || phase !== 'night') return;
+    commitMind(onSmallHours(readMind(), morningKey, hour));
+  }, [real, focused, phase, morningKey, hour, visit]);
 
   const { proud, wary } = attitude(mind, tone);
   let moment: LocMoment | null = null;

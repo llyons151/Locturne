@@ -60,10 +60,10 @@ import { getTone } from '@/lib/tone';
 import { Nocturne } from '@/theme';
 
 import { firstEnabledNight, scheduleCopy } from './schedule-copy';
-import { chaptersFor, initialAnswers, isNewYearWeek, PAINS, STEPS, WALK_GOAL, type Answers, type ExitOffer, type Pain, type StepId } from './content';
+import { chaptersFor, initialAnswers, isNewYearWeek, painAnswer, PAINS, WALK_GOAL, type Answers, type ExitOffer, type Pain, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
-import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav } from './navigation';
+import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav, stepsFor } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
 import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
@@ -300,7 +300,8 @@ export function OnboardingFlow({
     lastView.current = { step, at: now };
     track('onboarding_step_viewed', {
       step,
-      step_index: (STEPS as readonly string[]).indexOf(step),
+      // Its place in this visit's branch, so a funnel sorted by it runs in the order seen.
+      step_index: stepsFor(answers.pain).indexOf(step),
       depth: history.length,
       editing: returnTo !== null,
       previous_step: before?.step ?? null,
@@ -374,7 +375,11 @@ export function OnboardingFlow({
   // can always leave too, to get between onboarding and the tabs while working on either.
   const canLeave = __DEV__ || rerun || finished || history.some((s) => SETUP_DONE.includes(s));
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
-    dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
+    dispatch({
+      type: 'set',
+      // A new pain answer drops a mornings answer its branch doesn't offer (`painAnswer`).
+      answers: key === 'pain' ? painAnswer(answers, value as Pain) : ({ [key]: value } as Partial<Answers>),
+    });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelAdvance = () => {

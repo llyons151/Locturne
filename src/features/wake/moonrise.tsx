@@ -114,7 +114,8 @@ export default function Moonrise({
       const vy = dt > 0 ? (y - p0.y) / dt / CELL : 0;
       prev = { x, y, r };
       leftover += dt;
-      const steps = Math.min(2, Math.floor(leftover / STEP));
+      // Reduce Motion: the moon is simply there, with no mist pouring off it.
+      const steps = reduced ? 0 : Math.min(2, Math.floor(leftover / STEP));
       for (let i = 1; i <= steps; i++) {
         const f = i / steps;
         mist.step(STEP, { x: lerp(p0.x, x, f) / CELL, y: lerp(p0.y, y, f) / CELL, r: lerp(p0.r, r, f) / CELL, vx, vy });
@@ -135,6 +136,8 @@ export default function Moonrise({
         // After this frame reaches the screen, so the two moons never both show or both go.
         requestAnimationFrame(() => void latest.current.onReady());
       }
+      // Nothing moves with Reduce Motion: a second for a late layout to land, then the frames stop.
+      if (reduced && arrived && now - start > 1000) cancelAnimationFrame(frame);
     };
     frame = requestAnimationFrame(draw);
     return () => {

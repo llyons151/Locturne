@@ -59,7 +59,7 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
         title: "I can't feel the stairs",
         body: 'Motion & Fitness is off for Locturne, so I can’t tell when you change floors. Turn it on in Settings, under Privacy & Security.',
       },
-      action: { label: 'Open Settings', onPress: () => Linking.openSettings() },
+      action: { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
       alt: WALK_INSTEAD,
     };
 

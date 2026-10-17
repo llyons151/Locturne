@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
 import { runRim, stopRim } from '@/components/loc-rim';
-import { knockNav } from '@/components/nav-knock';
+import { knockNav, stopKnock } from '@/components/nav-knock';
 import { useKnockLab } from '@/features/dev/knock-lab/store';
 import { useTabSelected } from '@/hooks/use-tab-selected';
 import { thud, tick } from '@/lib/haptics';
@@ -248,9 +248,13 @@ export function Loc() {
     // The same run his canvas planned, from its seed and the same screen edge.
     if (ultra !== undefined && rimRef.current) runRim(ultraRun(rimRef.current, seeded(ultra)).run, at);
   }, []);
-  // Off Home mid-run, the lump going round the screen fades instead of finishing without him.
+  // Off Home mid-run, the lump going round the screen fades instead of finishing without him,
+  // the nav buttons ring down, and a pineapple rolled for the next poke is dropped.
   useEffect(() => {
-    if (!present) stopRim();
+    if (present) return;
+    stopRim();
+    stopKnock();
+    pineappleDue.current = false;
   }, [present]);
   // A moment that starts while he's already out (bedtime comes up, the apps fall asleep) gets
   // said right away, or once the screen over Home is gone (the wake-up's done line, after the

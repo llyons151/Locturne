@@ -1,6 +1,6 @@
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { router } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -57,14 +57,17 @@ let closer: (() => void) | null = null;
 export function closeSleepSheet() {
   if (closer) closer();
   else if (router.canGoBack()) router.back();
+  else router.replace('/');
 }
 
 export function SleepSheet({ children }: { children: ReactNode }) {
   const { height } = useWindowDimensions();
   const reduced = useReducedMotion();
-  // The card's height once laid out: "fully closed" is this far down, plus the gap.
-  const [cardHeight, setCardHeight] = useState(height * 0.7);
-  const hidden = cardHeight + INSET * 2;
+  // "Fully closed": the card's height once laid out, plus the gap. A shared value, because
+  // the card grows after it opens (a started Block now adds its clock) and `close` is captured
+  // once: a plain number there kept the first height, so Done stopped the card short and left
+  // the page behind part-way shrunk.
+  const hidden = useSharedValue(height * 0.7 + INSET * 2);
 
   // Points below the resting place. Starts off screen.
   const offset = useSharedValue(height);
@@ -84,8 +87,8 @@ export function SleepSheet({ children }: { children: ReactNode }) {
     };
     offset.set(
       reduced
-        ? withTiming(hidden, { duration: 180 }, done)
-        : withSpring(hidden, { ...CLOSE, velocity: Math.max(velocity, 0) }, done),
+        ? withTiming(hidden.get(), { duration: 180 }, done)
+        : withSpring(hidden.get(), { ...CLOSE, velocity: Math.max(velocity, 0) }, done),
     );
   };
 
@@ -100,7 +103,7 @@ export function SleepSheet({ children }: { children: ReactNode }) {
 
   // The page behind steps back as the card comes up, and forward as it goes.
   useAnimatedReaction(
-    () => interpolate(offset.value, [0, hidden], [1, 0], 'clamp'),
+    () => interpolate(offset.value, [0, hidden.value], [1, 0], 'clamp'),
     (open) => recede.set(open),
   );
   useEffect(() => () => recede.set(0), []);
@@ -120,7 +123,7 @@ export function SleepSheet({ children }: { children: ReactNode }) {
     });
 
   const scrim = useAnimatedStyle(() => ({
-    opacity: interpolate(offset.value, [0, hidden], [1, 0], 'clamp'),
+    opacity: interpolate(offset.value, [0, hidden.value], [1, 0], 'clamp'),
   }));
   const card = useAnimatedStyle(() => ({ transform: [{ translateY: offset.value }] }));
 
@@ -131,7 +134,7 @@ export function SleepSheet({ children }: { children: ReactNode }) {
       </Animated.View>
       <GestureDetector gesture={pan}>
         <Animated.View
-          onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
+          onLayout={(e) => hidden.set(e.nativeEvent.layout.height + INSET * 2)}
           style={[styles.card, { bottom: INSET, paddingBottom: SHEET_PADDING }, card]}
           accessibilityViewIsModal
           onAccessibilityEscape={() => close()}

@@ -18,7 +18,9 @@ import type { WakeMethod } from '@/lib/routine';
  */
 export default function MorningWonRoute() {
   const params = useLocalSearchParams<Record<string, string>>();
-  const facts = params.demo ? demoFacts(params) : realFacts();
+  // Made-up facts only where the dev labs are: a release deep link can't fake a morning.
+  const labs = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
+  const facts = params.demo && labs ? demoFacts(params) : realFacts();
   if (!facts) return <Redirect href="/" />;
   return <PayoffScreen facts={facts} />;
 }

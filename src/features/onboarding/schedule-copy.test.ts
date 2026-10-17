@@ -59,3 +59,12 @@ test('the sample bedtime note names the first night armed shows, not always toni
   const late = at(5, 23, 30);
   assert.equal(scheduleCopy(firstEnabledNight(23 * 60, 7 * 60, [1], late), late).note, null);
 });
+
+test('a bedtime just past midnight, set in the evening, is tonight; the wake-up stays tomorrow', () => {
+  const now = at(5, 21);
+  const copy = scheduleCopy(firstEnabledNight(30, 8 * 60, [0, 1, 2, 3, 4, 5, 6], now), now);
+  assert.equal(copy.when, 'Tonight');
+  assert.equal(copy.note, 'Tonight at 12:30 AM');
+  assert.match(copy.armed, /Tonight at 12:30 AM/);
+  assert.equal(copy.wakeWhen, 'Tomorrow');
+});

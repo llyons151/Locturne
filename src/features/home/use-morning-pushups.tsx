@@ -33,7 +33,13 @@ export function useMorningPushups(
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
 
-  if (!enabled) return null;
+  if (!enabled) {
+    // Proved another way (the walk) or the morning over with the camera up: shut it, so the next
+    // morning doesn't open on the camera, or on yesterday's "I can't see you".
+    if (open) setOpen(false);
+    if (failed) setFailed(null);
+    return null;
+  }
 
   // Read each render: closing the camera re-renders Home with the total so far.
   const done = Math.min(target, getRepsDone(morning));

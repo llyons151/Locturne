@@ -43,7 +43,16 @@ import {
 import { keepName, MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
-import { blockEnds, isBlocking, MAX_SCHEDULES, scheduleInterval, settleSchedules, type Schedule, type ScheduleId } from './schedules.ts';
+import {
+  blockEnds,
+  isBlocking,
+  MAX_SCHEDULES,
+  SCHEDULE_IDS,
+  scheduleInterval,
+  settleSchedules,
+  type Schedule,
+  type ScheduleId,
+} from './schedules.ts';
 import { formatPreset } from './text.ts';
 
 /**
@@ -303,8 +312,10 @@ function heldLists(): SelectionId[] {
   const nap = readNap();
   if (nap && Date.now() < nap.end) held.push(nap.list);
   for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
-  const now = new Date();
-  for (const schedule of getSchedules()) if (isBlocking(schedule, now)) held.push(schedule.id);
+  // Two minutes on, as the extension judges (`reapplyLocturneBlocks`): iOS can deliver a block's
+  // start or end a little early, and an open right after mustn't undo what it did.
+  const soon = scheduleSoon();
+  for (const schedule of getSchedules(soon)) if (isBlocking(schedule, soon)) held.push(schedule.id);
   return [...new Set(held)].filter((id) => selectionSize(id) > 0);
 }
 
@@ -1587,7 +1598,10 @@ const SCHEDULES_KEY = 'locturne.schedules';
 
 /** The schedules saved, a waiting edit kept with its schedule. Settled on read. */
 export function getSchedules(now = new Date()): Schedule[] {
-  const stored = sharedGet<Schedule[]>(SCHEDULES_KEY) ?? [];
+  // A delete waiting for its block's end is `schedule: null`, which is stored without the field.
+  const stored = (sharedGet<Schedule[]>(SCHEDULES_KEY) ?? []).map((s) =>
+    s.pending && s.pending.schedule === undefined ? { ...s, pending: { ...s.pending, schedule: null } } : s,
+  );
   const settled = settleSchedules(stored, now);
   if (settled.length !== stored.length || settled.some((s, i) => s !== stored[i])) sharedSet(SCHEDULES_KEY, settled);
   return settled;
@@ -1664,10 +1678,29 @@ function stopSchedules(): void {
  */
 export function liftIdleSchedules(now = new Date()): void {
   if (!isAvailable()) return;
-  const idle = getSchedules(now).filter((s) => !isBlocking(s, now) && hasSelection(s.id));
-  if (idle.length === 0) return;
+  // With the extension's two minutes' slack (`heldLists`), so an early start isn't lifted.
+  const soon = scheduleSoon(now);
+  const schedules = getSchedules(soon);
+  const idle = schedules.filter((s) => !isBlocking(s, soon) && hasSelection(s.id));
+  // A deleted schedule (at once, or its waiting delete landed): nothing else would ever wake its
+  // apps, and a new schedule in its slot would start with its picks and waiting removals.
+  const gone = SCHEDULE_IDS.filter((id) => !schedules.some((s) => s.id === id) && (hasSelection(id) || hasSelection(draftId(id))));
+  if (idle.length === 0 && gone.length === 0) return;
   for (const schedule of idle) unshield(schedule.id);
+  for (const id of gone) {
+    unshield(id);
+    clearSelection(id);
+    clearSelection(draftId(id));
+    setPending(id, null);
+    userDefaultsRemove(`${CONFIG_FOR_LIST}${id}`);
+    userDefaultsRemove(`${ACTIONS_FOR_LIST}${id}`);
+  }
   reapplyStandingBlocks();
+}
+
+/** Two minutes on: how the monitor extension judges a schedule's block, as iOS can call a little early. */
+function scheduleSoon(now = new Date()): Date {
+  return new Date(now.getTime() + 120_000);
 }
 
 /** When a schedule's block under way ends, or null outside one. */

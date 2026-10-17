@@ -74,7 +74,9 @@ function LiveListPage({ id }: { id: string }) {
   // Removed with nothing to wait for (`editLimit`), or a link to a list that isn't there: back to the tab.
   const gone = list === null;
   useEffect(() => {
-    if (gone && router.canGoBack()) router.back();
+    if (!gone) return;
+    if (router.canGoBack()) router.back();
+    else router.replace('/apps'); // a bare or stale link has no page to go back to
   }, [gone]);
   if (!list) return null;
 
@@ -165,6 +167,8 @@ function SchedulePage({
     >
       <ListCard note={schedulePendingNote(schedule, now) ? <Text style={styles.footer}>{schedulePendingNote(schedule, now)}</Text> : null}>
         <Pressable
+          // Being deleted: nothing to edit, and the sheet would save a blank schedule as it closes.
+          disabled={ending}
           onPress={() => {
             haptic.tap();
             openScheduleSheet({ id: schedule.id, isNew: false });
@@ -178,7 +182,7 @@ function SchedulePage({
           <Text style={styles.timeValue} numberOfLines={1}>
             {scheduleSummary(schedule)}
           </Text>
-          <SymbolView name={sym('chevron.right', 'chevron_right')} size={14} weight="semibold" tintColor={Nocturne.text3} />
+          {ending ? null : <SymbolView name={sym('chevron.right', 'chevron_right')} size={14} weight="semibold" tintColor={Nocturne.text3} />}
         </Pressable>
       </ListCard>
       <Section label={`Apps · ${picks.size}`}>
@@ -222,7 +226,9 @@ function PreviewListPage({ id }: { id: string }) {
   const limit = limits.find((l) => l.id === limitId);
   const gone = !group && !limit;
   useEffect(() => {
-    if (gone && router.canGoBack()) router.back();
+    if (!gone) return;
+    if (router.canGoBack()) router.back();
+    else router.replace('/apps'); // a bare or stale link has no page to go back to
   }, [gone]);
   if (gone) return null;
 

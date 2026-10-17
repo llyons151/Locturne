@@ -412,7 +412,14 @@ export function renderStep(ctx: StepContext): StepView {
     case 'nights-per-week': {
       const days = answers.scrollDays ?? [];
       // The running total starts here and keeps adding up to the reveal (Imprint, Cal AI).
-      const soFar = (nightMinutes + (answers.morningMinutes ?? 0)) * days.length;
+      // Counted like the reveal's lead (`leadFor`), so the reveal never says less than this did.
+      const morningMinutes = answers.morningMinutes ?? 0;
+      const soFar = leadFor({
+        ...numbers,
+        weeklyMinutes: (nightMinutes + morningMinutes) * days.length,
+        nightWeeklyMinutes: nightMinutes * days.length,
+        morningWeeklyMinutes: morningMinutes * days.length,
+      }, answers.pain).minutes;
       return {
         ...moonQuestion(
           // A night and its morning come as a pair, so the count multiplies both either way.

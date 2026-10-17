@@ -46,6 +46,9 @@ const STEP_MS = 120;
 /** The page's entrance curve: quick out, long settle. Native wants cubicBezier(), not a CSS string. */
 const SETTLE = cubicBezier(0.2, 0.8, 0.2, 1);
 
+/** Under this tall (an iPhone SE) the page's gaps tighten, so the week strip stays clear of Done. */
+const SHORT_SCREEN = 720;
+
 /** If the moonrise's webview never reports in, the page comes in anyway. */
 const ARRIVE_FALLBACK_MS = 4500;
 
@@ -61,6 +64,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
+  const short = height < SHORT_SCREEN;
   const { method, upAt, start, mornings, today, won } = facts;
   // Where the sky's moon is as the screen opens: the rise starts from there.
   const [rest] = useState(() => restingMoonNow(width, height));
@@ -140,8 +144,8 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
           {payoffKicker(mornings)}
         </Animated.Text>
 
-        <View style={styles.middle}>
-          <View ref={avatarRef} onLayout={measure} style={styles.locWrap}>
+        <View style={[styles.middle, short && styles.middleShort]}>
+          <View ref={avatarRef} onLayout={measure} style={[styles.locWrap, short && styles.locWrapShort]}>
             <In shown={arrived} step={0} from={0.94} style={styles.avatar}>
               <View style={[styles.loc, { width: CANVAS, height: LOC_H }]}>
                 <LocStage mood="smug" share={0.9} present dom={dom} />
@@ -250,6 +254,8 @@ const styles = StyleSheet.create({
   middle: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Space.xl },
   // Room round the circle for the moon's light, so it doesn't run under the time.
   locWrap: { alignItems: 'center', marginVertical: Space.xl },
+  middleShort: { gap: Space.m },
+  locWrapShort: { marginVertical: Space.s },
   // As on the You tab: a light ring round a frosted circle, here in front of the risen moon.
   avatar: {
     width: SIZE,

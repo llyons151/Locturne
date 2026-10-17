@@ -105,7 +105,9 @@ export function useAppStart(): void {
   // `/scan` sets up the code or scans it: only the scan is a wake-up screen. `?demo=1` is a
   // screen with made-up facts (the morning payoff), opened by URL like a lab.
   const { mode, demo } = useGlobalSearchParams<{ mode?: string; demo?: string }>();
-  const devLab = (useSegments() as string[])[0] === '(dev)' || !!demo;
+  // Only where the labs run (as `app/(dev)` gates itself): a release link can't skip onboarding.
+  const segments = useSegments() as string[];
+  const devLab = (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1') && (segments[0] === '(dev)' || !!demo);
   const shown = useRef({ pathname, mode });
   useEffect(() => {
     shown.current = { pathname, mode };
@@ -114,8 +116,9 @@ export function useAppStart(): void {
     if (!hasRoutine()) {
       // Not when a link already opened it (`/onboarding?…` on a fresh install): a second copy
       // would be pushed on top, and finishing one would land on the other.
-      // Nor over a dev lab: it's what they came to look at.
-      if (pathname !== '/onboarding' && !devLab) router.push('/onboarding');
+      // Nor over a dev lab: it's what they came to look at. (In a release build the lab route
+      // sends itself to onboarding: `leaveLab`.)
+      if (pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') router.push('/onboarding');
       armIfPaid();
       return;
     }

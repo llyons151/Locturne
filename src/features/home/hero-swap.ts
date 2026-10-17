@@ -15,7 +15,11 @@ type Middle = Pick<HomeContentProps, 'hero' | 'heroKey' | 'meter' | 'icon' | 'se
  */
 export function sceneKey({ hero, meter, icon, action, look }: Middle) {
   const words = `${look}|${hero.title}|${action?.label ?? ''}|${meter ? 'meter' : ''}|${icon?.ios ?? ''}`;
-  return words.replace(/\d[\d:.,]*\s*(h|m)?\b/g, '').replace(/\s+/g, ' ');
+  // A number goes with its unit (2h, 990 m, 1.2 km) and the word after it loses its plural ("1 more
+  // second" and "2 more seconds" are one state), so crossing 1 km or a count ticking down doesn't swap.
+  return words
+    .replace(/\d[\d:.,]*(?:\s*(?:km|mi|ft|min|h|m)\b)?((?:\s+more)?\s+[a-z-]+?)?s?\b/g, (_, word: string | undefined) => word ?? '')
+    .replace(/\s+/g, ' ');
 }
 
 /**

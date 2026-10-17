@@ -1,6 +1,7 @@
-import type { PropsWithChildren } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, type PropsWithChildren } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
-import Animated, { interpolate, makeMutable, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { interpolate, makeMutable, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 
 /**
  * How far a sheet is open over the page, 0 (closed) to 1 (fully up). The Sleep sheet drives it
@@ -24,6 +25,18 @@ const RADIUS = 44;
 export function Recede({ children }: PropsWithChildren) {
   const { width } = useWindowDimensions();
   const scale = (width - SHRINK) / width;
+  // Back on the tabs with no sheet over them, the page is full size again, from a fresh update.
+  // On iPhone it once stayed shrunk after the Sleep sheet closed, the nav strip pulled in from
+  // the sky's edges (user's screenshot, 2026-10-16). The likely cause, unconfirmed on a phone:
+  // Reanimated hands a style that has sat still back to React
+  // (FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS), so React held the shrunk one from while the
+  // sheet was up, and the hand-back after it closed went missing. A real change here gets
+  // handed back again. Invisible: a hair of a shrink, gone in a frame or two.
+  useFocusEffect(
+    useCallback(() => {
+      recede.set(withSequence(withTiming(0.001, { duration: 16 }), withTiming(0, { duration: 16 })));
+    }, []),
+  );
   const page = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(recede.value, [0, 1], [1, scale], 'clamp') }],
     borderRadius: interpolate(recede.value, [0, 1], [0, RADIUS], 'clamp'),

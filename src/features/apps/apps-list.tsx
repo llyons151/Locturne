@@ -595,7 +595,10 @@ function ScheduleTiles({ revision, icons }: { revision: number; icons: (id: Sche
             }
             onPress={() => {
               haptic.tap();
-              openScheduleSheet({ id: schedule.id, isNew: false, apps: size ? countPicks(size) : 'None yet' });
+              // Being deleted: there's nothing to edit, and the sheet saves as it closes, which would
+              // put a blank schedule back in its place. Its page says when it ends.
+              if (schedule.pending?.schedule === null) router.push({ pathname: '/list', params: { id: schedule.id } });
+              else openScheduleSheet({ id: schedule.id, isNew: false, apps: size ? countPicks(size) : 'None yet' });
             }}
           />
         );

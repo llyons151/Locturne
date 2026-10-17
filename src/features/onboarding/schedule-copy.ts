@@ -17,10 +17,12 @@ export function firstEnabledNight(bedtime: number, morningStart: number, activeN
 const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 const clock = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 // An evening bedtime later today is "Tonight": the paywall's timeline and armed promise say it that way.
-const day = (date: Date, now: Date) => {
+const day = (date: Date, now: Date, bed = false) => {
   if (dayKey(date) === dayKey(now)) return date.getHours() >= 17 ? 'Tonight' : 'Today';
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  // A bedtime just past midnight, asked in the evening, is still "tonight" to whoever is going to bed.
+  if (bed && dayKey(date) === dayKey(tomorrow) && date.getHours() < 5 && now.getHours() >= 17) return 'Tonight';
   return dayKey(date) === dayKey(tomorrow) ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
@@ -32,19 +34,19 @@ export function scheduleCopy(night: Night | null, now: Date) {
     note: null, bedAt: null, wakeWhen: null, wakeAt: null,
   };
   const started = night.start <= now && now < night.end;
-  const when = started ? 'Now' : day(night.start, now);
-  const label = day(night.start, now);
+  const when = started ? 'Now' : day(night.start, now, true);
+  const label = day(night.start, now, true);
   const at = `${['Today', 'Tonight', 'Tomorrow'].includes(label) ? label.toLowerCase() : label} at ${clock(night.start)}`;
   return {
     when,
     sleep: started ? 'Your apps sleep as soon as you’re in.' : `Your apps sleep ${at}.`,
-    armed: started ? 'Armed. Starting now. Put it down.' : `Armed. ${day(night.start, now)} at ${clock(night.start)}.`,
+    armed: started ? 'Armed. Starting now. Put it down.' : `Armed. ${day(night.start, now, true)} at ${clock(night.start)}.`,
     morning: `${day(night.end, now)} ${clock(night.end)}. Your apps stay asleep until you’re up.`,
     // The paywall timeline's first two stops, as day and clock apart ("Tonight", "11:30 PM").
     bedAt: clock(night.start),
     wakeWhen: day(night.end, now),
     wakeAt: clock(night.end),
     // When the sample bedtime note says the real one comes; none once the night has started.
-    note: started ? null : `${day(night.start, now)} at ${clock(night.start)}`,
+    note: started ? null : `${day(night.start, now, true)} at ${clock(night.start)}`,
   };
 }

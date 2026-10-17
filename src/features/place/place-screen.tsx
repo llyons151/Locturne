@@ -185,7 +185,7 @@ export function PlaceScreen({ mode }: { mode?: PlaceMode }) {
           <>
             <PrimaryButton label={stage.kind === 'morning' ? 'Check in' : 'Try again'} icon="location.fill" onPress={onCheckIn} />
             {stage.kind === 'noFix' && settingsCanFix(stage.why) ? (
-              <TextButton label="Open Settings" onPress={() => Linking.openSettings()} />
+              <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
             ) : null}
             {/* Every morning offers walking instead (GAME_PLAN): no signal, a closed gym, a sick day. */}
             <TextButton label={`Walk ${routine.stepGoal} steps instead`} onPress={steps} />

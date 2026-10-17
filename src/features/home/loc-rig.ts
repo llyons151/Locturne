@@ -145,6 +145,9 @@ export function retuneLoc() {
     Object.assign(TARGET[mood], BASE, MOODS[mood].set);
   }
 }
+/** The longest step the springs below take (s); every one of them is stable at it. */
+const MAX_STEP = 1 / 50;
+
 // Stiffness and damping ratio: head firm, eyes fast, pupils fastest.
 const SPRING: Record<Channel, [number, number]> = {
   y: [90, 0.9], tilt: [90, 0.85], earL: [150, 0.42], earR: [150, 0.42], open: [280, 1], openR: [280, 1], slope: [220, 1], squint: [220, 1],
@@ -1308,9 +1311,13 @@ export class LocRig {
     const gx = hasGaze ? c.gx : this.glance[0], gy = hasGaze ? c.gy : this.glance[1];
     // The pupils dart on an underdamped spring, so every glance overshoots and settles.
     const gk = LOC_TUNE.snapGaze ? 5200 : 900, gz = this.reduced ? 1 : LOC_TUNE.snapGaze ? 0.8 : 0.42;
-    for (const i of [0, 1] as const) {
-      const a = gk * ((i ? gy : gx) - this.gaze[i]) - 2 * Math.sqrt(gk) * gz * this.gazeV[i];
-      this.gazeV[i] += a * dt; this.gaze[i] += this.gazeV[i] * dt;
+    // In steps of 1/240 s at most: the snap spring is too stiff to step a whole frame at once.
+    const gn = Math.max(1, Math.ceil(dt * 240)), gdt = dt / gn;
+    for (let n = 0; n < gn; n++) {
+      for (const i of [0, 1] as const) {
+        const a = gk * ((i ? gy : gx) - this.gaze[i]) - 2 * Math.sqrt(gk) * gz * this.gazeV[i];
+        this.gazeV[i] += a * gdt; this.gaze[i] += this.gazeV[i] * gdt;
+      }
     }
     // Down the chain: the head follows the body's lean about 60 ms later, the ears after that.
     const follow = (key: keyof LocRig['lag'], target: number, tau: number) => (this.lag[key] += (target - this.lag[key]) * (1 - Math.exp(-dt / tau)));
@@ -1606,8 +1613,13 @@ export class LocRig {
 
   /** Move him on by `dt` without drawing. */
   simulate(dt: number) {
-    this.animate(dt);
-    this.pose(dt);
+    // The springs are stepped one frame at a time, and blow up on frames much longer than 1/50 s
+    // (a page in Low Power Mode draws at 30 fps): a slower frame goes in equal pieces.
+    const n = Math.max(1, Math.ceil(dt / MAX_STEP));
+    for (let i = 0; i < n; i++) {
+      this.animate(dt / n);
+      this.pose(dt / n);
+    }
   }
 
   /** Draw where he is now. */

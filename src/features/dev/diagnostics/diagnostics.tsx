@@ -19,7 +19,7 @@ export function Diagnostics() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Diagnostics</Text>
-        <TextButton label="Share report" onPress={() => Share.share({ message: formatReport(sections) })} />
+        <TextButton label="Share report" onPress={() => Share.share({ message: formatReport(sections) }).catch(() => {})} />
         <TextButton label="Refresh" onPress={refresh} />
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>

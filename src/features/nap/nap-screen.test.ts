@@ -4,21 +4,11 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 
-test('Wake him early opens the deliberate exit flow without ending the active nap', () => {
+test('a running nap offers no way to wake him early: Done is its only button', () => {
+  // No early wake from the nap sheet (user, 2026-10-16): never nudge anyone out of a nap.
   const source = readFileSync(new URL('./nap-screen.tsx', import.meta.url), 'utf8');
-  const handler = source.match(/  const wake = ([\s\S]*?);\n\n/);
-  assert.ok(handler);
-  const routes: string[] = [];
-  let ended = false;
-  runInNewContext(`const wake = ${handler[1]}; wake();`, {
-    router: { push: (route: string) => routes.push(route) },
-    endNap: () => { ended = true; },
-    // An alert must not itself authorize a bypass of the emergency/pass path.
-    Alert: { alert: (_title: string, _body: string, actions: { onPress?: () => void }[]) => actions.at(-1)?.onPress?.() },
-    wakeNow: () => { ended = true; },
-  });
-  assert.equal(ended, false);
-  assert.deepEqual(routes, ['/exits']);
+  assert.doesNotMatch(source, /Wake him early|'\/exits'|wakeNow|endNap\(/);
+  assert.match(source, /\{nap \? \(\s*<View style=\{styles\.actions\}>[\s\S]*?<SheetButton label="Done" onPress=\{closeSleepSheet\} \/>\s*<\/View>/);
 });
 
 const require = createRequire(import.meta.url);

@@ -193,6 +193,7 @@ export function HomeScreen() {
   // Bumped each time Home opens, the app returns to the foreground or the day rolls over, so
   // today's screen time redraws.
   const visit = useVisit(dateKey(now));
+  const focused = useIsFocused();
 
   // Honest status (health.ts): access off or never given replaces everything. Also keeps the
   // notifications in line when protection changes while Home is open.
@@ -294,13 +295,15 @@ export function HomeScreen() {
   // Asks right here (askAccessAgain), which offers Settings only if it's refused again.
   const turnAccessOn = () => askAccessAgain().then(recheckHealth);
   // A walk with Motion & Fitness off: Settings, with the other ways under it.
-  const walkSettings = walk?.kind === 'denied' ? { label: 'Open Settings', onPress: () => Linking.openSettings() } : null;
+  const walkSettings = walk?.kind === 'denied' ? { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) } : null;
   // The locked morning's method and time. "Tomorrow" until midnight; past it, the morning is
-  // today. In its last hour the line above already gives the time, so just the method.
+  // today, by night or by day (a bedtime after midnight: at 0:30 the 7:00 morning is this one).
+  // In its last hour the line above already gives the time, so just the method.
   const nextMorningLabel = () => {
-    const today = phase === 'night' && !!target && target.toDateString() === now.toDateString();
-    if (today && minutes !== null && minutes <= 60) return `This morning: ${METHOD_NAME[method]}`;
-    return `${today ? 'This morning' : 'Tomorrow'}: ${METHOD_NAME[method]} at ${clockLabel(routine.morningStart)}`;
+    const today = now.getHours() * 60 + now.getMinutes() < routine.morningStart;
+    const name = method === 'steps' ? `${routine.stepGoal} steps` : METHOD_NAME[method];
+    if (today && phase === 'night' && minutes !== null && minutes <= 60) return `This morning: ${name}`;
+    return `${today ? 'This morning' : 'Tomorrow'}: ${name} at ${clockLabel(routine.morningStart)}`;
   };
   const action = unprotected
     ? health.protection === 'notSetUp'
@@ -350,11 +353,12 @@ export function HomeScreen() {
   // ("Asleep until 7:00 am", a lone "in 26m", then the line, read as scraps: user, 2026-10-15).
   const wakeSoon = look === 'night' && minutes !== null && minutes <= 60;
   const face: HomeMeter | undefined = wakeSoon
-    ? { kicker: 'Wake-up in', value: duration(minutes ?? 0), progress: 1 - (minutes ?? 0) / 60 }
+    ? { kicker: 'Wake-up in', value: duration(minutes ?? 0), progress: 1 - (minutes ?? 0) / 60, countsDown: true }
     : look === 'day' || look === 'evening'
       ? {
           kicker: 'Bedtime in',
           value: duration(minutes ?? 0),
+          countsDown: true,
           // The last hour fills toward bedtime.
           progress: look === 'evening' ? 1 - (minutes ?? 0) / 60 : undefined,
         }
@@ -365,7 +369,8 @@ export function HomeScreen() {
           : undefined;
   // The words under the big number: what it doesn't already say.
   const shown = wakeSoon
-    ? { title: hero.title, body: `Phone down. Your apps wake at ${clockLabel(routine.morningStart)}.` }
+    // Not "your apps wake at": they stay asleep past wake-up until you're up (a proof).
+    ? { title: hero.title, body: `Phone down. Wake-up at ${clockLabel(routine.morningStart)}. They wake once you’re up and moving.` }
     : look === 'night'
       ? { title: hero.title, body: 'Phone down. They wake once you’re up and moving.' }
       : look === 'done' && wonAt
@@ -386,6 +391,7 @@ export function HomeScreen() {
     mornings,
     now,
     visit,
+    focused,
     tone: getTone(),
   });
   const mood = baseMood === 'awake' && mind.proud ? 'smug' : baseMood;

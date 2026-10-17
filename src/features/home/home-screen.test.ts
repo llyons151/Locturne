@@ -441,13 +441,19 @@ describe('Home’s looks', () => {
     assert.match(action.label, /^Tomorrow: /);
   });
 
+  test('by day past midnight (a bedtime after 12), the morning ahead is this morning', () => {
+    const { look, action } = home({ now: new Date(2026, 9, 10, 0, 30), nextChange: new Date(2026, 9, 10, 1) });
+    assert.equal(look, 'evening');
+    assert.equal(action.label, 'This morning: 200 steps at 7 am');
+  });
+
   test('in the last hour before wake-up the countdown leads, and the morning is this morning', () => {
     const { look, meter, hero, action } = home({ now: new Date(2026, 9, 10, 6, 34), phase: 'night', nextChange: new Date(2026, 9, 10, 7) });
     assert.equal(look, 'night');
     assert.equal(meter?.kicker, 'Wake-up in');
     assert.equal(meter?.value, '26 min');
     assert.ok(meter?.progress !== undefined && Math.abs(meter.progress - 34 / 60) < 1e-9);
-    assert.match(hero.body, /^Phone down\. Your apps wake at /);
+    assert.match(hero.body, /^Phone down\. Wake-up at .+\. They wake once you’re up and moving\.$/);
     // The line above gives the time, so the button just names the method.
     assert.match(action.label, /^This morning: /);
     assert.doesNotMatch(action.label, / at /);

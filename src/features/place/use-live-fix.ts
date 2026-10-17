@@ -20,8 +20,8 @@ export function useLiveFix(active: boolean, retry: unknown): Fix | null {
   const [fix, setFix] = useState<Fix | null>(null);
   const fake = useWakePreview().place;
 
-  // The fake walk starts from the far end each time the screen opens, not each check-in.
-  useEffect(() => startFakeWalk(), []);
+  // The fake walk starts from the far end each time the screen opens (or the lab picks the walk), not each check-in.
+  useEffect(() => startFakeWalk(), [fake]);
 
   useEffect(() => {
     if (!active) return;

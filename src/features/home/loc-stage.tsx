@@ -131,6 +131,8 @@ export default function LocStage({
       running = false;
       document.removeEventListener('visibilitychange', wake);
       observer.disconnect();
+      // Frees the WebGL context: browsers cap them, and the web build remounts him.
+      rig.dispose();
       rigRef.current = null;
       wakeRef.current = () => {};
     };

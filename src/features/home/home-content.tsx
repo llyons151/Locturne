@@ -51,9 +51,9 @@ export type HomeAction = { label: string; onPress: () => void; opens?: boolean }
 /**
  * `progress` 0–1 draws the track; without it, just the number (a distance has no track).
  * `kicker` is the small capitals label over the number ("BEDTIME IN"), `unit` the small "am"
- * after it, and `caption` may be left out.
+ * after it, and `caption` may be left out. `countsDown` rolls the digits downward (a countdown).
  */
-export type HomeMeter = { value: string; caption?: string; progress?: number; kicker?: string; unit?: string };
+export type HomeMeter = { value: string; caption?: string; progress?: number; kicker?: string; unit?: string; countsDown?: boolean };
 /** An SF Symbol, and the Material symbol for web and Android. */
 export type HomeIcon = { ios: string; android: string };
 

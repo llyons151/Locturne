@@ -41,6 +41,7 @@ export type Schedule = {
 export const MAX_SCHEDULES = 4;
 
 const IDS: ScheduleId[] = Array.from({ length: MAX_SCHEDULES }, (_, i) => `sched-${i}` as ScheduleId);
+export const SCHEDULE_IDS: readonly ScheduleId[] = IDS;
 
 export const SCHEDULE_PREFIX = 'sched-';
 
