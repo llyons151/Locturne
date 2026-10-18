@@ -138,6 +138,39 @@ export async function near(): Promise<Spot | null> {
   }
 }
 
+/** How long the picker waits for a first read before giving up and showing the map anyway. */
+const START_TIMEOUT_MS = 8_000;
+
+/**
+ * Where to open the place picker: where they are now (user, 2026-10-17: it opened on Kansas, the
+ * middle of the US, so a place down the street meant finding your own town first). Unlike `near`,
+ * this asks for When-In-Use the first time, since the screen is all about a place on the map.
+ * Approximate is enough to centre on. A position from the last few minutes, else a fresh read;
+ * null when location is off, refused or slow.
+ */
+export async function startingSpot(): Promise<Spot | null> {
+  const fake = getWakePreview().place;
+  if (fake !== 'real') {
+    const located = await fakeFix(fake);
+    return located.ok ? { latitude: located.fix.latitude, longitude: located.fix.longitude } : null;
+  }
+  try {
+    if (!(await Location.hasServicesEnabledAsync())) return null;
+    const allowed = await access(true);
+    if (allowed !== 'granted' && allowed !== 'imprecise') return null;
+    const last =
+      (await Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 })) ??
+      (await within(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), START_TIMEOUT_MS));
+    if (!last) return null;
+    const spot = { latitude: last.coords.latitude, longitude: last.coords.longitude };
+    if (!validSpot(spot)) return null;
+    nearCache = { spot, at: Date.now() };
+    return spot;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * What a search found. `from`: where they roughly are, when known, for showing distances.
  * `trouble`: `offline` when the search couldn't reach Apple (or Photon), so "nothing found"

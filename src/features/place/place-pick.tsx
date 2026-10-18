@@ -32,7 +32,7 @@ import { Gap, Radius, Space, Type } from '@/theme';
 
 import { isPlaceMapAvailable, PlaceMap, type MapTarget } from '../../../modules/place-search';
 import { applyRoutineEdit, getSetRoutine } from '../routine/apply-edit';
-import { describe, here, near, placeOf, suggest, type Candidate, type NoFix, type Suggested } from './locate';
+import { describe, here, placeOf, startingSpot, suggest, type Candidate, type NoFix, type Suggested } from './locate';
 import { formatDistance, hereFailedWords, settingsCanFix } from './place-stage';
 import { usesMiles } from './units';
 
@@ -70,7 +70,7 @@ const C = {
 const DEBOUNCE_MS = 200;
 /** How much map shows around a place flown to: the circle reads clearly, the street around it too. */
 const PLACE_SPAN_M = 700;
-/** Before anything's known: the whole of the US, until where they are comes in. */
+/** Only when where they are can't be had (location off or refused): the whole of the US. */
 const WIDE: MapTarget = { latitude: 39.5, longitude: -98.35, span: 4_500_000, key: 'wide' };
 
 type Spot = { latitude: number; longitude: number };
@@ -107,11 +107,15 @@ export function PlacePick({ select }: { select: boolean }) {
   /** Moved by hand or flown somewhere: where they are no longer replaces the view. */
   const placed = useRef(saved !== null);
 
-  // With nothing saved, start over where they roughly are once that's known (never asks).
+  /** Nothing saved: the map is covered until where they are comes in, so it never flashes Kansas. */
+  const [finding, setFinding] = useState(!saved);
+
+  // With nothing saved, open zoomed in on where they are, close enough to move the pin down the street.
   useEffect(() => {
     if (saved) return;
-    near().then((at) => {
-      if (at && !placed.current) setTarget({ ...at, span: 3_000, key: 'near' });
+    startingSpot().then((at) => {
+      if (at && !placed.current) setTarget({ ...at, span: PLACE_SPAN_M, key: 'here' });
+      setFinding(false);
     });
   }, [saved]);
 
@@ -220,6 +224,13 @@ export function PlacePick({ select }: { select: boolean }) {
           <Text style={styles.hint}>The map comes with the next app update. Search for your place for now.</Text>
         </View>
       )}
+
+      {finding ? (
+        <View style={[StyleSheet.absoluteFill, styles.noMap]}>
+          <ActivityIndicator size="small" color={C.text2} />
+          <Text style={styles.hint}>Finding where you are…</Text>
+        </View>
+      ) : null}
 
       {/* Tapping the map round the dropdown puts the keyboard away, as in Maps. */}
       {searching ? <Pressable style={StyleSheet.absoluteFill} onPress={endSearch} accessible={false} /> : null}
