@@ -18,5 +18,9 @@ module.exports = ({ config }) => {
   if (process.env.EAS_BUILD_PROFILE === 'production' && process.env.EXPO_PUBLIC_FREE_TESTING) {
     throw new Error('Production build with EXPO_PUBLIC_FREE_TESTING set: unset it (it is for testing builds only).');
   }
+  // The onboarding preview's own server (tools/onboarding-preview/start.sh): ~25 frames each
+  // waited 3–8 s for Metro to render their page on the server, one at a time. As a single-page
+  // app every frame gets the same HTML shell at once and renders in the browser.
+  if (process.env.LOCTURNE_WEB_SPA === '1') config.web = { ...config.web, output: 'single' };
   return config;
 };

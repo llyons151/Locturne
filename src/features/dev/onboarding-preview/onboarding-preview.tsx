@@ -7,7 +7,7 @@ import { Nocturne } from '@/theme';
 export function OnboardingPreview() {
   return (
     <View style={styles.screen}>
-      <Text style={styles.note}>The onboarding preview runs in a browser: npx expo start, press w, open /onboarding-preview.</Text>
+      <Text style={styles.note}>The onboarding preview runs in a browser: npm run onboarding-preview, open localhost:8082/onboarding-preview.</Text>
     </View>
   );
 }
