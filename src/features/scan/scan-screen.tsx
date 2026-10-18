@@ -34,6 +34,7 @@ import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { Voice } from '../exits/voice';
 import { awakeStatus } from '../wake/awake-status';
+import { askWalk } from '../home/walk-request';
 import { announceWoke } from '../wake/use-prove-morning';
 import { awakeBody, savedBody } from './next-morning';
 import { nextLockedMorning } from './next-locked-morning';
@@ -117,7 +118,7 @@ function words(stage: Stage): { line: string; body: string } {
     case 'notMethod':
       return {
         line: 'Nice try.',
-        body: 'Your code only counts on mornings you wake with it. Do your usual morning, or use a pass.',
+        body: 'Your code only counts on mornings you wake with it. Do your usual morning.',
       };
     case 'asleep':
       return {
@@ -160,6 +161,10 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
   });
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const walkInstead = () => {
+    askWalk(readLock().morningKey);
+    close();
+  };
 
   const onMorningScan = ({ data }: Scan) => {
     const pretend = pretendPhase() !== null;
@@ -212,6 +217,8 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
           fill
           onScan={stage.kind === 'morning' ? onMorningScan : onRegisterScan(stage.source, stage.expect)}
           expected={stage.kind === 'morning' ? shownScanCode()?.data : stage.expect}
+          // Camera off on a scan morning: the walk, so the X isn't the only way on.
+          denied={stage.kind === 'morning' ? <TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} /> : undefined}
           overlay={
             <View pointerEvents="none" style={styles.aim}>
               <View style={styles.square} />

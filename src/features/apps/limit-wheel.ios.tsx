@@ -14,7 +14,7 @@ export function LimitWheel({ value, onChange }: LimitWheelProps) {
   const h = Math.floor(value / 60);
   const m = value % 60;
   return (
-    <Host matchContents={{ vertical: true }} style={{ alignSelf: 'stretch' }} colorScheme="dark">
+    <Host matchContents={{ vertical: true }} style={{ alignSelf: 'stretch' }} colorScheme="dark" ignoreSafeArea="all">
       <HStack>
         <Picker
           selection={h}

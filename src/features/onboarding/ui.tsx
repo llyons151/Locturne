@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type StyleProp, type TextStyle } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, {
@@ -26,6 +26,8 @@ export type Progress = { chapter: number; value: number; chapters: number };
 type ShellProps = PropsWithChildren<{
   /** Null hides the bar. */
   progress: Progress | null;
+  /** Every heading, line and caption centred (onboarding). Off, they start at the left (the cancel flow). */
+  centered?: boolean;
   onBack?: () => void;
   /** Missing hides Exit: a first setup can't be left before it's saved. */
   onExit?: () => void;
@@ -33,7 +35,7 @@ type ShellProps = PropsWithChildren<{
 }>;
 
 /** Fixed full-screen page: top bar, content, and a bottom action that never scrolls away. */
-export function Shell({ progress, onBack, onExit, footer, children }: ShellProps) {
+export function Shell({ progress, centered = false, onBack, onExit, footer, children }: ShellProps) {
   // Pad with the provider's window insets; the native SafeAreaView can measure zero inside a full-screen modal.
   const insets = useSafeAreaInsets();
   // Pages are laid out to fit at the standard text sizes. Past that (B13: larger Dynamic Type
@@ -71,19 +73,21 @@ export function Shell({ progress, onBack, onExit, footer, children }: ShellProps
         </Pressable>
       </View>
       {/* At standard text sizes pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
-      {scrolls ? (
-        <ScrollView
-          testID="onboarding-body"
-          style={styles.scroll}
-          contentContainerStyle={[styles.body, styles.grow]}
-          showsVerticalScrollIndicator
-        >
-          {children}
-        </ScrollView>
-      ) : (
-        <View testID="onboarding-body" style={[styles.scroll, styles.body]}>{children}</View>
-      )}
-      {footer ? <View testID="onboarding-footer" style={styles.footer}>{footer}</View> : null}
+      <Centered.Provider value={centered}>
+        {scrolls ? (
+          <ScrollView
+            testID="onboarding-body"
+            style={styles.scroll}
+            contentContainerStyle={[styles.body, styles.grow]}
+            showsVerticalScrollIndicator
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View testID="onboarding-body" style={[styles.scroll, styles.body]}>{children}</View>
+        )}
+        {footer ? <View testID="onboarding-footer" style={styles.footer}>{footer}</View> : null}
+      </Centered.Provider>
     </View>
   );
 }
@@ -123,29 +127,40 @@ function ChapterTrack({ value }: { value: number }) {
   );
 }
 
+const Centered = createContext(false);
+
+/** Whether this page's text is centred: the whole onboarding, or anything on the quiz moon. */
+function useCentered() {
+  const centered = useContext(Centered);
+  const moon = useOnMoon();
+  return centered || moon;
+}
+
 /** One page of onboarding. Keyed by step, so every entrance replays on each page. */
 export function StepEnter({ motion = 'drift', children }: PropsWithChildren<{ motion?: TextMotion }>) {
   return <MotionPage motion={motion}>{children}</MotionPage>;
 }
 
 export function Eyebrow({ children }: PropsWithChildren) {
+  const center = useCentered();
   return (
     <Reveal>
-      <Text style={styles.eyebrow}>{children}</Text>
+      <Text style={[styles.eyebrow, center && styles.centered]}>{children}</Text>
     </Reveal>
   );
 }
 
 export function Title({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
-  const moon = useOnMoon();
-  return <WordsIn text={noOrphan(children)} style={[styles.title, moon && styles.centered, style]} header />;
+  const center = useCentered();
+  return <WordsIn text={noOrphan(children)} style={[styles.title, center && styles.centered, style]} header />;
 }
 
 export function Body({ children, style }: PropsWithChildren<{ style?: StyleProp<TextStyle> }>) {
   const moon = useOnMoon();
+  const center = useCentered();
   return (
     <Reveal>
-      <Text style={[styles.body2, moon && styles.bodyOnMoon, style]}>{typeof children === 'string' ? noOrphan(children) : children}</Text>
+      <Text style={[styles.body2, center && styles.centered, moon && styles.bodyOnMoon, style]}>{typeof children === 'string' ? noOrphan(children) : children}</Text>
     </Reveal>
   );
 }
@@ -167,10 +182,10 @@ export function Voice({
   header?: boolean;
   /** A secondary line under the headline. Always rises in as one line (Moonrise), whatever the page's motion. */
   sub?: boolean;
-  /** Centered text. Only for sub lines, which render as one text run. */
+  /** Centered text, on a page that otherwise starts lines at the left. */
   center?: boolean;
 }) {
-  const center = useOnMoon() || centerProp;
+  const center = useCentered() || centerProp;
   return (
     <WordsIn
       key={text}
@@ -250,19 +265,15 @@ export function NotePreview({ time, title, body }: { time: string; title: string
 
 /**
  * Tonight, filling in as it's set up (Lose It's program card): bedtime → alarm, how they'll
- * prove they're up, how many apps. Slots not chosen yet show a dash.
+ * prove they're up, how many apps. Slots not chosen yet are left out, not shown as a dash.
  */
 export function TonightStrip({ parts }: { parts: (string | null)[] }) {
+  const center = useCentered();
   return (
-    <Reveal style={styles.strip}>
+    <Reveal style={[styles.strip, center && styles.stripCentered]}>
       <Text style={styles.stripLabel}>TONIGHT</Text>
-      <Text style={styles.stripText} numberOfLines={2}>
-        {parts.map((part, i) => (
-          <Text key={i} style={part ? undefined : styles.stripEmpty}>
-            {i > 0 ? '  ·  ' : ''}
-            {part ?? '—'}
-          </Text>
-        ))}
+      <Text style={[styles.stripText, center && styles.centered]} numberOfLines={2}>
+        {parts.filter((part) => part !== null).join('  ·  ')}
       </Text>
     </Reveal>
   );
@@ -323,6 +334,7 @@ export function Options<T>({
   dense?: boolean;
 }) {
   const moon = tone === 'moon';
+  const center = useCentered();
   return (
     <View style={[styles.options, dense && styles.optionsDense]} accessibilityRole="radiogroup">
       {options.map((option) => {
@@ -338,6 +350,7 @@ export function Options<T>({
               accessibilityState={{ checked: selected }}
               style={({ pressed }) => [
                 styles.option,
+                center && styles.optionCentered,
                 moon && styles.optionMoon,
                 dense && styles.optionDense,
                 selected && (moon ? styles.optionMoonSelected : styles.optionSelected),
@@ -347,6 +360,7 @@ export function Options<T>({
               <Text
                 style={[
                   styles.optionLabel,
+                  center && styles.centered,
                   moon && styles.optionLabelMoon,
                   selected && (moon ? styles.optionLabelMoonSelected : styles.optionLabelSelected),
                 ]}
@@ -598,7 +612,7 @@ const styles = StyleSheet.create({
   },
   stripLabel: { ...Type.label, fontSize: 11 },
   stripText: { color: Nocturne.text, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  stripEmpty: { color: Nocturne.text3 },
+  stripCentered: { alignItems: 'center' },
   pressed: { opacity: 0.75 },
   options: { gap: Space.m },
   optionsDense: { gap: Space.s },
@@ -613,6 +627,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     justifyContent: 'center',
   },
+  optionCentered: { alignItems: 'center' },
   optionSelected: { backgroundColor: Nocturne.cta, borderColor: Nocturne.cta },
   optionLabel: { color: Nocturne.text, fontSize: 17, fontWeight: '500' },
   optionLabelSelected: { color: Nocturne.onCta },

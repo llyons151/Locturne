@@ -5,7 +5,8 @@ import type { HomeAction } from './home-content';
  * - `day`: the countdown to bedtime is the big number, the button is the quiet pill.
  * - `evening`: the last hour, its countdown over a track filling to bedtime.
  * - `night`: the wake time is the big number; the top dims and the button is plain text.
- * - `morning`: the main action is the white primary button.
+ * - `morning`: the main action is the white primary button, whatever the method; walking
+ *   instead is the quiet link under it.
  * - `done`: the morning just won, "Up at 7:06 am".
  * - `problem`: something to fix takes over: the top goes and the fix is the primary button.
  * - `plain`: the headline and line (naps, passes, nights off, the trial).
@@ -15,7 +16,7 @@ export type HomeLook = 'day' | 'evening' | 'night' | 'morning' | 'done' | 'probl
 /** How the action is drawn: the white primary button, the quiet glass pill, or plain text. */
 export function actionWeight(look: HomeLook, action: HomeAction | null): 'primary' | 'pill' | 'link' {
   if (look === 'problem') return 'primary';
-  if (look === 'morning') return action?.opens ? 'link' : 'primary';
+  if (look === 'morning') return 'primary';
   return look === 'night' ? 'link' : 'pill';
 }
 

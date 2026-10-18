@@ -2,8 +2,9 @@
 // Reads the App Group stores during render (the proofs, the routine), which change outside
 // React, so the React Compiler stays out of here.
 
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
+import { LeaveRoute } from '@/components/leave-route';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
 import { currentProof, routineAt } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
@@ -21,7 +22,8 @@ export default function MorningWonRoute() {
   // Made-up facts only where the dev labs are: a release deep link can't fake a morning.
   const labs = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
   const facts = params.demo && labs ? demoFacts(params) : realFacts();
-  if (!facts) return <Redirect href="/" />;
+  // Back to the tabs already open: a `<Redirect>` would stack a second Home.
+  if (!facts) return <LeaveRoute />;
   return <PayoffScreen facts={facts} />;
 }
 

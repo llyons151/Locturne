@@ -93,10 +93,19 @@ func locturneNightTimes() -> (bedtime: Int, morningStart: Int)? {
 }
 
 func locturneTimes(_ dict: [String: Any]?) -> (bedtime: Int, morningStart: Int)? {
-  guard let bedtime = (dict?["bedtime"] as? NSNumber)?.intValue,
-    let morningStart = (dict?["morningStart"] as? NSNumber)?.intValue
+  guard let bedtime = locturneMinuteOfDay(dict?["bedtime"]),
+    let morningStart = locturneMinuteOfDay(dict?["morningStart"])
   else { return nil }
   return (bedtime, morningStart)
+}
+
+/// A stored time as a minute of the day, 0–1439, or nil when it isn't a finite number. Taken
+/// round the day as a Double first: converting a huge or infinite value to Int would trap, and
+/// a trap kills the extension, and every lock with it.
+func locturneMinuteOfDay(_ value: Any?) -> Int? {
+  guard let number = (value as? NSNumber)?.doubleValue, number.isFinite else { return nil }
+  let minute = number.rounded(.down).truncatingRemainder(dividingBy: 1440)
+  return Int(minute < 0 ? minute + 1440 : minute) % 1440
 }
 
 /// The saved routine in force now: an edit waiting for bedtime once it's due (two minutes
@@ -236,14 +245,15 @@ func locturneNightHasPicks() -> Bool {
 @available(iOS 15.0, *)
 func showLocturneMorningShield(activity: String, now: Date = Date()) {
   guard activity.hasPrefix(LOCTURNE_NIGHT_PREFIX),
-    let armed = userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY),
-    let morningStart = (armed["morningStart"] as? NSNumber)?.intValue
+    let times = locturneTimes(userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY))
   else { return }
-  let time = Calendar.current.dateComponents([.hour, .minute], from: now)
-  let minute = (time.hour ?? 0) * 60 + (time.minute ?? 0)
-  // iOS may call a little early or late; earlier windows end at least 15 minutes before.
-  let sinceMorning = (minute - morningStart + 1440) % 1440
-  guard sinceMorning <= 30 || sinceMorning >= 1440 - 5 else { return }
+  let minute = locturneMinute(now)
+  // iOS may call up to 5 minutes early, or late: any time past the morning start counts (a
+  // phone off at 7:00 gets its end call later, or never: `locturneMorningShieldIfDue`). An
+  // earlier window's end falls inside the night, at least 15 minutes before.
+  let sinceMorning = (minute - times.morningStart + 1440) % 1440
+  guard sinceMorning >= 1440 - 5 || !locturneInside(minute, bedtime: times.bedtime, morningStart: times.morningStart)
+  else { return }
   if !locturneNightHasPicks() {
     // No bedtime picks (an emergency pause, or a list emptied at bedtime): nothing to prove.
     // Let go of any hold the windows set on the empty list and put the day's words back, or
@@ -395,6 +405,26 @@ func reapplyLocturneBlocks(triggeredBy: String) {
     }
   }
   blockSelectedApps(blockSelection: selection, triggeredBy: triggeredBy)
+  locturneMorningShieldIfDue()
+}
+
+/// Is the bedtime list showing the morning's shield, whose button runs "I'm up"?
+func locturneMorningShieldUp() -> Bool {
+  let actions = userDefaults?.dictionary(forKey: "\(SHIELD_ACTIONS_FOR_SELECTION_PREFIX)_night")
+  return (actions?["primary"] as? [String: Any])?["type"] as? String == LOCTURNE_MORNING_CHECK
+}
+
+/// The morning's shield, if the last window's end never put it up: iOS can deliver that call
+/// late (the phone was off at the morning start) or drop it, and the night's words only close,
+/// so the morning could be proved only by opening Locturne. Any later callback fixes it. Once
+/// it's up, it's left alone, so a tap's "120 of 200 steps" isn't written over.
+@available(iOS 15.0, *)
+func locturneMorningShieldIfDue(now: Date = Date()) {
+  guard userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true, !locturneMorningShieldUp(),
+    let times = locturneTimes(userDefaults?.dictionary(forKey: LOCTURNE_ARMED_KEY)),
+    !locturneInside(locturneMinute(now), bedtime: times.bedtime, morningStart: times.morningStart)
+  else { return }
+  showLocturneMorningShield(activity: "\(LOCTURNE_NIGHT_PREFIX)late", now: now)
 }
 
 let LOCTURNE_SITES_KEY = "locturne.sites"
@@ -604,7 +634,8 @@ func locturneHeldMorning(now: Date = Date()) -> LocturneMorning? {
 /// always works instead, GAME_PLAN); a floor changed with a few steps proves "go downstairs".
 func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int) -> String? {
   if method == "downstairs" && floors >= 1 && steps >= LOCTURNE_FLOOR_STEPS { return "downstairs" }
-  if steps >= stepGoal { return "steps" }
+  // A goal of 0 or less (never saved by the app) mustn't wake on no steps at all.
+  if steps >= max(stepGoal, 1) { return "steps" }
   return nil
 }
 
@@ -623,8 +654,19 @@ func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> Stri
   }
 }
 
+/// Pure: the morning shield's line for a tap before the morning start. iOS can end the last
+/// window up to 5 minutes early, so "I'm up" shows a little before it, but steps only count
+/// from then. In the app's clock style (`clockLabel` in src/lib/shield-copy.ts): "7 am".
+func locturneEarlyTapLine(morningStart: Int) -> String {
+  let m = ((morningStart % 1440) + 1440) % 1440
+  let hour = m / 60 % 12 == 0 ? 12 : m / 60 % 12
+  let clock = m % 60 == 0 ? "\(hour)" : "\(hour):\(String(format: "%02d", m % 60))"
+  return "Up early. Steps count from \(clock) \(m < 720 ? "am" : "pm"). Tap I’m up after that."
+}
+
 private func locturneProofs() -> [[String: Any]] {
-  (userDefaults?.array(forKey: LOCTURNE_PROOFS_KEY) as? [[String: Any]]) ?? []
+  // Entry by entry: one bad entry mustn't hide the rest (and saving a new proof would drop them).
+  (userDefaults?.array(forKey: LOCTURNE_PROOFS_KEY) ?? []).compactMap { $0 as? [String: Any] }
 }
 
 private func locturneIsWin(_ proof: [String: Any]) -> Bool {

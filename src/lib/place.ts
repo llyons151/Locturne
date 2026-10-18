@@ -156,7 +156,7 @@ export type PlaceCheck =
   | { kind: 'unlocked' }
   | { kind: 'notThere'; distance: number }
   | { kind: 'unsure'; distance: number | null }
-  | { kind: 'noPlace' | 'notMorning' };
+  | { kind: 'noPlace' | 'notMorning' | 'notMethod' };
 
 /** A morning check. A fix at the place records this morning's proof and wakes the apps. */
 export function submitPlaceFix(fix: Fix, now = new Date()): PlaceCheck {
@@ -165,6 +165,8 @@ export function submitPlaceFix(fix: Fix, now = new Date()): PlaceCheck {
   const state = readLock(now);
   // A morning after the last one a lapsed subscription covers holds nothing (`pastLastPaid`).
   if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return { kind: 'notMorning' };
+  // Only a place morning: on any other, a check-in would be a way out the routine never chose.
+  if (judgedAt(now).routine.method !== 'place') return { kind: 'notMethod' };
   const judged = judgeFix(place, fix, now);
   if (judged.kind !== 'there') return judged;
   recordProof({ morningKey: state.morningKey, kind: 'place', at: now.getTime() }, judgedAt(now));

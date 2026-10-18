@@ -16,6 +16,16 @@ func test(_ name: String, _ body: @escaping () throws -> Void) {
   registered.append((name, body))
 }
 
+/// Tests that show a known bug: reported, never counted as a failure. Once one passes, it says
+/// so ("FIXED?"), so the `knownBug` can become a plain `test`.
+nonisolated(unsafe) var knownBugs: Set<String> = []
+
+func knownBug(_ name: String, _ body: @escaping () throws -> Void) {
+  let named = "BUG: \(name)"
+  knownBugs.insert(named)
+  registered.append((named, body))
+}
+
 func expect(
   _ condition: @autoclosure () -> Bool, _ message: @autoclosure () -> String,
   line: UInt = #line
@@ -35,12 +45,21 @@ func expectEqual<T: Equatable>(
 func runTests(filter: String?) -> Int {
   var failed = 0
   var ran = 0
+  var bugs = 0
   for (name, body) in registered where filter.map({ name.contains($0) }) ?? true {
     ran += 1
     resetWorld()
     currentFailures = []
     do { try body() } catch { currentFailures.append("threw: \(error)") }
-    if currentFailures.isEmpty {
+    if knownBugs.contains(name) {
+      if currentFailures.isEmpty {
+        print("FIXED? \(name) (passes now: make it a plain test)")
+      } else {
+        bugs += 1
+        print("BUG  \(name)")
+        for f in currentFailures { print("       \(f)") }
+      }
+    } else if currentFailures.isEmpty {
       print("ok   \(name)")
     } else {
       failed += 1
@@ -48,7 +67,7 @@ func runTests(filter: String?) -> Int {
       for f in currentFailures { print("       \(f)") }
     }
   }
-  print("\n\(ran - failed)/\(ran) passed")
+  print("\n\(ran - failed - bugs)/\(ran - bugs) passed" + (bugs > 0 ? ", \(bugs) known bugs reported" : ""))
   return failed
 }
 
@@ -96,6 +115,8 @@ func resetWorld() {
   DeviceActivityCenter.onStart = nil
   DeviceActivityCenter.peakActivities = 0
   UNUserNotificationCenter.sent = []
+  PedometerScript.reset()
+  HarnessMainQueue.reset()
   at("2026-10-05 12:00")
 }
 

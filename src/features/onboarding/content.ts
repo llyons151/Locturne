@@ -588,7 +588,7 @@ export const METHOD_COPY: Record<
     commit: 'Downstairs to wake them.',
     offer: 'One trip downstairs. I’ll complain the whole way.',
     morning: [
-      { when: 'Start', what: 'Open me and tap Start. Then go downstairs.' },
+      { when: 'Start', what: 'Open me. I’m already listening. Keep the screen on and take the stairs.' },
       { when: 'Bottom', what: 'They wake up. Up or down both count.' },
       { when: 'No stairs', what: 'Away from home? Walk 200 steps instead.' },
     ],
@@ -637,7 +637,7 @@ export const METHOD_COPY: Record<
     commit: '10 push-ups to wake them.',
     offer: '10 push-ups. I’ll count every one, disappointed.',
     morning: [
-      { when: 'Start', what: 'Open me, lean me on the floor two steps away, side-on to you.' },
+      { when: 'Start', what: 'Open me, tap Start push-ups, and lean me on the floor two steps away, side-on to you.' },
       { when: 'Floor', what: '10 push-ups where I can see you. I count. They wake up.' },
       { when: 'Not today', what: 'Arms not working? Walk 200 steps instead.' },
     ],

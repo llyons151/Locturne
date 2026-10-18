@@ -6,7 +6,8 @@ import type { WakeMethod } from '../../lib/routine.ts';
 
 /** What got them up, said first in the line under "Up at". */
 export const PAYOFF_METHOD: Record<WakeMethod, string> = {
-  downstairs: 'Down the stairs',
+  // Down or up: whichever floor the coffee is on.
+  downstairs: 'Took the stairs',
   steps: 'Steps walked',
   scan: 'Code scanned',
   place: 'Out the door',

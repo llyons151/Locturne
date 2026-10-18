@@ -56,6 +56,7 @@ import { useMorningPlace } from './use-morning-place';
 import { useMorningPushups } from './use-morning-pushups';
 import { useMorningStairs } from './use-morning-stairs';
 import { useMorningWalk, type MorningWalk } from './use-morning-walk';
+import { askWalk, useWalkRequest } from './walk-request';
 import { useHomeMock } from '../dev/state-lab/app-states';
 import { MockBar, MockSwipe } from '../dev/state-lab/mock-bar';
 import { pretendMethod, useWakePreview } from '../dev/wake-lab/wake-preview';
@@ -72,7 +73,6 @@ const MOCK_WEEK = __DEV__;
  * one sentence and one quiet button. Over the moon only Loc, peeking over the panel's edge.
  */
 
-const MORNING_ACTION = { downstairs: 'Go downstairs', steps: 'Start walking', scan: 'Scan my code', place: 'Check in', pushups: 'Start push-ups' } as const;
 /** The evening button names tomorrow's wake-up, the part of the night that's still to come. */
 const METHOD_NAME = { downstairs: 'Downstairs', steps: '200 steps', scan: 'Scan my code', place: 'Leave the house', pushups: 'Push-ups' } as const;
 
@@ -218,10 +218,23 @@ export function HomeScreen() {
   // "Walk 200 steps instead" turns this morning's Home into the walk (user, 2026-10-15). Kept
   // per morning, so tomorrow starts on the routine's own method again.
   const [walkingFor, setWalkingFor] = useState<string | null>(null);
+  // That morning's walk asked for from elsewhere (`/wake?method=steps`).
+  const walkAsked = useWalkRequest();
   const canWalk = walked?.kind === 'counting';
-  const walkingInstead = morningHere && method !== 'steps' && canWalk && walkingFor === lock.morningKey;
+  const walkingInstead = morningHere && method !== 'steps' && canWalk && (walkingFor === lock.morningKey || walkAsked === lock.morningKey);
   const walkInstead = canWalk && method !== 'steps' ? { label: `Walk ${walked.goal} steps instead`, onPress: () => setWalkingFor(lock.morningKey) } : undefined;
   const walk = method === 'steps' || walkingInstead ? walked : null;
+  // A mis-tap on "walk instead" isn't for the whole morning: the routine's own way is a tap away.
+  const backToOwn =
+    walkingInstead
+      ? {
+          label: BACK_TO_OWN[method],
+          onPress: () => {
+            setWalkingFor(null);
+            askWalk(null);
+          },
+        }
+      : undefined;
   const own = morningHere && !walkingInstead;
   const stairs = useMorningStairs(own && method === 'downstairs', walked);
   const place = useMorningPlace(own && method === 'place', walked, routine.stepGoal);
@@ -320,7 +333,7 @@ export function HomeScreen() {
         : here
           ? here.action
         : phase === 'morning'
-          ? { label: MORNING_ACTION[method], onPress: () => router.push({ pathname: '/wake', params: { method } }) }
+          ? null
           : !bedtimeApps && !stoodDown
             ? { label: 'Pick bedtime apps', onPress: () => router.push('/apps') }
             : tomorrowLocked
@@ -429,11 +442,12 @@ export function HomeScreen() {
         icon={walk ? WALK_ICON : here?.icon}
         searching={!walk && here?.searching}
         action={action}
-        alt={here && action === here.action && here.alt !== here.action ? here.alt : undefined}
+        alt={backToOwn ?? (here && action === here.action && here.alt !== here.action ? here.alt : undefined)}
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
-      {here?.keepAwake ? <StayAwake /> : null}
+      {/* Only while Home is the tab showing: a morning left running under Routine or You can sleep. */}
+      {focused && here?.keepAwake ? <StayAwake /> : null}
       {pushups?.camera}
       {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>
@@ -442,11 +456,20 @@ export function HomeScreen() {
   return mock ? <MockSwipe>{screen}</MockSwipe> : screen;
 }
 
+/** Under the walk taken instead: back to the routine's own way. */
+const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
+  downstairs: 'Take the stairs instead',
+  scan: 'Scan my code instead',
+  place: 'Check in instead',
+  pushups: 'Do push-ups instead',
+};
+
 /** How long after the wake-up Home keeps showing it (`done`), in milliseconds. */
 const DONE_FOR = 3 * 3_600_000;
 /** The done look's line: what got them up. */
 const DONE_WORDS: Record<WakeMethod, string> = {
-  downstairs: 'Down the stairs',
+  // Down or up: whichever floor the coffee is on.
+  downstairs: 'Took the stairs',
   steps: 'Steps walked',
   scan: 'Code scanned',
   place: 'Out the door',

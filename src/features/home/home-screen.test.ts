@@ -137,6 +137,7 @@ function home({
     './use-moon-sink': { useMoonSink() {} },
     './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
+    './walk-request': { askWalk() {}, useWalkRequest: () => null },
     'expo-keep-awake': { useKeepAwake() {} },
     './morning': { scanMorning: () => morningOf('scan', true), WALK_INSTEAD },
     './use-morning-stairs': { useMorningStairs: (on: boolean, w: unknown) => (on ? morningOf('stairs', w) : null) },

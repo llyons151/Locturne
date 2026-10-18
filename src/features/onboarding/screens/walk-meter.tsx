@@ -20,7 +20,7 @@ export function WalkMeter({ steps: counted, goal }: { steps: number; goal: numbe
       accessibilityLiveRegion="polite"
       accessibilityLabel={`${steps} of ${goal} steps. ${left > 0 ? `${left} to go.` : 'Done.'}`}
     >
-      <BigNumber value={String(steps)} caption={`of ${goal} steps`} />
+      <BigNumber value={String(steps)} caption={`of ${goal} steps`} center />
       <Track progress={goal > 0 ? steps / goal : 1} />
       {left > 0 ? <Text style={styles.note}>Shaking the phone doesn’t count. I checked.</Text> : null}
     </View>
@@ -29,5 +29,5 @@ export function WalkMeter({ steps: counted, goal }: { steps: number; goal: numbe
 
 const styles = StyleSheet.create({
   meter: { gap: Space.m },
-  note: { ...Type.secondary, color: Nocturne.text2 },
+  note: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
 });

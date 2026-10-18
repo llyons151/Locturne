@@ -90,7 +90,9 @@ const LOOK_ICONS: Record<string, ReturnType<typeof sym>> = {
 
 function preview(href: Href, method?: WakeMethod) {
   fakeTheMorning(method);
-  router.push(href);
+  // Home is the tab next door: switch to it rather than stack a second Home.
+  if (href === '/') router.navigate('/');
+  else router.push(href);
 }
 
 function sendFeedback() {
@@ -349,9 +351,9 @@ export function YouScreen() {
             <ValueRow icon={sym('figure.stairs', 'stairs')} title="Go downstairs (on Home)" value="" onPress={() => preview('/', 'downstairs')} />
             <ValueRow
               icon={sym('figure.strengthtraining.functional', 'fitness_center')}
-              title="Push-ups"
+              title="Push-ups (on Home)"
               value=""
-              onPress={() => preview('/wake?method=pushups')}
+              onPress={() => preview('/', 'pushups')}
             />
             <ValueRow icon={sym('barcode.viewfinder', 'barcode_scanner')} title="Scan a code (on Home)" value="" onPress={() => preview('/', 'scan')} />
             <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Get to a place (on Home)" value="" onPress={() => preview('/', 'place')} />

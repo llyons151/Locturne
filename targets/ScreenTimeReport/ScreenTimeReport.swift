@@ -40,6 +40,10 @@ struct UsageConfiguration {
   var average: TimeInterval { reported.isEmpty ? 0 : total / Double(reported.count) }
 }
 
+/// Calls aren't screen time: a call left open on speaker shouldn't fill the day. Calls inside other apps
+/// (WhatsApp, Discord) can't be told apart from the rest of that app, so those still count.
+private let callApps: Set<String> = ["com.apple.mobilephone", "com.apple.facetime", "com.apple.InCallService"]
+
 struct UsageReport<Content: View>: DeviceActivityReportScene {
   let days: Int
   var compact = false
@@ -58,11 +62,16 @@ struct UsageReport<Content: View>: DeviceActivityReportScene {
     for await device in data {
       for await segment in device.activitySegments {
         let date = calendar.startOfDay(for: segment.dateInterval.start)
-        totals[date, default: 0] += max(0, segment.totalActivityDuration)
-        if !compact {
+        // The day is the sum of its apps, not the segment's totalActivityDuration: that also counts time
+        // with no app open (lock screen, Home Screen, StandBy), which can log a whole night as screen time.
+        // Web domains aren't added, since browsing already counts under the browser app.
+        var seconds: TimeInterval = 0
         for await category in segment.categories {
           for await activity in category.applications {
             let application = activity.application
+            if let bundle = application.bundleIdentifier, callApps.contains(bundle) { continue }
+            seconds += max(0, activity.totalActivityDuration)
+            if compact { continue }
             var app = apps[application] ?? UsageApp(application: application)
             app.seconds += max(0, activity.totalActivityDuration)
             app.pickups += activity.numberOfPickups
@@ -70,7 +79,7 @@ struct UsageReport<Content: View>: DeviceActivityReportScene {
             apps[application] = app
           }
         }
-        }
+        totals[date, default: 0] += seconds
       }
     }
     return UsageConfiguration(apps: apps.values.sorted { $0.seconds > $1.seconds }, days: (0..<days).map { index in
@@ -186,7 +195,7 @@ struct UsageChart: View {
           Divider().overlay(.white.opacity(0.1))
         }
       }
-      Text("Usage is reported by Screen Time. App totals may differ from total screen time, which can include website activity.")
+      Text("Usage is reported by Screen Time. Totals add up time in apps, so they can be lower than Settings, which also counts the lock screen. Phone and FaceTime calls aren't counted.")
         .font(.caption).foregroundStyle(.secondary)
     }.padding(.top, 12)
   }

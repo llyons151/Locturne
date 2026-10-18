@@ -855,6 +855,7 @@ export function OnboardingFlow({
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
         <Shell
           progress={progressFor(step, answers.pain)}
+          centered
           onBack={back}
           onExit={canLeave ? leave : undefined}
           footer={

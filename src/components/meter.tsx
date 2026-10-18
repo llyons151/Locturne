@@ -10,11 +10,11 @@ import { Nocturne, Type } from '@/theme';
  */
 
 /** The big upright number and its unit: "84" over "of 200 steps". */
-export function BigNumber({ value, caption }: { value: string; caption: string }) {
+export function BigNumber({ value, caption, center }: { value: string; caption: string; center?: boolean }) {
   return (
-    <View>
+    <View style={center && styles.centered}>
       <CountText value={value} />
-      <Text style={styles.caption}>{caption}</Text>
+      <Text style={[styles.caption, center && styles.captionCentered]}>{caption}</Text>
     </View>
   );
 }
@@ -29,7 +29,9 @@ export function Track({ progress }: { progress: number }) {
 }
 
 const styles = StyleSheet.create({
+  centered: { alignItems: 'center' },
   caption: { ...Type.body, color: Nocturne.text2 },
+  captionCentered: { textAlign: 'center' },
   track: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
 });

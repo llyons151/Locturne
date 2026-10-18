@@ -28,16 +28,27 @@ fi
 # Independent reviewers and timezone checks may run concurrently.
 build="$(mktemp -d "${TMPDIR:-/tmp}/locturne-native-tests.XXXXXX")"
 
-for file in Shared.swift Locturne.swift DeviceActivityMonitorExtension.swift; do
+# The ShieldAction extension's own files ("I'm up" on the morning shield) and the
+# ShieldConfiguration extension's lookup (the words and button an app shows) run too: their
+# Shared.swift and Locturne.swift are the same files (checked below). They also lose
+# CoreMotion and ManagedSettingsUI, and `DispatchQueue.main` becomes the harness's queue.
+copy() {
   { printf '#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n'
   sed -E \
-    -e '/^import (DeviceActivity|FamilyControls|ManagedSettings|NotificationCenter|UIKit|WebKit|os)$/d' \
+    -e '/^import (CoreMotion|DeviceActivity|FamilyControls|ManagedSettings|ManagedSettingsUI|NotificationCenter|UIKit|WebKit|os)$/d' \
     -e 's/\bDate\(\)/harnessNow()/g' \
     -e 's/\bDate\.now\b/harnessNow()/g' \
+    -e 's/DispatchQueue\.main\./harnessMain./g' \
     -e 's/Bundle\.main\.bundleIdentifier!/"com.lukelyons.locturne.test"/' \
     -e 's/, privacy: \.public\)/)/g' \
-    "$src/$file"; } >"$build/$file"
-done
+    "$1"; } >"$build/$(basename "$1")"
+}
+for file in Shared.swift Locturne.swift DeviceActivityMonitorExtension.swift; do copy "$src/$file"; done
+copy "$root/targets/ShieldAction/LocturneMorningCheck.swift"
+# Without the delegate class at its end, which only forwards each tap to `handleAction`.
+copy "$root/targets/ShieldAction/ShieldActionExtension.swift"
+sed -i '/^class ShieldActionExtension: ShieldActionDelegate/,$d' "$build/ShieldActionExtension.swift"
+copy "$root/targets/ShieldConfiguration/ShieldConfigurationExtension.swift"
 
 # All the copies of Shared.swift and Locturne.swift must be the same file: the tests run one of them.
 for shared in Shared.swift Locturne.swift; do
@@ -48,11 +59,28 @@ done
 
 swiftc -swift-version 5 -suppress-warnings -o "$build/native-tests" \
   "$here/Shims.swift" "$build/Shared.swift" "$build/Locturne.swift" "$build/DeviceActivityMonitorExtension.swift" \
-  "$here/Harness.swift" "$here/Tests.swift" "$here/Fixtures.swift" "$here/main.swift"
+  "$build/ShieldActionExtension.swift" "$build/LocturneMorningCheck.swift" "$build/ShieldConfigurationExtension.swift" \
+  "$here/Harness.swift" "$here/Tests.swift" "$here/ShieldTapTests.swift" "$here/RobustnessTests.swift" "$here/Fixtures.swift" "$here/WakeFixtures.swift" "$here/main.swift"
 
-# The handoff fixtures: the real app code's App Group writes, in this time zone.
+# The handoff fixtures: the real app code's App Group writes, in this time zone. The wake
+# fixtures go under fixtures/wake: a night per wake-up method and a tap on its shield.
 cd "$root"
 NATIVE_FIXTURES="$build/fixtures" node --test --experimental-test-module-mocks --test-reporter=dot \
-  src/lib/native-handoff.test.ts >/dev/null
+  src/lib/native-handoff.test.ts src/lib/native-wake-handoff.test.ts >/dev/null
 
-NATIVE_FIXTURES="$build/fixtures" "$build/native-tests" "$@"
+# A failing scenario still leaves the others' App Groups to read back, so read them, then fail.
+status=0
+NATIVE_FIXTURES="$build/fixtures" NATIVE_WAKE_RESULTS="$build/wake-out" "$build/native-tests" "$@" || status=$?
+
+# The App Group each shield tap left, read back by the app's own code (proof, count, Home's
+# phase, the next sync). Only when the Swift run saved some (a name filter may skip them).
+if [[ -d "$build/wake-out" ]]; then
+  if ! out=$(NATIVE_WAKE_RESULTS="$build/wake-out" node --test --experimental-test-module-mocks --test-reporter=dot \
+    --test-name-pattern="reads what the shield left" src/lib/native-wake-handoff.test.ts 2>&1); then
+    echo "$out" >&2
+    echo "FAIL the app's reading of the shield's App Group (src/lib/native-wake-handoff.test.ts)"
+    exit 1
+  fi
+  echo "ok   the app reads the App Group every shield tap left ($(ls "$build/wake-out" | wc -l) scenarios)"
+fi
+exit "$status"

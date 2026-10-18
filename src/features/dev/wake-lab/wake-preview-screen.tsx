@@ -90,7 +90,10 @@ const PAYOFF_WEEK: MenuOption<string>[] = ['1', '3', '5', '7'].map((value) => ({
 /** Starts a pretend morning (unless one is already running) and opens the real screen. */
 function open(href: Href, method: WakePreview['method'] = 'routine') {
   setWakePreview({ phase: 'morning', method });
-  router.push(href);
+  // Home goes back to the tabs underneath: pushing `/` would stack a second Home, whose
+  // morning sensors keep running unseen.
+  if (href === '/') router.dismissTo('/');
+  else router.push(href);
 }
 
 /**
@@ -132,29 +135,27 @@ export function WakePreviewScreen() {
         <ValueRow title="Open Home" value="" onPress={() => open('/')} last />
       </Card>
 
-      <Card icon={sym('figure.walk', 'directions_walk')} title="Walk steps" footer="Fake replaces the pedometer (expo-sensors). The walk is counted on Home: src/features/home/use-morning-walk.ts. “Walk instead” from the other methods is still src/features/wake/steps-view.tsx">
+      <Card icon={sym('figure.walk', 'directions_walk')} title="Walk steps" footer="Fake replaces the pedometer (expo-sensors). The walk is counted on Home: src/features/home/use-morning-walk.ts. “Walk instead” from the other methods turns Home into the walk.">
         <MenuRow title="Pedometer" value={p.steps} options={STEPS} onChange={(steps) => setWakePreview({ steps })} />
-        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'steps')} />
-        <ValueRow title="Open “walk instead”" value="" onPress={() => open('/wake?method=steps')} last />
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'steps')} last />
       </Card>
 
       <Card
         icon={sym('figure.stairs', 'stairs')}
         title="Go downstairs"
-        footer="Fake replaces the barometer (expo-sensors) with a scripted trip: Start, ~8 s on the stairs, 5 s hold. On Home: src/features/home/use-morning-stairs.ts. The old screen is still src/features/wake/downstairs-view.tsx"
+        footer="Fake replaces the barometer (expo-sensors) with a scripted trip: Start, ~8 s on the stairs, 5 s hold. On Home: src/features/home/use-morning-stairs.ts"
       >
         <MenuRow title="Barometer" value={p.stairs} options={STAIRS} onChange={(stairs) => setWakePreview({ stairs })} />
-        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'downstairs')} />
-        <ValueRow title="Open the old screen" value="" onPress={() => open('/wake?method=downstairs')} last />
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'downstairs')} last />
       </Card>
 
       <Card
         icon={sym('figure.strengthtraining.functional', 'fitness_center')}
         title="Push-ups"
-        footer="Fake replaces the Swift Vision camera (modules/pose-camera) with a drawn body. “Real camera” is the webcam in a browser. Screen: src/features/wake/pushups-view.tsx"
+        footer="Fake replaces the Swift Vision camera (modules/pose-camera) with a drawn body. “Real camera” is the webcam in a browser. On Home: src/features/home/use-morning-pushups.tsx; the camera: src/features/wake/pushups-view.tsx"
       >
         <PushupsPreviewRows />
-        <ValueRow title="Open the morning" value="" onPress={() => open('/wake?method=pushups')} last />
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'pushups')} last />
       </Card>
 
       <Card
@@ -171,11 +172,10 @@ export function WakePreviewScreen() {
       <Card
         icon={sym('mappin.and.ellipse', 'location_on')}
         title="Get to a place"
-        footer="Fake replaces the GPS read (expo-location). Without a real place, the stand-in is “Fake gym”. On Home: src/features/home/use-morning-place.ts. The old screen (with the map): src/features/place/place-screen.tsx"
+        footer="Fake replaces the GPS read (expo-location). Without a real place, the stand-in is “Fake gym”. On Home: src/features/home/use-morning-place.ts"
       >
         <MenuRow title="Location" value={p.place} options={PLACE} onChange={(place) => setWakePreview({ place })} />
-        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'place')} />
-        <ValueRow title="Open the old screen" value="" onPress={() => open('/place?mode=morning', 'place')} last />
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'place')} last />
       </Card>
 
       <PayoffCard />

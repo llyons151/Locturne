@@ -23,6 +23,14 @@ private let LOCTURNE_MOTION_TIMEOUT: TimeInterval = 4
 func locturneMorningCheck(config: [String: Any], completion: @escaping (ShieldActionResponse) -> Void) {
   CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication)
   guard let morning = locturneHeldMorning() else {
+    // Still the night by the clock (a tap in the minutes before the morning start): say so,
+    // or the button would look broken.
+    if userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true,
+      userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) != true,
+      let times = locturneNightTimes()
+    {
+      locturneShowMorningProgress(locturneEarlyTapLine(morningStart: times.morningStart))
+    }
     completion(.defer)
     return
   }
@@ -34,7 +42,8 @@ func locturneMorningCheck(config: [String: Any], completion: @escaping (ShieldAc
       if answered { return }
       answered = true
       let woke = locturneJudgeMorning(steps: steps, floors: floors)
-      if !woke && (steps == nil || !["steps", "downstairs"].contains(morning.method)) {
+      // Not when there's nothing left to prove (another tap or the app just won the morning).
+      if !woke && locturneHeldMorning() != nil && (steps == nil || !["steps", "downstairs"].contains(morning.method)) {
         for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {
           if let payload = action["payload"] as? [String: Any] { sendNotification(contents: payload, placeholders: [:]) }
         }

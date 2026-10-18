@@ -19,6 +19,9 @@ import type { MorningWalk } from './use-morning-walk';
  * then, so it keeps listening for as long as Home is open. Null while `enabled` is false.
  * `walk` is the steps fallback, counted underneath.
  */
+/** How long the screen stays on while the stairs wait for the height to move. */
+const AWAKE_WAITING_MS = 2 * 60_000;
+
 export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): HomeMorning | null {
   const { access, session, start, stop } = useDownstairs(enabled);
   const prove = useProveMorning();
@@ -68,8 +71,8 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
       icon,
       hero: {
         title: 'The stairs aren’t reading',
+        // One plain sentence: the title already says the stairs aren't reading.
         body: access === 'unavailable' ? 'This phone has no barometer I can read.' : 'It may be the sensor, or the phone.',
-        aside: downstairsLine('flat', 0),
       },
       action:
         access === 'unavailable'
@@ -80,24 +83,30 @@ export function useMorningStairs(enabled: boolean, walk: MorningWalk | null): Ho
 
   const line = downstairsLine(status ?? 'idle', session ? heightProgress(session) : 0);
   const running = !!session && status !== 'met' && status !== 'timedOut';
+  // The screen stays on while the height moves, since a locked phone pauses the barometer and
+  // would lose the trip. Waiting for it to move, only for the first two minutes: then it may
+  // sleep (left in bed, it would burn all morning), and opening Home again listens afresh.
+  const awake = running && (status !== 'waiting' || session.now - session.startedAt < AWAKE_WAITING_MS);
 
   // Not listening yet (the barometer's being checked, or Motion & Fitness asked for), or
-  // listening with the height still: the meter shows once it starts to move. The screen stays
-  // on while listening, since a locked phone pauses the barometer and would lose the baseline.
+  // listening with the height still: the meter shows once it starts to move.
   if (!session || status === 'timedOut' || status === 'waiting')
     return {
       icon,
       hero: { title: 'Go down a floor', body: bodyFor(undefined), aside: line },
-      action: WALK_INSTEAD,
-      keepAwake: running,
+      // The stairs listen by themselves, so there's nothing to press: walking is the other way.
+      action: null,
+      alt: WALK_INSTEAD,
+      keepAwake: awake,
     };
 
   return {
     icon,
     hero: { title: meterLabel(session), body: bodyFor(status), aside: line },
     meter: heightMeter(session),
-    action: WALK_INSTEAD,
-    keepAwake: running,
+    action: null,
+    alt: WALK_INSTEAD,
+    keepAwake: awake,
   };
 }
 

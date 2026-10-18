@@ -929,6 +929,22 @@ func renameFamilyActivitySelectionId(previousId: String, newId: String) {
   }
 }
 
+/// Locturne: which of the bedtime list ("night") and a schedule ("sched-N") speaks for an app in
+/// both. iOS's order puts the smallest list first, and both lists' activities are monitored all
+/// day, so either could win at any hour. While the night lock holds, the bedtime list's words
+/// and its "I'm up" come first; awake, a schedule's ("Asleep until 5 PM."). Anything else keeps
+/// its place: the always list's words still win, as "I'm up" can't wake those apps.
+func locturneNightFirst(_ ids: [FamilyActivitySelectionWithIdWithMatching]) -> [FamilyActivitySelectionWithIdWithMatching] {
+  guard let night = ids.firstIndex(where: { $0.id == "night" }) else { return ids }
+  let schedule = { (s: FamilyActivitySelectionWithIdWithMatching) in s.id.hasPrefix("sched-") }
+  if userDefaults?.bool(forKey: "locturne.nightHeld") == true {
+    let before = ids[..<night]
+    return before.filter { !schedule($0) } + [ids[night]] + before.filter(schedule) + ids[(night + 1)...]
+  }
+  let after = ids[(night + 1)...]
+  return ids[..<night] + after.filter(schedule) + [ids[night]] + after.filter { !schedule($0) }
+}
+
 @available(iOS 15.0, *)
 func tryGetActivitySelectionIdConfigKey(
   keyPrefix: String,
@@ -946,7 +962,7 @@ func tryGetActivitySelectionIdConfigKey(
     sortByGranularity: true
   )
 
-  let activitySelection = familyActivitySelectionIds.first {
+  let activitySelection = locturneNightFirst(familyActivitySelectionIds).first {
     (activitySelectionPair) in
     return userDefaults?.dictionary(
       forKey: keyPrefix + "_" + activitySelectionPair.id

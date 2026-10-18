@@ -227,3 +227,150 @@ struct Logger {
   func error(_ message: String) {}
   func debug(_ message: String) {}
 }
+
+// MARK: - The main queue, driven by the harness
+
+/// Stands in for `DispatchQueue.main` in the ShieldAction sources (run.sh rewrites it), so a
+/// test decides when queued work runs: `drainMain(seconds:)` moves a virtual clock on and
+/// runs what's due, in order, moving `harnessClock` with it.
+final class HarnessMainQueue {
+  struct Task { let at: Double; let seq: Int; let run: () -> Void }
+  nonisolated(unsafe) static var elapsed: Double = 0
+  nonisolated(unsafe) static var tasks: [Task] = []
+  nonisolated(unsafe) static var seq = 0
+  static func reset() { elapsed = 0; tasks = []; seq = 0 }
+  static func schedule(after delay: Double, _ run: @escaping () -> Void) {
+    seq += 1
+    tasks.append(Task(at: elapsed + max(0, delay), seq: seq, run: run))
+  }
+  func async(execute work: @escaping () -> Void) { Self.schedule(after: 0, work) }
+  /// `.now() + seconds`, on the harness's virtual clock.
+  struct Deadline {
+    let at: Double
+    static func now() -> Deadline { Deadline(at: HarnessMainQueue.elapsed) }
+    static func + (d: Deadline, seconds: Double) -> Deadline { Deadline(at: d.at + seconds) }
+  }
+  func asyncAfter(deadline: Deadline, execute work: @escaping () -> Void) {
+    Self.schedule(after: deadline.at - Self.elapsed, work)
+  }
+}
+nonisolated(unsafe) let harnessMain = HarnessMainQueue()
+
+/// Runs everything due within `seconds`, moving the clocks along. Work queued while running
+/// (the pedometer's answer, then `finish`) runs too if it falls in the window.
+func drainMain(seconds: Double) {
+  let until = HarnessMainQueue.elapsed + seconds
+  while let next = HarnessMainQueue.tasks.filter({ $0.at <= until }).min(by: { ($0.at, $0.seq) < ($1.at, $1.seq) }) {
+    HarnessMainQueue.tasks.removeAll { $0.seq == next.seq }
+    harnessClock = harnessClock.addingTimeInterval(next.at - HarnessMainQueue.elapsed)
+    HarnessMainQueue.elapsed = next.at
+    next.run()
+  }
+  harnessClock = harnessClock.addingTimeInterval(until - HarnessMainQueue.elapsed)
+  HarnessMainQueue.elapsed = until
+}
+
+// MARK: - CoreMotion
+
+/// What the motion chip says when the shield's "I'm up" asks it, set by a test.
+enum PedometerAnswer {
+  /// Steps and floors since the morning start. Nil floors: the phone has no barometer.
+  case data(steps: Int, ascended: Int? = 0, descended: Int? = 0)
+  case error
+  /// The query never comes back (the 4-second timeout answers instead).
+  case never
+}
+
+struct PedometerError: Error, LocalizedError { var errorDescription: String? { "pedometer unavailable" } }
+
+enum PedometerScript {
+  nonisolated(unsafe) static var available = true
+  nonisolated(unsafe) static var answer: PedometerAnswer = .data(steps: 0)
+  /// Seconds the query takes to answer.
+  nonisolated(unsafe) static var delay: Double = 0.3
+  /// Every query's range, in order.
+  nonisolated(unsafe) static var queries: [(from: Date, to: Date)] = []
+  static func reset() { available = true; answer = .data(steps: 0); delay = 0.3; queries = [] }
+}
+
+final class CMPedometerData {
+  let numberOfSteps: NSNumber
+  let floorsAscended: NSNumber?
+  let floorsDescended: NSNumber?
+  init(steps: Int, ascended: Int?, descended: Int?) {
+    numberOfSteps = NSNumber(value: steps)
+    floorsAscended = ascended.map { NSNumber(value: $0) }
+    floorsDescended = descended.map { NSNumber(value: $0) }
+  }
+}
+
+final class CMPedometer {
+  static func isStepCountingAvailable() -> Bool { PedometerScript.available }
+  /// Answers on another queue, as CoreMotion does; here the harness queue, after `delay`.
+  func queryPedometerData(from start: Date, to end: Date, withHandler handler: @escaping (CMPedometerData?, Error?) -> Void) {
+    PedometerScript.queries.append((start, end))
+    switch PedometerScript.answer {
+    case .never: return
+    case .error: HarnessMainQueue.schedule(after: PedometerScript.delay) { handler(nil, PedometerError()) }
+    case let .data(steps, ascended, descended):
+      HarnessMainQueue.schedule(after: PedometerScript.delay) {
+        handler(CMPedometerData(steps: steps, ascended: ascended, descended: descended), nil)
+      }
+    }
+  }
+}
+
+// MARK: - ManagedSettings: the shield's button
+
+enum ShieldAction { case primaryButtonPressed, secondaryButtonPressed }
+enum ShieldActionResponse { case close, `defer`, none }
+
+// No `ShieldActionDelegate`: its three `handle` overloads differ only by token type, and here
+// every token is one type. run.sh drops the `ShieldActionExtension` class (which only forwards
+// each to `handleAction`); a tap calls `handleAction` as its app override does.
+
+// MARK: - ManagedSettingsUI: the shield's words
+
+struct ShieldConfiguration {
+  struct Label {
+    let text: String
+    let color: UIColor
+    init(text: String, color: UIColor) { self.text = text; self.color = color }
+  }
+  var title: Label?
+  var subtitle: Label?
+  var primaryButtonLabel: Label?
+  var secondaryButtonLabel: Label?
+  init(
+    backgroundBlurStyle: UIBlurEffect.Style? = nil, backgroundColor: UIColor? = nil, icon: UIImage? = nil,
+    title: Label? = nil, subtitle: Label? = nil, primaryButtonLabel: Label? = nil,
+    primaryButtonBackgroundColor: UIColor? = nil, secondaryButtonLabel: Label? = nil
+  ) {
+    self.title = title
+    self.subtitle = subtitle
+    self.primaryButtonLabel = primaryButtonLabel
+    self.secondaryButtonLabel = secondaryButtonLabel
+  }
+}
+
+class ShieldConfigurationDataSource {
+  func configuration(shielding application: Application) -> ShieldConfiguration { ShieldConfiguration() }
+  func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration { ShieldConfiguration() }
+  func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration { ShieldConfiguration() }
+  func configuration(shielding webDomain: WebDomain, in category: ActivityCategory) -> ShieldConfiguration { ShieldConfiguration() }
+}
+
+final class UIImage {
+  init?(systemName: String) {}
+  init?(data: Data) {}
+  enum RenderingMode { case alwaysOriginal }
+  func withTintColor(_ color: UIColor, renderingMode: RenderingMode) -> UIImage { self }
+}
+
+final class UIBlurEffect {
+  struct Style { init?(rawValue: Int) {} }
+}
+
+extension UIColor {
+  static var label: UIColor { UIColor(red: 0, green: 0, blue: 0, alpha: 1) }
+}

@@ -924,8 +924,9 @@ func registerTests() {
     expectEqual(shieldTitle(forList: "night"), "Bedtime words", "not held: no morning words")
   }
 
-  test("the morning shield allows iOS ending the window a little late or early") {
-    for (time, expected) in [("06:56", true), ("07:29", true), ("07:31", false), ("06:50", false)] {
+  test("the morning shield allows iOS ending the window early, or any time late") {
+    // 06:50 is inside the night (an earlier window's end); anything past 7:00 is the morning.
+    for (time, expected) in [("06:56", true), ("07:29", true), ("07:31", true), ("09:00", true), ("06:50", false)] {
       resetWorld()
       pick("night", ["tiktok"])
       armNight()
@@ -1426,5 +1427,19 @@ func registerTests() {
     expect(locturneJudgeMorning(steps: 300, floors: 0), "woke")
     expect(!nightHeld(), "the night lets go")
     expect(shielded().contains("tiktok"), "but the used-up limit still holds tiktok")
+  }
+
+  test("while the night holds, an app in a schedule too gets the bedtime words and I'm up") {
+    pick("night", ["tiktok", "youtube", "x"]); pick("sched-0", ["tiktok"])
+    DeviceActivityCenter.monitored = [DeviceActivityName("night-0"), DeviceActivityName("sched-0")]
+    for id in ["night", "sched-0"] { set("\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_\(id)", ["title": id]) }
+    let words = { tryGetActivitySelectionIdConfigKey(keyPrefix: SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX, applicationToken: Token("tiktok")) }
+    set(LOCTURNE_NIGHT_HELD_KEY, false)
+    expectEqual(words(), "\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_sched-0", "by day the schedule's words")
+    set(LOCTURNE_NIGHT_HELD_KEY, true)
+    expectEqual(words(), "\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_night", "at night the bedtime words")
+    pick("always", ["tiktok"]); DeviceActivityCenter.monitored.append(DeviceActivityName("always"))
+    set("\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_always", ["title": "always"])
+    expectEqual(words(), "\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_always", "the always list still wins")
   }
 }

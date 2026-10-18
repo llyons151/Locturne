@@ -60,8 +60,15 @@ import {
  * A control's Host in a row: as wide as the control, as tall as the row, with the control
  * centred in it. Matching the height too let the Host come out taller than the control in the
  * Sleep sheet, and SwiftUI pins its content to the top (the schedule sheet, 2026-10-14).
+ * No safe area: the Sleep sheet slides up from below the screen, the Host took the home
+ * indicator's inset there and kept it, and its control sat above the row's middle (2026-10-17).
  */
-const IN_ROW = { matchContents: { horizontal: true }, style: { alignSelf: 'stretch' }, colorScheme: 'dark' } as const;
+const IN_ROW = {
+  matchContents: { horizontal: true },
+  style: { alignSelf: 'stretch' },
+  colorScheme: 'dark',
+  ignoreSafeArea: 'all',
+} as const;
 /** No infinity across the bridge: a height no row reaches fills it, centred. */
 const CENTRED = frame({ maxHeight: 10_000 });
 

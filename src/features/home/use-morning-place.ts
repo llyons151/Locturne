@@ -3,12 +3,11 @@ import { AppState, Linking } from 'react-native';
 
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
-import { distanceMeters, PLACE_RADIUS_M, sharpFix, submitPlaceFix, type MorningPlace } from '@/lib/place';
+import { distanceMeters, judgeFix, PLACE_RADIUS_M, sharpFix, submitPlaceFix, type Fix, type MorningPlace, type PlaceCheck } from '@/lib/place';
 
 import { shownPlace } from '../dev/wake-lab/stand-ins';
-import { pretendPhase } from '../dev/wake-lab/wake-preview';
+import { pretendPhase, pretendWoke } from '../dev/wake-lab/wake-preview';
 import { readFix } from '../place/locate';
-import { pretendCheck } from '../place/place-screen';
 import { formatDistance, placeWords, settingsCanFix, type Stage } from '../place/place-stage';
 import { usesMiles } from '../place/units';
 import { useLiveFix } from '../place/use-live-fix';
@@ -18,13 +17,23 @@ import type { HomeMorning } from './home-content';
 import { WALK_INSTEAD } from './morning';
 import type { MorningWalk } from './use-morning-walk';
 
+/** A pretend morning's check-in: judged like the real one, but nothing is recorded. */
+function pretendCheck(fix: Fix): PlaceCheck {
+  const place = shownPlace();
+  if (!place) return { kind: 'noPlace' };
+  const judged = judgeFix(place, fix, new Date());
+  if (judged.kind !== 'there') return judged;
+  pretendWoke('place');
+  return { kind: 'unlocked' };
+}
+
 /** The morning's own stages of the place flow (place-stage.ts). */
 type Check = Extract<Stage, { kind: 'morning' | 'checking' | 'notThere' | 'unsure' | 'noFix' }>;
 
 /**
  * Home's morning when the wake-up is "leave the house" (docs/HOME_INTERACTIVE.md): how far is
- * left to the place, live, and Check in right on Home. One location read decides it, as on the
- * place screen (`submitPlaceFix`); the live distance is only for show. No map: a distance does
+ * left to the place, live, and Check in right on Home. One location read decides it
+ * (`submitPlaceFix`); the live distance is only for show. No map: a distance does
  * the job here. Null while `enabled` is false. `walk` is the steps fallback, counted underneath.
  */
 export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, stepGoal: number): HomeMorning | null {

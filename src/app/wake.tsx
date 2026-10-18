@@ -1,50 +1,31 @@
 'use no memo';
-// Reads the App Group stores during render (routine, passes, limits…), which change outside
-// React. The React Compiler would cache those reads from the first render (Home mounts under
-// onboarding before a routine exists, and showed the defaults after), so it stays out here.
+// Reads the App Group stores during render (the routine, the saved code), which change outside
+// React. The React Compiler would cache those reads from the first render, so it stays out here.
 
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 
-import { AppBackground } from '@/components/app-background';
-import { WakeScreen, type WakeMethodShown } from '@/features/wake/wake-screen';
-import { routineAt } from '@/lib/lock-controller';
-import { methodInUse } from '@/lib/scan-code';
-import { shownPlace, shownScanCode } from '@/features/dev/wake-lab/stand-ins';
-import { getWakePreview } from '@/features/dev/wake-lab/wake-preview';
+import { leaveLab } from '@/components/leave-route';
+import { readLock, routineAt } from '@/lib/lock-controller';
+import { shownScanCode } from '@/features/dev/wake-lab/stand-ins';
+import { askWalk } from '@/features/home/walk-request';
 
 /**
- * The morning wake-up. `?method=steps|pushups` opens that method (the shield tap or a
- * notification can pick one); without it the routine's method opens, and a scan routine goes
- * straight to its camera. A walk, the stairs and the place check-in happen on Home itself
- * (docs/HOME_INTERACTIVE.md), so a shield tap or notification lands there; `?method=steps` is
- * still this page, the "walk instead" of push-ups and the scan. The wake preview's pretend
- * morning can still open `?method=downstairs` here.
+ * The morning wake-up has no page of its own: it happens on Home (docs/HOME_INTERACTIVE.md;
+ * the old wake screens went 2026-10-17, user). This route is kept for what still opens `/wake`
+ * (a notification or shield tap, an old link) and sends it on: a scan routine with its code
+ * saved to the camera, everything else back to the tabs already open. Not a `<Redirect>`, which
+ * would stack a second Home whose morning sensors keep running unseen. `?method=steps` asks
+ * Home for this morning's walk instead.
  */
 export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
-  // A pretend morning (/wake-preview) can open any method whatever the routine says.
-  const pretend = getWakePreview().phase !== 'real';
-  // The routine in force, as Home reads it: with an edit waiting for tonight, the saved routine
-  // isn't this morning's, and Home's button would bounce back here.
-  const routine = routineAt(new Date());
-  // Steps always (the fallback every morning offers); downstairs or push-ups only for their own routine.
-  const chosen: WakeMethodShown | undefined =
-    method === 'steps' || ((method === 'downstairs' || method === 'pushups') && (pretend || routine.method === method))
-      ? method
-      : undefined;
-  // Walks, the stairs, the place check-in and push-ups all happen on Home now (push-ups open
-  // their camera from there); the scan camera keeps its own screen.
-  const homeMethod = methodInUse(routine.method);
-  if (!chosen && (homeMethod === 'steps' || homeMethod === 'downstairs' || homeMethod === 'place' || homeMethod === 'pushups'))
-    return <Redirect href="/" />;
-  if ((chosen === 'downstairs' || chosen === 'pushups') && !pretend) return <Redirect href="/" />;
-  const scan = !chosen && routine.method === 'scan';
-  if (scan && shownScanCode()) return <Redirect href="/scan?mode=morning" />;
-  const place = !chosen && routine.method === 'place';
-  if (place && shownPlace()) return <Redirect href="/place?mode=morning" />;
-  return (
-    <AppBackground>
-      <WakeScreen method={scan || place ? 'steps' : chosen} />
-    </AppBackground>
-  );
+  useEffect(() => {
+    const routine = routineAt(new Date());
+    if (method !== 'steps' && routine.method === 'scan' && shownScanCode()) return router.replace('/scan?mode=morning');
+    // A scan routine with no code saved can only be walked.
+    if (method === 'steps' || (routine.method === 'scan' && !shownScanCode())) askWalk(readLock().morningKey);
+    leaveLab();
+  }, [method]);
+  return null;
 }

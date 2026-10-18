@@ -1,3 +1,7 @@
+'use no memo';
+// Reads the reps saved this morning during render (`getRepsDone`), which change outside React:
+// the React Compiler would cache the first read, so Home would say 0 after a set.
+
 import { useState, type ReactNode } from 'react';
 import { Linking } from 'react-native';
 

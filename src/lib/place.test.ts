@@ -17,6 +17,7 @@ const { recordProof } = await import('./morning-proof.ts');
 const { currentProof } = await import('./lock-controller.ts');
 const { methodInUse } = await import('./scan-code.ts');
 const { sharedRemove, sharedSet } = await import('./screen-time.ts');
+const rt = await import('./routine.ts');
 
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
@@ -110,6 +111,7 @@ test('the place can only change while the apps are awake', () => {
 });
 
 test('morning: only a fix at the place unlocks, and only after morning start', () => {
+  rt.saveRoutine({ ...rt.DEFAULT_ROUTINE, method: 'place' }, at(10, 1, 12), false, false, true);
   assert.equal(place.submitPlaceFix(fix(10, at(10, 6, 8)), at(10, 6, 8)).kind, 'noPlace');
   saveYesterday();
   assert.equal(place.submitPlaceFix(fix(10, at(10, 6, 3)), at(10, 6, 3)).kind, 'notMorning', 'bedtime wins');

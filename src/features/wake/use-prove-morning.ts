@@ -8,13 +8,15 @@ import { askForNotifications, shouldAskForNotifications } from '@/lib/notificati
 
 import { pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { awakeStatus } from './awake-status';
-import type { WakeMethodShown } from './wake-screen';
+
+/** The methods proved through this hook (Home's walk, stairs and push-ups). */
+export type WakeMethodShown = 'downstairs' | 'steps' | 'pushups';
 
 /**
  * A wake-up method met: record the proof (`proveMorning`, which syncs the shields), the success
  * haptic, a VoiceOver line, and the first proven morning's notification ask. Returns the new
  * state, or null when nothing was recorded (bedtime came round, or the night was off). Shared by
- * the wake screen and Home's morning walk.
+ * Home's morning walk, stairs and push-ups.
  *
  * In the wake preview's pretend morning (/wake-preview) nothing is recorded: it moves to "done".
  */
@@ -27,8 +29,10 @@ export function useProveMorning() {
         pretendWoke(kind);
         return { ...readLock(), phase: 'day' };
       }
-      const state = proveMorning(kind) ?? readLock();
-      if (state.phase !== 'day') return null;
+      // Only a proof recorded now is celebrated: one refused (another way just won this
+      // morning) mustn't buzz and speak a second time.
+      const state = proveMorning(kind);
+      if (!state || state.phase !== 'day') return null;
       announceWoke(state);
       return state;
     },

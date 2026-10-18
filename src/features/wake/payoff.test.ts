@@ -31,7 +31,7 @@ test('how late reads in minutes, hours, or right at the start', () => {
 });
 
 test('the line says the method, then the timing', () => {
-  assert.equal(payoffLine('downstairs', 426, 420), nb('Down the stairs, 6 min after 7:00 am. Your apps are awake.'));
+  assert.equal(payoffLine('downstairs', 426, 420), nb('Took the stairs, 6 min after 7:00 am. Your apps are awake.'));
   assert.equal(payoffLine('steps', 420, 420), nb('Steps walked, right at 7:00 am. Your apps are awake.'));
 });
 

@@ -31,6 +31,7 @@ export function Scanner({
   expected,
   fill,
   overlay,
+  denied,
 }: {
   onScan: (scan: Scan) => void;
   active?: boolean;
@@ -40,6 +41,8 @@ export function Scanner({
   fill?: boolean;
   /** Drawn over the camera once it's showing (not over the permission ask). */
   overlay?: ReactNode;
+  /** Under the ask, while access isn't granted: another way on (the morning's walk). */
+  denied?: ReactNode;
 }) {
   const focused = useIsFocused();
   const scanning = active && focused;
@@ -80,6 +83,7 @@ export function Scanner({
           label={permission.canAskAgain ? 'Continue' : 'Open Settings'}
           onPress={() => (permission.canAskAgain ? requestPermission() : Linking.openSettings()).catch(() => {})}
         />
+        {denied}
       </View>
     );
   }

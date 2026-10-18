@@ -1185,17 +1185,12 @@ function Beat({ label, text }: { label: string; text: string }) {
   );
 }
 
-/** The plan rows' label column at the default text size. */
-const PLAN_WHEN_WIDTH = 78;
-
+/** One beat of the plan, centred like the rest of onboarding: the label over its line. */
 function PlanRow({ when, what }: { when: string; what: string }) {
-  // The label column grows with Dynamic Type, so "Afternoon" never breaks mid-word; it keeps
-  // the rows' text lined up at any size, and sizes to a longer label rather than wrapping it.
-  const { fontScale } = useWindowDimensions();
   return (
     <Reveal style={styles.planRow}>
-      <Text style={[styles.planWhen, { minWidth: PLAN_WHEN_WIDTH * fontScale }]}>{when}</Text>
-      <Text style={styles.planWhat}>{what}</Text>
+      <Text style={styles.planWhen}>{when}</Text>
+      <Text style={styles.planWhat}>{noOrphan(what)}</Text>
     </Reveal>
   );
 }
@@ -1309,18 +1304,18 @@ const styles = StyleSheet.create({
   timeWrap: { marginTop: Gap.block },
   warning: { marginTop: Gap.block, textAlign: 'center', color: Nocturne.text },
   beats: { marginTop: Gap.block, gap: Space.xl },
-  beat: { gap: Space.s },
-  beatLabel: Type.label,
-  beatText: { ...DisplayFont, color: Nocturne.text, fontSize: 26, lineHeight: 30 },
+  beat: { gap: Space.s, alignItems: 'center' },
+  beatLabel: { ...Type.label, textAlign: 'center' },
+  beatText: { ...DisplayFont, color: Nocturne.text, fontSize: 26, lineHeight: 30, textAlign: 'center' },
   appsCard: { marginTop: Gap.block },
   methodOptions: { marginTop: Gap.block, marginBottom: Space.l },
   plan: { marginVertical: Gap.block, gap: Space.m },
-  planRow: { flexDirection: 'row', gap: Space.m, alignItems: 'baseline' },
-  // Never squeezed by the text beside it; at the largest sizes it stops at half the row.
-  planWhen: { flexShrink: 0, maxWidth: '50%', ...Type.rowKey, fontVariant: ['tabular-nums'] },
-  planWhat: { flex: 1, color: Nocturne.text, ...Type.body },
-  reassure: { color: Nocturne.text2, ...Type.secondary },
-  trail: { marginVertical: Gap.block },
+  planRow: { alignItems: 'center', gap: 2 },
+  planWhen: { ...Type.rowKey, fontVariant: ['tabular-nums'], textAlign: 'center' },
+  planWhat: { color: Nocturne.text, ...Type.body, textAlign: 'center' },
+  reassure: { color: Nocturne.text2, ...Type.secondary, textAlign: 'center' },
+  // A timeline reads down its rail, so its rows start at the rail; the block itself sits centred.
+  trail: { marginVertical: Gap.block, alignSelf: 'center' },
   trailCompact: { marginVertical: Space.l },
   stop: { flexDirection: 'row', gap: Space.m },
   // The dot sits on the title's first line; the line runs down to the next stop's dot.
@@ -1334,7 +1329,7 @@ const styles = StyleSheet.create({
   stopBody: { color: Nocturne.text2, ...Type.secondary, marginTop: 2 },
   stopBodyStrong: { color: Nocturne.text },
   founder: { marginTop: Gap.headline, gap: Space.l },
-  founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic' },
+  founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic', textAlign: 'center' },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },
   stripGap: { marginTop: Gap.block },
   foundOptions: { marginTop: Gap.block },
