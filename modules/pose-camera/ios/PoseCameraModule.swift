@@ -59,6 +59,12 @@ public class PoseCameraModule: Module {
       Prop("turn") { (view: PoseCameraView, turn: String?) in
         view.setTurn(turn ?? "portrait")
       }
+
+      /// The accelerometer says the phone is upright right now (not a preview's pretend turn):
+      /// when the camera's upright angle can be learned, before iOS 27.
+      Prop("upright") { (view: PoseCameraView, upright: Bool?) in
+        view.setHeldUpright(upright ?? false)
+      }
     }
   }
 }
@@ -91,6 +97,10 @@ final class PoseCameraView: ExpoView {
 
   func setTurn(_ turn: String) {
     reader.setTurn(turn)
+  }
+
+  func setHeldUpright(_ upright: Bool) {
+    reader.setHeldUpright(upright)
   }
 
   override func didMoveToWindow() {
@@ -133,18 +143,23 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var camera: AVCaptureDevice?
   private var output: AVCaptureVideoDataOutput?
   /// The angle that stands the front camera's picture up with the phone upright: 90 on most
-  /// iPhones, 0 on iPhone 17's (its front sensor sits a quarter turn round). Learned from Apple's
-  /// rotation coordinator, on `sessionQueue`.
-  private var portraitAngle: CGFloat = 90
+  /// iPhones, 0 on iPhone 17's (its front sensor sits a quarter turn round). Both the preview and
+  /// the frames for Vision stay at it the whole time, whichever way the phone is turned: the app
+  /// is portrait and the screen is a window onto the room. On `sessionQueue`.
+  private var portraitAngle: CGFloat = PoseReader.savedPortraitAngle ?? 90
   /// AVCaptureDevice.RotationCoordinator, iOS 17 on (main thread).
   private var coordinator: AnyObject?
   private var coordinatorWatch: NSKeyValueObservation?
-  private var orientationWatch: NSObjectProtocol?
+  /// The accelerometer says the phone is held upright right now (main thread). Before iOS 27 the
+  /// upright angle is only learned then: see `learnPortraitAngle`.
+  private var heldUpright = false
+  private var pendingLearn: DispatchWorkItem?
   /// The frames come out stood up by the connection (iOS 17 on), under `lock`. Before, they're
   /// in the sensor's own orientation and turned here with Apple's older front-camera table.
   private var framesUpright = false
-  /// Which extra quarter turn Vision reads the picture at, and the frame count, on `videoQueue`.
-  private var reading: QuarterTurn = .none
+  /// Which extra quarter turn Vision reads the picture at, past the phone's own, and the frame
+  /// count, on `videoQueue`.
+  private var reading = 0
   private var frameCount = 0
   /// Set up once, on `sessionQueue`.
   private var configured = false
@@ -155,6 +170,14 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   /// Which way the phone stands, written on main and read on `videoQueue`, under `lock`.
   private var turn = "portrait"
   private let lock = NSLock()
+
+  /// The upright angle learned on an earlier run, for a run that starts with the phone already
+  /// on its side. Only ever one phone, so one value.
+  private static let savedKey = "poseCamera.portraitAngle"
+  private static var savedPortraitAngle: CGFloat? {
+    guard let saved = UserDefaults.standard.object(forKey: savedKey) as? Double else { return nil }
+    return CGFloat(saved)
+  }
 
   /// About fifteen readings a second is plenty for push-ups and keeps the phone cool. Just under
   /// two of the camera's 30 fps frames: exactly 1/15 s missed every other pair by a hair of
@@ -206,7 +229,6 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
   deinit {
     if let runtimeObserver { NotificationCenter.default.removeObserver(runtimeObserver) }
-    if let orientationWatch { NotificationCenter.default.removeObserver(orientationWatch) }
     if coordinator != nil {
       DispatchQueue.main.async { UIDevice.current.endGeneratingDeviceOrientationNotifications() }
     }
@@ -218,13 +240,18 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     lock.unlock()
   }
 
+  /// Only what Vision reads and where the joints go change with the turn; the camera itself
+  /// stays as it is. Turning the camera's connection mid-run made the picture jump.
   func setTurn(_ next: String) {
     lock.lock()
     turn = next
     lock.unlock()
-    sessionQueue.async { [self] in
-      if configured { applyAngles() }
-    }
+  }
+
+  /// Main thread.
+  func setHeldUpright(_ upright: Bool) {
+    heldUpright = upright
+    if upright { scheduleLearn() }
   }
 
   private func currentView() -> (CGSize, String) {
@@ -302,10 +329,9 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   }
 
   /**
-   Learns which way this phone's front sensor sits from Apple's rotation coordinator (iOS 17 on):
-   its capture angle is the sensor's own turn plus the phone's, so the phone's turn taken off
-   leaves the angle for upright. A table of fixed angles was wrong on iPhone 17 (Apple, developer
-   forums 813548 and 801689). Main thread.
+   Learns which way this phone's front sensor sits, from Apple's rotation coordinator (iOS 17 on).
+   A table of fixed angles was wrong on iPhone 17 (Apple, developer forums 813548 and 801689).
+   Main thread.
    */
   private func watchRotation(_ camera: AVCaptureDevice?) {
     guard #available(iOS 17.0, *) else {
@@ -316,30 +342,40 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     UIDevice.current.beginGeneratingDeviceOrientationNotifications()
     let watched = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: previewLayer)
     coordinator = watched
-    coordinatorWatch = watched.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] _, _ in
-      DispatchQueue.main.async { self?.learnPortraitAngle() }
+    // iOS 27 says it outright, whichever way the phone is held.
+    if let upright = Self.angleForPortrait(watched) {
+      return settle(upright, save: false)
     }
-    // The coordinator's angle and UIDevice's turn don't change at the same moment. Read on the
-    // coordinator's change alone, a turn sideways could pair its new angle with the phone's old
-    // turn and learn an upright a quarter turn out, and nothing read it again: the picture then
-    // turned with the phone, so a plank showed standing up (user, 2026-10-15). Reading both
-    // again when UIDevice's turn lands settles it on the right one.
-    orientationWatch = NotificationCenter.default.addObserver(
-      forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main
-    ) { [weak self] _ in
-      self?.learnPortraitAngle()
+    coordinatorWatch = watched.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] _, _ in
+      DispatchQueue.main.async { self?.scheduleLearn() }
     }
   }
 
-  /// Main thread: the phone's own turn is read here, where UIDevice lives, with the
-  /// coordinator's angle read at the same moment.
+  /**
+   Before iOS 27 the coordinator only gives the angle for the phone as it's held right now: the
+   sensor's own turn plus the phone's. With the phone upright that's the upright angle itself.
+   It used to take the phone's turn off using UIDevice's orientation, but with rotation lock on
+   that stays portrait while the coordinator follows gravity, so a phone on its side learned an
+   upright a quarter turn out and the picture went sideways (user, 2026-10-18). So it's only
+   learned while the accelerometer says upright, a beat after the last change, when both have
+   settled; and kept for next time. Main thread.
+   */
+  private func scheduleLearn() {
+    pendingLearn?.cancel()
+    let work = DispatchWorkItem { [weak self] in self?.learnPortraitAngle() }
+    pendingLearn = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+  }
+
   private func learnPortraitAngle() {
-    guard #available(iOS 17.0, *), let watched = coordinator as? AVCaptureDevice.RotationCoordinator else { return }
-    let capture = watched.videoRotationAngleForHorizonLevelCapture
-    let phone: [UIDeviceOrientation: CGFloat] = [.portrait: 0, .landscapeLeft: 90, .portraitUpsideDown: 180, .landscapeRight: 270]
-    guard let offset = phone[UIDevice.current.orientation] else { return }
-    // Whole quarter turns only.
-    let upright = (((capture - offset) / 90).rounded() * 90 + 360).truncatingRemainder(dividingBy: 360)
+    guard #available(iOS 17.0, *), heldUpright, let watched = coordinator as? AVCaptureDevice.RotationCoordinator else { return }
+    settle(watched.videoRotationAngleForHorizonLevelCapture, save: true)
+  }
+
+  /// Main thread. Whole quarter turns only.
+  private func settle(_ angle: CGFloat, save: Bool) {
+    let upright = ((angle / 90).rounded() * 90 + 360).truncatingRemainder(dividingBy: 360)
+    if save { UserDefaults.standard.set(Double(upright), forKey: Self.savedKey) }
     sessionQueue.async { [self] in
       guard upright != portraitAngle else { return }
       portraitAngle = upright
@@ -347,19 +383,27 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
   }
 
+  /// `videoRotationAngleRelative(toDeviceOrientation: .portrait)`, new in iOS 27: a fixed angle
+  /// that doesn't follow the phone. Looked up by name, as the build's SDK may predate it.
+  @available(iOS 17.0, *)
+  private static func angleForPortrait(_ coordinator: AVCaptureDevice.RotationCoordinator) -> CGFloat? {
+    let selector = NSSelectorFromString("videoRotationAngleRelativeToDeviceOrientation:")
+    guard coordinator.responds(to: selector) else { return nil }
+    typealias Call = @convention(c) (AnyObject, Selector, Int) -> CGFloat
+    let call = unsafeBitCast(coordinator.method(for: selector), to: Call.self)
+    return call(coordinator, selector, AVCaptureVideoOrientation.portrait.rawValue)
+  }
+
   /**
-   On `sessionQueue`. The preview stays at the upright angle: the app is portrait and the screen is
-   a window onto the room. The frames for Vision are turned to stand up with the phone as it
-   stands (`turn`), so a person reads the right way up whichever way it's leaning.
+   On `sessionQueue`. The preview and the frames both stay at the upright angle, so the frames are
+   the picture as the screen shows it; captureOutput turns them for Vision to the phone's turn.
    */
   private func applyAngles() {
     guard #available(iOS 17.0, *) else { return }
-    let (_, turn) = currentView()
-    let extra: CGFloat = turn == "landscapeLeft" ? 90 : turn == "landscapeRight" ? 270 : 0
-    let capture = (portraitAngle + extra).truncatingRemainder(dividingBy: 360)
+    let angle = portraitAngle
     var upright = false
-    if let connection = output?.connection(with: .video), connection.isVideoRotationAngleSupported(capture) {
-      if connection.videoRotationAngle != capture { connection.videoRotationAngle = capture }
+    if let connection = output?.connection(with: .video), connection.isVideoRotationAngleSupported(angle) {
+      if connection.videoRotationAngle != angle { connection.videoRotationAngle = angle }
       // Unmirrored, so the one mirror (in captureOutput, to match the preview) is the only one.
       if connection.isVideoMirroringSupported {
         connection.automaticallyAdjustsVideoMirroring = false
@@ -370,10 +414,9 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     lock.lock()
     framesUpright = upright
     lock.unlock()
-    let preview = portraitAngle
     DispatchQueue.main.async { [weak self] in
-      guard let connection = self?.previewLayer.connection, connection.isVideoRotationAngleSupported(preview) else { return }
-      if connection.videoRotationAngle != preview { connection.videoRotationAngle = preview }
+      guard let connection = self?.previewLayer.connection, connection.isVideoRotationAngleSupported(angle) else { return }
+      if connection.videoRotationAngle != angle { connection.videoRotationAngle = angle }
     }
   }
 
@@ -391,34 +434,36 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     sawFrame()
 
     let (view, turn) = currentView()
-    let side = turn == "landscapeLeft" || turn == "landscapeRight"
     lock.lock()
     let standing = framesUpright
     lock.unlock()
 
-    // The picture as you see it on the turned phone, mirrored like the preview, in Core Image's
-    // space (origin bottom-left, like Vision's points).
+    // The picture as the screen shows it with the phone upright, mirrored like the preview, in
+    // Core Image's space (origin bottom-left, like Vision's points).
     var picture = CIImage(cvPixelBuffer: pixels)
     if standing {
       picture = picture.transformed(by: CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -picture.extent.width, y: 0))
     } else {
       // Apple's older table for the front camera (its VisionFaceTrack sample).
-      picture = picture.oriented(turn == "landscapeLeft" ? .downMirrored : turn == "landscapeRight" ? .upMirrored : .leftMirrored)
+      picture = picture.oriented(.leftMirrored)
     }
     picture = picture.atOrigin()
 
-    // A plank lies across the picture, and Vision reads bodies that stand (Apple, WWDC20 "Detect
-    // Body and Hand Pose with Vision": bent-over bodies don't read as well). So it also reads the
-    // picture a quarter turn either way, where the plank stands head up, and keeps whichever finds
-    // more of the arm and torso. The points are turned back before they're used.
+    // On its side, the room in the picture lies a quarter turn round: turned back, the way you see
+    // the screen's contents. A plank then lies across it, and Vision reads bodies that stand
+    // (Apple, WWDC20 "Detect Body and Hand Pose with Vision": bent-over bodies don't read as
+    // well). So it also reads it a quarter turn either way, where the plank stands head up, and
+    // keeps whichever finds more of the arm and torso. The points are turned back before they're used.
+    // Right edge up (landscapeLeft), the room's up is at the picture's right, so it turns anticlockwise.
+    let phone = turn == "landscapeLeft" ? 3 : turn == "landscapeRight" ? 1 : 0
     frameCount += 1
-    var best = read(picture, reading)
+    var best = read(picture, quarters: phone + reading)
     let struggling = best.score < 2.4
     if struggling || frameCount % 6 == 0 {
-      let others = QuarterTurn.allCases.filter { $0 != reading }
+      let others = [0, 1, 3].filter { $0 != reading }
       let tries = struggling ? others : [others[(frameCount / 6) % others.count]]
       for other in tries {
-        let found = read(picture, other)
+        let found = read(picture, quarters: phone + other)
         if found.score > best.score + 0.3 {
           best = found
           reading = other
@@ -426,24 +471,30 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
       }
     }
 
-    // The picture fills the view (aspect fill), so scale up and centre, as the preview does. On
-    // its side the screen turns too, so the box the joints go in is the view with its sides swapped.
+    // The picture fills the view (aspect fill), so scale up and centre, as the preview does.
     let width = picture.extent.width
     let height = picture.extent.height
-    let size = side ? CGSize(width: view.height, height: view.width) : view
-    let scale = max(size.width / width, size.height / height)
-    let dx = (size.width - width * scale) / 2
-    let dy = (size.height - height * scale) / 2
+    let scale = max(view.width / width, view.height / height)
+    let dx = (view.width - width * scale) / 2
+    let dy = (view.height - height * scale) / 2
 
     var joints: [String: [String: Double]] = [:]
     for (key, point) in best.points {
       // Vision's origin is bottom-left, 0–1; the view's is top-left, in points.
       let x = point.x * width * scale + dx
       let y = (1 - point.y) * height * scale + dy
-      joints[key] = ["x": Double(x), "y": Double(y), "c": point.c]
+      // On its side the screen's contents are turned to stand up with the phone (pushups-view.tsx),
+      // so the joints go in that turned box: as wide as the view is tall.
+      let at: CGPoint
+      switch turn {
+      case "landscapeLeft": at = CGPoint(x: y, y: view.width - x)
+      case "landscapeRight": at = CGPoint(x: view.height - y, y: x)
+      default: at = CGPoint(x: x, y: y)
+      }
+      joints[key] = ["x": Double(at.x), "y": Double(at.y), "c": point.c]
     }
     // `info` is for the wake lab's tuning readout: what the camera handed over and how it was read.
-    let info: [String: Any] = ["w": Double(width), "h": Double(height), "read": best.turn.name, "upright": standing, "score": best.score]
+    let info: [String: Any] = ["w": Double(width), "h": Double(height), "read": QuarterTurn.name(best.quarters - phone), "upright": standing, "score": best.score]
     let pose: [String: Any] = ["at": Date().timeIntervalSince1970 * 1000, "joints": joints, "info": info]
     DispatchQueue.main.async { [weak self] in self?.onPose?(pose) }
   }
@@ -453,7 +504,7 @@ extension PoseReader {
   /// One reading: the joints found (in the picture's 0–1 space, origin bottom-left) and how much of
   /// the best side's arm and torso it found, the sum of four confidences.
   struct Reading {
-    let turn: QuarterTurn
+    let quarters: Int
     let points: [(String, (x: CGFloat, y: CGFloat, c: Double))]
     let score: Double
   }
@@ -463,13 +514,15 @@ extension PoseReader {
     [.rightShoulder, .rightElbow, .rightWrist, .rightHip],
   ]
 
-  func read(_ picture: CIImage, _ turn: QuarterTurn) -> Reading {
+  /// Reads the picture turned `quarters` quarter turns clockwise.
+  func read(_ picture: CIImage, quarters: Int) -> Reading {
+    let turn = QuarterTurn(quarters)
     let request = VNDetectHumanBodyPoseRequest()
     let handler = VNImageRequestHandler(ciImage: turn.apply(to: picture), options: [:])
     guard (try? handler.perform([request])) != nil,
       let body = request.results?.max(by: { $0.confidence < $1.confidence }),
       let found = try? body.recognizedPoints(.all)
-    else { return Reading(turn: turn, points: [], score: 0) }
+    else { return Reading(quarters: turn.quarters, points: [], score: 0) }
     var score = 0.0
     for side in Self.sides {
       var sum = 0.0
@@ -484,39 +537,44 @@ extension PoseReader {
       let back = turn.unturn(point.location)
       points.append((key, (back.x, back.y, Double(point.confidence))))
     }
-    return Reading(turn: turn, points: points, score: score)
+    return Reading(quarters: turn.quarters, points: points, score: score)
   }
 }
 
-/// A quarter turn of the picture before Vision reads it, and back for the points it finds.
-enum QuarterTurn: CaseIterable {
-  case none, clockwise, anticlockwise
+/// Some quarter turns clockwise of the picture before Vision reads it, and back for the points it finds.
+struct QuarterTurn {
+  /// 0–3.
+  let quarters: Int
 
-  var name: String {
-    switch self {
-    case .none: return "as is"
-    case .clockwise: return "turned cw"
-    case .anticlockwise: return "turned acw"
+  init(_ quarters: Int) {
+    self.quarters = ((quarters % 4) + 4) % 4
+  }
+
+  /// For the wake lab's readout: the extra turn past the phone's own.
+  static func name(_ extra: Int) -> String {
+    switch QuarterTurn(extra).quarters {
+    case 0: return "as is"
+    case 1: return "turned cw"
+    case 3: return "turned acw"
+    default: return "upside down"
     }
   }
 
-  /// Core Image's y points up, so a positive angle turns anticlockwise.
+  /// Core Image's y points up, so a negative angle turns clockwise.
   func apply(to picture: CIImage) -> CIImage {
-    switch self {
-    case .none: return picture
-    case .clockwise: return picture.transformed(by: CGAffineTransform(rotationAngle: -.pi / 2)).atOrigin()
-    case .anticlockwise: return picture.transformed(by: CGAffineTransform(rotationAngle: .pi / 2)).atOrigin()
-    }
+    guard quarters != 0 else { return picture }
+    return picture.transformed(by: CGAffineTransform(rotationAngle: -CGFloat(quarters) * .pi / 2)).atOrigin()
   }
 
   /// A point Vision found in the turned picture (0–1, origin bottom-left), in the picture as it was.
   func unturn(_ p: CGPoint) -> CGPoint {
-    switch self {
-    case .none: return p
+    switch quarters {
     // Turned clockwise, the picture's (x, y) went to (y, 1 − x).
-    case .clockwise: return CGPoint(x: 1 - p.y, y: p.x)
+    case 1: return CGPoint(x: 1 - p.y, y: p.x)
+    case 2: return CGPoint(x: 1 - p.x, y: 1 - p.y)
     // Turned anticlockwise, (x, y) went to (1 − y, x).
-    case .anticlockwise: return CGPoint(x: p.y, y: 1 - p.x)
+    case 3: return CGPoint(x: p.y, y: 1 - p.x)
+    default: return p
     }
   }
 }

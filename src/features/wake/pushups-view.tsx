@@ -236,13 +236,18 @@ const PHONE_PILLS: Record<PhoneHint, string> = {
 };
 
 /** Which way the phone stands: the preview's pretend one, or the accelerometer's. Upright until it knows. */
-function useTurn(live: boolean, finding: boolean, preview?: PushupsPreview): { turn: PhoneTurn; hint: PhoneHint | null } {
+function useTurn(
+  live: boolean,
+  finding: boolean,
+  preview?: PushupsPreview,
+): { turn: PhoneTurn; hint: PhoneHint | null; upright: boolean } {
   const sensed = usePhone(live);
   const forced = preview && preview.phone !== 'sensor' ? PREVIEW_PHONES[preview.phone] : null;
   const turn = forced?.turn ?? sensed.turn ?? 'portrait';
   const hint = forced ? (live ? forced.hint : null) : sensed.hint;
-  // Upright counts too: the nudge to turn it only while he's still looking for you.
-  return { turn, hint: hint === 'tall' && !finding ? null : hint };
+  // Upright counts too: the nudge to turn it only while he's still looking for you. `upright` is the
+  // accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
+  return { turn, hint: hint === 'tall' && !finding ? null : hint, upright: sensed.turn === 'portrait' && sensed.hint !== 'flat' };
 }
 
 /**
@@ -315,7 +320,7 @@ export function PushupsCamera({
   // The phone on its side (the main way) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn, hint: phone } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
+  const { turn, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
   const height = side ? screen.width : screen.height;
@@ -443,7 +448,7 @@ export function PushupsCamera({
     <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={close} statusBarTranslucent>
       <View style={styles.camera}>
         {drawn ? null : (
-          <PoseCameraView style={StyleSheet.absoluteFill} active={!met && !timedOut} turn={turn} onPose={onPose} onCameraError={onError} />
+          <PoseCameraView style={StyleSheet.absoluteFill} active={!met && !timedOut} turn={turn} upright={upright} onPose={onPose} onCameraError={onError} />
         )}
         {/* Everything over the picture, turned to stand up with the phone. */}
         <View

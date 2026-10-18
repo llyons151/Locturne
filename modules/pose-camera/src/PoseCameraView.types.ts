@@ -21,6 +21,8 @@ export type PoseCameraViewProps = ViewProps & {
    * the view is tall. Upright by default.
    */
   turn?: PhoneTurn;
+  /** The accelerometer says upright right now: when the iPhone learns which way its front camera sits. */
+  upright?: boolean;
   /** About fifteen times a second: the joints found, in this view's own points, y down. */
   onPose: (pose: PoseEvent) => void;
   onCameraError?: (reason: PoseCameraError) => void;

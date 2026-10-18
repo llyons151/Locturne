@@ -13,6 +13,7 @@ export const isPoseCameraAvailable =
 type NativeProps = ViewProps & {
   active: boolean;
   turn?: string;
+  upright?: boolean;
   onPose: (event: { nativeEvent: PoseEvent }) => void;
   onCameraError: (event: { nativeEvent: { reason: PoseCameraError } }) => void;
 };
