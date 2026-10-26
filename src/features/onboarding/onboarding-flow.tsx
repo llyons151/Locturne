@@ -16,7 +16,6 @@ import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useCompact } from '@/hooks/use-compact';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
-import { useStepCount } from '@/hooks/use-step-count';
 import {
   answerFor,
   registerProperties,
@@ -25,7 +24,6 @@ import {
   track,
 } from '@/lib/analytics';
 import { armTonight, type ArmResult } from '@/lib/arm';
-import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
 import { askForNotifications, getNotificationPermission, rescheduleNotifications, sendFirstNote, type NotificationPermission } from '@/lib/notifications';
@@ -59,9 +57,8 @@ import {
 import { Nocturne } from '@/theme';
 
 import { firstEnabledNight, scheduleCopy } from './schedule-copy';
-import { chaptersFor, initialAnswers, isNewYearWeek, painAnswer, PAINS, WALK_GOAL, type Answers, type ExitOffer, type Pain, type StepId } from './content';
+import { chaptersFor, initialAnswers, isNewYearWeek, painAnswer, PAINS, type Answers, type ExitOffer, type Pain, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
-import { requestMethodAccess } from './method-access';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav, stepsFor } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
@@ -69,13 +66,11 @@ import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, was
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { BUILD_EXIT_MS, BuildFloor } from './screens/build-chapter';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
-import { renderStep, type WalkState } from './steps';
+import { renderStep } from './steps';
 import { Intro } from './intro';
 import { OpenerScene } from './opener-scene';
 import { FooterEnter, Shell, StepEnter, useSwap, type Progress } from './ui';
 
-/** Any fixed date: the walk's count is off until it starts. */
-const WALK_EPOCH = new Date(0);
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
 /** The two paywall pages. Exit from either goes to `declined` instead of closing. */
@@ -209,7 +204,7 @@ export function OnboardingFlow({
     [answers],
   );
 
-  // Onboarding inside their own bedtime window, e.g. at 12:40 AM: they're in bed, so the walk is skipped.
+  // Onboarding inside their own bedtime window, e.g. at 12:40 AM: they're in bed.
   const lateNight = isInsideBedtime(answers.bedtime, answers.wake);
   // Fixed for the visit, so the copy can't change mid-flow at midnight on January 9.
   const [newYear] = useState(() => previewNewYear || isNewYearWeek());
@@ -339,7 +334,7 @@ export function OnboardingFlow({
     }
     dispatch({ type: 'go', to });
   };
-  const next = () => dispatch({ type: 'next', skip: lateNight ? ['walk'] : [], at: history.length, visit: nav.visit });
+  const next = () => dispatch({ type: 'next', at: history.length, visit: nav.visit });
   const edit = (to: StepId) => dispatch({ type: 'edit', to });
   const back = canGoBack(nav)
     ? () => {
@@ -698,80 +693,6 @@ export function OnboardingFlow({
   // The trial reminder needs notifications, and with every night off no later moment asks.
   const openRoutine = () => ask(leaveForRoutine, false);
 
-  /*
-   * The 20-step walk before the paywall, right after the demo. Counting starts on "Start walking", which is also
-   * when iOS asks for Motion & Fitness (useStepCount asks). Steps from that moment only, and
-   * only while the page is open. The web preview fakes a steady walk.
-   */
-  const [walkStart, setWalkStart] = useState<Date | null>(null);
-  const [walkDone, setWalkDone] = useState(false);
-  const [walkSeconds, setWalkSeconds] = useState<number | null>(null);
-  const counting = walkStart !== null && !walkDone && step === 'walk';
-  const realWalk = useStepCount(Platform.OS === 'ios' && counting, walkStart ?? WALK_EPOCH, WALK_GOAL);
-  const [fakeSteps, setFakeSteps] = useState(0);
-  useEffect(() => {
-    if (Platform.OS === 'ios' || !counting) return;
-    const tick = setInterval(() => setFakeSteps((n) => Math.min(WALK_GOAL, n + 1)), 450);
-    return () => clearInterval(tick);
-  }, [counting]);
-  const walkSteps = Platform.OS === 'ios' ? realWalk.steps : fakeSteps;
-  const walkStatus = Platform.OS === 'ios' ? realWalk.status : 'counting';
-  // Both are set while rendering (React's "adjusting state when a prop changes"), so the
-  // page never draws a frame with stale values in between.
-  if (walkStart && !walkDone && walkStatus === 'counting' && walkSteps >= WALK_GOAL) {
-    setWalkDone(true);
-    // eslint-disable-next-line react-hooks/purity -- read once, when the walk finishes
-    setWalkSeconds(Math.max(1, Math.round((Date.now() - walkStart.getTime()) / 1000)));
-  }
-  useEffect(() => {
-    if (walkDone) haptic.done();
-  }, [walkDone]);
-  // The walk's answer is the Motion & Fitness answer, for the pages after it.
-  const [seenWalkStatus, setSeenWalkStatus] = useState(walkStatus);
-  if (walkStart && Platform.OS === 'ios' && walkStatus !== seenWalkStatus) {
-    setSeenWalkStatus(walkStatus);
-    if (walkStatus === 'counting') setMotion('granted');
-    else if (walkStatus === 'denied' || walkStatus === 'unavailable') setMotion(walkStatus);
-  }
-  const walk: WalkState = !walkStart
-    ? { phase: 'idle', steps: 0 }
-    : walkDone
-      ? { phase: 'done', steps: WALK_GOAL }
-      : walkStatus === 'denied' || walkStatus === 'unavailable'
-        ? { phase: walkStatus, steps: 0 }
-        : { phase: 'counting', steps: Math.min(walkSteps, WALK_GOAL) };
-  // How the walk ended, never the count (docs/ANALYTICS.md, "Privacy").
-  const walkEnded = useEffectEvent((result: 'done' | 'denied' | 'unavailable') => {
-    const seconds = walkStart ? Math.round((Date.now() - walkStart.getTime()) / 1000) : 0;
-    track('walk_finished', { result, seconds });
-  });
-  useEffect(() => {
-    if (walk.phase === 'done' || walk.phase === 'denied' || walk.phase === 'unavailable') walkEnded(walk.phase);
-  }, [walk.phase]);
-  // Motion first, then the wake-up way's own prompt (camera or location), then the count.
-  const [startingWalk, setStartingWalk] = useState(false);
-  const startWalk = async () => {
-    if (startingWalk) return;
-    track('walk_started', {});
-    const method = answers.method ?? 'steps';
-    if (Platform.OS !== 'ios') {
-      const extra = method === 'place' ? ', then location' : method === 'scan' || method === 'pushups' ? ', then the camera' : '';
-      simulate(`iOS asks for Motion & Fitness${extra} here. “Don’t Allow” is always an option.`, () => {
-        setMotion('granted');
-        setWalkStart(new Date());
-      });
-      return;
-    }
-    setStartingWalk(true);
-    try {
-      await requestMotion();
-      await requestMethodAccess(method);
-      setWalkStart(new Date());
-    } finally {
-      setStartingWalk(false);
-    }
-  };
-
   // While the moon moves (to or from the opener, or into and out of the quiz), the page
   // waits so text enters once it lands.
   const reducedMotion = useReducedMotion();
@@ -863,9 +784,6 @@ export function OnboardingFlow({
     trialEnds,
     askPermissions,
     asking,
-    walk,
-    walkSeconds,
-    startWalk,
     payoff: payoffAt === visit,
     onPayoff,
     reduced: reducedMotion,

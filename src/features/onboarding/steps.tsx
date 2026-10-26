@@ -2,14 +2,14 @@
 // Reads the App Group during render through `methodCopy` (the step goal, a saved scan code),
 // which changes outside React: the React Compiler would cache it (#130), so it stays out here.
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { GlassCard } from '@/components/glass-card';
+import Animated, { Easing, Keyframe, LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppsCard, type LivePicks } from '@/components/app-picker';
-import { PrimaryButton, ProgressButton, TextButton } from '@/components/buttons';
+import { PrimaryButton, TextButton } from '@/components/buttons';
 import { DayRow } from '@/components/day-picker';
 import { Reveal } from '@/components/motion';
 import { quizContentTop } from '@/components/night-sky';
@@ -28,7 +28,6 @@ import { DisplayFont, Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
 import {
   AFTER_FEEL,
   BUILD,
-  BUILD_BODY,
   feelingOffer,
   FOUND,
   FOUNDER,
@@ -47,8 +46,6 @@ import {
   timeBackChoices,
   timeBackQuestion,
   triedChoices,
-  WALK_GOAL,
-  walkLine,
   type Answers,
   type ExitOffer,
   type Pain,
@@ -71,11 +68,10 @@ import { ScheduleCard } from './schedule-card';
 import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { BuildChapter } from './screens/build-chapter';
 import { RevealScreen } from './screens/reveal-screen';
-import { WalkMeter } from './screens/walk-meter';
 import { RollingCount } from './rolling-count';
-import { demoLength, TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
-import { Body, Eyebrow, HoldButton, Options, page, PreviewNote, Ready, Reply, Title, TonightStrip, Voice } from './ui';
-import { wakeDayFor, walkCopy } from './walk-copy';
+import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
+import { Body, Eyebrow, HoldButton, Options, page, PreviewNote, Ready, Reply, Title, Voice } from './ui';
+import { wakeDayFor } from './wake-day';
 
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */
 export type StepContext = {
@@ -133,7 +129,7 @@ export type StepContext = {
   retryArm: () => void;
   /** Asks for notifications if iOS still would, then leaves for the Routine tab (`arm` came back `nights-off`). */
   openRoutine: () => void;
-  /** Motion & Fitness: answered on the walk or on `armed`. Null while iOS would still ask. */
+  /** Motion & Fitness: answered on `armed`. Null while iOS would still ask. */
   motion: MotionAccess | null;
   /** Notifications, as iOS has them once `armed` is shown. Null until checked. */
   notifications: NotificationPermission | null;
@@ -143,22 +139,11 @@ export type StepContext = {
   askPermissions: () => void;
   /** iOS's prompts are up: Continue waits, so a double tap can't skip a step. */
   asking: boolean;
-  /** The 20-step walk, right after the demo: live on an iPhone, faked in the web preview. */
-  walk: WalkState;
-  /** How long the walk took, once it's done. */
-  walkSeconds: number | null;
-  /** Starts counting; iOS asks for Motion & Fitness at this moment. */
-  startWalk: () => void;
   /** The reveal's or the demo's payoff has played (or the backstop ran out): its button wakes. */
   payoff: boolean;
   onPayoff: () => void;
   /** Reduce Motion is on: the demo plays as still states, and sooner. */
   reduced: boolean;
-};
-
-export type WalkState = {
-  phase: 'idle' | 'counting' | 'done' | 'denied' | 'unavailable';
-  steps: number;
 };
 
 /**
@@ -211,12 +196,6 @@ export function renderStep(ctx: StepContext): StepView {
   const phoneDown = formatWhen(numbers.phoneDown);
   // The morning branch asks the alarm first, so bedtime is still the default on `wake`.
   const bedtimeAsked = pain !== 'morning' || editing;
-  // Tonight, filling in as setup goes: the times, how they'll prove they're up, the apps.
-  const tonight = (upTo: 'times' | 'method' | 'apps') => [
-    `${formatClock(answers.bedtime)} → ${wake}`,
-    upTo === 'times' ? null : method.short,
-    upTo === 'apps' && pickCount > 0 ? `${pickCount} ${pickCount === 1 ? 'app' : 'apps'}` : null,
-  ];
 
   switch (step) {
     case 'hello': {
@@ -329,7 +308,7 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'build':
       return {
-        body: <BuildChapter title={BUILD[pain]} body={BUILD_BODY} />,
+        body: <BuildChapter title={BUILD[pain]} />,
         footer: <PrimaryButton label="Let’s go" onPress={next} />,
       };
 
@@ -516,87 +495,6 @@ export function renderStep(ctx: StepContext): StepView {
         ),
       };
 
-    case 'walk': {
-      const copy = walkCopy(answers.method ?? 'steps', wakeDay, goals);
-      const { phase, steps } = ctx.walk;
-      if (phase === 'denied' || phase === 'unavailable') {
-        // Never a dead end: say what it means for the first morning, then carry on to the price.
-        const noCounter = phase === 'unavailable';
-        return {
-          body: (
-            <View style={page.top}>
-              <Voice text={noCounter ? 'I can’t count steps on this.' : 'No motion, no counting.'} size={VoiceSize.headline} header />
-              <View style={page.gapHeadline} />
-              <Body>
-                {noCounter
-                  ? answers.method === 'steps'
-                    ? 'This device has no step counter, so steps can’t wake your apps here. Stairs or a scan code can.'
-                    : 'This device has no step counter. Stairs and a scan code still work.'
-                  : 'Motion & Fitness is off, so I can’t count steps or feel stairs. Turn it on in Settings before bed.'}
-              </Body>
-            </View>
-          ),
-          footer: <PrimaryButton label="Continue" onPress={next} />,
-          secondary: noCounter ? (
-            answers.method === 'steps' ? <TextButton label="Pick another way" onPress={() => edit('method')} /> : undefined
-          ) : (
-            <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
-          ),
-        };
-      }
-      if (phase === 'idle') {
-        // The walking page's layout with the meter at 0, so "Start walking" only starts it filling.
-        // Under it, the prompts this way opens: Motion for the walk, then its own (method-access.ts).
-        return {
-          body: (
-            <View style={page.top}>
-              <Voice text="Wake me up a bit." size={VoiceSize.headline} header />
-              <View style={page.gapHeadline} />
-              <Body>{copy.intro}</Body>
-              <View style={styles.walkSpacer} />
-              <WalkMeter steps={0} goal={WALK_GOAL} note={copy.access} />
-            </View>
-          ),
-          footer: <PrimaryButton label="Start walking" onPress={ctx.startWalk} />,
-          secondary: <TextButton label="Not now" onPress={next} />,
-        };
-      }
-      const done = phase === 'done';
-      return {
-        body: (
-          <View style={page.top}>
-            <Voice text={walkLine(steps)} size={VoiceSize.headline} header />
-            <View style={page.gapHeadline} />
-            {done ? <Body>{copy.done}</Body> : null}
-            <View style={styles.walkSpacer} />
-            {done ? (
-              // The result card (Duolingo's lesson card): what they just did, in numbers.
-              <Ready ready>
-                <GlassCard dark style={styles.resultCard}>
-                <View style={styles.result} accessible accessibilityLabel={`${WALK_GOAL} steps${ctx.walkSeconds ? ` in ${ctx.walkSeconds} seconds` : ''}. Proven: you can stand.`}>
-                  <View style={styles.resultRow}>
-                    <ResultCell value={String(WALK_GOAL)} label="Steps" />
-                    {ctx.walkSeconds ? <ResultCell value={formatSeconds(ctx.walkSeconds)} label="Time" /> : null}
-                    <ResultCell value="Yes" label="Up" />
-                  </View>
-                  <Text style={styles.resultLine}>Proven: you can stand.</Text>
-                </View>
-                </GlassCard>
-              </Ready>
-            ) : (
-              <WalkMeter steps={steps} goal={WALK_GOAL} />
-            )}
-          </View>
-        ),
-        footer: done ? (
-          <PrimaryButton label="Set it up" onPress={next} />
-        ) : (
-          <PrimaryButton label={`${WALK_GOAL - steps} to go`} disabled onPress={() => {}} />
-        ),
-        secondary: done ? undefined : <TextButton label="Skip" onPress={next} />,
-      };
-    }
-
     case 'tomorrow':
       return {
         body: (
@@ -610,18 +508,8 @@ export function renderStep(ctx: StepContext): StepView {
             onPayoff={ctx.onPayoff}
           />
         ),
-        // The walk comes next, so "try it"; late at night it's skipped and setup is next.
-        // The button is the demo's progress bar: it fills as the demo plays, and wakes at its payoff.
-        footer: (
-          <ProgressButton
-            label={lateNight ? 'Set it up' : 'Try it'}
-            ms={demoLength({ method: answers.method ?? 'steps', reps: goals.reps, night: pain === 'night', reduced: ctx.reduced })}
-            ready={ctx.payoff}
-            onPress={next}
-          />
-        ),
-        // Seen it, or just want in: Skip until the payoff, then the button takes over.
-        secondary: ctx.payoff ? undefined : <TextButton label="Skip" onPress={next} />,
+        // A plain button, tappable from the start (user, 2026-10-26: not a progress bar), so no Skip.
+        footer: <PrimaryButton label="Set it up" onPress={next} />,
       };
 
     case 'screen-time':
@@ -674,8 +562,8 @@ export function renderStep(ctx: StepContext): StepView {
             <Title>{pain === 'overall' ? 'Which apps eat the most time?' : 'Which apps keep you up?'}</Title>
             <Body style={styles.sub}>
               {pain === 'overall'
-                ? 'They sleep at bedtime and wake once you’re up. Daytime limits are in the Apps tab later. Phone calls always get through.'
-                : 'They sleep at bedtime and wake once you’re up. Phone calls always get through.'}
+                ? 'They sleep at bedtime and wake once you’re up. Daytime limits are in the Apps tab later.'
+                : 'They sleep at bedtime and wake once you’re up.'}
             </Body>
             <View style={styles.appsCard}>
               <AppsCard
@@ -696,11 +584,6 @@ export function renderStep(ctx: StepContext): StepView {
                 />
               </>
             ) : null}
-            {picked && !compact ? (
-              <View style={styles.stripGap}>
-                <TonightStrip parts={tonight('apps')} />
-              </View>
-            ) : null}
           </View>
         ),
         footer: (
@@ -712,6 +595,8 @@ export function renderStep(ctx: StepContext): StepView {
             onPress={!picked ? openPicker : editing ? next : sleep}
           />
         ),
+        // Same way out as Screen Time's: on with no apps, picked later in the Apps tab.
+        secondary: picked || editing ? undefined : <TextButton label="Set up later" onPress={next} />,
       };
     }
 
@@ -755,12 +640,6 @@ export function renderStep(ctx: StepContext): StepView {
                       ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days.'
                       : 'Two passes a month for bad days. Tap anything to change it.'}
                   </Body>
-                )}
-                {compact ? null : (
-                  <>
-                    <View style={page.gapAside} />
-                    <Voice text="I’m ready. Emotionally, less so." size={VoiceSize.aside} delay={700} />
-                  </>
                 )}
               </>
             }
@@ -1045,20 +924,6 @@ function moonQuestion(
   };
 }
 
-function ResultCell({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.resultCell}>
-      <Text style={styles.resultValue}>{value}</Text>
-      <Text style={styles.resultLabel}>{label.toUpperCase()}</Text>
-    </View>
-  );
-}
-
-/** 14 → "0:14". */
-function formatSeconds(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
 const COUNT_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
 const countWord = (n: number) => COUNT_WORDS[n] ?? String(n);
 
@@ -1069,13 +934,40 @@ const SKIPPED_NIGHT_MINUTES = 30;
 
 function SoFar({ minutes }: { minutes: number }) {
   const { count, unit } = weeklyParts(minutes);
+  const reduced = useReducedMotion();
+  const [last, setLast] = useState({ minutes, up: true });
+  if (last.minutes !== minutes) setLast({ minutes, up: minutes > last.minutes });
+  // Crossing between minutes and hours, the digits would roll the wrong way ("30" down to "1")
+  // while the word snaps. So the whole thing swaps as one piece instead, on the way the time went.
+  const scale = unit === 'minutes' ? 'minutes' : 'hours';
+  const travel = SO_FAR_TRAVEL * (last.up ? 1 : -1);
   return (
     // The number is the result, so it's the big thing; the words sit small under it like the day count.
     <View style={styles.soFar} accessible accessibilityLabel={`${count} ${unit} lost a week.`}>
-      <RollingCount value={count} size={56} style={styles.soFarCount} />
-      <Text style={styles.soFarUnit}>{`${unit} lost a week`}</Text>
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View
+          key={scale}
+          entering={reduced ? undefined : soFarSwap(travel, 'in')}
+          exiting={reduced ? undefined : soFarSwap(-travel, 'out')}
+          style={styles.soFarFace}
+        >
+          <RollingCount value={count} size={56} style={styles.soFarCount} />
+          <Text style={styles.soFarUnit}>{`${unit} lost a week`}</Text>
+        </Animated.View>
+      </LayoutAnimationConfig>
     </View>
   );
+}
+
+const SO_FAR_TRAVEL = 24;
+
+/** `SoFar`'s swap between minutes and hours: a short rise (or fall) with a fade, nothing more. */
+function soFarSwap(travel: number, way: 'in' | 'out') {
+  const moved = { opacity: 0, transform: [{ translateY: travel }] };
+  const still = { opacity: 1, transform: [{ translateY: 0 }] };
+  return way === 'in'
+    ? new Keyframe({ 0: moved, 100: { ...still, easing: Easing.out(Easing.cubic) } }).duration(360)
+    : new Keyframe({ 0: still, 100: { ...moved, easing: Easing.in(Easing.cubic) } }).duration(220);
 }
 
 function MoonQuestionHead({ title, sub, risen }: { title: string; sub?: string; risen: boolean }) {
@@ -1206,7 +1098,6 @@ function FineLink({ label, url }: { label: string; url: string }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center' },
-  walkSpacer: { flex: 1, minHeight: Space.xl },
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
   opener: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: Space.xl },
@@ -1219,9 +1110,11 @@ const styles = StyleSheet.create({
   moonQuestion: { flex: 1, gap: Gap.block, paddingBottom: Space.s },
   moonTitle: { textAlign: 'center' },
   moonSub: { textAlign: 'center' },
-  soFar: { alignItems: 'center', marginTop: Gap.block },
+  // Fixed height: during a swap both faces lie over each other here instead of stacking.
+  soFar: { alignSelf: 'stretch', height: 62 + 20, marginTop: Gap.block },
+  soFarFace: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   soFarCount: { ...DisplayFont, color: Nocturne.text, fontSize: 56, lineHeight: 62, letterSpacing: -1 },
-  soFarUnit: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
+  soFarUnit: { color: Nocturne.text2, fontSize: 15, lineHeight: 20, fontWeight: '500' },
   // The wheel sits midway between the question and the button.
   timeWrap: { flex: 1, justifyContent: 'center', marginVertical: Gap.block },
   warning: { marginTop: Gap.block, textAlign: 'center', color: Nocturne.text },
@@ -1249,13 +1142,5 @@ const styles = StyleSheet.create({
   founder: { marginTop: Gap.headline, gap: Space.l },
   founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic', textAlign: 'center' },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },
-  stripGap: { marginTop: Gap.block },
   foundOptions: { marginTop: Gap.block },
-  resultCard: { marginBottom: Space.l },
-  result: { padding: Space.l, gap: Space.m },
-  resultRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  resultCell: { alignItems: 'center', gap: 2 },
-  resultValue: { color: Nocturne.text, fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  resultLabel: { ...Type.label, fontSize: 11 },
-  resultLine: { ...DisplayFont, color: Nocturne.text, fontSize: 20, textAlign: 'center' },
 });

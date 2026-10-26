@@ -55,12 +55,8 @@ describe('forward', () => {
     assert.equal(currentStep(navigate(nav, next)), 'first-morning');
   });
 
-  test('the demo comes before the walk, and late at night the walk is skipped', () => {
-    assert.equal(nextStep('tomorrow'), 'walk');
-    assert.equal(nextStep('tomorrow', ['walk']), 'screen-time');
-    const nav = run(reach('tomorrow'), { type: 'next', skip: ['walk'] });
-    assert.equal(currentStep(nav), 'screen-time');
-    assert.equal(currentStep(navigate(nav, back)), 'tomorrow', 'Back returns to the demo, not the skipped walk');
+  test('the demo goes straight to Screen Time', () => {
+    assert.equal(nextStep('tomorrow'), 'screen-time');
   });
 
   test('the side step rejoins the main path', () => {
@@ -76,7 +72,7 @@ describe('forward', () => {
   });
 
   test('`?step=` accepts real steps and `declined` only', () => {
-    assert.ok(isStep('walk'));
+    assert.ok(isStep('tomorrow'));
     assert.ok(isStep('declined'));
     assert.ok(!isStep('nope'));
     assert.ok(!isStep(undefined));
@@ -184,28 +180,6 @@ describe('editing from the schedule card on commit', () => {
   test('Back from commit after a saved edit goes to the step before it, not the edit', () => {
     const nav = run(summary(), edit('bedtime'), next, back);
     assert.equal(currentStep(nav), 'apps');
-  });
-});
-
-describe('editing the method from the walk', () => {
-  const walk = () => reach('walk', run(startNav('hello', initialAnswers), set({ method: 'steps' })));
-
-  test('“Pick another way” returns to the walk once a method is picked', () => {
-    const nav = run(walk(), edit('method'), set({ method: 'downstairs' }), next);
-    assert.equal(currentStep(nav), 'walk');
-    assert.equal(nav.answers.method, 'downstairs');
-    assert.equal(nav.history.filter((s) => s === 'walk').length, 1);
-  });
-
-  test('Back from the method keeps the step counter they had', () => {
-    const nav = run(walk(), edit('method'), set({ method: 'scan' }), back);
-    assert.equal(currentStep(nav), 'walk');
-    assert.equal(nav.answers.method, 'steps');
-  });
-
-  test('then the walk carries on to Screen Time', () => {
-    const nav = run(walk(), edit('method'), next, next);
-    assert.equal(currentStep(nav), 'screen-time');
   });
 });
 

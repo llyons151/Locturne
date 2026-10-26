@@ -74,12 +74,7 @@ export function RevealScreen({
       <View style={page.top}>
         <Voice text="You’re barely on it." size={VoiceSize.headline} header />
         <View style={page.gapHeadline} />
-        <Body>
-          About {weeklyAmount(numbers.weeklyMinutes)} a week on your phone in bed. So I’ll mostly handle mornings.
-          Apps stay asleep until you’re up.
-        </Body>
-        <View style={page.gapAside} />
-        <Voice text="You’re already ahead. I’ll keep it that way." size={VoiceSize.aside} delay={700} />
+        <Body>Only {weeklyAmount(numbers.weeklyMinutes)} a week. I’ll mostly handle mornings.</Body>
       </View>
     );
   }

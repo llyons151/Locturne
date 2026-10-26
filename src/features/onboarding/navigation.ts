@@ -37,10 +37,8 @@ export const STEPS = [
   // Straight after the bad news, so "now let's fix it" lands while it stings (user 2026-10-26).
   'build',
   'method',
-  // See it, then try it: the demo shows tomorrow morning, then the walk is a 20-step taste of
-  // it. Skipped late at night (`skip` on `next`), when they're in bed (ONBOARDING_OPTIMIZATION §7).
+  // See it: the demo shows tomorrow morning. The 20-step walk after it was cut (2026-10-26).
   'tomorrow',
-  'walk',
   'screen-time',
   'apps',
   // The summary and the deal in one: the editable schedule, then hold to agree.
@@ -94,8 +92,7 @@ export function moonQuizFor(pain: Pain | undefined): StepId[] {
 
 /**
  * Steps that can be edited and then return: `bedtime`, `wake`, `method` and `apps` from the
- * schedule card on `commit`, and `method` from the walk ("Pick another way" when there's no
- * step counter).
+ * schedule card on `commit`.
  */
 export const EDITABLE: StepId[] = ['bedtime', 'wake', 'method', 'apps'];
 
@@ -115,7 +112,7 @@ export type Nav = {
 };
 
 export type NavAction =
-  /** `skip`: steps to pass over on the way, such as the walk late at night. */
+  /** `skip`: steps to pass over on the way, if a flow ever needs one. */
   /**
    * `at` is the history length it was sent from: a second `next` from the same screen (a
    * double tap, a late async callback) finds the screen gone and does nothing.

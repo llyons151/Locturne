@@ -10,7 +10,7 @@ import { LEAVE_MS, LOC_VIEW, PANEL_CORNER } from '@/features/home/loc-rig';
 import { thud } from '@/lib/haptics';
 import { Gap, Space } from '@/theme';
 
-import { Body, EXIT_MS, SLIDE_IN_CURVE, SLIDE_IN_MS, SLIDE_OUT_CURVE, SLIDE_OUT_MS, slideAnimation, Title, useLeaving } from '../ui';
+import { EXIT_MS, SLIDE_IN_CURVE, SLIDE_IN_MS, SLIDE_OUT_CURVE, SLIDE_OUT_MS, slideAnimation, Title, useLeaving } from '../ui';
 
 /** His width as a share of the screen: the page's one big thing, like Home's Loc but larger. */
 const SHARE = 0.56;
@@ -46,7 +46,7 @@ const groundTop = makeMutable(-1);
  * screen saying "now let's get it right"). Home's look on purpose: Loc in black, standing on
  * a black ground with the moon risen behind him, and the words on the ground under him.
  */
-export function BuildChapter({ title, body }: { title: string; body: string }) {
+export function BuildChapter({ title }: { title: string }) {
   const { width, height } = useWindowDimensions();
   const reduced = useReducedMotion();
   const leaving = useLeaving();
@@ -110,8 +110,6 @@ export function BuildChapter({ title, body }: { title: string; body: string }) {
           {/* The words wait until the ground has landed, so they don't blur in mid-slide. */}
           <MotionHold offset={reduced ? 0 : BUILD_ARRIVE_MS}>
             <Title>{title}</Title>
-            <View style={styles.gap} />
-            <Body>{body}</Body>
           </MotionHold>
         </Animated.View>
       </View>
@@ -151,7 +149,6 @@ const styles = StyleSheet.create({
     paddingTop: Space.xl,
     paddingBottom: Space.l * 2,
   },
-  gap: { height: Gap.headline },
   corner: { position: 'absolute', top: -CORNER },
   cornerLeft: { left: 0 },
   cornerRight: { right: 0, transform: [{ scaleX: -1 }] },

@@ -115,8 +115,6 @@ export function ScheduleCard({
           : count === 1
             ? '1 app sleeps.'
             : `${count} apps sleep.`}
-        {/* `apps` already said it; short phones need the line for `commit`'s late-night note. */}
-        {compact ? null : ' Phone calls always get through.'}
       </Text>
     </Reveal>
   );

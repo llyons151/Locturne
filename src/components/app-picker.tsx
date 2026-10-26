@@ -86,7 +86,8 @@ function Chevron() {
 
 /**
  * The card on the page. Empty, it reads as a button: a white "+" tile, "Add apps" and a
- * chevron. Once apps are picked, it becomes a list of them, ending in "Add or remove apps".
+ * chevron. Once apps are picked, it becomes a list of them under "Add or remove apps", which
+ * stays at the top (user, 2026-10-26) so it never moves as the list grows.
  * On short phones pass a smaller `maxRows`; extra picks fold into a "+N more" row.
  */
 /** Key for the "+N more" tile when registering icon views: hidden picks fly out of it. */
@@ -117,7 +118,7 @@ export function AppsCard({
       onPress={press}
       accessibilityRole="button"
       accessibilityLabel="Add or remove apps"
-      style={({ pressed }) => [styles.listRow, styles.lastRow, pressed && styles.rowPressed]}
+      style={({ pressed }) => [styles.listRow, pressed && styles.rowPressed]}
     >
       <AddTile size={ROW_ICON} />
       <Text style={[styles.listLabel, styles.addLabel]}>Add or remove apps</Text>
@@ -132,6 +133,7 @@ export function AppsCard({
       <Reveal>
         <Text style={styles.listHeader}>{countPicks(live.count).toUpperCase()}</Text>
         <GlassCard dark>
+          {editRow}
           {isBlockedAppsViewAvailable ? (
             // Drawn at full height and clipped, so extra picks fold into the "more" row.
             <View style={[styles.liveClip, { height: shown * LIVE_ROW }]}>
@@ -146,19 +148,18 @@ export function AppsCard({
             </View>
           ) : (
             // A build from before modules/blocked-apps existed can't draw the rows.
-            <View style={styles.listRow}>
+            <View style={[styles.listRow, styles.lastRow]}>
               <Text style={styles.listLabel}>{countPicks(live.count)}. Install the latest build to see them.</Text>
             </View>
           )}
           {isBlockedAppsViewAvailable && hidden > 0 ? (
-            <View style={styles.listRow}>
+            <View style={[styles.listRow, styles.lastRow]}>
               <View style={[styles.more, { width: ROW_ICON, height: ROW_ICON, borderRadius: ROW_ICON * 0.225 }]}>
                 <Text style={styles.moreText}>+{hidden}</Text>
               </View>
               <Text style={styles.listLabel}>{hidden} more</Text>
             </View>
           ) : null}
-          {editRow}
         </GlassCard>
       </Reveal>
     );
@@ -194,8 +195,9 @@ export function AppsCard({
     <Reveal>
       <Text style={styles.listHeader}>{pickedSummary(apps).toUpperCase()}</Text>
       <GlassCard dark>
-        {rows.map((app) => (
-          <View key={app} style={styles.listRow}>
+        {editRow}
+        {rows.map((app, i) => (
+          <View key={app} style={[styles.listRow, hidden === 0 && i === rows.length - 1 && styles.lastRow]}>
             <View ref={(view) => onIconRef?.(app, view)} collapsable={false}>
               <AppTile name={app} size={ROW_ICON} />
             </View>
@@ -206,7 +208,7 @@ export function AppsCard({
           </View>
         ))}
         {hidden > 0 ? (
-          <View style={styles.listRow}>
+          <View style={[styles.listRow, styles.lastRow]}>
             <View
               ref={(view) => onIconRef?.(MORE_TILE, view)}
               collapsable={false}
@@ -217,7 +219,6 @@ export function AppsCard({
             <Text style={styles.listLabel}>{hidden} more</Text>
           </View>
         ) : null}
-        {editRow}
       </GlassCard>
     </Reveal>
   );
