@@ -6,18 +6,15 @@
  *
  * Unhinged (user, October 10, 2026: "stuff like I am doom, or I will eat ur dad", "I will steal
  * ur parakeets eggs", "theres a reason im not allowed at airports"): absurd, chaotic raccoon
- * menace, far louder than docs/VOICE.md's deadpan. Mild is weird, Grumpy is chaos, Unbearable
- * is full doom. Still short, no emoji. The menace is always cartoon nonsense (dads, parakeet
+ * menace, far louder than docs/VOICE.md's deadpan. Still short, no emoji. The menace is always cartoon nonsense (dads, parakeet
  * eggs, the moon, possum armies, airports), never anything real.
  */
-import type { Tone } from '@/lib/tone';
-
 import type { LocMood } from './loc-rig';
 
 /** What just happened, as the rig reports it (`LocRig.onCue`). */
 export type LocCue = 'poke' | 'angry' | 'hello' | 'hide';
 
-type Pool = Record<Tone, readonly string[]>;
+type Pool = readonly string[];
 
 /**
  * His friend. Never explained, never seen, never given any context: he just brings them up now
@@ -28,209 +25,91 @@ type Pool = Record<Tone, readonly string[]>;
 const FRIEND = 'Dennis';
 
 const POKE: Partial<Record<LocMood, Pool>> = {
-  awake: {
-    mild: [
-      `${FRIEND} says hi`,
-      'I contain at least three raccoons',
-      'I am a small god. Be gentle.',
-      'I ate a battery today. Feeling zesty.',
-      'My lawyer is a possum. Watch it.',
-      'You poked a raccoon. Bold. Unwise.',
-      'I have the reflexes of soup',
-      'Please. I’m fragile and made of crumbs.',
-      'I’ve been awake for 9 years',
-    ],
-    grumpy: [
-      'I will eat your dad',
-      'I am doom. Fuzzy doom.',
-      'I will steal your parakeet’s eggs',
-      'There’s a reason I’m not allowed at airports',
-      'No thoughts. Only hunger.',
-      'I am the trash king. Kneel.',
-      'Touch me again. I bite the moon.',
-      'We are going to steal the moooooon',
-      'Gerald will hear about this',
-      'Peace was never an option',
-      'I have opened bins stronger than you',
-      'You know what happens now',
-      'I’m adding you to the list',
-      'I’m going to lick your charger',
-      `${FRIEND} would never do this`,
-      `Don’t tell ${FRIEND}`,
-      'I could fit in your walls',
-      'Do I look like a button',
-      'That’s assault in raccoon court',
-    ],
-    unbearable: [
-      `${FRIEND} was right about you`,
-      `%$#@ ${FRIEND.toUpperCase()}`,
-      'I AM DOOM',
-      'I will eat your dad. And his car.',
-      'Your parakeet’s eggs are mine now',
-      'I have seen the end. It’s Tuesday.',
-      'I will unplug the sun',
-      'I’ve eaten worse than you',
-      'I will become a ghost just to bother you',
-      'Every poke, I eat one sock',
-      'I know what’s in your fridge',
-      'The possums are waiting for my signal',
-      'I bite. I bite so much.',
-      'I will scream into your dryer vent',
-      'Do it again. I dare you. I double dare.',
-      'My blood type is gravy',
-    ],
-  },
-  groggy: {
-    mild: [
-      'Morning. I ate a bee.',
-      'Awake. Against my will. Again.',
-      'The sun is lying to you',
-      'I am a puddle with ears',
-      'Five more minutes or I perish',
-    ],
-    grumpy: [
-      `${FRIEND} owes me a sock`,
-      'I will fight the sun. And win.',
-      'Coffee or I eat your dad',
-      'Morning is a cult. I’m leaving.',
-      'I woke up and chose violence',
-      'I have the energy of wet bread',
-      'The sun owes me forty dollars',
-      'Who let the morning in. I want names.',
-      'Poke the alarm. Not me.',
-      'The pigeons are up. I hate them.',
-    ],
-    unbearable: [
-      'I AM THE DAWN OF DOOM',
-      'I swallowed the alarm. It’s fine.',
-      'Bring me the pigeon. Alive.',
-      'I will fistfight the sunrise. Hold my crumbs.',
-      'I’m legally a ghost until noon',
-      'The sun must be stopped',
-      'I ate a sunrise once. Never again.',
-    ],
-  },
-  asleep: {
-    mild: [
-      'Zzz. Dreaming of garbage.',
-      'Shh. I’m becoming the void.',
-      'Do not poke the void',
-      'I’m asleep. This is a hologram.',
-    ],
-    grumpy: [
-      `Shh. ${FRIEND} is sleeping.`,
-      'Go to bed or I eat your dad',
-      'I sleep. The void watches.',
-      'It’s bedtime. I have teeth.',
-      'Your apps are asleep. You’re next.',
-      'I was dreaming of a bin with no lid',
-      'The moon says go to bed. I agree.',
-    ],
-    unbearable: [
-      'SLEEP. OR BE SLEPT.',
-      'I am the nightmare now',
-      'Bed. Or I move into your walls.',
-      'Wake me again. I wake the ancients.',
-      'I’m asleep. This is a recording. Leave.',
-      'I sleep with one eye on your parakeet',
-    ],
-  },
+  awake: [
+    'I will eat your dad',
+    'I am doom. Fuzzy doom.',
+    'I will steal your parakeet’s eggs',
+    'There’s a reason I’m not allowed at airports',
+    'No thoughts. Only hunger.',
+    'I am the trash king. Kneel.',
+    'Touch me again. I bite the moon.',
+    'We are going to steal the moooooon',
+    'Gerald will hear about this',
+    'Peace was never an option',
+    'I have opened bins stronger than you',
+    'You know what happens now',
+    'I’m adding you to the list',
+    'I’m going to lick your charger',
+    `${FRIEND} would never do this`,
+    `Don’t tell ${FRIEND}`,
+    'I could fit in your walls',
+    'Do I look like a button',
+    'That’s assault in raccoon court',
+  ],
+  groggy: [
+    `${FRIEND} owes me a sock`,
+    'I will fight the sun. And win.',
+    'Coffee or I eat your dad',
+    'Morning is a cult. I’m leaving.',
+    'I woke up and chose violence',
+    'I have the energy of wet bread',
+    'The sun owes me forty dollars',
+    'Who let the morning in. I want names.',
+    'Poke the alarm. Not me.',
+    'The pigeons are up. I hate them.',
+  ],
+  asleep: [
+    `Shh. ${FRIEND} is sleeping.`,
+    'Go to bed or I eat your dad',
+    'I sleep. The void watches.',
+    'It’s bedtime. I have teeth.',
+    'Your apps are asleep. You’re next.',
+    'I was dreaming of a bin with no lid',
+    'The moon says go to bed. I agree.',
+  ],
 };
 
-const ANGRY: Pool = {
-  mild: [
-    'Rude. I’m telling the moon.',
-    'Evicted. From my own blanket.',
-    'Cool. I’ll remember this forever.',
-    'I had a whole life down there',
-  ],
-  grumpy: [
-    `I’m calling ${FRIEND}`,
-    'Oh, I’ll put you to sleep',
-    'I am doom',
-    'I will eat your dad',
-    'You have awakened the trash beast',
-    'I’m stealing your parakeet’s eggs. All of them.',
-    'I’m going to scream in Latin',
-    'Gerald. Sue them.',
-    'Peace was never an option',
-    'That’s it. I’m joining the pigeons.',
-    'You’re on the list. In pen.',
-    'I was comfortable. Past tense.',
-  ],
-  unbearable: [
-    `This is for ${FRIEND}`,
-    'I AM DOOM INCARNATE',
-    'I will eat your dad. Then your uncle.',
-    'Prepare your trash cans',
-    'Your bloodline is cancelled',
-    'I have summoned the possums',
-    'This means war. Bring snacks.',
-    'I will haunt your Wi-Fi',
-    'I’m going to bite the moon. Watch me.',
-  ],
-};
+const ANGRY: Pool = [
+  `I’m calling ${FRIEND}`,
+  'Oh, I’ll put you to sleep',
+  'I am doom',
+  'I will eat your dad',
+  'You have awakened the trash beast',
+  'I’m stealing your parakeet’s eggs. All of them.',
+  'I’m going to scream in Latin',
+  'Gerald. Sue them.',
+  'Peace was never an option',
+  'That’s it. I’m joining the pigeons.',
+  'You’re on the list. In pen.',
+  'I was comfortable. Past tense.',
+];
 
 const HELLO: Partial<Record<LocMood, Pool>> = {
-  awake: {
-    mild: [
-      `I miss ${FRIEND}`,
-      'Oh. You. I ate a stick earlier.',
-      'Hi. I’m plotting. Ignore it.',
-      'Welcome back. The void says hi.',
-      'I was just staring at the moon. Normal stuff.',
-    ],
-    grumpy: [
-      `Have you seen ${FRIEND}`,
-      'You again. I hunger for dads.',
-      'I am doom. Hello.',
-      'Your parakeet looks nervous',
-      'I’m banned from three airports. Ask why.',
-      'The moon blinked at me. I blinked back.',
-      'I was not in your trash. Probably.',
-      'Gerald says hi. He’s a possum.',
-    ],
-    unbearable: [
-      `${FRIEND} and I are not speaking`,
-      'I licked the moon. It screamed.',
-      'The possums have been informed',
-      'I am awake. The world trembles.',
-      'I ate a wire. I can hear colors.',
-      'I have plans for your parakeet',
-      'Welcome. I’ve rearranged your dad.',
-    ],
-  },
-  groggy: {
-    mild: [
-      'Morning. The birds are lying.',
-      'Rise and shine. Or don’t. Whatever.',
-    ],
-    grumpy: [
-      'Good morning. The sun must die.',
-      'I fought a pigeon. I won. Barely.',
-      'Morning. I want your dad’s coffee.',
-      'The sun is back. I filed a complaint.',
-    ],
-    unbearable: [
-      'MORNING. I AM DOOM.',
-      'I have eaten the sunrise',
-      'The pigeons know what they did',
-      'I’m awake. Someone will pay.',
-    ],
-  },
+  awake: [
+    `Have you seen ${FRIEND}`,
+    'You again. I hunger for dads.',
+    'I am doom. Hello.',
+    'Your parakeet looks nervous',
+    'I’m banned from three airports. Ask why.',
+    'The moon blinked at me. I blinked back.',
+    'I was not in your trash. Probably.',
+    'Gerald says hi. He’s a possum.',
+  ],
+  groggy: [
+    'Good morning. The sun must die.',
+    'I fought a pigeon. I won. Barely.',
+    'Morning. I want your dad’s coffee.',
+    'The sun is back. I filed a complaint.',
+  ],
 };
 
 /** Opening Home in the small hours (1 to 4 a.m.): he has opinions. */
-const LATE: Pool = {
-  mild: ['It’s 3 a.m. The void and I were talking.', 'Oh. You’re up. The moon noticed.'],
-  grumpy: [
-    `${FRIEND} is up too. Concerning.`,
-    'It’s 3 a.m. Why are we here.',
-    'Go to bed or I eat your dad',
-    'The pigeons are asleep. Be like the pigeons.',
-  ],
-  unbearable: ['The void is busy. Go to bed.', 'IT IS THE HOUR OF DOOM', 'I can see you. The moon can see you.'],
-};
+const LATE: Pool = [
+  `${FRIEND} is up too. Concerning.`,
+  'It’s 3 a.m. Why are we here.',
+  'Go to bed or I eat your dad',
+  'The pigeons are asleep. Be like the pigeons.',
+];
 
 /** Something Home tells him about, said once per `key` (a night or a morning). */
 export type LocMoment = { kind: MomentKind; key: string };
@@ -252,108 +131,47 @@ export type MomentKind =
   | 'wakeProud';
 
 const MOMENTS: Record<MomentKind, Pool> = {
-  bedtimeSoon: {
-    mild: ['Bedtime soon. I’m fluffing the void.', 'An hour till bed. The moon is stretching.'],
-    grumpy: ['Bedtime soon. I’m sharpening my blanket.', 'One hour. Then I eat the apps.', 'Bedtime soon. Gerald is warming up.', 'One hour. Then we steal the moooooon.'],
-    unbearable: ['One hour. Then the void.', 'BEDTIME APPROACHES. HIDE YOUR DAD.', 'The night is coming. So am I.'],
-  },
-  appsAsleep: {
-    mild: ['Your apps are asleep. I read them a story.', 'Shh. The apps are sleeping.'],
-    grumpy: [
-      'Your apps are asleep. I tucked them in. Violently.',
-      'The apps are asleep. Gerald is on guard.',
-      'Apps asleep. Your parakeet is next.',
-    ],
-    unbearable: ['They’re asleep. I ate the lullaby.', 'The apps sleep. The void is fed.', 'ALL APPS HAVE BEEN SLEPT'],
-  },
-  wakeDone: {
-    mild: ['You did it. I’m mildly proud. Gross.', 'Morning done. I’m going back to bed.'],
-    grumpy: ['You did it. I’m furious.', 'You got up. The pigeons are shook.', 'Morning beaten. The sun is crying.'],
-    unbearable: [
-      'You walked. The sun lost. Barely.',
-      'YOU HAVE DEFEATED THE MORNING. I HATE IT.',
-      'Victory. I will eat a celebratory dad.',
-    ],
-  },
+  bedtimeSoon: [
+    'Bedtime soon. I’m sharpening my blanket.',
+    'One hour. Then I eat the apps.',
+    'Bedtime soon. Gerald is warming up.',
+    'One hour. Then we steal the moooooon.',
+  ],
+  appsAsleep: [
+    'Your apps are asleep. I tucked them in. Violently.',
+    'The apps are asleep. Gerald is on guard.',
+    'Apps asleep. Your parakeet is next.',
+  ],
+  wakeDone: ['You did it. I’m furious.', 'You got up. The pigeons are shook.', 'Morning beaten. The sun is crying.'],
   // What he remembers (lib/loc-mind.ts). Never a dig at you: the doom is aimed at the world.
-  firstMorning: {
-    mild: ['Your first morning. I wrote it on the wall.', 'You got up. I didn’t know humans could.'],
-    grumpy: ['First morning. I’m telling everyone. Nobody listens to me.', 'You did a morning. I’ve updated my files.'],
-    unbearable: ['THE FIRST MORNING. THE PROPHECY BEGINS.', 'One morning. The moon has been notified.'],
-  },
-  roommate: {
-    mild: ['Seven mornings. We’re roommates now. Don’t touch my bin.', 'Seven. You can call me Loc. You already did.'],
-    grumpy: ['Seven mornings. Fine. We’re roommates. My half is all of it.', 'A week. I’ve stopped plotting against you. Mostly.'],
-    unbearable: ['SEVEN MORNINGS. YOU MAY NOW SEE MY BIN.', 'Seven. We are bonded. I bit the contract.'],
-  },
-  accomplice: {
-    mild: ['Thirty mornings. You’re my accomplice now.', 'Thirty. I made you a badge. I ate it.'],
-    grumpy: ['Thirty mornings. We’re accomplices. Crimes TBD.', 'Thirty. The pigeons are scared of you now.'],
-    unbearable: ['THIRTY. WE RIDE AT DAWN. YOU’RE ALREADY UP.', 'Thirty mornings. The sun fears us both.'],
-  },
-  rideOrDie: {
-    mild: ['A hundred mornings. I’d share my bin with you.', 'One hundred. I’m keeping you.'],
-    grumpy: ['A hundred mornings. Ride or die. Mostly ride.', 'One hundred. I fear you now.'],
-    unbearable: ['ONE HUNDRED MORNINGS. YOU ARE THE DOOM NOW.', 'A hundred. I have carved your name into the moon.'],
-  },
-  welcomeBack: {
-    mild: ['Oh. You’re back. I kept your spot warm.', 'You’re alive. I was only a little worried.'],
-    grumpy: ['Oh. You’re alive. I already sold your bed.', 'You’re back. I told Gerald you died. Awkward.'],
-    unbearable: ['YOU RETURN. I HAD STARTED A NEW LIFE.', 'Back from the dead. Same, honestly.'],
-  },
-  smallHours: {
-    mild: ['It’s very late. Even the moon is yawning.', 'Small hours. Your pillow misses you.'],
-    grumpy: ['It is 3am. I am doom. Go to bed.', 'This is my hour. Leave.', 'The small hours. Nobody good is up.'],
-    unbearable: ['IT IS THE HOUR OF THE RACCOON. BEGONE.', 'You are awake. I am awake. Only one of us should be.'],
-  },
-  exitAfter: {
-    mild: ['We don’t talk about this morning', 'This morning didn’t happen. I saw nothing.'],
-    grumpy: ['We don’t talk about this morning', 'I saw what happened. I’m not mad. I’m writing it down.'],
-    unbearable: ['THIS MORNING IS SEALED IN THE VAULT', 'The apps escaped. I have questions. Many.'],
-  },
-  wakeProud: {
-    mild: ['Again? You’re scaring me.', 'Another morning. I’m starting to respect you. Gross.'],
-    grumpy: ['Who ARE you', 'Again. I fear you now.', 'You keep getting up. It’s unsettling.'],
-    unbearable: ['YOU ARE UNSTOPPABLE. I AM CALLING THE MOON.', 'Again?? I have to lie down.'],
-  },
+  firstMorning: ['First morning. I’m telling everyone. Nobody listens to me.', 'You did a morning. I’ve updated my files.'],
+  roommate: ['Seven mornings. Fine. We’re roommates. My half is all of it.', 'A week. I’ve stopped plotting against you. Mostly.'],
+  accomplice: ['Thirty mornings. We’re accomplices. Crimes TBD.', 'Thirty. The pigeons are scared of you now.'],
+  rideOrDie: ['A hundred mornings. Ride or die. Mostly ride.', 'One hundred. I fear you now.'],
+  welcomeBack: ['Oh. You’re alive. I already sold your bed.', 'You’re back. I told Gerald you died. Awkward.'],
+  smallHours: ['It is 3am. I am doom. Go to bed.', 'This is my hour. Leave.', 'The small hours. Nobody good is up.'],
+  exitAfter: ['We don’t talk about this morning', 'I saw what happened. I’m not mad. I’m writing it down.'],
+  wakeProud: ['Who ARE you', 'Again. I fear you now.', 'You keep getting up. It’s unsettling.'],
 };
 
 /** Five or more pokes in a short while. */
-const STREAK: Pool = {
-  mild: ['Okay. That’s a lot of pokes.', 'I’m going to need a lawyer'],
-  grumpy: ['Keep going. I’m writing a will.', 'Gerald. Call the raccoon police.', 'I’ve lost count. And dignity.'],
-  unbearable: [
-    `${FRIEND}. They’re doing it again.`,
-    'I’m giving your parakeet everything',
-    'FIVE POKES. I AM NOW A GHOST.',
-    'This is how villains are made',
-  ],
-};
+const STREAK: Pool = ['Keep going. I’m writing a will.', 'Gerald. Call the raccoon police.', 'I’ve lost count. And dignity.'];
 
 /** Back from the ultra zoomies, round the whole screen (loc-ultra.ts): dazed, changed. */
-const ULTRA: Pool = {
-  mild: ['I went all the way round. Nobody waved.', 'The top of the screen is cold. Don’t go.'],
-  grumpy: ['I touched the ceiling. I am changed.', 'I lapped your phone. Get me a medal.', 'Five. You did five. I saw God.'],
-  unbearable: ['I HAVE BEEN TO THE EDGE OF THE WORLD', 'THE ISLAND SPOKE TO ME', 'I AM THE PERIMETER NOW', 'My skeleton is in another postcode'],
-};
+const ULTRA: Pool = ['I touched the ceiling. I am changed.', 'I lapped your phone. Get me a medal.', 'Five. You did five. I saw God.'];
 
 /** His birthday: the day the mascot became a raccoon (September 23, 2026). */
-const BIRTHDAY: Pool = {
-  mild: ['It’s my birthday. I’d like a bin.', 'Birthday. I ate my own cake.'],
-  grumpy: [
-    `${FRIEND} forgot. Again.`,
-    'It’s my birthday. I want a bin.',
-    'Birthday. Gift me your dad.',
-    'I’m a year older. Still feral.',
-  ],
-  unbearable: ['IT IS MY BIRTHDAY. BRING TRIBUTE.', 'Birthday. I demand parakeet eggs.', 'Another year of doom. Cake me.'],
-};
+const BIRTHDAY: Pool = [
+  `${FRIEND} forgot. Again.`,
+  'It’s my birthday. I want a bin.',
+  'Birthday. Gift me your dad.',
+  'I’m a year older. Still feral.',
+];
 export const isLocBirthday = (now: Date) => now.getMonth() === 8 && now.getDate() === 23;
 
 /**
- * Movie and TV lines, bent to fit a raccoon (user, October 10, 2026: "lines that appear across
- * all different loc tones", "really funny movie and tv show quotes"). The same in every tone, and
- * said only now and then (`QUOTE_CHANCE`) so they land as a surprise. A few words, never a scene.
+ * Movie and TV lines, bent to fit a raccoon (user, October 10, 2026: "really funny movie and tv
+ * show quotes"). Said only now and then (`QUOTE_CHANCE`) so they land as a surprise. A few words, never a scene.
  */
 const QUOTE_CHANCE = 1 / 5;
 
@@ -453,9 +271,9 @@ function say(pool: readonly string[], quotes: readonly string[] | undefined, ran
 }
 
 /** His line for a moment Home told him about, a poke streak, the ultra zoomies, or his birthday. */
-export function locSpecial(kind: MomentKind | 'streak' | 'birthday' | 'ultra', tone: Tone, random: () => number = Math.random): string {
+export function locSpecial(kind: MomentKind | 'streak' | 'birthday' | 'ultra', random: () => number = Math.random): string {
   const pool = kind === 'streak' ? STREAK : kind === 'birthday' ? BIRTHDAY : kind === 'ultra' ? ULTRA : MOMENTS[kind];
-  return say(pool[tone], (QUOTES as unknown as Partial<Record<string, readonly string[]>>)[kind], random);
+  return say(pool, (QUOTES as unknown as Partial<Record<string, readonly string[]>>)[kind], random);
 }
 
 /** How often he says hello when you come back to Home: rarely enough to stay a surprise. */
@@ -477,10 +295,10 @@ function draw(pool: readonly string[], random: () => number): string {
 }
 
 /**
- * His line for `cue` in this mood and tone, or null when he has nothing to say. `hour` is the
+ * His line for `cue` in this mood, or null when he has nothing to say. `hour` is the
  * local hour: a hello between 1 and 4 a.m. comes from the small-hours lines.
  */
-export function locLine(cue: LocCue, mood: LocMood, tone: Tone, hour = 12, random: () => number = Math.random): string | null {
+export function locLine(cue: LocCue, mood: LocMood, hour = 12, random: () => number = Math.random): string | null {
   const late = cue === 'hello' && hour >= 1 && hour < 5;
   const pool = cue === 'poke' ? POKE[mood] : cue === 'angry' ? ANGRY : late ? LATE : cue === 'hello' ? HELLO[mood] : undefined;
   if (!pool) return null;
@@ -492,5 +310,5 @@ export function locLine(cue: LocCue, mood: LocMood, tone: Tone, hour = 12, rando
         : late
           ? QUOTES.late
           : (QUOTES.hello as Partial<Record<LocMood, readonly string[]>>)[mood];
-  return say(pool[tone], quotes, random);
+  return say(pool, quotes, random);
 }

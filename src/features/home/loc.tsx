@@ -10,7 +10,6 @@ import { useKnockLab } from '@/features/dev/knock-lab/store';
 import { useTabSelected } from '@/hooks/use-tab-selected';
 import { thud, tick } from '@/lib/haptics';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
-import { getTone } from '@/lib/tone';
 
 import { LocBubble } from './loc-bubble';
 import { HELLO_CHANCE, isLocBirthday, locLine, locSpecial, type LocCue as Cue, type LocMoment } from './loc-lines';
@@ -163,13 +162,13 @@ export function Loc() {
     const m = momentRef.current;
     if (m && !saidOnce.has(m.key)) {
       saidOnce.add(m.key);
-      return locSpecial(m.kind, getTone());
+      return locSpecial(m.kind);
     }
     const today = new Date();
     const birthday = `birthday:${today.toDateString()}`;
     if (isLocBirthday(today) && !saidOnce.has(birthday)) {
       saidOnce.add(birthday);
-      return locSpecial('birthday', getTone());
+      return locSpecial('birthday');
     }
     return null;
   }, []);
@@ -178,7 +177,7 @@ export function Loc() {
     greeted.current = true;
     const line = news();
     if (line) return speak(line);
-    if (Math.random() < HELLO_CHANCE) speak(locLine('hello', moodRef.current, getTone(), new Date().getHours()));
+    if (Math.random() < HELLO_CHANCE) speak(locLine('hello', moodRef.current, new Date().getHours()));
   }, [news, speak]);
   useEffect(() => {
     // A hello is once per visit to Home.
@@ -199,7 +198,7 @@ export function Loc() {
         return speak('Pineapple');
       }
       // Back from round the whole screen: always worth a word.
-      if (cue === 'ultra') return speak(locSpecial('ultra', getTone()));
+      if (cue === 'ultra') return speak(locSpecial('ultra'));
       if (cue === 'hello') {
         if (greeted.current) return;
         if (!seenRef.current) {
@@ -220,14 +219,14 @@ export function Loc() {
         if (pokes.current.length >= STREAK) {
           pokes.current = [];
           pokeSpoke.current = true;
-          return speak(locSpecial('streak', getTone()));
+          return speak(locSpecial('streak'));
         }
         const quiet = pokeSpoke.current || now - lastSpoke.current < POKE_QUIET_MS || Math.random() >= POKE_LINE_CHANCE;
         pokeSpoke.current = !quiet;
         if (quiet) return;
       }
       if (cue === 'angry' && Math.random() >= ANGRY_LINE_CHANCE) return;
-      speak(locLine(cue, moodRef.current, getTone(), new Date().getHours()));
+      speak(locLine(cue, moodRef.current, new Date().getHours()));
     },
     [hello, news, speak],
   );

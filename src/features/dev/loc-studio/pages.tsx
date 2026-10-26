@@ -306,7 +306,7 @@ export function UsagePage({ name, onPlay }: { name: (id: string) => string; onPl
   // Sample lines change with the button, not on every render.
   const lines = useMemo(() => {
     const out: Record<string, (string | null)[]> = {};
-    for (const { cue } of CUES) for (const m of MOODS) out[`${cue}|${m}`] = [0, 1].map(() => locLine(cue, m, 'grumpy', 11));
+    for (const { cue } of CUES) for (const m of MOODS) out[`${cue}|${m}`] = [0, 1].map(() => locLine(cue, m, 11));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed]);
@@ -402,7 +402,7 @@ export function UsagePage({ name, onPlay }: { name: (id: string) => string; onPl
           <h2>What he says</h2>
           <button onClick={() => setSeed((n) => n + 1)}>Other lines</button>
         </div>
-        <p className="dim">Sample lines on Home, grumpy tone, late morning. Moments (bedtime soon, apps asleep, the wake-up done) have their own lines.</p>
+        <p className="dim">Sample lines on Home, late morning. Moments (bedtime soon, apps asleep, the wake-up done) have their own lines.</p>
         <table>
           <tbody>
             {CUES.map(({ cue, label }) => (

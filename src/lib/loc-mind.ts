@@ -6,11 +6,9 @@
  * - Suspicion: you've been slipping out. Passes, emergency unlocks and opening the app in the
  *   small hours raise it; it fades in a couple of days.
  * Nothing here ever punishes: a missed morning changes nothing, the numbers only colour his
- * mood and lines, and stages (from the mornings count) only go up. Mild tone keeps him from
- * acting suspicious. It's always on: not a setting.
+ * mood and lines, and stages (from the mornings count) only go up. It's always on: not a setting.
  */
 import { sharedGet, sharedSet } from './screen-time.ts';
-import type { Tone } from './tone.ts';
 
 export type Mind = {
   respect: number;
@@ -106,9 +104,9 @@ export const STAGES: { stage: Stage; from: number; label: string }[] = [
 export const stageFor = (mornings: number) => [...STAGES].reverse().find((s) => mornings >= s.from)!;
 
 export type Attitude = { proud: boolean; wary: number };
-/** How the numbers colour him. On Mild tone he's never wary. */
-export function attitude(mind: Mind, tone: Tone): Attitude {
-  const wary = tone === 'mild' ? 0 : Math.max(0, Math.min(1, (mind.suspicion - WARY_AT) / 40));
+/** How the numbers colour him. */
+export function attitude(mind: Mind): Attitude {
+  const wary = Math.max(0, Math.min(1, (mind.suspicion - WARY_AT) / 40));
   return { proud: mind.respect >= PROUD_AT, wary };
 }
 

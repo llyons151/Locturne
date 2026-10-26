@@ -15,7 +15,6 @@ import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, routineAt, subscriptionEnded } from '@/lib/lock-controller';
 import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
-import { getTone } from '@/lib/tone';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
@@ -405,7 +404,6 @@ export function HomeScreen() {
     now,
     visit,
     focused,
-    tone: getTone(),
   });
   const mood = baseMood === 'awake' && mind.proud ? 'smug' : baseMood;
   // What Loc has something to say about (loc-lines.ts), once each: bedtime within the hour, the

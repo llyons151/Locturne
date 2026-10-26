@@ -218,7 +218,6 @@ type QuizAnswers = {
   tried?: string;
   timeBack?: string;
   method?: string;
-  tone?: string;
 };
 
 const QUESTION_FOR_STEP: Record<string, keyof QuizAnswers> = {
@@ -234,7 +233,6 @@ const QUESTION_FOR_STEP: Record<string, keyof QuizAnswers> = {
   tried: 'tried',
   'time-back': 'timeBack',
   method: 'method',
-  voice: 'tone',
 };
 
 /**
@@ -257,4 +255,4 @@ export function answerFor(step: string, answers: QuizAnswers): { question: strin
  * Answers worth having on every later event, so a paywall or an unlock can be split by them
  * ("conversion by where they found us", "retention by wake-up method").
  */
-export const SUPER_QUESTIONS = new Set(['pain', 'found', 'method', 'age_bracket', 'timeBack', 'tone']);
+export const SUPER_QUESTIONS = new Set(['pain', 'found', 'method', 'age_bracket', 'timeBack']);

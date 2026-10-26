@@ -276,13 +276,3 @@ test('a wake-up notification tap over the code setup screen opens the wake-up in
   assert.equal(setupScanShowing('/wake', 'setup'), false);
 });
 
-test('the tone changes the bedtime and morning notes, and nothing about when they come', () => {
-  const grumpy = plan();
-  assert.deepEqual(plan({ tone: 'grumpy' }), grumpy, 'grumpy is the default');
-  for (const tone of ['mild', 'unbearable'] as const) {
-    const toned = plan({ tone });
-    assert.deepEqual(summary(toned), summary(grumpy), `${tone}: same kinds, same times`);
-    assert.ok(toned.some((n, i) => n.body !== grumpy[i].body), `${tone}: different words`);
-    for (const n of toned) assert.ok(!/!/.test(n.title + n.body), `${tone}: no exclamation points`);
-  }
-});

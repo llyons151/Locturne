@@ -354,6 +354,8 @@ const LEAVE: Bit = { ms: 1300, events: [[0, (r) => r.say('hide')]], tracks: {
   h: [[0, 'S'], [380, 'S'], [520, 1, 'out'], [1300, 1]],
   x: [[0, 'S'], [560, 'S'], [1300, OFFSTAGE, 'in']],
 } };
+/** How long he takes to leave, the lump's run off the edge included: what a page waits on before it moves the edge. */
+export const LEAVE_MS = LEAVE.ms;
 
 // Tapped twice: he dives under the covers (the nav strip), the lump scurries about in quick
 // little hops, brakes where he lives, crouches, and he bursts out furious (user, October 10,
@@ -839,7 +841,7 @@ function burrowLump(rand: () => number = Math.random, fit = 1): { pop: number; l
 }
 
 /** The panel's bottom corners, in points: PANEL_RADIUS in components/app-tabs.tsx (this runs in the webview, so it's copied). */
-const PANEL_CORNER = 44;
+export const PANEL_CORNER = 44;
 
 /**
  * The covers' edge, `u` px along it from the left side of the screen: up the left wall, round the

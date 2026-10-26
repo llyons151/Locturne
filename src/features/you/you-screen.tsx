@@ -22,14 +22,12 @@ import {
   getNotificationPermission,
   getNotificationPrefs,
   getTrialEnd,
-  rescheduleNotifications,
   setNotificationPrefs,
   type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
-import { onLockChange, readLock, syncLock } from '@/lib/lock-controller';
+import { onLockChange, readLock } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
-import { getTone, setTone, type Tone } from '@/lib/tone';
 import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import type { WakeMethod } from '@/lib/routine';
@@ -40,7 +38,6 @@ import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from '@/features/routine/apply-edit';
 
 import { refusal, SIGN_OFF } from './fire-loc';
-import { DEMO_LINE, LocCard } from './loc-card';
 import { LocMindCard } from './loc-mind-card';
 import { LocProfile } from './loc-profile';
 
@@ -50,8 +47,7 @@ import { LocProfile } from './loc-profile';
  * find your record, Loc, the ways out, the step target, notifications and the subscription.
  *
  * Round 2 (docs/SETTINGS_INSPIRATION.md, 2026-10-10): your record first, one big number like
- * Brink's profile; then the plan card (Jomo); then Loc, whose tone you set by hearing him
- * (CARROT Weather); then titled groups of rows, the humane exits before account things. Help
+ * Brink's profile; then the plan card (Jomo); then Loc; then titled groups of rows, the humane exits before account things. Help
  * is a quiet row now, and the page ends on a joke: "Fire Loc" (CARROT's Self-Destruct).
  *
  * Passes, the emergency unlock and the scan code open the exits and scan screens; the plan
@@ -146,17 +142,6 @@ export function YouScreen() {
   useTopOnLeave(scroll);
 
   const [alerts, setAlerts] = useState<NotificationPrefs>(getNotificationPrefs);
-  const [tone, setToneShown] = useState<Tone>(getTone);
-  // Bumped on a new tone, so Loc says its line up top.
-  const [said, setSaid] = useState(0);
-  // His words only, so it applies now: the shield's text and the planned notes follow at once.
-  const changeTone = (next: Tone) => {
-    setTone(next);
-    setToneShown(next);
-    setSaid((n) => n + 1);
-    syncLock(new Date());
-    rescheduleNotifications().catch(() => {});
-  };
   const toggle = (key: keyof NotificationPrefs) => (on: boolean) => {
     const next = { ...alerts, [key]: on };
     setAlerts(next);
@@ -248,13 +233,12 @@ export function YouScreen() {
       {/* No page title (user, 2026-10-10: "remove the you"). Loc as the profile picture and your
           mornings under him, like CapWords' profile (user reference, 2026-10-14). Long press the
           mornings for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
-      <LocProfile line={DEMO_LINE[tone]} say={said} mornings={mornings} onLongPress={() => router.push('/diagnostics')} />
+      <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} />
       <View style={styles.divider} />
 
       <Text style={styles.heading} accessibilityRole="header">
         Loc
       </Text>
-      <LocCard tone={tone} onChange={changeTone} />
       <LocMindCard mornings={mornings} />
 
       {/* Brink's profile (user reference, 2026-10-14): the plan's name and state, then what you can do about it. */}

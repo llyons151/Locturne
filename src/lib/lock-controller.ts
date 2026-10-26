@@ -60,7 +60,6 @@ import {
   type StandingList,
 } from './screen-time.ts';
 import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
-import { getTone } from './tone.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
 import { planNightWindows } from './night-plan.ts';
 import { delaySiteChanges, settleSites } from './websites.ts';
@@ -899,9 +898,7 @@ function applyShieldText(state: LockState, now: Date): void {
     locked &&
     (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now) || emptyNight)));
   const held = unheld ? { ...state, phase: 'day' as const } : state;
-  // His words only: the tone never changes a rule, so it applies straight away.
-  const tone = getTone();
-  setShieldText(shieldTextFor(held, routine, now, limitReached, tone), shieldTap(held.phase));
+  setShieldText(shieldTextFor(held, routine, now, limitReached), shieldTap(held.phase));
   // The words for the next window and the next morning start: a waiting edit's, unless it's
   // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
   // coming morning still run on the routine in force). From morning start on, the night words
@@ -913,8 +910,8 @@ function applyShieldText(state: LockState, now: Date): void {
   const morningStart = currentMorning(now, toLockSettings(saved)).start.getTime();
   const thisMorning =
     state.phase === 'night' || (state.phase === 'morning' && now.getTime() < morningStart + MORNING_COPY_SLACK_MS);
-  setNightShieldText(shieldCopy('night', next, null, tone));
-  setMorningShieldText(shieldCopy('morning', thisMorning ? routine : next, null, tone), shieldTap('morning'));
-  setAlwaysShieldText(shieldCopy('always', routine, null, tone));
-  setLimitShieldText(shieldCopy('limit', routine, null, tone));
+  setNightShieldText(shieldCopy('night', next, null));
+  setMorningShieldText(shieldCopy('morning', thisMorning ? routine : next, null), shieldTap('morning'));
+  setAlwaysShieldText(shieldCopy('always', routine, null));
+  setLimitShieldText(shieldCopy('limit', routine, null));
 }

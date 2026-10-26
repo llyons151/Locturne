@@ -133,7 +133,6 @@ function home({
     './review-prompt': { useReviewPrompt() {} },
     './use-visit': { useVisit: () => 0 },
     './use-loc-mind': { useLocMind: () => ({ proud: false, wary: 0, moment: null }) },
-    '@/lib/tone': { getTone: () => 'grumpy' },
     './use-moon-sink': { useMoonSink() {} },
     './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },

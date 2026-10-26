@@ -32,6 +32,7 @@ export default function LocStage({
   ultraNonce = 0,
   rim,
   knock,
+  burrowOnTap = false,
 }: {
   mood: LocMood;
   share: number;
@@ -56,6 +57,8 @@ export default function LocStage({
   rim?: Rim;
   /** The knock lab's live tuning; inside the webview this module is a copy, so it comes as a prop. */
   knock?: NavKnockTune;
+  /** Every tap sends him under, not just a second one (onboarding's `build`). */
+  burrowOnTap?: boolean;
   dom?: import('expo/dom').DOMProps;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -222,7 +225,7 @@ export default function LocStage({
           const scale = canvas.width / r.width;
           if (!rig.hits((e.clientX - r.left) * scale, (e.clientY - r.top) * scale)) return;
           const now = performance.now();
-          const burrow = now - lastTap.current < SECOND_HIT_MS;
+          const burrow = burrowOnTap || now - lastTap.current < SECOND_HIT_MS;
           onTapRef.current?.(burrow ? 'burrow' : 'poke');
           if (burrow) { lastTap.current = 0; rig.burrow(); }
           else { lastTap.current = now; rig.poke(); }

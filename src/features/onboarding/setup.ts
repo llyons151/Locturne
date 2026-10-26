@@ -8,7 +8,6 @@ import { cancelTrialReminder, rescheduleNotifications, syncTrialEnd, TRIAL_REMIN
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
 import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
-import { setTone } from '@/lib/tone';
 
 import type { Answers } from './content';
 
@@ -53,8 +52,6 @@ export function saveSetup(answers: Answers): void {
   // the nights off and step goal set on the Routine tab.
   const current = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : DEFAULT_ROUTINE;
   const now = new Date();
-  // His words, not a rule: saved before the sync below so the shield says it his way tonight.
-  setTone(answers.tone);
   // A rerun inside a waiting edit's early first night: that edit governs tonight, so this one
   // waits for its next bedtime (`applyEdit`).
   saveRoutine(

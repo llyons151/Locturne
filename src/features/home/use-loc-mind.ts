@@ -3,7 +3,6 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { attitude, onExit, onMorning, onSmallHours, onVisit, readMind, writeMind, type Mind } from '@/lib/loc-mind';
 import type { Phase } from '@/lib/lock-state';
 import type { MorningProof } from '@/lib/morning-proof';
-import type { Tone } from '@/lib/tone';
 
 import type { LocMoment, MomentKind } from './loc-lines';
 
@@ -41,7 +40,6 @@ type Input = {
   visit: number;
   /** Home is the screen showing: the app coming back on another tab isn't a visit to him. */
   focused: boolean;
-  tone: Tone;
 };
 
 /**
@@ -50,7 +48,7 @@ type Input = {
  * Returns how that colours him (`proud`, `wary`) and the remembered moment he has to say, if any.
  * A made-up state records nothing.
  */
-export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, mornings, now, visit, focused, tone }: Input) {
+export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, mornings, now, visit, focused }: Input) {
   const mind = useMind();
   const real = sayKey === '';
   const hour = now.getHours();
@@ -80,7 +78,7 @@ export function useLocMind({ sayKey, phase, morningKey, todayKey, proof, morning
     commitMind(onSmallHours(readMind(), morningKey, hour));
   }, [real, focused, phase, morningKey, hour, visit]);
 
-  const { proud, wary } = attitude(mind, tone);
+  const { proud, wary } = attitude(mind);
   let moment: LocMoment | null = null;
   const exit = proof && (proof.kind === 'pass' || proof.kind === 'emergency');
   if (phase === 'day' && proof && !exit) {

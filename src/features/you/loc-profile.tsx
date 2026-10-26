@@ -23,24 +23,20 @@ const BUBBLE_AT = Math.round(SIZE * 0.68);
 /** Home's mornings pill's height. */
 const PILL = 36;
 
+/** His one line here, the best of Home's poke lines (loc-lines.ts). */
+const LINE = 'There’s a reason I’m not allowed at airports.';
+
 /** How long a line stays up, as on Home. */
 const LINE_MS = 3200;
 
 /**
  * The top of the You tab, like CapWords' profile (user reference, 2026-10-14): Loc as the
  * profile picture, the real Loc from Home (loc-stage.tsx) peeking up from the circle's bottom,
- * and your mornings in Home's pill under him. He says `line` when the tab opens, when `say`
- * changes (a new tone) and when he's poked; it fades like his lines on Home. A long press on the
+ * and your mornings in Home's pill under him. He says `LINE` when the tab opens and when he's poked; it fades like his lines on Home. A long press on the
  * pill opens beta diagnostics.
  */
-export function LocProfile({ line, say, mornings, onLongPress }: { line: string; say: number; mornings: number; onLongPress: () => void }) {
+export function LocProfile({ mornings, onLongPress }: { mornings: number; onLongPress: () => void }) {
   const [said, setSaid] = useState<number | null>(0);
-  // A new `say` (a new tone) says the line again, set during render rather than in an effect.
-  const [heard, setHeard] = useState(say);
-  if (say !== heard) {
-    setHeard(say);
-    setSaid(say);
-  }
   useEffect(() => {
     if (said === null) return;
     const t = setTimeout(() => setSaid(null), LINE_MS);
@@ -68,7 +64,7 @@ export function LocProfile({ line, say, mornings, onLongPress }: { line: string;
           again();
         }}
         accessibilityRole="button"
-        accessibilityLabel={`Loc says: ${line}`}
+        accessibilityLabel={`Loc says: ${LINE}`}
         accessibilityHint="Says it again"
         style={styles.avatar}
       >
@@ -78,7 +74,7 @@ export function LocProfile({ line, say, mornings, onLongPress }: { line: string;
       </Pressable>
       {/* Floats over the circle's empty top and the space above it, so it never moves the page. */}
       <View style={styles.speech} pointerEvents="box-none">
-        {said !== null ? <LocBubble key={said} line={line} onDismiss={() => setSaid(null)} /> : null}
+        {said !== null ? <LocBubble key={said} line={LINE} onDismiss={() => setSaid(null)} /> : null}
       </View>
       <Pressable
         onLongPress={onLongPress}
