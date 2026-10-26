@@ -8,8 +8,9 @@ import { Nocturne, Space, Type } from '@/theme';
 /**
  * The `walk` page's live count: the morning screen's number and track (components/meter.tsx), so
  * the demo looks like tomorrow does. VoiceOver hears the count as one line, updated politely.
+ * `note` replaces the line under the track, as before the walk starts (which prompts it opens).
  */
-export function WalkMeter({ steps: counted, goal }: { steps: number; goal: number }) {
+export function WalkMeter({ steps: counted, goal, note }: { steps: number; goal: number; note?: string }) {
   // Shown a step at a time between the pedometer's batches, as on the morning screen.
   const steps = useSmoothSteps(counted) ?? counted;
   const left = Math.max(0, goal - steps);
@@ -22,7 +23,7 @@ export function WalkMeter({ steps: counted, goal }: { steps: number; goal: numbe
     >
       <BigNumber value={String(steps)} caption={`of ${goal} steps`} center />
       <Track progress={goal > 0 ? steps / goal : 1} />
-      {left > 0 ? <Text style={styles.note}>Shaking the phone doesn’t count. I checked.</Text> : null}
+      {note ? <Text style={styles.note}>{note}</Text> : left > 0 ? <Text style={styles.note}>Shaking the phone doesn’t count. I checked.</Text> : null}
     </View>
   );
 }

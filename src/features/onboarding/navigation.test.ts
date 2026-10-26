@@ -25,7 +25,7 @@ import {
 } from './navigation.ts';
 
 /** content.ts's `initialAnswers` (content.ts itself needs the app's `@/` paths to load). */
-const initialAnswers: Answers = { bedtime: 23 * 60 + 30, wake: 7 * 60, tone: 'grumpy', apps: [], plan: 'annual', remindTrial: true };
+const initialAnswers: Answers = { bedtime: 23 * 60 + 30, wake: 7 * 60, apps: [], plan: 'annual', remindTrial: true };
 
 const run = (nav: Nav, ...actions: NavAction[]) => actions.reduce(navigate, nav);
 const next: NavAction = { type: 'next' };
@@ -106,9 +106,11 @@ describe('back', () => {
 
   test('what they would do with the time comes after the number', () => {
     assert.equal(nextStep('reveal'), 'time-back');
-    assert.equal(nextStep('time-back'), 'found');
+    assert.equal(nextStep('time-back'), 'build');
+    assert.equal(nextStep('build'), 'method');
+    assert.equal(nextStep('commit'), 'found');
     assert.equal(nextStep('found'), 'founder');
-    assert.equal(nextStep('founder'), 'method');
+    assert.equal(nextStep('founder'), 'offer');
   });
 
   test('a second next from the same screen does nothing', () => {
@@ -174,9 +176,9 @@ describe('editing from the schedule card on commit', () => {
     assert.deepEqual(nav.answers.apps, ['TikTok']);
   });
 
-  test('agreeing on commit after an edit carries on to the offer', () => {
+  test('agreeing on commit after an edit carries on toward the offer', () => {
     const nav = run(summary(), edit('bedtime'), next, next);
-    assert.equal(currentStep(nav), 'offer');
+    assert.equal(currentStep(nav), 'found');
   });
 
   test('Back from commit after a saved edit goes to the step before it, not the edit', () => {
@@ -257,8 +259,8 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
     assert.equal(new Set(lengths).size, 1, `screens to the paywall: ${lengths.join(', ')}`);
   });
 
-  test('the question comes right after hello, before the deal', () => {
-    for (const pain of PAINS) assert.deepEqual(stepsFor(pain).slice(0, 3), ['hello', 'pain', 'deal']);
+  test('the question comes right after hello, before the times', () => {
+    for (const pain of PAINS) assert.deepEqual(stepsFor(pain).slice(0, 2), ['hello', 'pain']);
   });
 
   test('each branch asks its own end of the night first, and only its own feeling question', () => {
@@ -283,15 +285,15 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
 
   test('no answer yet reads as all', () => {
     assert.deepEqual(stepsFor(undefined), stepsFor('all'));
-    assert.equal(nextStep('deal'), 'bedtime');
+    assert.equal(nextStep('pain'), 'bedtime');
   });
 
   test('Back to the question and a different pick carries on in the new order', () => {
-    let nav = run(startNav('hello', initialAnswers), next, set({ pain: 'night' }), next, next, next, next);
+    let nav = run(startNav('hello', initialAnswers), next, set({ pain: 'night' }), next, next, next);
     assert.equal(currentStep(nav), 'night-minutes');
-    nav = run(nav, back, back, back, back);
+    nav = run(nav, back, back, back);
     assert.equal(currentStep(nav), 'pain');
-    nav = run(nav, set({ pain: 'morning' }), next, next);
+    nav = run(nav, set({ pain: 'morning' }), next);
     assert.equal(currentStep(nav), 'wake', 'morning asks the alarm first');
   });
 

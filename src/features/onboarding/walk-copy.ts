@@ -33,12 +33,13 @@ export function wakeDayFor({
  * skipped late at night, so `day` is today only when the whole night is still ahead today
  * (00:30 before a 01:00 bedtime, 07:00 before a night shift's 08:00): "for now", not "tonight".
  * `goals`: the step target and push-up count the morning runs on (a rerun keeps Routine's).
+ * `access`: the iOS prompts "Start walking" opens, in order (method-access.ts), as a caption.
  */
 export function walkCopy(
   method: WakeMethod,
   day: WakeDay,
   { steps = 200, reps = 10 }: { steps?: number; reps?: number } = {},
-): { intro: string; done: string } {
+): { intro: string; done: string; access: string } {
   const lead = day; // "Tomorrow", "This morning", "Later today"
   const now = day === 'Tomorrow' ? 'Tonight' : 'For now';
   const that = { Tomorrow: 'tomorrow morning', 'This morning': 'this morning', 'Later today': 'later today' }[day];
@@ -46,28 +47,33 @@ export function walkCopy(
   switch (method) {
     case 'downstairs':
       return {
-        intro: `${lead} it’s a trip downstairs. ${now}, 20 steps anywhere will do.`,
+        intro: `${lead}, a trip downstairs. ${now}, just 20 steps.`,
         done: `That’s ${that}, with real stairs instead of 20 steps. Then your apps wake up.`,
+        access: 'iOS asks for Motion & Fitness, for steps and stairs. It stays on your phone.',
       };
     case 'steps':
       return {
-        intro: `${lead} it’s ${steps} steps. ${now}, 20 will do. Walk around the room.`,
+        intro: `${lead}, ${steps} steps. ${now}, just 20.`,
         done: `Same ${same}, just ${steps} instead of 20. Then your apps wake up.`,
+        access: 'iOS asks for Motion & Fitness. Your steps stay on your phone.',
       };
     case 'scan':
       return {
-        intro: `${lead} you walk to your code. ${now}, 20 steps anywhere will do.`,
+        intro: `${lead}, a walk to your code. ${now}, just 20 steps.`,
         done: `That’s ${that}: up, a short walk, then your apps wake up.`,
+        access: 'iOS asks for Motion & Fitness, then the camera for your code. Both stay on your phone.',
       };
     case 'place':
       return {
-        intro: `${lead} you head out to your place. ${now}, 20 steps anywhere will do.`,
+        intro: `${lead}, out to your place. ${now}, just 20 steps.`,
         done: `That’s ${that}: up, out the door, then your apps wake up.`,
+        access: 'iOS asks for Motion & Fitness, then your location to check you got there. Both stay on your phone.',
       };
     case 'pushups':
       return {
-        intro: `${lead} it’s ${reps} push-ups on the floor. ${now}, 20 steps anywhere will do.`,
+        intro: `${lead}, ${reps} push-ups. ${now}, just 20 steps.`,
         done: `That’s ${that}: up, down on the floor, ${reps} push-ups, then your apps wake up.`,
+        access: 'iOS asks for Motion & Fitness, then the camera to count push-ups. Both stay on your phone.',
       };
   }
 }

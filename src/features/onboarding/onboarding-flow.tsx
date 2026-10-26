@@ -56,20 +56,23 @@ import {
   type ScreenTimeAccess,
   type SelectionId,
 } from '@/lib/screen-time';
-import { getTone } from '@/lib/tone';
 import { Nocturne } from '@/theme';
 
 import { firstEnabledNight, scheduleCopy } from './schedule-copy';
 import { chaptersFor, initialAnswers, isNewYearWeek, painAnswer, PAINS, WALK_GOAL, type Answers, type ExitOffer, type Pain, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
+import { requestMethodAccess } from './method-access';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav, stepsFor } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
 import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
+import { BUILD_EXIT_MS, BuildFloor } from './screens/build-chapter';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { renderStep, type WalkState } from './steps';
-import { FooterEnter, Shell, StepEnter, type Progress } from './ui';
+import { Intro } from './intro';
+import { OpenerScene } from './opener-scene';
+import { FooterEnter, Shell, StepEnter, useSwap, type Progress } from './ui';
 
 /** Any fixed date: the walk's count is off until it starts. */
 const WALK_EPOCH = new Date(0);
@@ -95,7 +98,6 @@ const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
 
 /** Text entrance per page (see motion.tsx). Anything not listed uses Word Drift. */
 const MOTION: Partial<Record<StepId, TextMotion>> = {
-  deal: 'moonrise',
 };
 
 // Plausible answers for jumping straight to a later screen with `?step=`.
@@ -108,7 +110,7 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   nightsPerWeek: 7,
   scrollDays: [0, 1, 2, 3, 4, 5, 6],
   tried: 'screen-time',
-  timeBack: 'mornings',
+  timeBack: 'study',
   found: 'tiktok',
   method: 'downstairs',
   apps: ['TikTok', 'Instagram', 'YouTube'],
@@ -169,18 +171,15 @@ export function OnboardingFlow({
       return startNav('offer', {
         ...initialAnswers,
         ...savedQuizAnswers(),
-        tone: getTone(),
         bedtime: saved.bedtime,
         wake: saved.morningStart,
         method: saved.method,
       });
     }
     const jump = isStep(initialStep) ? initialStep : 'hello';
-    // A rerun starts from the tone they already have, so passing through `voice` keeps it.
     const pain = PAINS.find((p) => p === previewPain);
     return startNav(jump, {
       ...initialAnswers,
-      tone: getTone(),
       ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}),
       ...(pain && jump !== 'hello' && jump !== 'pain' ? { pain } : {}),
       // The morning branch's list has the snooze loop where `behind` is.
@@ -188,9 +187,14 @@ export function OnboardingFlow({
     });
   });
   const { history, answers, returnTo } = nav;
+  // A fresh launch: the opener's lines come in, then the moon rises into place (intro.tsx).
+  const [intro, setIntro] = useState(() => !isStep(initialStep) || initialStep === 'hello');
+  const introDone = useCallback(() => setIntro(false), []);
   const [simulated, setSimulated] = useState<Simulated | null>(null);
 
   const step = currentStep(nav);
+  // Leaving the opener before the moon is up hands it straight to the sky's own, which flies on from its place.
+  const rising = intro && step === 'hello';
   const numbers = useMemo(
     () =>
       estimate({
@@ -425,6 +429,7 @@ export function OnboardingFlow({
     setScreenTime('idle');
     next();
   };
+  const setUpLater = () => dispatch({ type: 'next', skip: ['apps'], at: history.length, visit: nav.visit });
 
   /* Apple's picker for the night list (the preview's stand-in off iOS). */
   const [picks, setPicks] = useState(() => (screenTimeHere ? selectionSize('night') : 0));
@@ -743,13 +748,28 @@ export function OnboardingFlow({
   useEffect(() => {
     if (walk.phase === 'done' || walk.phase === 'denied' || walk.phase === 'unavailable') walkEnded(walk.phase);
   }, [walk.phase]);
-  const startWalk = () => {
+  // Motion first, then the wake-up way's own prompt (camera or location), then the count.
+  const [startingWalk, setStartingWalk] = useState(false);
+  const startWalk = async () => {
+    if (startingWalk) return;
     track('walk_started', {});
-    if (Platform.OS === 'ios') return setWalkStart(new Date());
-    simulate('iOS asks for Motion & Fitness here. “Don’t Allow” is always an option.', () => {
-      setMotion('granted');
+    const method = answers.method ?? 'steps';
+    if (Platform.OS !== 'ios') {
+      const extra = method === 'place' ? ', then location' : method === 'scan' || method === 'pushups' ? ', then the camera' : '';
+      simulate(`iOS asks for Motion & Fitness${extra} here. “Don’t Allow” is always an option.`, () => {
+        setMotion('granted');
+        setWalkStart(new Date());
+      });
+      return;
+    }
+    setStartingWalk(true);
+    try {
+      await requestMotion();
+      await requestMethodAccess(method);
       setWalkStart(new Date());
-    });
+    } finally {
+      setStartingWalk(false);
+    }
   };
 
   // While the moon moves (to or from the opener, or into and out of the quiz), the page
@@ -830,6 +850,7 @@ export function OnboardingFlow({
     finishSetup: () => finishSetup(),
     screenTime,
     askScreenTime,
+    setUpLater,
     live: screenTimeHere ? { selectionId: 'night', count: picks, revision: pickRevision } : null,
     openPicker,
     putToSleep,
@@ -847,32 +868,73 @@ export function OnboardingFlow({
     startWalk,
     payoff: payoffAt === visit,
     onPayoff,
+    reduced: reducedMotion,
   });
+
+  // Pages leave instead of cutting (docs/DUOLINGO_MOTION.md): the page and its button on the way out stay a moment.
+  const pageKey = `${step}-${history.length}`;
+  // `build` runs its own way out: Loc leaves, then the ground and its button slide down (user 2026-10-26).
+  const isBuild = (key: string) => key.startsWith('build-');
+  const holds = (key: string) => (isBuild(key) ? BUILD_EXIT_MS : 0);
+  const pages = useSwap(
+    pageKey,
+    history.length,
+    moonMoving ? null : (
+      <View style={[styles.fill, quiz && { paddingTop: quizContentTop(height, insets.top) }]}>
+        <MoonSurface value={quiz}>{screen.body}</MoonSurface>
+      </View>
+    ),
+    holds,
+  );
+  const footers = useSwap(
+    pageKey,
+    history.length,
+    screen.footer && !moonMoving ? { footer: screen.footer, secondary: screen.secondary, wash: quiz } : null,
+    holds,
+  );
+  const buildPage = pages.find((page) => isBuild(page.key));
 
   return (
     <View ref={rootRef} style={styles.root}>
-      <NightSky opening={opening} quiz={quiz} />
+      <NightSky opening={opening} quiz={quiz} moonless={rising} drift={opening} />
+      <OpenerScene shown={opening && !moonMoving} />
+      {rising ? <Intro onDone={introDone} /> : null}
+      {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} /> : null}
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
         <Shell
           progress={progressFor(step, answers.pain)}
           centered
+          clip={!buildPage?.leaving}
           onBack={back}
           onExit={canLeave ? leave : undefined}
           footer={
-            screen.footer && !moonMoving ? (
-              <FooterEnter key={`${step}-${history.length}`} secondary={screen.secondary}>
-                {screen.footer}
-              </FooterEnter>
+            footers.length > 0 ? (
+              <View>
+                {footers.map((page) => (
+                  <FooterEnter
+                    key={page.key}
+                    leaving={page.leaving}
+                    alone={footers.length === 1}
+                    selfTimed={page.key.startsWith('hello-')}
+                    secondary={page.value.secondary}
+                    wash={page.value.wash}
+                    sheet={isBuild(page.key)}
+                    held={page.held}
+                  >
+                    {page.value.footer}
+                  </FooterEnter>
+                ))}
+              </View>
             ) : undefined
           }
         >
-          {moonMoving ? null : (
-            <StepEnter key={`${step}-${history.length}`} motion={MOTION[step] ?? 'drift'}>
-              <View style={[styles.fill, quiz && { paddingTop: quizContentTop(height, insets.top) }]}>
-                <MoonSurface value={quiz}>{screen.body}</MoonSurface>
-              </View>
-            </StepEnter>
-          )}
+          <View style={styles.fill}>
+            {pages.map((page) => (
+              <StepEnter key={page.key} motion={MOTION[step] ?? 'focus'} leaving={page.leaving} replaced={page.replaced} held={page.held}>
+                {page.value}
+              </StepEnter>
+            ))}
+          </View>
         </Shell>
       </Animated.View>
       {sleepFrom ? <SleepDrop apps={answers.apps} from={sleepFrom} onDone={wokeUp} /> : null}

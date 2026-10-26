@@ -91,12 +91,12 @@ export function estimate(input: EstimateInput): Estimate {
 }
 
 /**
- * Weekly minutes as the reveal shows them: hours rounded down to the half, and the year from
- * the week as shown, so "9 hours a week" reads as 468 a year, not 485. Under half an hour a
- * week the reveal says minutes, and the year is counted from those.
+ * Weekly minutes as the reveal shows them: whole hours, rounded up (no halves, user 2026-10-26),
+ * and the year from the week as shown, so "9 hours a week" reads as 468 a year, not 485. Under
+ * an hour a week the reveal says minutes, and the year is counted from those.
  */
 export function weekAndYear(weeklyMinutes: number): { weeklyHours: number; yearlyHours: number } {
-  const weeklyHours = Math.floor(weeklyMinutes / 30) / 2;
+  const weeklyHours = weeklyParts(weeklyMinutes).unit === 'minutes' ? 0 : Math.ceil(weeklyMinutes / 60);
   const yearlyHours = weeklyHours > 0 ? weeklyHours * 52 : Math.floor((weeklyMinutes * 52) / 60);
   return { weeklyHours, yearlyHours };
 }
@@ -133,13 +133,18 @@ export const LEAD_WHERE: Record<Lead['scope'], string> = {
   both: 'on your phone in bed',
 };
 
-/** "About 25 minutes", "About half an hour", "About 1 hour", "About 7½ hours". */
+/** "25 minutes", "1 hour", "8 hours": whole numbers, rounded up. */
 export function weeklyAmount(weeklyMinutes: number): string {
-  if (weeklyMinutes < 30) return `${Math.max(5, Math.floor(weeklyMinutes / 5) * 5)} minutes`;
-  const hours = Math.floor(weeklyMinutes / 30) / 2;
-  if (hours === 0.5) return 'half an hour';
-  if (hours === 1) return '1 hour';
-  return `${formatHalves(hours)} hours`;
+  const { count, unit } = weeklyParts(weeklyMinutes);
+  return `${count} ${unit}`;
+}
+
+/** `weeklyAmount` in its two parts, so the number can move on its own (`RollingCount`). */
+export function weeklyParts(weeklyMinutes: number): { count: number; unit: 'minutes' | 'hour' | 'hours' } {
+  const minutes = Math.max(5, Math.ceil(weeklyMinutes / 5) * 5);
+  if (minutes < 60) return { count: minutes, unit: 'minutes' };
+  const hours = Math.ceil(weeklyMinutes / 60);
+  return { count: hours, unit: hours === 1 ? 'hour' : 'hours' };
 }
 
 /** "That’s 786 hours a year." / "That’s 32 days a year." Matches the reveal grid. */
@@ -159,17 +164,9 @@ export function lifetimeSentence(lifetimeDays: number): string {
   return `That’s over ${years === 1 ? 'a year' : `${years} years`} of your life.`;
 }
 
-/** 7.5 → "7½", 0.5 → "½", 8 → "8". */
-export function formatHalves(value: number): string {
-  const whole = Math.floor(value);
-  const half = value - whole >= 0.5;
-  if (whole === 0) return half ? '½' : '0';
-  return half ? `${whole}½` : `${whole}`;
-}
-
-/** Rounds minutes down to half hours and formats them, e.g. 390 → "6½". */
+/** Minutes as whole hours, to the nearest, e.g. 390 → "7". */
 export function formatHoursFromMinutes(minutes: number): string {
-  return formatHalves(Math.floor(minutes / 30) / 2);
+  return `${Math.round(minutes / 60)}`;
 }
 
 /** "Sep 29" for `days` from today. */

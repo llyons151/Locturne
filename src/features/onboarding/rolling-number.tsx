@@ -32,9 +32,9 @@ type Props = {
  */
 export function RollingNumber({ value, format, onLanded, rowHeight = 66, fontSize = 60 }: Props) {
   const reduced = useReducedMotion();
-  const steps = Math.max(0, Math.round(value * 2));
-  // One row per half step, from zero up to the value.
-  const rows = useMemo(() => Array.from({ length: steps + 1 }, (_, i) => i / 2), [steps]);
+  const steps = Math.max(0, Math.round(value));
+  // One row per whole number, from zero up to the value.
+  const rows = useMemo(() => Array.from({ length: steps + 1 }, (_, i) => i), [steps]);
   const target = steps;
   const position = useSharedValue(reduced ? target : 0);
 

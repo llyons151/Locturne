@@ -17,7 +17,6 @@ export const STEPS = [
   // Which pain is theirs (docs/ONBOARDING_BRANCHES.md): the order and words from here on lean
   // toward it. Same mechanism, same setup, same length for every answer.
   'pain',
-  'deal',
   'bedtime',
   'wake',
   // Mornings first in `all`: the hook is "no apps until you're out of bed", so the quiz starts
@@ -34,15 +33,10 @@ export const STEPS = [
   // The bad news, then what they'd do with the time: the number first, so the dream is in it.
   'reveal',
   'time-back',
-  // Attribution once they've had the payoff, so the first stretch of questions is all about
-  // them, and still before the paywall so conversion splits by channel for non-buyers too.
-  'found',
-  // Why this exists, from the person who made it: the bridge from the problem to the setup,
-  // and the only social proof there is before real reviews.
-  'founder',
+  // The chapter break: the questions are done, now they build it (user's reference, 2026-10-26).
+  // Straight after the bad news, so "now let's fix it" lands while it stings (user 2026-10-26).
+  'build',
   'method',
-  // How grumpy he is, right before the demo shows the shield saying it at that tone.
-  'voice',
   // See it, then try it: the demo shows tomorrow morning, then the walk is a 20-step taste of
   // it. Skipped late at night (`skip` on `next`), when they're in bed (ONBOARDING_OPTIMIZATION §7).
   'tomorrow',
@@ -51,6 +45,12 @@ export const STEPS = [
   'apps',
   // The summary and the deal in one: the editable schedule, then hold to agree.
   'commit',
+  // Attribution once they've had the payoff and built it, so the stretch before is all about
+  // them, and still before the paywall so conversion splits by channel for non-buyers too.
+  'found',
+  // Why this exists, from the person who made it, right before the price: the only social
+  // proof there is before real reviews.
+  'founder',
   'offer',
   'plans',
   'armed',
@@ -84,7 +84,7 @@ const BRANCH_QUIZ: Record<Pain, StepId[]> = {
 export function stepsFor(pain: Pain | undefined): StepId[] {
   const quiz = BRANCH_QUIZ[pain ?? 'all'];
   const from = STEPS.indexOf('nights-per-week') + 1;
-  return ['hello', 'pain', 'deal', ...quiz, ...STEPS.slice(from)];
+  return ['hello', 'pain', ...quiz, ...STEPS.slice(from)];
 }
 
 /** The quiz questions asked on the risen moon: everything after the times, through `tried`. */

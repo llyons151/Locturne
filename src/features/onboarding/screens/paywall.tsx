@@ -136,7 +136,6 @@ export function plansStep(ctx: StepContext): StepView {
               }
               size={VoiceSize.aside}
               delay={500}
-              sub
               center
             />
           </View>
@@ -241,7 +240,7 @@ export function declinedStep(ctx: StepContext): StepView {
         {compact ? null : (
           <>
             <View style={page.gapAside} />
-            <Voice text="Don’t tell the others." size={VoiceSize.aside} delay={600} sub />
+            <Voice text="Don’t tell the others." size={VoiceSize.aside} delay={600} />
           </>
         )}
         <View style={page.gapSection} />
@@ -373,8 +372,8 @@ const styles = StyleSheet.create({
   paywall: { flex: 1, paddingTop: Gap.pageTop },
   // Short phones have no spare height: start right under the top bar so the title never clips.
   paywallCompact: { paddingTop: 0 },
-  paywallTitle: { color: Nocturne.text, ...Type.title, textAlign: 'center' },
-  paywallTitleCompact: Type.quizTitle,
+  paywallTitle: { color: Nocturne.text, ...Type.heading, textAlign: 'center' },
+  paywallTitleCompact: Type.headingCompact,
   paywallVoice: { marginTop: Space.s },
   compare: { marginTop: Space.l },
   compareCompact: { marginTop: Space.m },

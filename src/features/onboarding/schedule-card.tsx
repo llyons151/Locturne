@@ -52,7 +52,7 @@ export function ScheduleCard({
   const count = liveCount ?? apps.length;
 
   return (
-    <Reveal style={[styles.card, compact && styles.cardCompact]}>
+    <Reveal rise style={[styles.card, compact && styles.cardCompact]}>
       <View style={styles.times}>
         <Time
           label="Lights out"

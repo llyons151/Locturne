@@ -13,7 +13,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, Line, LinearGradient as SvgGradient, Path, Polyline, Rect, Stop } from 'react-native-svg';
 
 import { BrandIcon, SystemIcon, type BrandName, type SystemName } from '@/components/app-icons';
 import { Glyph } from '@/components/ios-glyphs';
@@ -22,12 +22,15 @@ import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
-import type { Tone } from '@/lib/tone';
 import { DOWNSTAIRS } from '@/lib/wake/downstairs';
 import { downstairsLine, PHASE_LINES, pushupsLine, stepsLine } from '@/lib/wake/lines';
-import { PUSHUPS } from '@/lib/wake/pushups';
-import { DisplayFont, Nocturne, NUMBER_FONT, VoiceSize } from '@/theme';
+import { DEMO_REP_MS, demoPose } from '@/lib/wake/pose-demo';
+import { PUSHUPS, type Joint } from '@/lib/wake/pushups';
+import { DisplayFont, Nocturne, NUMBER_FONT } from '@/theme';
 
+import { formatDistance } from '../../place/place-stage';
+import { usesMiles } from '../../place/units';
+import { QrCode } from '../../scan/qr';
 import { Eyebrow, Title } from '../ui';
 
 const STEP_GOAL = 200;
@@ -44,13 +47,14 @@ const FINE_AT = 2800;
 const BANNER_AT = 2950;
 const BANNER_TAP_AT = 3900;
 const APP_AT = 4050;
-/** Downstairs only: the barometer listens after Start. */
+/** Push-ups and the scan: the button that opens the camera, as on Home. */
 const START_AT = 4750;
-const WALK_AT = 4950;
-const WALK_TO_190_MS = 2400;
-const LAST_STEPS_MS = 110;
+/** The wake-up itself starts; each method takes its own `ms` from here. */
+const DO_AT = 4950;
 /** At the goal his done line shows in the app, then it's back to Instagram. */
 const LIFT_AFTER_MS = 800;
+/** How often the wake-up redraws while it plays. */
+const FRAME_MS = 40;
 /** Reduced motion: no zoom or counting, just the states. */
 const REDUCED_APP_AT = 2800;
 const REDUCED_AWAKE_AT = 4300;
@@ -77,6 +81,8 @@ export type NightPrelude = { when: string; clock: string; wake: number };
 const FRAME = require('@/assets/onboarding/iphone-frame.png');
 const PHONE_RATIO = 1350 / 2760;
 const SCREEN = { left: 72 / 1350, top: 69 / 2760, width: 1206 / 1350, height: 2622 / 2760 };
+/** The screen in iOS points: 402 wide, and as tall as the opening makes it. */
+const SCREEN_PT = { width: 402, height: Math.round((402 * SCREEN.height) / (PHONE_RATIO * SCREEN.width)) };
 const WALLPAPER = require('@/assets/backgrounds/moonlit-night.png');
 
 /** iOS home screen metrics, in points on a 402pt-wide screen. */
@@ -91,83 +97,79 @@ const TARGET = HOME_APPS.indexOf('Instagram');
 const DOCK_APPS: SystemName[] = ['Phone', 'Safari', 'Messages', 'Music'];
 
 /**
- * What the demo shows for the method they just chose (B2 in docs/ONBOARDING_OPTIMIZATION.md):
- * someone who said "yes, stairs" mustn't watch a step counter at the aha moment. The timeline
- * is the same for all three; `tick` is how far along it is, 0 to STEP_GOAL. The shield's words
- * are the real ones (`shieldCopy`), and the app's lines are the real wake-up screen's.
+ * Each method's wake-up, timed (B2 in docs/ONBOARDING_OPTIMIZATION.md): someone who said "yes,
+ * stairs" mustn't watch a step counter at the aha moment. `t` is ms into the wake-up itself;
+ * what it looks like at `t` is `MethodApp`'s.
  */
 type MethodDemo = {
-  /** The big number and its unit, at this point of the timeline. */
-  count: (tick: number) => { value: string; unit: string };
-  /** Loc under the phone once the app is open, before the count starts. */
-  go: string;
-  /** His line halfway there. */
-  midway: string;
-  /** The wake-up screen's own line inside the phone, before the goal. */
-  appLine: (tick: number) => string;
-  /** Downstairs has a Start button; the others count straight away. */
-  start: boolean;
-  /** VoiceOver, at the end. */
-  done: string;
+  /** How long the wake-up plays, from DO_AT to the goal. */
+  ms: number;
+  /** The button that opens the camera first, as Home's does (push-ups, the scan). */
+  start?: string;
+  /** Which beat of the wake-up `t` is on, and how it lands: each new one taps the phone. */
+  beat: (t: number) => [number, 'tick' | 'thud'];
 };
 
-/** Push-ups to `goal`, the count the morning runs on: a rerun keeps Routine's. */
-function pushupsDemo(goal: number): MethodDemo {
-  // The same rep meter as the real wake-up screen (pushups-view.tsx).
-  const repsAt = (tick: number) => Math.floor((tick / STEP_GOAL) * goal);
-  return {
-    count: (tick) => ({ value: String(repsAt(tick)), unit: ` / ${goal} push-ups` }),
-    go: 'Start. Then the floor.',
-    midway: 'Down. Up. I’m counting. Out loud.',
-    appLine: (tick) =>
-      tick === 0 ? pushupsLine('idle', 0, goal, null) : pushupsLine('counting', repsAt(tick), goal, null).replace(/\*/g, ''),
-    start: true,
-    done: `${goal} push-ups.`,
-  };
+/** Steps: the first 190 in a rush, the last ten one at a time. This is the moment people film. */
+const STEPS_FAST_MS = 2400;
+const LAST_STEP_MS = 110;
+const stepsAt = (t: number) =>
+  t < STEPS_FAST_MS
+    ? Math.floor((t / STEPS_FAST_MS) * 38) * 5
+    : Math.min(STEP_GOAL, 190 + Math.floor((t - STEPS_FAST_MS) / LAST_STEP_MS));
+
+/** Downstairs: the height moves to the threshold, then the five-second hold, sped up. */
+const STAIRS_MS = 2300;
+const HOLD_SECOND_MS = 300;
+const HOLD_SECONDS = 5;
+const stairsAt = (t: number) => {
+  const height = easeInOut(Math.min(1, t / STAIRS_MS));
+  const held = Math.max(0, t - STAIRS_MS) / (HOLD_SECOND_MS * HOLD_SECONDS);
+  return { height, held: Math.min(1, held), left: Math.max(0, HOLD_SECONDS - Math.floor(held * HOLD_SECONDS)) };
+};
+
+/** The place: out the door and down the street, then Check in. */
+const PLACE_WALK_MS = 2900;
+const PLACE_TAP_MS = 3300;
+const PLACE_FROM_M = 450;
+
+/** The scan: the code comes into the frame as they walk up to it, then it reads. */
+const SCAN_FIND_MS = 1900;
+
+/** Push-ups: quicker than real ones, so the set fits, but each one still all the way down. */
+const repMs = (reps: number) => Math.min(450, 4500 / Math.max(1, reps));
+
+const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
+
+function methodDemo(method: WakeMethod, reps: number): MethodDemo {
+  switch (method) {
+    case 'steps':
+      return {
+        ms: STEPS_FAST_MS + 10 * LAST_STEP_MS,
+        beat: (t) => {
+          const s = stepsAt(t);
+          return s < 190 ? [Math.floor(s / 20), 'tick'] : [10 + s - 190, 'thud'];
+        },
+      };
+    case 'downstairs':
+      return {
+        ms: STAIRS_MS + HOLD_SECOND_MS * HOLD_SECONDS + 100,
+        beat: (t) => (t < STAIRS_MS ? [Math.floor(stairsAt(t).height * 4), 'tick'] : [10 - stairsAt(t).left, 'tick']),
+      };
+    case 'place':
+      return { ms: 3600, beat: (t) => (t < PLACE_WALK_MS ? [0, 'tick'] : t < PLACE_TAP_MS ? [1, 'tick'] : [2, 'tick']) };
+    case 'scan':
+      return { ms: 2600, start: 'Scan my code', beat: (t) => [t < SCAN_FIND_MS ? 0 : 1, 'tick'] };
+    case 'pushups':
+      return { ms: reps * repMs(reps), start: 'Start push-ups', beat: (t) => [Math.floor(t / repMs(reps)), 'thud'] };
+  }
 }
 
-const METHOD_DEMO: Record<WakeMethod, MethodDemo> = {
-  steps: {
-    count: (tick) => ({ value: String(tick), unit: ` / ${STEP_GOAL} steps` }),
-    go: 'Walk. I’m counting. Grudgingly.',
-    midway: 'I can hear you walking. I’m ignoring it.',
-    appLine: (tick) => stepsLine(tick, STEP_GOAL).replace(/\*/g, ''),
-    start: false,
-    done: `${STEP_GOAL} of ${STEP_GOAL} steps.`,
-  },
-  downstairs: {
-    // The same metres meter as the real wake-up screen (downstairs-view.tsx).
-    count: (tick) => ({
-      value: ((tick / STEP_GOAL) * DOWNSTAIRS.threshold).toFixed(1),
-      unit: ` / ${DOWNSTAIRS.threshold} m down`,
-    }),
-    go: 'Start. Then the stairs.',
-    midway: 'I can feel the stairs. I’m ignoring them.',
-    appLine: (tick) =>
-      tick === 0 ? downstairsLine('idle', 0) : downstairsLine('moving', tick / STEP_GOAL),
-    start: true,
-    done: 'One floor down.',
-  },
-  scan: {
-    count: (tick) =>
-      tick >= STEP_GOAL ? { value: 'Scanned', unit: '' } : { value: String(STEP_GOAL - tick), unit: ' steps to your code' },
-    go: 'Now walk me to your code.',
-    midway: 'You’re going to the code. I’m ignoring it.',
-    appLine: () => 'Point me at your code.',
-    start: false,
-    done: 'Code scanned.',
-  },
-  place: {
-    count: (tick) =>
-      tick >= STEP_GOAL ? { value: 'Here', unit: '' } : { value: String(STEP_GOAL - tick), unit: ' steps to your place' },
-    go: 'Out the door. I’m coming, apparently.',
-    midway: 'Fresh air. I hate it.',
-    appLine: () => 'Get to your place, then check in.',
-    start: false,
-    done: 'Checked in at your place.',
-  },
-  pushups: pushupsDemo(PUSHUPS.reps),
-};
+/** When the demo's payoff lands, in ms from the page opening: the onboarding's button fills over it. */
+export function demoLength({ method, reps = PUSHUPS.reps, night, reduced }: { method: WakeMethod; reps?: number; night: boolean; reduced: boolean }) {
+  const offset = night ? PRELUDE_MS : 0;
+  return offset + (reduced ? REDUCED_AWAKE_AT : DO_AT + methodDemo(method, reps).ms + LIFT_AFTER_MS);
+}
 
 /** The notification the shield's button sends (`shieldTap`): the way into the app. */
 const TAP_NOTE = shieldTap('morning')!;
@@ -180,7 +182,7 @@ const NIGHT_PHASES: Phase[] = ['night', 'nightShield', 'nightDark'];
 type SharedNumber = ReturnType<typeof useSharedValue<number>>;
 
 /**
- * The product in nine seconds, on an iPhone: tap Instagram at 7:00, get the morning shield,
+ * The product in ten seconds, on an iPhone: tap Instagram at 7:00, get the morning shield,
  * tap Fine, tap the notification it sends, do the chosen wake-up in Locturne, then Instagram.
  */
 export function TomorrowDemo({
@@ -188,7 +190,6 @@ export function TomorrowDemo({
   clock,
   method,
   reps = PUSHUPS.reps,
-  tone = 'grumpy',
   night,
   onPayoff,
 }: {
@@ -199,20 +200,19 @@ export function TomorrowDemo({
   method: WakeMethod;
   /** Push-ups the morning takes, for the push-ups demo (`morningGoals`). */
   reps?: number;
-  /** How grumpy he was asked to be (`voice`): the shield in the demo says it his way. */
-  tone?: Tone;
   /** Called once the sleep screen has lifted: the onboarding's button waits for it. */
   onPayoff?: () => void;
 }) {
-  const copy = useMemo(() => (method === 'pushups' ? pushupsDemo(reps) : METHOD_DEMO[method]), [method, reps]);
-  const morningShield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL }, null, tone);
-  const nightShield = shieldCopy('night', { morningStart: night?.wake ?? 0, method, stepGoal: STEP_GOAL }, null, tone);
+  const demo = useMemo(() => methodDemo(method, reps), [method, reps]);
+  const morningShield = shieldCopy('morning', { morningStart: 0, method, stepGoal: STEP_GOAL }, null);
+  const nightShield = shieldCopy('night', { morningStart: night?.wake ?? 0, method, stepGoal: STEP_GOAL }, null);
   const reduced = useReducedMotion();
   const compact = useCompact();
   const [phase, setPhase] = useState<Phase>(night ? 'night' : 'home');
   const atNight = NIGHT_PHASES.includes(phase);
   const shield = atNight ? nightShield : morningShield;
-  const [steps, setSteps] = useState(0);
+  /** Ms into the wake-up itself; -1 before it starts. */
+  const [t, setT] = useState(-1);
   const [area, setArea] = useState({ width: 0, height: 0 });
 
   const press = useSharedValue(1);
@@ -225,10 +225,11 @@ export function TomorrowDemo({
   const lift = useSharedValue(0);
   /** The screen going dark between the night and the morning. */
   const dark = useSharedValue(0);
-  const [started, setStarted] = useState(!copy.start);
+  const [started, setStarted] = useState(!demo.start);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
+    let clock: ReturnType<typeof setInterval> | undefined;
     // With the night opening, the morning runs after it.
     const offset = night ? PRELUDE_MS : 0;
     const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms + offset));
@@ -237,8 +238,11 @@ export function TomorrowDemo({
       open.value = 0;
       setPhase('home');
     };
-    const announce = () =>
-      AccessibilityInfo.announceForAccessibility(`${copy.done} Your apps are awake. I’m up. Don’t talk to me yet.`);
+    const cleanup = () => {
+      timers.forEach(clearTimeout);
+      clearInterval(clock);
+    };
+    const announce = () => AccessibilityInfo.announceForAccessibility('Your apps are awake. I’m up. Don’t talk to me yet.');
 
     if (night && reduced) {
       atNightTime(NIGHT_SHIELD_AT, () => {
@@ -262,17 +266,17 @@ export function TomorrowDemo({
       });
       at(REDUCED_APP_AT, () => {
         app.value = 1;
-        setStarted(true);
         setPhase('app');
       });
       at(REDUCED_AWAKE_AT, () => {
-        setSteps(STEP_GOAL);
+        setStarted(true);
+        setT(demo.ms);
         lift.value = 1;
         setPhase('awake');
         haptic.done();
         announce();
       });
-      return () => timers.forEach(clearTimeout);
+      return cleanup;
     }
 
     const tap = (value: typeof press, depth = 0.94) => {
@@ -312,34 +316,39 @@ export function TomorrowDemo({
       banner.value = withTiming(0, { duration: 220 });
       app.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
     });
-    if (copy.start) {
+    if (demo.start) {
       at(START_AT, () => {
         tap(start);
         setStarted(true);
       });
     }
-    for (let s = 5; s <= 190; s += 5) {
-      at(WALK_AT + Math.round((s / 190) * WALK_TO_190_MS), () => {
-        setSteps(s);
-        if (s % 20 === 0) haptic.tick();
-      });
-    }
-    // The last ten steps land one at a time. This is the moment people film.
-    const goalAt = WALK_AT + WALK_TO_190_MS + 10 * LAST_STEPS_MS;
-    for (let s = 191; s <= STEP_GOAL; s += 1) {
-      at(WALK_AT + WALK_TO_190_MS + (s - 190) * LAST_STEPS_MS, () => {
-        setSteps(s);
-        if (s < STEP_GOAL) haptic.thud();
-        else haptic.done();
-      });
-    }
+    if (method === 'place') at(DO_AT + PLACE_TAP_MS, () => tap(start));
+    // The wake-up plays on a clock of its own, with a tap on each of its beats.
+    at(DO_AT, () => {
+      const began = Date.now();
+      let beat = demo.beat(0)[0];
+      setT(0);
+      clock = setInterval(() => {
+        const now = Math.min(demo.ms, Date.now() - began);
+        setT(now);
+        const [n, kind] = demo.beat(now);
+        if (n !== beat) {
+          beat = n;
+          if (now < demo.ms) (kind === 'thud' ? haptic.thud : haptic.tick)();
+        }
+        if (now >= demo.ms) {
+          clearInterval(clock);
+          haptic.done();
+        }
+      }, FRAME_MS);
+    });
     // His done line shows in the app for a beat, then it's back to Instagram.
-    at(goalAt + LIFT_AFTER_MS, () => {
+    at(DO_AT + demo.ms + LIFT_AFTER_MS, () => {
       setPhase('awake');
       lift.value = withTiming(1, { duration: 480, easing: Easing.inOut(Easing.cubic) });
       announce();
     });
-    return () => timers.forEach(clearTimeout);
+    return cleanup;
     // Runs once per visit to this step.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
@@ -352,10 +361,8 @@ export function TomorrowDemo({
     setArea({ width, height });
   };
 
-  // The app's own count, inside the phone: only it changes per tick. The home screen and the
-  // feed are memoized, because re-rendering the phone's icons and photos on every tick made the
-  // count stutter.
-  const appTick = phase === 'app' || phase === 'awake' ? steps : 0;
+  // Only the app's screen changes per frame. The home screen and the feed are memoized, because
+  // re-rendering the phone's icons and photos on every frame made the count stutter.
   const phone = useMemo(
     () =>
       phoneHeight > 0 ? (
@@ -378,12 +385,13 @@ export function TomorrowDemo({
                 lift={lift}
                 dark={dark}
                 appScreen={
-                  <WakeApp
-                    k={phoneWidth * SCREEN.width / 402}
-                    line={appTick >= STEP_GOAL ? PHASE_LINES.day : copy.appLine(started ? appTick : 0)}
-                    count={copy.count(appTick)}
-                    progress={appTick / STEP_GOAL}
-                    showStart={copy.start && !started}
+                  <MethodApp
+                    k={(phoneWidth * SCREEN.width) / SCREEN_PT.width}
+                    method={method}
+                    reps={reps}
+                    demo={demo}
+                    t={t}
+                    started={started}
                     start={start}
                   />
                 }
@@ -394,33 +402,13 @@ export function TomorrowDemo({
       ) : null,
     // Shared values are stable refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [phoneWidth, phoneHeight, reduced, clock, phase, copy, shield, appTick, started, night, atNight],
+    [phoneWidth, phoneHeight, reduced, clock, phase, demo, shield, t, started, night, atNight, method, reps],
   );
 
   const awake = phase === 'awake';
   useEffect(() => {
     if (awake) onPayoff?.();
   }, [awake, onPayoff]);
-  const count = copy.count(steps);
-  // "Fine. *Fine.*": the second one in italic.
-  const line =
-    phase === 'home' || phase === 'night' ? null : phase === 'nightShield' || phase === 'nightDark' ? (
-      'Put it down. I’m asleep.'
-    ) : phase === 'shield' ? (
-      `${shield.title} Tap ${shield.button.replace(/\.$/, '')}.`
-    ) : phase === 'banner' ? (
-      'That’s me. Tap it.'
-    ) : awake ? (
-      'I’m up. Don’t talk to me yet.'
-    ) : steps >= 160 ? (
-      <>
-        Fine. <Text style={styles.emphasis}>Fine.</Text>
-      </>
-    ) : steps >= 80 ? (
-      copy.midway
-    ) : (
-      copy.go
-    );
 
   return (
     <View style={styles.wrap}>
@@ -430,24 +418,6 @@ export function TomorrowDemo({
       <View style={[styles.phoneArea, compact && styles.phoneAreaCompact]} onLayout={onArea}>
         {phone}
       </View>
-
-      <Reveal style={[styles.walk, compact && styles.walkCompact]}>
-        <Text
-          // The count is the morning's: hidden, but holding its place, while it's still night.
-          style={[styles.walkCount, compact && styles.walkCountCompact, atNight && styles.hidden]}
-          maxFontSizeMultiplier={1.3}
-          accessibilityLabel={`${count.value}${count.unit}`}
-        >
-          {count.value}
-          <Text style={styles.walkGoal}>{count.unit}</Text>
-        </Text>
-        <View style={[styles.walkTrack, atNight && styles.hidden]}>
-          <View style={[styles.walkFill, { width: `${(steps / STEP_GOAL) * 100}%` }]} />
-        </View>
-        <Text style={[styles.walkLine, compact && styles.walkLineCompact]} accessibilityLiveRegion="polite">
-          {line}
-        </Text>
-      </Reveal>
     </View>
   );
 }
@@ -707,44 +677,166 @@ const HomeScreen = memo(function HomeScreen({ k, press }: { k: number; press: Sh
 });
 
 /**
- * Locturne's wake-up screen, small, inside the phone: his line, the count and, for
- * downstairs, Start. The same words and meter as the real one (src/features/wake).
+ * Locturne's morning, small, inside the phone: the method they picked, done the way the real
+ * one is (src/features/home, src/features/wake), from `t` ms into it. Steps count, the stairs
+ * move a dot down a flight and hold, the place walks a dot down a street to the pin and checks
+ * in, the scan brings the code into the frame, and push-ups trace a body doing them.
  */
-function WakeApp({
+function MethodApp({
   k,
-  line,
-  count,
-  progress,
-  showStart,
+  method,
+  reps,
+  demo,
+  t,
+  started,
   start,
 }: {
   k: number;
-  line: string;
-  count: { value: string; unit: string };
-  progress: number;
-  showStart: boolean;
+  method: WakeMethod;
+  reps: number;
+  demo: MethodDemo;
+  t: number;
+  started: boolean;
   start: SharedNumber;
 }) {
+  const done = t >= demo.ms;
+  const going = t >= 0;
+  switch (method) {
+    case 'steps': {
+      const steps = going ? stepsAt(t) : 0;
+      return (
+        <AppPage
+          k={k}
+          line={done ? PHASE_LINES.day : stepsLine(steps, STEP_GOAL).replace(/\*/g, '')}
+          meter={{ value: String(steps), unit: ` / ${STEP_GOAL} steps`, progress: steps / STEP_GOAL }}
+        />
+      );
+    }
+    case 'downstairs': {
+      const { height, held, left } = going ? stairsAt(t) : { height: 0, held: 0, left: HOLD_SECONDS };
+      const holding = height >= 1;
+      // Home listens as soon as it shows the morning: no Start (use-morning-stairs.ts).
+      const status = done ? 'met' : holding ? 'holding' : going ? 'moving' : 'waiting';
+      return (
+        <AppPage
+          k={k}
+          line={done ? PHASE_LINES.day : downstairsLine(status, height)}
+          meter={{
+            value: (height * DOWNSTAIRS.threshold).toFixed(1),
+            unit: done ? ' m · Floor reached' : holding ? ` m · Hold ${left} s` : ` / ${DOWNSTAIRS.threshold} m down`,
+            progress: holding ? held : height,
+          }}
+        >
+          <Stairs k={k} height={height} />
+        </AppPage>
+      );
+    }
+    case 'place': {
+      const walked = going ? easeInOut(Math.min(1, t / PLACE_WALK_MS)) : 0;
+      const here = walked >= 1;
+      const line = done
+        ? PHASE_LINES.day
+        : here
+          ? 'You’re here. Tap Check in.'
+          : walked >= 0.4
+            ? 'Fresh air. I hate it.'
+            : 'Out the door. I’m coming, apparently.';
+      return (
+        <AppPage
+          k={k}
+          line={line}
+          meter={{
+            value: here ? 'Here' : formatDistance(PLACE_FROM_M * (1 - walked), usesMiles()),
+            unit: here ? '' : ' to your place',
+            progress: walked,
+          }}
+          button={here && !done ? 'Check in' : undefined}
+          press={start}
+        >
+          <StreetMap k={k} walked={walked} />
+        </AppPage>
+      );
+    }
+    case 'scan':
+      if (!started)
+        return (
+          <AppPage k={k} line="Go find your code. Only yours counts." button={demo.start} press={start}>
+            <View style={{ opacity: 0.9 }}>
+              <QrCode data={DEMO_CODE} size={k * 150} />
+            </View>
+          </AppPage>
+        );
+      return <ScanCamera k={k} found={going ? easeInOut(Math.min(1, t / SCAN_FIND_MS)) : 0} done={done} />;
+    case 'pushups': {
+      if (!started)
+        return (
+          <AppPage
+            k={k}
+            line={pushupsLine('idle', 0, reps, null).replace(/\*/g, '')}
+            meter={{ value: '0', unit: ` / ${reps} push-ups`, progress: 0 }}
+            button={demo.start}
+            press={start}
+          />
+        );
+      const each = repMs(reps);
+      const count = going ? Math.min(reps, Math.floor(t / each)) : 0;
+      return (
+        <PushupsCamera
+          k={k}
+          // The pretend body's own clock (pose-demo.ts), sped up so a rep takes `each`.
+          poseMs={going && !done ? (t / each) * DEMO_REP_MS : 0}
+          count={count}
+          goal={reps}
+          line={done ? PHASE_LINES.day : pushupsLine('counting', count, reps, null).replace(/\*/g, '')}
+        />
+      );
+    }
+  }
+}
+
+/** A code for the demo's scan: never anyone's real one. */
+const DEMO_CODE = 'LOCTURNE-DEMO';
+
+/** The app's page: his line at the top, the method's picture, the meter, and its button if it has one. */
+function AppPage({
+  k,
+  line,
+  meter,
+  button,
+  press,
+  children,
+}: {
+  k: number;
+  line: string;
+  meter?: { value: string; unit: string; progress: number };
+  button?: string;
+  press?: SharedNumber;
+  children?: ReactNode;
+}) {
   const pt = (n: number) => n * k;
-  const startStyle = useAnimatedStyle(() => ({ transform: [{ scale: start.value }] }));
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press?.value ?? 1 }] }));
   return (
     <View style={[styles.wakeApp, { paddingHorizontal: pt(24), paddingTop: pt(110), paddingBottom: pt(60) }]}>
       <Text style={[styles.wakeLine, { fontSize: pt(32), lineHeight: pt(35) }]} maxFontSizeMultiplier={1}>
         {line}
       </Text>
-      <View style={styles.flex} />
-      <Text style={[styles.wakeCount, { fontSize: pt(64), lineHeight: pt(70) }]} maxFontSizeMultiplier={1}>
-        {count.value}
-        <Text style={[styles.walkGoal, { fontSize: pt(18) }]}>{count.unit}</Text>
-      </Text>
-      <View style={[styles.walkTrack, { height: pt(6), marginTop: pt(12) }]}>
-        <View style={[styles.walkFill, { width: `${Math.min(1, progress) * 100}%` }]} />
-      </View>
+      <View style={styles.picture}>{children}</View>
+      {meter ? (
+        <>
+          <Text style={[styles.wakeCount, { fontSize: pt(64), lineHeight: pt(70) }]} maxFontSizeMultiplier={1}>
+            {meter.value}
+            <Text style={[styles.wakeUnit, { fontSize: pt(18) }]}>{meter.unit}</Text>
+          </Text>
+          <View style={[styles.track, { height: pt(6), marginTop: pt(12) }]}>
+            <View style={[styles.fill, { width: `${Math.min(1, meter.progress) * 100}%` }]} />
+          </View>
+        </>
+      ) : null}
       <View style={{ height: pt(54), marginTop: pt(28) }}>
-        {showStart ? (
-          <Animated.View style={[styles.shieldPrimary, { flex: 1, borderRadius: pt(27) }, startStyle]}>
+        {button ? (
+          <Animated.View style={[styles.shieldPrimary, { flex: 1, borderRadius: pt(27) }, pressStyle]}>
             <Text style={[styles.shieldPrimaryText, { fontSize: pt(18) }]} maxFontSizeMultiplier={1}>
-              Start
+              {button}
             </Text>
           </Animated.View>
         ) : null}
@@ -752,6 +844,147 @@ function WakeApp({
     </View>
   );
 }
+
+/** A flight of four steps, side-on, and you on it: `height` is 0 at the top to 1 at the bottom. */
+function Stairs({ k, height }: { k: number; height: number }) {
+  const FLIGHTS = 4;
+  const run = 52;
+  const rise = 34;
+  const level = Math.min(FLIGHTS, Math.floor(height * FLIGHTS));
+  const along = level >= FLIGHTS ? 0 : height * FLIGHTS - level;
+  // Along each tread, then a hop down its edge at the end.
+  const x = 40 + (level + along) * run;
+  const y = 30 + level * rise + (along > 0.75 ? ((along - 0.75) / 0.25) * rise : 0) - 12;
+  let d = 'M10 30';
+  for (let i = 0; i <= FLIGHTS; i++) d += ` H${40 + (i + 1) * run - 4}` + (i < FLIGHTS ? ` V${30 + (i + 1) * rise}` : '');
+  return (
+    <Svg width={k * 300} height={k * 200} viewBox="0 0 300 200">
+      <Path d={d} stroke="#FFFFFF" strokeOpacity={0.35} strokeWidth={4} fill="none" strokeLinejoin="round" />
+      <Circle cx={x} cy={y} r={10} fill="#FFFFFF" />
+    </Svg>
+  );
+}
+
+/** The way to the place, as Maps draws it at night: blocks, the route, you, and the pin. */
+const ROUTE: [number, number][] = [
+  [62, 196],
+  [62, 122],
+  [176, 122],
+  [176, 48],
+  [246, 48],
+];
+function routeAt(walked: number): [number, number] {
+  const legs = ROUTE.slice(1).map((p, i) => Math.hypot(p[0] - ROUTE[i][0], p[1] - ROUTE[i][1]));
+  let left = walked * legs.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < legs.length; i++) {
+    if (left <= legs[i] || i === legs.length - 1) {
+      const f = Math.min(1, left / legs[i]);
+      return [ROUTE[i][0] + (ROUTE[i + 1][0] - ROUTE[i][0]) * f, ROUTE[i][1] + (ROUTE[i + 1][1] - ROUTE[i][1]) * f];
+    }
+    left -= legs[i];
+  }
+  return ROUTE[ROUTE.length - 1];
+}
+function StreetMap({ k, walked }: { k: number; walked: number }) {
+  const [x, y] = routeAt(walked);
+  const pin = ROUTE[ROUTE.length - 1];
+  return (
+    <View style={[styles.map, { width: k * 340, height: k * 240, borderRadius: k * 22 }]}>
+      <Svg width="100%" height="100%" viewBox="0 0 300 240">
+        {[48, 122, 196].map((sy) => (
+          <Line key={`h${sy}`} x1={0} y1={sy} x2={300} y2={sy} stroke="#2D3444" strokeWidth={12} />
+        ))}
+        {[62, 176, 268].map((sx) => (
+          <Line key={`v${sx}`} x1={sx} y1={0} x2={sx} y2={240} stroke="#2D3444" strokeWidth={12} />
+        ))}
+        <Polyline points={ROUTE.map((p) => p.join(',')).join(' ')} stroke="#FFFFFF" strokeOpacity={0.5} strokeWidth={4} fill="none" strokeLinejoin="round" />
+        {/* The pin: a white drop with a dark dot. */}
+        <Path d={`M${pin[0]} ${pin[1]} c-9 -12 -14 -18 -14 -25 a14 14 0 1 1 28 0 c0 7 -5 13 -14 25z`} fill="#FFFFFF" />
+        <Circle cx={pin[0]} cy={pin[1] - 25} r={5} fill={Nocturne.bg} />
+        {/* You, as Maps marks you. */}
+        <Circle cx={x} cy={y} r={9} fill="#0A84FF" stroke="#FFFFFF" strokeWidth={3} />
+      </Svg>
+    </View>
+  );
+}
+
+/** The scan's camera: the code comes into the frame as they walk up to it (`found`), then reads. */
+function ScanCamera({ k, found, done }: { k: number; found: number; done: boolean }) {
+  const pt = (n: number) => n * k;
+  const read = found >= 1;
+  const frame = pt(read ? 230 : 250);
+  const code = pt(70 + 150 * found);
+  const corner = pt(34);
+  return (
+    <View style={styles.camera}>
+      {/* The kitchen wall the code is stuck to, coming closer. */}
+      <View style={[styles.wall, { transform: [{ translateX: pt(60 * (1 - found)) }, { translateY: pt(-110 * (1 - found)) }] }]}>
+        <View style={{ padding: pt(8 + 10 * found), backgroundColor: '#FFFFFF', borderRadius: pt(4) }}>
+          <QrCode data={DEMO_CODE} size={code} />
+        </View>
+      </View>
+      {/* The finder's four corners, closing on the code once it reads. */}
+      <View style={[styles.finder, { width: frame, height: frame }]}>
+        {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
+          <View
+            key={c}
+            style={[
+              styles.corner,
+              { width: corner, height: corner, borderColor: '#FFFFFF', opacity: read ? 1 : 0.7, borderRadius: pt(6) },
+              c[0] === 't' ? { top: 0, borderTopWidth: pt(5) } : { bottom: 0, borderBottomWidth: pt(5) },
+              c[1] === 'l' ? { left: 0, borderLeftWidth: pt(5) } : { right: 0, borderRightWidth: pt(5) },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={[styles.cameraLine, { top: pt(110), fontSize: pt(30), lineHeight: pt(34), paddingHorizontal: pt(24) }]} maxFontSizeMultiplier={1}>
+        {done ? PHASE_LINES.day : read ? 'That’s the one.' : 'Point me at your code.'}
+      </Text>
+    </View>
+  );
+}
+
+/** The push-ups camera: you traced in white over a dark room, the count big at the top. */
+function PushupsCamera({ k, poseMs, count, goal, line }: { k: number; poseMs: number; count: number; goal: number; line: string }) {
+  const pt = (n: number) => n * k;
+  const w = SCREEN_PT.width;
+  const h = SCREEN_PT.height;
+  const joints = demoPose(poseMs, w, h);
+  const p = (j: Joint) => joints[j];
+  const floor = Math.max(p('leftWrist')?.y ?? 0, p('leftAnkle')?.y ?? 0) + 6;
+  const nose = p('nose');
+  return (
+    <View style={styles.camera}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} style={StyleSheet.absoluteFill}>
+        <Rect x={0} y={floor} width={w} height={h - floor} fill="#14161C" />
+        {BONES.map(([a, b]) => {
+          const from = p(a);
+          const to = p(b);
+          return from && to ? (
+            <Line key={`${a}-${b}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#FFFFFF" strokeWidth={5} strokeLinecap="round" />
+          ) : null;
+        })}
+        {nose ? <Circle cx={nose.x} cy={nose.y} r={15} stroke="#FFFFFF" strokeWidth={5} fill="none" /> : null}
+      </Svg>
+      <Text style={[styles.cameraCount, { top: pt(96), fontSize: pt(96), lineHeight: pt(104) }]} maxFontSizeMultiplier={1}>
+        {count}
+        <Text style={[styles.wakeUnit, { fontSize: pt(22) }]}>{` / ${goal}`}</Text>
+      </Text>
+      <Text style={[styles.cameraLine, { bottom: pt(90), fontSize: pt(28), lineHeight: pt(32), paddingHorizontal: pt(24) }]} maxFontSizeMultiplier={1}>
+        {line}
+      </Text>
+    </View>
+  );
+}
+
+/** The near side's bones, as pose-overlay.tsx draws them: arm, torso, leg. */
+const BONES: [Joint, Joint][] = [
+  ['leftShoulder', 'leftElbow'],
+  ['leftElbow', 'leftWrist'],
+  ['leftShoulder', 'leftHip'],
+  ['leftHip', 'leftKnee'],
+  ['leftKnee', 'leftAnkle'],
+];
 
 const TAB = 83;
 const STORIES: { name: string; photo: number }[] = [
@@ -937,6 +1170,7 @@ const styles = StyleSheet.create({
   wakeApp: { flex: 1, backgroundColor: Nocturne.bg },
   wakeLine: { ...DisplayFont, color: Nocturne.text },
   wakeCount: { ...NUMBER_FONT, color: Nocturne.text, fontVariant: ['tabular-nums'] },
+  wakeUnit: { color: Nocturne.text2, fontWeight: '500' },
 
   feed: { flex: 1, backgroundColor: '#000000' },
   feedText: { color: '#FFFFFF' },
@@ -965,24 +1199,15 @@ const styles = StyleSheet.create({
   },
   homeBar: { position: 'absolute', alignSelf: 'center', backgroundColor: '#FFFFFF' },
 
-  walk: { marginTop: 18, marginBottom: 12, gap: 10 },
-  walkCompact: { marginTop: 10, marginBottom: 4, gap: 6 },
-  walkCount: {
-    ...NUMBER_FONT,
-    color: Nocturne.accent ?? Nocturne.text,
-    fontSize: 44,
-    lineHeight: 48,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-  },
-  walkCountCompact: { fontSize: 36, lineHeight: 40 },
-  walkGoal: { color: Nocturne.text2, fontSize: 18, fontWeight: '500', fontStyle: 'normal' },
-  walkTrack: { height: 6, borderRadius: 3, backgroundColor: Nocturne.track, overflow: 'hidden' },
-  walkFill: { height: '100%', backgroundColor: Nocturne.text },
-  // Same size and 1.08 line height as every other Loc aside (Voice in ui.tsx).
-  walkLine: { ...DisplayFont, color: Nocturne.text, fontSize: VoiceSize.aside, lineHeight: 24, minHeight: 48, textAlign: 'center' },
-  walkLineCompact: { fontSize: 19, lineHeight: 23, minHeight: 46 },
-  emphasis: { fontStyle: 'italic' },
-  hidden: { opacity: 0 },
+  track: { width: '100%', borderRadius: 3, backgroundColor: Nocturne.track, overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: Nocturne.text },
+  picture: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  map: { overflow: 'hidden', backgroundColor: '#1C2230' },
+  camera: { flex: 1, backgroundColor: '#0B0C10', alignItems: 'center', justifyContent: 'center' },
+  wall: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  finder: { position: 'absolute' },
+  corner: { position: 'absolute' },
+  cameraLine: { ...DisplayFont, position: 'absolute', left: 0, right: 0, color: Nocturne.text, textAlign: 'center' },
+  cameraCount: { ...NUMBER_FONT, position: 'absolute', left: 0, right: 0, color: Nocturne.text, textAlign: 'center', fontVariant: ['tabular-nums'] },
   dark: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
 });

@@ -10,7 +10,6 @@ import { describe, test } from 'node:test';
 import {
   estimate,
   formatClock,
-  formatHalves,
   formatHoursFromMinutes,
   formatWhen,
   isInsideBedtime,
@@ -27,11 +26,11 @@ describe('estimate', () => {
     const e = estimate(input);
     assert.equal(e.weeklyMinutes, 455);
     assert.equal(e.morningWeeklyMinutes, 140);
-    assert.equal(e.weeklyHours, 7.5); // 455 min rounds down to 7½ hours, never up
-    assert.equal(e.yearlyHours, 390); // the 7½ shown × 52, so the two numbers agree
-    assert.equal(e.yearlyDays, 16);
+    assert.equal(e.weeklyHours, 8); // 455 min rounds up to whole hours, no halves
+    assert.equal(e.yearlyHours, 416); // the 8 shown × 52, so the two numbers agree
+    assert.equal(e.yearlyDays, 17);
     assert.equal(e.yearsLeft, 57);
-    assert.equal(e.lifetimeDays, 926); // 390 × 57 / 24 = 926.25
+    assert.equal(e.lifetimeDays, 988); // 416 × 57 / 24 = 988
     assert.equal(e.timeInBed, 450);
     assert.equal(e.sleepRoom, 450 - 45 - 15);
     assert.equal(e.lightUser, false);
@@ -90,22 +89,21 @@ describe('wording', () => {
   test('weeklyAmount agrees with weeklyHours from an hour up', () => {
     for (let minutes = 60; minutes < 2000; minutes++) {
       const hours = estimate({ ...input, nightMinutes: minutes, morningMinutes: 0, nightsPerWeek: 1 }).weeklyHours;
-      assert.equal(weeklyAmount(minutes), hours === 1 ? '1 hour' : `${formatHalves(hours)} hours`, `${minutes} min`);
+      assert.equal(weeklyAmount(minutes), hours === 1 ? '1 hour' : `${hours} hours`, `${minutes} min`);
     }
   });
 
   test('weeklyAmount under an hour', () => {
-    assert.equal(weeklyAmount(27), '25 minutes');
-    assert.equal(weeklyAmount(30), 'half an hour');
-    assert.equal(weeklyAmount(59), 'half an hour');
+    assert.equal(weeklyAmount(27), '30 minutes');
+    assert.equal(weeklyAmount(2), '5 minutes');
+    assert.equal(weeklyAmount(55), '55 minutes');
+    assert.equal(weeklyAmount(56), '1 hour');
   });
 
-  test('halves', () => {
-    assert.equal(formatHalves(0), '0');
-    assert.equal(formatHalves(0.5), '½');
-    assert.equal(formatHalves(7.5), '7½');
+  test('no halves anywhere', () => {
+    assert.equal(weeklyAmount(61), '2 hours');
     assert.equal(formatHoursFromMinutes(389), '6');
-    assert.equal(formatHoursFromMinutes(390), '6½');
+    assert.equal(formatHoursFromMinutes(390), '7');
   });
 
   test('lifetime sentence only from a full year', () => {
@@ -148,8 +146,8 @@ describe('the lead number per branch (ONBOARDING_BRANCHES §5.5)', () => {
   const e = estimate(input); // 45 min a night, 20 a morning, 7 nights
 
   test('night leads with the nights, morning with the mornings', () => {
-    assert.deepEqual(leadFor(e, 'night'), { minutes: 315, scope: 'night', weeklyHours: 5, yearlyHours: 260 });
-    assert.deepEqual(leadFor(e, 'morning'), { minutes: 140, scope: 'morning', weeklyHours: 2, yearlyHours: 104 });
+    assert.deepEqual(leadFor(e, 'night'), { minutes: 315, scope: 'night', weeklyHours: 6, yearlyHours: 312 });
+    assert.deepEqual(leadFor(e, 'morning'), { minutes: 140, scope: 'morning', weeklyHours: 3, yearlyHours: 156 });
   });
 
   test('overall, all and no answer lead with both ends', () => {

@@ -181,7 +181,7 @@ function restoreHarness(startStep: string) {
 test('Restore from hello that answers after they tapped on leaves them where they are', async () => {
   const { context, answers, alerts, went } = restoreHarness('hello');
   const restoring = context.invoke();
-  context.latestStep.set('value', 'voice');
+  context.latestStep.set('value', 'method');
   answers[0]({ entitled: true });
   await restoring;
   assert.equal(alerts.length, 1);
