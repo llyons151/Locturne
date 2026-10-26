@@ -11,6 +11,7 @@
       "bundleIdentifier": "com.lukelyons.locturne",
       "icon": "./assets/images/icon.png",
       "appleTeamId": "9N5WZT8LV3",
+      "appStoreUrl": "https://apps.apple.com/app/id6822555693",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },

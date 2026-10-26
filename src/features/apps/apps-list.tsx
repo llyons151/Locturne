@@ -216,7 +216,7 @@ export function listStatus(list: 'night' | 'always', size: number, now = new Dat
   const phase = heldPhase(readLock(now).phase, now);
   if (phase === 'night' || phase === 'morning') return asleep;
   const moon = sym('moon.fill', 'bedtime');
-  if (getNightPause(now)) return { icon: moon, text: 'Awake after an emergency unlock.' };
+  if (getNightPause(now)) return { icon: moon, text: 'Awake after a pass.' };
   if (!getArmedNight()) return null;
   return { icon: moon, text: `Awake now. Asleep ${startsLabel(nextBedtime(now), now)}.` };
 }

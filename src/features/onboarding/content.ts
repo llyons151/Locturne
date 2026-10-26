@@ -576,15 +576,14 @@ export function isNewYearWeek(now = new Date()): boolean {
 
 /**
  * `founder`: why Locturne exists, in the maker's own words. Not Loc: plain, first person.
- * DRAFT (2026-10-14): written by Claude from what's known (a student, building it alone).
- * Luke rewrites the story lines in his own words before shipping; only true things go here.
+ * Luke's own story (2026-10-26); only true things go here.
  */
 export const FOUNDER = {
   eyebrow: 'From the person who made this',
   lines: [
-    'Hi, I’m Luke. I’m a student, and I made Locturne on my own.',
-    'I kept losing the first hour of the day to my phone, still in bed. Screen Time never stopped me. The Ignore button was right there.',
-    'So I made the one thing that worked: the apps stay asleep until I’m actually up.',
+    'Hi, I’m Luke. I’m a student, and I made Locturne.',
+    'Most mornings started on my phone in bed. Only 15 minutes, but starting the day doing nothing set the tone for the rest of it.',
+    'So I built Locturne, your apps stay asleep until you’re up, so your day starts with action, not a screen.',
   ],
   sign: 'Luke',
   aside: 'He made me. I didn’t ask for this.',
