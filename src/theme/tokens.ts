@@ -52,6 +52,12 @@ export const VoiceSize = {
 export const Type = {
   title: { fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.4 },
   quizTitle: { fontSize: 24, lineHeight: 29, fontWeight: '700', letterSpacing: -0.4 },
+  /** Onboarding's page titles, as in the app (user, 2026-10-26): large and light, over `headingSub`. */
+  heading: { fontSize: 32, lineHeight: 38, fontWeight: '500', letterSpacing: -0.6 },
+  /** Short phones: the same title, a size down. */
+  headingCompact: { fontSize: 28, lineHeight: 34, fontWeight: '500', letterSpacing: -0.5 },
+  /** The grey line under a `heading`. */
+  headingSub: { fontSize: 16, lineHeight: 22 },
   body: { fontSize: 17, lineHeight: 24 },
   secondary: { fontSize: 15, lineHeight: 20 },
   caption: { fontSize: 13, lineHeight: 18 },

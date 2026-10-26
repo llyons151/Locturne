@@ -8,7 +8,6 @@ export type TimeRowProps = {
   title: string;
   value: number;
   onChange: (minutes: number) => void;
-  presets: number[];
   /** Why a time can't be used, or null when it's fine. */
   invalid?: (minutes: number) => string | null;
   last?: boolean;

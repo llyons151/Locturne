@@ -34,8 +34,6 @@ export function openScheduleSheet(next: ScheduleRequest) {
 /** iOS won't watch a block shorter than this (DeviceActivity's floor). */
 const SHORTEST = 15;
 const NAME_MAX = 24;
-/** The web preview's time menus (TimeRow off iOS). */
-const TIMES = Array.from({ length: 48 }, (_, i) => i * 30);
 
 const blank = (): ScheduleDraft => {
   const custom = PRESETS[0];
@@ -181,8 +179,8 @@ export function ScheduleSheet() {
         <SwitchRow title="All day" value={!!draft.allDay} onChange={(allDay) => set({ allDay: allDay || undefined })} last={!!draft.allDay} />
         {draft.allDay ? null : (
           <>
-            <TimeRow title="From" value={draft.start} presets={TIMES} onChange={(start) => set({ start })} />
-            <TimeRow title="To" value={draft.end} presets={TIMES} onChange={(end) => set({ end })} last />
+            <TimeRow title="From" value={draft.start} onChange={(start) => set({ start })} />
+            <TimeRow title="To" value={draft.end} onChange={(end) => set({ end })} last />
           </>
         )}
         <View style={styles.days}>

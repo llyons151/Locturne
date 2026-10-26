@@ -86,7 +86,75 @@ export function DayPicker({
   );
 }
 
+/**
+ * Onboarding's "Which nights?": seven big circles straight on the sky, no card (Brick's
+ * "Make No Socials a routine?", user's reference 2026-10-26). A line under the row says
+ * what to do until something is picked, then counts what was.
+ */
+export function DayRow({
+  value,
+  onChange,
+  unit = 'night',
+}: {
+  value: number[];
+  onChange: (days: number[]) => void;
+  unit?: 'night' | 'morning';
+}) {
+  const toggle = (day: number) => {
+    haptic.tap();
+    onChange(value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort((a, b) => a - b));
+  };
+  const count = value.length;
+
+  return (
+    <Reveal style={styles.rowWrap}>
+      <View style={styles.bigRow}>
+        {SHOWN.map((i) => {
+          const day = DAYS[i];
+          const on = value.includes(i);
+          return (
+            <Pressable
+              key={day.name}
+              onPress={() => toggle(i)}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`${day.name} ${unit}`}
+              accessibilityState={{ checked: on }}
+              hitSlop={3}
+              style={({ pressed }) => [styles.bigDay, on && styles.dayOn, pressed && styles.pressed]}
+            >
+              <Text style={[styles.bigLetter, on && styles.letterOn]} maxFontSizeMultiplier={1.2}>
+                {day.letter}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.hint} maxFontSizeMultiplier={1.4} accessibilityLiveRegion="polite">
+        {count === 0
+          ? `Select your ${unit}s`
+          : count === DAYS.length
+            ? `Every ${unit}`
+            : `${count} ${count === 1 ? unit : `${unit}s`} a week`}
+      </Text>
+    </Reveal>
+  );
+}
+
 const styles = StyleSheet.create({
+  rowWrap: { alignSelf: 'stretch', alignItems: 'center', gap: Space.l },
+  bigRow: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  // Equal shares of the row, so the circles stay round from a 320pt phone up.
+  bigDay: {
+    flex: 1,
+    maxWidth: 48,
+    aspectRatio: 1,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  bigLetter: { color: Nocturne.text, fontSize: 16, fontWeight: '600' },
+  hint: { color: Nocturne.text2, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] },
   card: {
     alignSelf: 'stretch',
     borderRadius: Radius.card,

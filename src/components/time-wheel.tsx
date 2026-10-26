@@ -1,12 +1,15 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '@/components/text';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { SymbolView } from 'expo-symbols';
 import Animated, {
   cancelAnimation,
   interpolate,
+  interpolateColor,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withSpring,
   type SharedValue,
@@ -16,8 +19,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useOnMoon } from '@/components/moon-surface';
 import { Reveal } from '@/components/motion';
 import * as haptic from '@/lib/haptics';
-import { formatPreset } from '@/lib/text';
-import { Nocturne, Radius, Space, Type } from '@/theme';
+import { APP_FONT, Nocturne, Space } from '@/theme';
 
 const HOURS = ['12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
@@ -26,17 +28,23 @@ const PLAIN_MINUTES = Array.from({ length: 60 }, (_, i) => `${i}`);
 const SETTLE = { damping: 28, stiffness: 220, mass: 0.8 };
 /** How far a flick carries, in seconds of release velocity. */
 const FLICK_S = 0.22;
+const DAY = 24 * 60;
+/** The time list's step, in minutes. */
+const STEP = 15;
+const TIMES = Array.from({ length: DAY / STEP }, (_, i) => {
+  const h = Math.floor((i * STEP) / 60);
+  const m = ((i * STEP) % 60).toString().padStart(2, '0');
+  return `${h % 12 || 12}:${m} ${h < 12 ? 'AM' : 'PM'}`;
+});
 
-/** Scroll-wheel time picker (hour : minute am/pm) with a row of presets underneath. */
+/** Scroll-wheel time picker (hour : minute am/pm). */
 export function TimeWheel({
   value,
   onChange,
-  presets,
   short = false,
 }: {
   value: number;
   onChange: (minutes: number) => void;
-  presets: number[];
   /** Five rows instead of seven, to leave room for something under the wheel. */
   short?: boolean;
 }) {
@@ -91,31 +99,85 @@ export function TimeWheel({
         />
       </View>
 
-      <View style={styles.presetBlock}>
-        <Text style={[styles.presetsLabel, moon && styles.presetsLabelOnMoon]}>Presets</Text>
-        <View style={styles.presets} accessibilityRole="radiogroup">
-          {presets.map((preset) => {
-            const selected = preset === value;
-            return (
-              <Pressable
-                key={preset}
-                onPress={() => {
-                  haptic.tap();
-                  onChange(preset);
-                }}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
-                style={({ pressed }) => [styles.preset, selected && styles.presetSelected, pressed && styles.pressed]}
-              >
-                <Text style={styles.presetLabel} numberOfLines={1} adjustsFontSizeToFit>
-                  {formatPreset(preset)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
     </Reveal>
+  );
+}
+
+/**
+ * One centred column of clock times every quarter hour (Structured's picker): the chosen one on a
+ * white pill with an alarm clock (or a moon, for bedtime) beside it, arrows above and below that step it.
+ */
+export function TimeList({
+  value,
+  onChange,
+  label,
+  short = false,
+  icon = 'alarm',
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+  /** What the time is, for VoiceOver. */
+  label: string;
+  /** What sits beside the chosen time: an alarm clock for waking, a moon for bedtime. */
+  icon?: PillIcon;
+  /** Five rows instead of seven, to leave room for something under the list. */
+  short?: boolean;
+}) {
+  const { height } = useWindowDimensions();
+  const moon = useOnMoon();
+  const row = height < 700 ? 36 : 42;
+  const visible = (height < 700 || short ? 5 : 7) - (moon ? 2 : 0);
+  const index = Math.round(value / STEP) % TIMES.length;
+
+  // A time off the quarter hour (set elsewhere) snaps to the row it shows as.
+  useEffect(() => {
+    if (value % STEP) onChange(index * STEP);
+  }, [value, index, onChange]);
+
+  const step = (delta: number) => {
+    haptic.tap();
+    onChange((((index + delta) % TIMES.length) + TIMES.length) % TIMES.length * STEP);
+  };
+
+  return (
+    <Reveal style={styles.list}>
+      <Arrow direction="up" onPress={() => step(-1)} />
+      <View style={[styles.wheels, { height: row * visible }]}>
+        <View style={[styles.pill, { top: (row * (visible - 1)) / 2, height: row, borderRadius: row / 2 }]} />
+        <Column
+          items={TIMES}
+          index={index}
+          onIndex={(i) => onChange(i * STEP)}
+          loop
+          row={row}
+          visible={visible}
+          label={label}
+          align="center"
+          pill
+          icon={icon}
+        />
+      </View>
+      <Arrow direction="down" onPress={() => step(1)} />
+    </Reveal>
+  );
+}
+
+function Arrow({ direction, onPress }: { direction: 'up' | 'down'; onPress: () => void }) {
+  const up = direction === 'up';
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel={up ? 'Earlier' : 'Later'}
+      style={({ pressed }) => [styles.arrow, pressed && styles.pressed]}
+    >
+      <SymbolView
+        name={up ? { ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' } : { ios: 'arrow.down', android: 'arrow_downward', web: 'arrow_downward' }}
+        size={20}
+        tintColor={Nocturne.text2}
+      />
+    </Pressable>
   );
 }
 
@@ -222,9 +284,32 @@ type ColumnProps = {
   align: 'left' | 'right' | 'center';
   /** Bigger type for a single-column wheel. */
   wide?: boolean;
+  /** The time list: the centred row turns dark to sit on its white pill. */
+  pill?: boolean;
+  /** The symbol beside the pill's time. */
+  icon?: PillIcon;
 };
 
-function Column({ items, index, onIndex, loop = false, row, visible, label, align, wide = false }: ColumnProps) {
+type PillIcon = 'alarm' | 'moon';
+
+const PILL_SYMBOLS = {
+  alarm: { ios: 'alarm.fill', android: 'alarm', web: 'alarm' },
+  moon: { ios: 'moon.fill', android: 'bedtime', web: 'bedtime' },
+} as const;
+
+function Column({
+  items,
+  index,
+  onIndex,
+  loop = false,
+  row,
+  visible,
+  label,
+  align,
+  wide = false,
+  pill = false,
+  icon = 'alarm',
+}: ColumnProps) {
   const count = items.length;
   // Scroll position in rows. Unbounded when looping; the selected item is offset mod count.
   const offset = useSharedValue(index);
@@ -260,6 +345,21 @@ function Column({ items, index, onIndex, loop = false, row, visible, label, alig
       if (before !== null && now !== before && driving.get()) scheduleOnRN(haptic.tap);
     },
   );
+
+  // The rows near the selection mount first and the rest a few per frame. All 96 of the time
+  // list's rows at once, each with its own animated styles, took about half a second, which
+  // froze onboarding's page fade. Once they're all in, nothing re-renders under a drag.
+  const [reach, setReach] = useState(Math.ceil(visible / 2) + 2);
+  useEffect(() => {
+    if (reach >= (loop ? count / 2 : count)) return;
+    const id = requestAnimationFrame(() => setReach((r) => r + 4));
+    return () => cancelAnimationFrame(id);
+  }, [reach, count, loop]);
+  const mounted = (i: number) => {
+    let d = i - index;
+    if (loop) d = ((((d + count / 2) % count) + count) % count) - count / 2;
+    return Math.abs(d) <= reach;
+  };
 
   const gesture = useMemo(() => {
     const settle = (target: number) => {
@@ -307,7 +407,7 @@ function Column({ items, index, onIndex, loop = false, row, visible, label, alig
   return (
     <GestureDetector gesture={gesture}>
       <View
-        style={[styles.column, wide && styles.columnWide, { height: row * visible }]}
+        style={[styles.column, wide && styles.columnWide, pill && styles.columnPill, { height: row * visible }]}
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={label}
@@ -318,20 +418,24 @@ function Column({ items, index, onIndex, loop = false, row, visible, label, alig
           if (event.nativeEvent.actionName === 'decrement') step(-1);
         }}
       >
-        {items.map((item, i) => (
-          <Item
-            key={item}
-            label={item}
-            i={i}
-            count={count}
-            loop={loop}
-            offset={offset}
-            row={row}
-            visible={visible}
-            align={align}
-            wide={wide}
-          />
-        ))}
+        {items.map((item, i) =>
+          mounted(i) ? (
+            <Item
+              key={item}
+              label={item}
+              i={i}
+              count={count}
+              loop={loop}
+              offset={offset}
+              row={row}
+              visible={visible}
+              align={align}
+              wide={wide}
+              pill={pill}
+              icon={icon}
+            />
+          ) : null,
+        )}
       </View>
     </GestureDetector>
   );
@@ -347,6 +451,8 @@ function Item({
   visible,
   align,
   wide,
+  pill,
+  icon,
 }: {
   label: string;
   i: number;
@@ -357,6 +463,8 @@ function Item({
   visible: number;
   align: ColumnProps['align'];
   wide: boolean;
+  pill: boolean;
+  icon: PillIcon;
 }) {
   const half = visible / 2;
   const style = useAnimatedStyle(() => {
@@ -368,22 +476,47 @@ function Item({
       transform: [{ translateY: d * row }, { scale: interpolate(far, [0, 3], [1, 0.84], 'clamp') }],
     };
   });
+  const near = useDerivedValue(() => {
+    let d = i - offset.get();
+    if (loop) d = ((((d + count / 2) % count) + count) % count) - count / 2;
+    return Math.abs(d);
+  });
+  const ink = useAnimatedStyle(() =>
+    pill ? { color: interpolateColor(near.get(), [0, 0.5], [Nocturne.onCta, Nocturne.text]) } : {},
+  );
+  const clock = useAnimatedStyle(() => ({ opacity: interpolate(near.get(), [0, 0.5], [1, 0], 'clamp') }));
   return (
     <Animated.View style={[styles.item, { top: (row * (visible - 1)) / 2, height: row }, style]}>
-      <Text style={[styles.itemText, wide && styles.itemTextWide, { textAlign: align }]} maxFontSizeMultiplier={1.2}>
-        {label}
-      </Text>
+      <View style={pill && styles.itemCentre}>
+        {pill ? (
+          // Hangs off the text's left edge, so every time stays centred whether or not it's showing.
+          <Animated.View style={[styles.clock, clock]}>
+            <SymbolView name={PILL_SYMBOLS[icon]} size={18} tintColor={Nocturne.onCta} />
+          </Animated.View>
+        ) : null}
+        <Animated.Text
+          style={[APP_FONT, styles.itemText, wide && styles.itemTextWide, pill && styles.itemTextPill, { textAlign: align }, ink]}
+          maxFontSizeMultiplier={1.2}
+        >
+          {label}
+        </Animated.Text>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: Space.xl, alignSelf: 'stretch' },
+  wrap: { alignSelf: 'stretch' },
   wheels: { flexDirection: 'row', justifyContent: 'center', alignSelf: 'center', gap: 8 },
   // A veil, like iOS's own wheels, so it takes the colour of whatever it sits on (a sheet's glass too).
   band: { position: 'absolute', left: -20, right: -20, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
   column: { width: 56, overflow: 'hidden' },
   columnWide: { width: 120 },
+  columnPill: { width: 240 },
+  list: { alignSelf: 'stretch', alignItems: 'center', gap: Space.s },
+  arrow: { padding: 6 },
+  // Behind the time list's centred row.
+  pill: { position: 'absolute', left: '50%', marginLeft: -105, width: 210, backgroundColor: Nocturne.cta },
   colon: { width: 12, justifyContent: 'center', alignItems: 'center' },
   colonText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', marginTop: -3 },
   unit: { width: 40, justifyContent: 'center' },
@@ -391,22 +524,8 @@ const styles = StyleSheet.create({
   item: { position: 'absolute', left: 0, right: 0, justifyContent: 'center' },
   itemText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', fontVariant: ['tabular-nums'] },
   itemTextWide: { fontSize: 32, fontWeight: '600' },
-  presetBlock: { gap: Space.s },
-  presetsLabel: Type.label,
-  presetsLabelOnMoon: { color: Nocturne.text },
-  presets: { flexDirection: 'row', gap: 8 },
-  preset: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: Radius.control,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-    backgroundColor: Nocturne.surface,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  presetSelected: { borderColor: Nocturne.cta, borderWidth: 2 },
-  presetLabel: { color: Nocturne.text, fontSize: 15, fontWeight: '600' },
-  pressed: { opacity: 0.75 },
+  itemTextPill: { fontSize: 20, fontWeight: '600' },
+  itemCentre: { alignSelf: 'center', justifyContent: 'center' },
+  clock: { position: 'absolute', left: -28, top: 0, bottom: 0, justifyContent: 'center' },
+  pressed: { opacity: 0.6 },
 });

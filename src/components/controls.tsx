@@ -22,7 +22,7 @@ import {
  * web preview's stand-in, which can't render SwiftUI.
  */
 
-export function TimeRow({ icon, title, value, onChange, presets, invalid, last }: TimeRowProps) {
+export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRowProps) {
   const [draft, setDraft] = useState<number | null>(null);
   const problem = draft === null ? null : (invalid?.(draft) ?? null);
   return (
@@ -39,7 +39,7 @@ export function TimeRow({ icon, title, value, onChange, presets, invalid, last }
       >
         {draft !== null ? (
           <>
-            <TimeWheel value={draft} onChange={setDraft} presets={presets} />
+            <TimeWheel value={draft} onChange={setDraft} />
             {problem ? <Text style={styles.note}>{problem}</Text> : null}
           </>
         ) : null}

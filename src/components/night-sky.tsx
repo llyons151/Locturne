@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
   Easing,
   Extrapolation,
@@ -10,6 +11,8 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -47,6 +50,11 @@ export const FLIGHT_MS = 1400;
  */
 const MOON_REST: 'top' | 'bottom' = 'bottom';
 
+/** The opener's sky drift: a quarter of its sway's cycle, how far it sways, and how much it grows so its edges stay off screen. */
+const DRIFT_MS = 9000;
+const DRIFT_X = 14;
+const DRIFT_GROW = 0.08;
+
 /** moon-glow.png: the moon's disc is half the image's width, with its glow around it. */
 const GLOW_PAD = 2;
 
@@ -54,7 +62,7 @@ const GLOW_PAD = 2;
  * moon-frosted.png is moon.webp recoloured to the sky's moon and lightly blurred, with
  * room around it for the blur: the moon's disc is 2/3 of the image's width.
  */
-const FROST_PAD = 1.5;
+export const FROST_PAD = 1.5;
 
 /** Where the baked moon lands on screen, given the image is cover-fit to the top right. */
 function bakedMoon(width: number, height: number) {
@@ -155,10 +163,24 @@ function homeMoon(width: number, height: number, insetTop: number) {
   return { left: d.cx - d.r, top: d.cy - d.r, size: d.r * 2 };
 }
 
-/** The opener's moon: big, centred in the upper part of the screen, above the text. */
+/**
+ * The opener's moon: up top, where Ahead's opener has its mascot, with the name, the line and
+ * the buttons below it (user, 2026-10-26).
+ */
 function heroMoon(width: number, height: number) {
-  const size = Math.min(width * 0.72, height * 0.34);
-  return { left: (width - size) / 2, top: height * 0.32 - size / 2, size };
+  // Short phones (SE) get a smaller moon, higher up, so it clears the name.
+  const short = height < 700;
+  const size = Math.min(width * 0.66, height * (short ? 0.22 : 0.32));
+  return { left: (width - size) / 2, top: height * (short ? 0.27 : 0.34) - size / 2, size };
+}
+
+/** The opener moon's faint glow, as a share of the resting moon's. The user asked for it (2026-10-26); keep it to the opener. */
+export const OPENER_GLOW = 0.3;
+
+/** The opener moon's disc (centre and radius), so the intro splash can land its moon there. */
+export function openerMoonDisc(width: number, height: number) {
+  const m = heroMoon(width, height);
+  return { cx: m.left + m.size / 2, cy: m.top + m.size / 2, r: m.size / 2 };
 }
 
 /** How long the moon takes to rise into, or sink out of, the quiz. */
@@ -185,6 +207,53 @@ function quizMoon(width: number, height: number, insetTop: number) {
   return { left: (width - size) / 2, top: quizArcTop(height, insetTop) - 12, size };
 }
 
+/**
+ * The quiz's frosted wash: soft blues blended like ABY Journal's onboarding (user, 2026-10-26),
+ * drawn as vector gradients so it stays smooth. The moon photo blown up to quiz size went blotchy.
+ * Navy up top where the question sits, dusty moon-blue lower down; no grain.
+ */
+const WASH = {
+  top: '#121C36',
+  middle: '#3F5583',
+  bottom: '#7C90B0',
+  /** Soft patches over the base, as [cx, cy, rx, ry] in shares of the screen, with their colour. */
+  patches: [
+    { at: [0.1, 0.32, 0.75, 0.32], color: '#4A63A0', opacity: 0.55 },
+    { at: [0.95, 0.6, 0.7, 0.36], color: '#6F7FB4', opacity: 0.5 },
+    { at: [0.2, 0.92, 0.85, 0.3], color: '#93A6C4', opacity: 0.6 },
+  ],
+} as const;
+
+/** How far into the quiz rise the wash starts fading in, so the moon's curve is seen rising first. */
+const WASH_FROM = 0.35;
+
+function QuizWash({ width, height }: { width: number; height: number }) {
+  // Own ids per sky: on the web a second sky's gradients would otherwise resolve to the first's.
+  const id = `quiz-wash-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  return (
+    <Svg width={width} height={height}>
+      <Defs>
+        <LinearGradient id={`${id}-base`} x1="0" y1="0" x2="0.25" y2="1">
+          <Stop offset="0" stopColor={WASH.top} />
+          <Stop offset="0.45" stopColor={WASH.middle} />
+          <Stop offset="1" stopColor={WASH.bottom} />
+        </LinearGradient>
+        {WASH.patches.map((patch, i) => (
+          <RadialGradient key={i} id={`${id}-${i}`} cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor={patch.color} stopOpacity={patch.opacity} />
+            <Stop offset="0.6" stopColor={patch.color} stopOpacity={patch.opacity * 0.4} />
+            <Stop offset="1" stopColor={patch.color} stopOpacity={0} />
+          </RadialGradient>
+        ))}
+      </Defs>
+      <Rect width={width} height={height} fill={`url(#${id}-base)`} />
+      {WASH.patches.map(({ at: [cx, cy, rx, ry] }, i) => (
+        <Ellipse key={i} cx={cx * width} cy={cy * height} rx={rx * width * 1.4} ry={ry * height} fill={`url(#${id}-${i})`} />
+      ))}
+    </Svg>
+  );
+}
+
 /** Where content on the quiz moon starts, measured from the top of the onboarding body. */
 export function quizContentTop(height: number, insetTop: number) {
   return quizArcTop(height, insetTop) - insetTop - TOP_BAR + 40;
@@ -203,6 +272,7 @@ export function NightSky({
   home = false,
   floor = 0,
   moonless = false,
+  drift = false,
 }: {
   opening?: boolean;
   /** Hide the moon and its glow, leaving the sky: a screen drawing its own (the payoff's moonrise). */
@@ -215,6 +285,8 @@ export function NightSky({
   floor?: number;
   /** The home screen: the moon rises out of the bottom into full view. */
   home?: boolean;
+  /** The opener: the sky (not the moon) drifts sideways, slowly enough to be felt more than seen. */
+  drift?: boolean;
 }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -246,6 +318,21 @@ export function NightSky({
       ? target
       : withTiming(target, { duration: HOME_RISE_MS, easing: Easing.bezier(0.33, 0, 0.2, 1) });
   }, [home, reduced, homed]);
+
+  // 0 = still; while drifting, the sky is grown a little so its edges never show, and sways.
+  const swell = useSharedValue(0);
+  const sway = useSharedValue(0);
+  useEffect(() => {
+    const on = drift && !reduced;
+    const ease = Easing.bezier(0.65, 0, 0.35, 1);
+    swell.value = withTiming(on ? 1 : 0, { duration: FLIGHT_MS, easing: ease });
+    sway.value = on
+      ? withRepeat(withSequence(withTiming(1, { duration: DRIFT_MS, easing: ease }), withTiming(-1, { duration: DRIFT_MS * 2, easing: ease }), withTiming(0, { duration: DRIFT_MS, easing: ease })), -1)
+      : withTiming(0, { duration: FLIGHT_MS, easing: ease });
+  }, [drift, reduced, swell, sway]);
+  const skyStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: sway.value * DRIFT_X * swell.value }, { scale: 1 + swell.value * DRIFT_GROW }],
+  }));
 
   const from = heroMoon(width, height);
   const to = MOON_REST === 'bottom' ? risingMoon(width, height - floor) : bakedMoon(width, height);
@@ -287,21 +374,27 @@ export function NightSky({
       top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
       width: d.size * GLOW_PAD,
       height: d.size * GLOW_PAD,
-      opacity: progress.value * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
+      opacity: interpolate(progress.value, [0, 1], [OPENER_GLOW, 1]) * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
     };
   });
+
+  const washStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(risen.value, [WASH_FROM, 1], [0, 1], Extrapolation.CLAMP),
+  }));
 
   return (
     // Clipped: the risen moon's glow runs past the screen edges, which on the web widens and
     // scrolls the page (iOS clips at the screen anyway).
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
-      <Image
-        source={require('@/assets/onboarding/night-sky-moonless.png')}
-        style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
-        contentFit="cover"
-        contentPosition="top right"
-        accessible={false}
-      />
+      <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
+        <Image
+          source={require('@/assets/onboarding/night-sky-moonless.png')}
+          style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
+          contentFit="cover"
+          contentPosition="top right"
+          accessible={false}
+        />
+      </Animated.View>
       {/* A wrapper's opacity, since the glow's own is animated and would win. */}
       <View style={[StyleSheet.absoluteFill, moonless && styles.hidden]}>
         {MOON_REST === 'bottom' ? (
@@ -323,6 +416,9 @@ export function NightSky({
           />
         </Animated.View>
       </View>
+      <Animated.View style={[StyleSheet.absoluteFill, washStyle]}>
+        <QuizWash width={width} height={height} />
+      </Animated.View>
     </View>
   );
 }
