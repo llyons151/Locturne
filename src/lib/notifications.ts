@@ -346,8 +346,8 @@ export function getTrialEnd(): Date | null {
  * Remembers the trial end and schedules the reminder 2 days before it. Purchases call this
  * when a trial starts with "Remind me" on. Kept in the App Group, so every reschedule keeps
  * it. Never prompts: `armed` explains the notifications and asks right after (a cold prompt
- * the instant the purchase lands got refused more). If permission never comes, `armed` and
- * `first-morning` say the reminder can't arrive and give the date instead.
+ * the instant the purchase lands got refused more). If permission never comes, `armed`
+ * says the reminder can't arrive and give the date instead.
  */
 export async function scheduleTrialReminder(trialEnd: Date): Promise<void> {
   sharedSet(TRIAL_KEY, trialEnd.getTime());

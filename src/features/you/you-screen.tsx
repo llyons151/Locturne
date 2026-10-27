@@ -306,6 +306,13 @@ export function YouScreen() {
         <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
       </Card>
 
+      {/* Dev and preview builds only: the whole onboarding again from the first screen. */}
+      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
+        <Card footer="The whole onboarding again from the start. Finishing it saves its answers as your routine.">
+          <ValueRow icon={sym('arrow.counterclockwise', 'replay')} title="Redo onboarding" value="" onPress={() => router.push('/onboarding?paywall=1')} last />
+        </Card>
+      ) : null}
+
       {__DEV__ ? (
         <>
           <Text style={styles.heading} accessibilityRole="header">

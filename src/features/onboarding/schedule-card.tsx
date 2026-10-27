@@ -4,9 +4,10 @@ import { Text } from '@/components/text';
 
 import { AppTile } from '@/components/app-icons';
 import { countPicks } from '@/components/app-picker';
+import { GlassCard } from '@/components/glass-card';
 import { Reveal } from '@/components/motion';
 import type { WakeMethod } from '@/lib/routine';
-import { Gap, Nocturne, NUMBER_FONT, Radius, Space, Type } from '@/theme';
+import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { methodCopy } from './content';
 import { formatClock } from './estimate';
@@ -53,69 +54,71 @@ export function ScheduleCard({
 
   return (
     <Reveal rise style={[styles.card, compact && styles.cardCompact]}>
-      <View style={styles.times}>
-        <Time
-          label="Lights out"
-          icon={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}
-          minutes={bedtime}
-          compact={compact}
-          onChange={() => onChange('bedtime')}
-        />
-        <Time
-          label="Alarm"
-          icon={{ ios: 'sunrise.fill', android: 'wb_twilight', web: 'wb_twilight' }}
-          minutes={wake}
-          compact={compact}
-          onChange={() => onChange('wake')}
-          alignEnd
-        />
-      </View>
-
-      <View style={styles.walk} accessible accessibilityLabel={`Then ${proof.toLowerCase()} wakes your apps`}>
-        <WalkGlyph name={{ ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' }} />
-        <View style={styles.dashes}>
-          {Array.from({ length: 40 }, (_, i) => (
-            <View key={i} style={styles.dash} />
-          ))}
+      <GlassCard dark style={[styles.pane, compact && styles.paneCompact]}>
+        <View style={styles.times}>
+          <Time
+            label="Lights out"
+            icon={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}
+            minutes={bedtime}
+            compact={compact}
+            onChange={() => onChange('bedtime')}
+          />
+          <Time
+            label="Alarm"
+            icon={{ ios: 'sunrise.fill', android: 'wb_twilight', web: 'wb_twilight' }}
+            minutes={wake}
+            compact={compact}
+            onChange={() => onChange('wake')}
+            alignEnd
+          />
         </View>
-        <Text style={styles.walkLabel}>{proof}</Text>
-        <View style={styles.dashes}>
-          {Array.from({ length: 40 }, (_, i) => (
-            <View key={i} style={styles.dash} />
-          ))}
-        </View>
-        <WalkGlyph name={METHOD_GLYPH[method]} />
-      </View>
 
-      <View style={styles.divider} />
-
-      <View style={styles.appsRow}>
-        {liveCount !== undefined ? (
-          <View style={styles.liveApps}>
-            <WalkGlyph name={{ ios: 'apps.iphone', android: 'apps', web: 'apps' }} />
-            <Text style={styles.liveLabel}>Your apps</Text>
-          </View>
-        ) : (
-          <View style={styles.icons} accessible accessibilityLabel={`Asleep: ${apps.join(', ')}`}>
-            {shown.map((app) => (
-              <AppTile key={app} name={app} size={iconSize} />
+        <View style={styles.walk} accessible accessibilityLabel={`Then ${proof.toLowerCase()} wakes your apps`}>
+          <WalkGlyph name={{ ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' }} />
+          <View style={styles.dashes}>
+            {Array.from({ length: 40 }, (_, i) => (
+              <View key={i} style={styles.dash} />
             ))}
-            {extra > 0 ? (
-              <View style={[styles.more, { width: iconSize, height: iconSize, borderRadius: iconSize * 0.225 }]}>
-                <Text style={styles.moreLabel}>+{extra}</Text>
-              </View>
-            ) : null}
           </View>
-        )}
-        <ChangeLink label="Change apps" onPress={() => onChange('apps')} />
-      </View>
-      <Text style={styles.appsCaption}>
-        {liveCount !== undefined
-          ? `${countPicks(count)} asleep at bedtime.`
-          : count === 1
-            ? '1 app sleeps.'
-            : `${count} apps sleep.`}
-      </Text>
+          <Text style={styles.walkLabel}>{proof}</Text>
+          <View style={styles.dashes}>
+            {Array.from({ length: 40 }, (_, i) => (
+              <View key={i} style={styles.dash} />
+            ))}
+          </View>
+          <WalkGlyph name={METHOD_GLYPH[method]} />
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.appsRow}>
+          {liveCount !== undefined ? (
+            <View style={styles.liveApps}>
+              <WalkGlyph name={{ ios: 'apps.iphone', android: 'apps', web: 'apps' }} />
+              <Text style={styles.liveLabel}>Your apps</Text>
+            </View>
+          ) : (
+            <View style={styles.icons} accessible accessibilityLabel={`Asleep: ${apps.join(', ')}`}>
+              {shown.map((app) => (
+                <AppTile key={app} name={app} size={iconSize} />
+              ))}
+              {extra > 0 ? (
+                <View style={[styles.more, { width: iconSize, height: iconSize, borderRadius: iconSize * 0.225 }]}>
+                  <Text style={styles.moreLabel}>+{extra}</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+          <ChangeLink label="Change apps" onPress={() => onChange('apps')} />
+        </View>
+        <Text style={styles.appsCaption}>
+          {liveCount !== undefined
+            ? `${countPicks(count)} asleep at bedtime.`
+            : count === 1
+              ? '1 app sleeps.'
+              : `${count} apps sleep.`}
+        </Text>
+      </GlassCard>
     </Reveal>
   );
 }
@@ -169,17 +172,11 @@ function WalkGlyph({ name }: { name: SymbolViewProps['name'] }) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginTop: Gap.block,
-    marginBottom: Gap.block,
-    borderRadius: Radius.card,
-    // Frosted moon glass over the night sky, like the quiz moon, not a charcoal box.
-    backgroundColor: Nocturne.frost,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-    padding: 20,
-  },
-  cardCompact: { marginTop: Space.l, marginBottom: Space.l, padding: Space.l },
+  card: { marginTop: Gap.block, marginBottom: Gap.block },
+  cardCompact: { marginTop: Space.l, marginBottom: Space.l },
+  // The smoked card the Routine tab uses, so the deal looks like the schedule it becomes.
+  pane: { padding: 20 },
+  paneCompact: { padding: Space.l },
   times: { flexDirection: 'row', justifyContent: 'space-between' },
   time: { gap: 4 },
   timeEnd: { alignItems: 'flex-end' },

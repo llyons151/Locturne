@@ -5,9 +5,11 @@
  * rounds down, and odd schedules (after midnight, shift work) still give a sane night.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 
 import {
+  daysOver,
   estimate,
   formatClock,
   formatHoursFromMinutes,
@@ -30,7 +32,7 @@ describe('estimate', () => {
     assert.equal(e.yearlyHours, 416); // the 8 shown × 52, so the two numbers agree
     assert.equal(e.yearlyDays, 17);
     assert.equal(e.yearsLeft, 57);
-    assert.equal(e.lifetimeDays, 988); // 416 × 57 / 24 = 988
+    assert.equal(e.lifetimeDays, 939); // 455 min × 52.18 weeks × 57 years, not the rounded-up 8 hours
     assert.equal(e.timeInBed, 450);
     assert.equal(e.sleepRoom, 450 - 45 - 15);
     assert.equal(e.lightUser, false);
@@ -66,6 +68,14 @@ describe('estimate', () => {
       assert.equal(e[key], 0, key);
     }
     assert.equal(e.lightUser, true);
+  });
+
+  test('lifetime days come from the exact minutes, not the rounded-up week', () => {
+    // 22.75 h a week for 58 years: 2,868 days. Rounding to 23 h first said 2,890.
+    assert.equal(daysOver(1365, 58), 2868);
+    // 61 minutes a week rounds up to 2 hours for display; the lifetime must not double.
+    assert.equal(daysOver(61, 58), 128);
+    assert.equal(daysOver(0, 58), 0);
   });
 
   test('sleep room never goes negative', () => {
@@ -160,6 +170,13 @@ describe('the lead number per branch (ONBOARDING_BRANCHES §5.5)', () => {
     }
   });
 
+  test('overall leads with the end named on worst-time, both for a daytime answer', () => {
+    assert.equal(leadFor(e, 'overall', 'night').scope, 'night');
+    assert.equal(leadFor(e, 'overall', 'morning').scope, 'morning');
+    assert.equal(leadFor(e, 'overall', 'work').scope, 'both');
+    assert.equal(leadFor(e, 'all', 'night').scope, 'both', 'only overall asks it');
+  });
+
   test('under an hour a week, a branch falls back to both ends', () => {
     const straightToSleep = estimate({ ...input, nightMinutes: 5 }); // 35 min a week at night
     assert.equal(leadFor(straightToSleep, 'night').scope, 'both');
@@ -172,5 +189,31 @@ describe('the lead number per branch (ONBOARDING_BRANCHES §5.5)', () => {
     assert.equal(e.phoneDown, 23 * 60 + 30 + 45);
     assert.equal(formatWhen(e.phoneDown), '12:15\u00A0AM');
     assert.equal(e.feetDown, 7 * 60 + 20);
+  });
+});
+
+describe('both scroll questions skipped', () => {
+  // As onboarding-flow.tsx builds it: missing answers count as 0, and `skipped` says why.
+  const skipped = estimate({ ...input, nightMinutes: 0, morningMinutes: 0, skipped: true });
+
+  test('is flagged, and has no hours to sell', () => {
+    assert.equal(skipped.skipped, true);
+    assert.equal(skipped.lightUser, true, 'every light-user guard (no hours on the paywall) covers them too');
+    assert.equal(skipped.weeklyMinutes, 0);
+  });
+
+  test('answering the smallest choices is not a skip', () => {
+    const answered = estimate({ ...input, nightMinutes: 5, morningMinutes: 3 });
+    assert.equal(answered.skipped, false);
+    assert.equal(answered.lightUser, true);
+  });
+
+  test('the reveal’s sum for half an hour a night is right', () => {
+    const halfHour = estimate({ ...input, nightMinutes: 30, morningMinutes: 0, nightsPerWeek: 7 });
+    assert.equal(halfHour.weeklyMinutes / 60, 3.5);
+    assert.ok((30 * 365) / 60 > 180, 'over 180 hours a year');
+    // content.ts pulls in app aliases node can't load, so its line is read as text.
+    const content = readFileSync(new URL('./content.ts', import.meta.url), 'utf8');
+    assert.match(content, /Half an hour a night on the phone in bed is 3½ hours a week\. Over 180 hours a year\./);
   });
 });

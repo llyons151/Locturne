@@ -15,7 +15,7 @@
 import type { WakeMethod } from './routine.ts';
 
 /** Bump when the onboarding changes enough that old and new funnels shouldn't be mixed. */
-export const ONBOARDING_VERSION = '2026-10-15';
+export const ONBOARDING_VERSION = '2026-10-26';
 
 export type AgeBracket = '13-17' | '18-24' | '25-34' | '35+';
 export type ProofKindEvent = WakeMethod | 'pass' | 'emergency';
@@ -207,9 +207,8 @@ export function ageBracket(age: number): AgeBracket | null {
 /** The onboarding answers that may leave the phone, and the question each step asks. */
 type QuizAnswers = {
   pain?: string;
-  mornings?: string;
   nightFeel?: string;
-  afterFeel?: string;
+  worstTime?: string;
   nightMinutes?: number;
   nightsPerWeek?: number;
   morningMinutes?: number;
@@ -222,9 +221,8 @@ type QuizAnswers = {
 
 const QUESTION_FOR_STEP: Record<string, keyof QuizAnswers> = {
   pain: 'pain',
-  mornings: 'mornings',
   'night-feel': 'nightFeel',
-  'after-feel': 'afterFeel',
+  'worst-time': 'worstTime',
   'night-minutes': 'nightMinutes',
   'nights-per-week': 'nightsPerWeek',
   'morning-minutes': 'morningMinutes',

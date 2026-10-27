@@ -15,11 +15,14 @@ function harness(motion: string | null, settingsAnswer: string | null) {
   const context = {
     motion,
     screenTimeHere: true,
-    step: 'first-morning',
+    step: 'armed',
     setMotion: (next: string) => { context.motion = next; },
     setNotifications() {},
     getNotificationPermission: async () => 'granted',
     checkMotion: async () => settingsAnswer,
+    method: 'steps',
+    methodAccessPending: async () => false,
+    setMethodAsks() {},
     useState: (initial: unknown) => [initial, () => {}],
     useEffectEvent: <T,>(fn: T) => fn,
     useEffect: (effect: () => void) => { effect(); },
@@ -43,7 +46,7 @@ function harness(motion: string | null, settingsAnswer: string | null) {
   };
 }
 
-test('Motion turned on in Settings from first-morning clears the "it’s off" row on return', async () => {
+test('Motion turned on in Settings from armed clears the "it’s off" row on return', async () => {
   const { context, foreground } = harness('denied', 'granted');
   await foreground();
   assert.equal(context.motion, 'granted');

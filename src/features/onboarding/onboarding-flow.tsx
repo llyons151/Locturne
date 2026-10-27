@@ -6,13 +6,13 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppPickerSheet, PICKER_HEADER } from '@/components/app-picker';
 import { MoonSurface } from '@/components/moon-surface';
 import type { TextMotion } from '@/components/motion';
-import { FLIGHT_MS, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
+import { FLIGHT_MS, MOON_SHOWS_FROM, moonSink, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { useCompact } from '@/hooks/use-compact';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
@@ -28,6 +28,11 @@ import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
 import { askForNotifications, getNotificationPermission, rescheduleNotifications, sendFirstNote, type NotificationPermission } from '@/lib/notifications';
 import { isPurchasePending, markPurchasePending, takePendingApproval } from '@/lib/pending-purchase';
+import { methodInUse } from '@/lib/scan-code';
+import { PlacePick } from '@/features/place/place-pick';
+import { ScanScreen } from '@/features/scan/scan-screen';
+import { printCode } from '@/features/scan/print-code';
+import { draftQrData, getScanCode, type ScanCode } from '@/lib/scan';
 import {
   getOffers,
   isEntitled,
@@ -57,19 +62,21 @@ import {
 import { Nocturne } from '@/theme';
 
 import { firstEnabledNight, scheduleCopy } from './schedule-copy';
-import { chaptersFor, initialAnswers, isNewYearWeek, painAnswer, PAINS, type Answers, type ExitOffer, type Pain, type StepId } from './content';
+import { chaptersFor, initialAnswers, isNewYearWeek, PAINS, type Answers, type ExitOffer, type Pain, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
+import { methodAccessFor, methodAccessPending, requestMethodAccess } from './method-access';
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav, stepsFor } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
 import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
-import { BUILD_EXIT_MS, BuildFloor } from './screens/build-chapter';
+import { BUILD_EXIT_MS, BUILD_RISE_FIRST_MS, BuildFloor, moonBelow } from './screens/build-chapter';
+import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './screens/reveal-screen';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
-import { renderStep } from './steps';
+import { morningWarnings, renderStep } from './steps';
 import { Intro } from './intro';
 import { OpenerScene } from './opener-scene';
-import { FooterEnter, Shell, StepEnter, useSwap, type Progress } from './ui';
+import { FooterEnter, Shell, StepEnter, TopBar, useSwap, type Progress } from './ui';
 
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
@@ -88,7 +95,7 @@ const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
 /*
  * The quiz happens on the risen moon (`moonQuizFor`): it rises once at the first question and
  * stays up through the last, so it doesn't bob between screens, then sinks for the math.
- * `time-back` comes after the math, so it stays on the sunk moon; so does `pain`, before the times.
+ * `pain`, before the times, stays on the sunk moon.
  */
 
 /** Text entrance per page (see motion.tsx). Anything not listed uses Word Drift. */
@@ -97,14 +104,14 @@ const MOTION: Partial<Record<StepId, TextMotion>> = {
 
 // Plausible answers for jumping straight to a later screen with `?step=`.
 const PREVIEW_ANSWERS: Partial<Answers> = {
-  mornings: 'behind',
   nightFeel: 'one-more',
-  afterFeel: 'vanished',
+  worstTime: 'night',
   nightMinutes: 60,
   morningMinutes: 20,
   nightsPerWeek: 7,
   scrollDays: [0, 1, 2, 3, 4, 5, 6],
   tried: 'screen-time',
+  age: 21,
   timeBack: 'study',
   found: 'tiktok',
   method: 'downstairs',
@@ -113,6 +120,8 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
 
 /** Head start so a chapter's bar never opens empty (endowed progress). */
 const PROGRESS_START = 0.12;
+/** The first chapter opens well under way: its first page shows 40% (user, 2026-10-26). */
+const FIRST_CHAPTER_START = 0.25;
 
 /** Which chapter of their branch and how far into it, or null on screens that hide the bar. */
 function progressFor(step: StepId, pain: Pain | undefined): Progress | null {
@@ -121,7 +130,8 @@ function progressFor(step: StepId, pain: Pain | undefined): Progress | null {
   if (chapter < 0) return null;
   const steps = chapters[chapter];
   const done = (steps.indexOf(step) + 1) / steps.length;
-  return { chapter, value: PROGRESS_START + (1 - PROGRESS_START) * done, chapters: chapters.length };
+  const start = chapter === 0 ? FIRST_CHAPTER_START : PROGRESS_START;
+  return { chapter, value: start + (1 - start) * done, chapters: chapters.length };
 }
 
 /**
@@ -144,6 +154,7 @@ export function OnboardingFlow({
   resumeAtPaywall = false,
   newYear: previewNewYear = false,
   pain: previewPain,
+  showPaywall = false,
 }: {
   initialStep?: string;
   exitOffer?: string;
@@ -153,6 +164,8 @@ export function OnboardingFlow({
   newYear?: boolean;
   /** Open on the offer with the saved setup's times and method, skipping the quiz. */
   resumeAtPaywall?: boolean;
+  /** Review only (You → Redo onboarding): show the paywall even when already subscribed. */
+  showPaywall?: boolean;
 }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -177,14 +190,20 @@ export function OnboardingFlow({
       ...initialAnswers,
       ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}),
       ...(pain && jump !== 'hello' && jump !== 'pain' ? { pain } : {}),
-      // The morning branch's list has the snooze loop where `behind` is.
-      ...(pain === 'morning' && jump !== 'hello' ? { mornings: 'snooze' } : {}),
     });
   });
   const { history, answers, returnTo } = nav;
   // A fresh launch: the opener's lines come in, then the moon rises into place (intro.tsx).
   const [intro, setIntro] = useState(() => !isStep(initialStep) || initialStep === 'hello');
   const introDone = useCallback(() => setIntro(false), []);
+  // Opened over the tabs (You → Redo onboarding), Home stays mounted and its tab may have sunk the
+  // moon out of sight, which the intro's moon then dropped into at the hand-off. Unsunk while
+  // the flow is up; back to the tab's on the way out.
+  useEffect(() => {
+    const tabs = moonSink.get();
+    moonSink.set(0);
+    return () => moonSink.set(tabs);
+  }, []);
   const [simulated, setSimulated] = useState<Simulated | null>(null);
 
   const step = currentStep(nav);
@@ -195,11 +214,14 @@ export function OnboardingFlow({
       estimate({
         nightMinutes: answers.nightMinutes ?? 0,
         morningMinutes: answers.morningMinutes ?? 0,
-        nightsPerWeek: answers.nightsPerWeek ?? 7,
+        // 0 only comes from clearing every day and skipping (Continue needs a day), so it counts as skipped.
+        nightsPerWeek: answers.nightsPerWeek || 7,
         bedtime: answers.bedtime,
         wake: answers.wake,
-        // No age question (cut 2026-10-05): the number never needed it, only the old life grid.
-        age: undefined,
+        // Only the reveal's lifetime number reads it (`age`); a skip leaves the number a year.
+        age: answers.age,
+        // Every branch asks both; skipping both leaves no number of theirs to show.
+        skipped: answers.nightMinutes === undefined && answers.morningMinutes === undefined,
       }),
     [answers],
   );
@@ -254,7 +276,7 @@ export function OnboardingFlow({
   }, []);
   const [entitled, setEntitled] = useState(false);
   useEffect(() => {
-    isEntitled().then(setEntitled, () => {});
+    if (!showPaywall) isEntitled().then(setEntitled, () => {});
   }, []);
   const [busy, setBusy] = useState(false);
   /** Bought or restored in this session (`finishSetup`). */
@@ -361,6 +383,33 @@ export function OnboardingFlow({
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
+  // After `tomorrow`, a scan code or a place gets its page (user, 2026-10-26). A code is a
+  // real onboarding page (`scan-code`): the sky, centred, the page motion and Set up later.
+  // Its button opens the camera over the flow. A place opens the map picker, drawn inside the
+  // flow under its own back and chapter bar. Saved moves on; back without one stays put.
+  const [settingUp, setSettingUp] = useState<'place' | 'scan' | null>(null);
+  const setUpMethod = () => (answers.method === 'place' ? setSettingUp('place') : go('scan-code'));
+  const setUpClosed = () => {
+    setSettingUp(null);
+    if ((step === 'tomorrow' || step === 'scan-code') && answers.method && methodInUse(answers.method) === answers.method) next();
+  };
+  // The code on `scan-code`: the one already printed, or a new one that stays for this visit.
+  const [scanSource, setScanSource] = useState<ScanCode['kind']>(() => getScanCode()?.kind ?? 'qr');
+  const [scanQr] = useState(() => {
+    const code = getScanCode();
+    return code?.kind === 'qr' ? code.data : draftQrData();
+  });
+  // Printed once the print sheet closes, however it closed, so a cancelled print can still scan.
+  const [scanPrinted, setScanPrinted] = useState(() => getScanCode()?.kind === 'qr');
+  const [printing, setPrinting] = useState(false);
+  const printScanCode = () => {
+    if (printing) return;
+    setPrinting(true);
+    printCode(scanQr).finally(() => {
+      setPrinting(false);
+      setScanPrinted(true);
+    });
+  };
   /** `armed` with every night off: done here, on to the Routine tab to turn one on. */
   const leaveForRoutine = () => {
     exit();
@@ -373,12 +422,7 @@ export function OnboardingFlow({
   // A rerun (See plans, Redo setup) already has one, so it can always be left. Dev builds
   // can always leave too, to get between onboarding and the tabs while working on either.
   const canLeave = __DEV__ || rerun || finished || history.some((s) => SETUP_DONE.includes(s));
-  const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
-    dispatch({
-      type: 'set',
-      // A new pain answer drops a mornings answer its branch doesn't offer (`painAnswer`).
-      answers: key === 'pain' ? painAnswer(answers, value as Pain) : ({ [key]: value } as Partial<Answers>),
-    });
+  const set = <K extends keyof Answers>(key: K, value: Answers[K]) => dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelAdvance = () => {
@@ -519,7 +563,7 @@ export function OnboardingFlow({
     dispatch({ type: 'reset', to: 'armed' });
     runArm();
   };
-  // When the trial bought just now ends, for `armed` and `first-morning` to name the date.
+  // When the trial bought just now ends, for `armed` to name the date.
   const [trialEnds, setTrialEnds] = useState<Date | null>(null);
   // A purchase may span Back and another edit. Complete with the latest committed answers.
   // Event-only holder, like SleepDrop's view map: read only when the store answers.
@@ -629,6 +673,9 @@ export function OnboardingFlow({
     finishSetup('purchase');
   });
   useEffect(() => onEntitled(approvedLater), []);
+  // Whether iOS will still ask for the wake-up way's camera or location; the preview always plays it.
+  const method = answers.method ?? 'steps';
+  const [methodAsks, setMethodAsks] = useState(!screenTimeHere && methodAccessFor(method) !== null);
   const [motion, setMotion] = useState<MotionAccess | null>(null);
   /* After purchase, `armed` says what notifications and Motion are for, then asks for both. */
   // The web preview has neither prompt, so it starts as unasked and plays both stand-ins.
@@ -638,11 +685,12 @@ export function OnboardingFlow({
     if (!screenTimeHere) return;
     getNotificationPermission().then(setNotifications, () => setNotifications('denied'));
     if (motion === null) checkMotion().then((m) => m && setMotion(m), () => {});
+    methodAccessPending(method).then(setMethodAsks, () => setMethodAsks(false));
   });
   useEffect(() => {
     if (step === 'armed') checkPermissions();
   }, [step]);
-  // Turned on from `first-morning`'s Open Settings: say so once they're back, as the wake
+  // Turned on from `armed`'s Open Settings: say so once they're back, as the wake
   // screens do. Only a yes counts, so a failed read can't hide the "it's off" row.
   const recheckMotion = useEffectEvent(() => {
     if (motion === 'denied') checkMotion().then((m) => m === 'granted' && setMotion(m), () => {});
@@ -655,25 +703,33 @@ export function OnboardingFlow({
   }, []);
   // A second tap while iOS's prompts are up would `next` twice.
   const [asking, setAsking] = useState(false);
-  /** iOS's prompts, then `then`. With every night off there are no mornings, so no Motion. */
-  const ask = async (then: () => void, withMotion: boolean) => {
+  /** iOS's prompts, then `then` with their answers. With every night off there are no mornings, so no Motion. */
+  const ask = async (then: (got: { notifications: NotificationPermission | null; motion: MotionAccess | null }) => void, withMotion: boolean) => {
     if (asking) return;
     const asksMotion = withMotion && motion === null;
+    const asksMethod = withMotion && methodAsks;
     if (!screenTimeHere) {
-      const asks = [notifications === 'undetermined' && 'notifications', asksMotion && 'Motion & Fitness'].filter(Boolean);
-      if (asks.length === 0) return then();
+      const asks = [
+        notifications === 'undetermined' && 'notifications',
+        asksMotion && 'Motion & Fitness',
+        asksMethod && (methodAccessFor(method) === 'location' ? 'location' : 'the camera'),
+      ].filter(Boolean);
+      if (asks.length === 0) return then({ notifications, motion });
       simulate(`iOS asks about ${asks.join(', then ')} here. “Don’t Allow” is always an option.`, () => {
         if (notifications === 'undetermined') setNotifications('granted');
         if (asksMotion) setMotion('granted');
-        then();
+        if (asksMethod) setMethodAsks(false);
+        then({ notifications: notifications === 'undetermined' ? 'granted' : notifications, motion: asksMotion ? 'granted' : motion });
       });
       return;
     }
     setAsking(true);
+    const got = { notifications, motion };
     try {
       if (notifications === 'undetermined') {
         const granted = await askForNotifications().catch(() => false);
-        setNotifications(granted ? 'granted' : 'denied');
+        got.notifications = granted ? 'granted' : 'denied';
+        setNotifications(got.notifications);
         // The first thing they hear from him is what the first night's will look like, on the
         // day the armed screen names. Nothing to sample with every night off or one already started.
         const when = scheduleCopy(scheduledNight, new Date()).note;
@@ -681,15 +737,24 @@ export function OnboardingFlow({
       }
       if (asksMotion) {
         const access = await requestMotion();
+        got.motion = access;
         setMotion(access);
         track('motion_access', { result: access });
       }
-      then();
+      if (asksMethod) {
+        await requestMethodAccess(method);
+        setMethodAsks(false);
+      }
+      then(got);
     } finally {
       setAsking(false);
     }
   };
-  const askPermissions = () => ask(next, true);
+  // The last page: done once iOS has answered, unless an answer left something to read there.
+  const askPermissions = () =>
+    ask((got) => {
+      if (morningWarnings({ ...got, remindTrial: answers.remindTrial, trialEnds, method }).length === 0) exit();
+    }, true);
   // The trial reminder needs notifications, and with every night off no later moment asks.
   const openRoutine = () => ask(leaveForRoutine, false);
 
@@ -700,12 +765,27 @@ export function OnboardingFlow({
   const quiz = moonQuizFor(answers.pain).includes(step);
   const moonPlace = opening ? 'opener' : quiz ? 'quiz' : 'rest';
   const [lastMoonPlace, setLastMoonPlace] = useState(moonPlace);
+  const riseMs = step === 'reveal' ? REVEAL_SKY_MS : QUIZ_RISE_MS;
   const [moonMoving, setMoonMoving] = useState(0);
   if (lastMoonPlace !== moonPlace) {
     setLastMoonPlace(moonPlace);
     const flying = moonPlace === 'opener' || lastMoonPlace === 'opener';
-    if (!reducedMotion) setMoonMoving(flying ? FLIGHT_MS : QUIZ_RISE_MS);
+    if (!reducedMotion) setMoonMoving(flying ? FLIGHT_MS : riseMs);
   }
+  // The reveal happens in the dark (RevealDark): the moon sinks off the screen under it, so `build`
+  // can raise it from below behind Loc, one scene (user 2026-10-26). Back to the quiz, it comes
+  // back up the same way. Runs after `build`'s own drop on the way back, so it wins.
+  const lastStep = useRef(step);
+  useEffect(() => {
+    const from = lastStep.current;
+    lastStep.current = step;
+    const curve = { duration: REVEAL_MOON_MS, easing: Easing.bezier(0.65, 0, 0.35, 1) };
+    if (step === 'reveal') moonSink.set(reducedMotion ? MOON_SHOWS_FROM : withTiming(MOON_SHOWS_FROM, curve));
+    else if (from === 'reveal' && step !== 'build') {
+      moonSink.set(Math.min(moonSink.get(), MOON_SHOWS_FROM));
+      moonSink.set(reducedMotion ? 0 : withTiming(0, curve));
+    }
+  }, [step, reducedMotion]);
   useEffect(() => {
     if (!moonMoving) return;
     const timer = setTimeout(() => setMoonMoving(0), moonMoving);
@@ -769,6 +849,13 @@ export function OnboardingFlow({
     restorePurchases,
     entitled,
     finishSetup: () => finishSetup(),
+    setUpMethod,
+    scanSource,
+    setScanSource,
+    scanQr,
+    scanPrinted,
+    printScanCode,
+    openScanner: () => setSettingUp('scan'),
     screenTime,
     askScreenTime,
     setUpLater,
@@ -780,6 +867,7 @@ export function OnboardingFlow({
     retryArm,
     openRoutine,
     motion,
+    methodAsks,
     notifications,
     trialEnds,
     askPermissions,
@@ -793,7 +881,10 @@ export function OnboardingFlow({
   const pageKey = `${step}-${history.length}`;
   // `build` runs its own way out: Loc leaves, then the ground and its button slide down (user 2026-10-26).
   const isBuild = (key: string) => key.startsWith('build-');
-  const holds = (key: string) => (isBuild(key) ? BUILD_EXIT_MS : 0);
+  // The reveal's dots drop off the screen before `build` comes up (a text-only reveal just fades).
+  const isReveal = (key: string) => key.startsWith('reveal-');
+  const holds = (key: string) =>
+    isBuild(key) ? BUILD_EXIT_MS : isReveal(key) && !numbers.skipped && !numbers.lightUser ? REVEAL_EXIT_MS : 0;
   const pages = useSwap(
     pageKey,
     history.length,
@@ -811,18 +902,39 @@ export function OnboardingFlow({
     holds,
   );
   const buildPage = pages.find((page) => isBuild(page.key));
+  const dark = step === 'reveal' || pages.some((page) => isReveal(page.key));
+
+  // The code setup is part of `tomorrow`'s place in the chapter.
+  const progress = progressFor(step === 'scan-code' ? 'tomorrow' : step, answers.pain);
+  // The setup page's bar is the flow's own: same back, same chapter, same Exit.
+  const setUpHeader = (back: () => void) => (
+    <TopBar
+      progress={progress}
+      onBack={back}
+      onExit={
+        canLeave
+          ? () => {
+              setSettingUp(null);
+              leave();
+            }
+          : undefined
+      }
+    />
+  );
 
   return (
     <View ref={rootRef} style={styles.root}>
-      <NightSky opening={opening} quiz={quiz} moonless={rising} drift={opening} />
+      <NightSky opening={opening} quiz={quiz} moonless={rising} drift={opening} riseMs={riseMs} />
       <OpenerScene shown={opening && !moonMoving} />
       {rising ? <Intro onDone={introDone} /> : null}
-      {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} /> : null}
+      <RevealDark shown={dark} />
+      {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} after={buildPage.held} /> : null}
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
         <Shell
-          progress={progressFor(step, answers.pain)}
+          progress={progress}
           centered
-          clip={!buildPage?.leaving}
+          // Unclipped while a page runs its own way out: Loc and the reveal's squares leave past the body's edge.
+          clip={!buildPage?.leaving && !pages.some((page) => page.leaving && isReveal(page.key))}
           onBack={back}
           onExit={canLeave ? leave : undefined}
           footer={
@@ -837,7 +949,8 @@ export function OnboardingFlow({
                     secondary={page.value.secondary}
                     wash={page.value.wash}
                     sheet={isBuild(page.key)}
-                    held={page.held}
+                    // A sheet arriving after the reveal waits for the moon to rise first, as `build`'s ground does.
+                    held={page.held + (isBuild(page.key) && !page.leaving && moonBelow() ? BUILD_RISE_FIRST_MS : 0)}
                   >
                     {page.value.footer}
                   </FooterEnter>
@@ -855,6 +968,20 @@ export function OnboardingFlow({
           </View>
         </Shell>
       </Animated.View>
+      {settingUp ? (
+        <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(200)} style={StyleSheet.absoluteFill}>
+          {settingUp === 'place' ? (
+            <PlacePick select={false} header={setUpHeader} onClose={setUpClosed} />
+          ) : (
+            <ScanScreen
+              mode="setup"
+              start={{ source: scanSource, expect: scanSource === 'qr' ? scanQr : undefined }}
+              header={setUpHeader}
+              onClose={setUpClosed}
+            />
+          )}
+        </Animated.View>
+      ) : null}
       {sleepFrom ? <SleepDrop apps={answers.apps} from={sleepFrom} onDone={wokeUp} /> : null}
       {pickerList ? (
         <ScreenTimePicker

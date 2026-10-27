@@ -27,13 +27,13 @@ const QUIZ_FIELDS = [
   // The branch and its feeling answer, so "See plans" speaks to the same pain.
   'pain',
   'nightFeel',
-  'afterFeel',
-  'mornings',
+  'worstTime',
   'nightMinutes',
   'nightsPerWeek',
   'scrollDays',
   'morningMinutes',
   'timeBack',
+  'age',
   'shift',
 ] as const satisfies readonly (keyof Answers)[];
 type QuizAnswers = Pick<Answers, (typeof QUIZ_FIELDS)[number]>;

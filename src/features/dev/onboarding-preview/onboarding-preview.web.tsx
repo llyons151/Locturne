@@ -41,28 +41,26 @@ const BRANCHED: StepId[] = [
   'bedtime',
   'night-minutes',
   'morning-minutes',
-  'mornings',
   'night-feel',
-  'after-feel',
+  'worst-time',
   'nights-per-week',
+  'time-back',
   'tried',
   'reveal',
-  'time-back',
   'tomorrow',
   'apps',
   'commit',
   'offer',
   'plans',
-  'first-morning',
 ];
 
 /** The progress bar's chapter, or where a step sits outside them. */
 function groupOf(step: StepId, pain: Pain): string {
   const chapter = chaptersFor(pain).findIndex((steps) => steps.includes(step));
   if (chapter >= 0) return CHAPTER_NAMES[pain][chapter] ?? `Chapter ${chapter + 1}`;
-  if (step === 'hello' || step === 'pain') return 'Welcome';
+  if (step === 'hello') return 'Welcome';
   if (step === 'build') return CHAPTER_NAMES[pain][2];
-  if (step === 'found' || step === 'founder' || step === 'offer' || step === 'plans' || step === 'declined') return 'Paywall';
+  if (step === 'founder' || step === 'offer' || step === 'plans' || step === 'declined') return 'Paywall';
   return 'After purchase';
 }
 

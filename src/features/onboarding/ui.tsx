@@ -51,35 +51,7 @@ export function Shell({ progress, centered = false, onBack, onExit, footer, clip
   return (
     // The button floats clear of the bottom (Insight Timer, user 2026-10-26): never flush on a phone without a home bar.
     <View style={[styles.shell, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, Space.l) }]}>
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={onBack}
-          disabled={!onBack}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          style={[styles.roundButton, !onBack && styles.hidden]}
-        >
-          <SymbolView
-            name={{ ios: 'arrow.left', android: 'arrow_back', web: 'arrow_back' }}
-            size={20}
-            weight="semibold"
-            tintColor={Nocturne.text}
-          />
-        </Pressable>
-        {progress === null ? <View style={styles.progress} /> : <ChapterBar progress={progress} />}
-        <Pressable
-          onPress={onExit}
-          disabled={!onExit}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Exit"
-          accessibilityElementsHidden={!onExit}
-          style={[styles.exitButton, !onExit && styles.hidden]}
-        >
-          <Text style={styles.exit}>Exit</Text>
-        </Pressable>
-      </View>
+      <TopBar progress={progress} onBack={onBack} onExit={onExit} />
       {/* At standard text sizes pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
       <Centered.Provider value={centered}>
         {scrolls ? (
@@ -98,6 +70,45 @@ export function Shell({ progress, centered = false, onBack, onExit, footer, clip
         )}
         {footer ? <View testID="onboarding-footer" style={styles.footer}>{footer}</View> : null}
       </Centered.Provider>
+    </View>
+  );
+}
+
+/**
+ * Back, the chapter bar and Exit, as every onboarding page has them. Also over the setup pages
+ * the flow opens (the place map, the code setup), so they read as part of it (user, 2026-10-26).
+ * No inset padding: whoever places it is under the status bar already.
+ */
+export function TopBar({ progress, onBack, onExit }: Pick<ShellProps, 'progress' | 'onBack' | 'onExit'>) {
+  return (
+    <View style={styles.topBar}>
+      <Pressable
+        onPress={onBack}
+        disabled={!onBack}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+        style={[styles.roundButton, !onBack && styles.hidden]}
+      >
+        <SymbolView
+          name={{ ios: 'arrow.left', android: 'arrow_back', web: 'arrow_back' }}
+          size={20}
+          weight="semibold"
+          tintColor={Nocturne.text}
+        />
+      </Pressable>
+      {progress === null ? <View style={styles.progress} /> : <ChapterBar progress={progress} />}
+      <Pressable
+        onPress={onExit}
+        disabled={!onExit}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Exit"
+        accessibilityElementsHidden={!onExit}
+        style={[styles.exitButton, !onExit && styles.hidden]}
+      >
+        <Text style={styles.exit}>Exit</Text>
+      </Pressable>
     </View>
   );
 }
@@ -152,8 +163,9 @@ function useCentered() {
 }
 
 /** How long a page takes to leave, and how far into that the next one starts arriving. */
-export const EXIT_MS = 180;
-const FOOTER_EXIT_MS = 150;
+// Long enough to read as a fade: at 150–180ms an ease-in held, then dropped in a few frames (user 2026-10-26).
+export const EXIT_MS = 240;
+const FOOTER_EXIT_MS = 220;
 const ENTER_AFTER_MS = 140;
 /**
  * A sheet sliding up onto the screen or down off it (`build`'s ground and button). In takes its
@@ -219,15 +231,18 @@ export function useSwap<T>(key: string, depth: number, value: T | null, holds?: 
   return pages;
 }
 
-/** A page's way out: its entrance in reverse, fading back into a blur where it stands. Nothing slides. */
+/**
+ * A page's way out: a plain fade where it stands. Nothing slides. Opacity only: the blur it
+ * had never drew on iPhone and cost frames on web, on the very frame the next page mounts.
+ */
 function exitAnimation(duration: number) {
   return {
     animationName: {
-      from: { opacity: 1, filter: 'blur(0px)' },
-      to: { opacity: 0, filter: 'blur(8px)' },
+      from: { opacity: 1 },
+      to: { opacity: 0 },
     },
     animationDuration: `${duration}ms`,
-    animationTimingFunction: 'ease-in',
+    animationTimingFunction: 'ease-out',
     animationFillMode: 'forwards',
   } as const;
 }
@@ -267,6 +282,16 @@ export function StepEnter({
   held = 0,
   children,
 }: PropsWithChildren<{ motion?: TextMotion; leaving?: Leaving | null; replaced?: boolean; held?: number }>) {
+  // After a page that runs its own way out (`build`), this one isn't mounted until that's over,
+  // so nothing in it (the reveal's count, Loc) starts under the page still leaving (user 2026-10-26).
+  const [waiting, setWaiting] = useState(() => !leaving && replaced && held > 0);
+  useEffect(() => {
+    if (!waiting) return;
+    const id = setTimeout(() => setWaiting(false), held);
+    return () => clearTimeout(id);
+    // The wait is fixed when the page arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <Animated.View
       style={[styles.page, leaving && [StyleSheet.absoluteFill, styles.inert, !held && exitAnimation(EXIT_MS)]]}
@@ -274,9 +299,12 @@ export function StepEnter({
       importantForAccessibility={leaving ? 'no-hide-descendants' : 'auto'}
     >
       <LeavingContext.Provider value={leaving}>
-        <MotionPage motion={motion} offset={replaced ? held || ENTER_AFTER_MS : 0}>
-          {children}
-        </MotionPage>
+        {waiting ? null : (
+          // Mounted after the held page has gone: its text comes in at once.
+          <MotionPage motion={motion} offset={replaced && !held ? ENTER_AFTER_MS : 0}>
+            {children}
+          </MotionPage>
+        )}
       </LeavingContext.Provider>
     </Animated.View>
   );
@@ -463,10 +491,12 @@ export function FooterEnter({
   // Still invisible until it fades in, so a double tap on the last page's button can't land here.
   const [live, setLive] = useState(reduced);
   // After a held page, the buttons wait until it has gone (user 2026-10-26).
-  const delay = sheet ? EXIT_MS : Math.max(FOOTER_DELAY_MS, held);
+  // A sheet waits out a held last page too (the reveal's dots), as its page does. Fixed on
+  // arrival: `held` drops to 0 once that page has gone, which would jump the slide to its end.
+  const [delay] = useState(() => (sheet ? held + EXIT_MS : Math.max(FOOTER_DELAY_MS, held)));
   useEffect(() => {
     if (live) return;
-    const id = setTimeout(() => setLive(true), sheet ? EXIT_MS + SLIDE_IN_MS : delay);
+    const id = setTimeout(() => setLive(true), sheet ? delay + SLIDE_IN_MS : delay);
     return () => clearTimeout(id);
   }, [live, sheet, delay]);
   return (
@@ -778,8 +808,9 @@ const styles = StyleSheet.create({
   footerStack: { gap: Space.s },
   // One TextButton line: 15pt text plus its 4pt padding top and bottom.
   secondarySlot: { minHeight: 28, justifyContent: 'center' },
-  // The button on its way out lies over the next page's, which hasn't faded in yet.
-  footerLeaving: { position: 'absolute', top: 0, left: 0, right: 0 },
+  // The button on its way out lies over the next page's, which hasn't faded in yet. Pinned by
+  // the bottom, as the footer is, so it stays put when the next page's footer is taller or shorter.
+  footerLeaving: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   page: { flex: 1 },
   inert: { pointerEvents: 'none' },
   reply: { minHeight: 52, justifyContent: 'center', gap: Space.s },

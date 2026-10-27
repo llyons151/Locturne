@@ -2,8 +2,8 @@
 // Reads the App Group during render through `methodCopy` (the step goal, a saved scan code),
 // which changes outside React: the React Compiler would cache it (#130), so it stays out here.
 
-import { useState, type ReactNode } from 'react';
-import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Linking, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, Keyframe, LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,8 @@ import type { ArmFailure, ArmResult } from '@/lib/arm';
 import { LEGAL_URLS } from '@/lib/links';
 import { type NotificationPermission } from '@/lib/notifications';
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
-import { getScanEditRefusal } from '@/lib/scan';
+import { getScanEditRefusal, type ScanCode } from '@/lib/scan';
+import { methodInUse } from '@/lib/scan-code';
 import type { WakeMethod } from '@/lib/routine';
 import type { Night } from '@/lib/lock-state';
 import { scheduleCopy } from './schedule-copy';
@@ -26,17 +27,18 @@ import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import {
-  AFTER_FEEL,
+  AGE,
+  WORST_TIME,
   BUILD,
   feelingOffer,
   FOUND,
   FOUNDER,
   LIGHT_OFFER_HEADLINE,
+  SKIPPED_TIME_BACK,
   methodChoices,
   morningGoals,
   methodCopy,
   morningMinuteChoices,
-  morningsChoices,
   NIGHT_FEEL,
   nightMinuteChoices,
   NEW_YEAR,
@@ -68,6 +70,7 @@ import { ScheduleCard } from './schedule-card';
 import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { BuildChapter } from './screens/build-chapter';
 import { RevealScreen } from './screens/reveal-screen';
+import { SCAN_CODE_HEADLINE, ScanCodeShown, ScanCodeSwitch, ScanCodeWords } from './screens/scan-code';
 import { RollingCount } from './rolling-count';
 import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
 import { Body, Eyebrow, HoldButton, Options, page, PreviewNote, Ready, Reply, Title, Voice } from './ui';
@@ -110,6 +113,16 @@ export type StepContext = {
   entitled: boolean;
   /** Saves the setup and arms tonight, for someone already entitled. */
   finishSetup: () => void;
+  /** Opens the code setup or the place map for a scan or place morning; moves on once it's saved. */
+  setUpMethod: () => void;
+  /** `scan-code`: which code, the QR it shows, and the camera that registers it. */
+  scanSource: ScanCode['kind'];
+  setScanSource: (source: ScanCode['kind']) => void;
+  scanQr: string;
+  /** The QR has been through the print sheet, here or on an earlier visit: the button moves on to the camera. */
+  scanPrinted: boolean;
+  printScanCode: () => void;
+  openScanner: () => void;
 
   /** Screen Time access on this step: asked, and if refused, said plainly. */
   screenTime: 'idle' | 'asking' | 'refused';
@@ -131,6 +144,8 @@ export type StepContext = {
   openRoutine: () => void;
   /** Motion & Fitness: answered on `armed`. Null while iOS would still ask. */
   motion: MotionAccess | null;
+  /** iOS will still ask for the wake-up way's camera or location on `armed`. */
+  methodAsks: boolean;
   /** Notifications, as iOS has them once `armed` is shown. Null until checked. */
   notifications: NotificationPermission | null;
   /** When the trial bought in this session ends; null for no trial (monthly, restore). */
@@ -192,7 +207,7 @@ export function renderStep(ctx: StepContext): StepView {
   // Which end of the night this visit leads with (docs/ONBOARDING_BRANCHES.md), and the number
   // it leads with: theirs, or both ends when theirs is too small.
   const pain = answers.pain ?? 'all';
-  const lead = leadFor(numbers, answers.pain);
+  const lead = leadFor(numbers, answers.pain, answers.worstTime);
   const phoneDown = formatWhen(numbers.phoneDown);
   // The morning branch asks the alarm first, so bedtime is still the default on `wake`.
   const bedtimeAsked = pain !== 'morning' || editing;
@@ -237,7 +252,7 @@ export function renderStep(ctx: StepContext): StepView {
     }
 
     case 'pain':
-      // On the sunk moon, like `time-back`: rising it here would bob it down again for the times.
+      // On the sunk moon: rising it here would bob it down again for the times.
       return {
         ...moonQuestion(
           'Which one sounds like you?',
@@ -248,25 +263,13 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'found':
-      return {
-        body: (
-          <View style={page.top}>
-            <Title>How’d you find me?</Title>
-            <View style={styles.foundOptions}>
-              <Options options={FOUND} value={answers.found} onChoose={(value) => set('found', value)} tone="moon" dense={compact} />
-            </View>
-          </View>
-        ),
-        ...replyButton(answers.found !== undefined),
-      };
-
-    case 'mornings':
+      // A quiz question now (docs/PAYWALL_PRIMING.md), on the risen moon like its neighbours.
       return {
         ...moonQuestion(
-          'How do your mornings usually go?',
-          <Options options={morningsChoices(answers.pain)} value={answers.mornings} onChoose={(value) => set('mornings', value)} tone="moon" dense />,
+          'How’d you find me?',
+          <Options options={FOUND} value={answers.found} onChoose={(value) => set('found', value)} tone="moon" dense />,
         ),
-        ...replyButton(answers.mornings !== undefined),
+        ...replyButton(answers.found !== undefined),
       };
 
     case 'night-feel':
@@ -278,13 +281,13 @@ export function renderStep(ctx: StepContext): StepView {
         ...replyButton(answers.nightFeel !== undefined),
       };
 
-    case 'after-feel':
+    case 'worst-time':
       return {
         ...moonQuestion(
-          'When you finally put it down, how is it?',
-          <Options options={AFTER_FEEL} value={answers.afterFeel} onChoose={(value) => set('afterFeel', value)} tone="moon" dense />,
+          'When does it get you worst?',
+          <Options options={WORST_TIME} value={answers.worstTime} onChoose={(value) => set('worstTime', value)} tone="moon" dense />,
         ),
-        ...replyButton(answers.afterFeel !== undefined),
+        ...replyButton(answers.worstTime !== undefined),
       };
 
     case 'founder':
@@ -303,7 +306,8 @@ export function renderStep(ctx: StepContext): StepView {
             <Voice text={FOUNDER.aside} size={VoiceSize.aside} delay={900} />
           </View>
         ),
-        footer: <PrimaryButton label="Continue" onPress={next} />,
+        // Ask to Buy approved while they were back here: finish instead of selling the offer again.
+        footer: <PrimaryButton label="Continue" onPress={ctx.entitled ? ctx.finishSetup : next} />,
       };
 
     case 'build':
@@ -332,14 +336,12 @@ export function renderStep(ctx: StepContext): StepView {
       // The running total starts here and keeps adding up to the reveal (Imprint, Cal AI).
       // Counted like the reveal's lead (`leadFor`), so the reveal never says less than this did.
       const morningMinutes = answers.morningMinutes ?? 0;
-      // Both scroll questions skipped: a typical night stands in, so the count still moves.
-      const perNight = nightMinutes + morningMinutes === 0 ? SKIPPED_NIGHT_MINUTES : 0;
       const soFar = leadFor({
         ...numbers,
-        weeklyMinutes: (nightMinutes + morningMinutes + perNight) * days.length,
-        nightWeeklyMinutes: (nightMinutes + perNight) * days.length,
+        weeklyMinutes: (nightMinutes + morningMinutes) * days.length,
+        nightWeeklyMinutes: nightMinutes * days.length,
         morningWeeklyMinutes: morningMinutes * days.length,
-      }, answers.pain).minutes;
+      }, answers.pain, answers.worstTime).minutes;
       return {
         ...moonQuestion(
           // A night and its morning come as a pair, so the count multiplies both either way.
@@ -355,7 +357,8 @@ export function renderStep(ctx: StepContext): StepView {
           {
             sub: 'Be honest. Weekends count too.',
             // "X hours lost", changing with every day picked, in place: only the number rolls (user, 2026-10-26).
-            reply: days.length === 0 ? undefined : <SoFar minutes={soFar} />,
+            // Both scroll questions skipped: no count, since any number here would be made up.
+            reply: days.length === 0 || numbers.skipped ? undefined : <SoFar minutes={soFar} />,
           },
         ),
         ...replyButton(days.length > 0),
@@ -435,7 +438,8 @@ export function renderStep(ctx: StepContext): StepView {
           <TextButton
             label={answers.method ? 'Set up later' : `Skip for now. ${goals.steps} steps it is.`}
             onPress={() => {
-              set('method', 'steps');
+              // Already picked one: later keeps it. Only an empty page falls back to steps.
+              if (!answers.method) set('method', 'steps');
               next();
             }}
           />
@@ -469,14 +473,24 @@ export function renderStep(ctx: StepContext): StepView {
       };
     }
 
+    case 'age':
+      return {
+        ...moonQuestion(
+          'How old are you?',
+          <Options options={AGE} value={answers.age} onChoose={(value) => set('age', value)} tone="moon" dense />,
+        ),
+        ...replyButton(answers.age !== undefined),
+      };
+
     case 'time-back':
       return {
         ...moonQuestion(
-          numbers.lightUser
-            ? 'Say you got those minutes back. What would you do with them?'
-            : timeBackQuestion(weeklyAmount(lead.minutes)),
+          numbers.skipped
+            ? SKIPPED_TIME_BACK
+            : numbers.lightUser
+              ? 'Say you got those minutes back. What would you do with them?'
+              : timeBackQuestion(weeklyAmount(lead.minutes)),
           <Options options={timeBackChoices(answers.pain)} value={answers.timeBack} onChoose={(value) => set('timeBack', value)} tone="moon" dense />,
-          { risen: false },
         ),
         ...replyButton(answers.timeBack !== undefined),
       };
@@ -487,7 +501,7 @@ export function renderStep(ctx: StepContext): StepView {
         footer: (
           <Ready ready={ctx.payoff}>
             <PrimaryButton
-              label={numbers.lightUser ? 'Keep it that way' : 'Let’s fix this'}
+              label={numbers.lightUser && !numbers.skipped ? 'Keep it that way' : 'Let’s fix this'}
               disabled={!ctx.payoff}
               onPress={next}
             />
@@ -495,7 +509,9 @@ export function renderStep(ctx: StepContext): StepView {
         ),
       };
 
-    case 'tomorrow':
+    case 'tomorrow': {
+      // A scan code or a place still to set up gets its page next (user, 2026-10-26).
+      const setUp = answers.method !== undefined && methodInUse(answers.method) !== answers.method;
       return {
         body: (
           <TomorrowDemo
@@ -508,9 +524,38 @@ export function renderStep(ctx: StepContext): StepView {
             onPayoff={ctx.onPayoff}
           />
         ),
-        // A plain button, tappable from the start (user, 2026-10-26: not a progress bar), so no Skip.
-        footer: <PrimaryButton label="Set it up" onPress={next} />,
+        // A plain button, tappable from the start (user, 2026-10-26: not a progress bar).
+        footer: <PrimaryButton label="Set it up" onPress={setUp ? ctx.setUpMethod : next} />,
+        // Not now: 200 steps wakes them until the code or place is set in Routine.
+        secondary: setUp && !editing ? <TextButton label="Set up later" onPress={next} /> : undefined,
       };
+    }
+
+    case 'scan-code': {
+      // The code setup as one more page (user, 2026-10-26), read top down: the headline, the
+      // choice, its line, the code. The button is the next thing to do: print the code, then
+      // open the camera. Later: 200 steps until it's set in Routine.
+      const qr = ctx.scanSource === 'qr';
+      return {
+        body: (
+          <View style={page.top}>
+            <Voice text={SCAN_CODE_HEADLINE} size={VoiceSize.headline} header />
+            <View style={page.gapHeadline} />
+            <ScanCodeSwitch source={ctx.scanSource} onSource={ctx.setScanSource} />
+            <View style={page.gapBlock} />
+            <ScanCodeWords source={ctx.scanSource} />
+            <ScanCodeShown source={ctx.scanSource} qr={ctx.scanQr} printed={ctx.scanPrinted} onPrint={ctx.printScanCode} />
+          </View>
+        ),
+        footer:
+          qr && !ctx.scanPrinted ? (
+            <PrimaryButton label="Print it" onPress={ctx.printScanCode} />
+          ) : (
+            <PrimaryButton label={qr ? 'It’s up. Scan it' : 'Scan a barcode'} onPress={ctx.openScanner} />
+          ),
+        secondary: <TextButton label="Set up later" onPress={next} />,
+      };
+    }
 
     case 'screen-time':
       if (ctx.screenTime === 'refused') {
@@ -595,8 +640,9 @@ export function renderStep(ctx: StepContext): StepView {
             onPress={!picked ? openPicker : editing ? next : sleep}
           />
         ),
-        // Same way out as Screen Time's: on with no apps, picked later in the Apps tab.
-        secondary: picked || editing ? undefined : <TextButton label="Set up later" onPress={next} />,
+        // Same way out as Screen Time's, always under the button so every page keeps its shape:
+        // on without the falling-asleep bit, and the list (if any) stays; changed later in the Apps tab.
+        secondary: editing ? undefined : <TextButton label="Set up later" onPress={next} />,
       };
     }
 
@@ -647,6 +693,9 @@ export function renderStep(ctx: StepContext): StepView {
         ),
         // Already subscribed (restored on the first screen): no paywall, straight to arming.
         footer: <HoldButton label="Hold to agree" doneLabel="Fine. Deal." onComplete={ctx.entitled ? ctx.finishSetup : next} />,
+        // TEMP (2026-10-26): the hold doesn't work in the browser preview. Web only; remove later.
+        secondary:
+          Platform.OS === 'web' ? <TextButton label="Skip (web only)" onPress={ctx.entitled ? ctx.finishSetup : next} /> : undefined,
       };
 
     case 'offer': {
@@ -655,7 +704,7 @@ export function renderStep(ctx: StepContext): StepView {
       // hours on what they'd do with them, so the two money screens echo different answers.
       const headline =
         feelingOffer(answers, phoneDown) ??
-        (numbers.lightUser ? LIGHT_OFFER_HEADLINE : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else));
+        (numbers.lightUser && !numbers.skipped ? LIGHT_OFFER_HEADLINE : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else));
       const trialDays = offers.annual.trialDays;
       return {
         body: (
@@ -791,10 +840,23 @@ export function renderStep(ctx: StepContext): StepView {
       }
       const startsNow = arm.status === 'armed' ? arm.now : lateNight;
       const { notifications, motion, trialEnds } = ctx;
-      // Say what each prompt is for before iOS shows it (decided 2026-10-03), and only the ones
+      // The last screen (merged with the first-morning plan, 2026-10-26): tonight, the morning,
+      // then what each iOS prompt is for before it shows (decided 2026-10-03), and only the ones
       // iOS will really show. One Continue opens them, per Apple's pre-permission guidance.
       const asksNotifications = notifications === 'undetermined';
       const reminds = answers.remindTrial && trialEnds !== null;
+      const way = answers.method ?? 'steps';
+      const asks = [
+        asksNotifications && { name: 'notifications', for: reminds ? ['bedtime', 'morning', 'your trial reminder'] : ['bedtime', 'morning'] },
+        motion === null && { name: 'motion', for: [way === 'downstairs' ? 'stairs' : 'steps'] },
+        ctx.methodAsks ? METHOD_ACCESS[way] : undefined,
+      ].filter((ask): ask is Ask => !!ask);
+      // What a "Don't Allow" breaks, said here instead of at 7am. Once iOS has answered these
+      // replace the asks, and the page stays up so they're read (`morningWarnings`).
+      const warnings = morningWarnings({ notifications, motion, remindTrial: answers.remindTrial, trialEnds, method: way });
+      // The label is when the first one is: "Tomorrow 7:00 AM".
+      const wakeWhen = schedule.wakeWhen && schedule.wakeAt ? `${schedule.wakeWhen}, ${schedule.wakeAt}` : (method.morning.when ?? 'Morning');
+      const started = ctx.scheduledNight !== null && ctx.scheduledNight.start <= new Date();
       return {
         body: (
           <View style={page.top}>
@@ -803,37 +865,17 @@ export function renderStep(ctx: StepContext): StepView {
               size={VoiceSize.headline}
               header
             />
-            <View style={page.gapHeadline} />
-            {/* The headline already says when, so the body doesn't repeat it. */}
-            <Body>{startsNow ? 'iOS has your schedule, and your apps are asleep.' : 'iOS has your schedule.'}</Body>
-            {asksNotifications ? (
-              <>
-                <View style={page.gapBlock} />
-                <Body>
-                  {reminds
-                    ? `Next, iOS asks about notifications: bedtime, morning, and two days before your free trial ends on ${trialDay(trialEnds)}.`
-                    : 'Next, iOS asks about notifications. Just bedtime and morning.'}
-                </Body>
-              </>
-            ) : null}
-            {notifications === 'denied' && reminds ? (
-              <>
-                <View style={page.gapBlock} />
-                <Body>{noReminderLine(trialEnds)}</Body>
-              </>
-            ) : null}
-            {motion === null ? (
-              <>
-                <View style={page.gapBlock} />
-                <Body>{`${asksNotifications ? 'Then' : 'Next,'} Motion & Fitness. It’s ${MOTION_WHY[answers.method ?? 'steps'].replace('{goal}', methodCopy('steps').short.split(' ')[0])}.`}</Body>
-              </>
-            ) : null}
-            {asksNotifications ? (
-              <>
-                <View style={page.gapAside} />
-                <Voice text="I’m not chatty. I’m a raccoon." size={VoiceSize.aside} delay={600} />
-              </>
-            ) : null}
+            {/* One beat: the morning. Setup and what iOS turned down sit under it, quieter. */}
+            <View style={styles.plan}>
+              <PlanRow when={wakeWhen} what={method.morning.line} />
+              {method.morning.note ? <Body style={styles.planNote}>{method.morning.note}</Body> : null}
+              {warnings.map((row) => (
+                <Body key={row.when} style={styles.planNote}>{row.what}</Body>
+              ))}
+            </View>
+            {asks.length > 0 ? null : (
+              <Voice text={started ? 'That’s it. Go to sleep.' : lastWord(answers, pain, bed)} size={VoiceSize.aside} delay={600} />
+            )}
             {arm.status === 'preview' ? (
               <>
                 <View style={page.gapBlock} />
@@ -843,50 +885,21 @@ export function renderStep(ctx: StepContext): StepView {
           </View>
         ),
         // Waits for iOS's answers so far, so the copy above is right before anything is asked.
-        footer: <PrimaryButton label="Continue" disabled={notifications === null || ctx.asking} onPress={ctx.askPermissions} />,
+        footer:
+          asks.length > 0 ? (
+            <PrimaryButton label="Continue" disabled={notifications === null || ctx.asking} onPress={ctx.askPermissions} />
+          ) : (
+            <PrimaryButton label={lateNight && !morningSoon ? 'Good night' : 'Done'} onPress={exit} />
+          ),
+        // What iOS asks next sits under Continue, like a secondary line (user, 2026-10-26).
+        secondary:
+          asks.length > 0 ? (
+            <Body style={styles.planNote}>{asksLine(asks)}</Body>
+          ) : motion === 'denied' ? (
+            <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
+          ) : undefined,
       };
     }
-
-    case 'first-morning':
-      // The last screen ends on tomorrow morning (TODO §4), then bed.
-      return {
-        body: (
-          <View style={page.top}>
-            <Title>{schedule.morning}</Title>
-            <View style={styles.plan}>
-              {method.morning.map((row) => (
-                <PlanRow key={row.when} when={row.when} what={row.what} />
-              ))}
-              <PlanRow when="Bad day" what="Use a pass. No walking." />
-              {/* The paywall promised a reminder. Without notifications it can't come, so say the date now. */}
-              {ctx.notifications === 'denied' && answers.remindTrial && ctx.trialEnds ? (
-                <PlanRow when="Free trial" what={noReminderLine(ctx.trialEnds)} />
-              ) : null}
-              {ctx.motion === 'denied' ? (
-                <PlanRow when="Motion" what="It’s off, so I can’t feel stairs or count steps. Turn on Motion & Fitness for Locturne in Settings." />
-              ) : null}
-              {/* No step counter (an iPad, which still has a barometer for stairs): say so now, not at 7am. */}
-              {ctx.motion === 'unavailable' && answers.method === 'steps' ? (
-                <PlanRow when="This device" what="It can’t count steps. Set up a scan code from the You tab, or use a pass." />
-              ) : null}
-            </View>
-            <Voice
-              text={ctx.scheduledNight && ctx.scheduledNight.start <= new Date() ? 'That’s it. Go to sleep.' : schedule.sleep}
-              size={VoiceSize.aside}
-              delay={700}
-            />
-            <View style={styles.gap8} />
-            <Voice
-              text={lastWord(answers, pain, bed)}
-              size={VoiceSize.aside}
-              delay={1300}
-            />
-          </View>
-        ),
-        footer: <PrimaryButton label={lateNight && !morningSoon ? 'Good night' : 'Done'} onPress={exit} />,
-        secondary:
-          ctx.motion === 'denied' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
-      };
   }
 }
 
@@ -909,7 +922,7 @@ function moonQuestion(
     sub?: string;
     /** His line under the answers; a node when it changes in place (`SoFar`). */
     reply?: string | ReactNode;
-    /** False after the reveal (`time-back`): the moon has sunk, so the page starts at the top. */
+    /** False off the quiz (`pain`): the moon has sunk, so the page starts at the top. */
     risen?: boolean;
   } = {},
 ) {
@@ -929,26 +942,21 @@ const countWord = (n: number) => COUNT_WORDS[n] ?? String(n);
 
 /** The question sits up near the top bar, above the moon's curve, not on the moon. */
 /** `nights-per-week`'s running total. The line stays put as days are picked; only the number rolls. */
-/** Per night, when both scroll questions were skipped: "Around" the second answer, a typical night. */
-const SKIPPED_NIGHT_MINUTES = 30;
 
 function SoFar({ minutes }: { minutes: number }) {
   const { count, unit } = weeklyParts(minutes);
   const reduced = useReducedMotion();
-  const [last, setLast] = useState({ minutes, up: true });
-  if (last.minutes !== minutes) setLast({ minutes, up: minutes > last.minutes });
-  // Crossing between minutes and hours, the digits would roll the wrong way ("30" down to "1")
-  // while the word snaps. So the whole thing swaps as one piece instead, on the way the time went.
+  // Crossing between minutes and hours, the digits and the word would change at once. So the
+  // whole thing just fades over as one piece instead of rolling.
   const scale = unit === 'minutes' ? 'minutes' : 'hours';
-  const travel = SO_FAR_TRAVEL * (last.up ? 1 : -1);
   return (
     // The number is the result, so it's the big thing; the words sit small under it like the day count.
     <View style={styles.soFar} accessible accessibilityLabel={`${count} ${unit} lost a week.`}>
       <LayoutAnimationConfig skipEntering>
         <Animated.View
           key={scale}
-          entering={reduced ? undefined : soFarSwap(travel, 'in')}
-          exiting={reduced ? undefined : soFarSwap(-travel, 'out')}
+          entering={reduced ? undefined : soFarSwap('in')}
+          exiting={reduced ? undefined : soFarSwap('out')}
           style={styles.soFarFace}
         >
           <RollingCount value={count} size={56} style={styles.soFarCount} />
@@ -959,15 +967,11 @@ function SoFar({ minutes }: { minutes: number }) {
   );
 }
 
-const SO_FAR_TRAVEL = 24;
-
-/** `SoFar`'s swap between minutes and hours: a short rise (or fall) with a fade, nothing more. */
-function soFarSwap(travel: number, way: 'in' | 'out') {
-  const moved = { opacity: 0, transform: [{ translateY: travel }] };
-  const still = { opacity: 1, transform: [{ translateY: 0 }] };
+/** `SoFar`'s swap between minutes and hours: the old line fades out, then the new one fades in. */
+function soFarSwap(way: 'in' | 'out') {
   return way === 'in'
-    ? new Keyframe({ 0: moved, 100: { ...still, easing: Easing.out(Easing.cubic) } }).duration(360)
-    : new Keyframe({ 0: still, 100: { ...moved, easing: Easing.in(Easing.cubic) } }).duration(220);
+    ? new Keyframe({ 0: { opacity: 0 }, 100: { opacity: 1, easing: Easing.out(Easing.quad) } }).duration(260).delay(120)
+    : new Keyframe({ 0: { opacity: 1 }, 100: { opacity: 0, easing: Easing.in(Easing.quad) } }).duration(140);
 }
 
 function MoonQuestionHead({ title, sub, risen }: { title: string; sub?: string; risen: boolean }) {
@@ -993,7 +997,7 @@ function PlanRow({ when, what }: { when: string; what: string }) {
 }
 
 /**
- * His last word on `first-morning`: the time they confessed to, from their end of the night.
+ * His last word on `armed` when iOS has nothing left to ask: the time they confessed to, from their end of the night.
  * Night echoes the phone going down; overall whichever end they gave; the rest the feet.
  */
 function lastWord(answers: Answers, pain: Pain, bed: string): string {
@@ -1051,20 +1055,58 @@ function ScheduleWarning({ minutes }: { minutes: number }) {
   return <Body style={styles.warning}>That’s {formatHoursFromMinutes(minutes)} hours in bed. Check AM and PM.</Body>;
 }
 
-/** Why Motion & Fitness, on `armed`, right before iOS asks: "It's {this}." */
-const MOTION_WHY: Record<WakeMethod, string> = {
-  downstairs: 'how I feel the stairs, and count steps on days without them',
-  steps: 'how I count your steps. Nothing else',
-  // The goal in use is filled in (`methodCopy`'s rule): a rerun keeps Routine's.
-  scan: 'how {goal} steps can stand in for your code',
-  place: 'how {goal} steps can stand in on days you stay in',
-  // The camera counts the push-ups (no Motion needed); Motion counts the steps that stand in.
-  pushups: 'how {goal} steps can stand in when your arms say no',
+/** One iOS prompt on `armed`: what iOS calls it, and what it's for. */
+type Ask = { name: string; for: string[] };
+
+/** The wake-up way's own prompt on `armed`, after Motion (method-access.ts). */
+const METHOD_ACCESS: Partial<Record<WakeMethod, Ask>> = {
+  place: { name: 'location', for: ['checking in'] },
+  scan: { name: 'the camera', for: ['your code'] },
+  pushups: { name: 'the camera', for: ['push-ups'] },
 };
+
+/** "iOS asks about notifications and motion next. Just for bedtime, morning, and steps." */
+function asksLine(asks: Ask[]): string {
+  return `iOS asks about ${listed(asks.map((ask) => ask.name))} next. Just for ${listed(asks.flatMap((ask) => ask.for))}.`;
+}
+
+function listed(items: string[]): string {
+  if (items.length < 3) return items.join(' and ');
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
 
 /** "Fri, Oct 10": the trial's last day, the way the reminder would have said it. */
 function trialDay(ends: Date): string {
   return ends.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+type PlanLine = { when: string; what: string };
+
+/**
+ * The rows on `armed` for what iOS turned down: the trial reminder that can't come, Motion off,
+ * or no step counter (an iPad, which still has a barometer for stairs). The flow reads it too,
+ * to stay on the page after the prompts when there's something to read.
+ */
+export function morningWarnings({
+  notifications,
+  motion,
+  remindTrial,
+  trialEnds,
+  method,
+}: {
+  notifications: NotificationPermission | null;
+  motion: MotionAccess | null;
+  remindTrial: boolean | undefined;
+  trialEnds: Date | null;
+  method: WakeMethod;
+}): PlanLine[] {
+  const rows: PlanLine[] = [];
+  if (notifications === 'denied' && remindTrial && trialEnds) rows.push({ when: 'Free trial', what: noReminderLine(trialEnds) });
+  if (motion === 'denied')
+    rows.push({ when: 'Motion', what: 'It’s off, so I can’t feel stairs or count steps. Turn on Motion & Fitness for Locturne in Settings.' });
+  if (motion === 'unavailable' && method === 'steps')
+    rows.push({ when: 'This device', what: 'It can’t count steps. Set up a scan code from the You tab, or use a pass.' });
+  return rows;
 }
 
 /** The paywall's reminder can't arrive without notifications, so the date goes on screen instead. */
@@ -1087,7 +1129,7 @@ const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
   refused: { body: 'iOS didn’t accept tonight’s schedule. That’s usually brief.', button: 'Try again' },
 };
 
-/** An underlined link in the opener's fine print. */
+/** A link in the opener's fine print. */
 function FineLink({ label, url }: { label: string; url: string }) {
   return (
     <Text accessibilityRole="link" style={styles.fineLink} onPress={() => Linking.openURL(url).catch(() => {})}>
@@ -1097,13 +1139,12 @@ function FineLink({ label, url }: { label: string; url: string }) {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center' },
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
   opener: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: Space.xl },
   wordmark: { ...DisplayFont, color: Nocturne.text, fontSize: 40, letterSpacing: -1 },
   openerFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center', paddingTop: Space.s },
-  fineLink: { color: Nocturne.text, textDecorationLine: 'underline' },
+  fineLink: { color: Nocturne.text },
   gap8: { height: Space.s },
   // The grey line under a page's title (Type.headingSub).
   sub: { marginTop: Space.m, color: Nocturne.text2, ...Type.headingSub },
@@ -1124,6 +1165,7 @@ const styles = StyleSheet.create({
   planRow: { alignItems: 'center', gap: 2 },
   planWhen: { ...Type.rowKey, fontVariant: ['tabular-nums'], textAlign: 'center' },
   planWhat: { color: Nocturne.text, ...Type.body, textAlign: 'center' },
+  planNote: { color: Nocturne.text2, ...Type.secondary, textAlign: 'center' },
   reassure: { color: Nocturne.text2, ...Type.secondary, textAlign: 'center' },
   // A timeline reads down its rail, so its rows start at the rail; the block itself sits centred.
   trail: { marginVertical: Gap.block, alignSelf: 'center' },
@@ -1142,5 +1184,4 @@ const styles = StyleSheet.create({
   founder: { marginTop: Gap.headline, gap: Space.l },
   founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic', textAlign: 'center' },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },
-  foundOptions: { marginTop: Gap.block },
 });

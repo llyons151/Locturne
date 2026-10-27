@@ -9,53 +9,61 @@ import type { Answers } from './content.ts';
 /**
  * Every step (docs/ONBOARDING_10.md), in the `all` branch's order with the other branches'
  * feeling questions slotted in. A visit follows its branch (`stepsFor`), never this list
- * directly. One side step isn't in it: `declined` (the paywall exit). The times come first,
+ * directly. The side steps (`declined`, `scan-code`) aren't in it. The times come first,
  * so every later screen can speak in them.
  */
 export const STEPS = [
   'hello',
   // Which pain is theirs (docs/ONBOARDING_BRANCHES.md): the order and words from here on lean
-  // toward it. Same mechanism, same setup, same length for every answer.
+  // toward it. Same mechanism, same setup for every answer.
   'pain',
   'bedtime',
   'wake',
   // Mornings first in `all`: the hook is "no apps until you're out of bed", so the quiz starts
-  // there, with how the morning feels (echoed on the reveal and the offer), then the night before.
+  // there, then the night before.
   'morning-minutes',
-  'mornings',
   'night-minutes',
   // `night`'s feeling question: what the late scrolling is, mostly.
   'night-feel',
-  // `overall`'s: how it is when the phone finally goes down.
-  'after-feel',
+  // `overall`'s: when it gets them worst, which picks the end of the night it leads with.
+  'worst-time',
   'nights-per-week',
-  'tried',
-  // The bad news, then what they'd do with the time: the number first, so the dream is in it.
-  'reveal',
+  // Straight after the running total ("6 hours lost a week"): what they'd do with them back.
   'time-back',
+  'tried',
+  // Attribution inside the quiz, so non-buyers answer it too and nothing passive sits between
+  // the deal and the price (docs/PAYWALL_PRIMING.md, 2026-10-26).
+  'found',
+  // Only for the reveal's lifetime number: one box per day of their life on the phone in bed
+  // (user 2026-10-26). Cut 2026-10-05, back for that.
+  'age',
+  'reveal',
   // The chapter break: the questions are done, now they build it (user's reference, 2026-10-26).
   // Straight after the bad news, so "now let's fix it" lands while it stings (user 2026-10-26).
   'build',
   'method',
   // See it: the demo shows tomorrow morning. The 20-step walk after it was cut (2026-10-26).
+  // Its Set it up opens the code setup or the place map first, for a scan or place morning.
   'tomorrow',
   'screen-time',
   'apps',
   // The summary and the deal in one: the editable schedule, then hold to agree.
   'commit',
-  // Attribution once they've had the payoff and built it, so the stretch before is all about
-  // them, and still before the paywall so conversion splits by channel for non-buyers too.
-  'found',
   // Why this exists, from the person who made it, right before the price: the only social
   // proof there is before real reviews.
   'founder',
   'offer',
   'plans',
+  // The last page: tonight, the morning, and iOS's prompts (first-morning merged in 2026-10-26).
   'armed',
-  'first-morning',
 ] as const;
 
-export type StepId = (typeof STEPS)[number] | 'declined';
+/**
+ * Two side steps, off the main path: `declined` (the paywall exit) and `scan-code`, the code
+ * setup that `tomorrow`'s Set it up opens for a scan morning (user, 2026-10-26: one more
+ * onboarding page, not a screen of its own). Both rejoin the path where they left it.
+ */
+export type StepId = (typeof STEPS)[number] | 'declined' | 'scan-code';
 
 /**
  * The pain they picked on `pain`: up late, can't get up, too much phone overall, or all of it.
@@ -69,25 +77,25 @@ export const PAINS: Pain[] = ['night', 'morning', 'overall', 'all'];
  * The stretch that differs between branches, from the times to the night count. Bedtime and
  * the alarm always come first, so the quiz can speak in their clock. `morning` asks the alarm
  * first (Hatch's "rise rested", Alarmy, Sleep Cycle all open on it); each branch asks its own
- * end of the night first, and its own feeling question.
+ * end of the night first. `night` and `overall` add their own feeling question.
  */
 const BRANCH_QUIZ: Record<Pain, StepId[]> = {
-  all: ['bedtime', 'wake', 'morning-minutes', 'mornings', 'night-minutes', 'nights-per-week'],
+  all: ['bedtime', 'wake', 'morning-minutes', 'night-minutes', 'nights-per-week'],
   night: ['bedtime', 'wake', 'night-minutes', 'night-feel', 'morning-minutes', 'nights-per-week'],
-  morning: ['wake', 'bedtime', 'morning-minutes', 'mornings', 'night-minutes', 'nights-per-week'],
-  overall: ['bedtime', 'wake', 'night-minutes', 'morning-minutes', 'after-feel', 'nights-per-week'],
+  morning: ['wake', 'bedtime', 'morning-minutes', 'night-minutes', 'nights-per-week'],
+  overall: ['bedtime', 'wake', 'night-minutes', 'morning-minutes', 'worst-time', 'nights-per-week'],
 };
 
-/** Every step of one branch, in order. The same length for all four. */
+/** Every step of one branch, in order. */
 export function stepsFor(pain: Pain | undefined): StepId[] {
   const quiz = BRANCH_QUIZ[pain ?? 'all'];
   const from = STEPS.indexOf('nights-per-week') + 1;
   return ['hello', 'pain', ...quiz, ...STEPS.slice(from)];
 }
 
-/** The quiz questions asked on the risen moon: everything after the times, through `tried`. */
+/** The quiz questions asked on the risen moon: everything after the times, through `age`. */
 export function moonQuizFor(pain: Pain | undefined): StepId[] {
-  return [...BRANCH_QUIZ[pain ?? 'all'].slice(2), 'tried'];
+  return [...BRANCH_QUIZ[pain ?? 'all'].slice(2), 'time-back', 'tried', 'found', 'age'];
 }
 
 /**
@@ -127,11 +135,12 @@ export type NavAction =
   | { type: 'reset'; to: StepId };
 
 export function isStep(value: string | undefined): value is StepId {
-  return value === 'declined' || (STEPS as readonly string[]).includes(value ?? '');
+  return value === 'declined' || value === 'scan-code' || (STEPS as readonly string[]).includes(value ?? '');
 }
 
 export function nextStep(step: StepId, skip: StepId[] = [], pain?: Pain): StepId {
   if (step === 'declined') return 'plans';
+  if (step === 'scan-code') return nextStep('tomorrow', skip, pain);
   const order = stepsFor(pain);
   let index = order.indexOf(step);
   // A step from another branch (a `?step=` jump, or `pain` changed after it): carry on from the

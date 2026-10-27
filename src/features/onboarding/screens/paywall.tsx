@@ -26,13 +26,15 @@ import { Body, page, Voice } from '../ui';
  */
 
 /**
- * His line under the headline: when it starts, then the price. `note` is scheduleCopy's
- * "Tonight at 11:30 PM", null once the night has started; no night at all promises nothing.
+ * His line under the headline: what they built is ready, and when it starts. Paying switches on
+ * their own setup rather than buying something new (endowment, docs/PAYWALL_PRIMING.md).
+ * `note` is scheduleCopy's "Tonight at 11:30 PM", null once the night has started; no night at
+ * all promises nothing.
  */
 function plansVoice(hasNight: boolean, note: string | null): string {
-  if (!hasNight) return 'Right. The boring bit.';
+  if (!hasNight) return 'Your setup’s ready. Right. The boring bit.';
   const starts = note ? note.replace(/^(Today|Tonight|Tomorrow)/, (day) => day.toLowerCase()) : 'now';
-  return `Starts ${starts}. Right. The boring bit.`;
+  return `Your setup’s ready. It starts ${starts}.`;
 }
 
 const RENEWAL = 'Auto-renews unless cancelled at least 24 hours before renewal.';
@@ -82,7 +84,7 @@ export function plansStep(ctx: StepContext): StepView {
   );
   const method = methodCopy(answers.method ?? 'steps');
   // The branch's own end of the night, when it's big enough to lead with (`leadFor`).
-  const lead = leadFor(numbers, answers.pain);
+  const lead = leadFor(numbers, answers.pain, answers.worstTime);
   const firstCheck = !ctx.scheduledNight
     ? 'Turn nights on in Routine anytime'
     : answers.pain === 'night'

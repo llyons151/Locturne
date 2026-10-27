@@ -273,8 +273,11 @@ export function NightSky({
   floor = 0,
   moonless = false,
   drift = false,
+  riseMs = QUIZ_RISE_MS,
 }: {
   opening?: boolean;
+  /** How long the quiz rise (or the sink out of it) takes this time: the reveal's is slower. */
+  riseMs?: number;
   /** Hide the moon and its glow, leaving the sky: a screen drawing its own (the payoff's moonrise). */
   moonless?: boolean;
   quiz?: boolean;
@@ -309,7 +312,9 @@ export function NightSky({
     const target = quiz ? 1 : 0;
     risen.value = reduced
       ? target
-      : withTiming(target, { duration: QUIZ_RISE_MS, easing: Easing.bezier(0.65, 0, 0.35, 1) });
+      : withTiming(target, { duration: riseMs, easing: Easing.bezier(0.65, 0, 0.35, 1) });
+    // The duration is read when the quiz changes, not a change of its own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiz, reduced, risen]);
 
   useEffect(() => {

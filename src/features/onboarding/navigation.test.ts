@@ -45,14 +45,14 @@ function reach(to: StepId, from: Nav = startNav('hello', initialAnswers)): Nav {
 
 describe('forward', () => {
   test('Continue goes through every step in order, and stops at the last', () => {
-    const nav = reach('first-morning');
+    const nav = reach('armed');
     assert.deepEqual(nav.history, stepsFor('all'));
     assert.deepEqual(
       stepsFor('all'),
-      STEPS.filter((s) => s !== 'night-feel' && s !== 'after-feel'),
+      STEPS.filter((s) => s !== 'night-feel' && s !== 'worst-time'),
       '`all` is the flow as it was, plus the pain question',
     );
-    assert.equal(currentStep(navigate(nav, next)), 'first-morning');
+    assert.equal(currentStep(navigate(nav, next)), 'armed');
   });
 
   test('the demo goes straight to Screen Time', () => {
@@ -64,11 +64,11 @@ describe('forward', () => {
   });
 
   test('the times come before the quiz, so the questions can speak in them', () => {
-    assert.ok(STEPS.indexOf('bedtime') < STEPS.indexOf('mornings'));
+    assert.ok(STEPS.indexOf('bedtime') < STEPS.indexOf('morning-minutes'));
     assert.ok(STEPS.indexOf('wake') < STEPS.indexOf('night-minutes'));
     assert.ok(STEPS.indexOf('found') < STEPS.indexOf('plans'), 'attribution is asked before the paywall');
-    assert.ok(STEPS.indexOf('found') > STEPS.indexOf('reveal'), 'attribution waits until after the payoff');
-    assert.ok(!(STEPS as readonly string[]).includes('age'), 'no age question');
+    assert.ok(STEPS.indexOf('found') < STEPS.indexOf('reveal'), 'attribution is a quiz question, not a screen before the price');
+    assert.ok(STEPS.indexOf('age') === STEPS.indexOf('reveal') - 1, 'age comes right before the reveal, its only reader');
   });
 
   test('`?step=` accepts real steps and `declined` only', () => {
@@ -97,23 +97,25 @@ describe('back', () => {
 
   test('from the reveal goes back to the last question', () => {
     const nav = reach('reveal');
-    assert.equal(currentStep(navigate(nav, back)), 'tried');
+    assert.equal(currentStep(navigate(nav, back)), 'age');
   });
 
-  test('what they would do with the time comes after the number', () => {
-    assert.equal(nextStep('reveal'), 'time-back');
-    assert.equal(nextStep('time-back'), 'build');
+  test('what they would do with the time comes right after the running total', () => {
+    assert.equal(nextStep('nights-per-week'), 'time-back');
+    assert.equal(nextStep('time-back'), 'tried');
+    assert.equal(nextStep('reveal'), 'build');
     assert.equal(nextStep('build'), 'method');
-    assert.equal(nextStep('commit'), 'found');
-    assert.equal(nextStep('found'), 'founder');
+    assert.equal(nextStep('tried'), 'found');
+    assert.equal(nextStep('found'), 'age');
+    assert.equal(nextStep('commit'), 'founder');
     assert.equal(nextStep('founder'), 'offer');
   });
 
   test('a second next from the same screen does nothing', () => {
-    const nav = reach('armed');
+    const nav = reach('offer');
     const sent = { type: 'next', at: nav.history.length } as const;
     const once = navigate(nav, sent);
-    assert.equal(currentStep(once), 'first-morning');
+    assert.equal(currentStep(once), 'plans');
     assert.equal(navigate(once, sent), once);
   });
 
@@ -121,7 +123,7 @@ describe('back', () => {
     const nav = run(reach('offer'), { type: 'reset', to: 'armed' });
     assert.deepEqual(nav.history, ['armed']);
     assert.equal(canGoBack(nav), false);
-    assert.equal(currentStep(navigate(nav, next)), 'first-morning');
+    assert.equal(currentStep(navigate(nav, next)), 'armed', '`armed` is the last page');
   });
 
   test('the paywall exit, then Continue, reaches the plans', () => {
@@ -174,7 +176,7 @@ describe('editing from the schedule card on commit', () => {
 
   test('agreeing on commit after an edit carries on toward the offer', () => {
     const nav = run(summary(), edit('bedtime'), next, next);
-    assert.equal(currentStep(nav), 'found');
+    assert.equal(currentStep(nav), 'founder');
   });
 
   test('Back from commit after a saved edit goes to the step before it, not the edit', () => {
@@ -216,21 +218,24 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
   /** Walks a whole branch: answers `pain` on screen 2, then Continue to the end. */
   const walk = (pain: (typeof PAINS)[number]) => {
     let nav = run(startNav('hello', initialAnswers), next, set({ pain }));
-    for (let i = 0; currentStep(nav) !== 'first-morning'; i++) {
+    for (let i = 0; currentStep(nav) !== 'armed'; i++) {
       assert.ok(i < STEPS.length, `${pain} never reached the end`);
       nav = navigate(nav, next);
     }
     return nav.history;
   };
 
-  test('every branch reaches the paywall and the end, the same length as the others', () => {
-    const lengths = PAINS.map((pain) => {
+  test('every branch reaches the paywall and the end; only a feeling question adds a screen', () => {
+    const toPaywall = (pain: (typeof PAINS)[number]) => {
       const history = walk(pain);
       assert.deepEqual(history, stepsFor(pain));
       assert.ok(history.includes('plans'));
       return history.indexOf('plans');
-    });
-    assert.equal(new Set(lengths).size, 1, `screens to the paywall: ${lengths.join(', ')}`);
+    };
+    const base = toPaywall('all');
+    assert.equal(toPaywall('morning'), base);
+    assert.equal(toPaywall('night'), base + 1, 'night-feel');
+    assert.equal(toPaywall('overall'), base + 1, 'worst-time');
   });
 
   test('the question comes right after hello, before the times', () => {
@@ -242,10 +247,10 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
     const morning = stepsFor('morning');
     const overall = stepsFor('overall');
     assert.ok(night.indexOf('night-minutes') < night.indexOf('morning-minutes'));
-    assert.ok(night.includes('night-feel') && !night.includes('mornings') && !night.includes('after-feel'));
+    assert.ok(night.includes('night-feel') && !night.includes('worst-time'));
     assert.ok(morning.indexOf('wake') < morning.indexOf('bedtime'), 'the alarm first');
-    assert.ok(morning.includes('mornings') && !morning.includes('night-feel'));
-    assert.ok(overall.includes('after-feel') && !overall.includes('mornings') && !overall.includes('night-feel'));
+    assert.ok(!morning.includes('night-feel') && !morning.includes('worst-time'));
+    assert.ok(overall.includes('worst-time') && !overall.includes('night-feel'));
   });
 
   test('every branch asks both minutes questions, so the estimate is whole', () => {
@@ -273,8 +278,7 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
 
   test('a step from another branch carries on to the next step this branch has', () => {
     assert.equal(nextStep('night-feel', [], 'all'), 'nights-per-week');
-    assert.equal(nextStep('after-feel', [], 'morning'), 'nights-per-week');
-    assert.equal(nextStep('mornings', [], 'night'), 'night-minutes');
+    assert.equal(nextStep('worst-time', [], 'morning'), 'nights-per-week');
   });
 
   test('editing from commit still returns, in any branch', () => {

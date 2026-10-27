@@ -12,15 +12,18 @@ export default function OnboardingScreen() {
   // (docs/ONBOARDING_BRANCHES.md).
   // Review tools only: in the App Store build a `locturne://onboarding?step=declined&exit=…`
   // link would open the one-time exit offer for anyone, as often as they liked.
-  const { step, exit, resume, newyear, insets, pain } = useLocalSearchParams<{
+  // `?paywall=1` (You → Redo onboarding): the paywall shows even on a subscribed phone.
+  const { step, exit, resume, newyear, insets, pain, paywall } = useLocalSearchParams<{
     step?: string;
     pain?: string;
     exit?: string;
     resume?: string;
     newyear?: string;
     insets?: string;
+    paywall?: string;
   }>();
   const review = __DEV__ || Platform.OS === 'web';
+  const devLabs = review || process.env.EXPO_PUBLIC_DEV_LABS === '1';
   // `?resume=paywall` (the You tab and Home's Subscribe): straight to the plans with the
   // saved setup, for someone who left at the paywall or whose subscription ended.
   // Only with a saved setup: someone who left before `commit` gets the questions, not the
@@ -32,6 +35,7 @@ export default function OnboardingScreen() {
       exitOffer={review ? exit : undefined}
       newYear={review && newyear === '1'}
       pain={review ? pain : undefined}
+      showPaywall={devLabs && paywall === '1'}
     />
   );
   // `?insets=59,34` (top,bottom): an iPhone's safe areas inside the onboarding preview's

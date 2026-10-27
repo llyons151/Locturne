@@ -23,12 +23,13 @@ export type Answers = {
    * (docs/ONBOARDING_BRANCHES.md). Missing reads as `all`, today's flow.
    */
   pain?: Pain;
-  /** How the morning feels (`mornings`): his reply, the reveal's second beat, the offer headline. */
-  mornings?: string;
-  /** `night-feel` (night branch): what the late scrolling is, mostly. Echoed like `mornings`. */
+  /** `night-feel` (night branch): what the late scrolling is, mostly. Picks the offer's headline. */
   nightFeel?: string;
-  /** `after-feel` (overall branch): how it is when the phone finally goes down. Echoed like `mornings`. */
-  afterFeel?: string;
+  /**
+   * `worst-time` (overall branch): when the phone gets them worst. `night` or `morning` picks the end
+   * of the night the numbers lead with (`leadFor`); every answer picks the offer's headline.
+   */
+  worstTime?: string;
   nightMinutes?: number;
   nightsPerWeek?: number;
   /** The nights picked on the day circles, Monday = 0. Their count is `nightsPerWeek`. */
@@ -39,6 +40,8 @@ export type Answers = {
   /** What they've tried before. Only feeds his reply under it. */
   tried?: string;
   timeBack?: string;
+  /** `age`, as the middle of the band they picked: only for the reveal's lifetime number. */
+  age?: number;
   /**
    * "How'd you find me?" Attribution only: never used in the number. The one exception to
    * "every answer feeds the number or a setting" (docs/sub-club/APPLIED_TO_LOCTURNE.md, O1).
@@ -77,12 +80,12 @@ export { PAINS, STEPS, stepsFor, type Pain, type StepId } from './navigation';
 export function chaptersFor(pain: Pain | undefined): StepId[][] {
   const steps = stepsFor(pain);
   const at = (step: StepId) => steps.indexOf(step);
-  // The first four after `pain` are the first chapter: the times and the branch's own end of
-  // the night. `pain` has no bar, like `hello`.
-  const first = at('pain') + 1;
+  // `pain` and the four after it are the first chapter: the times and the branch's own end of
+  // the night. `pain` is the same page on every branch, so it can open the bar before one is picked.
+  const first = at('pain');
   return [
-    steps.slice(first, first + 4),
-    steps.slice(first + 4, at('time-back') + 1),
+    steps.slice(first, first + 5),
+    steps.slice(first + 5, at('reveal') + 1),
     steps.slice(at('method'), at('commit') + 1),
   ];
 }
@@ -117,89 +120,27 @@ export const NIGHT_FEEL: Choice<string>[] = [
   { label: 'I can’t sleep, so I scroll.', value: 'cant-sleep' },
 ];
 
-/** `after-feel`: "When you finally put it down, how is it?" */
-export const AFTER_FEEL: Choice<string>[] = [
-  { label: 'Where did that hour go.', value: 'vanished' },
-  { label: 'I didn’t even enjoy it.', value: 'meh' },
-  { label: 'Behind on everything.', value: 'behind' },
-  { label: 'Tired, somehow.', value: 'tired' },
+/**
+ * `worst-time`: "When does it get you worst?" The overall branch never said which end of the
+ * night hurts, so this asks. The daytime answers are honest too: the app starts in bed anyway.
+ */
+export const WORST_TIME: Choice<string>[] = [
+  { label: 'Right before I sleep.', value: 'night' },
+  { label: 'The second I wake up.', value: 'morning' },
+  { label: 'When I should be working.', value: 'work' },
+  { label: 'Any time I’m bored.', value: 'bored' },
 ];
 
 /**
- * "How do your mornings usually go?": the stakes in feelings, not hours. Each answer comes
- * back three times: his reply, the reveal's second beat, and the offer's headline.
+ * `age`: "How old are you?" Bands, not a number, so it's one tap. Each value is a rough middle
+ * of its band, and the open-ended last one leans old so the lifetime number never overstates.
  */
-export const MORNINGS: Choice<string>[] = [
-  { label: 'Tired before I’ve started.', value: 'tired' },
-  { label: 'Late. Always rushing.', value: 'rushed' },
-  { label: 'Behind before I’m out of bed.', value: 'behind' },
-  { label: 'Gone before I notice.', value: 'gone' },
+export const AGE: Choice<number>[] = [
+  { label: 'Under 18', value: 16 },
+  { label: '18 to 24', value: 21 },
+  { label: '25 to 34', value: 30 },
+  { label: '35 or older', value: 45 },
 ];
-
-/**
- * The morning branch swaps "Behind before I'm out of bed." for the snooze loop, its own
- * words for it ("I used to set 20 alarms"). A joke about it, not a warning: snoozing itself
- * isn't clearly harmful (Sundelin 2024).
- */
-export function morningsChoices(pain: Pain | undefined): Choice<string>[] {
-  if (pain !== 'morning') return MORNINGS;
-  return MORNINGS.map((choice) => (choice.value === 'behind' ? { label: 'Snooze. Scroll. Snooze.', value: 'snooze' } : choice));
-}
-
-/**
- * A new pain answer, plus what it undoes: a mornings answer the new branch doesn't offer
- * ("snooze" after leaving the morning branch) is dropped, so it's asked again rather than
- * carried into the reveal and the offer unseen.
- */
-export function painAnswer(answers: Pick<Answers, 'mornings'>, pain: Pain): Partial<Answers> {
-  const stale = answers.mornings !== undefined && !morningsChoices(pain).some((c) => c.value === answers.mornings);
-  return stale ? { pain, mornings: undefined } : { pain };
-}
-
-/**
- * The reveal's second beat, from the branch's feeling answer: the bad news lands on the apps
- * (VOICE). `scope` is what the number counted (`leadFor`): a night person whose nights were too
- * light to lead with gets the combined number, so the night line would be untrue.
- */
-export function revealBeat(answers: Pick<Answers, 'pain' | 'mornings' | 'nightFeel' | 'afterFeel'>, scope: 'night' | 'morning' | 'both'): string {
-  if (answers.pain === 'night') {
-    if (scope !== 'night') return REVEAL_SECOND_BEAT;
-    return NIGHT_FEEL_BEAT[answers.nightFeel ?? ''] ?? 'Your apps had a great week. Your nights didn’t.';
-  }
-  if (answers.pain === 'overall') return AFTER_FEEL_BEAT[answers.afterFeel ?? ''] ?? 'And that’s only the hours in bed.';
-  return MORNINGS_BEAT[answers.mornings ?? ''] ?? REVEAL_SECOND_BEAT;
-}
-
-const NIGHT_FEEL_BEAT: Record<string, string> = {
-  mine: 'Your apps got your free time. And your night.',
-  'one-more': 'Your apps had a great week. Your nights ran late.',
-  reflex: 'Your apps had a great week. Your hand did too.',
-  'cant-sleep': 'Your apps had a great week. Your nights didn’t.',
-};
-
-const AFTER_FEEL_BEAT: Record<string, string> = {
-  vanished: 'Your apps had a great week. Your hours went missing.',
-  meh: 'Your apps had a great week. Nobody enjoyed it.',
-  behind: 'Your apps had a great week. Your to-do list didn’t.',
-  tired: 'Your apps had a great week. You had a tired one.',
-};
-
-const MORNINGS_BEAT: Record<string, string> = {
-  snooze: 'Your apps had a great week. Your snooze button too.',
-  tired: 'Your apps had a great week. You had a tired one.',
-  rushed: 'Your apps had a great week. Your mornings ran late.',
-  behind: 'Your apps had a great week. Your mornings started without you.',
-  gone: 'Your apps had a great week. Your mornings went missing.',
-};
-
-/** The offer's headline, from `mornings`: the morning they said they don't have. None for "fine". */
-export const MORNINGS_OFFER: Record<string, string> = {
-  snooze: 'Mornings with one alarm.',
-  tired: 'Mornings you’re actually awake for.',
-  rushed: 'Mornings with time left over.',
-  behind: 'Mornings that start with you.',
-  gone: 'Mornings you get to keep.',
-};
 
 /**
  * "In bed at 11:30 PM. When does the phone actually go down?" Answered in their own clock
@@ -227,12 +168,13 @@ export function morningMinuteChoices(wake: number): Choice<number>[] {
 
 /**
  * The offer's headline from the branch's feeling answer, before the `time-back` fallbacks.
- * `{phoneDown}` is when the phone usually goes down. None for "fine".
+ * `{phoneDown}` is when the phone usually goes down. `all` and `morning` have no feeling
+ * question, so they always get the fallback.
  */
-export function feelingOffer(answers: Pick<Answers, 'pain' | 'mornings' | 'nightFeel' | 'afterFeel'>, phoneDown: string): string | undefined {
+export function feelingOffer(answers: Pick<Answers, 'pain' | 'nightFeel' | 'worstTime'>, phoneDown: string): string | undefined {
   if (answers.pain === 'night') return NIGHT_FEEL_OFFER[answers.nightFeel ?? '']?.replace('{phoneDown}', phoneDown);
-  if (answers.pain === 'overall') return AFTER_FEEL_OFFER[answers.afterFeel ?? ''];
-  return MORNINGS_OFFER[answers.mornings ?? ''];
+  if (answers.pain === 'overall') return WORST_TIME_OFFER[answers.worstTime ?? ''];
+  return undefined;
 }
 
 const NIGHT_FEEL_OFFER: Record<string, string> = {
@@ -242,11 +184,12 @@ const NIGHT_FEEL_OFFER: Record<string, string> = {
   'cant-sleep': 'Dark, quiet, nothing to open.',
 };
 
-const AFTER_FEEL_OFFER: Record<string, string> = {
-  vanished: 'Hours you get to keep.',
-  meh: 'Less of the bit you don’t enjoy.',
-  behind: 'The ends of your day, back.',
-  tired: 'Mornings you’re actually awake for.',
+// The daytime answers get the reason it starts in bed: win the ends, the middle follows.
+const WORST_TIME_OFFER: Record<string, string> = {
+  night: 'Nights that end at bedtime.',
+  morning: 'Mornings that start with you.',
+  work: 'Start the day before your apps do.',
+  bored: 'Bed first. The rest of the day follows.',
 };
 
 // Single choice, so the question asks for the one that lasted longest.
@@ -287,9 +230,6 @@ const TIME_BACK_ORDER: Partial<Record<Pain, string[]>> = {
   morning: ['workout', 'study', 'sleep', 'read'],
 };
 
-/** The reveal's second beat: the bad news lands on the apps, never on them (VOICE). */
-export const REVEAL_SECOND_BEAT = 'Your apps had a great week. Your mornings didn’t.';
-
 /** What the hours go to on the paywall, from `time-back`: "9 hours a week for reading." */
 const TIME_BACK_FOR: Record<string, string> = {
   sleep: 'for sleep',
@@ -301,7 +241,7 @@ const TIME_BACK_FOR: Record<string, string> = {
 
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** `time-back`, asked after the reveal: "9 hours a week back. What would you do with them?" */
+/** `time-back`, asked after the running total: "9 hours a week back. What would you do with them?" */
 export function timeBackQuestion(amount: string): string {
   return `${upperFirst(amount)} a week back. What would you do with ${amount.endsWith('s') ? 'them' : 'it'}?`;
 }
@@ -329,11 +269,10 @@ export const FOUND: Choice<string>[] = [
 export const REPLY_BUTTON: Partial<Record<StepId, string>> = {
   pain: 'That’s the one.',
   'night-feel': 'That’s me.',
-  'after-feel': 'That’s me.',
+  'worst-time': 'That’s when.',
   found: 'That’s how.',
   bedtime: 'That’s bedtime.',
   wake: 'That’s the alarm.',
-  mornings: 'That’s me.',
   'night-minutes': 'Roughly.',
   'nights-per-week': 'That’s the lot.',
   'morning-minutes': 'Sounds right.',
@@ -353,6 +292,19 @@ export const OFFER_HEADLINES: Record<string, string> = {
 
 /** For people who barely use their phone in bed: the pitch is mornings, not a cost. */
 export const LIGHT_OFFER_HEADLINE = 'Mornings, then. Mine too.';
+
+/**
+ * Both scroll questions skipped (`Estimate.skipped`): no number of theirs exists, so the reveal
+ * never makes one up or calls them light. It does the sum for a plain half hour a night instead,
+ * stated as that sum, not as a claim about them or about "most people" (user, 2026-10-26).
+ * 30 min × 7 = 3½ hours a week; × 365 = 182½ hours a year. Checked in estimate.test.ts.
+ */
+export const SKIPPED_REVEAL = {
+  headline: 'Fine. Keep your secrets.',
+  body: 'Half an hour a night on the phone in bed is 3½ hours a week. Over 180 hours a year. You know what yours is.',
+};
+/** `time-back` after skipping both: no amount of theirs to name. */
+export const SKIPPED_TIME_BACK = 'Say you got that time back. What would you do with it?';
 
 /*
  * Prices, trials and the exit-offer arm all come from the store (`getOffers` in
@@ -413,8 +365,8 @@ export const METHOD_COPY: Record<
     commit: string;
     /** His line on `offer`, under the headline. */
     offer: string;
-    /** `first-morning`: what to do and what counts. */
-    morning: { when: string; what: string }[];
+    /** `armed`: what wakes them, under "Tomorrow 7:00 AM", and a quieter note when there's setup first. */
+    morning: MorningLine;
   }
 > = {
   downstairs: {
@@ -424,11 +376,7 @@ export const METHOD_COPY: Record<
     until: 'you’ve been downstairs',
     commit: 'Downstairs to wake them.',
     offer: 'One trip downstairs. I’ll complain the whole way.',
-    morning: [
-      { when: 'Start', what: 'Open me. I’m already listening. Keep the screen on and take the stairs.' },
-      { when: 'Bottom', what: 'They wake up. Up or down both count.' },
-      { when: 'No stairs', what: 'Away from home? Walk 200 steps instead.' },
-    ],
+    morning: { line: 'Open me and take the stairs, up or down.' },
   },
   steps: {
     echo: 'About two minutes of walking. I timed it.',
@@ -437,10 +385,7 @@ export const METHOD_COPY: Record<
     until: 'you’ve walked 200 steps',
     commit: 'Up for 200 steps.',
     offer: '200 steps. I’ll complain about every one.',
-    morning: [
-      { when: 'Steps', what: 'They count from your alarm. Bathroom, kitchen, it all counts.' },
-      { when: 'At 200', what: 'Open me. They wake up.' },
-    ],
+    morning: { line: 'Walk 200 steps from your alarm, then open me.' },
   },
   scan: {
     echo: 'Another room. Choose it wisely.',
@@ -449,10 +394,7 @@ export const METHOD_COPY: Record<
     until: 'you’ve scanned your code',
     commit: 'Up to scan your code.',
     offer: 'One walk to your code. I’ll complain the whole way.',
-    morning: [
-      { when: 'Today', what: 'Set up your code in Routine and leave it in another room.' },
-      { when: 'Morning', what: 'Walk to it and scan it. Until it’s set up, 200 steps works.' },
-    ],
+    morning: { line: 'Scan your code to wake your apps.', note: 'Set it up in Routine today, in another room. Until then, 200 steps works.' },
   },
   place: {
     echo: 'Outside. In the morning. Bold.',
@@ -461,10 +403,7 @@ export const METHOD_COPY: Record<
     until: 'you’ve reached your place',
     commit: 'Out the door to wake them.',
     offer: 'One trip to your place. I’ll complain the whole way.',
-    morning: [
-      { when: 'Today', what: 'Pick your place in Routine: the gym, campus, the café.' },
-      { when: 'Morning', what: 'Get there and check in. Until it’s picked, 200 steps works.' },
-    ],
+    morning: { line: 'Check in at your place to wake your apps.', note: 'Pick it in Routine today. Until then, 200 steps works.' },
   },
   pushups: {
     echo: '10 push-ups. I’ll count. Out loud. Slowly.',
@@ -473,15 +412,14 @@ export const METHOD_COPY: Record<
     until: 'you’ve done 10 push-ups',
     commit: '10 push-ups to wake them.',
     offer: '10 push-ups. I’ll count every one, disappointed.',
-    morning: [
-      { when: 'Start', what: 'Open me, tap Start push-ups, and lean me on the floor two steps away, side-on to you.' },
-      { when: 'Floor', what: '10 push-ups where I can see you. I count. They wake up.' },
-      { when: 'Not today', what: 'Arms not working? Walk 200 steps instead.' },
-    ],
+    morning: { line: 'Open me and do 10 push-ups where I can see you.' },
   },
 };
 
 type MethodCopy = (typeof METHOD_COPY)[WakeMethod];
+
+/** The first wake-up on `armed`: the one thing to do, a quieter setup note, and its label if not "Morning". */
+export type MorningLine = { line: string; note?: string; when?: 'Morning' | 'Afternoon' };
 
 /**
  * `METHOD_COPY` for the step goal in use. The copy is written for onboarding's 200; a rerun
@@ -492,10 +430,10 @@ export function methodCopy(
   { codeWaits = false, wake }: { codeWaits?: boolean; wake?: number } = {},
 ): MethodCopy {
   const copy = methodCopyFor(method, codeWaits);
-  // A night shift's wake-up is in the afternoon: its row isn't "Morning" (`wakePart`).
+  // A night shift's wake-up is in the afternoon: its label isn't "Morning" (`wakePart`).
   const part = wake === undefined ? 'Morning' : wakePart(wake);
   if (part === 'Morning') return copy;
-  return { ...copy, morning: copy.morning.map((row) => (row.when === 'Morning' ? { ...row, when: part } : row)) };
+  return { ...copy, morning: { ...copy.morning, when: part } };
 }
 
 /**
@@ -508,20 +446,14 @@ export function wakePart(wake: number): 'Morning' | 'Afternoon' {
 
 /** The first morning of a returning scan or place user, whose code or place is already set. */
 const SET_UP_MORNING = {
-  scan: 'Walk to your code and scan it. That wakes them.',
-  place: 'Get to your place and check in. That wakes them.',
+  scan: { line: 'Walk to your code and scan it.' },
+  place: { line: 'Get to your place and check in.' },
 };
 
 /** Setup finished at night, with no code or place yet: it waits for the day after. */
 const WAITING_MORNING = {
-  scan: [
-    { when: 'Morning', what: 'No code yet, so 200 steps wakes them.' },
-    { when: 'Then', what: 'In the day, set up your code in Routine and leave it in another room.' },
-  ],
-  place: [
-    { when: 'Morning', what: 'No place yet, so 200 steps wakes them.' },
-    { when: 'Then', what: 'In the day, pick your place in Routine.' },
-  ],
+  scan: { line: 'No code yet, so 200 steps wakes them.', note: 'Set up your code in Routine during the day.' },
+  place: { line: 'No place yet, so 200 steps wakes them.', note: 'Pick your place in Routine during the day.' },
 };
 
 /**
@@ -545,7 +477,7 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
     setUp === null
       ? saved
       : setUp
-        ? { ...saved, morning: [{ when: 'Morning', what: SET_UP_MORNING[method as 'scan' | 'place'] }] }
+        ? { ...saved, morning: SET_UP_MORNING[method as 'scan' | 'place'] }
         : codeWaits
           ? { ...saved, morning: WAITING_MORNING[method as 'scan' | 'place'] }
           : saved;

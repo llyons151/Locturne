@@ -21,6 +21,8 @@ export type EstimateInput = {
   wake: number;
   /** Years. */
   age: number | undefined;
+  /** Both scroll questions skipped: there's no number of theirs to show (`Estimate.skipped`). */
+  skipped?: boolean;
 };
 
 export type Estimate = {
@@ -48,6 +50,12 @@ export type Estimate = {
   sleepNeed: number;
   showSleepRoom: boolean;
   lightUser: boolean;
+  /**
+   * Both scroll questions skipped, so the minutes are 0 by default, not by answer. Also a
+   * `lightUser` (no hours to sell), but nothing may call them light either: the reveal says
+   * what a typical half hour adds up to instead of a number of theirs.
+   */
+  skipped: boolean;
   scheduleLooksWrong: boolean;
 };
 
@@ -61,7 +69,7 @@ export function estimate(input: EstimateInput): Estimate {
   const { weeklyHours, yearlyHours } = weekAndYear(weeklyMinutes);
   const yearlyDays = Math.floor(yearlyHours / 24);
   const yearsLeft = age === undefined ? 0 : Math.max(0, AVERAGE_LIFESPAN - age);
-  const lifetimeDays = Math.floor((yearlyHours * yearsLeft) / 24);
+  const lifetimeDays = daysOver(weeklyMinutes, yearsLeft);
 
   let timeInBed = wake - bedtime;
   if (timeInBed <= 0) timeInBed += MINUTES_PER_DAY;
@@ -86,6 +94,7 @@ export function estimate(input: EstimateInput): Estimate {
     sleepNeed,
     showSleepRoom: sleepRoom < sleepNeed,
     lightUser: weeklyMinutes < 60,
+    skipped: input.skipped === true,
     scheduleLooksWrong: timeInBed < 3 * 60 || timeInBed > 14 * 60,
   };
 }
@@ -101,6 +110,18 @@ export function weekAndYear(weeklyMinutes: number): { weeklyHours: number; yearl
   return { weeklyHours, yearlyHours };
 }
 
+/** 365.25 / 7: a year is a little over 52 weeks. */
+const WEEKS_PER_YEAR = 365.25 / 7;
+
+/**
+ * Whole 24-hour days that `weeklyMinutes` adds up to over `years`, from the exact minutes, not
+ * the rounded-up hours `weekAndYear` shows: rounding a week up an hour, then multiplying by a
+ * lifetime, overstated the reveal by up to ~125 days.
+ */
+export function daysOver(weeklyMinutes: number, years: number): number {
+  return Math.floor((weeklyMinutes * WEEKS_PER_YEAR * years) / MINUTES_PER_DAY);
+}
+
 /** Under this many minutes a week, a branch's own end of the night is too small to lead with. */
 const LEAD_FLOOR = 60;
 
@@ -108,7 +129,8 @@ const LEAD_FLOOR = 60;
  * The number the reveal, `time-back` and the paywall lead with (ONBOARDING_BRANCHES §5.5):
  * the branch's own end of the night, even when it's the smaller one, because their problem
  * persuades where a bigger number that's mostly someone else's doesn't. Under an hour a week
- * it falls back to both ends together; `overall` and `all` always use both.
+ * it falls back to both ends together. `all` always uses both; `overall` leads with the end
+ * they named on `worst-time`, and both for a daytime answer.
  */
 export type Lead = {
   /** Weekly minutes. */
@@ -119,7 +141,8 @@ export type Lead = {
   yearlyHours: number;
 };
 
-export function leadFor(numbers: Estimate, pain: Pain | undefined): Lead {
+export function leadFor(numbers: Estimate, pain: Pain | undefined, worstTime?: string): Lead {
+  if (pain === 'overall' && (worstTime === 'night' || worstTime === 'morning')) pain = worstTime;
   const pick = (minutes: number, scope: Lead['scope']): Lead => ({ minutes, scope, ...weekAndYear(minutes) });
   if (pain === 'night' && numbers.nightWeeklyMinutes >= LEAD_FLOOR) return pick(numbers.nightWeeklyMinutes, 'night');
   if (pain === 'morning' && numbers.morningWeeklyMinutes >= LEAD_FLOOR) return pick(numbers.morningWeeklyMinutes, 'morning');

@@ -15,6 +15,9 @@
       ],
       "moon-orb": [
         "./modules/moon-orb"
+      ],
+      "day-dots": [
+        "./modules/day-dots"
       ]
     }
   },

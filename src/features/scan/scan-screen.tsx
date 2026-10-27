@@ -5,7 +5,7 @@
 
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -63,6 +63,9 @@ export type ScanMode = 'setup' | 'morning';
 
 type Source = ScanCode['kind'];
 
+/** Straight to the camera, for a code already chosen on a page of its own (onboarding's `scan-code`). */
+type Start = { source: Source; expect?: string };
+
 /**
  * Night and day both refuse a scan, for different reasons. A night or morning with nothing
  * asleep (`heldPhase`: no lock, paused, or after a lapse's last paid morning) is day.
@@ -75,7 +78,8 @@ function notMorning(phase: Phase): Stage | null {
   return { kind: 'awake' };
 }
 
-function firstStage(mode: ScanMode | undefined): Stage {
+function firstStage(mode: ScanMode | undefined, start?: Start): Stage {
+  if (start) return getScanEditRefusal() ? { kind: 'asleep' } : { kind: 'register', ...start };
   const phase = pretendPhase() ?? readLock().phase;
   const code = shownScanCode();
   if (mode === 'morning' || (!mode && phase === 'morning' && code)) {
@@ -148,19 +152,34 @@ function words(stage: Stage): { line: string; body: string } {
   }
 }
 
-export function ScanScreen({ mode }: { mode?: ScanMode }) {
+type ScanScreenProps = {
+  mode?: ScanMode;
+  /**
+   * Opened from onboarding, the setup is drawn inside the flow: this puts the flow's back and
+   * chapter bar where Close and the X were (user, 2026-10-26), given the way back.
+   */
+  header?: (back: () => void) => ReactNode;
+  /**
+   * Opens on the camera for this code: onboarding picks it on its own page. Back and a saved
+   * code both close, back to that page or on past it.
+   */
+  start?: Start;
+  onClose?: () => void;
+};
+
+export function ScanScreen({ mode, header, start, onClose }: ScanScreenProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const lock = useLock();
-  const [storedStage, setStage] = useState<Stage>(() => firstStage(mode));
-  const stage = liveScanStage(storedStage, firstStage(mode), lock, getScanEditRefusal() !== null);
+  const [storedStage, setStage] = useState<Stage>(() => firstStage(mode, start));
+  const stage = liveScanStage(storedStage, firstStage(mode, start), lock, getScanEditRefusal() !== null);
   // Keep showing the code they already printed rather than a new one each visit.
   const [qr] = useState(() => {
     const code = getScanCode();
     return code?.kind === 'qr' ? code.data : draftQrData();
   });
 
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const close = onClose ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
   const walkInstead = () => {
     askWalk(readLock().morningKey);
     close();
@@ -195,6 +214,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
     const result = wrong ? 'unusable' : registerScanCode({ kind: source, data: scan.data, type: scan.type });
     if (result === null) {
       haptic.done();
+      if (start) return close();
       setStage({ kind: 'saved' });
     } else if (result === 'asleep') setStage({ kind: 'asleep' });
     else {
@@ -211,6 +231,7 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
   // square to put the code in. A wrong code says so under the square for a moment. The other
   // ways to wake the apps are on Home, where the X goes back to.
   if (scanning) {
+    const scanBack = () => (stage.kind === 'register' && !start ? setStage({ kind: 'choose', source: stage.source }) : close());
     return (
       <View style={styles.camera}>
         <Scanner
@@ -230,15 +251,19 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
             </View>
           }
         />
-        <Pressable
-          onPress={() => (stage.kind === 'register' ? setStage({ kind: 'choose', source: stage.source }) : close())}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={stage.kind === 'register' ? 'Back' : 'Close'}
-          style={[styles.x, { top: insets.top + Space.s }]}
-        >
-          <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor="#FFFFFF" />
-        </Pressable>
+        {header ? (
+          <View style={[styles.header, { top: insets.top }]}>{header(scanBack)}</View>
+        ) : (
+          <Pressable
+            onPress={scanBack}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={stage.kind === 'register' ? 'Back' : 'Close'}
+            style={[styles.x, { top: insets.top + Space.s }]}
+          >
+            <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor="#FFFFFF" />
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -246,12 +271,16 @@ export function ScanScreen({ mode }: { mode?: ScanMode }) {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.m, paddingBottom: insets.bottom + Space.l }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + (header ? 0 : Space.m), paddingBottom: insets.bottom + Space.l }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.bar}>
-        <TextButton label={finished ? 'Done' : 'Close'} onPress={close} />
-      </View>
+      {header ? (
+        <View style={styles.inline}>{header(close)}</View>
+      ) : (
+        <View style={styles.bar}>
+          <TextButton label={finished ? 'Done' : 'Close'} onPress={close} />
+        </View>
+      )}
 
       <Animated.View key={`${stage.kind}-${line}`} entering={FadeIn.duration(300)} style={styles.top}>
         <Voice text={line} />
@@ -298,6 +327,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Nocturne.bg },
   content: { flexGrow: 1, paddingHorizontal: Gap.gutter },
   bar: { flexDirection: 'row', justifyContent: 'flex-start' },
+  // The onboarding bar brings its own gutter.
+  inline: { marginHorizontal: -Gap.gutter },
+  header: { position: 'absolute', left: 0, right: 0 },
   top: { gap: Space.l, marginTop: Space.xxl },
   body: { ...Type.body, color: Nocturne.text2 },
   flex: { flex: 1, minHeight: Space.xl },

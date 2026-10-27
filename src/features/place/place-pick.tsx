@@ -50,6 +50,9 @@ import { usesMiles } from './units';
  * A full-screen modal rather than a sheet, so dragging the map never drags the sheet away.
  * `select`: opened by tapping "Get to a place" with no place yet. Saving also makes it the
  * routine's method; closing without saving leaves the routine as it was.
+ *
+ * Opened from onboarding, it's drawn inside the flow instead: `header` puts the flow's back and
+ * chapter bar where the X was, and `onClose` hands back to it, saved or not.
  */
 
 /** iOS's dark system colours, so the screen reads like Apple Maps over its map. */
@@ -77,9 +80,16 @@ type Spot = { latitude: number; longitude: number };
 /** What the pin is on: a place picked by name, or a spot dragged to (named by the geocoder). */
 type Label = { name: string; address: string };
 
-export function PlacePick({ select }: { select: boolean }) {
+type PlacePickProps = {
+  select: boolean;
+  /** Over the top of the map in place of the X; given the way back. */
+  header?: (back: () => void) => ReactNode;
+  onClose?: () => void;
+};
+
+export function PlacePick({ select, header, onClose }: PlacePickProps) {
   const router = useRouter();
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const close = onClose ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
   const insets = useSafeAreaInsets();
   const radius = formatDistance(PLACE_RADIUS_M, usesMiles());
   // Re-renders at bedtime, so a screen left open turns into "Not from bed".
@@ -288,9 +298,10 @@ export function PlacePick({ select }: { select: boolean }) {
         </KeyboardAvoidingView>
       ) : null}
 
-      <View style={[styles.top, { paddingTop: insets.top + Space.s }]} pointerEvents="box-none">
+      <View style={[styles.top, { paddingTop: insets.top + (header ? 0 : Space.s) }]} pointerEvents="box-none">
+        {header ? <View style={styles.header}>{header(close)}</View> : null}
         <View style={styles.topBar}>
-          {!searching ? (
+          {!searching && !header ? (
             <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close">
               <Glass style={styles.roundButton}>
                 <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor={C.text} />
@@ -560,6 +571,8 @@ const styles = StyleSheet.create({
   noMap: { backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', padding: Gap.gutter },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: Space.l, gap: Space.s },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  // The onboarding bar brings its own gutter.
+  header: { marginHorizontal: -Space.l },
   glass: { overflow: 'hidden' },
   pane: {
     backgroundColor: 'rgba(30,30,32,0.82)',

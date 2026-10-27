@@ -28,6 +28,9 @@ const PLAIN_MINUTES = Array.from({ length: 60 }, (_, i) => `${i}`);
 const SETTLE = { damping: 28, stiffness: 220, mass: 0.8 };
 /** How far a flick carries, in seconds of release velocity. */
 const FLICK_S = 0.22;
+/** The time list's column, and its white pill centred in it. */
+const PILL_COLUMN = 240;
+const PILL_WIDTH = 210;
 const DAY = 24 * 60;
 /** The time list's step, in minutes. */
 const STEP = 15;
@@ -512,11 +515,12 @@ const styles = StyleSheet.create({
   band: { position: 'absolute', left: -20, right: -20, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
   column: { width: 56, overflow: 'hidden' },
   columnWide: { width: 120 },
-  columnPill: { width: 240 },
+  columnPill: { width: PILL_COLUMN },
   list: { alignSelf: 'stretch', alignItems: 'center', gap: Space.s },
   arrow: { padding: 6 },
   // Behind the time list's centred row.
-  pill: { position: 'absolute', left: '50%', marginLeft: -105, width: 210, backgroundColor: Nocturne.cta },
+  // Plain numbers: `left: '50%'` with a negative margin landed ~50pt right on an iPhone (2026-10-26).
+  pill: { position: 'absolute', left: (PILL_COLUMN - PILL_WIDTH) / 2, width: PILL_WIDTH, backgroundColor: Nocturne.cta },
   colon: { width: 12, justifyContent: 'center', alignItems: 'center' },
   colonText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', marginTop: -3 },
   unit: { width: 40, justifyContent: 'center' },
