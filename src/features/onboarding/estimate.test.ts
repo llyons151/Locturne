@@ -17,6 +17,7 @@ import {
   isInsideBedtime,
   leadFor,
   lifetimeSentence,
+  SKIPPED_WEEKLY_MINUTES,
   weeklyAmount,
   type EstimateInput,
 } from './estimate.ts';
@@ -208,12 +209,11 @@ describe('both scroll questions skipped', () => {
     assert.equal(answered.lightUser, true);
   });
 
-  test('the reveal’s sum for half an hour a night is right', () => {
-    const halfHour = estimate({ ...input, nightMinutes: 30, morningMinutes: 0, nightsPerWeek: 7 });
-    assert.equal(halfHour.weeklyMinutes / 60, 3.5);
-    assert.ok((30 * 365) / 60 > 180, 'over 180 hours a year');
+  test('the skipped reveal’s average is about 4 hours a week', () => {
+    assert.equal(SKIPPED_WEEKLY_MINUTES, 240);
+    assert.equal(weeklyAmount(SKIPPED_WEEKLY_MINUTES), '4 hours');
     // content.ts pulls in app aliases node can't load, so its line is read as text.
     const content = readFileSync(new URL('./content.ts', import.meta.url), 'utf8');
-    assert.match(content, /Half an hour a night on the phone in bed is 3½ hours a week\. Over 180 hours a year\./);
+    assert.match(content, /'about 4 hours'/);
   });
 });

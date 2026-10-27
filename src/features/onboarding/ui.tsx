@@ -171,6 +171,8 @@ function useCentered() {
 /** How long a page takes to leave, and how far into that the next one starts arriving. */
 // Long enough to read as a fade: at 150–180ms an ease-in held, then dropped in a few frames (user 2026-10-26).
 export const EXIT_MS = 240;
+/** How long a leaving page stays past its fade: the fade starts once the next page is built, a few frames late. */
+const EXIT_LATE_MS = 80;
 const FOOTER_EXIT_MS = 220;
 const ENTER_AFTER_MS = 140;
 /**
@@ -229,7 +231,7 @@ export function useSwap<T>(key: string, depth: number, value: T | null, holds?: 
   });
   useEffect(() => {
     if (!leaving) return;
-    const id = setTimeout(() => setLeaving(null), leaving.held || EXIT_MS);
+    const id = setTimeout(() => setLeaving(null), leaving.held || EXIT_MS + EXIT_LATE_MS);
     return () => clearTimeout(id);
   }, [leaving]);
   const pages: SwapPage<T>[] = leaving ? [leaving] : [];
@@ -240,18 +242,23 @@ export function useSwap<T>(key: string, depth: number, value: T | null, holds?: 
 /**
  * A page's way out: a plain fade where it stands. Nothing slides. Opacity only: the blur it
  * had never drew on iPhone and cost frames on web, on the very frame the next page mounts.
+ *
+ * Started from an effect, not as a CSS animation. A CSS animation's clock starts when React
+ * renders the swap, and the next page is then built on iOS's main thread, where the fade runs
+ * too: the fade froze for those frames and jumped ahead after, which was the stutter at every
+ * Continue. Set from an effect, the fade's start reaches the main thread after the new page's
+ * views, so it starts once they're up and runs whole.
  */
-function exitAnimation(duration: number) {
-  return {
-    animationName: {
-      from: { opacity: 1 },
-      to: { opacity: 0 },
-    },
-    animationDuration: `${duration}ms`,
-    animationTimingFunction: 'ease-out',
-    animationFillMode: 'forwards',
-  } as const;
+function useExitFade(fading: boolean, duration: number) {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    if (fading) opacity.set(withTiming(0, { duration, easing: EXIT_EASING }));
+  }, [fading, duration, opacity]);
+  return useAnimatedStyle(() => ({ opacity: opacity.get() }));
 }
+
+/** CSS's `ease-out`, which the fade had as a CSS animation. */
+const EXIT_EASING = Easing.bezier(0, 0, 0.58, 1);
 
 /**
  * A sheet's slide, by `distance` (the screen's height): `in` up from below to its place, `out`
@@ -298,9 +305,10 @@ export function StepEnter({
     // The wait is fixed when the page arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const fade = useExitFade(leaving !== null && !held, EXIT_MS);
   return (
     <Animated.View
-      style={[styles.page, leaving && [StyleSheet.absoluteFill, styles.inert, !held && exitAnimation(EXIT_MS)]]}
+      style={[styles.page, fade, leaving && [StyleSheet.absoluteFill, styles.inert]]}
       accessibilityElementsHidden={leaving !== null}
       importantForAccessibility={leaving ? 'no-hide-descendants' : 'auto'}
     >
@@ -331,11 +339,11 @@ export function Title({ children, style }: { children: string; style?: StyleProp
   return <WordsIn text={noOrphan(children)} style={[styles.title, compact && Type.headingCompact, center && styles.centered, style]} header />;
 }
 
-export function Body({ children, style }: PropsWithChildren<{ style?: StyleProp<TextStyle> }>) {
+export function Body({ children, style, delay }: PropsWithChildren<{ style?: StyleProp<TextStyle>; delay?: number }>) {
   const moon = useOnMoon();
   const center = useCentered();
   return (
-    <Reveal>
+    <Reveal delay={delay}>
       <Text style={[styles.body2, center && styles.centered, moon && styles.bodyOnMoon, style]}>{typeof children === 'string' ? noOrphan(children) : children}</Text>
     </Reveal>
   );
@@ -512,39 +520,46 @@ export function FooterEnter({
     const id = setTimeout(() => setLive(true), sheet ? delay + SLIDE_IN_MS : delay);
     return () => clearTimeout(id);
   }, [live, sheet, delay]);
+  const fade = useExitFade(leaving !== null && !sheet, FOOTER_EXIT_MS);
   return (
+    // Two layers: the outer one leaves (a fade, or the sheet's slide), the inner one arrives.
+    // The arrival stays on as it leaves, so its end state holds and nothing snaps back.
     <Animated.View
       accessibilityElementsHidden={leaving !== null}
       importantForAccessibility={leaving ? 'no-hide-descendants' : 'auto'}
       style={[
-        styles.footerStack,
         { pointerEvents: live ? 'auto' : 'none' },
+        !sheet && fade,
         leaving
-          ? [
-              !alone && styles.footerLeaving,
-              styles.inert,
-              sheet ? slideAnimation('out', height, held - SLIDE_OUT_MS) : exitAnimation(FOOTER_EXIT_MS),
-            ]
-          : !reduced && sheet
-            ? slideAnimation('in', height, delay)
-            : !reduced &&
-              !selfTimed && {
-                animationName: {
-                  from: { opacity: 0, transform: [{ translateY: 8 }] },
-                  to: { opacity: 1, transform: [{ translateY: 0 }] },
-                },
-                animationDuration: '420ms',
-                animationDelay: `${delay}ms`,
-                animationTimingFunction: 'ease-out',
-                animationFillMode: 'backwards',
-              },
+          ? [!alone && styles.footerLeaving, styles.inert, sheet && slideAnimation('out', height, held - SLIDE_OUT_MS)]
+          : !reduced && sheet && slideAnimation('in', height, delay),
       ]}
     >
-      <OnSky.Provider value={wash}>
-        {children}
-        {/* The link's room is kept on every page, so the main button never moves and can be tapped straight through (user 2026-10-26). */}
-        <View style={styles.secondarySlot}>{secondary}</View>
-      </OnSky.Provider>
+      <Animated.View
+        style={[
+          styles.footerStack,
+          !reduced &&
+            !sheet &&
+            !selfTimed && {
+              // Hidden before the animation is attached (just after mount), and held at its end after.
+              opacity: 0,
+              animationName: {
+                from: { opacity: 0, transform: [{ translateY: 8 }] },
+                to: { opacity: 1, transform: [{ translateY: 0 }] },
+              },
+              animationDuration: '420ms',
+              animationDelay: `${delay}ms`,
+              animationTimingFunction: 'ease-out',
+              animationFillMode: 'both',
+            },
+        ]}
+      >
+        <OnSky.Provider value={wash}>
+          {children}
+          {/* The link's room is kept on every page, so the main button never moves and can be tapped straight through (user 2026-10-26). */}
+          <View style={styles.secondarySlot}>{secondary}</View>
+        </OnSky.Provider>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -683,7 +698,13 @@ export function HoldButton({
 
   useEffect(() => stopTimers, []);
 
-  const fillStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+  // Slid in from the left, not widened, as the chapter bar is: an animated width re-ran layout
+  // every frame of the hold.
+  const trackWidth = useSharedValue(0);
+  const fillStyle = useAnimatedStyle(() => ({
+    opacity: trackWidth.value > 0 ? 1 : 0,
+    transform: [{ translateX: (progress.value - 1) * trackWidth.value }],
+  }));
 
   const finish = () => {
     stopTimers();
@@ -749,7 +770,7 @@ export function HoldButton({
         if (event.nativeEvent.actionName === 'activate' && phase !== 'done') finish();
       }}
     >
-      <View style={[styles.hold, noLongPressMenu]}>
+      <View style={[styles.hold, noLongPressMenu]} onLayout={(e) => trackWidth.set(e.nativeEvent.layout.width)}>
         <Animated.View style={[styles.holdFill, fillStyle]} />
         <Text selectable={false} style={[styles.holdLabel, phase === 'done' && styles.holdLabelDone, noLongPressMenu]}>
           {text}
@@ -919,7 +940,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: Nocturne.cta },
+  holdFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: Nocturne.cta },
   holdLabel: { color: '#FFFFFF', fontSize: 17, fontWeight: '600', mixBlendMode: 'difference' },
   holdLabelDone: { ...DisplayFont, fontSize: 20 },
 });

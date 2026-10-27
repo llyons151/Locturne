@@ -106,6 +106,14 @@ function useEntrance(minDelay = 0) {
   return { motion: sequence?.motion ?? 'focus', delay };
 }
 
+/**
+ * The start time (ms from now) of something that runs its own entrance in the page's order:
+ * its slot, or `minDelay` from the page's start if that's later. Claimed once, on mount.
+ */
+export function useEntranceDelay(minDelay = 0) {
+  return useEntrance(minDelay).delay;
+}
+
 // React Native types animationTimingFunction as a string only; Reanimated also
 // accepts cubicBezier(), which is what these use.
 function animation(motion: TextMotion, rise: number, delay: number) {
@@ -113,13 +121,18 @@ function animation(motion: TextMotion, rise: number, delay: number) {
   return keyframed(spec.keyframes(rise), spec.duration, delay, spec.easing);
 }
 
-function keyframed(keyframes: object, duration: number, delay: number, easing: unknown) {
+function keyframed(keyframes: { from: object; to: object }, duration: number, delay: number, easing: unknown) {
+  // Reanimated attaches a CSS animation once the view is mounted, so an entrance that starts
+  // hidden is hidden in its own style too, or iOS can draw the new page whole for a frame
+  // first. Filled both ways, so it holds its end state over that.
+  const hidden = (keyframes.from as { opacity?: number }).opacity === 0;
   return {
+    ...(hidden && { opacity: 0 }),
     animationName: keyframes,
     animationDuration: `${duration}ms`,
     animationDelay: `${Math.round(delay)}ms`,
     animationTimingFunction: easing,
-    animationFillMode: 'backwards',
+    animationFillMode: hidden ? 'both' : 'backwards',
   } as unknown as ViewStyle;
 }
 

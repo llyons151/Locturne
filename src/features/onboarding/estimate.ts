@@ -8,8 +8,14 @@
 
 import type { Pain } from './navigation.ts';
 
+/** The reveal's average for someone who skipped both scroll questions: about 4 hours a week. */
+export const SKIPPED_WEEKLY_MINUTES = 4 * 60;
+
 /** U.S. life expectancy at birth, rounded (CDC NCHS, 2024 data). */
 export const AVERAGE_LIFESPAN = 79;
+
+/** Without an age, the reveal counts an adult life: from 18 to AVERAGE_LIFESPAN. */
+export const ADULT_YEARS = AVERAGE_LIFESPAN - 18;
 
 export type EstimateInput = {
   nightMinutes: number;

@@ -14,6 +14,7 @@ import { MoonSurface } from '@/components/moon-surface';
 import type { TextMotion } from '@/components/motion';
 import { FLIGHT_MS, MOON_SHOWS_FROM, moonSink, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
+import LocStage from '@/features/home/loc-stage';
 import { useCompact } from '@/hooks/use-compact';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
 import {
@@ -80,6 +81,14 @@ import { FooterEnter, Shell, StepEnter, TopBar, useSwap, type Progress } from '.
 
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
+/** How long a page has been still before the hidden Loc warms WebKit up: its words and answers are in by then. */
+const WARM_LOC_AFTER_MS = 2500;
+const WARM_LOC_DOM = {
+  style: { width: 1, height: 1, backgroundColor: 'transparent' },
+  scrollEnabled: false,
+  bounces: false,
+  contentInsetAdjustmentBehavior: 'never',
+} as const;
 /** The two paywall pages. Exit from either goes to `declined` instead of closing. */
 const PAYWALL: StepId[] = ['offer', 'plans'];
 
@@ -792,6 +801,16 @@ export function OnboardingFlow({
     return () => clearTimeout(timer);
   }, [moonMoving, step]);
 
+  // Loc is a web view (LocStage), and an app's first web view starts WebKit's processes, a long
+  // stall on the main thread. Left to `build` or the paywall, that landed mid-transition. A
+  // hidden one started once a page has settled takes that cost while nothing moves.
+  const [warmLoc, setWarmLoc] = useState(false);
+  useEffect(() => {
+    if (warmLoc || Platform.OS !== 'ios' || step === 'hello') return;
+    const timer = setTimeout(() => setWarmLoc(true), WARM_LOC_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [warmLoc, step]);
+
   // B6: the reveal's and the demo's buttons wait until their payoff has played, so it can't be
   // tapped past. Keyed by visit, so coming back replays it. The timer is a backstop: a payoff
   // that never reports (no layout, a dropped callback) mustn't leave the button dead.
@@ -881,26 +900,28 @@ export function OnboardingFlow({
   const pageKey = `${step}-${history.length}`;
   // `build` runs its own way out: Loc leaves, then the ground and its button slide down (user 2026-10-26).
   const isBuild = (key: string) => key.startsWith('build-');
-  // The reveal's dots drop off the screen before `build` comes up (a text-only reveal just fades).
+  // The reveal's dots drop off the screen before `build` comes up (a light user's text-only reveal just fades).
   const isReveal = (key: string) => key.startsWith('reveal-');
   const holds = (key: string) =>
-    isBuild(key) ? BUILD_EXIT_MS : isReveal(key) && !numbers.skipped && !numbers.lightUser ? REVEAL_EXIT_MS : 0;
+    isBuild(key) ? BUILD_EXIT_MS : isReveal(key) && (numbers.skipped || !numbers.lightUser) ? REVEAL_EXIT_MS : 0;
+  // The page and its button swap as one, so the page that leaves is cleared in one render, not
+  // one for the page and another for its button just as the next page's words come in.
   const pages = useSwap(
     pageKey,
     history.length,
-    moonMoving ? null : (
-      <View style={[styles.fill, quiz && { paddingTop: quizContentTop(height, insets.top) }]}>
-        <MoonSurface value={quiz}>{screen.body}</MoonSurface>
-      </View>
-    ),
+    moonMoving
+      ? null
+      : {
+          body: (
+            <View style={[styles.fill, quiz && { paddingTop: quizContentTop(height, insets.top) }]}>
+              <MoonSurface value={quiz}>{screen.body}</MoonSurface>
+            </View>
+          ),
+          footer: screen.footer ? { footer: screen.footer, secondary: screen.secondary, wash: quiz } : null,
+        },
     holds,
   );
-  const footers = useSwap(
-    pageKey,
-    history.length,
-    screen.footer && !moonMoving ? { footer: screen.footer, secondary: screen.secondary, wash: quiz } : null,
-    holds,
-  );
+  const footers = pages.flatMap((page) => (page.value.footer ? [{ ...page, value: page.value.footer }] : []));
   const buildPage = pages.find((page) => isBuild(page.key));
   const dark = step === 'reveal' || pages.some((page) => isReveal(page.key));
 
@@ -924,6 +945,11 @@ export function OnboardingFlow({
 
   return (
     <View ref={rootRef} style={styles.root}>
+      {warmLoc ? (
+        <View style={styles.warmLoc} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <LocStage mood="awake" share={0.5} present={false} dom={WARM_LOC_DOM} />
+        </View>
+      ) : null}
       <NightSky opening={opening} quiz={quiz} moonless={rising} drift={opening} riseMs={riseMs} />
       <OpenerScene shown={opening && !moonMoving} />
       {rising ? <Intro onDone={introDone} /> : null}
@@ -963,7 +989,7 @@ export function OnboardingFlow({
           <View style={styles.fill}>
             {pages.map((page) => (
               <StepEnter key={page.key} motion={MOTION[step] ?? 'focus'} leaving={page.leaving} replaced={page.replaced} held={page.held}>
-                {page.value}
+                {page.value.body}
               </StepEnter>
             ))}
           </View>
@@ -1025,4 +1051,5 @@ const styles = StyleSheet.create({
   // page so full-screen sheets and prompts spilled off the right side.
   root: { flex: 1, backgroundColor: Nocturne.bg, overflow: 'hidden' },
   fill: { flex: 1 },
+  warmLoc: { position: 'absolute', left: 0, top: 0, width: 1, height: 1, opacity: 0 },
 });

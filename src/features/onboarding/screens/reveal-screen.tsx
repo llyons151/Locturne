@@ -11,7 +11,7 @@ import { Reveal } from '@/components/motion';
 import { APP_FONT, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import { SKIPPED_REVEAL, type Answers } from '../content';
-import { daysOver, LEAD_WHERE, leadFor, weeklyAmount, type Estimate } from '../estimate';
+import { ADULT_YEARS, daysOver, LEAD_WHERE, leadFor, SKIPPED_WEEKLY_MINUTES, weeklyAmount, type Estimate } from '../estimate';
 import { AMOUNT_BLUE, Body, page, useLeaving, Voice } from '../ui';
 
 /**
@@ -44,7 +44,8 @@ const COUNT_MS = 2400;
  * The big number, the way Jomo shows it (user, 2026-10-26; docs/REVEAL_SCREEN_INSPO.md): Loc on
  * top, "At this rate / You're going to spend / 754 days / of your life on your phone in bed",
  * then one dot per day filling in under it. A lifetime from their `age` answer to
- * AVERAGE_LIFESPAN; skipped, it's one year. The number is their branch's end of the night
+ * AVERAGE_LIFESPAN; without one, an adult life, 18 to AVERAGE_LIFESPAN (user 2026-10-27: one
+ * year's handful of dots looked thin). The number is their branch's end of the night
  * (`leadFor`). What they'd do with the time is the next step (`time-back`).
  */
 export function RevealScreen({
@@ -65,23 +66,13 @@ export function RevealScreen({
     const timer = setTimeout(() => setPayoff(true), reduced ? 0 : PAYOFF_AFTER_MS);
     return () => clearTimeout(timer);
   }, [landed, reduced]);
-  // A light user's page (and a skipper's, also `lightUser`) has nothing to wait for.
-  const payoffShown = payoff || numbers.lightUser;
+  // A light user's page has nothing to wait for; a skipper's (also `lightUser`) counts the average.
+  const payoffShown = payoff || (numbers.lightUser && !numbers.skipped);
   useEffect(() => {
     if (payoffShown) onPayoff?.();
   }, [payoffShown, onPayoff]);
 
-  if (numbers.skipped) {
-    return (
-      <View style={page.top}>
-        <Voice text={SKIPPED_REVEAL.headline} size={VoiceSize.headline} header />
-        <View style={page.gapHeadline} />
-        <Body>{SKIPPED_REVEAL.body}</Body>
-      </View>
-    );
-  }
-
-  if (numbers.lightUser) {
+  if (numbers.lightUser && !numbers.skipped) {
     return (
       <View style={page.top}>
         <Voice text="You’re barely on it." size={VoiceSize.headline} header />
@@ -91,25 +82,30 @@ export function RevealScreen({
     );
   }
 
-  const lead = leadFor(numbers, answers.pain, answers.worstTime);
-  // Their life from here if they gave an age (`age`), else one year.
-  const life = numbers.yearsLeft > 0;
-  const days = Math.max(1, daysOver(lead.minutes, life ? numbers.yearsLeft : 1));
+  // Skipped: the average, counted the same way, with no number of theirs.
+  const lead = numbers.skipped
+    ? { minutes: SKIPPED_WEEKLY_MINUTES, scope: 'both' as const }
+    : leadFor(numbers, answers.pain, answers.worstTime);
+  // Their life from here if they gave an age (`age`), else an adult life.
+  const aged = numbers.yearsLeft > 0;
+  const days = Math.max(1, daysOver(lead.minutes, aged ? numbers.yearsLeft : ADULT_YEARS));
   // Lines that lead up to the number, a beat each (DRAFT copy for the founder's voice pass), all
   // one size with just the amount picked out in light blue (user 2026-10-26). The second is their
-  // own year (or week, when the big number is already the year), so the number reads as the sum
+  // own year (or week, when a year is under two days), so the number reads as the sum
   // of something they can picture.
   const yearDays = daysOver(lead.minutes, 1);
   const where = LEAD_WHERE[lead.scope];
-  const beats: Beat[] = [
-    ['I did the math.'],
-    life && yearDays >= 2
-      ? ['That’s ', `${yearDays} days`, ` a year ${where}.`]
-      : ['', weeklyAmount(lead.minutes), ` a week ${where}.`],
-  ];
+  const beats: Beat[] = numbers.skipped
+    ? [[SKIPPED_REVEAL.headline], SKIPPED_REVEAL.average]
+    : [
+        ['I did the math.'],
+        yearDays >= 2
+          ? ['That’s ', `${yearDays} days`, ` a year ${where}.`]
+          : ['', weeklyAmount(lead.minutes), ` a week ${where}.`],
+      ];
   // The last line is the total itself, counting up in place (user 2026-10-26: one line, so the
   // dots get the room).
-  const tail = life ? ' over the rest of your life.' : ' a year.';
+  const tail = aged ? ' over the rest of your life.' : ' of an adult life.';
   return (
     <View
       style={styles.wrap}

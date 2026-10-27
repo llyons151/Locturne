@@ -6,7 +6,6 @@ import { SymbolView } from 'expo-symbols';
 import Animated, {
   cancelAnimation,
   interpolate,
-  interpolateColor,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
@@ -484,10 +483,12 @@ function Item({
     if (loop) d = ((((d + count / 2) % count) + count) % count) - count / 2;
     return Math.abs(d);
   });
-  const ink = useAnimatedStyle(() =>
-    pill ? { color: interpolateColor(near.get(), [0, 0.5], [Nocturne.onCta, Nocturne.text]) } : {},
-  );
+  // On the pill a time is dark, off it light. Two copies crossfade rather than one animating its
+  // colour: iOS can only set opacity and transforms straight on the view, and a colour went
+  // through a full layout commit every frame the wheel moved.
   const clock = useAnimatedStyle(() => ({ opacity: interpolate(near.get(), [0, 0.5], [1, 0], 'clamp') }));
+  const away = useAnimatedStyle(() => ({ opacity: interpolate(near.get(), [0, 0.5], [0, 1], 'clamp') }));
+  const text = [APP_FONT, styles.itemText, wide && styles.itemTextWide, pill && styles.itemTextPill, { textAlign: align }];
   return (
     <Animated.View style={[styles.item, { top: (row * (visible - 1)) / 2, height: row }, style]}>
       <View style={pill && styles.itemCentre}>
@@ -497,12 +498,20 @@ function Item({
             <SymbolView name={PILL_SYMBOLS[icon]} size={18} tintColor={Nocturne.onCta} />
           </Animated.View>
         ) : null}
-        <Animated.Text
-          style={[APP_FONT, styles.itemText, wide && styles.itemTextWide, pill && styles.itemTextPill, { textAlign: align }, ink]}
-          maxFontSizeMultiplier={1.2}
-        >
-          {label}
-        </Animated.Text>
+        {pill ? (
+          <View>
+            <Animated.Text style={[text, away]} maxFontSizeMultiplier={1.2}>
+              {label}
+            </Animated.Text>
+            <Animated.Text style={[text, styles.itemTextOnPill, clock]} maxFontSizeMultiplier={1.2}>
+              {label}
+            </Animated.Text>
+          </View>
+        ) : (
+          <Animated.Text style={text} maxFontSizeMultiplier={1.2}>
+            {label}
+          </Animated.Text>
+        )}
       </View>
     </Animated.View>
   );
@@ -529,6 +538,7 @@ const styles = StyleSheet.create({
   itemText: { color: Nocturne.text, fontSize: 24, fontWeight: '500', fontVariant: ['tabular-nums'] },
   itemTextWide: { fontSize: 32, fontWeight: '600' },
   itemTextPill: { fontSize: 20, fontWeight: '600' },
+  itemTextOnPill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, color: Nocturne.onCta },
   itemCentre: { alignSelf: 'center', justifyContent: 'center' },
   clock: { position: 'absolute', left: -28, top: 0, bottom: 0, justifyContent: 'center' },
   pressed: { opacity: 0.6 },

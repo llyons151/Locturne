@@ -1,11 +1,13 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 
 import { AppTile } from '@/components/app-icons';
 import { countPicks } from '@/components/app-picker';
 import { GlassCard } from '@/components/glass-card';
-import { Reveal } from '@/components/motion';
+import { useEntranceDelay } from '@/components/motion';
 import type { WakeMethod } from '@/lib/routine';
 import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -13,6 +15,39 @@ import { methodCopy } from './content';
 import { formatClock } from './estimate';
 
 const MAX_ICONS = 5;
+
+/*
+ * The card building itself (user 2026-10-27: "do something cool for the card"), in ms from its
+ * start: the pane rises, the two times come in left then right, then the footprints walk across
+ * from the moon to the wake-up, one dot at a time, and the method lands at the end of them. Last,
+ * the apps that sleep. Opacity and transform only, so it stays on iOS's fast path.
+ */
+const PANE_MS = 700;
+const TIMES_AT = [220, 340];
+const STEPS_AT = 560;
+const STEP_MS = 22;
+const PIECE_MS = 600;
+/** Until the dashes are measured, the walk is timed for about this many dots a side. */
+const GUESS_DOTS = 18;
+/** Dot plus gap, as in `styles.dash` and `styles.dashes`. */
+const DOT_PITCH = 7;
+/** How long the card takes to finish building, for whatever comes in under it. */
+export const DEAL_CARD_BUILD_MS = STEPS_AT + (GUESS_DOTS * 2 + 2) * STEP_MS + 450;
+
+const settle = cubicBezier(0.22, 1, 0.36, 1);
+
+function enter(from: object, delay: number, duration = PIECE_MS): ViewStyle {
+  return {
+    animationName: { from, to: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] } },
+    animationDuration: `${duration}ms`,
+    animationDelay: `${Math.round(delay)}ms`,
+    animationTimingFunction: settle,
+    animationFillMode: 'backwards',
+  } as unknown as ViewStyle;
+}
+const fade = (delay: number, duration = 260) => enter({ opacity: 0 }, delay, duration);
+const rise = (delay: number, by = 8) => enter({ opacity: 0, transform: [{ translateY: by }, { scale: 1 }] }, delay);
+const pop = (delay: number) => enter({ opacity: 0, transform: [{ translateY: 0 }, { scale: 0.5 }] }, delay, 500);
 
 const METHOD_GLYPH: Record<WakeMethod, SymbolViewProps['name']> = {
   downstairs: { ios: 'figure.stairs', android: 'stairs', web: 'stairs' },
@@ -37,6 +72,7 @@ export function ScheduleCard({
   liveCount,
   compact,
   onChange,
+  enterAt = 0,
 }: {
   bedtime: number;
   wake: number;
@@ -45,7 +81,18 @@ export function ScheduleCard({
   liveCount?: number;
   compact: boolean;
   onChange: (what: 'bedtime' | 'wake' | 'apps') => void;
+  /** The earliest it starts building, in ms from the page's start (it also waits its turn). */
+  enterAt?: number;
 }) {
+  const reduced = useReducedMotion();
+  const start = useEntranceDelay(enterAt);
+  // Dots a side, once the dashes have a width: as many as fit, so the walk times to what shows.
+  const [dots, setDots] = useState(0);
+  const side = dots || GUESS_DOTS;
+  const at = (ms: number) => start + ms;
+  const play = (style: ViewStyle) => (reduced ? null : style);
+  const stepAt = (i: number) => at(STEPS_AT + i * STEP_MS);
+  const landAt = stepAt(side * 2 + 2);
   const shown = apps.slice(0, MAX_ICONS);
   const extra = apps.length - shown.length;
   const iconSize = compact ? 34 : 40;
@@ -53,10 +100,11 @@ export function ScheduleCard({
   const count = liveCount ?? apps.length;
 
   return (
-    <Reveal rise style={[styles.card, compact && styles.cardCompact]}>
+    <Animated.View style={[styles.card, compact && styles.cardCompact, play(enter({ opacity: 0, transform: [{ translateY: 14 }, { scale: 0.98 }] }, start, PANE_MS))]}>
       <GlassCard dark style={[styles.pane, compact && styles.paneCompact]}>
         <View style={styles.times}>
           <Time
+            style={play(rise(at(TIMES_AT[0])))}
             label="Lights out"
             icon={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}
             minutes={bedtime}
@@ -64,6 +112,7 @@ export function ScheduleCard({
             onChange={() => onChange('bedtime')}
           />
           <Time
+            style={play(rise(at(TIMES_AT[1])))}
             label="Alarm"
             icon={{ ios: 'sunrise.fill', android: 'wb_twilight', web: 'wb_twilight' }}
             minutes={wake}
@@ -74,24 +123,36 @@ export function ScheduleCard({
         </View>
 
         <View style={styles.walk} accessible accessibilityLabel={`Then ${proof.toLowerCase()} wakes your apps`}>
-          <WalkGlyph name={{ ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' }} />
-          <View style={styles.dashes}>
-            {Array.from({ length: 40 }, (_, i) => (
-              <View key={i} style={styles.dash} />
+          <Animated.View style={play(pop(stepAt(0)))}>
+            <WalkGlyph name={{ ios: 'moon.zzz.fill', android: 'bedtime', web: 'bedtime' }} />
+          </Animated.View>
+          <View
+            style={styles.dashes}
+            onLayout={(e) => {
+              const n = Math.max(1, Math.floor((e.nativeEvent.layout.width + 4) / DOT_PITCH));
+              if (n !== dots) setDots(n);
+            }}
+          >
+            {Array.from({ length: dots }, (_, i) => (
+              <Animated.View key={i} style={[styles.dash, play(fade(stepAt(1 + i)))]} />
             ))}
           </View>
-          <Text style={styles.walkLabel}>{proof}</Text>
+          <Animated.View style={play(fade(stepAt(side + 1), 400))}>
+            <Text style={styles.walkLabel}>{proof}</Text>
+          </Animated.View>
           <View style={styles.dashes}>
-            {Array.from({ length: 40 }, (_, i) => (
-              <View key={i} style={styles.dash} />
+            {Array.from({ length: dots }, (_, i) => (
+              <Animated.View key={i} style={[styles.dash, play(fade(stepAt(side + 2 + i)))]} />
             ))}
           </View>
-          <WalkGlyph name={METHOD_GLYPH[method]} />
+          <Animated.View style={play(pop(landAt))}>
+            <WalkGlyph name={METHOD_GLYPH[method]} />
+          </Animated.View>
         </View>
 
-        <View style={styles.divider} />
+        <Animated.View style={[styles.divider, play(fade(landAt, 400))]} />
 
-        <View style={styles.appsRow}>
+        <Animated.View style={[styles.appsRow, play(rise(landAt + 120, 6))]}>
           {liveCount !== undefined ? (
             <View style={styles.liveApps}>
               <WalkGlyph name={{ ios: 'apps.iphone', android: 'apps', web: 'apps' }} />
@@ -110,21 +171,24 @@ export function ScheduleCard({
             </View>
           )}
           <ChangeLink label="Change apps" onPress={() => onChange('apps')} />
-        </View>
-        <Text style={styles.appsCaption}>
-          {liveCount !== undefined
-            ? `${countPicks(count)} asleep at bedtime.`
-            : count === 1
-              ? '1 app sleeps.'
-              : `${count} apps sleep.`}
-        </Text>
+        </Animated.View>
+        <Animated.View style={play(fade(landAt + 240, 400))}>
+          <Text style={styles.appsCaption}>
+            {liveCount !== undefined
+              ? `${countPicks(count)} asleep at bedtime.`
+              : count === 1
+                ? '1 app sleeps.'
+                : `${count} apps sleep.`}
+          </Text>
+        </Animated.View>
       </GlassCard>
-    </Reveal>
+    </Animated.View>
   );
 }
 
 
 function Time({
+  style,
   label,
   minutes,
   compact,
@@ -132,6 +196,7 @@ function Time({
   alignEnd,
   icon,
 }: {
+  style?: ViewStyle | null;
   label: string;
   icon: SymbolViewProps['name'];
   minutes: number;
@@ -141,7 +206,7 @@ function Time({
 }) {
   const [clock, suffix] = formatClock(minutes).split(' ');
   return (
-    <View style={[styles.time, alignEnd && styles.timeEnd]}>
+    <Animated.View style={[styles.time, alignEnd && styles.timeEnd, style]}>
       <View style={[styles.labelRow, alignEnd && styles.labelRowEnd]}>
         <SymbolView name={icon} size={12} tintColor={Nocturne.text2} />
         <Text style={styles.label}>{label.toUpperCase()}</Text>
@@ -155,7 +220,7 @@ function Time({
         <Text style={styles.suffix}> {suffix}</Text>
       </Text>
       <ChangeLink label={`Change ${label.toLowerCase()}`} text="Change" onPress={onChange} />
-    </View>
+    </Animated.View>
   );
 }
 

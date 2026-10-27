@@ -65,8 +65,7 @@ import {
   weeklyParts,
   type Estimate,
 } from './estimate';
-import { HeroFirst } from './hero-first';
-import { ScheduleCard } from './schedule-card';
+import { DEAL_CARD_BUILD_MS, ScheduleCard } from './schedule-card';
 import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { BuildChapter } from './screens/build-chapter';
 import { RevealScreen } from './screens/reveal-screen';
@@ -169,6 +168,10 @@ const OPENER_LINE_MS = 150;
 
 /** The cold open. Same line at every hour; New Year week has its own (`NEW_YEAR`). */
 const HELLO = { head: 'No apps until you’re out of bed.', sub: 'I’m Loc. Raccoon. I don’t do mornings well either.' };
+
+/** `commit`: the card starts building once the title's in, and the line under it once it's built. */
+const DEAL_CARD_AT_MS = 700;
+const DEAL_AFTER_MS = DEAL_CARD_AT_MS + DEAL_CARD_BUILD_MS;
 
 /** What one step puts on screen. The flow places these in the page frame (ui.tsx Shell). */
 export type StepView = {
@@ -291,7 +294,7 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'founder':
-      // Plain and first person: the only screen not in his voice, so it reads as a real note.
+      // Plain and first person, no Loc aside: the only screen not in his voice, so it reads as a real note.
       return {
         body: (
           <View style={page.top}>
@@ -302,8 +305,6 @@ export function renderStep(ctx: StepContext): StepView {
               ))}
               <Text style={styles.founderSign}>{`— ${FOUNDER.sign}`}</Text>
             </View>
-            <View style={page.gapAside} />
-            <Voice text={FOUNDER.aside} size={VoiceSize.aside} delay={900} />
           </View>
         ),
         // Ask to Buy approved while they were back here: finish instead of selling the offer again.
@@ -649,47 +650,37 @@ export function renderStep(ctx: StepContext): StepView {
     case 'commit':
       // The summary and the deal on one page (D4): the schedule stays editable right up to the hold.
       return {
-        // Hero first: the card they built shows alone, then rises under the deal's title.
+        // Top to bottom (user 2026-10-27): the eyebrow and title, then the card builds itself once
+        // the title is in (ScheduleCard's `enterAt`), then the line under it.
         body: (
-          <HeroFirst
-            style={page.top}
-            once="commit"
-            before={
-              <>
-                {/* Short phones: the card and the title are the deal, so the eyebrow and the passes line go. */}
-                {compact ? null : (
-                  <Eyebrow>{ctx.newYear ? `${NEW_YEAR.commit} ${new Date().getFullYear()}` : 'The deal'}</Eyebrow>
-                )}
-                <Title>{`Phone down at ${bed}. ${method.commit}`}</Title>
-              </>
-            }
-            hero={
-              <ScheduleCard
-                bedtime={answers.bedtime}
-                wake={answers.wake}
-                method={answers.method ?? 'steps'}
-                apps={answers.apps}
-                liveCount={live?.count}
-                compact={compact}
-                onChange={edit}
-              />
-            }
-            after={
-              <>
-                {lateNight ? (
-                  <Body>{compact ? 'I start the second you’re in.' : `It’s already past ${bed}. I start the second you’re in.`}</Body>
-                ) : compact ? null : (
-                  // Night: the rested self sets the rule, and can change it anytime they're awake
-                  // (the schedule-edits rule), which answers "it's a punishment".
-                  <Body>
-                    {pain === 'night'
-                      ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days.'
-                      : 'Two passes a month for bad days. Tap anything to change it.'}
-                  </Body>
-                )}
-              </>
-            }
-          />
+          <View style={page.top}>
+            {/* Short phones: the card and the title are the deal, so the eyebrow and the passes line go. */}
+            {compact ? null : <Eyebrow>{ctx.newYear ? `${NEW_YEAR.commit} ${new Date().getFullYear()}` : 'The deal'}</Eyebrow>}
+            <Title>{`Phone down at ${bed}. ${method.commit}`}</Title>
+            <ScheduleCard
+              bedtime={answers.bedtime}
+              wake={answers.wake}
+              method={answers.method ?? 'steps'}
+              apps={answers.apps}
+              liveCount={live?.count}
+              compact={compact}
+              onChange={edit}
+              enterAt={DEAL_CARD_AT_MS}
+            />
+            {lateNight ? (
+              <Body delay={DEAL_AFTER_MS}>
+                {compact ? 'I start the second you’re in.' : `It’s already past ${bed}. I start the second you’re in.`}
+              </Body>
+            ) : compact ? null : (
+              // Night: the rested self sets the rule, and can change it anytime they're awake
+              // (the schedule-edits rule), which answers "it's a punishment".
+              <Body delay={DEAL_AFTER_MS}>
+                {pain === 'night'
+                  ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days.'
+                  : 'Two passes a month for bad days. Tap anything to change it.'}
+              </Body>
+            )}
+          </View>
         ),
         // Already subscribed (restored on the first screen): no paywall, straight to arming.
         footer: <HoldButton label="Hold to agree" doneLabel="Fine. Deal." onComplete={ctx.entitled ? ctx.finishSetup : next} />,

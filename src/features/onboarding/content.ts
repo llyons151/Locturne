@@ -295,13 +295,12 @@ export const LIGHT_OFFER_HEADLINE = 'Mornings, then. Mine too.';
 
 /**
  * Both scroll questions skipped (`Estimate.skipped`): no number of theirs exists, so the reveal
- * never makes one up or calls them light. It does the sum for a plain half hour a night instead,
- * stated as that sum, not as a claim about them or about "most people" (user, 2026-10-26).
- * 30 min × 7 = 3½ hours a week; × 365 = 182½ hours a year. Checked in estimate.test.ts.
+ * never makes one up or calls them light. It plays the same count for the average instead, about
+ * 4 hours a week, said as the average (user, 2026-10-27). `SKIPPED_WEEKLY_MINUTES` is the sum.
  */
 export const SKIPPED_REVEAL = {
   headline: 'Fine. Keep your secrets.',
-  body: 'Half an hour a night on the phone in bed is 3½ hours a week. Over 180 hours a year. You know what yours is.',
+  average: ['The average is ', 'about 4 hours', ' a week on the phone in bed.'] as [string, string, string],
 };
 /** `time-back` after skipping both: no amount of theirs to name. */
 export const SKIPPED_TIME_BACK = 'Say you got that time back. What would you do with it?';
@@ -518,7 +517,6 @@ export const FOUNDER = {
     'So I built Locturne, your apps stay asleep until you’re up, so your day starts with action, not a screen.',
   ],
   sign: 'Luke',
-  aside: 'He made me. I didn’t ask for this.',
 };
 
 /** The chapter break before the setup (`build`), leading with their end of the night. DRAFT copy. */

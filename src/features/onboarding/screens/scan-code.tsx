@@ -39,22 +39,25 @@ const SOURCES: Source[] = ['qr', 'barcode'];
  */
 export function ScanCodeSwitch({ source, onSource }: { source: Source; onSource: (source: Source) => void }) {
   return (
-    <Split label="Which code">
-      <SplitHalf
-        icon={sym('qrcode', 'qr_code')}
-        title="My own code"
-        detail="Print it out"
-        selected={source === 'qr'}
-        onPress={() => onSource('qr')}
-      />
-      <SplitHalf
-        icon={sym('barcode', 'barcode')}
-        title="A barcode"
-        detail="One you own"
-        selected={source === 'barcode'}
-        onPress={() => onSource('barcode')}
-      />
-    </Split>
+    // Comes in in its turn after the headline, as the quiz's answers do.
+    <Reveal rise>
+      <Split label="Which code">
+        <SplitHalf
+          icon={sym('qrcode', 'qr_code')}
+          title="My own code"
+          detail="Print it out"
+          selected={source === 'qr'}
+          onPress={() => onSource('qr')}
+        />
+        <SplitHalf
+          icon={sym('barcode', 'barcode')}
+          title="A barcode"
+          detail="One you own"
+          selected={source === 'barcode'}
+          onPress={() => onSource('barcode')}
+        />
+      </Split>
+    </Reveal>
   );
 }
 

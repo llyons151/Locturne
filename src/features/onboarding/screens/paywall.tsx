@@ -16,6 +16,7 @@ import { Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
 import { methodCopy, plansHeadline } from '../content';
 import { dateFromToday, formatWhen, leadFor, weeklyAmount, weeklyParts } from '../estimate';
+import { AverageCompare } from './average-compare';
 import { NightCompare } from './night-compare';
 import { PaywallLoc } from './paywall-loc';
 import type { StepContext, StepView } from '../steps';
@@ -59,7 +60,8 @@ export function storeStep({ offersFailed, retryOffers }: StepContext): StepView 
 export function plansStep(ctx: StepContext): StepView {
   const { answers, numbers, set, buy, busy, compact, offers } = ctx;
   if (!offers) return storeStep(ctx);
-  const compare = numbers.lightUser ? null : (
+  // A light user (or one who skipped) has no night worth comparing: the average week instead (user 2026-10-27).
+  const compare = numbers.lightUser ? <AverageCompare /> : (
     <NightCompare
       bedtime={answers.bedtime}
       wake={answers.wake}
