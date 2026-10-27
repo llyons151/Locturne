@@ -13,11 +13,19 @@ import { NightSky } from './night-sky';
  * bottom.
  *
  * With `panel` (the tabs), the sky ends in rounded bottom corners above the black strip
- * that holds the tab buttons, as in the user's nav reference.
+ * that holds the tab buttons, as in the user's nav reference. `strip` sets that strip's height
+ * where it holds something else (the morning payoff's Done). `corners={false}` leaves the panel's
+ * corner pieces off, for a screen that draws its own edge over the strip (the payoff's).
  */
-export function AppBackground({ children, panel, moonless }: PropsWithChildren<{ panel?: boolean; moonless?: boolean }>) {
+export function AppBackground({
+  children,
+  panel,
+  strip,
+  moonless,
+  corners = true,
+}: PropsWithChildren<{ panel?: boolean; strip?: number; moonless?: boolean; corners?: boolean }>) {
   const insets = useSafeAreaInsets();
-  const floor = panel ? tabStripHeight(insets.bottom) : 0;
+  const floor = panel ? (strip ?? tabStripHeight(insets.bottom)) : 0;
   return (
     <View style={[styles.container, panel && styles.black]}>
       <View style={[styles.sky, panel && { bottom: floor }, panel && styles.panel]}>
@@ -26,7 +34,7 @@ export function AppBackground({ children, panel, moonless }: PropsWithChildren<{
         <NightSky floor={floor} moonless={moonless} />
       </View>
       {children}
-      {panel ? <PanelCorners bottom={floor} /> : null}
+      {panel && corners ? <PanelCorners bottom={floor} /> : null}
     </View>
   );
 }

@@ -24,6 +24,18 @@ export type Disc = { x: number; y: number; r: number };
 const HOLD_MS = 420; // a breath at rest, the mist starting to pour, before it lifts
 const RISE_MS = 2300;
 
+/**
+ * The eclipse once it's in (user, 2026-10-27, after the DS3 eclipse; glow asked for, this screen
+ * only; docs/ECLIPSE_PAYOFF.md): seconds after arriving. The disc goes dark under the frosted
+ * moon as that fades, a diamond-ring flash goes off on the rim, the corona burns outward and the
+ * light pillar drops from the bottom of the ring.
+ */
+const DISC_S = 0.35;
+const FROST_FADE = [0.15, 1.1] as const;
+const CORONA_S = 2.2;
+const FLASH_PEAK_S = 0.12;
+const PILLAR = [0.6, 2.8] as const;
+
 /** moon-frosted's disc is 2/3 of the image, moon-glow's half (components/night-sky.tsx). */
 const FROST_PAD = 1.5;
 const GLOW_PAD = 2;
@@ -102,10 +114,21 @@ export default function Moonrise({
       const y = lerp(a.y, b.y, e) + dip;
       const r = lerp(a.r, b.r, e);
 
+      // Seconds since it arrived (negative on the way up): the eclipse's clock.
+      const after = (t - HOLD_MS - RISE_MS) / 1000;
+      const eclipse = {
+        disc: smooth(0, DISC_S, after),
+        corona: 1 - (1 - clamp01(after / CORONA_S)) ** 3,
+        flash: reduced || after < 0 ? 0 : smooth(0, FLASH_PEAK_S, after) * Math.exp(-Math.max(0, after - FLASH_PEAK_S) * 2.2),
+        pillar: smooth(PILLAR[0], PILLAR[1], after),
+      };
+
       place(moon, x, y, 2 * r * FROST_PAD);
       place(halo, x, y, 2 * r * GLOW_PAD);
+      // The frost burns off into the dark disc; the blue glow gives way to the corona.
+      moon.style.opacity = String(1 - smooth(FROST_FADE[0], FROST_FADE[1], after));
       // The moon's own glow, back to full as it comes up (it starts dimmer if the sky had sunk it).
-      halo.style.opacity = String(lerp(glowStart, 1, e));
+      halo.style.opacity = String(lerp(glowStart, 1, e) * (1 - eclipse.corona));
 
       // The mist, in fixed steps, with the moon's velocity so it drags the air as it rises. A
       // slow frame's steps walk the moon there in even strides, rather than jumping it.
@@ -122,14 +145,14 @@ export default function Moonrise({
       }
       leftover = steps === 2 ? 0 : leftover - steps * STEP;
 
-      const after = (t - HOLD_MS - RISE_MS) / 1000; // seconds since arriving
       if (!arrived && after >= -0.12) {
         arrived = true;
         // It lands, and a breath of mist rolls off the whole rim.
         if (!reduced) mist.puff();
         void latest.current.onArrive();
       }
-      view?.draw(mist.density, now / 1000);
+      // Reduce Motion: the corona is held still.
+      view?.draw(mist.density, reduced ? 0 : now / 1000, { x, y, r }, eclipse);
 
       if (!ready) {
         ready = true;
@@ -174,6 +197,10 @@ function place(img: HTMLImageElement, x: number, y: number, size: number) {
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+const smooth = (a: number, b: number, v: number) => {
+  const k = clamp01((v - a) / (b - a));
+  return k * k * (3 - 2 * k);
+};
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** cubic-bezier(0.62, 0, 0.18, 1): heavy to lift, then a long glide. No overshoot. */
@@ -192,7 +219,7 @@ function riseEase(x: number) {
 }
 
 /**
- * Draws the mist as the dots do (MistDotModule.swift's shader): the density, uploaded as a
+ * Draws the mist, and once the moon is in, the eclipse round it (FRAGMENT). The mist as the dots do (MistDotModule.swift's shader): the density, uploaded as a
  * texture each frame, pushed through a slow drifting warp and a 9-tap blur so it reads as fog,
  * given a fine grain, in the frosted moon's blues. Here over open sky, so thin mist is
  * see-through rather than the jar's dark. Null where WebGL2 isn't there: the moon still rises.
@@ -215,12 +242,21 @@ function createMistView(canvas: HTMLCanvasElement, nx: number, ny: number) {
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, nx, ny, 0, gl.RED, gl.FLOAT, null);
   const u = (name: string) => gl.getUniformLocation(program, name);
-  const uniforms = { res: u('uRes'), dpr: u('uDpr'), time: u('uTime'), cell: u('uCell'), grid: u('uGrid'), mist: u('uMist') };
+  const uniforms = {
+    res: u('uRes'),
+    dpr: u('uDpr'),
+    time: u('uTime'),
+    cell: u('uCell'),
+    grid: u('uGrid'),
+    mist: u('uMist'),
+    sun: u('uSun'),
+    eclipse: u('uEclipse'),
+  };
   // Fog is soft: a point and a half per pixel is plenty.
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
   return {
-    draw(density: Float32Array, time: number) {
+    draw(density: Float32Array, time: number, sun: Disc, eclipse: { disc: number; corona: number; flash: number; pillar: number }) {
       const w = window.innerWidth;
       const h = window.innerHeight;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -243,6 +279,8 @@ function createMistView(canvas: HTMLCanvasElement, nx: number, ny: number) {
       gl.uniform1f(uniforms.cell, CELL);
       gl.uniform2f(uniforms.grid, nx, ny);
       gl.uniform1i(uniforms.mist, 0);
+      gl.uniform3f(uniforms.sun, sun.x, sun.y, sun.r);
+      gl.uniform4f(uniforms.eclipse, eclipse.disc, eclipse.corona, eclipse.flash, eclipse.pillar);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
     dispose() {
@@ -287,6 +325,8 @@ const FRAGMENT = `#version 300 es
 precision highp float;
 uniform vec2 uRes, uGrid;
 uniform float uDpr, uTime, uCell;
+uniform vec3 uSun; // the moon's centre and radius, in points
+uniform vec4 uEclipse; // disc, corona, flash, pillar: each 0 to 1
 uniform sampler2D uMist;
 out vec4 outColor;
 
@@ -312,14 +352,29 @@ float fbm(vec2 p) {
 }
 float mistAt(vec2 c) { return texture(uMist, c / uGrid).r; }
 
+// The eclipse's light, by heat, in the moon's blues: deep mist, the frosted moon, its pale
+// heart, white-hot (user, 2026-10-27: "it should still be blue").
+vec3 fire(float h) {
+  vec3 c = mix(vec3(0.0), vec3(0.110, 0.200, 0.430), smoothstep(0.0, 0.25, h));
+  c = mix(c, vec3(0.443, 0.576, 0.847), smoothstep(0.2, 0.55, h));
+  c = mix(c, vec3(0.800, 0.855, 0.965), smoothstep(0.5, 0.8, h));
+  return mix(c, vec3(0.97, 0.98, 1.0), smoothstep(0.78, 1.0, h));
+}
+
 void main() {
   const vec3 C1 = vec3(0.110, 0.200, 0.430); // deep mist
   const vec3 C2 = vec3(0.443, 0.576, 0.847); // the frosted moon, #7193D8
   const vec3 C3 = vec3(0.800, 0.855, 0.965); // its pale heart
   float T = uTime;
-  // Grid units, y down, like the simulation.
-  vec2 g = vec2(gl_FragCoord.x, uRes.y * uDpr - gl_FragCoord.y) / uDpr / uCell;
+  float discA = uEclipse.x, corona = uEclipse.y, flash = uEclipse.z, pillar = uEclipse.w;
+  // Points, y down; and the same in moon radii from its centre.
+  vec2 P = vec2(gl_FragCoord.x, uRes.y * uDpr - gl_FragCoord.y) / uDpr;
+  vec2 q = (P - uSun.xy) / uSun.z;
+  float d = length(q);
+  float out1 = max(d - 1.0, 0.0);
 
+  // The mist, as before.
+  vec2 g = P / uCell;
   vec2 w = vec2(fbm(g * 0.18 + vec2(T * 0.20, 0.0)), fbm(g * 0.18 + vec2(5.2, -T * 0.17))) - 0.5;
   vec2 c = g + w * 3.2;
   const float R = 2.4;
@@ -328,13 +383,77 @@ void main() {
     float a = float(k) * 0.785398;
     m += 0.1 * mistAt(c + vec2(cos(a), sin(a)) * R);
   }
-  if (m < 0.004) { outColor = vec4(0.0); return; }
   m *= 0.8 + 0.4 * fbm(g * 0.45 + vec2(-T * 0.3, T * 0.12));
+  vec3 mistCol = mix(C1, C2, smoothstep(0.04, 0.5, m));
+  mistCol = mix(mistCol, C3, smoothstep(0.5, 1.0, m) * 0.65);
+  float mistA = smoothstep(0.0, 0.4, m) * 0.95;
+  vec3 col = mistCol * mistA;
+  float alpha = mistA;
 
-  vec3 col = mix(C1, C2, smoothstep(0.04, 0.5, m));
-  col = mix(col, C3, smoothstep(0.5, 1.0, m) * 0.65);
-  float alpha = smoothstep(0.0, 0.4, m) * 0.95;
-  // Dither, so the thin blues don't band.
+  if (corona > 0.001) {
+    // Smoke the eclipse lights from behind: slow drifting cloud, brightest near the disc.
+    vec2 s = P / 70.0;
+    float cloud = fbm(s + vec2(T * 0.025, -T * 0.01) + 0.6 * vec2(fbm(s * 0.7 + 3.0), fbm(s * 0.7 - T * 0.02)));
+    float lit = smoothstep(0.35, 0.85, cloud) * corona * exp(-out1 * 0.6);
+    vec3 smoke = C1 * lit * 0.9;
+
+    // The corona: streamers that fan out sideways more than up and down, in warped noise round
+    // the disc (directions, so no seam), crawling slowly outward.
+    vec2 dir = q / max(d, 1e-4);
+    vec2 wq = q + 0.35 * (vec2(fbm(q * 1.7 + vec2(T * 0.06, 0.0)), fbm(q * 1.7 + vec2(3.1, -T * 0.05))) - 0.5);
+    float streak = fbm(normalize(wq) * 2.6 + wq * 0.35 + vec2(0.0, -T * 0.08));
+    float fil = fbm(dir * 9.0 + vec2(d * 1.1 - T * 0.12, 0.0));
+    float reach = length(q * vec2(0.6, 1.0)) - 1.0;
+    float grow = mix(0.35, 1.0, corona);
+    float spread = max(reach, 0.0) / grow;
+    float streamers = pow(streak, 2.8) * exp(-spread * (3.6 - 2.4 * streak)) * (0.6 + 0.8 * fil);
+    float inner = exp(-out1 * 9.0);
+    float h = (inner * 0.6 + streamers * 1.25) * step(1.0, d) * corona;
+
+    // The ring: thin and white-hot at the limb, with beads where the rim is rough. Thickest at
+    // the bottom, where the pillar drips from it.
+    float ang = atan(q.y, q.x);
+    float bottom = exp(-pow((ang - 1.5708) / 0.25, 2.0));
+    float ringW = 0.012 + 0.01 * noise(dir * 6.0 + T * 0.2) + 0.018 * bottom;
+    float ring = exp(-pow((d - 1.0) / ringW, 2.0)) * corona;
+    h += ring * 1.1;
+
+    // The diamond ring: the last of the sun through a valley on the rim, up and to the right.
+    vec2 fp = vec2(0.77, -0.64);
+    vec2 fq = q - fp;
+    float fd = length(fq);
+    float diamond = exp(-fd / 0.045) * 1.6 + exp(-fd / 0.3) * 0.45
+      + (exp(-abs(fq.y) / 0.012) * exp(-abs(fq.x) / 0.7) + exp(-abs(fq.x) / 0.012) * exp(-abs(fq.y) / 0.5)) * 0.35;
+    h += diamond * flash;
+
+    vec3 light = fire(clamp(h, 0.0, 1.0)) * clamp(h * 1.6, 0.0, 1.0) + smoke;
+
+    // The pillar: a thin flickering thread straight down from the bottom of the ring, fading.
+    if (pillar > 0.001 && q.y > 0.98) {
+      float py = q.y - 1.0;
+      float ax = abs(q.x + 0.015 * sin(py * 2.0 + T * 0.7));
+      float len = pillar * 30.0;
+      float shaft = exp(-pow(ax / 0.022, 2.0)) * 0.85 + exp(-ax / 0.1) * 0.22;
+      shaft *= 0.8 + 0.25 * noise(vec2(py * 2.5 - T * 2.2, T * 0.5));
+      shaft *= exp(-py * 0.11) * smoothstep(len, len - 1.5, py) * smoothstep(-0.02, 0.06, py);
+      light += fire(0.35 + 0.4 * exp(-ax / 0.03)) * shaft * 0.6;
+    }
+
+    col += light;
+    alpha = max(alpha, clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0));
+  }
+
+  // The dark disc: near black, its limb faintly lit from the ring behind it.
+  if (discA > 0.001 && d < 1.0) {
+    float edge = smoothstep(1.0, 0.985, d);
+    vec3 disc = vec3(0.012, 0.016, 0.030) + C2 * 0.6 * exp(-(1.0 - d) / 0.035) * corona;
+    float a = discA * edge;
+    col = mix(col, disc, a);
+    alpha = mix(alpha, 1.0, a);
+  }
+
+  if (alpha < 0.002) { outColor = vec4(0.0); return; }
+  // Dither, so the thin gradients don't band.
   col += (hash(gl_FragCoord.xy + fract(T * 7.0)) - 0.5) / 128.0;
-  outColor = vec4(clamp(col, 0.0, 1.0) * alpha, alpha);
+  outColor = vec4(clamp(col, 0.0, alpha), alpha);
 }`;

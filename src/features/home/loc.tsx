@@ -60,6 +60,15 @@ const saidOnce = {
   },
 };
 
+/**
+ * Until then, what he says waits: a screen handing back to Home (the morning payoff) holds him
+ * while Home comes into focus, so his bubble doesn't pop up in the middle of it.
+ */
+let quietUntil = 0;
+export const holdLocLines = (ms: number) => {
+  quietUntil = Date.now() + ms;
+};
+
 /** Counts `key` as said, so Home doesn't say it again (the payoff already said the wake-up's line). */
 export const markLocSaid = (key: string) => saidOnce.add(key);
 
@@ -151,12 +160,20 @@ export function Loc() {
     momentRef.current = moment;
     seenRef.current = seen;
   }, [mood, moment, seen]);
-  const speak = useCallback((line: string | null) => {
-    if (!line) return;
+  const say = useCallback((line: string) => {
     lastSpoke.current = Date.now();
     setSaid((prev) => ({ line, id: (prev?.id ?? 0) + 1 }));
     AccessibilityInfo.announceForAccessibility(`Loc: ${line}`);
   }, []);
+  const speak = useCallback(
+    (line: string | null) => {
+      if (!line) return;
+      const wait = quietUntil - Date.now();
+      if (wait > 0) setTimeout(() => say(line), wait);
+      else say(line);
+    },
+    [say],
+  );
   /** A moment Home told him about, or his birthday, that he hasn't mentioned yet. */
   const news = useCallback(() => {
     const m = momentRef.current;

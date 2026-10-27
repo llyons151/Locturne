@@ -76,9 +76,12 @@ function bakedMoon(width: number, height: number) {
 }
 
 /** Rising out of the bottom: centred, with the top part of the disc showing. */
+/** How much of the resting moon's width shows above the floor. */
+const MOON_SHOWS = 0.36;
+
 function risingMoon(width: number, height: number) {
   const size = width * 0.9;
-  return { left: (width - size) / 2, top: height - size * 0.36, size };
+  return { left: (width - size) / 2, top: height - size * MOON_SHOWS, size };
 }
 
 /**
@@ -115,6 +118,14 @@ export function restingMoonNow(width: number, height: number) {
 }
 /** The Apps tab's moon: risen above its resting place, into the sky under the tiles. */
 export const MOON_RAISED = -0.35;
+/**
+ * The `moonSink` that lifts the resting moon until its disc's top is at `top` (window points):
+ * the morning payoff raises it to the top of the screen (user, 2026-10-27). `floor` as NightSky's.
+ */
+export function moonSinkForTop(width: number, height: number, floor: number, top: number) {
+  const m = risingMoon(width, height - floor);
+  return (top - m.top) / (m.size * SINK_DEPTH);
+}
 /** The Routine and You tabs' moon: sunk well past a moon width (its blur pads the image), out of sight with its glow (user, 2026-10-13). */
 export const MOON_GONE = 1.6 / SINK_DEPTH;
 /**

@@ -476,9 +476,15 @@ function fall(distance: number, delay: number) {
   } as const;
 }
 
-/** The number and its line on the way out: back into a blur where they stand, like any page. */
+/**
+ * The number and its line on the way out: back into a blur where they stand, like any page.
+ * The blur on the web only: iOS never draws it, and animating it forces the slow path (motion.tsx).
+ */
 const HERO_OUT = {
-  animationName: { from: { opacity: 1, filter: 'blur(0px)' }, to: { opacity: 0, filter: 'blur(8px)' } },
+  animationName:
+    Platform.OS === 'web'
+      ? { from: { opacity: 1, filter: 'blur(0px)' }, to: { opacity: 0, filter: 'blur(8px)' } }
+      : { from: { opacity: 1 }, to: { opacity: 0 } },
   animationDuration: '300ms',
   animationTimingFunction: 'ease-in',
   animationFillMode: 'forwards',

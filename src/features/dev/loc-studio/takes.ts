@@ -43,6 +43,7 @@ const explore = (id: string, label: string, note: string, mood?: LocMood): LocAc
 });
 
 export const ACTIONS: LocAction[] = [
+  explore('yell', 'Yells at the sky', 'The morning payoff: looks up, crouches, throws his right fist up with his eyes slammed shut and shakes, fist pumping. The phone buzzes and the moon rises at the throw.', 'smug'),
   explore('scoot', 'Hands: shuffles over', 'Eyes lead left, then he shuffles hand over hand along the ledge after them, takes a look, and shuffles home.'),
   explore('clutch', 'Hands: clutches the ledge', 'Startled: eyes huge first, then his hands clench the edge and he shrinks. It passes; a heavy-lidded side-eye at you.'),
   explore('pull-up', 'Hands: pulls up to look', 'Presses down on the ledge and rises tall, scanning left and right. Nothing. Lowers back, not impressed.'),

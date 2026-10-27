@@ -1,7 +1,6 @@
 import {
   Button,
   Capsule,
-  Circle,
   Host,
   HStack,
   Image,
@@ -33,7 +32,6 @@ import {
   opacity,
   padding,
   shapes,
-  strokeBorder,
   type ModifierConfig,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState, type ComponentProps } from 'react';
@@ -43,19 +41,19 @@ import { HOME_RISE_MS } from '@/components/night-sky';
 import { SearchingOrb } from '@/components/thinking-orb';
 import { getAccess } from '@/lib/screen-time';
 import { CTA_HEIGHT, Nocturne, Space } from '@/theme';
-import { isMistDotViewAvailable, MistDotView } from '../../../modules/mist-dot';
 import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/screen-time-report';
 
+import { REPLAY_START_MS, REPLAY_STEP_MS, useReplay } from './entrance';
 import type { HomeContentProps } from './home-content';
 import { actionWeight, topLevel } from './home-look';
 import { SWAP_IN, SWAP_OUT, useHeroSwap } from './hero-swap';
-import { dayLabel, morningsLabel, weekDays } from './week';
+import { morningsLabel, weekDays } from './week';
+import { WeekDots } from './week-dots-native';
 
 type SymbolName = NonNullable<ComponentProps<typeof Image>['systemName']>;
 
 const PILL = 'rgba(255,255,255,0.08)';
 const BUTTON = 'rgba(255,255,255,0.10)';
-const DOT = 32;
 /** The morning meter's track, as wide as the body text it sits over. */
 const TRACK = 240;
 
@@ -68,6 +66,12 @@ const STAGGER = 0.06;
 /** How far the column rises, and how blurred each piece starts, in points. */
 const RISE = 18;
 const BLUR = 8;
+/**
+ * Played again when the morning payoff hands back (entrance.ts `homeEntrance`): onboarding's
+ * `focus` (components/motion.tsx), each piece clearing out of the blur where it stands, a step
+ * apart, top to bottom, on a critically damped spring about as long as its 1.4 s ease-out.
+ */
+const REPLAY_S = 1.4;
 
 /**
  * Home's content in SwiftUI (@expo/ui), so iOS draws and animates all of it: the type,
@@ -84,6 +88,9 @@ export function HomeContent(props: HomeContentProps) {
   const { mornings, today, won, free, revision } = props;
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
+  // The payoff hides the pieces while it covers Home, then plays them in again.
+  const { hidden, nonce } = useReplay();
+  const on = shown && !hidden;
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
   const { content, visible } = useHeroSwap(props, props.catchingUp);
   const { hero, heroKey, meter, icon, searching, action, alt, look } = content;
@@ -95,14 +102,15 @@ export function HomeContent(props: HomeContentProps) {
   const rollKey = props.catchingUp ? -1 : heroKey;
   const [usageIn, setUsageIn] = useState(false);
 
-  /** Piece `step`: opacity and blur, ending with everything else. */
+  /** Piece `step`: opacity and blur, ending with everything else; on a replay, one step apart. */
   const enter = (step: number, level = 1): ModifierConfig[] => {
     const d = step * STAGGER;
-    return [
-      opacity(shown ? level : 0),
-      blur(shown || reduced ? 0 : BLUR),
-      animation(Animation.spring({ duration: TOTAL - d, bounce: 0 }).delay(START + d), shown),
-    ];
+    const curve = hidden
+      ? Animation.linear({ duration: 0 })
+      : nonce
+        ? Animation.spring({ duration: REPLAY_S, bounce: 0 }).delay((REPLAY_START_MS + step * REPLAY_STEP_MS) / 1000)
+        : Animation.spring({ duration: TOTAL - d, bounce: 0 }).delay(START + d);
+    return [opacity(on ? level : 0), blur(on || reduced ? 0 : BLUR), animation(curve, on)];
   };
 
   const days = weekDays(today, won, free);
@@ -156,48 +164,7 @@ export function HomeContent(props: HomeContentProps) {
               ) : null}
             </HStack>
     
-            <HStack modifiers={[padding({ top: Space.xl }), ...enter(1, top)]}>
-              {days.flatMap((day, i) => [
-                ...(i ? [<Spacer key={`gap-${day.key}`} />] : []),
-                <VStack
-                  key={day.key}
-                  spacing={Space.s}
-                  modifiers={[accessibilityElement('ignore'), accessibilityLabel(dayLabel(day))]}
-                >
-                  <Text
-                    modifiers={[
-                      font({ size: 13, weight: day.today ? 'semibold' : 'regular' }),
-                      foregroundStyle(day.today ? Nocturne.text : Nocturne.text3),
-                    ]}
-                  >
-                    {day.letter}
-                  </Text>
-                  <ZStack modifiers={[frame({ width: DOT, height: DOT }), opacity(day.future ? 0.4 : 1)]}>
-                    {day.done && isMistDotViewAvailable ? (
-                      // A won day holds a little of the moon's mist, which sloshes as the phone moves.
-                      <RNHostView matchContents>
-                        <MistDotView paused={reduced} style={{ width: DOT, height: DOT }} />
-                      </RNHostView>
-                    ) : null}
-                    {day.done && !isMistDotViewAvailable ? (
-                      <Circle modifiers={[foregroundStyle(Nocturne.text)]} />
-                    ) : (
-                      <Circle
-                        modifiers={[
-                          foregroundStyle('clear'),
-                          strokeBorder({
-                            content: day.today ? Nocturne.text : Nocturne.edge,
-                            style: { lineWidth: day.today ? 2 : 1.5 },
-                            shape: 'circle',
-                          }),
-                        ]}
-                      />
-                    )}
-                    {day.done && !isMistDotViewAvailable ? <Image systemName="checkmark" color={Nocturne.bg} modifiers={[font({ size: 12, weight: 'bold' })]} /> : null}
-                  </ZStack>
-                </VStack>,
-              ])}
-            </HStack>
+            <WeekDots days={days} reduced={reduced} modifiers={[padding({ top: Space.xl }), ...enter(1, top)]} />
           </VStack>
         ) : null}
 

@@ -54,6 +54,18 @@ export function payoffLine(method: WakeMethod, upAt: number, start: number): str
   return `${PAYOFF_METHOD[method]}, ${lateWords(upAt, start).replace(/^Right/, 'right')}. Your apps are awake.`;
 }
 
+/**
+ * Which of Loc's lines the payoff says (loc-lines.ts moments): a milestone's own, otherwise the
+ * wake-up's, now and then the proud one once they've been at it a while.
+ */
+export function payoffMoment(mornings: number, random: () => number): 'firstMorning' | 'roommate' | 'accomplice' | 'rideOrDie' | 'wakeDone' | 'wakeProud' {
+  if (mornings === 1) return 'firstMorning';
+  if (mornings === 7) return 'roommate';
+  if (mornings === 30) return 'accomplice';
+  if (mornings === 100) return 'rideOrDie';
+  return mornings >= 5 && random() < 0.35 ? 'wakeProud' : 'wakeDone';
+}
+
 /** What the Share button sends: the morning in one line, no stats a stranger can't read. */
 export function shareText(mornings: number, upAt: number): string {
   return `Up at ${clock(upAt)}. ${mornings === 1 ? 'My first morning' : `Morning ${mornings}`} out of bed with Locturne.`;

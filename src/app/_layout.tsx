@@ -78,7 +78,6 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
-          <Stack.Screen name="place" options={{ presentation: 'fullScreenModal' }} />
           {/* Picking the morning place: a full-screen map, like Google Maps (a sheet would drag
               away under the map's own drags). */}
           <Stack.Screen
@@ -86,8 +85,12 @@ export default function RootLayout() {
             options={{ presentation: 'fullScreenModal', contentStyle: { backgroundColor: '#000000' } }}
           />
           <Stack.Screen name="wake" options={{ presentation: 'fullScreenModal' }} />
-          {/* The morning payoff: fades in over Home the moment the apps wake. */}
-          <Stack.Screen name="morning-won" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+          {/* The morning payoff: fades in over Home the moment the apps wake. See-through as a
+              screen, so Home stays drawn under it and Done can dissolve it away over Home. */}
+          <Stack.Screen
+            name="morning-won"
+            options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+          />
           {/* Cancelling: full-screen, no swipe away mid-step; every step has its own way out. */}
           <Stack.Screen name="cancel" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
           <Stack.Screen name="(dev)/wake-lab" options={{ presentation: 'fullScreenModal' }} />

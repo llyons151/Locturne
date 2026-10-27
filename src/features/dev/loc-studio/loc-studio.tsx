@@ -9,6 +9,8 @@ import { LOC_BASE, LOC_MOODS, LOC_TUNE, LocRig, type LocChannel, type LocMood, t
 import { grid, keep, keepButton, paintLater, Segmented, Select, Slider, Toggle } from './controls';
 import { EXPRESSIONS, faceAction, loadMine, type Expression } from './expressions';
 import { setNote, useNotes } from './notes';
+import { MOON_MOVES } from './moonrise';
+import { MOONRISE_CSS, MoonrisePage } from './moonrise-page';
 import { ExpressionsPage, NotesPage, PAGES_CSS, UsagePage, UsedLine, VerdictBar } from './pages';
 import { BACKDROPS, download, locHeight, paintBackdrop, type Backdrop } from './paint';
 import { ACTIONS, DT, FPS, GROUPS, MOODS, record, rest, STILLS, stillFrame, type LocAction, type Take } from './takes';
@@ -29,9 +31,10 @@ import { asCode, changes, load, POSE, poseValue, resetAll, setMoodTiming, setPos
  * It's a DOM component, and on its own in a browser too (studio/, `npm run studio`), so the same page runs in a browser and in the app.
  */
 type Image = { title: string; note: string; uri: string };
-type Tab = 'animate' | 'faces' | 'usage' | 'style' | 'sheet' | 'notes' | 'images';
+type Tab = 'animate' | 'moonrise' | 'faces' | 'usage' | 'style' | 'sheet' | 'notes' | 'images';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'animate', label: 'Animate' },
+  { id: 'moonrise', label: 'Moonrise' },
   { id: 'faces', label: 'Expressions' },
   { id: 'usage', label: 'In the app' },
   { id: 'style', label: 'Style' },
@@ -137,7 +140,10 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
   const [mine, setMine] = useState<Expression[]>(loadMine);
   // Every move: the rig's, then the expressions as moves (the built-in ideas and yours).
   const actions = useMemo(() => [...ACTIONS, ...EXPRESSIONS.map(faceAction), ...mine.map(faceAction)], [mine]);
-  const nameOf = useCallback((id: string) => actions.find((a) => a.id === id)?.label ?? id, [actions]);
+  const nameOf = useCallback(
+    (id: string) => actions.find((a) => a.id === id)?.label ?? MOON_MOVES.find((m) => m.id === id)?.label ?? id,
+    [actions],
+  );
 
   const rootRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -463,7 +469,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
 
   return (
     <div className="studio" ref={rootRef}>
-      <style>{CSS + PAGES_CSS}</style>
+      <style>{CSS + PAGES_CSS + MOONRISE_CSS}</style>
       <header className="bar">
         <div className="title">
           <strong>Loc studio</strong>
@@ -483,7 +489,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
         ) : null}
       </header>
 
-      <section className="controls">
+      <section className={`controls ${tab === 'moonrise' ? 'hidden' : ''}`}>
         <Segmented label="Mood" value={mood} options={MOODS.map((m) => ({ id: m, label: m }))} onChange={setMood} />
         <Select label="Behind him" value={backdrop} options={BACKDROPS} onChange={(v) => setBackdrop(v as Backdrop)} />
         <Select label="Body colour" value={ink} options={INKS} onChange={setInk} />
@@ -665,6 +671,7 @@ export default function LocStudio({ images, onClose }: { images: Image[]; onClos
           onPlay={openMove}
         />
       ) : null}
+      {tab === 'moonrise' ? <MoonrisePage /> : null}
       {tab === 'usage' ? <UsagePage name={nameOf} onPlay={openMove} /> : null}
       {tab === 'notes' ? <NotesPage name={nameOf} onPlay={openMove} /> : null}
       {tab === 'images' ? <ImagesPage images={images} /> : null}

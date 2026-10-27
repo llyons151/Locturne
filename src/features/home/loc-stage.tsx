@@ -15,6 +15,9 @@ import type { Rim } from './rim';
 /** A second hit within this many ms of the first sends him under the covers; one pokes him. */
 const SECOND_HIT_MS = 2500;
 
+/** How much sharper than on screen the share card's picture of him is drawn. */
+const SNAP_SCALE = 2.5;
+
 /** A beat for Home to start fading in before the lump comes running. */
 const ARRIVE_DELAY_MS = 120;
 
@@ -30,6 +33,10 @@ export default function LocStage({
   burrowNonce = 0,
   zoomNonce = 0,
   ultraNonce = 0,
+  yellNonce = 0,
+  onYell,
+  snapNonce = 0,
+  onSnap,
   rim,
   knock,
   burrowOnTap = false,
@@ -60,6 +67,14 @@ export default function LocStage({
   zoomNonce?: number;
   /** Bumped to send him round the whole screen (the knock lab's Ultra button). */
   ultraNonce?: number;
+  /** Bumped to make him yell (the morning payoff); still arriving, he yells once he's up. */
+  yellNonce?: number;
+  /** The yell's throw, the moment his fist goes up. A native action on iOS. */
+  onYell?: () => void;
+  /** Bumped to take a picture of him as he is right now (the payoff's share card). */
+  snapNonce?: number;
+  /** The picture: his canvas as a PNG data URL, transparent round him. A native action on iOS. */
+  onSnap?: (png: string) => void;
   /** The screen's edge, for the ultra zoomies (rim.ts); left out, he never goes round it. */
   rim?: Rim;
   /** The knock lab's live tuning; inside the webview this module is a copy, so it comes as a prop. */
@@ -103,6 +118,8 @@ export default function LocStage({
   const lastTap = useRef(0);
   const onCueRef = useRef(onCue);
   const onTapRef = useRef(onTap);
+  const onYellRef = useRef(onYell);
+  const onSnapRef = useRef(onSnap);
   const onBurrowRef = useRef(onBurrow);
   const rimRef = useRef<Rim | null>(null);
 
@@ -118,6 +135,7 @@ export default function LocStage({
     if (lookRef.current) rig.look = lookRef.current;
     rig.roam = roamRef.current;
     rig.onCue = (cue) => onCueRef.current?.(cue);
+    rig.onYell = () => onYellRef.current?.();
     rig.onBurrow = (path) => onBurrowRef.current?.(path);
     rigRef.current = rig;
     // He arrives from the `present` effect below, which runs after this one with the rig made.
@@ -200,7 +218,9 @@ export default function LocStage({
     onCueRef.current = onCue;
     onTapRef.current = onTap;
     onBurrowRef.current = onBurrow;
-  }, [onCue, onTap, onBurrow]);
+    onYellRef.current = onYell;
+    onSnapRef.current = onSnap;
+  }, [onCue, onTap, onBurrow, onYell, onSnap]);
 
   useEffect(() => {
     if (knock) Object.assign(NAV_KNOCK, knock);
@@ -223,6 +243,33 @@ export default function LocStage({
     rigRef.current?.burrow('ultra');
     wakeRef.current();
   }, [ultraNonce]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const rig = rigRef.current;
+    if (!snapNonce || !canvas || !rig) return;
+    // Drawn once more at SNAP_SCALE times the screen's pixels, so he's sharp on the card (a
+    // poster, bigger than he is on screen), then put back; the screen never shows the big frame.
+    const w = canvas.width, h = canvas.height;
+    try {
+      canvas.width = Math.round(w * SNAP_SCALE);
+      canvas.height = Math.round(h * SNAP_SCALE);
+      rig.step(0);
+      onSnapRef.current?.(canvas.toDataURL('image/png'));
+    } catch {
+      // A canvas that can't be read just means no picture of him on the card.
+    } finally {
+      canvas.width = w;
+      canvas.height = h;
+      rig.step(0);
+    }
+  }, [snapNonce]);
+
+  useEffect(() => {
+    if (!yellNonce) return;
+    rigRef.current?.yell();
+    wakeRef.current();
+  }, [yellNonce]);
 
   // Plain numbers, so a new object with the same edge (every render) changes nothing.
   const rimW = rim?.W, rimH = rim?.H, rimRb = rim?.Rb, rimRt = rim?.Rt;

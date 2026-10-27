@@ -20,6 +20,7 @@ import { LOC_HEIGHT, LOC_PATH } from './loc-path';
 import { NAV_KNOCK, type BurrowPath } from './nav-knock-tune';
 import { frameAt, glide } from './glide';
 import { seeded, ultraNav, ultraRun } from './loc-ultra';
+import { CHAMPION, goalAt, lifted, paintParts, PartsSim } from './loc-yell';
 import { zoomLump } from './loc-zoomies';
 import type { Rim } from './rim';
 
@@ -63,6 +64,8 @@ export type Bit = {
 const LEDGE = LOC_HEIGHT;
 const EYE_L: Vec = [352, 312];
 const EYE_R: Vec = [538, 338];
+/** His mouth's top middle, under and between the eyes (drawMouth). */
+const MOUTH: Vec = [430, 395];
 const FACE = 8; // the head is drawn tilted; the face follows it
 const BONE = {
   base: [430, 552] as Vec,
@@ -122,6 +125,12 @@ export const LOC_BASE = {
   lean: 0,
   /** His body slides along the ledge, rig units (- left). The hands stay where they grip. */
   slide: 0,
+  /** Both arms thrown up in fists, 0 (the paws on the ledge) to 1 (overhead): the yell (YELL). */
+  raise: 0,
+  /** The raised fists pumping, rig units up (-) and down. */
+  pump: 0,
+  /** His mouth, 0 shut (none drawn) to 1 wide open, yelling. */
+  mouth: 0,
   // Hands (LOC_TUNE.hands, loc-hands.ts), left and right: see HandPose there.
   hLx: 102, hLy: 446, hLa: 180, hLs: 0.3, hLc: 0.85, hLz: 1, hLf: 0, hLb: 0, hLt: 0, hLw: 0,
   hRx: 716, hRy: 446, hRa: 180, hRs: 0.3, hRc: 0.85, hRz: 1, hRf: 0, hRb: 0, hRt: 0, hRw: 0,
@@ -158,6 +167,7 @@ const SPRING: Record<Channel, [number, number]> = {
   // Loose on purpose: the eyes wobble like jelly after every kick.
   goo: [320, 0.2], swell: [240, 0.3],
   swellR: [240, 0.5], eyeR: [240, 0.5], curve: [220, 1], smile: [220, 1], lean: [70, 0.9], slide: [90, 0.9],
+  raise: [200, 0.8], pump: [300, 0.6], mouth: [260, 0.7],
   hLx: [170, 0.7], hLy: [170, 0.7], hLa: [170, 0.7], hLs: [220, 0.8], hLc: [220, 0.8], hLz: [170, 0.7], hLf: [300, 1], hLb: [300, 1],
   hRx: [170, 0.7], hRy: [170, 0.7], hRa: [170, 0.7], hRs: [220, 0.8], hRc: [220, 0.8], hRz: [170, 0.7], hRf: [300, 1], hRb: [300, 1],
   hLt: [300, 0.8], hLw: [200, 1], hRt: [300, 0.8], hRw: [200, 1],
@@ -296,7 +306,6 @@ const POP_UP: Bit = { ms: 700, tracks: {
   sink: [[0, 'S'], [380, -30, 'out'], [520, 6, 'io'], [650, 0, 'io'], [700, 0]],
   paw: [[0, 'S'], [300, 'S'], [420, -8, 'out'], [560, 0, 'io'], [700, 0]],
 }, events: [[450, (r) => r.say('hello')]] };
-
 
 /** How far down he goes to be out of sight: his body, and his paws (which only need to clear the edge). */
 const HIDDEN = { sink: 720, paw: 80 };
@@ -648,6 +657,23 @@ const ft = (keys: [number, number | 'S' | 'T', Ease?][]): Key[] => keys.map(([t,
 /** Where each hand rests, and how high is "lifted" (a hop off the ledge, never more). */
 const REST_X = { L: 102, R: 716 };
 const REST_Y = 446;
+/** Where the round paws traced into his outline are rubbed out (left edges, rig units). */
+const PAW_L_CUT = -40;
+const PAW_R_CUT = 685;
+/** He's drawn about this line, so the left arm is the right one mirrored. */
+const MIDLINE = 409;
+/** The yell's right arm (drawArm), in his body's frame: the paw on the ledge, and the fist overhead. */
+const ARM = {
+  shoulder: [640, 470] as Vec,
+  elbowRest: [740, 640] as Vec,
+  elbowUp: [880, 320] as Vec,
+  fistRest: [752, 520] as Vec,
+  fistUp: [850, 100] as Vec,
+  pawR: 34,
+  fistR: 60,
+};
+/** Above this `raise` the arm is drawn and the traced paw hidden. */
+const ARM_SHOWS = 0.02;
 const LIFT_Y = 418;
 /** A step: the hand hops up a little, moves to `x`, and lands with a grip. */
 const step = (side: 'L' | 'R', at: number, x: number, ms = 220): HandKey[] => [
@@ -799,8 +825,53 @@ const CLAW_DRUM: Bit = { ms: 3600, tracks: joinTracks(
   },
 ), events: [[1700, (r) => r.blinkNow()]] };
 
+/**
+ * The yell, for the morning payoff (user, 2026-10-27): he notices the sky, looks up, winds down
+ * into a crouch and throws both fists up, eyes slammed shut, body shaking, fists pumping.
+ * At the throw `onYell` fires: the phone buzzes and the moon rises behind him
+ * (features/wake/payoff-screen.tsx). Then the eyes pop open, pleased, and he settles.
+ * No mouth: in silhouette the head back, the > < and the fist sell it.
+ */
+const THROW = 1180;
+const SHAKE_TO = 2450;
+/** Alternating keys every `ms` from `from` to `to`, between +amp and -amp, easing out. */
+const shake = (from: number, to: number, ms: number, amp: number): Key[] => {
+  const out: Key[] = [];
+  for (let t = from, i = 0; t < to; t += ms, i++) out.push([t, (i % 2 ? -amp : amp) * (1 - 0.5 * ((t - from) / (to - from))), 'io']);
+  return out;
+};
+const YELL: Bit = { ms: 3600, tracks: {
+  // Looks up at the sky, holds a beat, winds down, then up tall as the fist goes.
+  y: ft([[0, 'S'], [420, -10, 'io'], [880, -10], [1080, 26, 'io'], [THROW + 80, -30, 'out'], [SHAKE_TO, -26], [3100, 'T', 'io']]),
+  stretch: [[0, 0], [880, 0], [1080, -0.1, 'io'], [THROW + 60, 0.16, 'out'], [THROW + 220, 0.1, 'io'], [SHAKE_TO, 0.1], [2700, -0.04, 'io'], [3000, 0, 'io']],
+  tilt: [[0, 'S'], [420, -3, 'io'], [THROW, -3], ...shake(THROW + 60, SHAKE_TO, 70, 3.2), [2700, 'T', 'io']],
+  slide: [[0, 'S'], [THROW, 0], ...shake(THROW + 95, SHAKE_TO, 70, 5), [2700, 0, 'io']],
+  gx: [[0, 0], [3600, 0]],
+  gy: [[0, 0], [380, -22, 'out'], [1000, -22], [1080, -14, 'io'], [2500, -14], [2650, -18, 'out'], [3000, -6, 'io'], [3600, 0, 'io']],
+  open: [[0, 'S'], [380, 1.12, 'back'], [1000, 1.12], [2500, 1.12], [2650, 1.15, 'back'], [3000, 1.05], [3500, 'T', 'io']],
+  openR: [[0, 'S'], [400, 1.12, 'back'], [1000, 1.12], [2500, 1.12], [2670, 1.15, 'back'], [3000, 1.05], [3520, 'T', 'io']],
+  swell: [[0, 'S'], [380, 1.35, 'back'], [1000, 1.35], [2500, 1.3], [2650, 1.6, 'back'], [3100, 1.2], [3500, 'T', 'io']],
+  slope: [[0, 'S'], [380, -6, 'io'], [2500, -6], [3400, 'T', 'io']],
+  earL: [[0, 'S'], [380, 4, 'out'], [1000, 4], [1080, 20, 'out'], [THROW + 60, 30, 'out'], [SHAKE_TO, 30], [2700, -8, 'out'], [3200, 'T', 'back']],
+  earR: [[0, 'S'], [380, -4, 'out'], [1000, -4], [1080, -20, 'out'], [THROW + 60, -30, 'out'], [SHAKE_TO, -30], [2700, 8, 'out'], [3200, 'T', 'back']],
+  // The fists: tuck with the crouch, shoot up, pump, and come back down to the ledge.
+  raise: [[0, 0], [1000, 0], [1080, 0.06, 'in'], [THROW + 110, 1, 'out'], [2560, 1], [2880, 0, 'io']],
+  // A small "oh" at the sky, then wide open for the yell, snapping shut as his eyes pop open.
+  mouth: [[0, 0], [380, 0.3, 'out'], [1000, 0.3], [1080, 0, 'io'], [THROW - 30, 0], [THROW + 70, 1, 'out'], [SHAKE_TO, 0.85], [2600, 0, 'io']],
+  pump: [[0, 0], [THROW + 300, 0], [THROW + 380, 34, 'in'], [THROW + 470, -6, 'out'], [THROW + 640, 34, 'in'], [THROW + 730, -6, 'out'], [THROW + 900, 30, 'in'], [THROW + 990, 0, 'out'], [3600, 0]],
+}, events: [
+  [380, (r) => r.pop(0.35)],
+  [THROW, (r) => { r.squeezing = true; r.kick(0.1); r.flick('L', 16); r.flick('R', -16); r.onYell?.(); }],
+  [THROW + 380, (r) => r.kick(0.04)],
+  [THROW + 640, (r) => r.kick(0.04)],
+  [2500, (r) => { r.squeezing = false; r.pop(0.6); r.flick('L', -12); r.flick('R', 12); }],
+] };
+/** With Reduce Motion: no yell, just the cue, so the moon still comes up. */
+const YELL_CALM: Bit = { ms: 200, tracks: {}, events: [[0, (r) => r.onYell?.()]] };
+
 /** The studio's explorations, by name. `poke-twos` is the same poke held on twos, to compare textures. */
 export const LOC_EXPLORE: Record<string, Bit> = {
+  yell: YELL,
   unhinged: UNHINGED,
   'dead-stare': DEAD_STARE,
   'comment-lid': COMMENT_LID,
@@ -1019,7 +1090,7 @@ const torque = (pivot: Vec, tip: Vec, acc: Vec) => {
 /** A frozen copy of a rig's state (`LocRig.snapshot`). */
 export type LocSnapshot = { readonly __loc: unique symbol };
 /** The rig's fields that are drawing machinery, not state. */
-const NOT_STATE = new Set(['canvas', 'ctx', 'gl', 'glCanvas', 'eyeLayer', 'texHands', 'inkHex', 'posBuf', 'resLoc', 'inkLoc', 'skinned', 'onCue']);
+const NOT_STATE = new Set(['canvas', 'ctx', 'gl', 'glCanvas', 'eyeLayer', 'texHands', 'inkHex', 'posBuf', 'resLoc', 'inkLoc', 'skinned', 'onCue', 'onYell', 'texMain', 'texNoPaw']);
 /** A deep copy of rig state. Bit definitions (with their event functions) are shared, not copied. */
 function copyState(v: unknown): unknown {
   if (v === null || typeof v !== 'object') return v;
@@ -1061,8 +1132,6 @@ export class LocRig {
   /** Where along the ledge he's settled, rig units: each dash moves it (`landDash`). */
   private spot = 0;
   private nextRoam = 2.5;
-  /** Played as soon as the current move ends: `guard`'s face, after its dash. */
-  private next: Bit | null = null;
   private nextGlance = 2;
   private nextHabit = 4;
   private flicks = { L: 0, R: 0 };
@@ -1133,6 +1202,7 @@ export class LocRig {
     const uvLoc = gl.getAttribLocation(prog, 'uv'); gl.enableVertexAttribArray(uvLoc); gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
     const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW);
     const texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture);
+    this.texMain = texture;
     this.paintTexture();
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -1147,7 +1217,10 @@ export class LocRig {
 
   /** His silhouette as the mesh's texture. With hands on, the round paws traced into it are rubbed out. */
   private texHands: boolean | null = null;
-  private paintTexture() {
+  /** The texture as it's painted, and a second one with both paws rubbed out, for his raised arms. */
+  private texMain: WebGLTexture | null = null;
+  private texNoPaw: WebGLTexture | null = null;
+  private paintTexture(noPaw = false) {
     const gl = this.gl;
     if (!gl) return;
     const tex = document.createElement('canvas');
@@ -1162,14 +1235,28 @@ export class LocRig {
     t.translate(0, 552); t.scale(0.1, -0.1);
     t.fill(new Path2D(LOC_PATH));
     t.restore();
-    if (LOC_TUNE.hands) {
-      t.globalCompositeOperation = 'destination-out';
-      t.fillRect(-40, 497, 173, 200);
-      t.fillRect(685, 497, 173, 200);
-    }
+    t.globalCompositeOperation = 'destination-out';
+    if (LOC_TUNE.hands || noPaw) t.fillRect(PAW_L_CUT, 497, 173, 200);
+    if (LOC_TUNE.hands || noPaw) t.fillRect(PAW_R_CUT, 497, 173, 200);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
     gl.generateMipmap(gl.TEXTURE_2D);
-    this.texHands = LOC_TUNE.hands;
+    if (!noPaw) this.texHands = LOC_TUNE.hands;
+  }
+
+  /** Draws with the paw-less texture while his arms are up; it's painted the first time it's asked for. */
+  private useTexture(noPaw: boolean) {
+    const gl = this.gl;
+    if (!gl) return;
+    if (noPaw && !this.texNoPaw) {
+      this.texNoPaw = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, this.texNoPaw);
+      this.paintTexture(true);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, noPaw ? this.texNoPaw : this.texMain);
   }
 
   /** Change mood. Parts move in sequence: going to sleep the eyes close, then he sinks. */
@@ -1288,6 +1375,22 @@ export class LocRig {
   /** Tells Home what just happened, so he can say something about it (loc-lines.ts). */
   onCue: ((cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') => void) | null = null;
   say(cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') { this.onCue?.(cue); }
+  /** The yell's throw (YELL): where the payoff buzzes and raises the moon. */
+  onYell: (() => void) | null = null;
+  /** Played as soon as the current move ends (his arrival, say), instead of cutting it off. */
+  private next: Bit | null = null;
+  /** The yell's arms and mouth (loc-yell.ts) while they're off the ledge; null the rest of the time. */
+  private parts: PartsSim | null = null;
+  /** The yell (YELL). Still arriving, he finishes that first. */
+  yell() {
+    // Painted now, not at the throw, so it costs nothing mid-move.
+    this.useTexture(true);
+    this.useTexture(false);
+    // Champion, take 4 of the Loc studio's Moonrise section (user's pick, October 27, 2026). YELL is the earlier one-fist version.
+    const bit = this.reduced ? YELL_CALM : CHAMPION.bit;
+    if (this.bit || this.hidden) this.next = bit;
+    else this.play(bit);
+  }
   /** Kick the eyeballs' jelly: + springs them tall, - squashes them wide. */
   pop(v: number) { if (!this.reduced) this.vel.goo += v * 18; }
 
@@ -1331,6 +1434,12 @@ export class LocRig {
         this.bit = null; this.squeezing = false;
         if (this.next && !this.hidden) { this.play(this.next); this.next = null; }
       }
+    }
+    // The yell's arms and mouth follow Champion's score while it plays, then spring back to the ledge.
+    if (this.bit?.def === CHAMPION.bit) (this.parts ??= new PartsSim()).step(dt, goalAt(CHAMPION.score, this.bit.t));
+    else if (this.parts) {
+      this.parts.step(dt, {});
+      if (this.parts.settled) this.parts = null;
     }
     for (const k of KEYS) {
       const d = driven[k];
@@ -1527,7 +1636,15 @@ export class LocRig {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     if (!gl || cw === 0 || ch === 0) return;
-    if (this.texHands !== LOC_TUNE.hands) this.paintTexture();
+    if (this.texHands !== LOC_TUNE.hands) {
+      this.useTexture(false);
+      this.paintTexture();
+      if (this.texNoPaw) gl.deleteTexture(this.texNoPaw);
+      this.texNoPaw = null;
+    }
+    const yellParts = this.parts?.frame() ?? null;
+    const armUp = this.cur.raise > ARM_SHOWS || (!!yellParts && (lifted(yellParts, 'L') || lifted(yellParts, 'R')));
+    this.useTexture(armUp);
     const view = this.view();
     const s = view[0];
     const ledgePx = Math.min(ch, Math.round(view[5] + LEDGE * s));
@@ -1672,7 +1789,99 @@ export class LocRig {
       ctx.globalCompositeOperation = 'source-over';
       ctx.drawImage(layer, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
     }
+    if (c.mouth > 0.02) {
+      at(chain(tr(MOUTH[0], MOUTH[1]), rot(FACE)));
+      this.drawMouth(c.mouth, this.squeezing && !this.reduced ? Math.sin(this.clock * 70) * 2 : 0);
+    }
     if (LOC_TUNE.hands) this.drawHands(view);
+    if (this.cur.raise > ARM_SHOWS) this.drawArm(view);
+    if (yellParts) paintParts(ctx, view, ledgePx, this.bones, this.head, this.inkHex, LOC_TUNE.eyeWhite, yellParts, 'white', false);
+    ctx.restore();
+  }
+
+  /**
+   * His mouth, open `open` (0..1), drawn like his eyes: a white rim with his black inside, a flat
+   * top and a deep round bottom, the yell's shape. It shudders with his squeezed eyes.
+   */
+  private drawMouth(open: number, shake: number) {
+    const { ctx } = this;
+    const k = clamp(open, 0, 1.2);
+    const w = 20 + 46 * k, h = 12 + 80 * k, rim = 10;
+    const shape = (ww: number, hh: number) => {
+      const p = new Path2D();
+      p.moveTo(-ww, 0);
+      p.quadraticCurveTo(0, -hh * 0.12, ww, 0);
+      p.bezierCurveTo(ww, hh * 0.75, ww * 0.55, hh, 0, hh);
+      p.bezierCurveTo(-ww * 0.55, hh, -ww, hh * 0.75, -ww, 0);
+      p.closePath();
+      return p;
+    };
+    ctx.save();
+    ctx.translate(shake, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = LOC_TUNE.eyeWhite;
+    ctx.fill(shape(w, h));
+    ctx.translate(0, rim * 0.5);
+    ctx.fillStyle = this.inkHex;
+    ctx.fill(shape(Math.max(0, w - rim), Math.max(0, h - rim * 1.6)));
+    ctx.restore();
+  }
+
+  /**
+   * His arms, thrown up (`raise`), in his own ink: thick furry arms out of his sides and round
+   * fists with knuckle bumps, like the paws traced into his outline. They ride his body, so they
+   * shake with him. Below the ledge they're clipped like the rest of him.
+   */
+  private drawArm(view: Mat) {
+    for (const side of [1, -1] as const) this.drawOneArm(view, side);
+  }
+
+  /** One arm: `side` 1 the right, -1 the left (the right mirrored about his middle). */
+  private drawOneArm(view: Mat, side: 1 | -1) {
+    const { ctx } = this;
+    const r = clamp(this.cur.raise, 0, 1.2), pump = this.cur.pump;
+    const m = (p: Vec): Vec => (side === 1 ? p : [2 * MIDLINE - p[0], p[1]]);
+    // Out to the side on the way up, so the fist arcs rather than slides.
+    const arc = Math.sin(Math.PI * clamp(r, 0, 1)) * 70 * side;
+    const lerp = (a: Vec, b: Vec): Vec => [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r];
+    const fist = lerp(m(ARM.fistRest), m(ARM.fistUp));
+    fist[0] += arc; fist[1] += pump;
+    const elbow = lerp(m(ARM.elbowRest), m(ARM.elbowUp));
+    elbow[0] += arc * 0.6; elbow[1] += pump * 0.5;
+    const shoulder = m(ARM.shoulder);
+    const size = ARM.pawR + (ARM.fistR - ARM.pawR) * clamp(r, 0, 1);
+    const q = mul(view, this.bones[1]);
+    ctx.save();
+    ctx.setTransform(q[0], q[1], q[2], q[3], q[4], q[5]);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = this.inkHex;
+    const limb = (a: Vec, b: Vec, wa: number, wb: number) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d;
+      ctx.beginPath();
+      ctx.moveTo(a[0] + nx * wa, a[1] + ny * wa); ctx.lineTo(b[0] + nx * wb, b[1] + ny * wb);
+      ctx.lineTo(b[0] - nx * wb, b[1] - ny * wb); ctx.lineTo(a[0] - nx * wa, a[1] - ny * wa);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(b[0], b[1], wb, 0, Math.PI * 2); ctx.fill();
+      // Fur: tufts pointing back down the outer edge.
+      const out = nx > 0 ? 1 : -1;
+      for (const t of [0.3, 0.55, 0.8]) {
+        const w = wa + (wb - wa) * t, px = a[0] + dx * t + nx * out * w * 0.85, py = a[1] + dy * t + ny * out * w * 0.85;
+        const ux = dx / d, uy = dy / d, k = 20;
+        ctx.beginPath();
+        ctx.moveTo(px - ux * k, py - uy * k);
+        ctx.lineTo(px + nx * out * k - ux * k * 1.6, py + ny * out * k - uy * k * 1.6);
+        ctx.lineTo(px + ux * k * 0.6, py + uy * k * 0.6);
+        ctx.closePath(); ctx.fill();
+      }
+    };
+    limb(shoulder, elbow, 64, 54);
+    limb(elbow, fist, 54, 42);
+    // The fist: a round paw, knuckles bumping up out of its top, the thumb wrapped on the side.
+    ctx.beginPath(); ctx.ellipse(fist[0], fist[1], size * 1.05, size, 0, 0, Math.PI * 2); ctx.fill();
+    const k = clamp(r, 0, 1);
+    for (const [dx, dy, rr] of [[-0.55, -0.72, 0.4], [-0.05, -0.92, 0.42], [0.45, -0.78, 0.4], [0.95, -0.2, 0.34]] as const) {
+      ctx.beginPath(); ctx.arc(fist[0] + dx * side * size * k, fist[1] + dy * size * k, rr * size, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -1742,6 +1951,7 @@ export class LocRig {
     this.mood = mood;
     this.hidden = !present;
     this.bit = null;
+    this.parts = null;
     this.pending = [];
     this.blinkAt = -1;
     this.squeezing = false;

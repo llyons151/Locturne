@@ -145,9 +145,15 @@ function ChapterTrack({ value }: { value: number }) {
     // Fills as the page it finished leaves, not after the next one lands (Duolingo's bar pays out on Continue).
     fill.value = reduced ? value : withTiming(value, { duration: 350, easing: Easing.out(Easing.cubic) });
   }, [value, reduced, fill]);
-  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+  // Slid in from the left, not widened: it fills on every page change, right as pages swap, and
+  // an animated width re-ran layout each frame and stalled while React rendered the next page.
+  const trackWidth = useSharedValue(0);
+  const fillStyle = useAnimatedStyle(() => ({
+    opacity: trackWidth.value > 0 ? 1 : 0,
+    transform: [{ translateX: (fill.value - 1) * trackWidth.value }],
+  }));
   return (
-    <View style={styles.track}>
+    <View style={styles.track} onLayout={(e) => trackWidth.set(e.nativeEvent.layout.width)}>
       <Animated.View style={[styles.trackFill, fillStyle]} />
     </View>
   );
@@ -799,7 +805,7 @@ const styles = StyleSheet.create({
   progress: { flex: 1 },
   chapters: { flexDirection: 'row', gap: 6 },
   track: { flex: 1, height: 8, borderRadius: 4, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
-  trackFill: { height: '100%', borderRadius: 4, backgroundColor: Nocturne.text },
+  trackFill: { width: '100%', height: '100%', borderRadius: 4, backgroundColor: Nocturne.text },
   exitButton: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   exit: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
   body: { paddingHorizontal: Gap.gutter, paddingBottom: Space.l },

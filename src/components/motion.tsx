@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type PropsWithChildren } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 
 import { APP_FONT, italicOverhang } from '@/theme';
@@ -17,14 +17,22 @@ const SEQUENCE_GAP_MS = 150;
 
 const outQuint = cubicBezier(0.22, 1, 0.36, 1);
 
+/*
+ * The blur is web only. iOS never draws it (React Native's blur filter is off there), and an
+ * animated `filter` isn't one of the props Reanimated can set straight on the view: every line
+ * went through a full shadow tree commit each frame, and froze whenever React rendered the next
+ * page, which is what made onboarding transitions stutter on iPhone.
+ */
+const FOCUS_BLUR = Platform.OS === 'web';
+
 const SPECS = {
   focus: {
     duration: 1400,
     easing: cubicBezier(0.2, 1, 0.4, 1),
-    keyframes: () => ({
-      from: { opacity: 0, filter: 'blur(8px)' },
-      to: { opacity: 1, filter: 'blur(0px)' },
-    }),
+    keyframes: () =>
+      FOCUS_BLUR
+        ? { from: { opacity: 0, filter: 'blur(8px)' }, to: { opacity: 1, filter: 'blur(0px)' } }
+        : { from: { opacity: 0 }, to: { opacity: 1 } },
   },
   moonrise: {
     duration: 1500,
@@ -114,6 +122,22 @@ function keyframed(keyframes: object, duration: number, delay: number, easing: u
     animationFillMode: 'backwards',
   } as unknown as ViewStyle;
 }
+
+/**
+ * The `focus` entrance on its own, outside a page's sequence: into focus out of a blur, after
+ * `delay` ms. A new `take` plays it again on a view that already played it (Home, each time the
+ * payoff hands back): the keyframes differ by a hair, so the animation counts as a new one.
+ */
+export function focusIn(delay: number, take = 0) {
+  if (!take) return animation('focus', 0, delay);
+  const spec = SPECS.focus;
+  const blur = `blur(${8 + (take % 2) * 0.01}px)`;
+  return keyframed({ from: { opacity: 0, filter: blur }, to: { opacity: 1, filter: 'blur(0px)' } }, spec.duration, delay, spec.easing);
+}
+
+/** The `focus` entrance's length and step, for an entrance played outside a page (Home's replay). */
+export const FOCUS_MS = SPECS.focus.duration;
+export const FOCUS_STEP_MS = SEQUENCE_GAP_MS;
 
 /**
  * A block (paragraph, row, card) entering in its turn. Text comes in with the page's motion;
