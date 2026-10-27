@@ -335,6 +335,9 @@ export function Body({ children, style }: PropsWithChildren<{ style?: StyleProp<
   );
 }
 
+/** Their number's blue: the moon's rim, lightened to read as text on black (reveal, paywall). */
+export const AMOUNT_BLUE = '#A3BDF5';
+
 /** Loc talking: the display font, entering with the page's text motion. */
 export function Voice({
   text,
@@ -342,9 +345,12 @@ export function Voice({
   delay = 0,
   header,
   center: centerProp,
+  accent,
 }: {
   text: string;
   size?: number;
+  /** A part of the line in `AMOUNT_BLUE`, as the reveal's number is. */
+  accent?: string;
   /** The earliest this line starts, in ms after the page opens. */
   delay?: number;
   /** Set when the line is the page's title, so VoiceOver announces it as one. */
@@ -368,6 +374,7 @@ export function Voice({
       delay={delay}
       header={header}
       maxFontSizeMultiplier={DISPLAY_MAX_SCALE}
+      accent={accent ? { text: accent, color: AMOUNT_BLUE } : undefined}
     />
   );
 }

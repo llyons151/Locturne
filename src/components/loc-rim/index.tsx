@@ -48,7 +48,7 @@ const BLEED = 3;
  * than black ("less grey... just enough u can tell what ur looking at"). A plain line, never a
  * blur or a tint: no glow (CLAUDE.md).
  */
-const EDGE = '#1B1C21';
+export const LOC_EDGE = '#1B1C21';
 const FADE_MS = 160;
 
 export function LocRim() {
@@ -139,7 +139,7 @@ export function LocRim() {
     // Sized outright: on web an SVG left to fill its box falls back to 300 x 150.
     <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
       <AnimatedPath animatedProps={fillProps} fill="#000000" />
-      <AnimatedPath animatedProps={edgeProps} fill="none" stroke={EDGE} strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
+      <AnimatedPath animatedProps={edgeProps} fill="none" stroke={LOC_EDGE} strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }

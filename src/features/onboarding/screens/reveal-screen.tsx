@@ -12,7 +12,7 @@ import { APP_FONT, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import { SKIPPED_REVEAL, type Answers } from '../content';
 import { daysOver, LEAD_WHERE, leadFor, weeklyAmount, type Estimate } from '../estimate';
-import { Body, page, useLeaving, Voice } from '../ui';
+import { AMOUNT_BLUE, Body, page, useLeaving, Voice } from '../ui';
 
 /**
  * The build-up, in ms from the page landing (user 2026-10-26: "build the anticipation"): the
@@ -496,8 +496,7 @@ const styles = StyleSheet.create({
   // The first beat in white, the rest in the body grey, like a sentence building up to the number.
   // Every line the same: one size and weight, white, so only the amount stands out.
   line: { fontSize: 20, lineHeight: 27, fontWeight: '600', color: Nocturne.text, textAlign: 'center', maxWidth: 330 },
-  // The moon's rim blue, lightened to read as text on black.
-  amount: { color: '#A3BDF5', fontVariant: ['tabular-nums'] },
+  amount: { color: AMOUNT_BLUE, fontVariant: ['tabular-nums'] },
   caption: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', marginTop: Space.m },
   grid: { alignSelf: 'stretch', alignItems: 'center' },
   clip: { position: 'absolute', left: 0, overflow: 'hidden' },

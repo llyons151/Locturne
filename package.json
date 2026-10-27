@@ -72,6 +72,11 @@
     "test:native:tz": "for tz in UTC America/New_York Europe/London Pacific/Chatham America/Santiago; do echo \"TZ=$tz\"; out=$(TZ=$tz native-tests/run.sh) || { echo \"$out\"; exit 1; }; echo \"$out\" | tail -1; done"
   },
   "private": true,
+  "reanimated": {
+    "staticFeatureFlags": {
+      "IOS_SYNCHRONOUSLY_UPDATE_UI_PROPS": true
+    }
+  },
   "overrides": {
     "@xmldom/xmldom@<0.8.15": "0.8.15",
     "uuid@<11.1.1": "11.1.1",

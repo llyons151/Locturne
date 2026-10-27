@@ -934,7 +934,8 @@ export function OnboardingFlow({
           progress={progress}
           centered
           // Unclipped while a page runs its own way out: Loc and the reveal's squares leave past the body's edge.
-          clip={!buildPage?.leaving && !pages.some((page) => page.leaving && isReveal(page.key))}
+          // And on the paywall, whose heading sits up in the top bar's empty middle (user 2026-10-27).
+          clip={step !== 'plans' && !buildPage?.leaving && !pages.some((page) => page.leaving && isReveal(page.key))}
           onBack={back}
           onExit={canLeave ? leave : undefined}
           footer={

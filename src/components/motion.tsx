@@ -161,8 +161,11 @@ export function WordsIn({
   maxFontSizeMultiplier,
   header,
   motion: motionOverride,
+  accent,
 }: {
   text: string;
+  /** A part of the line in another color (the paywall's number, in the reveal's blue). */
+  accent?: { text: string; color: string };
   style: StyleProp<TextStyle>;
   delay?: number;
   maxFontSizeMultiplier?: number;
@@ -186,7 +189,15 @@ export function WordsIn({
         maxFontSizeMultiplier={maxFontSizeMultiplier}
         accessibilityRole={header ? 'header' : undefined}
       >
-        {text}
+        {accent && text.includes(accent.text) ? (
+          <>
+            {text.slice(0, text.indexOf(accent.text))}
+            <Text style={{ color: accent.color }}>{accent.text}</Text>
+            {text.slice(text.indexOf(accent.text) + accent.text.length)}
+          </>
+        ) : (
+          text
+        )}
       </Text>
     </Animated.View>
   );

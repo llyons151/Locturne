@@ -3,19 +3,21 @@
 // would cache those reads, #130): kept out with it, so nothing here is cached across them.
 
 import { SymbolView } from 'expo-symbols';
-import { Linking, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/text';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';
 import { LEGAL_URLS } from '@/lib/links';
 import { annualSavingsPercent, isStubbed, perMonth, reminderDay, type Offer } from '@/lib/purchases';
-import { Gap, Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
+import { Nocturne, Radius, Space, Type, VoiceSize } from '@/theme';
 
-import { methodCopy, NEW_YEAR, plansHeadline } from '../content';
-import { dateFromToday, formatWhen, leadFor, weeklyAmount } from '../estimate';
-import { scheduleCopy } from '../schedule-copy';
+import { methodCopy, plansHeadline } from '../content';
+import { dateFromToday, formatWhen, leadFor, weeklyAmount, weeklyParts } from '../estimate';
 import { NightCompare } from './night-compare';
+import { PaywallLoc } from './paywall-loc';
 import type { StepContext, StepView } from '../steps';
 import { Body, page, Voice } from '../ui';
 
@@ -24,20 +26,6 @@ import { Body, page, Voice } from '../ui';
  * Each returns a StepView like the cases in steps.tsx. Every price and trial string comes
  * from the store's offers (`getOffers` in src/lib/purchases.ts), never a constant.
  */
-
-/**
- * His line under the headline: what they built is ready, and when it starts. Paying switches on
- * their own setup rather than buying something new (endowment, docs/PAYWALL_PRIMING.md).
- * `note` is scheduleCopy's "Tonight at 11:30 PM", null once the night has started; no night at
- * all promises nothing.
- */
-function plansVoice(hasNight: boolean, note: string | null): string {
-  if (!hasNight) return 'Your setup’s ready. Right. The boring bit.';
-  const starts = note ? note.replace(/^(Today|Tonight|Tomorrow)/, (day) => day.toLowerCase()) : 'now';
-  return `Your setup’s ready. It starts ${starts}.`;
-}
-
-const RENEWAL = 'Auto-renews unless cancelled at least 24 hours before renewal.';
 
 /** While the App Store's prices load, or if they can't: never a made-up price. */
 export function storeStep({ offersFailed, retryOffers }: StepContext): StepView {
@@ -69,9 +57,8 @@ export function storeStep({ offersFailed, retryOffers }: StepContext): StepView 
  * No struck-through "was" prices: there was never a higher price to strike.
  */
 export function plansStep(ctx: StepContext): StepView {
-  const { answers, numbers, set, buy, busy, restorePurchases, compact, offers } = ctx;
+  const { answers, numbers, set, buy, busy, compact, offers } = ctx;
   if (!offers) return storeStep(ctx);
-  const schedule = scheduleCopy(ctx.scheduledNight, new Date());
   const compare = numbers.lightUser ? null : (
     <NightCompare
       bedtime={answers.bedtime}
@@ -95,57 +82,38 @@ export function plansStep(ctx: StepContext): StepView {
   const monthly = offers.monthly.priceString;
   const plan = answers.plan;
   const trialPlan = plan === 'annual' && trialDays !== null;
+  // The billed price is the line right under the button (Calm, Cal AI), not on it.
+  const cta = trialPlan ? 'Try free and subscribe' : 'Subscribe';
   const remindBefore = trialDays !== null ? trialDays - reminderDay(trialDays) : 2;
-  // The billed price stays on the button that buys (Apple 3.1.2), as the exit offer's does.
-  const cta = {
-    annual: trialDays
-      ? { title: `Start ${trialDays}-day free trial`, sub: `Then ${annual}/year · cancel anytime` }
-      : { title: `Subscribe for ${annual}/year`, sub: 'Cancel anytime in Settings' },
-    monthly: { title: `Subscribe for ${monthly}/month`, sub: 'Billed today · cancel anytime' },
-  }[plan];
-  const summary = {
-    annual: trialDays
-      ? `Free until ${dateFromToday(trialDays)}, then ${annual}/year.`
-      : `${annual}/year. Cancel anytime.`,
-    monthly: `${monthly} today, then monthly. Cancel anytime.`,
-  }[plan];
   const terms = {
-    annual: `${trialDays ? `${trialDays} days free, then ${annual}/year from ${dateFromToday(trialDays)}` : `${annual}/year`}. ${RENEWAL}`,
-    monthly: `${monthly}/month. ${RENEWAL}`,
+    annual: trialDays ? `${trialDays} days free, then ${annual}/year from ${dateFromToday(trialDays)}.` : `${annual}/year, billed today.`,
+    monthly: `${monthly}/month, billed today.`,
   }[plan];
+  // The trial's fear is the charge: say the reminder out loud (Calm, Jomo). "Remind me" is on by default.
+  const reassure = trialPlan && answers.remindTrial ? `We’ll remind you ${remindBefore} days before. Cancel anytime.` : 'Cancel anytime.';
   return {
     body: (
-      <View style={[styles.paywall, compact && styles.paywallCompact]}>
+      <FitPage style={styles.paywall}>
+        {(tight) => (
+          <>
         {/* The payoff where they decide: their own hours, spent on what they picked on
-            `time-back` (docs/ONBOARDING_MOBBIN.md). Never "Try free": Apple 3.1.2 rejects
-            trial wording that's bigger than the billed price. A light user has no hours to sell. */}
+            `time-back` (docs/ONBOARDING_MOBBIN.md). No trial wording up here: Apple 3.1.2 wants
+            the billed price at least as clear as "free", so "free" stays on the button with the
+            price right under it. A light user has no hours to sell. */}
         <Voice
           text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(lead.minutes), answers.timeBack)}
+          // Their number in the reveal's blue, so it reads as the same number they saw there.
+          accent={numbers.lightUser ? undefined : String(weeklyParts(lead.minutes).count)}
           size={compact ? 26 : 30}
           header
           center
         />
-        {compact ? null : (
-          <View style={styles.paywallVoice}>
-            <Voice
-              // New Year week: no sale, and he says so (D8). The trial is on the cards and the button.
-              text={
-                ctx.newYear
-                  ? NEW_YEAR.plans
-                  : numbers.lightUser
-                    ? 'Fine. I’ll get up for this.'
-                    : plansVoice(ctx.scheduledNight !== null, schedule.note)
-              }
-              size={VoiceSize.aside}
-              delay={500}
-              center
-            />
-          </View>
-        )}
-        {/* Their usual night next to the night with him: what the price buys, in their times. */}
+        {/* Their usual night next to the night with him: what the price buys, in their times.
+            One heading only (Cal AI, user 2026-10-27): the plans and the button do the rest. */}
         {compare ? <View style={[styles.compare, compact && styles.compareCompact]}>{compare}</View> : null}
-        {/* Short phones have room for one of the two: the comparison says more. */}
-        {compact && compare ? null : (
+        {/* Short phones have room for one of the two: the comparison says more. So does a
+            long headline that wraps (`FitPage`): the plans are never the ones clipped. */}
+        {(compact || tight) && compare ? null : (
           <View style={[styles.checks, compact && styles.checksCompact]}>
             {/* Never an app's name: Apple's picker only hands back opaque tokens. Bedtime is in
                 his line above, so the list starts at the morning, then the way out. */}
@@ -156,57 +124,42 @@ export function plansStep(ctx: StepContext): StepView {
             <Check text={answers.pain === 'overall' ? 'Daytime schedules and limits too' : 'Only the apps you pick'} />
           </View>
         )}
-        <View accessibilityRole="radiogroup" style={styles.planCards}>
+        {/* The plans sit on the button, as Cal AI's do: the chosen one full, the other one slim. */}
+        <View style={styles.fill} />
+        {/* Drawn before the cards, so the Annual card's top edge covers his base like a ledge. */}
+        {compact ? null : <PaywallLoc plan={plan} />}
+        <View accessibilityRole="radiogroup" style={[styles.planCards, !compact && styles.planCardsUnderLoc]}>
           <PlanCard
             selected={plan === 'annual'}
             onPress={() => set('plan', 'annual')}
-            title="Annual"
-            // The billed amount is the big number (App Review 3.1.2); the monthly equivalent is the detail.
+            name="Annual"
+            // The billed amount is the big number (App Review 3.1.2); the monthly equivalent sits at the side.
             price={`${annual}/year`}
-            detail={`${perMonth(offers.annual)}/month${trialDays ? ` · ${trialDays} days free` : ''}`}
-            badge={`Save ${annualSavingsPercent(offers)}%`}
-            compact={compact}
+            detail={`Save ${annualSavingsPercent(offers)}%`}
+            side={`${perMonth(offers.annual)}/mo`}
+            band={trialDays ? `${trialDays} days free` : undefined}
           />
           <PlanCard
             selected={plan === 'monthly'}
             onPress={() => set('plan', 'monthly')}
-            title="Monthly"
+            name="Monthly"
             price={`${monthly}/month`}
             detail={offers.monthly.trialDays ? `${offers.monthly.trialDays} days free` : 'No free trial'}
-            compact={compact}
           />
         </View>
-        {/* One plain sentence about what happens next, at reading size rather than in the fine print. */}
-        <Text style={styles.planSummary}>{summary}</Text>
-        {/* Only the trial has an end to be reminded about. Keeps its height so the page doesn't jump. */}
-        <View style={[styles.remindRow, !trialPlan && styles.hiddenBlock, { pointerEvents: trialPlan ? 'auto' : 'none' }]}>
-          <Text style={styles.remindLabel}>{`Remind me ${remindBefore} days before it ends`}</Text>
-          <Switch
-            value={answers.remindTrial}
-            onValueChange={(on) => {
-              haptic.tap();
-              set('remindTrial', on);
-            }}
-            trackColor={{ false: Nocturne.track, true: Nocturne.cta }}
-            thumbColor={answers.remindTrial ? Nocturne.onCta : Nocturne.text}
-            ios_backgroundColor={Nocturne.track}
-            // react-native-web colors the "on" thumb teal unless told otherwise.
-            {...(Platform.OS === 'web' ? ({ activeThumbColor: Nocturne.onCta } as object) : {})}
-            accessibilityLabel={`Remind me ${remindBefore} days before the trial ends`}
-          />
-        </View>
-      </View>
+          </>
+        )}
+      </FitPage>
     ),
-    // The terms sit right above the button that buys, so the button keeps the same spot as every other screen.
+    // Calm's pairing (user 2026-10-27): the button says try free, the price sits right under it.
     footer: (
-      <>
-        <Text style={styles.paywallFine}>
-          {terms} {isStubbed() ? 'Preview: nothing is charged. ' : ''}
-          <FineLink label="Restore" onPress={restorePurchases} /> · <FineLink label="Terms" url={LEGAL_URLS.terms} /> ·{' '}
-          <FineLink label="Privacy" url={LEGAL_URLS.privacy} />
-        </Text>
-        <TwoLineCta title={cta.title} sub={cta.sub} busy={busy} onPress={() => buy(plan)} />
-      </>
+      <UnderCta>
+        <PrimaryButton label={cta} disabled={busy} onPress={() => buy(plan)} />
+        <View style={styles.underCta}>
+          <Text style={styles.underCtaText}>{terms}</Text>
+          <Text style={styles.underCtaText}>{reassure}</Text>
+        </View>
+      </UnderCta>
     ),
   };
 }
@@ -269,6 +222,21 @@ export function declinedStep(ctx: StepContext): StepView {
   };
 }
 
+/** The footer's bottom space under the button: the shell's own padding plus the footer's (ui.tsx). */
+const UNDER_ROOM = Space.xl;
+/** The two small lines under the button (no links: user 2026-10-27), with their gap above. */
+const UNDER_HEIGHT = Space.s + 2 * 15;
+
+/**
+ * The button where every page has it, with the price lines hung below it in the bottom space.
+ * A phone without a home bar has less of that space, so there the button lifts just enough.
+ */
+function UnderCta({ children }: { children: ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const room = UNDER_ROOM + Math.max(insets.bottom, Space.l);
+  return <View style={{ marginBottom: Math.max(0, UNDER_HEIGHT - room) }}>{children}</View>;
+}
+
 /** An underlined link in the fine print: a web page, or an action like Restore. */
 function FineLink({ label, url, onPress }: { label: string; url?: string; onPress?: () => void }) {
   return (
@@ -282,6 +250,36 @@ function FineLink({ label, url, onPress }: { label: string; url?: string; onPres
     >
       {label}
     </Text>
+  );
+}
+
+/**
+ * The page at its natural height, told whether it's taller than the space it has: the copy
+ * changes with the answers (a goal that wraps the headline), so a fixed layout can't promise
+ * a fit (user's phone, 2026-10-27). Once tight it stays tight, so dropping a block can't flip it back.
+ */
+function FitPage({ style, children }: { style: object; children: (tight: boolean) => ReactNode }) {
+  // Either layout can land first, so both are kept and either one checks.
+  const size = useRef({ room: 0, page: 0 });
+  const [tight, setTight] = useState(false);
+  // At least the room's height, so a spacer inside can push the plans down onto the button.
+  const [room, setRoom] = useState(0);
+  const measure = (next: Partial<typeof size.current>) => {
+    const both = (size.current = { ...size.current, ...next });
+    if (both.room > 0 && both.page > both.room + 1) setTight(true);
+  };
+  return (
+    <View
+      style={styles.room}
+      onLayout={(e) => {
+        setRoom(e.nativeEvent.layout.height);
+        measure({ room: e.nativeEvent.layout.height });
+      }}
+    >
+      <View style={[style, styles.natural, { minHeight: room }]} onLayout={(e) => measure({ page: e.nativeEvent.layout.height })}>
+        {children(tight)}
+      </View>
+    </View>
   );
 }
 
@@ -318,23 +316,26 @@ function TwoLineCta({ title, sub, busy, onPress }: { title: string; sub: string;
   );
 }
 
-/** One plan on the paywall: radio, name and badge on top, billed price, then the detail line. */
+/**
+ * One plan on the paywall, after Cal AI's: the chosen plan is a full card (a band on top when it
+ * has a trial), the other a slim, dimmed row. Billed price biggest (3.1.2), per-month at the side.
+ */
 function PlanCard({
   selected,
   onPress,
-  title,
+  name,
   price,
   detail,
-  badge,
-  compact,
+  side,
+  band,
 }: {
   selected: boolean;
   onPress: () => void;
-  title: string;
+  name: string;
   price: string;
   detail: string;
-  badge?: string;
-  compact?: boolean;
+  side?: string;
+  band?: string;
 }) {
   return (
     <Pressable
@@ -344,23 +345,35 @@ function PlanCard({
       }}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${title}, ${price}. ${detail}${badge ? `. ${badge.replace('%', ' percent')}` : ''}`}
-      style={[styles.planOption, compact && styles.planOptionCompact, selected && styles.planOptionSelected]}
+      accessibilityLabel={`${name}, ${price}. ${detail}${band ? `. ${band}` : ''}`}
+      style={[styles.planOption, selected && styles.planOptionSelected]}
     >
-      <View style={[styles.radio, selected && styles.radioOn]}>
-        {selected ? <View style={styles.radioDot} /> : null}
-      </View>
-      <View style={styles.fill}>
-        <View style={styles.planOptionTop}>
-          <Text style={styles.planOptionTitle}>{title}</Text>
-          {badge ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{badge}</Text>
-            </View>
+      {band ? (
+        <View style={[styles.band, selected && styles.bandSelected]}>
+          <Text style={[styles.bandText, selected && styles.bandTextSelected]}>{band}</Text>
+        </View>
+      ) : null}
+      <View style={[styles.planRow, !selected && styles.planRowDim]}>
+        <View style={[styles.radio, selected && styles.radioOn]}>
+          {selected ? (
+            <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={12} weight="bold" tintColor={Nocturne.onCta} />
           ) : null}
         </View>
-        <Text style={styles.planOptionPrice}>{price}</Text>
-        <Text style={styles.planOptionDetail}>{detail}</Text>
+        {/* Not chosen: one slim line, its name and its billed price (Cal AI's Monthly row). */}
+        {selected ? (
+          <>
+            <View style={styles.fill}>
+              <Text style={styles.planOptionPrice}>{price}</Text>
+              <Text style={styles.planOptionDetail}>{`${name} · ${detail}`}</Text>
+            </View>
+            {side ? <Text style={styles.planSide}>{side}</Text> : null}
+          </>
+        ) : (
+          <>
+            <Text style={[styles.planName, styles.fill]}>{name}</Text>
+            <Text style={styles.planSide}>{price}</Text>
+          </>
+        )}
       </View>
     </Pressable>
   );
@@ -371,33 +384,40 @@ const styles = StyleSheet.create({
   hiddenBlock: { opacity: 0 },
 
   // The paywall: centred like the quiz, but anchored at the top like every other page.
-  paywall: { flex: 1, paddingTop: Gap.pageTop },
-  // Short phones have no spare height: start right under the top bar so the title never clips.
-  paywallCompact: { paddingTop: 0 },
+  // Heading right under the top bar, as Calm's sits under its X, then a little higher (user 2026-10-27).
+  paywall: { flex: 1, marginTop: -Space.m },
+  // Inside `FitPage`: its own height, so it can be measured against the room.
+  natural: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+  // The height the page has, never its content's (web lets a flex child grow past it).
+  room: { flex: 1, minHeight: 0 },
   paywallTitle: { color: Nocturne.text, ...Type.heading, textAlign: 'center' },
   paywallTitleCompact: Type.headingCompact,
-  paywallVoice: { marginTop: Space.s },
-  compare: { marginTop: Space.l },
+  // Room to breathe: the plans sit on the button now, so the top half has height to spare.
+  compare: { marginTop: Space.xl },
   compareCompact: { marginTop: Space.m },
-  checks: { gap: Space.s, marginTop: Space.l, alignSelf: 'center' },
+  checks: { gap: Space.m, marginTop: Space.l, alignSelf: 'center' },
   checksCompact: { marginTop: Space.s, gap: Space.xs },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
   checkText: { color: Nocturne.text, ...Type.body, flexShrink: 1 },
-  planCards: { gap: Space.m, marginTop: Space.l, marginBottom: Space.m },
+  planCards: { gap: Space.s, marginTop: Space.m },
+  // Loc's base is the card's top edge: no gap between them.
+  planCardsUnderLoc: { marginTop: 0 },
   planOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.m,
     borderRadius: Radius.card,
-    paddingHorizontal: Space.l,
-    paddingVertical: Space.m,
     backgroundColor: Nocturne.surface,
     // Always 2 wide, so selecting a plan never nudges the layout.
     borderWidth: 2,
     borderColor: Nocturne.edge,
+    overflow: 'hidden',
   },
-  planOptionCompact: { paddingVertical: Space.s },
   planOptionSelected: { borderColor: Nocturne.text, backgroundColor: Nocturne.raised },
+  band: { backgroundColor: Nocturne.edge, paddingVertical: 4, alignItems: 'center' },
+  bandSelected: { backgroundColor: Nocturne.text },
+  bandText: { color: Nocturne.text, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  bandTextSelected: { color: Nocturne.onCta },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: Space.m, paddingHorizontal: Space.l, paddingVertical: Space.m },
+  // Quieter than the chosen plan, never hidden: too dim reads as burying the cheaper option.
+  planRowDim: { opacity: 0.75 },
   radio: {
     width: 22,
     height: 22,
@@ -408,19 +428,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioOn: { borderColor: Nocturne.text, backgroundColor: Nocturne.text },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Nocturne.onCta },
-  planOptionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Space.s },
-  planOptionTitle: { color: Nocturne.text, fontSize: 17, fontWeight: '700' },
-  // Apple 3.1.2: the billed price is the largest; the per-month line sits under it, smaller.
-  planOptionPrice: { color: Nocturne.text, fontSize: 19, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] },
-  planOptionDetail: { color: Nocturne.text, opacity: 0.75, fontSize: 14, marginTop: 1, fontVariant: ['tabular-nums'] },
-  badge: { backgroundColor: Nocturne.cta, borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },
-  badgeText: { color: Nocturne.onCta, fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  // One plain sentence about what happens next, white because it's the line to read first.
-  planSummary: { color: Nocturne.text, ...Type.secondary, textAlign: 'center', marginBottom: Space.xs },
-  // Centred as one group, like the checklist above it.
-  remindRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.m, minHeight: 44 },
-  remindLabel: { color: Nocturne.text, ...Type.secondary, flexShrink: 1 },
+  // Apple 3.1.2: the billed price is the largest; the per-month price at the side is smaller.
+  planOptionPrice: { color: Nocturne.text, fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  planOptionDetail: { color: Nocturne.text, opacity: 0.75, fontSize: 14, marginTop: 1 },
+  planName: { color: Nocturne.text, fontSize: 17, fontWeight: '600' },
+  planSide: { color: Nocturne.text2, fontSize: 14, fontVariant: ['tabular-nums'] },
   twoLineCta: {
     minHeight: 60,
     borderRadius: Radius.pill,
@@ -435,5 +447,8 @@ const styles = StyleSheet.create({
   twoLineSub: { color: Nocturne.onCta, opacity: 0.7, fontSize: 13, fontWeight: '500', marginTop: 1 },
   offerPrice: { color: Nocturne.text, ...Type.title, fontVariant: ['tabular-nums'], marginBottom: Space.xs },
   paywallFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center' },
+  // Out of the flow, so the button sits where every other page's does (user 2026-10-27).
+  underCta: { position: 'absolute', top: '100%', left: 0, right: 0, marginTop: Space.s },
+  underCtaText: { color: Nocturne.text, opacity: 0.85, fontSize: 12, lineHeight: 15, fontWeight: '600', textAlign: 'center' },
   link: { color: Nocturne.text, textDecorationLine: 'underline' },
 });

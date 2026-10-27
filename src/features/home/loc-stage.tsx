@@ -33,6 +33,13 @@ export default function LocStage({
   rim,
   knock,
   burrowOnTap = false,
+  pokeOnly = false,
+  rise = false,
+  look,
+  roam = 0,
+  pick,
+  sharp = false,
+  edge,
 }: {
   mood: LocMood;
   share: number;
@@ -59,6 +66,23 @@ export default function LocStage({
   knock?: NavKnockTune;
   /** Every tap sends him under, not just a second one (onboarding's `build`). */
   burrowOnTap?: boolean;
+  /** Taps only ever poke him, a shake and a wobble: nowhere to burrow (the paywall's Loc). */
+  pokeOnly?: boolean;
+  /** Arrives straight up from the ledge, with no covers to run in along (the paywall's card). */
+  rise?: boolean;
+  /** Where his eyes rest, `[x, y]` in the rig's gaze units (+y down); his glances play around it. */
+  look?: [number, number];
+  /** How much of the ledge he dashes about on by himself, 0..1 (the paywall's wide canvas). */
+  roam?: number;
+  /** The paywall's plan as he sees it: a change sets off his reaction (`LocRig.guard`). */
+  pick?: 'good' | 'bad';
+  /** Drawn at the phone's full 3x, not 2x: the paywall's, next to sharp text (looked soft at 2x). */
+  sharp?: boolean;
+  /**
+   * A thin edge round him in this colour, for black sky where his black would vanish: the same
+   * near-black edge the ultra zoomies' lump has (components/loc-rim). A hard 1px line, no blur.
+   */
+  edge?: string;
   dom?: import('expo/dom').DOMProps;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -70,6 +94,11 @@ export default function LocStage({
   const wakeRef = useRef<() => void>(() => {});
   // Read once, when the rig is made.
   const inkRef = useRef(ink);
+  const riseRef = useRef(rise);
+  const lookRef = useRef(look);
+  const roamRef = useRef(roam);
+  const pickRef = useRef(pick);
+  const sharpRef = useRef(sharp);
   const waryRef = useRef(wary);
   const lastTap = useRef(0);
   const onCueRef = useRef(onCue);
@@ -85,6 +114,9 @@ export default function LocStage({
     rig.setShare(shareRef.current);
     rig.setWary(waryRef.current);
     rig.setRim(rimRef.current);
+    rig.rises = riseRef.current;
+    if (lookRef.current) rig.look = lookRef.current;
+    rig.roam = roamRef.current;
     rig.onCue = (cue) => onCueRef.current?.(cue);
     rig.onBurrow = (path) => onBurrowRef.current?.(path);
     rigRef.current = rig;
@@ -111,7 +143,8 @@ export default function LocStage({
     };
     wakeRef.current = wake;
     const size = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      // Capped at 2x to keep him cheap; `sharp` takes the phone's full 3x.
+      const dpr = Math.min(sharpRef.current ? 3 : 2, window.devicePixelRatio || 1);
       const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; wake(); }
     };
@@ -204,6 +237,14 @@ export default function LocStage({
   }, [wary]);
 
   useEffect(() => {
+    // Only a change: he arrives on whatever was picked first.
+    if (!pick || pick === pickRef.current) return;
+    pickRef.current = pick;
+    rigRef.current?.guard(pick);
+    wakeRef.current();
+  }, [pick]);
+
+  useEffect(() => {
     moodRef.current = mood;
     rigRef.current?.setMood(mood);
     wakeRef.current();
@@ -217,7 +258,15 @@ export default function LocStage({
       ) : null}
       <canvas
         ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', touchAction: 'manipulation' }}
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          touchAction: 'manipulation',
+          filter: edge
+            ? `drop-shadow(1px 0 0 ${edge}) drop-shadow(-1px 0 0 ${edge}) drop-shadow(0 1px 0 ${edge}) drop-shadow(0 -1px 0 ${edge})`
+            : undefined,
+        }}
         onPointerDown={(e) => {
           const canvas = canvasRef.current, rig = rigRef.current;
           if (!canvas || !rig) return;
@@ -225,7 +274,7 @@ export default function LocStage({
           const scale = canvas.width / r.width;
           if (!rig.hits((e.clientX - r.left) * scale, (e.clientY - r.top) * scale)) return;
           const now = performance.now();
-          const burrow = burrowOnTap || now - lastTap.current < SECOND_HIT_MS;
+          const burrow = !pokeOnly && (burrowOnTap || now - lastTap.current < SECOND_HIT_MS);
           onTapRef.current?.(burrow ? 'burrow' : 'poke');
           if (burrow) { lastTap.current = 0; rig.burrow(); }
           else { lastTap.current = now; rig.poke(); }

@@ -39,6 +39,8 @@ export type Bit = {
    * 60: the keys jump from pose to pose. Springs and physics still run smooth under them.
    */
   steps?: number;
+  /** His paws travel with `slide` (a dash along the ledge), instead of staying where they grip. */
+  carry?: boolean;
   /**
    * A lump in the blanket while he's under it: height (0..1) and offset along the edge (share of
    * width). 'S' is where the lump was when the bit started.
@@ -229,6 +231,72 @@ const POKE_CALM = calm(POKE, 'poke');
 const BURROW_CALM = calm(POKE, 'angry');
 const ARRIVE_CALM: Bit = { ms: FADE_MS + 100, tracks: {}, events: [[FADE_MS, (r) => r.say('hello')]] };
 const LEAVE_CALM: Bit = { ms: FADE_MS, tracks: {}, events: [[0, (r) => r.say('hide')]] };
+// ---- Guarding the plans (the paywall's card, user 2026-10-27) ----
+// He lives on the Annual card's top edge there: quick dashes along it, eyes back on the price, and
+// a face when the plan changes. Dashes, not the shuffle (the studio's x:scoot was rated bad); faces
+// only from the ones rated good (docs/loc-studio-notes.json).
+
+/**
+ * A scurry along the ledge by `d` rig units. Paced by the distance (a jump cut read as unnatural,
+ * user 2026-10-27): it eases out of the stop and into the next, with small bobbing steps on the
+ * way, a lean into the run that eases off as he slows, and his eyes leading where he's going.
+ */
+function dash(d: number): Bit {
+  const s = Math.sign(d) || 1;
+  const ms = Math.round(600 + Math.min(1, Math.abs(d) / 700) * 500);
+  const steps = Math.max(2, Math.round(ms / 180));
+  const y: Key[] = [[0, 'S']];
+  for (let i = 1; i <= steps; i++) {
+    const t = (ms * 0.85 * i) / steps;
+    y.push([t - (ms * 0.85) / steps / 2, -5, 'io'], [t, 0, 'io']);
+  }
+  y.push([ms, 'T', 'io']);
+  return { ms, carry: true, tracks: {
+    slide: [[0, 0], [ms, d, 'io']],
+    y,
+    tilt: [[0, 'S'], [ms * 0.3, s * 5, 'io'], [ms * 0.75, s * 2, 'io'], [ms, 'T', 'io']],
+    gx: [[0, 0], [ms * 0.15, s * 16, 'out'], [ms * 0.7, s * 16], [ms, 0, 'io']],
+    gy: [[0, 0], [ms, 0]],
+  }, events: [[ms, (r) => r.landDash(d)]] };
+}
+
+type Face = Partial<Record<Channel, number>>;
+const HORRIFIED: Face = { open: 1.35, openR: 1.35, slope: -6, swell: 0.4, pupilJit: 0.55, earL: -40, earR: 40, y: -18, lean: 0.12 };
+const SIDE_EYE: Face = { gx: 21, gy: 1, open: 0.46, openR: 0.4, slope: 7, squint: 0.3, swell: 0.75, tilt: 5, earL: -6, earR: 10 };
+const PLOTTING: Face = { open: 0.62, openR: 0.62, slope: 13, smile: 0.4, squint: 0.12, swell: 0.6, tilt: -7, earL: 8, earR: -8, y: -4, lean: 0.05 };
+
+/** Faces one after another, each snapped into and held, then back to his mood (the studio's faceBit). */
+function faces(seq: [Face, number][], pop = 0.25): Bit {
+  const IN = 180, OUT = 450;
+  const keys = new Set(seq.flatMap(([f]) => Object.keys(f) as Channel[]));
+  const tracks: Bit['tracks'] = {};
+  let end = 0;
+  for (const k of keys) {
+    const gaze = k === 'gx' || k === 'gy';
+    const rest: Key[1] = gaze ? 0 : 'T';
+    const track: Key[] = [[0, gaze ? 0 : 'S']];
+    let t = 0;
+    for (const [f, hold] of seq) {
+      const v = f[k] ?? rest;
+      track.push([t + IN, v, 'back'], [t + IN + hold, v]);
+      t += IN + hold;
+    }
+    end = t + OUT;
+    track.push([end, rest, 'io']);
+    tracks[k] = track;
+  }
+  return { ms: end, tracks, events: [[IN, (r) => r.pop(pop)]] };
+}
+
+/**
+ * Arriving where there are no covers to run along (`rises`, the paywall's card): he pops
+ * straight up from behind the ledge with a little overshoot, paws landing last.
+ */
+const POP_UP: Bit = { ms: 700, tracks: {
+  sink: [[0, 'S'], [380, -30, 'out'], [520, 6, 'io'], [650, 0, 'io'], [700, 0]],
+  paw: [[0, 'S'], [300, 'S'], [420, -8, 'out'], [560, 0, 'io'], [700, 0]],
+}, events: [[450, (r) => r.say('hello')]] };
+
 
 /** How far down he goes to be out of sight: his body, and his paws (which only need to clear the edge). */
 const HIDDEN = { sink: 720, paw: 80 };
@@ -984,6 +1052,17 @@ export class LocRig {
   private blinkAt = -1;
   private nextBlink = 1.5;
   private glance: Vec = [0, 0];
+  /** Where his gaze rests, added under every glance: the paywall's Loc keeps his eyes on the price. */
+  look: Vec = [0, 0];
+  /** Arrives with `POP_UP` (straight up from the ledge) instead of running in under the covers. */
+  rises = false;
+  /** How much of the ledge he dashes about on by himself, 0 (stays put) to 1 (end to end). */
+  roam = 0;
+  /** Where along the ledge he's settled, rig units: each dash moves it (`landDash`). */
+  private spot = 0;
+  private nextRoam = 2.5;
+  /** Played as soon as the current move ends: `guard`'s face, after its dash. */
+  private next: Bit | null = null;
   private nextGlance = 2;
   private nextHabit = 4;
   private flicks = { L: 0, R: 0 };
@@ -1192,7 +1271,7 @@ export class LocRig {
       this.play(present ? ARRIVE_CALM : LEAVE_CALM);
       return;
     }
-    this.play(present ? (this.mood === 'asleep' ? ARRIVE_ASLEEP : ARRIVE) : LEAVE);
+    this.play(present ? (this.rises ? POP_UP : this.mood === 'asleep' ? ARRIVE_ASLEEP : ARRIVE) : LEAVE);
   }
   /**
    * Out of sight with nothing playing: every frame would draw the same empty canvas, so the
@@ -1248,7 +1327,10 @@ export class LocRig {
         if (v !== null) driven[key] = v;
       }
       (b.def.events ?? []).forEach(([ms, fn], i) => { if (!b.fired.has(i) && b.t >= ms) { b.fired.add(i); fn(this); } });
-      if (b.t >= b.def.ms) { this.bit = null; this.squeezing = false; }
+      if (b.t >= b.def.ms) {
+        this.bit = null; this.squeezing = false;
+        if (this.next && !this.hidden) { this.play(this.next); this.next = null; }
+      }
     }
     for (const k of KEYS) {
       const d = driven[k];
@@ -1262,12 +1344,25 @@ export class LocRig {
       }
     }
     this.flicks.L *= Math.pow(0.004, dt); this.flicks.R *= Math.pow(0.004, dt);
+    if (this.landing) { this.spot += this.landing; this.cur.slide -= this.landing; this.landing = 0; }
 
     const mood = MOODS[this.mood];
     if (!this.bit && !this.reduced && !this.hidden && !this.quiet) {
       if (mood.blinks) {
         this.nextBlink -= dt;
         if (this.nextBlink <= 0) { this.blinkAt = this.clock; this.nextBlink = mood.blinks === 'slow' ? 3 + Math.random() * 3 : Math.random() < 0.2 ? 0.3 : 2 + Math.random() * 3; }
+      }
+      if (this.roam > 0) {
+        this.nextRoam -= dt;
+        if (this.nextRoam <= 0) {
+          // Somewhere new along the ledge, never a little nudge.
+          const r = this.reach * this.roam;
+          let x = (Math.random() * 2 - 1) * r;
+          if (Math.abs(x - this.spot) < r * 0.4) x = this.spot > 0 ? -x * 0.5 - r * 0.4 : r * 0.4 + Math.abs(x) * 0.5;
+          const go = this.dashTo(Math.max(-r, Math.min(r, x)));
+          if (go) this.play(go);
+          this.nextRoam = 4 + Math.random() * 5;
+        }
       }
       this.nextGlance -= dt;
       if (this.nextGlance <= 0) {
@@ -1310,7 +1405,7 @@ export class LocRig {
     // A moving hold: a slow weight shift, so he's never perfectly still.
     const sway = this.reduced ? 0 : (Math.sin(t * 0.9 + this.swaySeed) * 0.7 + Math.sin(t * 0.37 + this.swaySeed * 2) * 0.5) * (this.mood === 'asleep' ? 0.3 : 1);
     const hasGaze = !!this.bit && 'gx' in this.bit.def.tracks;
-    const gx = hasGaze ? c.gx : this.glance[0], gy = hasGaze ? c.gy : this.glance[1];
+    const gx = (hasGaze ? c.gx : this.glance[0]) + this.look[0], gy = (hasGaze ? c.gy : this.glance[1]) + this.look[1];
     // The pupils dart on an underdamped spring, so every glance overshoots and settles.
     const gk = LOC_TUNE.snapGaze ? 5200 : 900, gz = this.reduced ? 1 : LOC_TUNE.snapGaze ? 0.8 : 0.42;
     // In steps of 1/240 s at most: the snap spring is too stiff to step a whole frame at once.
@@ -1332,9 +1427,9 @@ export class LocRig {
     const sy = posture * (1 + c.stretch) * (1 + breath * 0.013);
     const sx = (1 - (posture * (1 + c.stretch) - 1) * 0.45) * (1 + breath * 0.007);
     // The paws have their own drop, so they can let go after him and grab the edge last.
-    const root = tr(0, c.paw);
+    const root = tr(this.spot + (this.bit?.def.carry ? c.slide : 0), c.paw);
     const near = 1 + c.lean * 0.35;
-    const body = mul(tr(c.slide, c.sink), about(BONE.base, mul(rot(c.tilt * 0.38 + sway * 0.5), scale(sx * near, sy * near))));
+    const body = mul(tr(c.slide + this.spot, c.sink), about(BONE.base, mul(rot(c.tilt * 0.38 + sway * 0.5), scale(sx * near, sy * near))));
     // Head: the rest of the lean plus a turn toward the gaze, swinging on the neck.
     const neckW = apply(body, BONE.neck), massW = apply(body, BONE.headMass);
     const aHead = this.track.head.step(massW, dt);
@@ -1677,6 +1772,32 @@ export class LocRig {
     if (bit) this.play(bit);
   }
 
+  /** Half the ledge he can dash along, rig units: the canvas's spare width either side of him. */
+  private get reach() { return ((LOC_VIEW.width / this.share - LOC_VIEW.width) / 2) * 0.85; }
+  /**
+   * A dash is over: its distance becomes where he lives, so nothing springs back. Applied after
+   * the frame's channels are set (`animate`), or the bit's last slide would land on top of it.
+   */
+  landDash(d: number) { this.landing += d; }
+  private landing = 0;
+  private dashTo(x: number) {
+    const d = x - this.spot;
+    return Math.abs(d) > 8 ? dash(d) : null;
+  }
+  /**
+   * The plan changed (the paywall): `bad` (Monthly) and he dashes to the end, horrified, then
+   * side-eyes you; `good` (Annual) and he comes back to the middle, plotting. Eyes follow the pick.
+   */
+  guard(pick: 'good' | 'bad') {
+    if (this.hidden || this.reduced) return;
+    const bad = pick === 'bad';
+    this.look = bad ? [4, 14] : [0, 9];
+    const act = bad ? faces([[HORRIFIED, 650], [SIDE_EYE, 1500]], 0.8) : faces([[PLOTTING, 1300]]);
+    const go = this.dashTo(bad ? this.reach * this.roam : 0);
+    if (go) { this.play(go); this.next = act; } else this.play(act);
+    this.nextRoam = 6;
+  }
+
   /** Any bit, now: the studio's expressions. */
   playBit(bit: Bit) { this.play(bit); }
 
@@ -1708,7 +1829,7 @@ export class LocRig {
   /** Where a tap lands, in rig units, is on him (so the area around him stays free). */
   hits(px: number, py: number) {
     const v = this.view();
-    const x = (px - v[4]) / v[0], y = (py - v[5]) / v[0];
+    const x = (px - v[4]) / v[0] - this.spot - this.cur.slide, y = (py - v[5]) / v[0];
     return !this.hidden && !this.burrowing && x > 60 && x < 760 && y > 60 && y < LEDGE;
   }
 }

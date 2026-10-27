@@ -360,28 +360,33 @@ export function NightSky({
     };
   };
 
-  const moonStyle = useAnimatedStyle(() => {
-    const d = disc(progress.value, risen.value, homed.value);
-    const inset = (d.size * (FROST_PAD - 1)) / 2;
-    return {
-      left: d.left - inset,
-      top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
-      width: d.size * FROST_PAD,
-      height: d.size * FROST_PAD,
-    };
-  });
+  /*
+   * The moon and its glow are laid out once, at the biggest size they reach, and moved and sized
+   * with a transform only. Animating left/top/width/height re-ran layout and a full shadow tree
+   * commit every frame, and stalled whenever React rendered (onboarding's page swaps); a
+   * transform is set straight on the view. Only ever scaled down, so the images stay sharp.
+   */
+  const biggest = Math.max(from.size, to.size, up.size, high.size);
+  const frostBase = biggest * FROST_PAD;
+  const glowBase = biggest * GLOW_PAD;
+  /** Centres a `base`-sized layer on the disc, at `pad` times its size. */
+  const place = (d: { size: number; left: number; top: number }, pad: number, base: number, sink: number) => {
+    'worklet';
+    return [
+      { translateX: d.left + d.size / 2 - base / 2 },
+      { translateY: d.top + d.size / 2 + sink * d.size * SINK_DEPTH - base / 2 },
+      { scale: (d.size * pad) / base },
+    ];
+  };
 
-  const glowStyle = useAnimatedStyle(() => {
-    const d = disc(progress.value, risen.value, homed.value);
-    const inset = (d.size * (GLOW_PAD - 1)) / 2;
-    return {
-      left: d.left - inset,
-      top: d.top - inset + moonSink.value * d.size * SINK_DEPTH,
-      width: d.size * GLOW_PAD,
-      height: d.size * GLOW_PAD,
-      opacity: interpolate(progress.value, [0, 1], [OPENER_GLOW, 1]) * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
-    };
-  });
+  const moonStyle = useAnimatedStyle(() => ({
+    transform: place(disc(progress.value, risen.value, homed.value), FROST_PAD, frostBase, moonSink.value),
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    transform: place(disc(progress.value, risen.value, homed.value), GLOW_PAD, glowBase, moonSink.value),
+    opacity: interpolate(progress.value, [0, 1], [OPENER_GLOW, 1]) * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
+  }));
 
   const washStyle = useAnimatedStyle(() => ({
     opacity: interpolate(risen.value, [WASH_FROM, 1], [0, 1], Extrapolation.CLAMP),
@@ -403,7 +408,7 @@ export function NightSky({
       {/* A wrapper's opacity, since the glow's own is animated and would win. */}
       <View style={[StyleSheet.absoluteFill, moonless && styles.hidden]}>
         {MOON_REST === 'bottom' ? (
-          <Animated.View style={[styles.moon, glowStyle]}>
+          <Animated.View style={[styles.moon, { width: glowBase, height: glowBase }, glowStyle]}>
             <Image
               source={require('@/assets/onboarding/moon-glow.png')}
               style={StyleSheet.absoluteFill}
@@ -412,7 +417,7 @@ export function NightSky({
             />
           </Animated.View>
         ) : null}
-        <Animated.View style={[styles.moon, moonStyle]}>
+        <Animated.View style={[styles.moon, { width: frostBase, height: frostBase }, moonStyle]}>
           <Image
             source={require('@/assets/onboarding/moon-frosted.png')}
             style={StyleSheet.absoluteFill}
@@ -430,7 +435,7 @@ export function NightSky({
 
 const styles = StyleSheet.create({
   clip: { overflow: 'hidden' },
-  moon: { position: 'absolute' },
+  moon: { position: 'absolute', left: 0, top: 0 },
   hidden: { opacity: 0 },
   flipped: { transform: [{ scaleY: -1 }] },
 });
