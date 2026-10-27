@@ -10,8 +10,13 @@ import UIKit
  as the map zooms, all on the main thread with nothing crossing the bridge while the finger moves.
  Tapping a business on the map flies there and reports its name.
 
- Props: `radius` (metres, the circle) and `target` ({ latitude, longitude, span, key }: fly
- there when `key` changes). Events: `onMoveStart` (the person started dragging), `onSettle`
+ Made to feel like Apple Maps (user, 2026-10-27): its 3D buildings and terrain, two-finger tilt
+ and rotate, and Apple's own compass and 2D/3D buttons down the right edge. The circle is traced
+ point by point through the map's camera, so it tilts and turns with the streets.
+
+ Props: `radius` (metres, the circle), `target` ({ latitude, longitude, span, key }: fly
+ there when `key` changes) and `controlsTop` (where the compass and 2D/3D buttons start, under
+ the search bar). Events: `onMoveStart` (the person started dragging), `onSettle`
  ({ latitude, longitude, byUser }) and `onPoiPress` (a place, as `search` gives them).
  */
 final class PlaceMapView: ExpoView, MKMapViewDelegate {
@@ -21,6 +26,10 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
 
   private let map = MKMapView()
   private let ring = CAShapeLayer()
+  /// Apple's own map buttons, stacked down the right edge as in Maps.
+  private lazy var compass = MKCompassButton(mapView: map)
+  private var pitchControl: UIView?
+  private var controlsTop: CGFloat = 120
   /// The pin's head and stem, lifted while the map moves; `spot` marks the exact point.
   private let pin = UIView()
   private let spot = UIView()
@@ -45,13 +54,25 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
     map.overrideUserInterfaceStyle = .dark
     // Only drawn once location is allowed; the map never asks for it itself.
     map.showsUserLocation = true
-    map.showsCompass = false
-    map.pointOfInterestFilter = .includingAll
-    map.isRotateEnabled = false
-    map.isPitchEnabled = false
-    // iOS 16 is the floor (PlaceSearch.podspec), so no availability checks.
+    // iOS 16 is the floor (PlaceSearch.podspec), so no availability checks for these.
+    // Apple Maps' own look: 3D buildings and terrain, every business shown.
+    let configuration = MKStandardMapConfiguration(elevationStyle: .realistic, emphasisStyle: .default)
+    configuration.pointOfInterestFilter = .includingAll
+    map.preferredConfiguration = configuration
     map.selectableMapFeatures = [.pointsOfInterest]
+    // Tilt and rotate as in Maps; the compass shows once it's turned, and a tap points it north.
+    map.isRotateEnabled = true
+    map.isPitchEnabled = true
+    map.showsCompass = false
     addSubview(map)
+
+    compass.compassVisibility = .adaptive
+    addSubview(compass)
+    if #available(iOS 17.0, *) {
+      let control = MKPitchControl(mapView: map)
+      addSubview(control)
+      pitchControl = control
+    }
 
     ring.fillColor = UIColor.white.withAlphaComponent(0.1).cgColor
     ring.strokeColor = UIColor.white.withAlphaComponent(0.8).cgColor
@@ -66,6 +87,10 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
     buildPin()
     pin.isUserInteractionEnabled = false
     addSubview(pin)
+
+    // Over the circle and the pin, so they're always tappable.
+    bringSubviewToFront(compass)
+    if let pitchControl { bringSubviewToFront(pitchControl) }
   }
 
   /// A white disc with a dark dot on a short white stem: a dropped pin, in the app's colours.
@@ -98,11 +123,28 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
     spot.frame = CGRect(x: middle.x - 2.5, y: middle.y - 2.5, width: 5, height: 5)
     // The stem's foot on the exact point.
     pin.center = CGPoint(x: middle.x, y: middle.y - pin.bounds.height / 2)
+    layoutControls()
     if let region = pendingRegion, bounds.width > 0, bounds.height > 0 {
       pendingRegion = nil
       map.setRegion(fitted(region), animated: false)
     }
     drawRing()
+  }
+
+  func setControlsTop(_ top: Double) {
+    controlsTop = CGFloat(top)
+    setNeedsLayout()
+  }
+
+  /// 2D/3D, then the compass under it, against the right edge as in Maps.
+  private func layoutControls() {
+    let edge: CGFloat = 16
+    var y = controlsTop
+    for control in [pitchControl, compass as UIView?].compactMap({ $0 }) {
+      let size = control.intrinsicContentSize.width > 0 ? control.intrinsicContentSize : control.sizeThatFits(bounds.size)
+      control.frame = CGRect(x: bounds.maxX - edge - size.width, y: y, width: size.width, height: size.height)
+      y += size.height + 8
+    }
   }
 
   func setRadius(_ metres: Double) {
@@ -139,16 +181,32 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
     return map.regionThatFits(fitted)
   }
 
-  /// The circle around the pin, `radius` metres at the map's scale right now.
+  /// Where the pin points: the map's spot under the middle of the view, tilted or not.
+  private func pinned() -> CLLocationCoordinate2D {
+    map.convert(CGPoint(x: bounds.midX, y: bounds.midY), toCoordinateFrom: self)
+  }
+
+  /// The circle around the pin, `radius` metres on the ground: traced point by point through the
+  /// camera, so it flattens into an oval when the map tilts and turns with it.
   private func drawRing() {
     guard bounds.width > 0 else { return }
-    let middle = CGPoint(x: bounds.midX, y: bounds.midY)
-    let centre = map.convert(middle, toCoordinateFrom: self)
-    let north = CLLocationCoordinate2D(latitude: centre.latitude + radius / 111_320, longitude: centre.longitude)
-    let r = abs(map.convert(north, toPointTo: self).y - middle.y)
+    let centre = pinned()
+    let north = radius / 111_320
+    let east = north / max(cos(centre.latitude * .pi / 180), 0.01)
+    let path = UIBezierPath()
+    let steps = 64
+    for i in 0...steps {
+      let a = Double(i) / Double(steps) * 2 * .pi
+      let point = map.convert(
+        CLLocationCoordinate2D(latitude: centre.latitude + north * cos(a), longitude: centre.longitude + east * sin(a)),
+        toPointTo: self
+      )
+      if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+    }
+    path.close()
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    ring.path = UIBezierPath(ovalIn: CGRect(x: middle.x - r, y: middle.y - r, width: r * 2, height: r * 2)).cgPath
+    ring.path = path.cgPath
     CATransaction.commit()
   }
 
@@ -191,7 +249,7 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
       liftPin(false)
       UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
-    let centre = map.centerCoordinate
+    let centre = pinned()
     onSettle(["latitude": centre.latitude, "longitude": centre.longitude, "byUser": byUser])
   }
 

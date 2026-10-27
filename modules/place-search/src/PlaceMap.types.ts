@@ -9,6 +9,8 @@ export type PlaceMapProps = {
   /** The check-in circle around the pin, in metres. */
   radius: number;
   target: MapTarget | null;
+  /** Points from the top where Apple's 2D/3D and compass buttons start (iOS), under whatever floats there. */
+  controlsTop?: number;
   /** The person started dragging the map. */
   onMoveStart?: () => void;
   /** The map stopped. `byUser`: a drag or pinch put it there, not a `target`. */

@@ -143,6 +143,9 @@ public class PlaceSearchModule: Module {
       Prop("target") { (view: PlaceMapView, target: [String: Any]?) in
         view.setTarget(target)
       }
+      Prop("controlsTop") { (view: PlaceMapView, top: Double) in
+        view.setControlsTop(top)
+      }
     }
 
     /// Location access as iOS has it, for what expo-location folds together: "restricted"

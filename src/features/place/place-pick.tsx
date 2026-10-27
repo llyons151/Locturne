@@ -117,6 +117,8 @@ export function PlacePick({ select, header, onClose }: PlacePickProps) {
   /** Moved by hand or flown somewhere: where they are no longer replaces the view. */
   const placed = useRef(saved !== null);
 
+  /** The bottom of the search bar: Apple's compass and 2D/3D buttons start just under it. */
+  const [barBottom, setBarBottom] = useState(0);
   /** Nothing saved: the map is covered until where they are comes in, so it never flashes Kansas. */
   const [finding, setFinding] = useState(!saved);
 
@@ -216,6 +218,7 @@ export function PlacePick({ select, header, onClose }: PlacePickProps) {
           style={StyleSheet.absoluteFill}
           radius={PLACE_RADIUS_M}
           target={target}
+          controlsTop={barBottom + Space.m}
           onSettle={onSettle}
           onMoveStart={onMoveStart}
           onPoiPress={(place) => {
@@ -298,7 +301,12 @@ export function PlacePick({ select, header, onClose }: PlacePickProps) {
         </KeyboardAvoidingView>
       ) : null}
 
-      <View style={[styles.top, { paddingTop: insets.top + (header ? 0 : Space.s) }]} pointerEvents="box-none">
+      <View
+        style={[styles.top, { paddingTop: insets.top + (header ? 0 : Space.s) }]}
+        pointerEvents="box-none"
+        // Measured without the dropdown, which covers the map's buttons anyway.
+        onLayout={(e) => !searching && setBarBottom(e.nativeEvent.layout.height)}
+      >
         {header ? <View style={styles.header}>{header(close)}</View> : null}
         <View style={styles.topBar}>
           {!searching && !header ? (
