@@ -9,7 +9,7 @@ import { sym } from '@/components/grouped-list';
 import { Text, TextInput } from '@/components/text';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import * as haptic from '@/lib/haptics';
-import { PRESETS, type ScheduleId } from '@/lib/schedules';
+import { blockAt, PRESETS, type ScheduleId } from '@/lib/schedules';
 import { DisplayFont, Nocturne, Radius, Space, Type } from '@/theme';
 
 import { saveSchedule, scheduleAsSet, type ScheduleDraft } from './schedule-actions';
@@ -44,7 +44,9 @@ const blank = (): ScheduleDraft => {
 function problem(d: ScheduleDraft): string | null {
   if (d.days.length === 0) return 'Pick at least one day.';
   const length = (((d.end - d.start) % 1440) + 1440) % 1440;
-  if (!d.allDay && length > 0 && length < SHORTEST) return 'A block needs at least 15 minutes.';
+  // Equal times would block the whole day, every day picked, with loosening waiting for days.
+  if (!d.allDay && length === 0) return 'From and To are the same. Use All day for a whole day.';
+  if (!d.allDay && length < SHORTEST) return 'A block needs at least 15 minutes.';
   return null;
 }
 
@@ -107,7 +109,11 @@ export function ScheduleSheet() {
   };
   const askRemove = () => {
     if (Platform.OS === 'web') return remove();
-    Alert.alert('Delete this schedule?', 'Its apps stay awake at these times again.', [
+    // Mid-block, a delete waits for the block's end (`editSchedule`).
+    const saved = scheduleAsSet(req.id);
+    const blocking = saved !== null && blockAt(saved, new Date()) !== null;
+    const why = blocking ? 'It keeps its apps asleep until this block is over, then it’s gone.' : 'Its apps stay awake at these times again.';
+    Alert.alert('Delete this schedule?', why, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: remove },
     ]);

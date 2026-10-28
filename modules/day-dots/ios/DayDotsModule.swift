@@ -185,6 +185,10 @@ final class DayDotsRenderer: NSObject, MTKViewDelegate {
     if fillStart > 0 {
       let t = min(1, max(0, (wall - fillStart) / max(1, fillMs)))
       shown = Float(fillEase(t)) * total
+      // Past the end, the count runs on a pop's width more, so the last dots finish springing in
+      // too (they were left part-grown, small at the end of the bottom row).
+      let window = max(6, cols * 0.6)
+      shown += window * Float(min(1, max(0, (wall - fillStart - fillMs) / 450)))
       settle = Float(min(1, max(0, (wall - fillStart - fillMs) / 700)))
     }
     if still { shown = fillStart > 0 ? total : 0 }

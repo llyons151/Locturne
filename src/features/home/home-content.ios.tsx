@@ -29,6 +29,7 @@ import {
   monospacedDigit,
   offset,
   onAppear,
+  onGeometryChange,
   opacity,
   padding,
   shapes,
@@ -43,7 +44,8 @@ import { getAccess } from '@/lib/screen-time';
 import { CTA_HEIGHT, Nocturne, Space } from '@/theme';
 import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/screen-time-report';
 
-import { REPLAY_START_MS, REPLAY_STEP_MS, useReplay } from './entrance';
+import { keptPiece, REPLAY_START_MS, REPLAY_STEP_MS, useReplay } from './entrance';
+import { setHomeWeekSpot } from './week-spot';
 import type { HomeContentProps } from './home-content';
 import { actionWeight, topLevel } from './home-look';
 import { SWAP_IN, SWAP_OUT, useHeroSwap } from './hero-swap';
@@ -89,7 +91,7 @@ export function HomeContent(props: HomeContentProps) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
   // The payoff hides the pieces while it covers Home, then plays them in again.
-  const { hidden, nonce } = useReplay();
+  const { hidden, nonce, keep } = useReplay();
   const on = shown && !hidden;
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
   const { content, visible } = useHeroSwap(props, props.catchingUp);
@@ -104,6 +106,8 @@ export function HomeContent(props: HomeContentProps) {
 
   /** Piece `step`: opacity and blur, ending with everything else; on a replay, one step apart. */
   const enter = (step: number, level = 1): ModifierConfig[] => {
+    // Left alone by the payoff's hand-back: its own copy flew onto this one (week-spot.ts).
+    if (keptPiece(keep, step) && (hidden || nonce)) return [opacity(shown ? level : 0), blur(0)];
     const d = step * STAGGER;
     const curve = hidden
       ? Animation.linear({ duration: 0 })
@@ -164,7 +168,12 @@ export function HomeContent(props: HomeContentProps) {
               ) : null}
             </HStack>
     
-            <WeekDots days={days} reduced={reduced} modifiers={[padding({ top: Space.xl }), ...enter(1, top)]} />
+            <WeekDots
+              days={days}
+              reduced={reduced}
+              // First, so it reports the dots' own frame inside the padding: where the payoff's week lands.
+              modifiers={[onGeometryChange(setHomeWeekSpot), padding({ top: Space.xl }), ...enter(1, top)]}
+            />
           </VStack>
         ) : null}
 

@@ -11,7 +11,11 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
   width: 1320px;
   height: 2868px;
   overflow: hidden;
-  background: var(--bg);
+  background:
+    radial-gradient(120% 70% at 50% 42%, var(--bg-light) 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(90% 60% at 0% 100%, var(--bg-deep) 0%, rgba(0, 0, 0, 0) 70%),
+    radial-gradient(80% 50% at 100% 0%, var(--bg-deep) 0%, rgba(0, 0, 0, 0) 70%),
+    var(--bg);
   color: var(--text);
   font-family: 'SF Pro Display', -apple-system, Inter, system-ui, sans-serif;
   text-align: center;
@@ -24,12 +28,12 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
   margin: 0;
   font-size: 116px;
   line-height: 1.06;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  color: var(--text2);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  color: var(--text);
   text-wrap: balance;
 }
-.headline b { font-weight: 700; color: var(--text); }
+.headline b { font-weight: inherit; color: var(--accent); }
 
 .sub {
   margin: 30px 0 0;
@@ -49,13 +53,17 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
   aspect-ratio: 1320 / 2868;
   transform: translateX(-50%);
   box-sizing: border-box;
-  padding: 12px;
-  border-radius: 168px;
-  background: linear-gradient(90deg, #4a4d54 0%, #2b2d32 3%, #1d1f23 50%, #2b2d32 97%, #4a4d54 100%);
-  box-shadow: 0 50px 110px rgba(0, 0, 0, 0.6);
+  padding: 14px;
+  border-radius: 170px;
+  background: linear-gradient(90deg, #8d8e96 0%, #e9e9ee 2.2%, #c3c4cb 5%, #d9dae0 50%, #c3c4cb 95%, #e9e9ee 97.8%, #8d8e96 100%);
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.6) inset, 0 60px 120px rgba(0, 0, 0, 0.22), 0 18px 40px rgba(0, 0, 0, 0.16);
   z-index: 2;
 }
-.phone .bezel { width: 100%; height: 100%; box-sizing: border-box; padding: 26px; border-radius: 156px; background: #000; }
+.phone .bezel { width: 100%; height: 100%; box-sizing: border-box; padding: 24px; border-radius: 156px; background: #050506; }
+/* Side buttons: action button and volume on the left, power on the right, as on a real iPhone. */
+.phone::before, .phone::after { content: ''; position: absolute; width: 10px; border-radius: 6px; background: linear-gradient(90deg, #9a9ba3, #d8d9df); }
+.phone::before { left: -8px; top: 430px; height: 200px; box-shadow: 0 260px 0 #b9bac1; }
+.phone::after { right: -8px; top: 560px; height: 300px; }
 .phone .screen { position: relative; width: 100%; height: 100%; border-radius: 132px; overflow: hidden; background: #000; }
 .phone .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .phone .island { position: absolute; top: 36px; left: 50%; width: 300px; height: 88px; transform: translateX(-50%); border-radius: 50px; background: #000; z-index: 2; }
@@ -74,8 +82,38 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
   padding: 0 90px;
   box-sizing: border-box;
   background: #0d1426;
-  color: var(--text2);
+  color: #A8BAD3;
   font-size: 44px;
   line-height: 1.3;
 }
-.missing b { color: var(--text); font-size: 52px; }
+.missing b { color: #F2F8FC; font-size: 52px; }
+
+/* Night panels: the app's own Moonrise colours, so the set has light and dark beats. */
+.panel.dark { --text: #F2F8FC; --text2: #A8BAD3; --accent: #A3BDF5; }
+.panel.dark { background:
+    radial-gradient(110% 60% at 50% 30%, #1E2D5C 0%, rgba(0, 0, 0, 0) 65%),
+    linear-gradient(180deg, #16254F 0%, #050A17 75%); }
+
+/* A key number lifted out of the screen as a card (Opal, Hevy, one sec). Neutral shadow only. */
+.callout {
+  position: absolute;
+  z-index: 5;
+  min-width: 300px;
+  padding: 40px 54px 44px;
+  border-radius: 64px;
+  background: #FFFFFF;
+  color: #0B1428;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.18), 0 6px 16px rgba(0, 0, 0, 0.08);
+  text-align: left;
+}
+.callout .big { display: block; font-size: 150px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; color: #0B1428; }
+.callout .big small { font-size: 72px; color: #5E7595; font-weight: 600; letter-spacing: -0.02em; }
+.callout .label { display: block; margin-top: 18px; font-size: 46px; font-weight: 600; color: #5E7595; }
+.panel.dark .callout { background: #1A2547; color: #F2F8FC; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45); }
+.panel.dark .callout .big { color: #F2F8FC; }
+.panel.dark .callout .label, .panel.dark .callout .big small { color: #A8BAD3; }
+
+/* Hero panel: no phone, Loc big, rising from the bottom edge as he does on Home. */
+.hero-loc { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); z-index: 2; }
+.hero-loc img { display: block; width: 100%; }
+.kicker { margin: 0 0 30px; font-size: 40px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }

@@ -37,6 +37,8 @@ const ios = {
   failNextList: false,
   launched: null as Response | null,
   listeners: new Set<(r: Response) => void>(),
+  /** Delivered, still on the lock screen. */
+  presented: [] as string[],
 };
 
 /** Lets other queued work run, the way a real bridge call would. */
@@ -73,6 +75,10 @@ mock.module('expo-notifications', {
       ios.log.push(`schedule ${request.identifier}`);
       ios.scheduled.set(request.identifier, request);
       return request.identifier;
+    },
+    getPresentedNotificationsAsync: async () => ios.presented.map((identifier) => ({ request: { identifier } })),
+    dismissNotificationAsync: async (id: string) => {
+      ios.presented = ios.presented.filter((p) => p !== id);
     },
     getLastNotificationResponse: () => ios.launched,
     clearLastNotificationResponse: () => {
@@ -355,4 +361,10 @@ test('taps while running are passed on until unsubscribed', () => {
   assert.equal(ios.listeners.size, 0);
   for (const listener of ios.listeners) listener(tap('locturne.bedtime.2026-10-04'));
   assert.deepEqual(opened, ['locturne.morning.2026-10-04']);
+});
+
+test('a won morning takes its own delivered notes off the lock screen, nobody else’s', async () => {
+  ios.presented = ['locturne.morning.2026-10-04', 'locturne.shieldTap', 'locturne.bedtime.2026-10-04', 'onboarding.firstNote', 'other.app'];
+  await n.dismissMorningNotes();
+  assert.deepEqual(ios.presented, ['locturne.bedtime.2026-10-04', 'onboarding.firstNote', 'other.app']);
 });

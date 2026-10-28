@@ -1,4 +1,5 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -7,6 +8,7 @@ import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import type { Entrance } from './entrance';
 import { dayLabel, morningsLabel, weekDays } from './week';
+import { setHomeWeekSpot } from './week-spot';
 
 export type HomeTopProps = {
   /** Mornings you got up, a wake-up method's proof only. */
@@ -34,6 +36,9 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  */
 export function HomeTop({ mornings, today, won, free, enter, usage = true }: HomeTopProps) {
   const days = weekDays(today, won, free);
+  // Where the payoff's week lands on Done (week-spot.ts), in window points.
+  const week = useRef<View>(null);
+  const report = () => week.current?.measureInWindow((x, y, width, height) => setHomeWeekSpot({ x, y, width, height }));
   return (
     <View style={styles.top}>
       <Animated.View style={[styles.row, enter(0)]}>
@@ -50,7 +55,7 @@ export function HomeTop({ mornings, today, won, free, enter, usage = true }: Hom
           </View>
         ) : null}
       </Animated.View>
-      <Animated.View style={[styles.week, enter(1)]}>
+      <Animated.View ref={week} onLayout={report} style={[styles.week, enter(1)]}>
         {days.map((day) => (
           <View key={day.key} style={styles.day} accessible accessibilityLabel={dayLabel(day)}>
             <Text style={[styles.dayLetter, day.today && styles.dayLetterToday]}>{day.letter}</Text>

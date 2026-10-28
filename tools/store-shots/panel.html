@@ -15,14 +15,17 @@
     const rich = (s) => esc(s).replace(/\*([^*]+)\*/g, '<b>$1</b>');
 
     // Wait for Inter first, or a quick export captures the fallback font.
-    Promise.all([document.fonts.load('700 116px Inter'), document.fonts.load('500 48px Inter')])
+    Promise.all([document.fonts.load('600 116px Inter'), document.fonts.load('500 48px Inter')])
       .then(() => fetch('/panels.json', { cache: 'no-store' })).then((r) => r.json()).then(async ({ style, panels }) => {
         const p = panels[i];
         const el = document.getElementById('panel');
-        for (const [k, v] of Object.entries({ bg: p.bg ?? style.bg, text: style.text, text2: style.text2 }))
+        // Night panels keep the dark class's own text colours.
+        const colours = p.dark ? {} : { text: style.text, text2: style.text2, accent: style.accent };
+        for (const [k, v] of Object.entries({ bg: p.bg ?? style.bg, 'bg-light': style.bgLight, 'bg-deep': style.bgDeep, ...colours }))
           el.style.setProperty(`--${k}`, v);
         document.body.style.setProperty('--bg', p.bg ?? style.bg);
 
+        if (p.dark) el.classList.add('dark');
         const top = p.phoneTop ?? (p.sub ? 690 : 600);
         const shotUrl = `/shots/${encodeURIComponent(p.shot ?? '')}`;
         const has = p.shot && (await fetch(shotUrl, { method: 'HEAD', cache: 'no-store' })).ok;
@@ -30,20 +33,33 @@
           ? `<img src="${shotUrl}?v=${Date.now()}" alt="">`
           : `<div class="missing"><b>${esc(p.shot || 'no screenshot set')}</b><span>${esc(p.note)}</span></div>`;
 
+        // Layout per panel, so the set has rhythm: tilt, zoom (bigger and cropped), or a hero with no phone.
+        const tilt = p.rotate ?? 0, scale = p.scale ?? 1, dx = p.x ?? 0;
+        const phone = p.hero ? '' : `<div class="phone" style="top:${top}px;transform:translateX(calc(-50% + ${dx}px)) rotate(${tilt}deg) scale(${scale});transform-origin:50% 0">
+          <div class="bezel"><div class="screen"><div class="island"></div>${screen}</div></div></div>`;
+
         // Loc's paws land on the phone's top edge: his art is 818×552 with the paws along the bottom.
-        const loc = p.loc ? (() => {
+        const loc = p.loc && !p.hero ? (() => {
           const w = p.loc.width ?? 560;
-          return `<div class="loc" style="width:${w}px;top:${top - w * 552 / 818 + 34}px;margin-left:${p.loc.x ?? 0}px">
+          return `<div class="loc" style="width:${w}px;top:${top - w * 552 / 818 + 34}px;margin-left:${(p.loc.x ?? 0) + dx}px">
             <img src="/loc-peek-eyes.svg" alt=""></div>`;
         })() : '';
+        const hero = p.hero ? `<div class="hero-loc" style="width:${p.hero.width ?? 1180}px"><img src="/loc-peek-eyes.svg" alt=""></div>` : '';
+
+        // "104|/ 200|steps walked" → big number, small suffix, label.
+        const callouts = (p.callouts ?? []).map((c) => {
+          const [big, small, label] = c.text.split('|');
+          return `<div class="callout" style="left:${c.x}px;top:${c.y}px;transform:rotate(${c.rotate ?? 0}deg)">
+            <span class="big">${esc(big)}${small ? ` <small>${esc(small)}</small>` : ''}</span>${label ? `<span class="label">${esc(label)}</span>` : ''}</div>`;
+        }).join('');
 
         el.innerHTML = `
-          <div class="copy">
+          <div class="copy" style="${p.hero ? 'top:420px' : ''}">
+            ${p.kicker ? `<p class="kicker">${esc(p.kicker)}</p>` : ''}
             <h1 class="headline">${rich(p.headline)}</h1>
             ${p.sub ? `<p class="sub">${esc(p.sub)}</p>` : ''}
           </div>
-          <div class="phone" style="top:${top}px"><div class="bezel"><div class="screen"><div class="island"></div>${screen}</div></div></div>
-          ${loc}`;
+          ${phone}${loc}${hero}${callouts}`;
       });
   </script>
 </body>

@@ -116,6 +116,19 @@ export function restingMoonNow(width: number, height: number) {
     glow: interpolate(sink, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
   };
 }
+/**
+ * The resting moon's size, 1 as everywhere else: the morning payoff shrinks it about its centre
+ * as it rises, into a small moon with the time inside (user, 2026-10-28).
+ */
+export const moonScale = makeMutable(1);
+/**
+ * The `moonSink` that puts the resting moon's centre at `y` (window points), whatever its
+ * `moonScale`: the sink moves the centre and the scale doesn't. `floor` as NightSky's.
+ */
+export function moonSinkForCentre(width: number, height: number, floor: number, y: number) {
+  const m = risingMoon(width, height - floor);
+  return (y - m.top - m.size / 2) / (m.size * SINK_DEPTH);
+}
 /** The Apps tab's moon: risen above its resting place, into the sky under the tiles. */
 export const MOON_RAISED = -0.35;
 /**
@@ -381,21 +394,21 @@ export function NightSky({
   const frostBase = biggest * FROST_PAD;
   const glowBase = biggest * GLOW_PAD;
   /** Centres a `base`-sized layer on the disc, at `pad` times its size. */
-  const place = (d: { size: number; left: number; top: number }, pad: number, base: number, sink: number) => {
+  const place = (d: { size: number; left: number; top: number }, pad: number, base: number, sink: number, k: number) => {
     'worklet';
     return [
       { translateX: d.left + d.size / 2 - base / 2 },
       { translateY: d.top + d.size / 2 + sink * d.size * SINK_DEPTH - base / 2 },
-      { scale: (d.size * pad) / base },
+      { scale: (d.size * pad * k) / base },
     ];
   };
 
   const moonStyle = useAnimatedStyle(() => ({
-    transform: place(disc(progress.value, risen.value, homed.value), FROST_PAD, frostBase, moonSink.value),
+    transform: place(disc(progress.value, risen.value, homed.value), FROST_PAD, frostBase, moonSink.value, moonScale.value),
   }));
 
   const glowStyle = useAnimatedStyle(() => ({
-    transform: place(disc(progress.value, risen.value, homed.value), GLOW_PAD, glowBase, moonSink.value),
+    transform: place(disc(progress.value, risen.value, homed.value), GLOW_PAD, glowBase, moonSink.value, moonScale.value),
     opacity: interpolate(progress.value, [0, 1], [OPENER_GLOW, 1]) * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
   }));
 

@@ -50,10 +50,11 @@ import { APP_FONT, DISPLAY_MAX_SCALE, Gap, Nocturne, Space, Type } from '@/theme
 
 import { APPS, type AppEntry } from './catalog';
 import { useListActions } from './list-actions';
-import { pauseNote, removalNote, startsLabel } from './pending-note';
+import { clock, pauseNote, removalNote, startsLabel } from './pending-note';
 import { openLimitSheet } from './limit-sheet';
 import { newScheduleId, scheduleStatus, scheduleSummary, schedulePendingNote } from './schedule-actions';
 import { openScheduleSheet } from './schedule-sheet';
+import { nextNightOn } from '@/lib/routine';
 import { MAX_SCHEDULES, type ScheduleId } from '@/lib/schedules';
 import {
   removePreviewLimit,
@@ -205,6 +206,8 @@ export function PendingNote({ list }: { list: 'night' | 'always' }) {
 
 export type TileStatus = { icon: SymbolViewProps['name']; text: string };
 
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
 /**
  * How a bedtime-tab list stands right now, for its tile and page. Only what's sure: nothing
  * when a lapse stood everything down or the list is empty (the tile's detail says so).
@@ -218,7 +221,12 @@ export function listStatus(list: 'night' | 'always', size: number, now = new Dat
   const moon = sym('moon.fill', 'bedtime');
   if (getNightPause(now)) return { icon: moon, text: 'Awake after a pass.' };
   if (!getArmedNight()) return null;
-  return { icon: moon, text: `Awake now. Asleep ${startsLabel(nextBedtime(now), now)}.` };
+  // The next night that's on, as Home says it: tonight may be switched off.
+  const next = nextNightOn(nextBedtime(now), now);
+  if (!next) return { icon: moon, text: 'Awake. Every night is switched off.' };
+  const days = Math.round((startOfDay(next) - startOfDay(now)) / 86_400_000);
+  const when = days >= 2 ? `${next.toLocaleDateString('en-US', { weekday: 'long' })} at ${clock(next)}` : startsLabel(next, now);
+  return { icon: moon, text: `Awake now. Asleep ${when}.` };
 }
 
 function LiveAppsList() {

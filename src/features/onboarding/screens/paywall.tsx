@@ -103,7 +103,7 @@ export function plansStep(ctx: StepContext): StepView {
             the billed price at least as clear as "free", so "free" stays on the button with the
             price right under it. A light user has no hours to sell. */}
         <Voice
-          text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(lead.minutes), answers.timeBack)}
+          text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(lead.minutes))}
           // Their number in the reveal's blue, so it reads as the same number they saw there.
           accent={numbers.lightUser ? undefined : String(weeklyParts(lead.minutes).count)}
           size={compact ? 26 : 30}
@@ -413,7 +413,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   planOptionSelected: { borderColor: Nocturne.text, backgroundColor: Nocturne.raised },
-  band: { backgroundColor: Nocturne.edge, paddingVertical: 4, alignItems: 'center' },
+  // Its own inner corners: iOS clips children to the card's outer radius, so the band's square
+  // corners ran over the 2 pt border (user 2026-10-28).
+  band: {
+    backgroundColor: Nocturne.edge,
+    paddingVertical: 4,
+    alignItems: 'center',
+    borderTopLeftRadius: Radius.card - 2,
+    borderTopRightRadius: Radius.card - 2,
+  },
   bandSelected: { backgroundColor: Nocturne.text },
   bandText: { color: Nocturne.text, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
   bandTextSelected: { color: Nocturne.onCta },

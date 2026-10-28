@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { clockParts, lateWords, payoffKicker, payoffLine, shareText } from './payoff.ts';
+import { clockParts, lateWords, payoffBrag, payoffKicker, payoffLine, shareText } from './payoff.ts';
 
 const nb = (s: string) => s.replace(/(\d) (am|pm)/g, '$1\u00a0$2');
 
@@ -38,4 +38,15 @@ test('the line says the method, then the timing', () => {
 test('the share text', () => {
   assert.equal(shareText(1, 426), nb('Up at 7:06 am. My first morning out of bed with Locturne.'));
   assert.equal(shareText(12, 426), nb('Up at 7:06 am. Morning 12 out of bed with Locturne.'));
+});
+
+test('the brag only ever flatters today', () => {
+  // Earliest this week, once there's another morning to beat.
+  assert.equal(payoffBrag(400, 420, 400, 3), 'Your earliest wake-up this week');
+  assert.equal(payoffBrag(400, 400, 400, 1), nb('Up right on time for 6:40 am'));
+  // A better day earlier in the week: no "earliest", and 6 min late isn't on time.
+  assert.equal(payoffBrag(426, 420, 412, 3), null);
+  assert.equal(payoffBrag(424, 420, 412, 3), nb('Up right on time for 7:00 am'));
+  // A 23:30 start, up at 23:33.
+  assert.equal(payoffBrag(23 * 60 + 33, 23 * 60 + 30, 0, 1), nb('Up right on time for 11:30 pm'));
 });

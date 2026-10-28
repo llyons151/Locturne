@@ -9,7 +9,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity({ available: false });
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, nextNightOn, nightAt, nightRanUnder, nightWasOn, saveRoutine } = await import('./routine.ts');
+const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, MIN_NIGHT, nightMinutes, nightTooShort, nextNightOn, nightAt, nightRanUnder, nightWasOn, saveRoutine } = await import('./routine.ts');
 const { sharedSet } = await import('./screen-time.ts');
 
 /** Thursday 2026-10-01 at hh:mm, local time. Default routine: 23:00 to 07:00. */
@@ -156,4 +156,16 @@ test('asArmed: a routine runs from the armed bedtime while older windows overlap
   assert.deepEqual(asArmed(edited, { bedtime: 23 * 60, morningStart: 7 * 60 }), { ...edited, bedtime: 23 * 60 });
   assert.equal(asArmed(edited, { bedtime: 0, morningStart: 9 * 60 }), edited);
   assert.equal(asArmed(edited, null), edited);
+});
+
+test('a night is at least 4 hours: shorter, or equal times, is too short', () => {
+  assert.equal(MIN_NIGHT, 240);
+  assert.equal(nightMinutes(23 * 60, 7 * 60), 8 * 60);
+  assert.equal(nightMinutes(7 * 60, 7 * 60), 0);
+  assert.equal(nightTooShort(23 * 60, 7 * 60), false);
+  assert.equal(nightTooShort(3 * 60, 7 * 60), false, 'exactly 4 hours');
+  assert.equal(nightTooShort(22 * 60, 2 * 60), false, 'across midnight');
+  assert.equal(nightTooShort(3 * 60 + 1, 7 * 60), true);
+  assert.equal(nightTooShort(7 * 60 - 1, 7 * 60), true, 'a 1-minute night');
+  assert.equal(nightTooShort(7 * 60, 7 * 60), true, 'no night');
 });

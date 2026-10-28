@@ -35,13 +35,14 @@ export function scheduleSummary(s: Pick<Schedule, 'start' | 'end' | 'allDay' | '
   return `${timesLabel(s)}, ${/^(Every day|Weekdays|Weekends|No days)$/.test(days) ? days.toLowerCase() : days}`;
 }
 
-/** "at 5 pm", "tomorrow at 9 am", "Monday at 9 am". */
+/** "at 5 pm", "tomorrow at 9 am", "Monday at 9 am", "next Monday at 9 am". */
 export function whenLabel(at: Date, now: Date): string {
   const days = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
   const time = formatPreset(at.getHours() * 60 + at.getMinutes());
   if (days <= 0) return `at ${time}`;
   if (days === 1) return `tomorrow at ${time}`;
-  return `${DAY_NAMES[at.getDay()]} at ${time}`;
+  // A week out is today's weekday: "next Monday", not "Monday" (which reads as today).
+  return `${days >= 7 ? 'next ' : ''}${DAY_NAMES[at.getDay()]} at ${time}`;
 }
 
 /** How a schedule stands right now, for its tile and page: asleep until when, or when it's next. */

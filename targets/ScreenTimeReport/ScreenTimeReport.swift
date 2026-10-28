@@ -151,7 +151,7 @@ struct UsageChart: View {
           Text(configuration.days.count == 1 ? "Today so far" : "Last \(configuration.days.count) days · includes today so far")
             .font(.caption).foregroundStyle(.secondary)
           if configuration.reported.count < configuration.days.count {
-            Text("Average uses \(configuration.reported.count) days with data. Missing days are left blank.")
+            Text("Average uses \(configuration.reported.count) \(configuration.reported.count == 1 ? "day" : "days") with data. Missing days are left blank.")
               .font(.caption2).foregroundStyle(.secondary)
           }
           appsSection
@@ -190,7 +190,7 @@ struct UsageChart: View {
             .tint(.white)
             .accessibilityLabel("Share of screen time")
             .accessibilityValue("\(Int(app.seconds / max(1, configuration.total) * 100)) percent")
-          Text("\(app.pickups) pickups · \(app.notifications) notifications")
+          Text("\(app.pickups) \(app.pickups == 1 ? "pickup" : "pickups") · \(app.notifications) \(app.notifications == 1 ? "notification" : "notifications")")
             .font(.caption).foregroundStyle(.secondary)
           Divider().overlay(.white.opacity(0.1))
         }

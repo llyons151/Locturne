@@ -314,8 +314,10 @@ export function HomeScreen() {
   const nextMorningLabel = () => {
     const today = now.getHours() * 60 + now.getMinutes() < routine.morningStart;
     const name = method === 'steps' ? `${routine.stepGoal} steps` : METHOD_NAME[method];
-    if (today && phase === 'night' && minutes !== null && minutes <= 60) return `This morning: ${name}`;
-    return `${today ? 'This morning' : 'Tomorrow'}: ${name} at ${clockLabel(routine.morningStart)}`;
+    // A day sleeper's "morning" is in the afternoon: "Later today", as onboarding says it (wake-day.ts).
+    const thisOne = routine.morningStart >= 12 * 60 ? 'Later today' : 'This morning';
+    if (today && phase === 'night' && minutes !== null && minutes <= 60) return `${thisOne}: ${name}`;
+    return `${today ? thisOne : 'Tomorrow'}: ${name} at ${clockLabel(routine.morningStart)}`;
   };
   const action = unprotected
     ? health.protection === 'notSetUp'
@@ -532,7 +534,8 @@ function usePretendPayoff(live: boolean) {
 
 /** The phone is in hand on the stairs; don't let it lock mid-session. */
 function StayAwake() {
-  useKeepAwake();
+  // Web's wake lock throws if it never activated (denied, or unmounted first): not worth a red screen.
+  useKeepAwake(undefined, { suppressDeactivateWarnings: true });
   return null;
 }
 

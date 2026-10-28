@@ -223,6 +223,12 @@ export function RoutineScreen() {
     const armed = applyRoutineEdit(toStored(next));
     const loaded = load();
     setLoaded(loaded);
+    // Turned down (a night under `MIN_NIGHT`): the dial goes back to the times saved.
+    armed.then((ok) => {
+      if (ok) return;
+      haptic.thud();
+      setDialKey((k) => k + 1);
+    });
     // The note appears above the control VoiceOver is on, and iOS has no live regions. Said in
     // the banner's words once arming settles: an earlier bedtime whose night has begun shields
     // at once, and the bare waiting note would still name the old bedtime.
@@ -241,7 +247,7 @@ export function RoutineScreen() {
     // Its night has already begun (a bedtime moved before now, a morning moved past now): say
     // so before the apps sleep.
     const why = moved === 'morning'
-      ? 'Your new wake-up time hasn’t come yet, so your apps sleep until then.'
+      ? 'Your new wake-up time hasn’t come yet, so your apps sleep until you’re up after it.'
       : 'Your new bedtime has already passed, so tonight starts now.';
     Alert.alert('This puts your apps to sleep now', why, [
       { text: 'Cancel', style: 'cancel', onPress: () => setDialKey((k) => k + 1) },
@@ -266,14 +272,20 @@ export function RoutineScreen() {
   };
   // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
   const offerReps = saved.method === 'pushups';
-  // Scan picked with no code saved: the setup, offered only when it's allowed (not from bed).
-  const offerCodeSetup = saved.method === 'scan' && !getScanCode() && !getScanEditRefusal();
+  // Scan picked: set up a code, or choose a new one, like a place, only while it's allowed (not from bed).
+  const offerCodeSetup = saved.method === 'scan' && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
   const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
   const setupRow = offerCodeSetup || offerPlaceSetup || offerReps;
   // "Get to a place" with no place yet: straight to the picker, which selects it once one is
   // saved. Closing it leaves the routine alone, so nobody ends up on a place they don't have.
+  // "Scan a code" with no code: the same, with the code sheet (user 2026-10-28).
   const pick = (method: Method) => {
+    if (method === 'scan' && saved.method !== 'scan' && !getScanCode() && !getScanEditRefusal()) {
+      haptic.tap();
+      router.push({ pathname: '/code', params: { select: '1' } });
+      return;
+    }
     if (method === 'place' && saved.method !== 'place' && !place && !getPlaceEditRefusal()) {
       haptic.tap();
       router.push({ pathname: '/place-pick', params: { select: '1' } });
@@ -388,9 +400,9 @@ export function RoutineScreen() {
         ))}
         {offerCodeSetup ? (
           <ValueRow
-            title="Set up your code"
+            title={getScanCode() ? 'Change your code' : 'Set up your code'}
             value=""
-            onPress={() => router.push({ pathname: '/scan', params: { mode: 'setup' } })}
+            onPress={() => router.push('/code')}
             last
           />
         ) : null}

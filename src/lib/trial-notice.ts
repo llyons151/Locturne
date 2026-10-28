@@ -20,14 +20,29 @@ function daysUntil(ends: Date, now: Date): number {
   return Math.round((b.getTime() - a.getTime()) / DAY_MS);
 }
 
+/** Before this hour, an end belongs to the night before (as schedule-copy.ts says "Tonight"). */
+const NIGHT_ENDS_BEFORE_HOUR = 5;
+
+/**
+ * Pure: the day a trial ends, as people count days. A trial started after midnight ends in the
+ * small hours a week later: "Sunday" then would read as a day more than there is, so it's
+ * "Saturday night".
+ */
+export function trialEndDay(ends: Date): { day: Date; night: boolean } {
+  if (ends.getHours() >= NIGHT_ENDS_BEFORE_HOUR) return { day: ends, night: false };
+  return { day: new Date(ends.getFullYear(), ends.getMonth(), ends.getDate() - 1, 12), night: true };
+}
+
 /** Pure: the notice to show now, or null outside the last days of the trial. */
 export function trialNotice(ends: Date | null, now: Date): TrialNotice | null {
   if (!ends) return null;
   const left = ends.getTime() - now.getTime();
   if (left <= 0 || left > TRIAL_NOTICE_DAYS * DAY_MS) return null;
-  const days = daysUntil(ends, now);
-  const when =
-    days <= 0 ? 'today' : days === 1 ? 'tomorrow' : ends.toLocaleDateString('en-US', { weekday: 'long' });
+  const { day, night } = trialEndDay(ends);
+  const days = daysUntil(day, now);
+  const named =
+    days <= 0 ? (night ? 'tonight' : 'today') : days === 1 ? 'tomorrow' : day.toLocaleDateString('en-US', { weekday: 'long' });
+  const when = night && days > 0 ? `${named} night` : named;
   return {
     title: `Your free trial ends ${when}.`,
     detail: 'Then the annual plan starts. To cancel, tap Manage subscription. No hard feelings. Some feelings.',

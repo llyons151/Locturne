@@ -59,7 +59,7 @@ import { formatPreset } from './text.ts';
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
  * Block now session picks, one list per daily limit and one per app schedule (schedules.ts).
  */
-export type SelectionId = 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId | typeof BLOCK_DRAFT;
+export type SelectionId = 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId | typeof BLOCK_DRAFT | typeof TEST_LOCK;
 
 /** Where Apple's picker writes while apps are added to a running Block now (`beginBlockAdd`). */
 export const BLOCK_DRAFT = 'block-next';
@@ -312,11 +312,47 @@ function heldLists(): SelectionId[] {
   const nap = readNap();
   if (nap && Date.now() < nap.end) held.push(nap.list);
   for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
+  if (getTestLock()) held.push(TEST_LOCK);
   // Two minutes on, as the extension judges (`reapplyLocturneBlocks`): iOS can deliver a block's
   // start or end a little early, and an open right after mustn't undo what it did.
   const soon = scheduleSoon();
   for (const schedule of getSchedules(soon)) if (isBlocking(schedule, soon)) held.push(schedule.id);
   return [...new Set(held)].filter((id) => selectionSize(id) > 0);
+}
+
+/*
+ * The test lock (dev and preview builds: features/dev/wake-lab). A copy of the bedtime picks,
+ * shielded now and kept up by `reapplyStandingBlocks` like any held rule, so a wake-up method
+ * can be tried against real shields in the day. The night lock and its proofs never see it:
+ * `syncLock` only wakes 'night', and nothing is recorded. Only the app lifts it (`endTestLock`):
+ * the extensions don't know it, so its shield shows the bedtime list's words.
+ */
+export const TEST_LOCK = 'test-lock';
+const TEST_LOCK_KEY = 'locturne.testLock';
+
+/** A test lock under way: the method it waits for and when it started (steps count from then). */
+export type TestLock = { method: string; since: number };
+
+export function getTestLock(): TestLock | null {
+  return sharedGet<TestLock>(TEST_LOCK_KEY) ?? null;
+}
+
+/** Shields a copy of the bedtime picks. False with no bedtime picks to copy, or no access. */
+export function startTestLock(method: string, now = new Date()): boolean {
+  if (!isAvailable() || getAccess() !== 'approved' || selectionSize('night') === 0) return false;
+  copySelection('night', TEST_LOCK);
+  sharedSet(TEST_LOCK_KEY, { method, since: now.getTime() } satisfies TestLock);
+  shield(TEST_LOCK);
+  return true;
+}
+
+/** Lifts the test lock, then puts back whatever real rules still hold the same apps. */
+export function endTestLock(): void {
+  sharedRemove(TEST_LOCK_KEY);
+  if (!isAvailable()) return;
+  unshield(TEST_LOCK);
+  clearSelection(TEST_LOCK);
+  reapplyStandingBlocks();
 }
 
 export function isAnyShieldUp(): boolean {
@@ -719,7 +755,9 @@ function clockOf(ms: number) {
  * stay asleep until Locturne is opened. Flying west, it comes hours late.
  */
 function napClockOf(ms: number) {
-  return { ...clockOf(ms), timeZoneIdentifier: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  // With its date: a start already past (`rearmNap` just after midnight, 23:55 for a 00:10 end)
+  // would otherwise read as tonight's 23:55, and the window would run a day late.
+  return { ...wallParts(ms), timeZoneIdentifier: Intl.DateTimeFormat().resolvedOptions().timeZone };
 }
 
 /**

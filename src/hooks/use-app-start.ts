@@ -9,6 +9,7 @@ import { paidSettleCount, settleSubscription } from '@/lib/lock-controller';
 import { onProofChange } from '@/lib/morning-proof';
 import {
   askForNotifications,
+  dismissMorningNotes,
   onNotificationTap,
   opensWakeScreen,
   rescheduleNotifications,
@@ -150,6 +151,7 @@ export function useAppStart(): void {
     () =>
       onProofChange(() => {
         rescheduleNotifications().catch(() => {});
+        dismissMorningNotes().catch(() => {});
       }),
     [],
   );

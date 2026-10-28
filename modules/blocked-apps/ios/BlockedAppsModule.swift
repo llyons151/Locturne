@@ -16,6 +16,16 @@ public class BlockedAppsModule: Module {
   public func definition() -> ModuleDefinition {
     Name("BlockedApps")
 
+    // The wall clock and the time since boot, read together (src/lib/clock-guard.ts): their
+    // difference, the boot time, moves earlier only when someone winds the clock back.
+    // CLOCK_MONOTONIC keeps counting while the phone sleeps, unlike `systemUptime`.
+    Function("clock") { () -> [String: Double] in
+      [
+        "wall": Date().timeIntervalSince1970 * 1000,
+        "monotonic": Double(clock_gettime_nsec_np(CLOCK_MONOTONIC)) / 1_000_000,
+      ]
+    }
+
     // Takes one pick out of a saved selection (a swipe on the Apps tab). The token comes from
     // `onRemove`; the app never sees what it is.
     Function("removePick") { (selectionId: String, kind: String, token: String) -> Bool in

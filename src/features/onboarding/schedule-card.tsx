@@ -1,6 +1,6 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 
@@ -15,6 +15,8 @@ import { methodCopy } from './content';
 import { formatClock } from './estimate';
 
 const MAX_ICONS = 5;
+/** Under this width the two clocks drop to `clockNarrow`. */
+const NARROW_WIDTH = 360;
 
 /*
  * The card building itself (user 2026-10-27: "do something cool for the card"), in ms from its
@@ -36,13 +38,19 @@ export const DEAL_CARD_BUILD_MS = STEPS_AT + (GUESS_DOTS * 2 + 2) * STEP_MS + 45
 
 const settle = cubicBezier(0.22, 1, 0.36, 1);
 
+/**
+ * Hidden in its own style too, filled both ways, like motion.tsx's entrances: Reanimated attaches
+ * the animation after the view mounts, so with only a backwards fill iOS drew the whole card for a
+ * frame first, a flicker coming in from `apps` (user 2026-10-28).
+ */
 function enter(from: object, delay: number, duration = PIECE_MS): ViewStyle {
   return {
+    opacity: 0,
     animationName: { from, to: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] } },
     animationDuration: `${duration}ms`,
     animationDelay: `${Math.round(delay)}ms`,
     animationTimingFunction: settle,
-    animationFillMode: 'backwards',
+    animationFillMode: 'both',
   } as unknown as ViewStyle;
 }
 const fade = (delay: number, duration = 260) => enter({ opacity: 0 }, delay, duration);
@@ -205,6 +213,7 @@ function Time({
   alignEnd?: boolean;
 }) {
   const [clock, suffix] = formatClock(minutes).split(' ');
+  const narrow = useWindowDimensions().width < NARROW_WIDTH;
   return (
     <Animated.View style={[styles.time, alignEnd && styles.timeEnd, style]}>
       <View style={[styles.labelRow, alignEnd && styles.labelRowEnd]}>
@@ -212,7 +221,8 @@ function Time({
         <Text style={styles.label}>{label.toUpperCase()}</Text>
       </View>
       <Text
-        style={[styles.clock, compact && styles.clockCompact]}
+        // Narrow phones (SE and mini with Display Zoom, 320 pt): two 40 pt clocks collide there.
+        style={[styles.clock, compact && styles.clockCompact, narrow && styles.clockNarrow]}
         maxFontSizeMultiplier={1.2}
         accessibilityLabel={`${label}, ${clock} ${suffix}`}
       >
@@ -250,6 +260,7 @@ const styles = StyleSheet.create({
   label: Type.label,
   clock: { ...NUMBER_FONT, color: Nocturne.accent ?? Nocturne.text, fontSize: 40, lineHeight: 46, fontVariant: ['tabular-nums'] },
   clockCompact: { fontSize: 34, lineHeight: 40 },
+  clockNarrow: { fontSize: 28, lineHeight: 34 },
   suffix: { color: Nocturne.text2, fontSize: 16, fontWeight: '600' },
   change: { color: Nocturne.text2, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
   walk: { flexDirection: 'row', alignItems: 'center', gap: Space.s, marginTop: Space.l },

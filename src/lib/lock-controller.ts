@@ -12,9 +12,10 @@
  *    the phase is now `day` and wakes the apps. Block now, used-up limits and the always
  *    list are re-shielded straight after (`wakeApps`), so a proof never lifts them.
  */
+import { judgeClock, readClock, type ClockSeen } from './clock-guard.ts';
 import { armedInTime, currentMorning, dateKey, getLockState, nightInto, nightsAround, settingsTakeEffectAt, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { looserEditsStart } from './daily-limits.ts';
-import { getProof, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
+import { getProof, proofMorningStart, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
 import { armedForEdit, bringEditForward, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, runsAs, toLockSettings, type Routine } from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
@@ -123,7 +124,15 @@ export function readLock(now = new Date()): LockState {
   const state = getLockState(
     now,
     settings,
-    { steps: 0, unlockedMorning: proof || free ? morning.key : null },
+    {
+      steps: 0,
+      unlockedMorning: proof || free ? morning.key : null,
+      // One stamped after now came from a clock set forward, and mustn't free a night. One made
+      // before its own morning start, as this zone tells it, came from a zone set ahead (London
+      // from New York at 05:00): it can free that morning once it starts, never the night.
+      proven: proof !== null && proof.kind !== 'pass' && proof.kind !== 'emergency' && proof.at <= now.getTime() &&
+        proof.at >= (proofMorningStart(proof)?.getTime() ?? Infinity),
+    },
     readDaytime(now),
   );
   // A waiting edit's early first night starts before the routine in force's bedtime, and
@@ -234,6 +243,9 @@ export function onLockChange(listener: (state: LockState) => void): () => void {
  * asleep while the app shows it as over).
  */
 export function syncLock(now = new Date()): LockState {
+  // A clock wound back (to yesterday's proven morning, or 3 pm at midnight) reads as daytime:
+  // until it's put right, nothing held is let go here (clock-guard.ts).
+  const wound = isScreenTimeAvailable() && clockWoundBack();
   if (isScreenTimeAvailable()) {
     getNap();
     if (subscriptionEnded() && !isStoodDown()) {
@@ -255,7 +267,10 @@ export function syncLock(now = new Date()): LockState {
     // skips it (nothing sleeps after a lapse), and the windows stay armed only until the store
     // answers (`settleSubscription`).
     const asleep = (state.phase === 'night' || state.phase === 'morning') && !pastLastPaid(state.morningKey);
-    if (!asleep && isNightHeld()) wakeApps('night');
+    if (!asleep && isNightHeld()) {
+      if (wound) reapplyStandingBlocks();
+      else wakeApps('night');
+    }
     // `readLock` reports a morning as locked only when its night was armed in time
     // (`armedInTime`: before the morning started), so a missed window or lost shields are put
     // back, but a morning nothing held overnight (an install's first) stays awake.
@@ -265,7 +280,7 @@ export function syncLock(now = new Date()): LockState {
     } else reapplyStandingBlocks();
     // App schedules (schedules.ts): a block that ended with no end call from iOS wakes, and each
     // schedule's activity is registered for its times.
-    liftIdleSchedules(now);
+    if (!wound) liftIdleSchedules(now);
     armSchedules(now).catch(() => {
       // iOS refused. The clock holds each block at every open, and the next sync tries again.
     });
@@ -286,6 +301,17 @@ export function syncLock(now = new Date()): LockState {
   }
   for (const listener of listeners) listener(state);
   return state;
+}
+
+const CLOCK_SEEN_KEY = 'locturne.clockSeen';
+
+/** Has the phone's clock been wound back since it was last read (`judgeClock`)? */
+function clockWoundBack(): boolean {
+  const reading = readClock();
+  if (!reading) return false;
+  const { wound, seen } = judgeClock(sharedGet<ClockSeen>(CLOCK_SEEN_KEY) ?? null, reading);
+  sharedSet(CLOCK_SEEN_KEY, seen);
+  return wound;
 }
 
 /**
@@ -404,6 +430,16 @@ export type LapseGap = { after: string; until: number };
 /** The nights earlier lapses skipped (`LapseGap`), oldest first. */
 export function lapseGaps(): LapseGap[] {
   return sharedGet<LapseGap[]>(LAPSE_SKIPPED_KEY) ?? [];
+}
+
+/**
+ * With nothing armed (every night was off), would a routine edit arm tonight's windows now
+ * (`armIfPaid`)? As far as can be told without asking the store: a subscription at the last
+ * check, Screen Time allowed, and something on the bedtime list. The Routine tab asks "Sleep
+ * now" first when that arm would shield at once (`sleepsAtOnce`).
+ */
+export function wouldArmOnEdit(): boolean {
+  return isScreenTimeAvailable() && !isStoodDown() && !subscriptionEnded() && getAccess() === 'approved' && nightPickCount() > 0;
 }
 
 /** No active subscription was found at the last check (never bought, or it ended). */

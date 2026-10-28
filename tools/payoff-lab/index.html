@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payoff lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  /* The app's Midnight palette (src/theme/colors.ts). */
+  :root {
+    --bg: #060B18; --surface: #0F1A33; --raised: #172444;
+    --text: #EEF6FB; --text2: #9FB3CC; --text3: #7C90AE;
+    --edge: rgba(221,240,248,0.16); --line: rgba(221,240,248,0.08); --frost: rgba(221,240,248,0.12);
+    --navy-ink: #0B1428;
+    --sans: 'SF Pro Display', -apple-system, Inter, system-ui, sans-serif;
+    --serif: 'New York', ui-serif, 'Instrument Serif', Georgia, serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #101114; color: #ddd; font-family: var(--sans); padding: 32px 24px 80px; }
+  header { max-width: 1400px; margin: 0 auto 28px; }
+  header h1 { font-size: 22px; font-weight: 600; color: #fff; }
+  header p { color: #9a9ca3; font-size: 14px; margin-top: 6px; max-width: 760px; line-height: 1.5; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 40px 28px; max-width: 1400px; margin: 0 auto; }
+  figure { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  figcaption { width: 300px; }
+  figcaption b { color: #fff; font-size: 14px; font-weight: 600; }
+  figcaption b span { color: #6f7279; font-weight: 500; margin-right: 6px; }
+  figcaption p { color: #9a9ca3; font-size: 12.5px; line-height: 1.45; margin-top: 4px; }
+  .scale { width: 300px; height: 650px; position: relative; cursor: zoom-in; }
+  .scale .phone { transform: scale(0.7634); transform-origin: top left; position: absolute; left: 0; top: 0; }
+  .zoom { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 10; cursor: zoom-out; }
+  .zoom.on { display: flex; }
+  .zoom .phone { transform: scale(var(--z, 1)); }
+
+  /* ——— The phone, laid out like the app: a sky panel with round bottom corners over a black strip. ——— */
+  .phone { width: 393px; height: 852px; border-radius: 54px; overflow: hidden; position: relative; background: #000;
+    font-family: var(--sans); color: var(--text); --strip: 154px; box-shadow: 0 0 0 10px #1d1e22, 0 20px 50px rgba(0,0,0,0.5); }
+  .status { position: absolute; top: 0; left: 0; right: 0; height: 54px; display: flex; justify-content: space-between; align-items: center; padding: 0 34px 0 46px; font-size: 16px; font-weight: 600; z-index: 5; }
+  .status i { display: inline-block; width: 26px; height: 12px; border: 1.5px solid rgba(255,255,255,0.9); border-radius: 4px; position: relative; }
+  .status i::after { content: ''; position: absolute; inset: 1.5px; right: 5px; background: #fff; border-radius: 1.5px; }
+  .sky { position: absolute; left: 0; right: 0; top: 0; bottom: var(--strip); border-radius: 0 0 44px 44px; overflow: hidden; background: var(--bg); }
+  .sky .art { position: absolute; inset: 0; background: url(/assets/onboarding/night-sky-moonless.png) top right / cover no-repeat; transform: scaleY(-1); }
+  .strip { position: absolute; left: 0; right: 0; bottom: 0; height: var(--strip); padding: 16px 24px 40px; display: flex; flex-direction: column; gap: 6px; }
+  .btn { height: 56px; border-radius: 28px; background: var(--text); color: var(--navy-ink); font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .btn.ghost { background: transparent; color: var(--text2); height: 40px; font-weight: 500; }
+  .row-btns { display: flex; gap: 10px; }
+  .row-btns .btn { flex: 1; }
+  .btn.dark { background: rgba(221,240,248,0.1); color: var(--text); }
+  .round { width: 56px; height: 56px; flex: none; border-radius: 28px; background: rgba(221,240,248,0.1); display: flex; align-items: center; justify-content: center; }
+
+  /* The frosted moon (moon-frosted.png: disc is 2/3 of the image) and its own glow (moon-glow.png: disc is 1/2). */
+  .moon { position: absolute; pointer-events: none; }
+  .moon img { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .moon .inside { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  .loc { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--strip); width: 128px; z-index: 2; }
+  .loc img { width: 100%; display: block; }
+  .bubble { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--strip) + 98px); background: #fff; color: #000; font-weight: 600; font-size: 16px; padding: 10px 16px; border-radius: 18px; white-space: nowrap; z-index: 3; }
+  .bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
+  .bubble.glass { background: rgba(23,36,68,0.88); color: var(--text); border: 1px solid var(--edge); font-weight: 500; }
+  .bubble.glass::after { border-right: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
+
+  .abs { position: absolute; left: 24px; right: 24px; }
+  .center { text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .t-time { font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .t-time small { font-size: 0.32em; font-weight: 600; color: var(--text2); letter-spacing: 0; margin-left: 4px; }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text2); }
+  .h { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .h.serif { font-family: var(--serif); font-weight: 400; font-size: 38px; letter-spacing: -0.01em; }
+  .sub { font-size: 16px; color: var(--text2); line-height: 1.4; }
+  .cap { font-size: 13px; color: var(--text3); }
+  .glass { background: rgba(15,26,51,0.72); border: 1px solid var(--line); border-radius: 22px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(221,240,248,0.08); color: var(--text2); font-size: 14px; }
+  .hr { height: 1px; background: var(--line); align-self: stretch; }
+
+  /* The week, several ways. */
+  .week { display: flex; justify-content: space-between; width: 100%; max-width: 330px; }
+  .day { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; color: var(--text3); }
+  .day.today { color: var(--text); font-weight: 600; }
+  .dot { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--edge); display: flex; align-items: center; justify-content: center; }
+  .dot.done { background: var(--text); border-color: var(--text); }
+  .dot.done::after { content: ''; width: 9px; height: 5px; border-left: 2px solid var(--navy-ink); border-bottom: 2px solid var(--navy-ink); transform: translateY(-1px) rotate(-45deg); }
+  .dot.future { opacity: 0.55; }
+  .dot.sm { width: 24px; height: 24px; }
+  .dot.sm.done::after { width: 7px; height: 4px; }
+  .mini-moon { width: 26px; height: 26px; border-radius: 50%; background: url(/assets/onboarding/moon-frosted.png) center / 150% no-repeat; }
+  .mini-moon.off { background: none; border: 1.5px dashed rgba(221,240,248,0.22); }
+  .mini-moon.future { background: none; border: 1.5px solid rgba(221,240,248,0.1); }
+  .bar { display: flex; gap: 5px; width: 100%; max-width: 330px; }
+  .bar span { flex: 1; height: 6px; border-radius: 3px; background: rgba(221,240,248,0.12); }
+  .bar span.done { background: var(--text); }
+  .bar-days { display: flex; justify-content: space-between; width: 100%; max-width: 330px; font-size: 11px; color: var(--text3); margin-top: 8px; }
+  .bar-days b { color: var(--text); font-weight: 600; }
+
+  /* App icons: brand tiles (the web stand-ins), or one-colour (SwiftUI can grey the real ones). */
+  .apps { display: flex; gap: 6px; align-items: center; }
+  .app { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: #fff; }
+  .app.ig { background: linear-gradient(45deg,#f9a03f,#e1306c 50%,#833ab4); }
+  .app.ig::after { content: ''; width: 14px; height: 14px; border: 2.2px solid #fff; border-radius: 5px; }
+  .app.sc { background: #FFFC00; color: #000; }
+  .app.x { background: #000; border: 1px solid #2b2b2b; }
+  .app.tt { background: #000; border: 1px solid #2b2b2b; }
+  .app.more { background: rgba(221,240,248,0.1); color: var(--text2); font-size: 12px; font-weight: 700; }
+  .apps.mono .app { background: rgba(221,240,248,0.1); border: none; color: var(--text); filter: grayscale(1); }
+  .apps.mono .app.ig::after { border-color: var(--text); }
+  .apps.mono .app.sc { color: var(--text); }
+  .apps.stack .app { margin-left: -9px; box-shadow: 0 0 0 2.5px #0b1020; }
+  .apps.stack .app:first-child { margin-left: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Payoff lab: 20 takes on the morning payoff</h1>
+  <p>Static mockups of /morning-won at the moment the page has settled (after Loc's yell and the moonrise). Every one keeps the frosted moon.
+     Same made-up morning in all of them: up at 7:06, morning 12, Mon–Wed done, 7 apps. Click a phone to see it full size.
+     The real icons on iPhone come from Screen Time, so the coloured tiles here are stand-ins.</p>
+</header>
+<div class="grid" id="grid"></div>
+<div class="zoom" id="zoom"></div>
+
+<script>
+const W = 393, H = 852;
+const DAYS = [['S', 'off'], ['M', 'done'], ['T', 'done'], ['W', 'today'], ['T', 'future'], ['F', 'future'], ['S', 'future']];
+const LINE = 'Again. I fear you now.';
+
+// ——— Shared parts ———
+const status = () => `<div class="status"><span>7:06</span><i></i></div>`;
+const sky = (extra = '') => `<div class="sky"><div class="art"></div>${extra}</div>`;
+/** The moon centred on (cx, cy), disc `d` wide; `dim` darkens the frost; `glow` its own glow image (0–1). */
+const moon = (d, cy, { cx = W / 2, inside = '', glow = 1, dim = 1, z = 1 } = {}) => `
+  <div class="moon" style="left:${cx - d / 2}px;top:${cy - d / 2}px;width:${d}px;height:${d}px;z-index:${z}">
+    <img src="/assets/onboarding/moon-glow.png" style="width:${d * 2}px;opacity:${glow}">
+    <img src="/assets/onboarding/moon-frosted.png" style="width:${d * 1.5}px;filter:brightness(${dim})">
+    <div class="inside">${inside}</div>
+  </div>`;
+const loc = (w = 128) => `<div class="loc" style="width:${w}px"><img src="/loc/loc-peek-eyes.svg"></div>`;
+const bubble = (text = LINE, glass = false, lift = 98) => `<div class="bubble ${glass ? 'glass' : ''}" style="bottom:calc(var(--strip) + ${lift}px)">${text}</div>`;
+const strip = (inner = `<div class="btn">Done</div><div class="btn ghost">Share</div>`) => `<div class="strip">${inner}</div>`;
+const time = (size = 64) => `<div class="t-time" style="font-size:${size}px">7:06<small>am</small></div>`;
+const week = (kind = 'dots') => {
+  if (kind === 'moons') return `<div class="week">${DAYS.map(([l, s]) => `<div class="day ${s === 'today' ? 'today' : ''}">${l}<div class="mini-moon ${s === 'off' ? 'off' : s === 'future' ? 'future' : ''}"></div></div>`).join('')}</div>`;
+  if (kind === 'bar') return `<div style="width:100%;max-width:330px"><div class="bar">${DAYS.map(([, s]) => `<span class="${s === 'done' || s === 'today' ? 'done' : ''}"></span>`).join('')}</div><div class="bar-days">${DAYS.map(([l, s]) => (s === 'today' ? `<b>${l}</b>` : `<span>${l}</span>`)).join('')}</div></div>`;
+  const sm = kind === 'small' ? 'sm' : '';
+  return `<div class="week">${DAYS.map(([l, s]) => `<div class="day ${s === 'today' ? 'today' : ''}">${l}<div class="dot ${sm} ${s === 'done' || s === 'today' ? 'done' : ''} ${s === 'future' ? 'future' : ''}"></div></div>`).join('')}</div>`;
+};
+const apps = (cls = '') => `<div class="apps ${cls}"><div class="app ig"></div><div class="app sc">👻</div><div class="app x">𝕏</div><div class="app more">+4</div></div>`;
+const at = (top, html, cls = 'center') => `<div class="abs ${cls}" style="top:${top}px">${html}</div>`;
+
+// ——— The twenty ———
+const V = [
+  {
+    t: 'Quiet', n: 'The five-thing version: time under the moon (never on the blur), one headline, one caption, the week. No icons, no pill, Loc\'s line in dark glass so Done is the only white at the bottom.',
+    html: () => sky(moon(170, 165) + at(270, `${time(56)}<div class="cap" style="margin-top:8px">Morning 12 · your earliest this week</div>`) + at(372, `<div class="h">Your apps are awake</div>`) + at(450, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Moon phases week', n: 'The week is seven little frosted moons: a morning you got up is a full moon, a missed one is a dashed outline, days to come are faint. The moon becomes the streak.',
+    html: () => sky(moon(176, 170, { inside: `${time(46)}<div class="label" style="margin-top:8px">Morning 12</div>`, dim: 0.72 }) + at(300, `<div class="h">Your apps are awake</div><div class="sub" style="margin-top:8px">Your earliest wake-up this week</div>`) + at(440, week('moons'))) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Breathwrk card', n: 'From Breathwrk: the number inside the moon, a line, then one frosted card with two stats split by a hairline. Done, then Share as quiet text.',
+    html: () => sky(moon(180, 175, { inside: `${time(48)}<div class="label" style="margin-top:8px">Up at</div>`, dim: 0.72 }) + at(310, `<div class="h" style="font-size:24px">Your apps are awake.<br>Loc is furious.</div>`) + at(410, `<div class="glass" style="display:flex;width:100%;padding:18px 0"><div class="center" style="flex:1"><div class="cap">Morning</div><div style="font-size:28px;font-weight:700;margin-top:4px">12</div></div><div style="width:1px;background:var(--line)"></div><div class="center" style="flex:1"><div class="cap">This week</div><div style="font-size:28px;font-weight:700;margin-top:4px">3 of 7</div></div></div>`)) + loc() + strip(),
+  },
+  {
+    t: 'Sunrise horizon', n: 'Keeps the big moment: the moon stays huge and sits low behind Loc like a sunrise. Everything else floats in the dark sky above it, so the text is never on the moon.',
+    html: () => sky(moon(380, 690, { glow: 0.9 }) + at(110, `<div class="label">Morning 12</div><div style="margin-top:14px">${time(84)}</div><div class="h" style="margin-top:22px;font-size:26px">Your apps are awake</div>`) + at(370, week())) + loc(140) + strip(),
+  },
+  {
+    t: 'Serif statement', n: 'Bloom\'s serif headline (New York on iPhone), big and calm. The time becomes a small fact under it. Feels editorial and grown-up.',
+    html: () => sky(moon(150, 170, { inside: `<div class="t-time" style="font-size:38px">7:06</div>`, dim: 0.7 }) + at(285, `<div class="h serif">You beat the<br>morning.</div><div class="sub" style="margin-top:12px">Up at 7:06 am. Your apps are awake.</div>`) + at(470, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Bottom sheet', n: 'From Equinox: the sky, the moon and Loc fill the top; a dark sheet rises with the words, the week and Done. Clear separation between the moment and the facts.',
+    html: () => `<div class="sky" style="bottom:400px">${'<div class="art"></div>'}${moon(170, 210, { inside: `${time(46)}`, dim: 0.72 })}</div><div class="loc" style="bottom:400px;width:120px"><img src="/loc/loc-peek-eyes.svg"></div><div style="position:absolute;left:0;right:0;bottom:0;height:410px;background:#0b1224;border-radius:36px 36px 0 0;padding:30px 24px 40px;display:flex;flex-direction:column;align-items:center;gap:0;z-index:3"><div style="width:36px;height:5px;border-radius:3px;background:var(--edge);margin-bottom:22px"></div><div class="h">Your apps are awake</div><div class="sub" style="margin-top:6px">Morning 12 · earliest this week</div><div style="margin-top:28px;width:100%;display:flex;justify-content:center">${week()}</div><div style="margin-top:auto;width:100%"><div class="btn">Done</div><div class="btn ghost">Share</div></div></div>`,
+  },
+  {
+    t: 'Loc says it', n: 'Loc\'s line is the headline, set big as a quote, with his name under it. The data shrinks to one caption. All personality.',
+    html: () => sky(moon(150, 160, { inside: `<div class="t-time" style="font-size:40px">7:06</div><div class="label" style="margin-top:6px;font-size:10px">Morning 12</div>`, dim: 0.7 }) + at(285, `<div class="h" style="font-size:34px">“Again.<br>I fear you now.”</div><div class="cap" style="margin-top:12px">— Loc</div>`) + at(470, `${week('small')}<div class="cap" style="margin-top:14px">Your apps are awake</div>`)) + loc() + strip(),
+  },
+  {
+    t: 'Giant count', n: 'From Tonal and pushr: the morning count is the hero, huge and confident, inside the moon. The time moves to the caption. Good for milestones.',
+    html: () => sky(moon(210, 200, { inside: `<div class="t-time" style="font-size:96px;letter-spacing:-0.05em">12</div><div class="label" style="margin-top:2px">Mornings</div>`, dim: 0.65 }) + at(340, `<div class="h" style="font-size:24px">Up at 7:06. Apps awake.</div>`) + at(430, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + bubble(LINE, true, 92) + strip(),
+  },
+  {
+    t: 'Night to morning', n: 'A small timeline: bedtime on the left, the wake-up on the right, the moon riding the line. Tells the whole night in one glance.',
+    html: () => sky(moon(150, 165) + at(290, `<div class="h">Your apps are awake</div><div class="sub" style="margin-top:8px">Morning 12</div>`) + at(400, `<div style="width:100%;max-width:330px"><div style="display:flex;justify-content:space-between" class="cap"><span>Lights out</span><span style="color:var(--text)">Up</span></div><div style="position:relative;height:30px;margin-top:6px"><div style="position:absolute;left:0;right:0;top:14px;height:2px;background:linear-gradient(90deg,rgba(221,240,248,0.1),var(--text))"></div><div style="position:absolute;left:0;top:9px;width:12px;height:12px;border-radius:50%;border:2px solid var(--text3);background:var(--bg)"></div><div style="position:absolute;right:0;top:6px;width:18px;height:18px;border-radius:50%;background:var(--text)"></div></div><div style="display:flex;justify-content:space-between;font-size:20px;font-weight:700"><span style="color:var(--text3)">11:02 pm</span><span>7:06 am</span></div></div>`) + at(520, week('small'))) + loc() + strip(),
+  },
+  {
+    t: 'Apple award', n: 'Apple Fitness award feel: the moon alone as the medal, a title and a subtitle, nothing else on the sky. The week waits on Home.',
+    html: () => sky(moon(230, 260) + at(420, `<div class="h" style="font-size:32px">Morning 12</div><div class="sub" style="margin-top:8px">Up at 7:06 am. Your apps are awake.</div>`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Grey icons', n: 'Keeps the apps but takes their colour away: SwiftUI can grey the real Screen Time icons, so they read as part of the night instead of clip art.',
+    html: () => sky(moon(170, 165, { inside: `${time(44)}<div class="label" style="margin-top:6px">Morning 12</div>`, dim: 0.72 }) + at(290, `<div class="h">Your apps are awake</div><div style="margin-top:16px">${apps('mono')}</div>`) + at(450, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Week bar', n: 'The week as one segmented bar instead of seven circles: lighter, calmer, and the white segments read as progress at a glance.',
+    html: () => sky(moon(176, 170, { inside: `${time(46)}<div class="label" style="margin-top:6px">Morning 12</div>`, dim: 0.72 }) + at(300, `<div class="h">Your apps are awake</div><div class="sub" style="margin-top:8px">Your earliest wake-up this week</div>`) + at(430, `<div class="label" style="margin-bottom:14px">3 of 7 this week</div>${week('bar')}`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Three facts', n: 'One frosted row of three facts under a headline: Up / Morning / This week. Everything at the same weight, very scannable.',
+    html: () => sky(moon(190, 185) + at(325, `<div class="h">Your apps are awake</div>`) + at(400, `<div class="glass" style="display:flex;width:100%;padding:16px 0">${[['Up at', '7:06'], ['Morning', '12'], ['This week', '3/7']].map(([k, v], i) => `${i ? '<div style="width:1px;background:var(--line)"></div>' : ''}<div class="center" style="flex:1"><div style="font-size:24px;font-weight:700">${v}</div><div class="cap" style="margin-top:4px">${k}</div></div>`).join('')}</div>`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Left editorial', n: 'Not centred, on purpose, to see it: a big left-aligned time and headline like a magazine cover, the moon off to the right.',
+    html: () => sky(moon(160, 140, { cx: 318 }) + at(240, `<div class="label">Morning 12</div><div style="margin-top:12px">${time(92)}</div><div class="h" style="margin-top:18px;font-size:28px;max-width:240px">Your apps are awake.</div>`, '') + at(480, week())) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Loc on the moon', n: 'The moon sits low on the panel edge and Loc stands in front of it, so the moon is his halo. The words live in the dark top half.',
+    html: () => sky(moon(250, 600, { glow: 0.85 }) + at(130, `${time(72)}<div class="label" style="margin-top:12px">Morning 12</div>`) + at(300, `<div class="h">Your apps are awake</div>`) + at(380, week('small'))) + loc(150) + bubble(LINE, true, 116) + strip(),
+  },
+  {
+    t: 'Receipt', n: 'A frosted ticket: the morning written down like a receipt, line by line. Shareable as is.',
+    html: () => sky(moon(130, 150) + at(250, `<div class="glass" style="width:100%;padding:22px 22px 18px;text-align:left"><div class="label">Morning 12 · Wednesday</div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:16px"><span class="sub">Up at</span><span style="font-size:30px;font-weight:700">7:06 am</span></div><div class="hr" style="margin:14px 0"></div><div style="display:flex;justify-content:space-between" class="sub"><span>Apps</span><span style="color:var(--text)">Awake</span></div><div style="display:flex;justify-content:space-between;margin-top:10px" class="sub"><span>This week</span><span style="color:var(--text)">3 of 7</span></div><div style="display:flex;justify-content:space-between;margin-top:10px" class="sub"><span>Best this week</span><span style="color:var(--text)">Today</span></div><div style="margin-top:18px;display:flex;justify-content:center">${week('small')}</div></div>`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Just the morning', n: 'Ultra minimal: the moon with the time inside, Loc\'s line as the only words, Done. For the mornings that don\'t need stats.',
+    html: () => sky(moon(220, 300, { inside: `${time(60)}<div class="label" style="margin-top:8px">Morning 12</div>`, dim: 0.68 })) + loc() + bubble(LINE, false, 100) + strip(),
+  },
+  {
+    t: 'Split buttons', n: 'Quiet layout, but the bottom gets Done and a round Share side by side, like Home\'s strip, and the bubble is gone so Loc just yells.',
+    html: () => sky(moon(170, 165, { inside: `${time(46)}`, dim: 0.72 }) + at(290, `<div class="h">Your apps are awake</div><div class="sub" style="margin-top:8px">Morning 12 · earliest this week</div>`) + at(440, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + strip(`<div class="row-btns" style="margin-top:8px"><div class="btn">Done</div><div class="round"><svg width="20" height="22" viewBox="0 0 20 22" fill="none" stroke="#EEF6FB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14V2M5 7l5-5 5 5M3 11v8a2 2 0 002 2h10a2 2 0 002-2v-8"/></svg></div></div>`),
+  },
+  {
+    t: 'Countdown chip', n: 'From bless.: a small chip over the headline carries the brag ("Earliest this week"), so it labels itself; the headline is the reward.',
+    html: () => sky(moon(176, 170, { inside: `${time(46)}<div class="label" style="margin-top:6px">Morning 12</div>`, dim: 0.72 }) + at(290, `<div class="pill">☀︎ Earliest this week</div><div class="h" style="margin-top:14px">Your apps are awake</div>`) + at(450, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + bubble(LINE, true) + strip(),
+  },
+  {
+    t: 'Stacked icons, quiet', n: 'For comparison with today\'s build: overlapping app icons in a small stack as the subhead, one caption, the week below with breathing room.',
+    html: () => sky(moon(170, 165, { inside: `${time(44)}<div class="label" style="margin-top:6px">Morning 12</div>`, dim: 0.72 }) + at(290, `<div class="h">Your apps are awake</div><div style="margin-top:14px;display:flex;align-items:center;gap:10px">${apps('stack')}<span class="cap">and 4 more</span></div>`) + at(450, `<div class="label" style="margin-bottom:14px">This week</div>${week()}`)) + loc() + bubble(LINE, true) + strip(),
+  },
+];
+
+// ——— Render ———
+const phone = (v) => `<div class="phone">${status()}${v.html()}</div>`;
+document.getElementById('grid').innerHTML = V.map((v, i) => `
+  <figure>
+    <div class="scale" data-i="${i}">${phone(v)}</div>
+    <figcaption><b><span>${String(i + 1).padStart(2, '0')}</span>${v.t}</b><p>${v.n}</p></figcaption>
+  </figure>`).join('');
+const zoom = document.getElementById('zoom');
+document.querySelectorAll('.scale').forEach((el) => el.addEventListener('click', () => {
+  zoom.innerHTML = phone(V[el.dataset.i]);
+  zoom.style.setProperty('--z', Math.min(1, (innerHeight - 40) / H));
+  zoom.classList.add('on');
+}));
+zoom.addEventListener('click', () => zoom.classList.remove('on'));
+</script>
+</body>
+</html>

@@ -207,11 +207,17 @@ function Count({ value, beats, tail, onLanded }: { value: number; beats: Beat[];
     // Runs once, when the number lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landed]);
-  // The total as it counts, padded to its final width with figure spaces (tabular digits), so the
-  // centred line doesn't shuffle sideways as digits arrive.
+  // The total as it counts, padded to its final width, so the centred line doesn't shuffle or
+  // rewrap as digits arrive: a figure space (a tabular digit's width) for each digit still to come,
+  // a punctuation space for each comma. Figure spaces alone padded "1,677" a comma too wide, which
+  // wrapped the line until the comma arrived (user 2026-10-28).
   const final = value.toLocaleString('en-US');
   const now = counted.toLocaleString('en-US');
-  const total = `${'\u2007'.repeat(Math.max(0, final.length - now.length))}${now} ${value === 1 ? 'day' : 'days'}`;
+  const pad = final
+    .slice(0, Math.max(0, final.length - now.length))
+    .replace(/\d/g, '\u2007')
+    .replace(/,/g, '\u2008');
+  const total = `${pad}${now} ${value === 1 ? 'day' : 'days'}`;
   // A line comes into focus like every onboarding line once its beat arrives; before that an
   // invisible copy holds its place, so nothing below moves.
   const line = (on: boolean, [before, amount, after]: Beat, style: object = styles.line) => {

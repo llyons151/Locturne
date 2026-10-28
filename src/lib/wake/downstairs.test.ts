@@ -151,6 +151,26 @@ describe('downstairs', () => {
     assert.equal(resumed.metAt, null);
   });
 
+  test('a trip under way at the five minutes gets its grace and counts', () => {
+    // 2.8 m over 15 s, setting off 5 s before the timeout: a restart would judge from mid-stairs.
+    const leave = DOWNSTAIRS.timeoutMs - 5_000;
+    let s = startDownstairs(0);
+    for (let at = 500; at <= DOWNSTAIRS.timeoutMs + 40_000 && s.metAt === null; at += 500) {
+      // A few millimetres of jitter, as a working sensor has (a dead-still line reads as stuck).
+      const jitter = ((at / 500) % 3) * 0.005;
+      const altitude = jitter + (at < leave ? 0 : -2.8 * Math.min(1, (at - leave) / 15_000));
+      s = tick(addSample(s, { at, altitude }), at);
+      assert.notEqual(s.status, 'timedOut', `at ${at}`);
+    }
+    assert.notEqual(s.metAt, null);
+  });
+
+  test('a still phone still times out on time', () => {
+    let s = startDownstairs(0);
+    for (let at = 500; at <= DOWNSTAIRS.timeoutMs; at += 500) s = tick(addSample(s, { at, altitude: ((at / 500) % 3) * 0.005 }), at);
+    assert.equal(s.status, 'timedOut');
+  });
+
   test('sensor silence still ends at the session timeout', () => {
     const holding = run(flight(3), 21);
     const ended = tick(holding, DOWNSTAIRS.timeoutMs);

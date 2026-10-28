@@ -646,7 +646,7 @@ func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> Stri
   let left = max(0, stepGoal - steps)
   switch method {
   case "downstairs":
-    return "No stairs yet. Go down a floor, then tap I’m up. Or walk \(left) more steps."
+    return "No stairs yet. Go down a floor, then tap I’m up. Or walk \(left) more \(left == 1 ? "step" : "steps")."
   case "steps":
     return "\(steps) of \(stepGoal) steps. \(left) more, then tap I’m up."
   default:
@@ -680,6 +680,39 @@ func locturneMorningProven(_ morning: LocturneMorning) -> Bool {
   let since = (morning.start.timeIntervalSince1970 - 24 * 60 * 60) * 1000
   return locturneProofs().contains { proof in
     proof["morningKey"] as? String == morning.key && ((proof["at"] as? NSNumber)?.doubleValue ?? 0) >= since
+  }
+}
+
+/// Did a wake-up method prove the morning the night of this bedtime window leads into, after
+/// that night began and not after now? Recorded only once a morning has started, so one exists
+/// only when the morning start moved later after the walk. A proof stamped after now came from
+/// a clock set forward, and one made before its own morning start in this zone (the morning
+/// start it was judged under) from a zone set ahead: neither frees a night. Passes and
+/// emergencies don't count here. As `proven` in src/lib/lock-state.ts and `windowMorningProven`
+/// in src/lib/sim-device.ts.
+func locturneWindowMorningProven(_ window: (evening: Date, outside: Bool, bedtime: Date), now: Date = Date()) -> Bool {
+  let calendar = Calendar.current
+  guard let morning = calendar.date(byAdding: .day, value: 1, to: window.evening) else { return false }
+  let key = locturneDayKey(morning)
+  // The night's start on the minute, as the app's nights start. Measured back in wall-clock
+  // minutes, it is an hour late after the clocks go back and an hour early after they go
+  // forward: the change in offset since puts it right.
+  let guess = window.bedtime.addingTimeInterval(-Double(calendar.component(.second, from: window.bedtime)))
+  let shift = Double(calendar.timeZone.secondsFromGMT(for: guess) - calendar.timeZone.secondsFromGMT(for: now))
+  var start = window.outside ? guess : guess.addingTimeInterval(-shift)
+  // A bedtime in the hour the clocks repeat began at its first pass, as `wallClock` places it.
+  let hourEarlier = start.addingTimeInterval(-3600)
+  let parts: Set<Calendar.Component> = [.day, .hour, .minute]
+  if calendar.dateComponents(parts, from: hourEarlier) == calendar.dateComponents(parts, from: start) { start = hourEarlier }
+  let from = start.timeIntervalSince1970 * 1000
+  let until = now.timeIntervalSince1970 * 1000
+  return locturneProofs().contains { proof in
+    guard locturneIsWin(proof), proof["morningKey"] as? String == key,
+      let at = (proof["at"] as? NSNumber)?.doubleValue,
+      let start = locturneMinuteOfDay(proof["morningStart"]),
+      let started = calendar.date(bySettingHour: start / 60, minute: start % 60, second: 0, of: morning)
+    else { return false }
+    return at >= from && at <= until && at >= started.timeIntervalSince1970 * 1000
   }
 }
 

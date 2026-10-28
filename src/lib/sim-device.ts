@@ -442,6 +442,31 @@ export function simDevice() {
     };
   }
 
+  /**
+   * `locturneWindowMorningProven`: did a wake-up method prove the morning this window's night
+   * leads into, after that night began and not after now? Only a morning start moved later after
+   * the walk starts a window into one.
+   */
+  function windowMorningProven(window: { evening: Date; outside: boolean; bedtime: number }): boolean {
+    const e = window.evening;
+    const morning = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
+    const key = dayKey(morning);
+    // On the minute, and put right for a clock change since (the Swift's `shift`).
+    const guess = window.bedtime - new Date(window.bedtime).getSeconds() * 1000 - new Date(window.bedtime).getMilliseconds();
+    const shift = (new Date(now()).getTimezoneOffset() - new Date(guess).getTimezoneOffset()) * 60_000;
+    let from = window.outside ? guess : guess - shift;
+    // A bedtime in the hour the clocks repeat began at its first pass, as `wallClock` places it.
+    const wall = (t: number) => { const x = new Date(t); return `${x.getDate()} ${x.getHours()}:${x.getMinutes()}`; };
+    if (wall(from - 3_600_000) === wall(from)) from -= 3_600_000;
+    const proofs = get<{ morningKey?: string; kind?: string; at?: number; morningStart?: number }[]>('locturne.morningProofs') ?? [];
+    return proofs.some((p) => {
+      if (p.kind === 'pass' || p.kind === 'emergency' || p.morningKey !== key || typeof p.at !== 'number') return false;
+      if (typeof p.morningStart !== 'number') return false;
+      const started = new Date(morning.getFullYear(), morning.getMonth(), morning.getDate(), Math.floor(p.morningStart / 60), p.morningStart % 60).getTime();
+      return p.at >= from && p.at <= now() && p.at >= started;
+    });
+  }
+
   /** `locturneNightIsOn`: is the night of `evening` switched on? */
   function nightIsOn(evening: Date): boolean {
     const nights = routineInForce()?.activeNights;
@@ -621,6 +646,10 @@ export function simDevice() {
       if (!nightIsOn(window.evening) || subscriptionLapsed(window.evening)) {
         if (insideNightInForce()) skipNight(activity);
         else ignoreWindow(activity);
+        return;
+      }
+      if (windowMorningProven(window)) {
+        ignoreWindow(activity);
         return;
       }
       set(NIGHT_HELD_KEY, true);

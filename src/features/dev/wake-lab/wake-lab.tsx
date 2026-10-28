@@ -2,6 +2,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,7 +11,8 @@ import * as haptic from '@/lib/haptics';
 import { getMorningPlace, judgeFix } from '@/lib/place';
 import { getRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
 import { getScanCode, matches } from '@/lib/scan';
-import { Gap, Nocturne, Space } from '@/theme';
+import { endTestLock, getTestLock, startTestLock } from '@/lib/screen-time';
+import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { readFix } from '../../place/locate';
 import { Scanner, type Scan } from '../../scan/scanner';
@@ -34,25 +36,36 @@ const titleOf = (method: WakeMethod) => LAB_METHODS.find((m) => m.value === meth
  * Dev tool: runs one wake-up method's real sensor flow at any hour (/wake-lab?method=pushups).
  * The same views as the morning, but a pass only says so: nothing calls `proveMorning`, so no
  * proof is recorded and no shield moves. Steps count from when the test opened.
+ *
+ * With `lock` (/wake-lab?method=scan&lock=1, from You → Test the lock) the bedtime apps really
+ * sleep first, on their own copy (`startTestLock` in screen-time.ts): leave, try one, come back.
+ * A pass wakes them, and so does Exit. Steps count from when they went to sleep.
  */
-export function WakeLab({ method: first }: { method: WakeMethod }) {
+export function WakeLab({ method: first, lock = false }: { method: WakeMethod; lock?: boolean }) {
   const insets = useSafeAreaInsets();
   const [method, setMethod] = useState(first);
   const [passed, setPassed] = useState(false);
   // Bumped by "Run it again" to remount the method with a fresh session.
   const [run, setRun] = useState(0);
-  const [startedAt, setStartedAt] = useState(() => new Date());
+  const [startedAt, setStartedAt] = useState(() => new Date(lock ? (getTestLock()?.since ?? Date.now()) : Date.now()));
   const routine = getRoutine();
   const preview = usePushupsPreview();
 
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const close = () => {
+    if (lock) endTestLock();
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
   const onMet = () => {
+    if (lock) endTestLock();
     haptic.done();
     setPassed(true);
   };
   const again = () => {
+    const now = new Date();
+    if (lock) startTestLock(method, now);
     setPassed(false);
-    setStartedAt(new Date());
+    setStartedAt(now);
     setRun((n) => n + 1);
   };
   const toSteps = () => {
@@ -66,11 +79,15 @@ export function WakeLab({ method: first }: { method: WakeMethod }) {
       <Animated.View entering={FadeIn.duration(400)} style={styles.page}>
         <View style={styles.top}>
           <Voice text="Test passed." />
-          <Body>{`${titleOf(method)} works. Nothing was recorded and no apps were woken.`}</Body>
+          <Body>
+            {lock
+              ? `${titleOf(method)} woke them. Your bedtime apps are open again, and nothing was recorded.`
+              : `${titleOf(method)} works. Nothing was recorded and no apps were woken.`}
+          </Body>
         </View>
         <View style={styles.flex} />
         <View style={styles.bottom}>
-          <PrimaryButton label="Run it again" onPress={again} />
+          <PrimaryButton label={lock ? 'Lock them again' : 'Run it again'} onPress={again} />
           <TextButton label="Done" onPress={close} />
         </View>
       </Animated.View>
@@ -98,14 +115,21 @@ export function WakeLab({ method: first }: { method: WakeMethod }) {
       showsVerticalScrollIndicator={false}
     >
       {passed ? null : <StayAwake />}
-      <TopBar label={`Test · ${titleOf(method)}`} onClose={close} />
+      <TopBar label={`${lock ? 'Test lock' : 'Test'} · ${titleOf(method)}`} onClose={close} />
+      {lock && !passed ? (
+        <View style={styles.lockNote}>
+          <Text style={styles.lockText}>Your bedtime apps are asleep. Go try one, then come back and wake them.</Text>
+          <TextButton label="Exit and wake them" onPress={close} />
+        </View>
+      ) : null}
       {content}
     </ScrollView>
   );
 }
 
 function StayAwake() {
-  useKeepAwake();
+  // Web's wake lock throws if it never activated (denied, or unmounted first): not worth a red screen.
+  useKeepAwake(undefined, { suppressDeactivateWarnings: true });
   return null;
 }
 
@@ -192,4 +216,6 @@ const styles = StyleSheet.create({
   top: { gap: Space.l, marginTop: Space.xxl },
   bottom: { gap: Space.l, paddingBottom: Space.s },
   spinner: { marginTop: Space.xl },
+  lockNote: { alignItems: 'center', gap: Space.xs, marginTop: Space.m },
+  lockText: { ...Type.caption, color: Nocturne.text2, textAlign: 'center' },
 });

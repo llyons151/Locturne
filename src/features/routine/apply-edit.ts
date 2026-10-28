@@ -2,11 +2,11 @@ import { Alert } from 'react-native';
 
 import { armIfPaid } from '@/hooks/use-app-start';
 import { heldPhase } from '@/lib/emergency';
-import { armRoutine, inPendingFirstNight, readLock, syncLock } from '@/lib/lock-controller';
+import { armRoutine, inPendingFirstNight, readLock, syncLock, wouldArmOnEdit } from '@/lib/lock-controller';
 import { dateKey, nightInto, nightsAround, wallClock } from '@/lib/lock-state';
 import { getProofs } from '@/lib/morning-proof';
 import { rescheduleNotifications } from '@/lib/notifications';
-import { getPendingRoutine, getRoutine, saveRoutine, toLockSettings, type Routine } from '@/lib/routine';
+import { getPendingRoutine, getRoutine, nightMinutes, nightTooShort, saveRoutine, toLockSettings, type Routine } from '@/lib/routine';
 import { editRefusal } from '@/lib/scan';
 import { getArmedNight } from '@/lib/screen-time';
 
@@ -39,17 +39,21 @@ export function refuseWhileAsleep(now = new Date()): boolean {
  * Would `next` put the apps to sleep the moment it's saved? Says which end moved into now:
  * 'night' (a bedtime moved earlier than now, or tonight switched back on) or 'morning' (a
  * morning moved later than now, before it was proven). Null when now is outside its nights,
- * or nothing would hold one: no night armed, or one `heldPhase` lets through (paused by a
+ * or nothing would hold one: no night armed and none the save would arm (`wouldArmOnEdit`), or
+ * one `heldPhase` lets through (paused by a
  * pass, an empty bedtime list, a lapsed subscription), or a morning already proven. The
  * Routine tab asks first.
  */
 export function sleepsAtOnce(next: Routine, now = new Date()): 'night' | 'morning' | null {
-  if (!getArmedNight()) return null;
+  // Nothing armed (every night was off): saving arms through `armIfPaid`, which shields at once.
+  const armed = getArmedNight() !== null;
+  if (!armed && !wouldArmOnEdit()) return null;
   const { latest } = nightsAround(now, toLockSettings(next));
   if (!(now >= latest.start && now < latest.end)) return null;
   // Its evening: the day before the morning it leads into.
   if (!next.activeNights.includes(wallClock(latest.end, 0, -1).getDay())) return null;
-  if (heldPhase('night', now) !== 'night') return null;
+  // `heldPhase` reads a night nothing has armed yet as awake: only an armed one can be let through.
+  if (armed && heldPhase('night', now) !== 'night') return null;
   // Already up this morning: a later morning start doesn't take the proof back.
   const key = dateKey(latest.end);
   if (getProofs().some((p) => p.morningKey === key && p.at >= latest.start.getTime() && p.at <= now.getTime())) return null;
@@ -69,6 +73,13 @@ export function sleepsAtOnce(next: Routine, now = new Date()): 'night' | 'mornin
 export function applyRoutineEdit(next: Routine): Promise<boolean> {
   const savedAt = new Date();
   if (routineEditRefusal(savedAt)) return Promise.resolve(false);
+  // The dial can't make one, but nothing else may either (`MIN_NIGHT`). Only times that change
+  // are judged, and a routine saved short before the rule may still lengthen toward it, so its
+  // other settings (method, nights, step goal) stay editable.
+  const current = getSetRoutine(savedAt);
+  const moved = next.bedtime !== current.bedtime || next.morningStart !== current.morningStart;
+  const shorter = nightMinutes(next.bedtime, next.morningStart) <= nightMinutes(current.bedtime, current.morningStart);
+  if (moved && nightTooShort(next.bedtime, next.morningStart) && shorter) return Promise.resolve(false);
   // Inside a waiting edit's early first night (from before edits were refused from bed), that
   // edit governs tonight: this one waits for its next bedtime rather than handing tonight back
   // to the old, later bedtime.

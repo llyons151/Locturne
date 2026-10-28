@@ -812,10 +812,12 @@ describe('place', () => {
     assert.ok(NIGHT.every(asleep));
   });
 
-  test('just outside (130 m) is not there; just inside (110 m) is', async () => {
+  test('just outside (130 m, ±15) is unsure, further (150 m) not there; just inside (110 m) is', async () => {
     await withPlace();
     await sleepThroughNight();
-    assert.equal(place.submitPlaceFix(fix(130)).kind, 'notThere');
+    // The fix's circle still reaches the place: never a yes, but not a flat no either.
+    assert.equal(place.submitPlaceFix(fix(130)).kind, 'unsure');
+    assert.equal(place.submitPlaceFix(fix(150)).kind, 'notThere');
     assert.equal(place.submitPlaceFix(fix(110)).kind, 'unlocked');
   });
 

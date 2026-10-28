@@ -30,10 +30,12 @@ import { onLockChange, readLock } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
+import { getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import type { WakeMethod } from '@/lib/routine';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { APP_STATES, pickAppState } from '@/features/dev/state-lab/app-states';
+import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from '@/features/routine/apply-edit';
 
@@ -89,6 +91,24 @@ function preview(href: Href, method?: WakeMethod) {
   // Home is the tab next door: switch to it rather than stack a second Home.
   if (href === '/') router.navigate('/');
   else router.push(href);
+}
+
+const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
+  steps: sym('figure.walk', 'directions_walk'),
+  downstairs: sym('figure.stairs', 'stairs'),
+  scan: sym('barcode.viewfinder', 'barcode_scanner'),
+  place: sym('mappin.and.ellipse', 'location_on'),
+  pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
+};
+
+/** Dev and preview builds: the bedtime apps really sleep, until `method` wakes them (wake-lab.tsx). */
+function testLock(method: WakeMethod) {
+  if (!isScreenTimeAvailable()) return Alert.alert('iPhone only', 'The test lock needs Screen Time, so run it on the phone.');
+  if (!startTestLock(method)) {
+    return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');
+  }
+  haptic.done();
+  router.push(`/wake-lab?method=${method}&lock=1`);
 }
 
 function sendFeedback() {
@@ -165,8 +185,10 @@ export function YouScreen() {
     // As set, a waiting edit included: Routine's banner says when it starts.
     stepGoal: getSetRoutine().stepGoal,
     mornings: getMorningsWon(),
+    // A test lock left on (dev and preview builds): the way back to it.
+    testRun: getTestLock(),
   });
-  const [{ inTrial, trialEnd, passesLeft, stepGoal, mornings }, setFacts] = useState(read);
+  const [{ inTrial, trialEnd, passesLeft, stepGoal, mornings, testRun }, setFacts] = useState(read);
   const setStepGoal = (goal: number) => {
     // Not from bed (apply-edit.ts): says so, and the target stays as it was.
     if (!refuseWhileAsleep()) applyRoutineEdit({ ...getSetRoutine(), stepGoal: goal });
@@ -193,7 +215,7 @@ export function YouScreen() {
   // own method: from bed, a pass is the way out.
   const cantWalk = () => {
     const { phase } = readLock();
-    if (phase !== 'night' && phase !== 'morning') return router.push({ pathname: '/scan', params: { mode: 'setup' } });
+    if (phase !== 'night' && phase !== 'morning') return router.push('/code');
     router.push('/exits');
   };
   // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
@@ -311,6 +333,39 @@ export function YouScreen() {
         <Card footer="The whole onboarding again from the start. Finishing it saves its answers as your routine.">
           <ValueRow icon={sym('arrow.counterclockwise', 'replay')} title="Redo onboarding" value="" onPress={() => router.push('/onboarding?paywall=1')} last />
         </Card>
+      ) : null}
+
+      {/* Dev and preview builds only: a real lock on the bedtime apps, woken by one method (wake-lab.tsx). */}
+      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
+        <>
+          <Text style={styles.heading} accessibilityRole="header">
+            Test the lock
+          </Text>
+          {testRun ? (
+            <Card footer="A test lock is still on. Your bedtime apps stay asleep until it's passed or exited.">
+              <ValueRow
+                icon={sym('lock.fill', 'lock')}
+                title="Back to the test lock"
+                value=""
+                onPress={() => router.push(`/wake-lab?method=${testRun.method}&lock=1`)}
+                last
+              />
+            </Card>
+          ) : (
+            <Card footer="Your bedtime apps sleep right away, for real. Wake them with the method, or exit. Nothing is recorded and your routine doesn't change.">
+              {LAB_METHODS.map((m, i) => (
+                <ValueRow
+                  key={m.value}
+                  icon={METHOD_ICONS[m.value]}
+                  title={m.title}
+                  value=""
+                  onPress={() => testLock(m.value)}
+                  last={i === LAB_METHODS.length - 1}
+                />
+              ))}
+            </Card>
+          )}
+        </>
       ) : null}
 
       {__DEV__ ? (

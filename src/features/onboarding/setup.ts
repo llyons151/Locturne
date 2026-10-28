@@ -6,7 +6,7 @@
 import { inPendingFirstNight, syncLock } from '@/lib/lock-controller';
 import { cancelTrialReminder, rescheduleNotifications, syncTrialEnd, TRIAL_REMINDER_KEY } from '@/lib/notifications';
 import { ATTRIBUTES, currentTrialEnd, setAttributes } from '@/lib/purchases';
-import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, saveRoutine } from '@/lib/routine';
+import { DEFAULT_ROUTINE, getPendingRoutine, getRoutine, hasRoutine, nightTooShort, saveRoutine } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import type { Answers } from './content';
@@ -72,8 +72,8 @@ export function saveSetup(answers: Answers): void {
   saveRoutine(
     {
       ...current,
-      bedtime: answers.bedtime,
-      morningStart: answers.wake,
+      // The steps don't move on under `MIN_NIGHT`; anything that slips past keeps the times set.
+      ...(nightTooShort(answers.bedtime, answers.wake) ? {} : { bedtime: answers.bedtime, morningStart: answers.wake }),
       method: answers.method ?? DEFAULT_ROUTINE.method,
     },
     now,

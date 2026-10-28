@@ -448,7 +448,11 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     // Read the simulated device's picks, just as the shield oracle below does.
     const empty = device.appsOfId('night').length === 0;
     const free = empty || spec.armedSince === null || under === 'none' || !inTime || spec.freeMorning === morning.key;
-    return ls.getLockState(now, judged, { steps: 0, unlockedMorning: proven || free ? morning.key : null });
+    // A walk already made for this morning ends a night that only reads as under way because the
+    // morning start moved later since, or a flight west landed in it (`proven`, lock-state.ts).
+    const walked = spec.proofs.some((p) => p.key === morning.key && p.kind !== 'pass' && p.kind !== 'emergency' && after(p) && p.at <= at &&
+      p.at >= ls.nightInto(p.key, { bedtime: p.bedtime, morningStart: p.morningStart }).end.getTime());
+    return ls.getLockState(now, judged, { steps: 0, unlockedMorning: proven || free ? morning.key : null, proven: walked });
   }
   const locked = (at: number) => {
     const { phase } = phaseAt(at);

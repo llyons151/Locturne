@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { File, Paths } from 'expo-file-system';
@@ -10,12 +9,11 @@ import { AppBackground } from '@/components/app-background';
 import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { FOCUS_MS, FOCUS_STEP_MS, focusIn } from '@/components/motion';
-import { MOON_SHOWS_FROM, moonSink, moonSinkForTop, restingMoonDisc } from '@/components/night-sky';
-import { sym } from '@/components/grouped-list';
+import { MOON_SHOWS_FROM, moonScale, moonSink, moonSinkForCentre, restingMoonDisc } from '@/components/night-sky';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
 import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
@@ -26,8 +24,9 @@ import { locSpecial } from '../home/loc-lines';
 import { LOC_VIEW } from '../home/loc-rig';
 import LocStage from '../home/loc-stage';
 import { weekDays } from '../home/week';
+import { homeWeekSpot } from '../home/week-spot';
 import { WeekStrip } from '../home/week-strip';
-import { clockParts, payoffKicker, payoffMoment, shareText } from './payoff';
+import { APPS_AWAKE, clockParts, payoffBrag, payoffKicker, payoffMoment, shareText } from './payoff';
 import ShareCard, { type CardFacts } from './share-card';
 
 /** Everything the payoff shows. The route reads it from the stores, or the wake preview makes it up. */
@@ -43,6 +42,8 @@ export type PayoffFacts = {
   won: Set<string>;
   /** The earliest they got up this week, this morning included, in minutes since midnight. */
   earliest: number;
+  /** Past mornings this week no night locked (`WeekDay.free`), as Home has them, so the two weeks match. */
+  free: Set<string>;
   /** Home's key prefix for what Loc has said (`markLocSaid`), or null for made-up facts, which mark nothing. */
   sayKey: string | null;
 };
@@ -60,6 +61,11 @@ const SHORT_SCREEN = 720;
 
 /** Share's row under Done: its label with the button's own padding. */
 const SHARE_ROW = 44;
+/**
+ * Room over Done, from the panel's edge; Share's row sits right under it. Done hugged the edge
+ * with an empty band under Share (user, 2026-10-28: "the spacing just looks a little off").
+ */
+const STRIP_TOP = Space.xl;
 
 /**
  * Done hands back to Home (user, 2026-10-27: "flawless"), one thing after another: the page
@@ -67,26 +73,35 @@ const SHARE_ROW = 44;
  * sinks, the panel's edge and Loc drop to Home's strip); then this screen goes and Home's own
  * entrance fades its pieces in. Home is underneath all along, so nothing has to load.
  */
-const OUT_MS = 280;
-const SETTLE_AT_MS = 180;
-const SETTLE_MS = 720;
-const SETTLE = Easing.bezier(0.65, 0, 0.35, 1);
+const OUT_MS = 320;
+const SETTLE_AT_MS = 160;
+/**
+ * Slow, with a soft start and a long landing (user, 2026-10-28: the week "rushes into frame…
+ * needs to feel buttery smooth"; was 720 ms on a symmetric ease-in-out).
+ */
+const SETTLE_MS = 1150;
+const SETTLE = Easing.bezier(0.33, 0, 0.15, 1);
 /** Last, the screen dissolves over Home (identical by then but for Loc's pose and the tabs). */
-const DISSOLVE_MS = 340;
+// Short: by now only the sky, Loc and the strip are left, and Home's pieces wait for it to go.
+const DISSOLVE_MS = 220;
 
 /** The moon's rise behind him once he yells, all the way to the top: quick off the edge, a long settle. */
 const RISE_MS = 2200;
 const RISE = Easing.bezier(0.16, 1, 0.3, 1);
 /** The page comes into focus this far into the rise, as the moon nears the top. */
 const PAGE_AT_MS = 1100;
-/** Room the risen moon leaves at the top of the screen. */
-const MOON_GAP = 8;
-/** Room kept between the moon and Loc for the line, the stats and the week; a short screen pushes the moon up into the top instead. */
-const BELOW_MIN = 230;
+/**
+ * The risen moon, small, with the time inside (Bloom's day ring, user 2026-10-28): its diameter
+ * as a share of the screen's width, at most this many points, and the room over it.
+ */
+const MOON_SHARE = 0.46;
+const MOON_MAX = 190;
+const MOON_GAP = Space.xl;
 
-/** Loc's line comes up this long after the page starts coming into focus, and stays this long. */
+/** Loc's line comes up this long after the page starts coming into focus, and stays till Done (user, 2026-10-28: the band over him sat empty once it went). */
 const LINE_AT_MS = 1600;
-const LINE_MS = 5000;
+/** Home's week is its entrance's step 1 (entrance.ts): left in place for ours to land on. */
+const HOME_WEEK_STEP = 1;
 /** Room over Loc's head for his speech bubble, between him and the week. */
 const BUBBLE_ROOM = 76;
 /** Where his bubble's tail points, as a share of his canvas's height up from its bottom: just over his head (loc.tsx). */
@@ -116,28 +131,30 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const short = height < SHORT_SCREEN;
-  const { mornings, today, won, upAt, earliest, sayKey } = facts;
+  const { mornings, today, won, free, upAt, start, earliest, sayKey } = facts;
   // The sky is laid out over Home's tab strip, so the moon and the panel are Home's exactly; the
   // payoff's own strip is taller (Done, Share under it), drawn over the sky's foot as a black band
   // with the panel's corners, and drops to Home's on the way back (`drop`).
   const homeStrip = tabStripHeight(insets.bottom);
-  const strip = Space.l + CTA_HEIGHT + Space.s + SHARE_ROW + Math.max(insets.bottom, Space.l);
+  // Share's row has its own air round the label, so the foot can give back some of the home bar's inset.
+  // (user, 2026-10-28: too much space below Share).
+  const foot = Math.max(insets.bottom - Space.l, Space.s);
+  const strip = STRIP_TOP + CTA_HEIGHT + Space.xs + SHARE_ROW + foot;
   const lift = Math.max(0, strip - homeStrip);
   // Loc's canvas runs the panel's full width, so he can wander along the edge.
   const locH = Math.round((width * LOC_SHARE * LOC_VIEW.height) / LOC_VIEW.width);
-  // The moon rises to the top with the time you got up inside it; the line, the stats and the
-  // week sit low, just over Loc (user, 2026-10-27). Too short a screen and the moon's top goes
-  // under the status bar rather than squeeze them.
-  const moonSize = Math.round(restingMoonDisc(width, height).r * 2);
-  const locTop = height - strip - locH;
-  const moonTop = Math.round(Math.max(insets.top - moonSize * 0.22, Math.min(insets.top + Space.l + MOON_GAP, locTop - BELOW_MIN - moonSize)));
-  const sinkTo = moonSinkForTop(width, height, homeStrip, moonTop);
+  // The moon rises to the top and shrinks as it goes, into a small moon with the time inside;
+  // under it the headline and the apps, then this week (Bloom's layout, user 2026-10-28).
+  const moonSize = Math.round(Math.min(width * MOON_SHARE, MOON_MAX) * (short ? 0.7 : 1));
+  const moonTop = insets.top + (short ? Space.s : MOON_GAP);
+  const sinkTo = moonSinkForCentre(width, height, homeStrip, moonTop + moonSize / 2);
+  const scaleTo = moonSize / (restingMoonDisc(width, height).r * 2);
   // Where the yell sends the moon, read when he yells: kept in step after each render, not
   // written during it.
-  const moonTo = useRef(sinkTo);
+  const moonTo = useRef({ sink: sinkTo, scale: scaleTo });
   useEffect(() => {
-    moonTo.current = sinkTo;
-  }, [sinkTo]);
+    moonTo.current = { sink: sinkTo, scale: scaleTo };
+  }, [sinkTo, scaleTo]);
   // The moon waits out of sight until Loc yells (loc-rig.ts, YELL): then the phone buzzes and it
   // rises behind him, and the page comes into focus as it nears the top.
   const [shown, setShown] = useState(false);
@@ -145,6 +162,14 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   // Tap him and he yells again (user, 2026-10-27: he shouldn't just sit there once it's over).
   const [yells, setYells] = useState(1);
   const leaving = useRef(false);
+  // Home's entrance is played once on the way back, whichever comes first: the hand-back or
+  // this screen unmounting (which must never leave Home's pieces hidden). A second play restarts it.
+  const handedBack = useRef(false);
+  const handBack = useCallback(() => {
+    if (handedBack.current) return;
+    handedBack.current = true;
+    homeEntrance.play();
+  }, []);
   const onTap = useCallback(() => {
     if (yelled.current && !leaving.current) setYells((n) => n + 1);
   }, []);
@@ -155,7 +180,9 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     haptic.done();
     if (yelled.current) return;
     yelled.current = true;
-    moonSink.set(reduced ? moonTo.current : withTiming(moonTo.current, { duration: RISE_MS, easing: RISE }));
+    const to = moonTo.current;
+    moonSink.set(reduced ? to.sink : withTiming(to.sink, { duration: RISE_MS, easing: RISE }));
+    moonScale.set(reduced ? to.scale : withTiming(to.scale, { duration: RISE_MS, easing: RISE }));
     setTimeout(() => setShown(true), reduced ? 0 : PAGE_AT_MS);
     setTimeout(() => setSnaps(1), SNAP_MS);
   }, [reduced]);
@@ -169,11 +196,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
       setSaid(locSpecial(line));
       if (sayKey !== null) markLocSaid(`${sayKey}woke:${today}`);
     }, reduced ? 0 : LINE_AT_MS);
-    const down = setTimeout(() => setSaid(null), (reduced ? 0 : LINE_AT_MS) + LINE_MS);
-    return () => {
-      clearTimeout(up);
-      clearTimeout(down);
-    };
+    return () => clearTimeout(up);
   }, [shown, reduced, line, sayKey, today]);
   // Home's moon is the same one: back to where Home rests it (`HOME_SINK`) on the way back. Never a value
   // read here: this opens as Home is focused, mid its sink animation, and on iOS a read right
@@ -184,14 +207,16 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     return () => {
       clearTimeout(fallback);
       moonSink.set(HOME_SINK);
+      moonScale.set(1);
       // Never leave Home's pieces hidden, however this screen goes.
-      if (leaving.current) homeEntrance.play();
+      if (leaving.current) handBack();
     };
-  }, [onYell]);
-  const days = weekDays(today, won);
+  }, [onYell, handBack]);
+  const days = weekDays(today, won, free);
   const week = days.filter((d) => d.done).length;
   const up = clockParts(upAt);
-  const best = clockParts(earliest);
+  // Only a fact that flatters today (user, 2026-10-28); otherwise the apps stand alone.
+  const brag = payoffBrag(upAt, start, earliest, week);
   // The page, faded out as a whole on the way back; the sky, the strip and Loc stay. Then the
   // strip's edge and Loc drop to Home's strip.
   const page = useSharedValue(1);
@@ -200,12 +225,22 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const dropStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drop.get() }] }));
   const screen = useSharedValue(1);
   const screenStyle = useAnimatedStyle(() => ({ opacity: screen.get() }));
+  // On Done the week doesn't fade: it flies up onto Home's (week-spot.ts), on the moon's curve.
+  const weekRef = useRef<View>(null);
+  const flyX = useSharedValue(0);
+  const flyY = useSharedValue(0);
+  const weekOut = useSharedValue(1);
+  const weekOutStyle = useAnimatedStyle(() => ({ opacity: weekOut.get() }));
+  const flyStyle = useAnimatedStyle(() => ({ transform: [{ translateX: flyX.get() }, { translateY: flyY.get() }] }));
   const navigation = useNavigation();
   const close = () => {
     if (leaving.current) return;
     leaving.current = true;
     setSaid(null);
-    homeEntrance.hide();
+    // Home's week stays put for ours to land on; with nowhere to land, it all fades as before.
+    const spot = homeWeekSpot();
+    homeEntrance.hide(spot ? [HOME_WEEK_STEP] : []);
+    if (!spot) weekOut.set(withTiming(0, { duration: OUT_MS, easing: Easing.out(Easing.cubic) }));
     const back = () => {
       // Already dissolved: the stack's own fade would only be a pause.
       navigation.setOptions({ animation: 'none' });
@@ -214,22 +249,35 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     };
     if (reduced) {
       moonSink.set(HOME_SINK);
+      moonScale.set(1);
       drop.set(lift);
-      homeEntrance.play();
       back();
+      handBack();
       return;
     }
     page.set(withTiming(0, { duration: OUT_MS, easing: Easing.out(Easing.cubic) }));
     const settle = { duration: SETTLE_MS, easing: SETTLE };
     moonSink.set(withDelay(SETTLE_AT_MS, withTiming(HOME_SINK, settle)));
+    moonScale.set(withDelay(SETTLE_AT_MS, withTiming(1, settle)));
     drop.set(withDelay(SETTLE_AT_MS, withTiming(lift, settle)));
+    weekRef.current?.measureInWindow((x, y) => {
+      if (!spot) return;
+      flyX.set(withDelay(SETTLE_AT_MS, withTiming(spot.x - x, settle)));
+      flyY.set(withDelay(SETTLE_AT_MS, withTiming(spot.y - y, settle)));
+    });
     // Then away over Home, as Home's pieces start coming into focus.
     const settled = SETTLE_AT_MS + SETTLE_MS;
     // Home's Loc keeps anything he'd say until its six pieces are in focus.
-    holdLocLines(settled + REPLAY_START_MS + 5 * FOCUS_STEP_MS + FOCUS_MS);
+    const gone = settled + DISSOLVE_MS + 30;
+    holdLocLines(gone + REPLAY_START_MS + 5 * FOCUS_STEP_MS + FOCUS_MS);
     screen.set(withDelay(settled, withTiming(0, { duration: DISSOLVE_MS, easing: Easing.inOut(Easing.quad) })));
-    setTimeout(() => homeEntrance.play(), settled);
-    setTimeout(back, settled + DISSOLVE_MS + 30);
+    // Home's pieces come in once this screen has gone, not under it: closing it is heavy work,
+    // and the entrance started first stalled halfway, then played again from unmounting, so it
+    // faded in, stopped, and faded in again (user, 2026-10-28).
+    setTimeout(() => {
+      back();
+      requestAnimationFrame(handBack);
+    }, gone);
   };
   // Share sends the card: the screen as a picture (share-card.tsx), with the line as its caption.
   const [cards, setCards] = useState(0);
@@ -237,10 +285,8 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     value: up.value,
     unit: up.unit,
     kicker: payoffKicker(mornings),
-    stats: [
-      { value: `${best.value} ${best.unit}`, label: 'earliest this week', icon: 'sunrise' },
-      { value: `${week}/7`, label: 'this week', icon: 'calendar' },
-    ],
+    reward: APPS_AWAKE.replace('\n', ' '),
+    brag,
     days: days.map((d) => ({ letter: d.letter, done: d.done, today: d.today })),
   };
   const share = () => {
@@ -287,37 +333,58 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     <Animated.View style={[styles.screen, screenStyle]}>
     {/* Its own corners ride the band below: the background's would sit across Done. */}
     <AppBackground panel strip={homeStrip} corners={false}>
-      <Animated.View style={[StyleSheet.absoluteFill, pageStyle]} pointerEvents="box-none">
+      {/* Everything here fades on Done (`pageStyle`) but the week, which flies up onto Home's. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* Inside the risen moon. */}
-      <View style={[styles.inMoon, { top: moonTop, height: moonSize }]} pointerEvents="none">
+      <Animated.View style={[styles.inMoon, { top: moonTop, height: moonSize }, pageStyle]} pointerEvents="none">
+        {/* A shade over the moon's bright middle, so the time reads on the frost (payoff lab #2). */}
+        <In shown={shown} step={0} style={[styles.shade, { width: moonSize, height: moonSize }]}>
+          <Svg width={moonSize} height={moonSize}>
+            <Defs>
+              <RadialGradient id="payoff-moon-shade" cx="50%" cy="50%" r="50%">
+                <Stop offset="0" stopColor="#060B18" stopOpacity={0.42} />
+                <Stop offset="0.6" stopColor="#060B18" stopOpacity={0.26} />
+                <Stop offset="1" stopColor="#060B18" stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+            <Circle cx={moonSize / 2} cy={moonSize / 2} r={moonSize / 2} fill="url(#payoff-moon-shade)" />
+          </Svg>
+        </In>
         <In shown={shown} step={0} style={styles.time} accessible accessibilityRole="header" accessibilityLabel={`Up at ${up.value} ${up.unit}, ${payoffKicker(mornings)}`}>
-            <Text style={styles.timeKicker}>Up at</Text>
-            <View style={styles.timeRow}>
-              <Text style={styles.timeValue} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-                {up.value}
-              </Text>
-              <Text style={styles.timeUnit} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-                {up.unit}
-              </Text>
-            </View>
-            <Text style={styles.kicker}>{payoffKicker(mornings)}</Text>
-          </In>
-      </View>
-
-      <View style={[styles.panel, { paddingBottom: strip + locH + BUBBLE_ROOM }]} pointerEvents="box-none">
-        <View style={[styles.low, short && styles.lowShort]}>
-          <In shown={shown} step={1} style={styles.stats}>
-            <Stat value={`${best.value} ${best.unit}`} label="earliest this week" icon={sym('sunrise.fill', 'wb_twilight')} />
-            <View style={styles.statRule} />
-            <Stat value={`${week}/7`} label="this week" icon={sym('calendar', 'calendar_today')} />
-          </In>
-
-          <In shown={shown} step={2} style={styles.week}>
-            <WeekStrip days={days} reduced={reduced} />
-          </In>
-        </View>
-      </View>
+          <View style={styles.timeRow}>
+            <Text style={[styles.timeValue, short && styles.timeValueShort]} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+              {up.value}
+            </Text>
+            <Text style={styles.timeUnit} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+              {up.unit}
+            </Text>
+          </View>
+          <Text style={styles.kicker}>{payoffKicker(mornings)}</Text>
+        </In>
       </Animated.View>
+
+      {/* Under it (payoff lab #2, user 2026-10-28): the headline, the brag when there is one, then this week. */}
+      {/* Centred in the sky between the moon and Loc's line (user, 2026-10-28: too high, too close to the moon). */}
+      <View
+        style={[styles.below, { top: moonTop + moonSize + Space.l, bottom: strip + Math.round(locH * BUBBLE_AT) + BUBBLE_ROOM }]}
+        pointerEvents="box-none"
+      >
+        <Animated.View style={pageStyle}>
+        <In shown={shown} step={1} style={styles.reward} accessible accessibilityLabel={[APPS_AWAKE.replace('\n', ' '), brag].filter(Boolean).join(' ')}>
+          <Text style={[styles.heading, short && styles.headingShort]}>{APPS_AWAKE}</Text>
+          {/* An SE has no room for it under the two-line headline. */}
+          {brag && !short ? <Text style={styles.brag}>{brag}</Text> : null}
+        </In>
+        </Animated.View>
+        <In shown={shown} step={2} style={[styles.week, short && styles.weekShort]}>
+          <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>
+          {/* Home's week dots, the mist ones on iPhone (week-strip.ios.tsx; user, 2026-10-28). */}
+          <Animated.View ref={weekRef} style={[flyStyle, weekOutStyle]}>
+            <WeekStrip days={days} reduced={reduced} />
+          </Animated.View>
+        </In>
+      </View>
+      </View>
 
       {/* The payoff's strip, over the foot of the sky: its top edge is the panel's edge here. */}
       <Animated.View style={[styles.band, { top: height - strip - PANEL_RADIUS }, dropStyle]} pointerEvents="box-none">
@@ -330,7 +397,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
           </Svg>
         </View>
         <View style={styles.strip}>
-          <Animated.View style={[{ height: strip, paddingBottom: Math.max(insets.bottom, Space.l) }, pageStyle]}>
+          <Animated.View style={[{ height: strip, paddingBottom: foot }, pageStyle]}>
             <In shown={shown} step={3} style={styles.actions}>
               <PrimaryButton label="Done" onPress={close} />
               <TextButton label="Share" onPress={share} />
@@ -396,48 +463,38 @@ function In({
   );
 }
 
-function Stat({ value, label, icon }: { value: string; label: string; icon: ReturnType<typeof sym> }) {
-  return (
-    <View style={styles.stat} accessible accessibilityLabel={`${value} ${label}`}>
-      <View style={styles.statTop}>
-        <SymbolView name={icon} size={15} tintColor={Nocturne.text2} />
-        <Text style={styles.statValue}>{value}</Text>
-      </View>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  panel: { ...StyleSheet.absoluteFill, paddingHorizontal: Gap.gutter, justifyContent: 'flex-end' },
   // "Morning 12", under the time inside the moon (user, 2026-10-27).
-  kicker: { ...Type.label, textAlign: 'center', marginTop: Space.s },
+  kicker: { ...Type.label, textAlign: 'center', marginTop: Space.xs },
   inMoon: { position: 'absolute', left: 0, right: 0, justifyContent: 'center', alignItems: 'center' },
-  low: { alignItems: 'center', gap: Space.l },
-  lowShort: { gap: Space.m },
+  // The night's own navy over the moon's middle, gone by its rim, so it never shows an edge.
+  shade: { position: 'absolute' },
   loc: { position: 'absolute', left: 0, right: 0 },
   // Black under the panel, as under Home's; Done sits where the tabs would.
   // The payoff's strip: black, reaching past the screen's foot so it stays covered as it drops.
   band: { position: 'absolute', left: 0, right: 0, bottom: -400 },
   corners: { height: PANEL_RADIUS, flexDirection: 'row', justifyContent: 'space-between' },
   mirrored: { transform: [{ scaleX: -1 }] },
-  strip: { flex: 1, backgroundColor: '#000000', paddingTop: Space.l, paddingHorizontal: Gap.gutter },
+  strip: { flex: 1, backgroundColor: '#000000', paddingTop: STRIP_TOP, paddingHorizontal: Gap.gutter },
   time: { alignItems: 'center' },
-  timeKicker: { ...Type.secondary, color: Nocturne.text2 },
   timeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  timeValue: { ...NUMBER_FONT, fontSize: 64, lineHeight: 72, letterSpacing: -1.5, color: Nocturne.text, fontVariant: ['tabular-nums'] },
+  timeValue: { ...NUMBER_FONT, fontSize: 48, lineHeight: 54, letterSpacing: -1.2, color: Nocturne.text, fontVariant: ['tabular-nums'] },
+  timeValueShort: { fontSize: 34, lineHeight: 40 },
   timeUnit: { ...DisplayFont, fontSize: VoiceSize.aside, color: Nocturne.text2 },
   speech: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
   // The share card's webview: painted, never seen.
   offstage: { position: 'absolute', left: 0, top: 0, width: 1, height: 1, opacity: 0 },
-  stats: { flexDirection: 'row', alignItems: 'center', gap: Space.xl },
-  stat: { alignItems: 'center', gap: 2, minWidth: 96 },
-  statTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statValue: { ...NUMBER_FONT, fontSize: 22, color: Nocturne.text },
-  statLabel: { ...Type.caption, color: Nocturne.text3 },
-  statRule: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: Nocturne.edge },
-  week: { alignSelf: 'center', maxWidth: 340, width: '100%' },
-  actions: { gap: Space.s, alignItems: 'stretch' },
+  below: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center', justifyContent: 'center' },
+  reward: { alignItems: 'center', gap: Space.s },
+  // Onboarding's page title (user, 2026-10-28: Bloom's "You're on a roll!").
+  heading: { ...Type.heading, color: Nocturne.text, textAlign: 'center' },
+  headingShort: Type.headingCompact,
+  brag: { ...Type.headingSub, color: Nocturne.text2, textAlign: 'center' },
+  // Full width between the gutters, as Home's, so the dots land on Home's exactly.
+  week: { alignSelf: 'stretch', marginTop: Space.xxxl, gap: Space.m },
+  weekShort: { marginTop: Space.xl, gap: Space.s },
+  // Bloom's "THIS WEEK" over the dots.
+  weekLabel: { ...Type.label, textAlign: 'center' },
+  actions: { gap: Space.xs, alignItems: 'stretch' },
 });

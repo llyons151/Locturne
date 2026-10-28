@@ -479,7 +479,8 @@ final class NightDialView: ExpoView {
   /** VoiceOver's swipe up and down: a quarter hour each way. */
   private func nudge(_ end: End, by: Double) {
     let s = Self.span(targetBed, targetWake) + (end == .bed ? -by : by)
-    guard s >= minWindow, s <= Self.day - Self.snap else { return }
+    // Toward the minimum is allowed from a night saved shorter before it (`MIN_NIGHT`).
+    guard s >= minWindow || s > Self.span(targetBed, targetWake), s <= Self.day - Self.snap else { return }
     if end == .bed { targetBed = Self.wrap(targetBed + by) } else { targetWake = Self.wrap(targetWake + by) }
     selection.selectionChanged()
     refreshText()

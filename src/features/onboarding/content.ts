@@ -230,15 +230,6 @@ const TIME_BACK_ORDER: Partial<Record<Pain, string[]>> = {
   morning: ['workout', 'study', 'sleep', 'read'],
 };
 
-/** What the hours go to on the paywall, from `time-back`: "9 hours a week for reading." */
-const TIME_BACK_FOR: Record<string, string> = {
-  sleep: 'for sleep',
-  read: 'for reading',
-  workout: 'for workouts',
-  study: 'for studying',
-  else: 'back',
-};
-
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** `time-back`, asked after the running total: "9 hours a week back. What would you do with them?" */
@@ -246,9 +237,12 @@ export function timeBackQuestion(amount: string): string {
   return `${upperFirst(amount)} a week back. What would you do with ${amount.endsWith('s') ? 'them' : 'it'}?`;
 }
 
-/** The paywall's headline: their weekly hours, spent on what they picked on `time-back`. */
-export function plansHeadline(amount: string, timeBack: string | undefined): string {
-  return `${upperFirst(amount)} a week ${TIME_BACK_FOR[timeBack ?? 'else'] ?? TIME_BACK_FOR.else}.`;
+/**
+ * The paywall's headline: their weekly hours, as their own time back. Not "for workouts" or "for
+ * reading" from `time-back`: that read like a workout app (user 2026-10-28).
+ */
+export function plansHeadline(amount: string): string {
+  return `${upperFirst(amount)} a week of your time back.`;
 }
 
 /**
@@ -519,12 +513,15 @@ export const FOUNDER = {
   sign: 'Luke',
 };
 
-/** The chapter break before the setup (`build`), leading with their end of the night. DRAFT copy. */
+/**
+ * The chapter break before the setup (`build`), leading with their end of the night. The first
+ * time they see Loc, so he says hello (user 2026-10-28). DRAFT copy.
+ */
 export const BUILD: Record<Pain, string> = {
-  all: 'Now let’s build your mornings.',
-  morning: 'Now let’s build your mornings.',
-  night: 'Now let’s build your nights.',
-  overall: 'Now let’s build your nights.',
+  all: 'Hi, I’m Loc.\nLet’s fix your mornings.',
+  morning: 'Hi, I’m Loc.\nLet’s fix your mornings.',
+  night: 'Hi, I’m Loc.\nLet’s fix your nights.',
+  overall: 'Hi, I’m Loc.\nLet’s fix your nights.',
 };
 
 export const NEW_YEAR = {

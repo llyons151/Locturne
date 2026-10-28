@@ -20,7 +20,7 @@ import { type NotificationPermission } from '@/lib/notifications';
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
 import { getScanEditRefusal, type ScanCode } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
-import type { WakeMethod } from '@/lib/routine';
+import { MIN_NIGHT, nightTooShort, type WakeMethod } from '@/lib/routine';
 import type { Night } from '@/lib/lock-state';
 import { scheduleCopy } from './schedule-copy';
 import { noOrphan } from '@/lib/text';
@@ -172,6 +172,11 @@ const HELLO = { head: 'No apps until you’re out of bed.', sub: 'I’m Loc. Rac
 /** `commit`: the card starts building once the title's in, and the line under it once it's built. */
 const DEAL_CARD_AT_MS = 700;
 const DEAL_AFTER_MS = DEAL_CARD_AT_MS + DEAL_CARD_BUILD_MS;
+/**
+ * The founder note a group at a time, each a beat after the last has had time to be read, then
+ * the name (user 2026-10-28): ms from the page's start, one per line, the last for the sign.
+ */
+const FOUNDER_AT_MS = [300, 1900, 4200, 6300];
 
 /** What one step puts on screen. The flow places these in the page frame (ui.tsx Shell). */
 export type StepView = {
@@ -214,6 +219,8 @@ export function renderStep(ctx: StepContext): StepView {
   const phoneDown = formatWhen(numbers.phoneDown);
   // The morning branch asks the alarm first, so bedtime is still the default on `wake`.
   const bedtimeAsked = pain !== 'morning' || editing;
+  // Under `MIN_NIGHT` the lock wouldn't mean anything: once both times are set, it doesn't move on.
+  const shortNight = nightTooShort(answers.bedtime, answers.wake);
 
   switch (step) {
     case 'hello': {
@@ -300,10 +307,14 @@ export function renderStep(ctx: StepContext): StepView {
           <View style={page.top}>
             <Eyebrow>{FOUNDER.eyebrow}</Eyebrow>
             <View style={styles.founder}>
-              {FOUNDER.lines.map((line) => (
-                <Body key={line}>{line}</Body>
+              {FOUNDER.lines.map((line, i) => (
+                <Body key={line} delay={FOUNDER_AT_MS[i]}>
+                  {line}
+                </Body>
               ))}
-              <Text style={styles.founderSign}>{`— ${FOUNDER.sign}`}</Text>
+              <Reveal delay={FOUNDER_AT_MS[FOUNDER.lines.length]}>
+                <Text style={styles.founderSign}>{`— ${FOUNDER.sign}`}</Text>
+              </Reveal>
             </View>
           </View>
         ),
@@ -384,12 +395,20 @@ export function renderStep(ctx: StepContext): StepView {
             </View>
             {/* Wake time isn't set yet here (except in the morning branch, which asked it first),
                 so only warn when it is. */}
-            {(editing || pain === 'morning') && numbers.scheduleLooksWrong ? <ScheduleWarning minutes={numbers.timeInBed} /> : null}
+            {(editing || pain === 'morning') && (shortNight || numbers.scheduleLooksWrong) ? (
+              <ScheduleWarning minutes={numbers.timeInBed} short={shortNight} />
+            ) : null}
           </View>
         ),
-        footer: <PrimaryButton label={editing ? 'Save' : (REPLY_BUTTON.bedtime ?? 'Continue')} onPress={next} />,
+        footer: (
+          <PrimaryButton
+            label={editing ? 'Save' : (REPLY_BUTTON.bedtime ?? 'Continue')}
+            disabled={(editing || pain === 'morning') && shortNight}
+            onPress={next}
+          />
+        ),
         // The wheel already holds a time, so later just keeps it; Routine changes it any time.
-        secondary: editing ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing || (pain === 'morning' && shortNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
       };
 
     case 'wake':
@@ -401,12 +420,16 @@ export function renderStep(ctx: StepContext): StepView {
             <View style={styles.timeWrap}>
               <TimeList value={answers.wake} onChange={(v) => set('wake', v)} label="Alarm time" />
             </View>
-            {bedtimeAsked && numbers.scheduleLooksWrong ? <ScheduleWarning minutes={numbers.timeInBed} /> : null}
+            {bedtimeAsked && (shortNight || numbers.scheduleLooksWrong) ? (
+              <ScheduleWarning minutes={numbers.timeInBed} short={shortNight} />
+            ) : null}
           </View>
         ),
-        footer: <PrimaryButton label={editing ? 'Save' : (REPLY_BUTTON.wake ?? 'Continue')} onPress={next} />,
+        footer: (
+          <PrimaryButton label={editing ? 'Save' : (REPLY_BUTTON.wake ?? 'Continue')} disabled={bedtimeAsked && shortNight} onPress={next} />
+        ),
         // The wheel already holds a time, so later just keeps it; Routine changes it any time.
-        secondary: editing ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing || (bedtimeAsked && shortNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
       };
 
     case 'method': {
@@ -1043,8 +1066,13 @@ function TrailStop({
 }
 
 /** Shown when bedtime to wake is implausibly long or short, which is usually AM/PM mixed up. */
-function ScheduleWarning({ minutes }: { minutes: number }) {
-  return <Body style={styles.warning}>That’s {formatHoursFromMinutes(minutes)} hours in bed. Check AM and PM.</Body>;
+function ScheduleWarning({ minutes, short }: { minutes: number; short?: boolean }) {
+  // Equal times read as a whole day in bed to the estimate, but as no night to the lock.
+  const inBed = short && minutes >= 24 * 60 ? 0 : minutes;
+  const hours = formatHoursFromMinutes(inBed);
+  const amount = inBed < 60 ? `${inBed} ${inBed === 1 ? 'minute' : 'minutes'}` : `${hours} ${hours === '1' ? 'hour' : 'hours'}`;
+  if (short) return <Body style={styles.warning}>That’s {amount} in bed. Locturne needs at least {MIN_NIGHT / 60} hours.</Body>;
+  return <Body style={styles.warning}>That’s {amount} in bed. Check AM and PM.</Body>;
 }
 
 /** One iOS prompt on `armed`: what iOS calls it, and what it's for. */

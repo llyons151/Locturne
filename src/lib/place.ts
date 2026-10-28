@@ -75,9 +75,13 @@ export function judgeFix(place: Pick<MorningPlace, 'latitude' | 'longitude'>, fi
   if (!validSpot(fix)) return { kind: 'unsure', distance: null };
   const distance = distanceMeters(place, fix);
   if (!freshFix(fix, now)) return { kind: 'unsure', distance };
-  if (sharpFix(fix)) return distance <= PLACE_RADIUS_M ? { kind: 'there', distance } : { kind: 'notThere', distance };
+  if (sharpFix(fix) && distance <= PLACE_RADIUS_M) return { kind: 'there', distance };
+  // No, only when even the fix's near edge is outside the circle. A sharp fix just outside can
+  // be a person standing on the spot (a saved pin and an indoor fix each tens of metres off).
+  // iOS gives a negative accuracy for an invalid fix: that says nothing either way.
   const accuracy = fix.accuracy;
-  if (accuracy !== null && Number.isFinite(accuracy) && distance - accuracy > PLACE_RADIUS_M) return { kind: 'notThere', distance };
+  if (accuracy !== null && Number.isFinite(accuracy) && accuracy >= 0 && distance - accuracy > PLACE_RADIUS_M)
+    return { kind: 'notThere', distance };
   return { kind: 'unsure', distance };
 }
 

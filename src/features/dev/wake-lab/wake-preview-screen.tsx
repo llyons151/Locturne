@@ -166,7 +166,7 @@ export function WakePreviewScreen() {
         <MenuRow title="Camera" value={p.scan} options={SCAN} onChange={(scan) => setWakePreview({ scan })} />
         <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'scan')} />
         <ValueRow title="Open the camera" value="" onPress={() => open('/scan?mode=morning')} />
-        <ValueRow title="Open setup" value="" onPress={() => router.push('/scan?mode=setup')} last />
+        <ValueRow title="Open setup" value="" onPress={() => router.push('/code')} last />
       </Card>
 
       <Card

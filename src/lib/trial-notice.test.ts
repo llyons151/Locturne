@@ -31,3 +31,12 @@ describe('trialNotice', () => {
     assert.ok(!`${notice.title}${notice.detail}`.includes('!'));
   });
 });
+
+test('a trial ending just after midnight is the night before’s', () => {
+  // Started Sunday 00:30, it ends the next Sunday 00:30: that's Saturday night.
+  const ends = new Date(2026, 9, 11, 0, 30);
+  assert.equal(trialNotice(ends, new Date(2026, 9, 10, 23, 0))?.title, 'Your free trial ends tonight.');
+  assert.equal(trialNotice(ends, new Date(2026, 9, 9, 9, 0))?.title, 'Your free trial ends tomorrow night.');
+  // A daytime end is still its own day.
+  assert.equal(trialNotice(new Date(2026, 9, 11, 9, 0), new Date(2026, 9, 10, 9, 0))?.title, 'Your free trial ends tomorrow.');
+});

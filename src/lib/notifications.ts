@@ -21,6 +21,7 @@ import { Platform } from 'react-native';
 
 import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
+import { trialEndDay } from './trial-notice.ts';
 import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { wallClock } from './lock-state.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
@@ -34,8 +35,13 @@ const DAY_MS = 24 * 60 * MINUTE;
 export const ID_PREFIX = 'locturne.';
 /** Minutes before bedtime for the warning. */
 export const BEDTIME_WARNING = 15;
-/** How far ahead to schedule. Each night is two notifications at most. */
-export const DAYS_AHEAD = 8;
+/**
+ * How far ahead to schedule. Each night is two notifications at most, so 28 nights is 56,
+ * with the trial, revoked and first-night notes still under iOS's 64 pending. Long, because
+ * nothing re-plans them while the app stays closed, and the shield's "I'm up" wins a morning
+ * without opening it: at 8 days the notes just stopped after a week.
+ */
+export const DAYS_AHEAD = 27;
 /** The paywall promises a reminder 2 days before the trial ends. */
 export const TRIAL_REMINDER_DAYS_BEFORE = 2;
 
@@ -62,10 +68,16 @@ export const COPY = {
     body: 'So I can’t block anything tonight. Turn it back on in Settings. Until then I’m just a raccoon.',
   },
   // Named, not counted: noon two days before an 8:00 end is nearly three days out.
-  trial: (ends: Date) => ({
-    title: `Your free trial ends ${ends.toLocaleDateString('en-US', { weekday: 'long' })}.`,
-    body: `It ends ${ends.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}, then the annual plan starts. To cancel, tap Manage subscription in the You tab. No hard feelings. Some feelings.`,
-  }),
+  // An end in the small hours is the night before's (`trialEndDay`): "Saturday night", not "Sunday".
+  trial: (ends: Date) => {
+    const { day, night } = trialEndDay(ends);
+    const weekday = day.toLocaleDateString('en-US', { weekday: 'long' });
+    const date = day.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    return {
+      title: `Your free trial ends ${weekday}${night ? ' night' : ''}.`,
+      body: `It ends ${night ? `${weekday} night, ${date}, just after midnight` : `${weekday}, ${date}`}, then the annual plan starts. To cancel, tap Manage subscription in the You tab. No hard feelings. Some feelings.`,
+    };
+  },
 };
 
 /** Local midnight `days` after `date`, plus `minutes`, as lock-state.ts places it (`wallClock`). */
@@ -239,9 +251,9 @@ export function wakeScreenShowing(pathname: string, mode?: string): boolean {
   return pathname === '/wake' || (pathname === '/scan' && mode !== 'setup') || pathname === '/exits';
 }
 
-/** The scan screen is in front to set up or change the code, not to scan it. */
+/** The code sheet, or the scan screen, is in front to set up or change the code, not to scan it. */
 export function setupScanShowing(pathname: string, mode?: string): boolean {
-  return pathname === '/scan' && mode === 'setup';
+  return pathname === '/code' || (pathname === '/scan' && mode === 'setup');
 }
 
 /**
@@ -432,6 +444,19 @@ export async function getScheduledNotifications(): Promise<{ id: string; title: 
 }
 
 let queue: Promise<void> = Promise.resolve();
+
+/**
+ * Takes the morning's delivered notes off the lock screen once it's won: "your apps stay asleep
+ * until you're up" and the shield's "Up already? Tap here" would contradict the awake apps.
+ */
+export async function dismissMorningNotes(): Promise<void> {
+  if (!isIOS()) return;
+  const shown = await Notifications.getPresentedNotificationsAsync();
+  const stale = shown
+    .map((n) => n.request.identifier)
+    .filter((id) => id.startsWith(`${ID_PREFIX}morning.`) || id === `${ID_PREFIX}shieldTap`);
+  await Promise.all(stale.map((id) => Notifications.dismissNotificationAsync(id)));
+}
 
 /**
  * Replaces our scheduled notifications with a fresh plan. Call it after `saveRoutine`. It

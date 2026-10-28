@@ -38,18 +38,23 @@ export const REPLAY_STEP_MS = FOCUS_STEP_MS;
  * own screen still covers them, then plays them in as it dissolves (payoff-screen.tsx, user
  * 2026-10-27: "stuff moves back into normal positions and then stuff fades in").
  */
-let replay = { hidden: false, nonce: 0 };
+let replay: { hidden: boolean; nonce: number; keep: readonly number[] } = { hidden: false, nonce: 0, keep: [] };
 const listeners = new Set<() => void>();
 const set = (next: typeof replay) => {
   replay = next;
   listeners.forEach((l) => l());
 };
 export const homeEntrance = {
-  /** Home's pieces gone at once, under a screen about to leave. */
-  hide: () => set({ hidden: true, nonce: replay.nonce }),
+  /**
+   * Home's pieces gone at once, under a screen about to leave; but the steps in `keep` stay as
+   * they are, and don't replay: the payoff flies its own week onto Home's (step 1, week-spot.ts).
+   */
+  hide: (keep: readonly number[] = []) => set({ hidden: true, nonce: replay.nonce, keep }),
   /** And in again, the entrance's own way. */
-  play: () => set({ hidden: false, nonce: replay.nonce + 1 }),
+  play: () => set({ hidden: false, nonce: replay.nonce + 1, keep: replay.keep }),
 };
+/** Whether piece `step` sits out the payoff's hide and replay. */
+export const keptPiece = (keep: readonly number[], step: number) => keep.includes(step);
 export const useReplay = () =>
   useSyncExternalStore(
     (l) => {
@@ -62,7 +67,10 @@ export const useReplay = () =>
 /** Fades piece `step` in once, ending with everything else; on a replay, into focus (`focusIn`). */
 function usePiece(step: number) {
   const opacity = useSharedValue(0);
-  const { hidden, nonce } = useReplay();
+  const { hidden: hiding, nonce: replays, keep } = useReplay();
+  const kept = keptPiece(keep, step);
+  const hidden = hiding && !kept;
+  const nonce = kept ? 0 : replays;
   useEffect(() => {
     const offset = step * STAGGER_MS;
     opacity.value = withDelay(START_MS + offset, withTiming(1, { duration: DURATION_MS - offset, easing: EASE_OUT }));

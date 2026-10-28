@@ -189,6 +189,28 @@ describe('push-up session', () => {
     assert.equal(apart.reps, 0);
   });
 
+  test('losing the body after the bottom, back at the top soon enough, still counts that rep', () => {
+    let s = feed(startPushups(0), 0, [165, 165, [130, 0.3], [90, 0.5], [60, 0.7], [60, 0.7]]);
+    const bottom = s.now;
+    // Vision loses the body near the floor for 1.5 s.
+    s = addPose(s, { at: bottom + PUSHUPS.lostMs + 300, joints: {} });
+    assert.equal(s.status, 'finding');
+    s = feed(s, bottom + PUSHUPS.lostMs + 400, [165, 165]);
+    assert.equal(s.reps, 1);
+    assert.equal(s.status, 'counting');
+  });
+
+  test('a lost body back too late, or lost before the bottom, starts the rep over', () => {
+    let late = feed(startPushups(0), 0, [165, 165, [130, 0.3], [90, 0.5], [60, 0.7], [60, 0.7]]);
+    late = tick(late, late.now + PUSHUPS.regainMs + 500);
+    late = feed(late, late.now + 100, [165, 165]);
+    assert.equal(late.reps, 0);
+    let shallow = feed(startPushups(0), 0, [165, 165, [130, 0.2], [120, 0.25]]);
+    shallow = addPose(shallow, { at: shallow.now + PUSHUPS.lostMs + 300, joints: {} });
+    shallow = feed(shallow, shallow.now + 100, [165, 165]);
+    assert.equal(shallow.reps, 0);
+  });
+
   test('one frame at the bottom is a spike, not a rep', () => {
     const s = feed(startPushups(0), 0, [165, 165, [130, 0.3], [60, 0.7], [130, 0.3], 165, 165]);
     assert.equal(s.reps, 0);

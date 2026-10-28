@@ -38,6 +38,19 @@ export const DEFAULT_PUSHUP_GOAL = 10;
 
 export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;
 
+/**
+ * The shortest night a routine can have, in minutes (user, 2026-10-28): a 1-minute bedtime set
+ * over and over would make the lock meaningless. The dial won't drag shorter, onboarding won't
+ * move on, and `applyRoutineEdit` refuses one.
+ */
+export const MIN_NIGHT = 4 * 60;
+
+/** Minutes from bedtime to morning start, going forward. Equal times are no night at all: 0. */
+export const nightMinutes = (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440;
+
+/** Is this night shorter than `MIN_NIGHT`? */
+export const nightTooShort = (bedtime: number, morningStart: number) => nightMinutes(bedtime, morningStart) < MIN_NIGHT;
+
 export const DEFAULT_ROUTINE: Routine = {
   bedtime: 23 * 60,
   morningStart: 7 * 60,
@@ -58,7 +71,17 @@ export type StoredRoutine = {
   since?: number;
   /** The routine in force before `active`, for a night into the same morning that ran under it. */
   prior?: Routine;
+  /**
+   * When `prior` came into force (its own `since`): a night of it that ended before then never
+   * ran under it either (`nightRanUnder`). Missing on routines saved before it was kept.
+   */
+  priorSince?: number;
 };
+
+/** `prior` and, when known, when it came into force: only defined fields, as property lists have no undefined. */
+function priorOf(was: StoredRoutine): Pick<StoredRoutine, 'prior' | 'priorSince'> {
+  return was.since === undefined ? { prior: was.active } : { prior: was.active, priorSince: was.since };
+}
 
 const KEY = 'locturne.routine';
 
@@ -77,7 +100,7 @@ export function toLockSettings(routine: Routine): LockSettings {
 /** Pure: promotes a pending edit whose bedtime has passed. */
 export function settleRoutine(stored: StoredRoutine, now: Date): StoredRoutine {
   if (stored.pending && now.getTime() >= stored.pending.from) {
-    return { active: stored.pending.routine, since: stored.pending.from, prior: stored.active };
+    return { active: stored.pending.routine, since: stored.pending.from, ...priorOf(stored) };
   }
   return stored;
 }
@@ -103,7 +126,7 @@ export function applyEdit(
 ): StoredRoutine {
   if (!stored) return { active: next, since: now.getTime() };
   const settled = settleRoutine(stored, now);
-  if (!armed) return { active: next, since: now.getTime(), prior: settled.active };
+  if (!armed) return { active: next, since: now.getTime(), ...priorOf(settled) };
   // `idle`: the lock's day, with no night or unproven morning running. Nothing the routine sets
   // is in use, so the edit is the routine from now, and Home, the warning and tonight's lock all
   // follow it at once (user, 2026-10-14: a method switched at 9 pm still said "Tomorrow: 200
@@ -113,12 +136,14 @@ export function applyEdit(
   // (the Routine tab's "This puts your apps to sleep now", user, 2026-10-15), so it applies too.
   if (idle && !early) {
     const { latest } = nightsAround(now, toLockSettings(next));
-    if (atOnce || !(now >= latest.start && now < latest.end)) return { active: next, since: now.getTime(), prior: settled.active };
+    if (atOnce || !(now >= latest.start && now < latest.end)) return { active: next, since: now.getTime(), ...priorOf(settled) };
   }
   // Promoted from inside its own early first night: in force from now, a night already running.
   const promoted = early && settled.pending;
   const active = promoted ? settled.pending!.routine : settled.active;
-  const change = promoted ? { since: now.getTime(), prior: settled.active } : { since: settled.since, prior: settled.prior };
+  const change = promoted
+    ? { since: now.getTime(), ...priorOf(settled) }
+    : { since: settled.since, prior: settled.prior, priorSince: settled.priorSince };
   // The next bedtime as iOS runs the routine in force (`runsAs`): windows still armed for an
   // older routine can hold tonight from their own bedtime, and an edit made inside that night
   // is an edit from bed, which waits for the next one. By the routine's own bedtime it would
@@ -130,6 +155,7 @@ export function applyEdit(
   // Only defined fields: the App Group store takes property lists, which have no undefined.
   if (change.since !== undefined) result.since = change.since;
   if (change.prior !== undefined) result.prior = change.prior;
+  if (change.priorSince !== undefined) result.priorSince = change.priorSince;
   return result;
 }
 
@@ -155,9 +181,14 @@ export function getRoutine(now = new Date()): Routine {
 }
 
 /** When the routine in force came into force and the one before it, or null if not known. */
-export function getRoutineChange(now = new Date()): { since: number; prior: Routine | null } | null {
+export type RoutineChange = { since: number; prior: Routine | null; priorSince?: number };
+
+export function getRoutineChange(now = new Date()): RoutineChange | null {
   const stored = read(now);
-  return stored?.since === undefined ? null : { since: stored.since, prior: stored.prior ?? null };
+  if (stored?.since === undefined) return null;
+  const change: RoutineChange = { since: stored.since, prior: stored.prior ?? null };
+  if (stored.priorSince !== undefined) change.priorSince = stored.priorSince;
+  return change;
 }
 
 /**
@@ -169,10 +200,15 @@ export function getRoutineChange(now = new Date()): { since: number; prior: Rout
  * 07:00 names this morning again with a night nobody slept under either routine. A morning the
  * old routine's night led into stays locked until proven, as before the edit. `unknown` for a
  * routine saved before the change was kept.
+ *
+ * The old routine's night counts only if that routine was in force for some of it (`priorSince`:
+ * a switch at 07:30 to 23:00 to 07:00 never ran last night under it), and only while its morning
+ * was still under way at the change (its next bedtime hadn't come): a daytime night saved at
+ * 09:00 names yesterday's morning, which ended at last night's bedtime.
  */
 export function nightRanUnder(
   morning: Pick<Morning, 'key' | 'start'>,
-  change: { since: number; prior: Routine | null } | null,
+  change: RoutineChange | null,
 ): 'routine' | 'prior' | 'none' | 'unknown' {
   if (!change) return 'unknown';
   if (morning.start.getTime() > change.since) return 'routine';
@@ -180,8 +216,11 @@ export function nightRanUnder(
   if (!prior) return 'none';
   const [year, month, day] = morning.key.split('-').map(Number);
   const evening = new Date(year, month - 1, day - 1).getDay();
-  const began = nightInto(morning.key, prior).start.getTime() < change.since;
-  return prior.activeNights.includes(evening) && began ? 'prior' : 'none';
+  const night = nightInto(morning.key, prior);
+  const began = night.start.getTime() < change.since;
+  const inForce = change.priorSince === undefined || night.end.getTime() > change.priorSince;
+  const over = nightInto(dateKey(new Date(year, month - 1, day + 1)), prior).start.getTime() < change.since;
+  return prior.activeNights.includes(evening) && began && inForce && !over ? 'prior' : 'none';
 }
 
 /**
@@ -190,7 +229,7 @@ export function nightRanUnder(
  * (before the first save, or a switch no night ran into) means it was free. For Home's week
  * strip, which says "missed" only for a morning that was locked.
  */
-export function nightWasOn(key: string, routine: Routine, change: { since: number; prior: Routine | null } | null): boolean {
+export function nightWasOn(key: string, routine: Routine, change: RoutineChange | null): boolean {
   const ran = nightRanUnder({ key, start: nightInto(key, routine).end }, change);
   if (ran === 'none') return false;
   if (ran === 'prior') return true;

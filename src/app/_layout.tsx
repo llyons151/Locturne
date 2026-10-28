@@ -1,5 +1,6 @@
 import '@/global.css';
 
+import { readDeviceClock } from 'blocked-apps';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
@@ -7,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
 import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
+import { setClockReader } from '@/lib/clock-guard';
 import { startPurchases } from '@/lib/purchases-start';
 import { Nocturne } from '@/theme';
 
@@ -14,6 +16,8 @@ import { Nocturne } from '@/theme';
 startPurchases();
 // PostHog, or nothing without a key. After purchases: it links the two (analytics-start.ts).
 startAnalytics();
+// Before the first sync: the lock reads the phone's boot clock to catch a wound-back clock.
+setClockReader(readDeviceClock);
 
 /**
  * The tabs always sit under a deep-linked screen (`locturne://wake` from a Shortcut, say):
@@ -53,6 +57,15 @@ export default function RootLayout() {
           {/* The push-up count, in the same floating card. */}
           <Stack.Screen
             name="pushups"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          {/* Setting up the wake-up code, in the same floating card; its camera opens over it. */}
+          <Stack.Screen
+            name="code"
             options={{
               presentation: 'transparentModal',
               animation: 'none',

@@ -70,6 +70,13 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
         return
       }
+      // A morning a wake-up already proved: the morning start moved later after the walk, so
+      // this window's night was slept under the old routine and is over (`proven` in
+      // src/lib/lock-state.ts). It changes nothing, so the apps stay awake with Locturne closed.
+      if locturneWindowMorningProven(window) {
+        ignoreLocturneWindow(activity: activity.rawValue)
+        return
+      }
       // Held only with something to hold. An empty list (an emergency pause, or every pick
       // removed) holding the night would stop `restoreLocturneFallbackShield` taking a nap's
       // or a used-up limit's words off the always list until morning start. The lists were

@@ -13,9 +13,12 @@
     "description": "Locturne is an app blocker for your bedtime and your morning. The apps you pick go to sleep at bedtime, and they stay asleep until you actually get out of bed.\n\nIt's for people who scroll in bed at both ends of the night. Not when the alarm rings. When you're up.\n\nLoc runs it. He's a raccoon. He's tired. Your phone keeps him up."
   },
   "style": {
-    "bg": "#121C3A",
-    "text": "#F2F8FC",
-    "text2": "#8090B0"
+    "bg": "#C3D2F3",
+    "bgLight": "#EEF3FC",
+    "bgDeep": "#8EA9E8",
+    "text": "#0B1428",
+    "text2": "#5E7595",
+    "accent": "#3A5FBF"
   },
   "panels": [
     {
@@ -30,44 +33,78 @@
       "id": "steps",
       "headline": "Walk *200 steps.* They wake up.",
       "shot": "02-steps.png",
-      "note": "Steps view near the end, around 180 of 200."
+      "note": "Steps view near the end, around 180 of 200.",
+      "rotate": 5,
+      "x": 90,
+      "phoneTop": 640,
+      "callouts": [
+        { "text": "104|/ 200|steps walked", "x": 70, "y": 1640, "rotate": -3 }
+      ]
     },
     {
       "id": "payoff",
       "headline": "*You're up.* So are your apps.",
       "shot": "03-payoff.png",
-      "note": "Morning payoff (/morning-won): Loc's yell, the moon up."
+      "note": "Morning payoff (/morning-won): Loc's yell, the moon up.",
+      "scale": 1.18,
+      "phoneTop": 620,
+      "callouts": [
+        { "text": "7:02|am|Up. Apps awake.", "x": 640, "y": 1500, "rotate": 3 }
+      ]
     },
     {
       "id": "bedtime",
       "headline": "Bedtime at *11:30.* Not a request.",
       "shot": "04-routine.png",
-      "note": "Routine: bedtime 11:30 PM, morning time, wake-up method."
+      "note": "Routine: bedtime 11:30 PM, morning time, wake-up method.",
+      "dark": true,
+      "rotate": -5,
+      "x": -70,
+      "phoneTop": 640,
+      "callouts": [
+        { "text": "11:30|pm|Apps go to sleep", "x": 640, "y": 1560, "rotate": 3 }
+      ]
     },
     {
       "id": "downstairs",
       "headline": "Or go *downstairs.* Same deal.",
       "shot": "05-downstairs.png",
-      "note": "Downstairs screen mid-trip, height meter partly filled. Still from a screen recording."
+      "note": "Downstairs screen mid-trip, height meter partly filled. Still from a screen recording.",
+      "scale": 1.2,
+      "phoneTop": 600,
+      "callouts": [
+        { "text": "1|floor|down. That's it.", "x": 80, "y": 1760, "rotate": -2 }
+      ]
     },
     {
       "id": "pushups",
       "headline": "Or do *10 push-ups.* The camera counts.",
       "shot": "06-pushups.png",
-      "note": "Push-up screen mid-set with the rep count showing."
+      "note": "Push-up screen mid-set with the rep count showing.",
+      "rotate": -5,
+      "x": -60,
+      "phoneTop": 640,
+      "callouts": [
+        { "text": "10|/ 10|push-ups counted", "x": 600, "y": 1640, "rotate": 3 }
+      ]
     },
     {
       "id": "passes",
       "headline": "Bad day? *Use a pass.*",
       "shot": "07-passes.png",
       "note": "Exits sheet with passes left.",
-      "sub": "Two a month. The only way out early."
+      "sub": "Two a month. The only way out early.",
+      "callouts": [
+        { "text": "2|left|passes this month", "x": 620, "y": 1560 }
+      ]
     },
     {
       "id": "maker",
       "headline": "Made by *one student,* not a company.",
       "shot": "08-home.png",
-      "note": "Home in the day state, apps awake, Loc's line on top."
+      "note": "Home in the day state, apps awake, Loc's line on top.",
+      "hero": { "width": 1180 },
+      "kicker": "An indie app"
     }
   ]
 }

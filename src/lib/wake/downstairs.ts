@@ -13,7 +13,8 @@
  * - **Hysteresis:** once past 2.5 m, the hold only breaks below 2.1 m, so a 2.6 m staircase
  *   with ±0.3 m of sensor noise still finishes.
  * - **Up to 5 minutes,** then start again. That also bounds weather drift, which is about
- *   0.2 m over two minutes in normal weather and 0.5 m in a storm: far below a floor.
+ *   0.2 m over two minutes in normal weather and 0.5 m in a storm: far below a floor. A trip
+ *   already moving at the five minutes gets up to a minute more to finish.
  * - **No signal or a flat line** (no readings, or readings that never move by even a
  *   millimetre, which a working sensor always does) is reported, so the screen can say so
  *   and offer steps instead (GAME_PLAN: never leave someone stuck).
@@ -27,6 +28,11 @@ export const DOWNSTAIRS = {
   release: 2.1,
   holdMs: 5_000,
   timeoutMs: 5 * 60_000,
+  /**
+   * A trip already under way when the five minutes run out (moving, not yet past the
+   * threshold) gets this long to finish, rather than restarting from the middle of the stairs.
+   */
+  graceMs: 60_000,
   /** Median window for smoothing. */
   smoothMs: 2_000,
   /** The starting height is the median of the readings in this first stretch. */
@@ -103,11 +109,27 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+/** Has the height moved enough to call it a trip under way? */
+const underWay = (s: DownstairsSession) => Math.abs(s.change) >= DOWNSTAIRS.threshold * 0.2;
+
+/**
+ * Past the five minutes, and not in a trip given its grace (`DOWNSTAIRS.graceMs`): one still
+ * moving, with the sensor still answering. A silent sensor ends on time.
+ */
+function pastTime(s: DownstairsSession): boolean {
+  const elapsed = s.now - s.startedAt;
+  if (elapsed < DOWNSTAIRS.timeoutMs) return false;
+  const answering = s.now - (s.recent.at(-1)?.at ?? s.startedAt) < DOWNSTAIRS.noSignalMs;
+  // A low bar: sensor noise that wins a grace only lengthens one session by a minute.
+  const stirring = Math.abs(s.change) >= DOWNSTAIRS.threshold * 0.08;
+  return !(answering && stirring && elapsed < DOWNSTAIRS.timeoutMs + DOWNSTAIRS.graceMs);
+}
+
 /** Works out the status from the session's facts at `s.now`. */
 function judge(s: DownstairsSession): DownstairsStatus {
   if (s.metAt !== null) return 'met';
   const elapsed = s.now - s.startedAt;
-  if (elapsed >= DOWNSTAIRS.timeoutMs && s.heldSince === null) return 'timedOut';
+  if (pastTime(s) && s.heldSince === null) return 'timedOut';
   if (s.now - (s.recent.at(-1)?.at ?? s.startedAt) >= DOWNSTAIRS.noSignalMs) return 'noSignal';
   if (s.count === 0) return elapsed >= DOWNSTAIRS.noSignalMs ? 'noSignal' : 'waiting';
   if (
@@ -117,8 +139,8 @@ function judge(s: DownstairsSession): DownstairsStatus {
   )
     return 'flat';
   if (s.heldSince !== null) return 'holding';
-  if (elapsed >= DOWNSTAIRS.timeoutMs) return 'timedOut';
-  return Math.abs(s.change) >= DOWNSTAIRS.threshold * 0.2 ? 'moving' : 'waiting';
+  if (pastTime(s)) return 'timedOut';
+  return underWay(s) ? 'moving' : 'waiting';
 }
 
 /** A barometer reading. Readings after the session has ended are ignored. */
@@ -155,7 +177,7 @@ export function addSample(session: DownstairsSession, sample: Sample): Downstair
   const sign = s.change >= 0 ? 1 : -1;
 
   if (s.heldSince === null) {
-    if (size >= DOWNSTAIRS.threshold && at - s.startedAt < DOWNSTAIRS.timeoutMs) {
+    if (size >= DOWNSTAIRS.threshold && !pastTime(s)) {
       s.heldSince = at;
       s.direction = sign;
     }

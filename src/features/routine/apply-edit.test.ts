@@ -31,8 +31,9 @@ const ROUTINE: Routine = { bedtime: 23 * 60, morningStart: 7 * 60, activeNights:
 /** Day `day` of October 2026 at hh:mm, local time. */
 const at = (day: number, hh: number, mm = 0) => new Date(2026, 9, day, hh, mm);
 
-function load(world: { phase?: string; held?: (phase: string) => string; armed?: boolean; proofs?: Proof[]; routine?: Routine } = {}) {
+function load(world: { wouldArm?: boolean; phase?: string; held?: (phase: string) => string; armed?: boolean; proofs?: Proof[]; routine?: Routine } = {}) {
   const alerts: string[] = [];
+  const saved: number[] = [];
   const mocks: Record<string, unknown> = {
     'react-native': { Alert: { alert: (title: string) => alerts.push(title) } },
     '@/hooks/use-app-start': { armIfPaid() {} },
@@ -42,6 +43,7 @@ function load(world: { phase?: string; held?: (phase: string) => string; armed?:
       inPendingFirstNight: () => false,
       readLock: () => ({ phase: world.phase ?? 'day' }),
       syncLock() {},
+      wouldArmOnEdit: () => world.wouldArm ?? false,
     },
     '@/lib/lock-state': { dateKey, nightInto, nightsAround, wallClock },
     '@/lib/morning-proof': { getProofs: () => world.proofs ?? [] },
@@ -49,7 +51,11 @@ function load(world: { phase?: string; held?: (phase: string) => string; armed?:
     '@/lib/routine': {
       getPendingRoutine: () => null,
       getRoutine: () => world.routine ?? ROUTINE,
-      saveRoutine() {},
+      nightMinutes: (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440,
+      nightTooShort: (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440 < 240,
+      saveRoutine() {
+        saved.push(1);
+      },
       toLockSettings: (r: Routine) => ({ ...r, nightApps: ['night'], alwaysApps: [] }),
     },
     '@/lib/scan': { editRefusal: (phase: string) => (phase === 'night' || phase === 'morning' ? 'asleep' : null) },
@@ -59,9 +65,10 @@ function load(world: { phase?: string; held?: (phase: string) => string; armed?:
     routineEditRefusal: (now?: Date) => 'asleep' | null;
     refuseWhileAsleep: (now?: Date) => boolean;
     sleepsAtOnce: (next: Routine, now?: Date) => 'night' | 'morning' | null;
+    applyRoutineEdit: (next: Routine) => Promise<boolean>;
   };
   runInNewContext(code, { exports, require: (id: string) => mocks[id] });
-  return { ...exports, alerts };
+  return { ...exports, alerts, saved };
 }
 
 describe('routineEditRefusal', () => {
@@ -82,6 +89,32 @@ describe('routineEditRefusal', () => {
     const awake = load({ phase: 'day' });
     assert.equal(awake.refuseWhileAsleep(), false);
     assert.deepEqual(awake.alerts, []);
+  });
+});
+
+describe('applyRoutineEdit', () => {
+  test('a night under 4 hours is refused and nothing is saved', async () => {
+    const world = load();
+    assert.equal(await world.applyRoutineEdit({ ...ROUTINE, bedtime: 7 * 60 - 1, morningStart: 7 * 60 }), false);
+    assert.equal(await world.applyRoutineEdit({ ...ROUTINE, bedtime: 7 * 60, morningStart: 7 * 60 }), false, 'equal times: no night');
+    assert.equal(await world.applyRoutineEdit({ ...ROUTINE, bedtime: 4 * 60 + 1, morningStart: 8 * 60 }), false);
+    assert.deepEqual(world.saved, []);
+  });
+
+  test('a routine saved short before the rule: other edits save, and so does lengthening it', async () => {
+    const short = { ...ROUTINE, bedtime: 23 * 60, morningStart: 60 };
+    const world = load({ routine: short });
+    assert.equal(await world.applyRoutineEdit({ ...short, method: 'downstairs' }), true, 'method only');
+    assert.equal(await world.applyRoutineEdit({ ...short, morningStart: 2 * 60 }), true, 'longer, still short');
+    assert.equal(await world.applyRoutineEdit({ ...short, morningStart: 30 }), false, 'shorter still');
+    assert.equal(world.saved.length, 2);
+  });
+
+  test('exactly 4 hours, across midnight too, is saved', async () => {
+    const world = load();
+    assert.equal(await world.applyRoutineEdit({ ...ROUTINE, bedtime: 4 * 60, morningStart: 8 * 60 }), true);
+    assert.equal(await world.applyRoutineEdit({ ...ROUTINE, bedtime: 22 * 60, morningStart: 2 * 60 }), true);
+    assert.equal(world.saved.length, 2);
   });
 });
 

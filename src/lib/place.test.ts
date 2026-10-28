@@ -59,6 +59,19 @@ test('a vague fix never says yes, but can say clearly no', () => {
   assert.equal(place.judgeFix(GYM, fix(5_000, now, 300), now).kind, 'notThere');
 });
 
+test('a sharp fix just outside, whose circle reaches the place, is unsure, not no', () => {
+  const now = at(10, 6, 8);
+  // A pin saved 70 m off and an indoor fix 55 m off the other way, standing on the spot.
+  assert.equal(place.judgeFix(GYM, fix(place.PLACE_RADIUS_M + 5, now, 40), now).kind, 'unsure');
+  assert.equal(place.judgeFix(GYM, fix(place.PLACE_RADIUS_M + 50, now, 40), now).kind, 'notThere');
+});
+
+test('an invalid fix (negative accuracy on iOS) says nothing either way', () => {
+  const now = at(10, 6, 8);
+  assert.equal(place.judgeFix(GYM, fix(5_000, now, -1), now).kind, 'unsure');
+  assert.equal(place.judgeFix(GYM, fix(10, now, -1), now).kind, 'unsure');
+});
+
 test('an old or future-dated fix is unsure, and 0,0 is not a place', () => {
   const now = at(10, 6, 8);
   const old = new Date(now.getTime() - place.MAX_FIX_AGE_MS - 1);

@@ -66,6 +66,24 @@ export function payoffMoment(mornings: number, random: () => number): 'firstMorn
   return mornings >= 5 && random() < 0.35 ? 'wakeProud' : 'wakeDone';
 }
 
+/** The headline under the moon (user, 2026-10-28: more voice than "Your apps are awake"), broken where it's said. */
+export const APPS_AWAKE = 'You’re up.\nYour apps are too.';
+
+/** How close to the morning start still reads as on time, in minutes. */
+const ON_TIME_MIN = 5;
+
+/**
+ * The one fact that makes this morning look good, or null when none does (user, 2026-10-28: the
+ * old "earliest this week" showed a better day than today). The earliest this week once there's
+ * a week to beat, else on time for the start. `earliest` includes today; `week` counts today.
+ */
+export function payoffBrag(upAt: number, start: number, earliest: number, week: number): string | null {
+  // Said in full: it sits on its own under the week, with nothing round it to explain it.
+  if (week >= 2 && upAt <= earliest) return 'Your earliest wake-up this week';
+  if ((upAt - start + 1440) % 1440 <= ON_TIME_MIN) return `Up right on time for ${clock(start)}`;
+  return null;
+}
+
 /** What the Share button sends: the morning in one line, no stats a stranger can't read. */
 export function shareText(mornings: number, upAt: number): string {
   return `Up at ${clock(upAt)}. ${mornings === 1 ? 'My first morning' : `Morning ${mornings}`} out of bed with Locturne.`;

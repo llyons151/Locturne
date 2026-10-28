@@ -42,6 +42,14 @@ export type MorningFacts = {
    * reaching the goal. Kept so the apps stay awake if a later pedometer read fails.
    */
   unlockedMorning: string | null;
+  /**
+   * A wake-up method already proved this morning (`proofUnlocks`, morning-proof.ts). Such a proof
+   * is only recorded once a morning has started, so finding one while `now` reads as night means
+   * the routine moved after it: a later morning start saved after the walk. That night was slept
+   * under the old routine and is over, so it doesn't hold the apps again. Passes and emergency
+   * unlocks don't set this: they can be used before their night and are judged elsewhere.
+   */
+  proven?: boolean;
 };
 
 /**
@@ -246,7 +254,7 @@ export function getLockState(
 
   let phase: Phase;
   if (!active) phase = night ? 'off' : 'day';
-  else if (night) phase = 'night'; // bedtime wins: walking at night never unlocks
+  else if (night && !facts.proven) phase = 'night'; // bedtime wins: walking at night never unlocks
   else if (unlocked) phase = 'day';
   else phase = 'morning';
 
@@ -270,6 +278,6 @@ export function getLockState(
     blockNowUntil: session ? session.end : null,
     stepsRemaining: phase === 'morning' ? Math.max(0, settings.stepGoal - facts.steps) : 0,
     morningKey: morning.key,
-    nextChange: night ? window.end : nightBefore(now, settings, offset + 1).start,
+    nextChange: night && phase !== 'day' ? window.end : nightBefore(now, settings, offset + 1).start,
   };
 }

@@ -12,7 +12,9 @@ export type CardFacts = {
   unit: string;
   /** "Morning 12", or a milestone's name. */
   kicker: string;
-  stats: { value: string; label: string; icon: 'sunrise' | 'calendar' }[];
+  /** The payoff's headline (one line here), and the brag under it when today earned one. */
+  reward: string;
+  brag: string | null;
   days: { letter: string; done: boolean; today: boolean }[];
 };
 
@@ -149,25 +151,18 @@ async function paint(facts: CardFacts, loc: string | null): Promise<string> {
   ctx.font = type(600, 12);
   spaced(ctx, facts.kicker.toUpperCase(), cx, cy + 128, 1.6 * S, 'center');
 
-  // The stats, as on the screen: an icon and the number, the label under it, a hairline between.
+  // The reward, as on the screen: one line, the brag small under it. The app icons stay on the
+  // phone (iOS draws them, and only on the screen).
   const statsY = MOON_TOP + MOON + 125;
-  facts.stats.forEach((stat, i) => {
-    const x = W / 2 + (i === 0 ? -1 : 1) * 64 * S;
-    ctx.font = type(700, 22);
-    const vw = ctx.measureText(stat.value).width;
-    const iconW = 15 * S, iconGap = 6 * S;
-    const start = x - (iconW + iconGap + vw) / 2;
-    icon(ctx, stat.icon, start + iconW / 2, statsY - 8 * S, iconW);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(stat.value, start + iconW + iconGap, statsY);
-    ctx.textAlign = 'center';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = type(600, 17);
+  ctx.fillText(facts.reward, W / 2, statsY);
+  if (facts.brag) {
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = type(400, 12);
-    ctx.fillText(stat.label, x, statsY + 20 * S);
-  });
-  ctx.fillStyle = 'rgba(255,255,255,0.16)';
-  ctx.fillRect(W / 2 - 1, statsY - 24 * S, 2, 32 * S);
+    ctx.font = type(400, 13);
+    ctx.fillText(facts.brag, W / 2, statsY + 22 * S);
+  }
 
   // The week: letters, then a circle each, the mornings got up filled with a check.
   const dayY = statsY + 62 * S, step = 46 * S, r = 17 * S;
@@ -240,36 +235,4 @@ function spaced(ctx: CanvasRenderingContext2D, text: string, x: number, y: numbe
     at += widths[i] + spacing;
   });
   ctx.textAlign = 'center';
-}
-
-/** The stats' symbols, drawn as SF's sunrise.fill and calendar read at this size: `size` wide, centred on x, y. */
-function icon(ctx: CanvasRenderingContext2D, kind: 'sunrise' | 'calendar', x: number, y: number, size: number) {
-  const u = size / 16;
-  ctx.save();
-  ctx.fillStyle = ctx.strokeStyle = 'rgba(255,255,255,0.62)';
-  ctx.lineWidth = 1.5 * u;
-  ctx.lineCap = 'round';
-  if (kind === 'sunrise') {
-    // A sun half up over the horizon, three rays, the horizon line.
-    ctx.beginPath();
-    ctx.arc(x, y + 3 * u, 4.5 * u, Math.PI, 0);
-    ctx.fill();
-    for (const a of [-Math.PI / 2, -Math.PI / 4, (-3 * Math.PI) / 4]) {
-      ctx.beginPath();
-      ctx.moveTo(x + Math.cos(a) * 6.5 * u, y + 3 * u + Math.sin(a) * 6.5 * u);
-      ctx.lineTo(x + Math.cos(a) * 8.5 * u, y + 3 * u + Math.sin(a) * 8.5 * u);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.moveTo(x - 7.5 * u, y + 5 * u);
-    ctx.lineTo(x + 7.5 * u, y + 5 * u);
-    ctx.stroke();
-  } else {
-    // A page with a bar across its top.
-    ctx.beginPath();
-    ctx.roundRect(x - 7 * u, y - 6 * u, 14 * u, 13 * u, 2.5 * u);
-    ctx.stroke();
-    ctx.fillRect(x - 7 * u, y - 6 * u, 14 * u, 3.5 * u);
-  }
-  ctx.restore();
 }

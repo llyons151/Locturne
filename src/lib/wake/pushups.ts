@@ -57,6 +57,11 @@ export const PUSHUPS = {
   minRepMs: 700,
   /** Out of view or out of a plank this long and he says so. The reps done stay. */
   lostMs: 1_200,
+  /**
+   * A bottom already seen when the body was lost still counts if the plank is back at the top
+   * within this long: the bottom, near the floor, is the pose Vision reads worst.
+   */
+  regainMs: 3_000,
   /** No plank in view for this long (not since the start: a long set with rests is fine) and the camera stops. */
   timeoutMs: 10 * 60_000,
 } as const;
@@ -267,18 +272,7 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
 
   if ('hint' in read) {
     // A frame or two can drop out mid-rep; only a while without one loses the plank.
-    if (next.seenAt === null || at - next.seenAt >= PUSHUPS.lostMs) {
-      next.status = 'finding';
-      next.hint = read.hint;
-      next.elbow = null;
-      next.down = false;
-      next.lowFrames = 0;
-      next.deepFrames = 0;
-      next.dip = null;
-      next.topY = null;
-      next.topAt = null;
-      next.drop = 0;
-    }
+    if (next.seenAt === null || at - next.seenAt >= PUSHUPS.lostMs) lose(next, read.hint);
     return next;
   }
 
@@ -291,6 +285,8 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
     // Counting starts at the top of a plank, not halfway down one.
     if (elbow < PUSHUPS.upDeg) return next;
     next.status = 'counting';
+    // Lost after the bottom of a rep, back at its top soon enough: that rep counts (`lose`).
+    if (s.seenAt !== null && at - s.seenAt <= PUSHUPS.regainMs && bottomSeen(next)) return top(next, at, read.shoulderY);
     next.down = false;
     next.lowFrames = 0;
     next.deepFrames = 0;
@@ -318,7 +314,34 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
     return next;
   }
 
-  // Straight again: the top. A rep if it went all the way down, body and all.
+  return top(next, at, read.shoulderY);
+}
+
+/** Did the dip under way reach the bottom of a rep? */
+const bottomSeen = (s: PushupsSession) => (s.down && s.drop >= PUSHUPS.minDrop) || s.deepFrames >= PUSHUPS.downFrames;
+
+/**
+ * The plank is lost (out of view, out of a plank, or the camera stalled): back to finding. A
+ * bottom already seen is kept, so the rep still counts if the top comes back within
+ * `regainMs`; anything shallower starts over.
+ */
+function lose(next: PushupsSession, hint: Hint): void {
+  next.status = 'finding';
+  next.hint = hint;
+  next.elbow = null;
+  next.topY = null;
+  next.topAt = null;
+  if (bottomSeen(next)) return;
+  next.down = false;
+  next.lowFrames = 0;
+  next.deepFrames = 0;
+  next.dip = null;
+  next.drop = 0;
+}
+
+/** Straight again: the top. A rep if it went all the way down, body and all. */
+function top(next: PushupsSession, at: number, shoulderY: number): PushupsSession {
+  const read = { shoulderY };
   const dip = next.dip;
   const dropped = next.drop;
   const wentDown = next.down;
@@ -360,16 +383,7 @@ export function tick(s: PushupsSession, now: number): PushupsSession {
   const next = { ...s, now: Math.max(s.now, now) };
   if (next.status === 'counting' && next.seenAt !== null && next.now - next.seenAt >= PUSHUPS.lostMs) {
     // No frames at all (the camera stalled): the same as losing the plank.
-    next.status = 'finding';
-    next.hint = 'noBody';
-    next.elbow = null;
-    next.down = false;
-    next.lowFrames = 0;
-    next.deepFrames = 0;
-    next.dip = null;
-    next.topY = null;
-    next.topAt = null;
-    next.drop = 0;
+    lose(next, 'noBody');
   }
   // Measured from the last plank seen, or the start before one.
   if (next.now - Math.max(next.startedAt, next.seenAt ?? next.startedAt) >= next.timeoutMs) next.status = 'timedOut';

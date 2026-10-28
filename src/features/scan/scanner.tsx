@@ -58,6 +58,16 @@ export function Scanner({
     if (fake === 'real') return requestRealPermission();
     setFakeGranted(true);
   };
+  // Not asked yet: straight to Apple's prompt, then the camera (user 2026-10-28: a page of our
+  // own before it was odd). Our page is only for access that's been turned off.
+  const asked = useRef(false);
+  const askNow = !!permission && !permission.granted && permission.canAskAgain;
+  useEffect(() => {
+    if (!askNow || asked.current) return;
+    asked.current = true;
+    requestPermission().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when there's something to ask
+  }, [askNow]);
   // Expo reads once on mount. Settings can grant or revoke access without remounting us.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -68,21 +78,14 @@ export function Scanner({
   const last = useRef<{ data: string; at: number } | null>(null);
   const frame = fill ? styles.fill : styles.frame;
 
-  if (!permission) return <View style={frame} />;
+  // Dark while Apple's prompt is up (and before the first read): the camera opens behind it.
+  if (!permission || askNow) return <View style={frame} />;
 
   if (!permission.granted) {
     return (
       <View style={[frame, styles.ask]}>
-        <Text style={styles.askText}>
-          {permission.canAskAgain
-            ? 'The camera only looks for your code. Nothing is recorded.'
-            : 'Camera access is off for Locturne. Turn it on in Settings to scan.'}
-        </Text>
-        <PrimaryButton
-          // HIG: the button before Apple's prompt says Continue, never "Allow" (App Review 5.1.1(iv)).
-          label={permission.canAskAgain ? 'Continue' : 'Open Settings'}
-          onPress={() => (permission.canAskAgain ? requestPermission() : Linking.openSettings()).catch(() => {})}
-        />
+        <Text style={styles.askText}>Camera access is off for Locturne. Turn it on in Settings to scan.</Text>
+        <PrimaryButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
         {denied}
       </View>
     );

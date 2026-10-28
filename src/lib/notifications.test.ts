@@ -276,3 +276,10 @@ test('a wake-up notification tap over the code setup screen opens the wake-up in
   assert.equal(setupScanShowing('/wake', 'setup'), false);
 });
 
+
+test('the default plan, every night on and a trial running, stays under iOS’s 64 pending', () => {
+  const full = planNotifications({ routine: DEFAULT_ROUTINE, protection: 'on', armed: true, now: at(3, 12), trialEnd: at(9, 12) });
+  // Room left for the revoked and first-night notes.
+  assert.ok(full.length <= 62, String(full.length));
+  assert.ok(full.length >= 50, `a month ahead, so a closed app keeps getting them (${full.length})`);
+});

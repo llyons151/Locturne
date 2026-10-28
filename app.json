@@ -6,14 +6,15 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "locturne",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.lukelyons.locturne",
       "icon": "./assets/images/icon.png",
       "appleTeamId": "9N5WZT8LV3",
       "appStoreUrl": "https://apps.apple.com/app/id6822555693",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryAddUsageDescription": "Locturne saves your morning card to Photos when you choose Save Image."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -128,7 +129,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Locturne checks once, when you tap, that you've reached the place you picked for your mornings. It never tracks you and your location stays on this phone.",
+          "locationWhenInUsePermission": "While Locturne is open, it shows you on the map and checks you've reached the place you picked for your mornings. It never uses your location in the background.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
           "isIosBackgroundLocationEnabled": false,

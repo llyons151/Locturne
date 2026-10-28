@@ -11,13 +11,13 @@ import { currentProof, routineAt } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
 import { weekDays } from '@/features/home/week';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
-import type { WakeMethod } from '@/lib/routine';
+import { getRoutineChange, nightWasOn, type WakeMethod } from '@/lib/routine';
 
 /**
  * The morning payoff, after a wake-up wakes the apps (features/wake/payoff-screen.tsx). Home
  * opens it once per morning. `?demo=1` (the wake preview, dev) shows made-up facts instead:
- * `method`, `at`, `start` and `earliest` (minutes since midnight), `mornings`, `week` (days got
- * up so far this week, today included).
+ * `method`, `at`, `start` and `earliest` (minutes since midnight; `earliest` defaults to `at`,
+ * today the week's earliest), `mornings`, `week` (days got up so far this week, today included; all of them by default).
  */
 export default function MorningWonRoute() {
   const params = useLocalSearchParams<Record<string, string>>();
@@ -59,6 +59,7 @@ function realFacts(): PayoffFacts | null {
     today: proof.morningKey,
     won: new Set(ups.map((p) => p.morningKey)),
     earliest: earliestThisWeek(ups, proof.morningKey, at.getHours() * 60 + at.getMinutes()),
+    free: freeThisWeek(proof.morningKey, new Set(ups.map((p) => p.morningKey)), now),
     sayKey: '',
   };
 }
@@ -70,7 +71,9 @@ function demoFacts(p: Record<string, string>): PayoffFacts {
   const today = new Date();
   const num = (value: string | undefined, fallback: number) => (value && Number.isFinite(Number(value)) ? Number(value) : fallback);
   // The last `week` days up to today, within this week (Sunday first).
-  const week = Math.min(num(p.week, 3), today.getDay() + 1);
+  // Every day so far by default, as Home's dev week (home-screen.tsx MOCK_WEEK), so the two
+  // weeks match when the payoff's lands on Home's.
+  const week = Math.min(num(p.week, 7), today.getDay() + 1);
   const won = new Set<string>();
   for (let i = 0; i < week; i++) won.add(dateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)));
   return {
@@ -80,7 +83,8 @@ function demoFacts(p: Record<string, string>): PayoffFacts {
     mornings: Math.max(1, num(p.mornings, 12)),
     today: dateKey(today),
     won,
-    earliest: Math.min(num(p.at, 7 * 60 + 6), num(p.earliest, 6 * 60 + 52)),
+    earliest: Math.min(num(p.at, 7 * 60 + 6), num(p.earliest, num(p.at, 7 * 60 + 6))),
+    free: new Set(),
     sayKey: null,
   };
 }
@@ -94,4 +98,15 @@ function earliestThisWeek(ups: MorningProof[], today: string, upAt: number): num
       const d = new Date(p.at);
       return Math.min(min, d.getHours() * 60 + d.getMinutes());
     }, upAt);
+}
+
+/** This week's past mornings no night locked, as Home works them out (home-screen.tsx), so the payoff's week matches Home's. */
+function freeThisWeek(today: string, won: Set<string>, now: Date): Set<string> {
+  const routine = routineAt(now);
+  const change = getRoutineChange(now);
+  return new Set(
+    weekDays(today, won)
+      .filter((day) => day.key < today && !day.done && !nightWasOn(day.key, routine, change))
+      .map((day) => day.key),
+  );
 }

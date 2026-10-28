@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 
 import { Reveal } from '@/components/motion';
+import { SelectAllButton } from '@/components/select-all-button';
 import * as haptic from '@/lib/haptics';
 import { Nocturne, Radius, Space } from '@/theme';
 
@@ -136,6 +137,13 @@ export function DayRow({
             ? `Every ${unit}`
             : `${count} ${count === 1 ? unit : `${unit}s`} a week`}
       </Text>
+      <SelectAllButton
+        all={count === DAYS.length}
+        onPress={() => {
+          haptic.tap();
+          onChange(count === DAYS.length ? [] : ALL);
+        }}
+      />
     </Reveal>
   );
 }
