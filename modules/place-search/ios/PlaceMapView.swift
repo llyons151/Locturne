@@ -26,9 +26,9 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
 
   private let map = MKMapView()
   private let ring = CAShapeLayer()
-  /// Apple's own map buttons, stacked down the right edge as in Maps.
+  /// Apple's own compass, against the right edge as in Maps. (MKPitchControl, the 2D/3D button,
+  /// is macOS-only and fails the iOS build; a two-finger drag still tilts the map.)
   private lazy var compass = MKCompassButton(mapView: map)
-  private var pitchControl: UIView?
   private var controlsTop: CGFloat = 120
   /// The pin's head and stem, lifted while the map moves; `spot` marks the exact point.
   private let pin = UIView()
@@ -68,11 +68,6 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
 
     compass.compassVisibility = .adaptive
     addSubview(compass)
-    if #available(iOS 17.0, *) {
-      let control = MKPitchControl(mapView: map)
-      addSubview(control)
-      pitchControl = control
-    }
 
     ring.fillColor = UIColor.white.withAlphaComponent(0.1).cgColor
     ring.strokeColor = UIColor.white.withAlphaComponent(0.8).cgColor
@@ -90,7 +85,6 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
 
     // Over the circle and the pin, so they're always tappable.
     bringSubviewToFront(compass)
-    if let pitchControl { bringSubviewToFront(pitchControl) }
   }
 
   /// A white disc with a dark dot on a short white stem: a dropped pin, in the app's colours.
@@ -136,15 +130,11 @@ final class PlaceMapView: ExpoView, MKMapViewDelegate {
     setNeedsLayout()
   }
 
-  /// 2D/3D, then the compass under it, against the right edge as in Maps.
+  /// The compass against the right edge, as in Maps.
   private func layoutControls() {
     let edge: CGFloat = 16
-    var y = controlsTop
-    for control in [pitchControl, compass as UIView?].compactMap({ $0 }) {
-      let size = control.intrinsicContentSize.width > 0 ? control.intrinsicContentSize : control.sizeThatFits(bounds.size)
-      control.frame = CGRect(x: bounds.maxX - edge - size.width, y: y, width: size.width, height: size.height)
-      y += size.height + 8
-    }
+    let size = compass.intrinsicContentSize.width > 0 ? compass.intrinsicContentSize : compass.sizeThatFits(bounds.size)
+    compass.frame = CGRect(x: bounds.maxX - edge - size.width, y: controlsTop, width: size.width, height: size.height)
   }
 
   func setRadius(_ metres: Double) {
