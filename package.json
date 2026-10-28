@@ -65,6 +65,7 @@
     "studio": "npm --prefix studio install --no-audit --no-fund --silent && npm --prefix studio start",
     "studio:dev": "npm --prefix studio run dev",
     "onboarding-preview": "tools/onboarding-preview/start.sh",
+    "store-shots": "node tools/store-shots/server.mjs",
     "lint": "expo lint",
     "test": "node --test --experimental-test-module-mocks",
     "test:tz": "for tz in UTC America/New_York Europe/London Pacific/Chatham America/Santiago; do echo \"TZ=$tz\"; TZ=$tz npm test --silent || exit 1; done",

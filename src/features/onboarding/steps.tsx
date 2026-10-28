@@ -233,13 +233,13 @@ export function renderStep(ctx: StepContext): StepView {
           </View>
         ),
         footer: (
-          // No accounts: signing in is restoring the subscription.
+          // No accounts, so no "Sign in" (a reviewer would ask for demo credentials): it's a restore.
           <View>
             <Reveal delay={OPENER_LINE_MS * 2}>
               <PrimaryButton label="Get started" onPress={next} />
             </Reveal>
             <Reveal delay={OPENER_LINE_MS * 3}>
-              <TextButton lead="Already have an account?" label="Sign in" onPress={ctx.restorePurchases} />
+              <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
             </Reveal>
           </View>
         ),
@@ -567,15 +567,16 @@ export function renderStep(ctx: StepContext): StepView {
               <Voice text="No access, no sleeping apps." size={VoiceSize.headline} header />
               <View style={page.gapHeadline} />
               <Body>
-                Without Screen Time access I can’t put anything to sleep. Try again whenever you’re ready. If a parent
-                manages Screen Time on this iPhone, they have to approve it.
+                Without Screen Time access I can’t put anything to sleep. Try again whenever you’re ready, or turn it on
+                in <SettingsLink />. If a parent manages Screen Time on this iPhone, they have to approve it.
               </Body>
               <View style={page.gapAside} />
               <Voice text="I’ll wait. I’m good at lying down." size={VoiceSize.aside} delay={600} />
             </View>
           ),
           footer: <PrimaryButton label="Try again" onPress={ctx.askScreenTime} />,
-          secondary: <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />,
+          // Never a dead end: if iOS won't ask again, the rest of setup still goes on (no X before `commit`).
+          secondary: editing ? undefined : <TextButton label="Set up later" onPress={ctx.setUpLater} />,
         };
       }
       return {
@@ -1121,6 +1122,15 @@ const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
 };
 
 /** A link in the opener's fine print. */
+/** "Settings" inside a line, opening Locturne's page there. */
+function SettingsLink() {
+  return (
+    <Text accessibilityRole="link" style={styles.fineLink} onPress={() => Linking.openSettings().catch(() => {})}>
+      Settings
+    </Text>
+  );
+}
+
 function FineLink({ label, url }: { label: string; url: string }) {
   return (
     <Text accessibilityRole="link" style={styles.fineLink} onPress={() => Linking.openURL(url).catch(() => {})}>

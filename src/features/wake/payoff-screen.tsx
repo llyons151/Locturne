@@ -49,6 +49,8 @@ export type PayoffFacts = {
 
 /** Loc's width as a share of the screen: Home's. */
 const LOC_SHARE = 0.27;
+/** Where Home rests its moon (`useMoonSink` on the Home tab). */
+const HOME_SINK = 0;
 
 /** One step of the entrance: each piece comes into focus a beat after the one before (onboarding's `focus`). */
 const STEP_MS = 150;
@@ -173,15 +175,15 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
       clearTimeout(down);
     };
   }, [shown, reduced, line, sayKey, today]);
-  // Home's moon is the same one: where Home had it, for the way back.
-  const homeSink = useRef(0);
+  // Home's moon is the same one: back to where Home rests it (`HOME_SINK`) on the way back. Never a value
+  // read here: this opens as Home is focused, mid its sink animation, and on iOS a read right
+  // after that `.set()` can be stale (the old tab's sunk moon).
   useEffect(() => {
-    homeSink.current = moonSink.get();
     moonSink.set(MOON_SHOWS_FROM);
     const fallback = setTimeout(onYell, YELL_FALLBACK_MS);
     return () => {
       clearTimeout(fallback);
-      moonSink.set(homeSink.current);
+      moonSink.set(HOME_SINK);
       // Never leave Home's pieces hidden, however this screen goes.
       if (leaving.current) homeEntrance.play();
     };
@@ -211,7 +213,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
       else router.replace('/');
     };
     if (reduced) {
-      moonSink.set(homeSink.current);
+      moonSink.set(HOME_SINK);
       drop.set(lift);
       homeEntrance.play();
       back();
@@ -219,7 +221,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     }
     page.set(withTiming(0, { duration: OUT_MS, easing: Easing.out(Easing.cubic) }));
     const settle = { duration: SETTLE_MS, easing: SETTLE };
-    moonSink.set(withDelay(SETTLE_AT_MS, withTiming(homeSink.current, settle)));
+    moonSink.set(withDelay(SETTLE_AT_MS, withTiming(HOME_SINK, settle)));
     drop.set(withDelay(SETTLE_AT_MS, withTiming(lift, settle)));
     // Then away over Home, as Home's pieces start coming into focus.
     const settled = SETTLE_AT_MS + SETTLE_MS;

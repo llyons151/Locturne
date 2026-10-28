@@ -2,6 +2,7 @@ import { router, useGlobalSearchParams, usePathname, useSegments } from 'expo-ro
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
+import { setPaywallOpen, wasClosedAtPaywall } from '@/features/onboarding/setup';
 import { track } from '@/lib/analytics';
 import { armTonight } from '@/lib/arm';
 import { paidSettleCount, settleSubscription } from '@/lib/lock-controller';
@@ -121,6 +122,12 @@ export function useAppStart(): void {
       if (pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') router.push('/onboarding');
       armIfPaid();
       return;
+    }
+    // Closed at the paywall last time: back to it with their setup, unless they've paid since
+    // (a purchase that finished as the app died). Offline, the paywall says the store isn't answering.
+    if (wasClosedAtPaywall() && pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') {
+      const resume = () => router.push({ pathname: '/onboarding', params: { resume: 'paywall' } });
+      isEntitled().then((paid) => (paid ? setPaywallOpen(false) : resume()), resume);
     }
     shouldAskForNotifications()
       .then((ask) => (ask ? askForNotifications() : false))

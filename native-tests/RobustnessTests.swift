@@ -489,6 +489,28 @@ func registerRobustnessTests() {
     at("2026-10-06 07:30")
     expectEqual(drawn("tiktok").button, "I’m up", "the morning's button")
   }
+
+  test("the last window's end never delivered: a tap on the night shield after morning start still wakes the apps") {
+    pick("night", ["tiktok"])
+    var r = routine(); r["method"] = "steps"
+    saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-06 01:40"); end("night-0"); start("night-1")
+    at("2026-10-06 04:20"); end("night-1"); start("night-2")
+    at("2026-10-06 07:30")
+    tap("tiktok", .data(steps: 400))
+    expect(!nightHeld(), "woke on the first tap")
+  }
+
+  test("the last window's end never delivered: a tap inside the night changes nothing") {
+    pick("night", ["tiktok"])
+    var r = routine(); r["method"] = "steps"
+    saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
+    at("2026-10-05 23:00"); start("night-0")
+    at("2026-10-06 02:00")
+    tap("tiktok", .data(steps: 400))
+    expect(nightHeld(), "still asleep")
+  }
 }
 
 /// Times no number can be a minute of: they used to trap the extensions (integer overflow in

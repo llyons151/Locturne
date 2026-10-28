@@ -68,6 +68,12 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
   let watch: Subscription | null = null;
   let poll: unknown = null;
   let denied = false;
+  /**
+   * The pedometer said no or threw on iOS. That can be one bad call (a query fails even on a
+   * working chip), so each return to the app tries the whole start again: never stuck on
+   * "can't count steps" until the app is killed.
+   */
+  let failed = false;
   /** A permission re-read on return is in flight, so a second 'active' doesn't start another. */
   let rechecking = false;
 
@@ -114,12 +120,17 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
     update(startCount(goal, steps, now(), known));
     status('counting');
     subscribe();
+    if (poll !== null) clear(poll);
     poll = every(refresh, HISTORY_EVERY_MS);
   };
 
-  (async () => {
+  const start = async () => {
     try {
-      if (!deps.isIOS || !(await pedometer.isAvailableAsync())) return status('unavailable');
+      if (!deps.isIOS) return status('unavailable');
+      if (!(await pedometer.isAvailableAsync())) {
+        failed = true;
+        return status('unavailable');
+      }
       if (stopped) return;
       const permission = await pedometer.requestPermissionsAsync();
       if (stopped) return;
@@ -129,9 +140,11 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
       }
       await begin();
     } catch {
+      failed = true;
       status('unavailable');
     }
-  })();
+  };
+  start();
 
   // Back from Settings with Motion & Fitness now on: start counting as on open.
   const recheck = async () => {
@@ -154,6 +167,15 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
     if (state !== 'active' || stopped) return;
     if (denied && !rechecking) {
       recheck();
+      return;
+    }
+    if (failed && !rechecking) {
+      failed = false;
+      rechecking = true;
+      status('starting');
+      start().finally(() => {
+        rechecking = false;
+      });
       return;
     }
     if (!count) return;

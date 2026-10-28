@@ -172,6 +172,10 @@ func handleAction(
   categoryToken: ActivityCategoryToken?
 ) {
   CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication)
+  // Locturne: iOS can skip the last window's end (phone off, a late extension), leaving the night's
+  // "Fine" shield up past morning start. Put up the morning shield first, so this tap is "I'm up".
+  // Inside the night, or with the night already let go, it does nothing.
+  locturneMorningShieldIfDue()
 
   if let shieldActionConfig = getActivitySelectionPrefixedConfigFromUserDefaults(
     keyPrefix: SHIELD_ACTIONS_FOR_SELECTION_PREFIX,

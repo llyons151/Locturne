@@ -74,7 +74,7 @@ const CENTRED = frame({ maxHeight: 10_000 });
 
 const timeAsDate = (minutes: number) => new Date(2000, 0, 1, 0, minutes);
 
-export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRowProps) {
+export function TimeRow({ icon, title, value, onChange, invalid, immediate, last }: TimeRowProps) {
   // SwiftUI's picker keeps its own copy of the date and only takes `selection` when it
   // changes, so a refused time would stay on the wheel. A new key remounts it at `value`.
   const [shown, setShown] = useState(0);
@@ -121,6 +121,15 @@ export function TimeRow({ icon, title, value, onChange, invalid, last }: TimeRow
           displayedComponents={['hourAndMinute']}
           onDateChange={(date) => {
             const minutes = date.getHours() * 60 + date.getMinutes();
+            if (immediate) {
+              // Same checks as the settler, straight away.
+              if (minutes === value) return;
+              const problem = invalid?.(minutes);
+              if (!problem) return onChange(minutes);
+              haptic.thud();
+              setShown((n) => n + 1);
+              return Alert.alert(problem);
+            }
             setHeld(minutes);
             pending.current?.push(minutes);
           }}

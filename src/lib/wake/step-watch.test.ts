@@ -309,6 +309,37 @@ describe('no step counter', () => {
     }
   });
 
+  test('a chip that errored once starts counting on the next return to the app', async () => {
+    const t = setup((w) => void (w.available = new Error('nope')));
+    await settle();
+    assert.deepEqual(t.world.statuses, ['unavailable']);
+    t.world.available = true;
+    t.appState('active');
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.statuses, ['unavailable', 'starting', 'counting']);
+    assert.equal(t.steps(), 50);
+    assert.equal(t.live().length, 1);
+    assert.equal(t.world.timers.size, 1);
+  });
+
+  test('still no chip on return: asks again each return, never more than once at a time', async () => {
+    const t = setup((w) => void (w.available = false));
+    await settle();
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.statuses, ['unavailable', 'starting', 'unavailable']);
+    assert.equal(t.world.watchers.length, 0);
+  });
+
+  test('off iPhone never retries', async () => {
+    const t = setup(undefined, { isIOS: false });
+    await settle();
+    t.appState('active');
+    await settle();
+    assert.deepEqual(t.world.statuses, ['unavailable']);
+  });
+
   test('before morning start, history is zero without asking', async () => {
     const t = setup((w) => void (w.clock = MORNING - 1));
     await settle();

@@ -69,7 +69,7 @@ import { methodAccessFor, methodAccessPending, requestMethodAccess } from './met
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav, stepsFor } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
-import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, wasExitOfferShown } from './setup';
+import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, setPaywallOpen, wasExitOfferShown } from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { BUILD_EXIT_MS, BUILD_RISE_FIRST_MS, BuildFloor, moonBelow } from './screens/build-chapter';
 import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './screens/reveal-screen';
@@ -311,6 +311,18 @@ export function OnboardingFlow({
    * and the answer it collected. Going Back answers nothing.
    */
   const [rerun] = useState(hasRoutine);
+  // A first run saves its setup on reaching `commit`, so closing the app at the paywall (swiped
+  // away, not the X) keeps it and the next launch opens on the paywall (`useAppStart`). Going
+  // back and coming forward again saves what they changed. Not for a review jump (`?step=`).
+  const reachedSetup = history.some((s) => SETUP_DONE.includes(s));
+  const saveAtPaywall = useEffectEvent(() => {
+    if (rerun || finished || !flowActive.has('active') || (isStep(initialStep) && initialStep !== 'hello')) return;
+    saveSetup(answers);
+    setPaywallOpen(true);
+  });
+  useEffect(() => {
+    if (reachedSetup) saveAtPaywall();
+  }, [reachedSetup]);
   const lastView = useRef<{ step: StepId; at: number } | null>(null);
   const wentBack = useRef(false);
   const stepShown = useEffectEvent(() => {
@@ -376,6 +388,7 @@ export function OnboardingFlow({
     : undefined;
   const exit = () => {
     flowActive.delete('active');
+    setPaywallOpen(false);
     // The declined path (ONBOARDING_CONVERSION): keep the setup, arm nothing. After a purchase
     // the history was reset to `armed`, and `finishSetup` has saved it already.
     const setupDone = history.some((s) => SETUP_DONE.includes(s));
@@ -547,6 +560,7 @@ export function OnboardingFlow({
     // A purchase that was waiting for approval ends here, reported (or not) by this flow: the
     // app-start check mustn't count it again as an approval after the paywall.
     takePendingApproval();
+    setPaywallOpen(false);
     // Bought or restored: anything stood down (an earlier subscription ended) comes back.
     settleSubscription(true);
     // StoreKit can finish after this modal closes. Keep any Routine edits made since then;
@@ -602,6 +616,8 @@ export function OnboardingFlow({
       setTrialEnds(offer?.trialDays ? trialEndsAt(offer.trialDays) : null);
       finishLatest.get('complete')!('purchase');
     } else if (result.status === 'pending') {
+      // Waiting for a parent: never back to the paywall on the next launch.
+      setPaywallOpen(false);
       if (!flowActive.has('active')) {
         if (!hasRoutine()) saveSetup(latestAnswers.get('value')!);
         saveTrialReminder(latestAnswers.get('value')!.remindTrial);

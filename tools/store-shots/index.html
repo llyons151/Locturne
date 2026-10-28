@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Store shots</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ui-bg: #111214; --ui-panel: #1a1b1e; --ui-line: #2a2b30; --ui-text: #ececf0; --ui-dim: #9a9ba3;
+      /* App Store mock, light */
+      --as-bg: #ffffff; --as-text: #000000; --as-dim: #8a8a8e; --as-line: #e3e3e8; --as-fill: #f2f2f7;
+      --as-blue: #007aff; --as-get: #eef0f5;
+    }
+    .dark-store { --as-bg: #000000; --as-text: #ffffff; --as-dim: #8d8d93; --as-line: #2c2c2e; --as-fill: #1c1c1e; --as-blue: #0a84ff; --as-get: #2c2c2e; }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--ui-bg); color: var(--ui-text); font: 14px/1.4 Inter, -apple-system, system-ui, sans-serif; }
+    header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 12px 20px;
+      background: var(--ui-bg); border-bottom: 1px solid var(--ui-line); }
+    header h1 { margin: 0 16px 0 0; font-size: 15px; font-weight: 700; }
+    header .spacer { flex: 1; }
+    button, select, input, textarea { font: inherit; color: inherit; }
+    .tab, .btn { border: 1px solid var(--ui-line); background: var(--ui-panel); color: var(--ui-text); border-radius: 8px;
+      padding: 6px 12px; cursor: pointer; }
+    .tab.on { background: var(--ui-text); color: var(--ui-bg); border-color: var(--ui-text); }
+    #status { color: var(--ui-dim); font-size: 12px; margin-right: 8px; }
+    main { padding: 24px 20px 60px; }
+
+    /* Scaled live panel: an iframe at full 1320×2868, shrunk to the box. */
+    .shot { position: relative; overflow: hidden; background: #000; flex: none; }
+    .shot iframe { position: absolute; top: 0; left: 0; width: 1320px; height: 2868px; border: 0; transform-origin: 0 0; pointer-events: none; }
+
+    /* Panels view */
+    .strip { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 10px; }
+    .card { cursor: pointer; border-radius: 10px; padding: 6px; border: 2px solid transparent; }
+    .card.on { border-color: var(--ui-text); }
+    .card .label { margin-top: 6px; color: var(--ui-dim); font-size: 12px; text-align: center; }
+    .card .label b { color: var(--ui-text); }
+    .editor { display: grid; grid-template-columns: auto 1fr; gap: 28px; margin-top: 24px; align-items: start; }
+    .form { display: grid; gap: 12px; max-width: 560px; }
+    .form label { display: grid; gap: 4px; color: var(--ui-dim); font-size: 12px; }
+    .form input, .form textarea, .form select { background: var(--ui-panel); border: 1px solid var(--ui-line); border-radius: 8px; padding: 8px 10px; color: var(--ui-text); }
+    .form textarea { min-height: 70px; resize: vertical; }
+    .hint { color: var(--ui-dim); font-size: 12px; }
+
+    /* Mock iPhone + App Store */
+    .stage { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; }
+    .iphone { width: 393px; height: 852px; border-radius: 56px; border: 12px solid #000; background: var(--as-bg); color: var(--as-text);
+      overflow: hidden; position: relative; box-shadow: 0 30px 60px rgba(0,0,0,.5); font-family: -apple-system, 'SF Pro Text', Inter, system-ui, sans-serif; }
+    .iphone .scroll { position: absolute; inset: 0; overflow-y: auto; scrollbar-width: none; }
+    .iphone .scroll::-webkit-scrollbar { display: none; }
+    .statusbar { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 0 34px; font-weight: 600; font-size: 16px; }
+    .island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 120px; height: 34px; background: #000; border-radius: 20px; z-index: 3; }
+    .caption { text-align: center; color: var(--ui-dim); margin-top: 12px; font-size: 12px; }
+
+    .search-bar { margin: 4px 16px 10px; background: var(--as-fill); border-radius: 11px; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 10px; color: var(--as-text); font-size: 16px; }
+    .search-bar .glass { color: var(--as-dim); }
+    .result { padding: 6px 16px 18px; border-bottom: .5px solid var(--as-line); }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .icon { border-radius: 22.5%; background: #333 center / cover; flex: none; border: .5px solid rgba(128,128,128,.25); }
+    .meta { flex: 1; min-width: 0; }
+    .meta .name { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta .subt { font-size: 13px; color: var(--as-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta .stars { font-size: 12px; color: var(--as-dim); margin-top: 2px; }
+    .get { background: var(--as-get); color: var(--as-blue); font-weight: 700; font-size: 15px; border-radius: 999px; padding: 5px 20px; border: 0; }
+    .iap { font-size: 9px; color: var(--as-dim); text-align: center; margin-top: 2px; }
+    .trio { display: flex; gap: 8px; margin-top: 12px; }
+    .trio .shot { border-radius: 10px; }
+    .ghost .icon, .ghost .trio .shot { background: var(--as-fill); }
+    .ghost .meta .name, .ghost .meta .subt { background: var(--as-fill); color: transparent; border-radius: 4px; width: 70%; margin-bottom: 4px; }
+
+    .nav { display: flex; justify-content: space-between; align-items: center; padding: 0 16px 6px; color: var(--as-blue); font-size: 17px; }
+    .hero { display: flex; gap: 16px; padding: 8px 20px 16px; }
+    .hero .name { font-size: 21px; font-weight: 700; line-height: 1.15; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .hero .subt { font-size: 15px; color: var(--as-dim); margin-top: 2px; white-space: normal; }
+    .hero .actions { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+    .hero .get { background: var(--as-blue); color: #fff; }
+    .info { display: flex; overflow-x: auto; border-top: .5px solid var(--as-line); border-bottom: .5px solid var(--as-line); margin: 0 20px; padding: 10px 0; scrollbar-width: none; }
+    .info div { flex: none; min-width: 104px; text-align: center; padding: 0 10px; border-left: .5px solid var(--as-line); }
+    .info div:first-child { border-left: 0; }
+    .info small { display: block; font-size: 10px; color: var(--as-dim); text-transform: uppercase; letter-spacing: .02em; }
+    .info b { display: block; font-size: 17px; color: var(--as-dim); margin: 2px 0; }
+    .info span { font-size: 11px; color: var(--as-dim); }
+    .carousel { display: flex; gap: 10px; overflow-x: auto; padding: 16px 0 6px; scroll-snap-type: x mandatory; scroll-padding-left: 20px; scrollbar-width: none; }
+    .carousel::before, .carousel::after { content: ''; flex: 0 0 10px; }
+    .carousel .shot { border-radius: 16px; scroll-snap-align: start; }
+    .device-label { padding: 2px 20px 12px; color: var(--as-dim); font-size: 13px; border-bottom: .5px solid var(--as-line); margin: 0 0 0; }
+    .desc { padding: 14px 20px; font-size: 15px; line-height: 1.35; border-bottom: .5px solid var(--as-line); }
+    .desc .more { color: var(--as-blue); }
+    .dev { padding: 12px 20px 40px; display: flex; justify-content: space-between; color: var(--as-blue); font-size: 15px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Store shots</h1>
+    <button class="tab" data-view="panels">Panels</button>
+    <button class="tab" data-view="search">Search result</button>
+    <button class="tab" data-view="product">Product page</button>
+    <span class="spacer"></span>
+    <span id="status"></span>
+    <button class="btn" id="mode">Dark App Store</button>
+    <button class="btn" id="export">Export PNGs</button>
+  </header>
+  <main id="main"></main>
+
+  <script>
+    const W = 1320, H = 2868;
+    let data, shots = [], view = new URLSearchParams(location.search).get('view') || localStorage.getItem('view') || 'panels', sel = Number(localStorage.getItem('sel') || 0);
+    let dark = localStorage.getItem('dark') === '1';
+    const $ = (s, el = document) => el.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+    // A live panel scaled to a given width. Every preview is the real export page, so what you see is what ships.
+    function shot(i, width, radius) {
+      const s = width / W;
+      return `<div class="shot" style="width:${width}px;height:${Math.round(H * s)}px${radius ? `;border-radius:${radius}px` : ''}">
+        <iframe src="/panel.html?i=${i}&t=${Date.now()}" style="transform:scale(${s})" loading="lazy"></iframe></div>`;
+    }
+
+    function phone(inner, caption) {
+      return `<div><div class="iphone ${dark ? 'dark-store' : ''}"><div class="island"></div><div class="scroll">
+        <div class="statusbar"><span>9:41</span><span>●●● ▮</span></div>${inner}</div></div>
+        <div class="caption">${caption}</div></div>`;
+    }
+
+    function iconStyle(size) { return `width:${size}px;height:${size}px;background-image:url('${data.app.icon}')`; }
+
+    function renderPanels() {
+      const p = data.panels[sel];
+      const options = [...new Set([p.shot, ...shots])].filter(Boolean)
+        .map((s) => `<option ${s === p.shot ? 'selected' : ''}>${esc(s)}</option>`).join('');
+      return `
+        <div class="strip">${data.panels.map((q, i) => `
+          <div class="card ${i === sel ? 'on' : ''}" data-i="${i}">${shot(i, 170, 12)}
+            <div class="label"><b>${i + 1}</b> · ${esc(q.id)}${i < 3 ? ' · in search' : ''}</div></div>`).join('')}
+        </div>
+        <div class="editor">
+          ${shot(sel, 400, 22)}
+          <div class="form">
+            <label>Headline<textarea id="f-headline">${esc(p.headline)}</textarea></label>
+            <label>Subline (optional)<input id="f-sub" value="${esc(p.sub)}"></label>
+            <label>Screenshot (file in tools/store-shots/shots/)<select id="f-shot">${options}</select></label>
+            <label>Phone top (px, default 640)<input id="f-phoneTop" type="number" value="${esc(p.phoneTop ?? '')}"></label>
+            <label>What to capture<textarea id="f-note">${esc(p.note)}</textarea></label>
+            <div><button class="btn" id="save">Save panel ${sel + 1}</button></div>
+            <p class="hint">Panels 1–3 are the ones people see in search results. Drop new captures into
+              <code>tools/store-shots/shots/</code>; the page picks them up on its own. Edits to panels.json from Claude show up live too.</p>
+          </div>
+        </div>`;
+    }
+
+    function renderSearch() {
+      const app = data.app;
+      const real = `
+        <div class="result"><div class="row">
+          <div class="icon" style="${iconStyle(62)}"></div>
+          <div class="meta"><div class="name">${esc(app.name)}</div><div class="subt">${esc(app.subtitle)}</div>
+            <div class="stars">New</div></div>
+          <div><button class="get">${esc(app.price)}</button>${app.inAppPurchases ? '<div class="iap">In-App Purchases</div>' : ''}</div>
+        </div>
+        <div class="trio">${[0, 1, 2].map((i) => data.panels[i] ? shot(i, 113, 10) : '').join('')}</div></div>`;
+      const ghost = `
+        <div class="result ghost"><div class="row"><div class="icon" style="width:62px;height:62px"></div>
+          <div class="meta"><div class="name">.</div><div class="subt">.</div></div><button class="get">Get</button></div>
+          <div class="trio">${[0, 1, 2].map(() => '<div class="shot" style="width:113px;height:245px;border-radius:10px"></div>').join('')}</div></div>`;
+      return `<div class="stage">${phone(`
+        <div class="nav" style="color:var(--as-text);font-size:30px;font-weight:700;padding-top:4px">Search</div>
+        <div class="search-bar"><span class="glass">⌕</span>morning app blocker</div>
+        ${real}${ghost}`, 'Search results: only the icon, name, subtitle and first 3 panels show')}</div>`;
+    }
+
+    function renderProduct() {
+      const app = data.app;
+      const first = app.description.split('\n')[0];
+      return `<div class="stage">${phone(`
+        <div class="nav"><span>‹ Search</span><span></span></div>
+        <div class="hero"><div class="icon" style="${iconStyle(118)}"></div>
+          <div class="meta"><div class="name">${esc(app.name)}</div><div class="subt">${esc(app.subtitle)}</div>
+            <div class="actions"><div><button class="get">${esc(app.price)}</button>${app.inAppPurchases ? '<div class="iap" style="text-align:left">In-App Purchases</div>' : ''}</div>
+            <span style="color:var(--as-blue);font-size:20px">⇪</span></div></div></div>
+        <div class="info">
+          <div><small>Ratings</small><b>—</b><span>Not enough</span></div>
+          <div><small>Age</small><b>${esc(app.age)}</b><span>Years Old</span></div>
+          <div><small>Category</small><b>☾</b><span>${esc(app.category)}</span></div>
+          <div><small>Developer</small><b>◎</b><span>${esc(app.developer)}</span></div>
+          <div><small>Language</small><b>EN</b><span>English</span></div>
+          <div><small>Size</small><b>${esc(app.size.split(' ')[0])}</b><span>MB</span></div>
+        </div>
+        <div class="carousel">${data.panels.map((_, i) => shot(i, 228, 16)).join('')}</div>
+        <div class="device-label">▯ iPhone</div>
+        <div class="desc">${esc(app.promo)}</div>
+        <div class="desc">${esc(first)} <span class="more">more</span></div>
+        <div class="dev"><span>${esc(app.developer)}</span><span>›</span></div>`, 'Product page: swipe the screenshots sideways')}</div>`;
+    }
+
+    function render() {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.view === view));
+      $('#mode').textContent = dark ? 'Light App Store' : 'Dark App Store';
+      $('#main').innerHTML = view === 'panels' ? renderPanels() : view === 'search' ? renderSearch() : renderProduct();
+      if (view === 'panels') wireEditor();
+    }
+
+    function wireEditor() {
+      document.querySelectorAll('.card').forEach((c) => c.onclick = () => { sel = Number(c.dataset.i); localStorage.setItem('sel', sel); render(); });
+      $('#save').onclick = async () => {
+        const p = data.panels[sel];
+        p.headline = $('#f-headline').value.trim();
+        p.sub = $('#f-sub').value.trim();
+        p.shot = $('#f-shot').value;
+        p.note = $('#f-note').value.trim();
+        const top = $('#f-phoneTop').value.trim();
+        if (top) p.phoneTop = Number(top); else delete p.phoneTop;
+        await fetch('/api/panels', { method: 'PUT', body: JSON.stringify(data, null, 2) + '\n' });
+        status('Saved');
+      };
+    }
+
+    function status(t) { $('#status').textContent = t; clearTimeout(status.t); status.t = setTimeout(() => $('#status').textContent = '', 3000); }
+
+    async function load() {
+      data = await (await fetch('/panels.json', { cache: 'no-store' })).json();
+      shots = await (await fetch('/api/shots', { cache: 'no-store' })).json();
+      sel = Math.min(sel, data.panels.length - 1);
+      render();
+    }
+
+    document.querySelectorAll('.tab').forEach((t) => t.onclick = () => { view = t.dataset.view; localStorage.setItem('view', view); render(); });
+    $('#mode').onclick = () => { dark = !dark; localStorage.setItem('dark', dark ? '1' : '0'); render(); };
+    $('#export').onclick = async () => {
+      status('Exporting…');
+      const r = await fetch('/api/export', { method: 'POST' });
+      status(r.ok ? `Exported ${(await r.json()).length} PNGs to tools/store-shots/export/` : 'Export failed: ' + await r.text());
+    };
+
+    // Live reload: when panels.json, the panel template or a shot changes on disk, re-render.
+    let version = null;
+    setInterval(async () => {
+      const v = await (await fetch('/api/version', { cache: 'no-store' })).text();
+      if (version !== null && v !== version) { await load(); status('Updated'); }
+      version = v;
+    }, 1500);
+
+    load();
+  </script>
+</body>
+</html>

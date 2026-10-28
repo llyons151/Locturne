@@ -89,6 +89,8 @@ export function WebsitesCard({ list }: { list: SiteList }) {
   const remove = (site: string) => {
     haptic.tap();
     removeSite(list, site, looserEditsStartAt(new Date(), list));
+    // The last site off a websites-only night leaves nothing to warn about.
+    if (list === 'night') rescheduleNotifications().catch(() => {});
     setRevision((r) => r + 1);
   };
 

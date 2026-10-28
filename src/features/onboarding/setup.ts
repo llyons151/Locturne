@@ -38,14 +38,29 @@ const QUIZ_FIELDS = [
 ] as const satisfies readonly (keyof Answers)[];
 type QuizAnswers = Pick<Answers, (typeof QUIZ_FIELDS)[number]>;
 
+/**
+ * A first run's setup was saved on reaching `commit` and the flow hasn't been left or finished
+ * since: the app was closed (swiped away) at the paywall. The next launch opens on the paywall
+ * with that setup (`useAppStart`), not the questions again.
+ */
+const PAYWALL_OPEN_KEY = 'locturne.paywallOpen';
+
+export function wasClosedAtPaywall(): boolean {
+  return sharedGet<boolean>(PAYWALL_OPEN_KEY) === true;
+}
+
+export function setPaywallOpen(open: boolean): void {
+  sharedSet(PAYWALL_OPEN_KEY, open);
+}
+
 /** The exit offer is shown once per Apple ID's install, so it can't be farmed by rerunning onboarding. */
 const EXIT_OFFER_SHOWN_KEY = 'locturne.exitOfferShown';
 
 /**
  * Saves the schedule and wake-up method. With nothing armed (a first run, or after declining)
  * it applies at once; with a night armed it waits for the next bedtime, like every other
- * settings change. Called once, when the setup is final: on purchase, or when leaving after
- * the paywall.
+ * settings change. Called when a first run reaches `commit` (so closing the app at the paywall
+ * keeps it), and again when the setup is final: on purchase, or when leaving after the paywall.
  */
 export function saveSetup(answers: Answers): void {
   // Onboarding only asks for these three, so a rerun (or the paywall reopened from You) keeps

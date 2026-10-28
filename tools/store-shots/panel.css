@@ -1,0 +1,81 @@
+/* One App Store panel at its real export size, 1320×2868 (the 6.9" iPhone size).
+   Restrained premium (user's pick, 2026-10-28; Brick / HabitKit / stoic): one deep night colour,
+   a big two-tone headline, a large real screenshot in an upright phone that bleeds off the bottom,
+   and Loc as the one character moment. No glow, no decoration. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap');
+
+html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; background: var(--bg, #070C1A); }
+
+.panel {
+  position: relative;
+  width: 1320px;
+  height: 2868px;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'SF Pro Display', -apple-system, Inter, system-ui, sans-serif;
+  text-align: center;
+}
+
+.copy { position: absolute; top: 200px; left: 90px; right: 90px; z-index: 3; }
+
+/* Two-tone: the sentence in muted blue-grey, the *starred* words in white. */
+.headline {
+  margin: 0;
+  font-size: 116px;
+  line-height: 1.06;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--text2);
+  text-wrap: balance;
+}
+.headline b { font-weight: 700; color: var(--text); }
+
+.sub {
+  margin: 30px 0 0;
+  font-size: 48px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text2);
+  text-wrap: balance;
+}
+
+/* An iPhone 17 Pro-like body: a thin satin titanium edge around a black bezel. Neutral shadow only. */
+.phone {
+  position: absolute;
+  left: 50%;
+  width: 1040px;
+  aspect-ratio: 1320 / 2868;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 168px;
+  background: linear-gradient(90deg, #4a4d54 0%, #2b2d32 3%, #1d1f23 50%, #2b2d32 97%, #4a4d54 100%);
+  box-shadow: 0 50px 110px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+.phone .bezel { width: 100%; height: 100%; box-sizing: border-box; padding: 26px; border-radius: 156px; background: #000; }
+.phone .screen { position: relative; width: 100%; height: 100%; border-radius: 132px; overflow: hidden; background: #000; }
+.phone .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.phone .island { position: absolute; top: 36px; left: 50%; width: 300px; height: 88px; transform: translateX(-50%); border-radius: 50px; background: #000; z-index: 2; }
+
+/* Loc, the flat black silhouette with the icon's eyes, peeking over the phone with his paws on it. */
+.loc { position: absolute; left: 50%; z-index: 4; transform: translateX(-50%); }
+.loc img { display: block; width: 100%; }
+
+.missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  height: 100%;
+  padding: 0 90px;
+  box-sizing: border-box;
+  background: #0d1426;
+  color: var(--text2);
+  font-size: 44px;
+  line-height: 1.3;
+}
+.missing b { color: var(--text); font-size: 52px; }

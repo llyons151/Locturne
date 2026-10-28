@@ -10,6 +10,12 @@ export type TimeRowProps = {
   onChange: (minutes: number) => void;
   /** Why a time can't be used, or null when it's fine. */
   invalid?: (minutes: number) => string | null;
+  /**
+   * Hand each time on as the wheels report it, with no settle. For a form that only saves as
+   * it closes (the schedule sheet): its own save runs before the row's unmount flush, so a
+   * held time would be lost.
+   */
+  immediate?: boolean;
   last?: boolean;
 };
 

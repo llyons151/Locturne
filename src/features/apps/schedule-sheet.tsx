@@ -179,8 +179,8 @@ export function ScheduleSheet() {
         <SwitchRow title="All day" value={!!draft.allDay} onChange={(allDay) => set({ allDay: allDay || undefined })} last={!!draft.allDay} />
         {draft.allDay ? null : (
           <>
-            <TimeRow title="From" value={draft.start} onChange={(start) => set({ start })} />
-            <TimeRow title="To" value={draft.end} onChange={(end) => set({ end })} last />
+            <TimeRow title="From" value={draft.start} onChange={(start) => set({ start })} immediate />
+            <TimeRow title="To" value={draft.end} onChange={(end) => set({ end })} immediate last />
           </>
         )}
         <View style={styles.days}>
