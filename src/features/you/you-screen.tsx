@@ -11,19 +11,16 @@ import { ActionSheetIOS, Alert, AppState, Linking, Platform, Pressable, ScrollVi
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { type MenuOption } from '@/components/control-types';
-import { MenuRow, SwitchRow } from '@/components/controls';
+import { SwitchRow } from '@/components/controls';
 import { Card, ControlRow, sym, ValueRow } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
 import {
-  getNotificationPermission,
   getNotificationPrefs,
   getTrialEnd,
   setNotificationPrefs,
-  type NotificationPermission,
   type NotificationPrefs,
 } from '@/lib/notifications';
 import { onLockChange, readLock } from '@/lib/lock-controller';
@@ -36,10 +33,8 @@ import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
-import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from '@/features/routine/apply-edit';
 
 import { refusal, SIGN_OFF } from './fire-loc';
-import { LocMindCard } from './loc-mind-card';
 import { LocProfile } from './loc-profile';
 
 /**
@@ -58,8 +53,6 @@ import { LocProfile } from './loc-profile';
  */
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
-
-const STEP_GOALS: MenuOption<number>[] = [100, 200, 300, 500].map((n) => ({ value: n, label: `${n} steps` }));
 
 /** The 1st after the month of the morning `now` belongs to: passes count by mornings (passes.ts). */
 function refillDate(now: Date) {
@@ -158,14 +151,6 @@ export function YouScreen() {
     setAlerts(next);
     setNotificationPrefs(next).catch(() => {});
   };
-  const [permission, setPermission] = useState<NotificationPermission | null>(null);
-  // Re-read on return from Settings: iOS doesn't restart the app when this one changes.
-  useEffect(() => {
-    const check = () => getNotificationPermission().then(setPermission, () => {});
-    check();
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && check());
-    return () => sub.remove();
-  }, []);
   // Read again whenever the tab comes back into view: a pass spent on the exits screen or a
   // trial that ended since must show here.
   const read = () => ({
@@ -173,18 +158,11 @@ export function YouScreen() {
     inTrial: (getTrialEnd()?.getTime() ?? 0) > Date.now(),
     trialEnd: getTrialEnd(),
     passesLeft: getPassesLeft(),
-    // As set, a waiting edit included: Routine's banner says when it starts.
-    stepGoal: getSetRoutine().stepGoal,
     mornings: getMorningsWon(),
     // A test lock left on (dev and preview builds): the way back to it.
     testRun: getTestLock(),
   });
-  const [{ inTrial, trialEnd, passesLeft, stepGoal, mornings, testRun }, setFacts] = useState(read);
-  const setStepGoal = (goal: number) => {
-    // Not from bed (apply-edit.ts): says so, and the target stays as it was.
-    if (!refuseWhileAsleep()) applyRoutineEdit({ ...getSetRoutine(), stepGoal: goal });
-    setFacts(read());
-  };
+  const [{ inTrial, trialEnd, passesLeft, mornings, testRun }, setFacts] = useState(read);
 
   // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
   // Asked again on focus: the paywall may have just sold one.
@@ -202,13 +180,6 @@ export function YouScreen() {
     const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
     return () => sub.remove();
   }, [refresh]);
-  // Setting up a code is refused from bed (scan.ts), and a code never stands in for the morning's
-  // own method: from bed, a pass is the way out.
-  const cantWalk = () => {
-    const { phase } = readLock();
-    if (phase !== 'night' && phase !== 'morning') return router.push('/code');
-    router.push('/exits');
-  };
   // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
   const manage = () => {
     const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
@@ -249,11 +220,6 @@ export function YouScreen() {
       <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} />
       <View style={styles.divider} />
 
-      <Text style={styles.heading} accessibilityRole="header">
-        Loc
-      </Text>
-      <LocMindCard mornings={mornings} />
-
       {/* Brink's profile (user reference, 2026-10-14): the plan's name and state, then what you can do about it. */}
       <Text style={styles.heading} accessibilityRole="header">
         Subscription
@@ -280,30 +246,17 @@ export function YouScreen() {
         <ValueRow icon={sym('arrow.clockwise', 'restore')} title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} last />
       </Card>
 
-
       <Text style={styles.heading} accessibilityRole="header">
         Ways out
       </Text>
       <Card footer={`${PASSES_PER_MONTH} a month, for sick days, travel and emergencies. The only way out early. Refills ${refillDate(new Date())}.`}>
-        <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} />
-        <ValueRow icon={sym('figure.roll', 'accessible')} title="Can’t walk or use stairs" value="" onPress={cantWalk} last />
-      </Card>
-
-      <Text style={styles.heading} accessibilityRole="header">
-        Wake-up
-      </Text>
-      <Card footer="A new target starts from the next bedtime.">
-        <MenuRow icon={sym('figure.walk', 'directions_walk')} title="Step target" value={stepGoal} options={STEP_GOALS} onChange={setStepGoal} last />
+        <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} last />
       </Card>
 
       <Text style={styles.heading} accessibilityRole="header">
         Notifications
       </Text>
-      <Card
-        footer={
-          permission === 'denied' ? 'Notifications are off for Locturne in Settings, so these stay quiet until you turn them on there.' : undefined
-        }
-      >
+      <Card>
         <SwitchRow icon={sym('moon.fill', 'bedtime')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
         <SwitchRow icon={sym('sunrise.fill', 'wb_twilight')} title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} last={!inTrial} />
         {inTrial ? <SwitchRow icon={sym('calendar', 'event')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last /> : null}
