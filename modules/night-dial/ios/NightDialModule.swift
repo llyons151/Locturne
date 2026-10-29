@@ -38,6 +38,9 @@ public class NightDialModule: Module {
       Prop("minWindow") { (view: NightDialView, minutes: Double) in
         view.minWindow = max(NightDialView.snap, minutes)
       }
+      Prop("maxWindow") { (view: NightDialView, minutes: Double) in
+        view.maxWindow = min(NightDialView.day - NightDialView.snap, minutes)
+      }
       Prop("bandColor") { (view: NightDialView, color: UIColor?) in
         view.setColors(band: color)
       }
@@ -81,6 +84,7 @@ final class NightDialView: ExpoView {
 
   let onTimesChange = EventDispatcher()
   var minWindow: Double = 15
+  var maxWindow: Double = 1440 - 15
 
   // MARK: State
 
@@ -423,8 +427,8 @@ final class NightDialView: ExpoView {
     drag = d
 
     let startSpan = Self.span(d.startBed, d.startWake)
-    // A handle can't pass the other: the night stays between minWindow and a day.
-    let clamp = { (s: Double) in min(Self.day - Self.snap, max(self.minWindow, s)) }
+    // A handle can't pass the other: the night stays between minWindow and maxWindow.
+    let clamp = { (s: Double) in min(self.maxWindow, max(self.minWindow, s)) }
     let snapped = { (s: Double) in (s / Self.snap).rounded() * Self.snap }
     var bed: Double, wake: Double
     // Under half a step of movement changes nothing, so a touch that barely moves saves nothing.
@@ -434,14 +438,14 @@ final class NightDialView: ExpoView {
       let s = clamp(startSpan - d.moved)
       shownBed = d.startWake - s
       shownWake = d.startWake
-      bed = still ? d.startBed : d.startWake - Self.endSnapped(d.startWake, s, -1, minWindow)
+      bed = still ? d.startBed : d.startWake - Self.endSnapped(d.startWake, s, -1, minWindow, maxWindow)
       wake = d.startWake
     case .wake:
       let s = clamp(startSpan + d.moved)
       shownBed = d.startBed
       shownWake = d.startBed + s
       bed = d.startBed
-      wake = still ? d.startWake : d.startBed + Self.endSnapped(d.startBed, s, 1, minWindow)
+      wake = still ? d.startWake : d.startBed + Self.endSnapped(d.startBed, s, 1, minWindow, maxWindow)
     case .night:
       shownBed = d.startBed + d.moved
       shownWake = d.startWake + d.moved
@@ -479,8 +483,9 @@ final class NightDialView: ExpoView {
   /** VoiceOver's swipe up and down: a quarter hour each way. */
   private func nudge(_ end: End, by: Double) {
     let s = Self.span(targetBed, targetWake) + (end == .bed ? -by : by)
-    // Toward the minimum is allowed from a night saved shorter before it (`MIN_NIGHT`).
-    guard s >= minWindow || s > Self.span(targetBed, targetWake), s <= Self.day - Self.snap else { return }
+    // Toward a limit is allowed from a night saved past it before the rule (`MIN_NIGHT`, `MAX_NIGHT`).
+    let was = Self.span(targetBed, targetWake)
+    guard s >= minWindow || s > was, s <= maxWindow || s < was, s <= Self.day - Self.snap else { return }
     if end == .bed { targetBed = Self.wrap(targetBed + by) } else { targetWake = Self.wrap(targetWake + by) }
     selection.selectionChanged()
     refreshText()
@@ -593,14 +598,14 @@ final class NightDialView: ExpoView {
    The span from a fixed handle to a dragged one (`dir` -1 for bedtime before it, 1 for the
    morning after it) with the dragged handle's time on a quarter hour, not the span, so a
    routine set off the grid still lands on the times the dial offers. Kept between `minWindow`
-   and a day less a step.
+   and `maxWindow`.
    */
-  static func endSnapped(_ fixed: Double, _ s: Double, _ dir: Double, _ minWindow: Double) -> Double {
+  static func endSnapped(_ fixed: Double, _ s: Double, _ dir: Double, _ minWindow: Double, _ maxWindow: Double) -> Double {
     let end = ((fixed + dir * s) / snap).rounded() * snap
     var span = (end - fixed) * dir
-    while span < minWindow, span + snap <= day - snap { span += snap }
-    while span > day - snap, span - snap >= minWindow { span -= snap }
-    return min(day - snap, max(minWindow, span))
+    while span < minWindow, span + snap <= maxWindow { span += snap }
+    while span > maxWindow, span - snap >= minWindow { span -= snap }
+    return min(maxWindow, max(minWindow, span))
   }
 
   /** Minutes from `a` forward to `b`. */

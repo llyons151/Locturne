@@ -100,6 +100,23 @@ const subscribe = (listener: () => void) => {
 const snapshot = () => state;
 
 /**
+ * A pose handed to Home's Loc by another one (`LocRig.passPose`): the morning payoff's, just before
+ * its screen dissolves over Home, so Home's Loc carries on from exactly where that one was and
+ * nothing seems to change hands (user 2026-10-28). A new nonce each time.
+ */
+let carried: { nonce: number; pose: string } | null = null;
+const carryListeners = new Set<() => void>();
+export function passLocPose(pose: string) {
+  carried = { nonce: (carried?.nonce ?? 0) + 1, pose };
+  carryListeners.forEach((l) => l());
+}
+const subscribeCarry = (listener: () => void) => {
+  carryListeners.add(listener);
+  return () => void carryListeners.delete(listener);
+};
+const carriedPose = () => carried;
+
+/**
  * Home's say over Loc: his mood, that he's out while Home is the picked tab, and what he has
  * to say something about (`moment`). Draws nothing.
  */
@@ -126,6 +143,7 @@ export function Loc() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { mood, wary, present, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
+  const take = useSyncExternalStore(subscribeCarry, carriedPose);
   // The knock lab's Burrow button and live tuning (dev only; at rest it never changes).
   const lab = useKnockLab();
   // The canvas runs the panel's full width, so the blanket lump can travel along the edge; he
@@ -306,6 +324,7 @@ export function Loc() {
           burrowNonce={lab.nonce}
           zoomNonce={lab.zoomNonce}
           ultraNonce={lab.ultraNonce}
+          take={take}
           rim={rim}
           knock={lab.tune}
           dom={{

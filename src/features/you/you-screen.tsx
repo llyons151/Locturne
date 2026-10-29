@@ -30,11 +30,10 @@ import { onLockChange, readLock } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
-import { getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
+import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import type { WakeMethod } from '@/lib/routine';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
-import { APP_STATES, pickAppState } from '@/features/dev/state-lab/app-states';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from '@/features/routine/apply-edit';
@@ -73,18 +72,6 @@ function refillDate(now: Date) {
 
 const open = (url: string) => Linking.openURL(url).catch(() => {});
 
-/** Dev (You → UI): a morning screen with every sensor faked, at any hour. */
-/** The UI section's Home looks, by app-state id. */
-const LOOK_ICONS: Record<string, ReturnType<typeof sym>> = {
-  'look-day': sym('sun.max.fill', 'light_mode'),
-  'look-evening': sym('sunset.fill', 'wb_twilight'),
-  'look-night': sym('moon.zzz.fill', 'bedtime'),
-  'look-wake-soon': sym('sunrise.fill', 'wb_twilight'),
-  'look-morning': sym('alarm.fill', 'alarm'),
-  'look-done': sym('checkmark.circle.fill', 'check_circle'),
-  'look-problem': sym('exclamationmark.circle.fill', 'error'),
-  'look-plain': sym('moon.fill', 'dark_mode'),
-};
 
 function preview(href: Href, method?: WakeMethod) {
   fakeTheMorning(method);
@@ -101,14 +88,18 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
   pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
 };
 
-/** Dev and preview builds: the bedtime apps really sleep, until `method` wakes them (wake-lab.tsx). */
+/**
+ * Dev and preview builds: the bedtime apps really sleep, then Home's test morning for `method`
+ * (user 2026-10-28: test it as it really appears, from Home's button); winning it wakes them
+ * (`pretendWoke`).
+ */
 function testLock(method: WakeMethod) {
   if (!isScreenTimeAvailable()) return Alert.alert('iPhone only', 'The test lock needs Screen Time, so run it on the phone.');
   if (!startTestLock(method)) {
     return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');
   }
   haptic.done();
-  router.push(`/wake-lab?method=${method}&lock=1`);
+  preview('/', method);
 }
 
 function sendFeedback() {
@@ -339,20 +330,30 @@ export function YouScreen() {
       {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
         <>
           <Text style={styles.heading} accessibilityRole="header">
-            Test the lock
+            Morning unlocks
           </Text>
           {testRun ? (
-            <Card footer="A test lock is still on. Your bedtime apps stay asleep until it's passed or exited.">
+            <Card footer="A test lock is still on. Your bedtime apps stay asleep until its test morning on Home is won, or it's ended here.">
               <ValueRow
                 icon={sym('lock.fill', 'lock')}
-                title="Back to the test lock"
+                title="Back to the test morning"
                 value=""
-                onPress={() => router.push(`/wake-lab?method=${testRun.method}&lock=1`)}
+                onPress={() => preview('/', testRun.method as WakeMethod)}
+              />
+              <ValueRow
+                icon={sym('lock.open.fill', 'lock_open')}
+                title="End the test lock"
+                value=""
+                onPress={() => {
+                  haptic.tap();
+                  endTestLock();
+                  setFacts(read());
+                }}
                 last
               />
             </Card>
           ) : (
-            <Card footer="Your bedtime apps sleep right away, for real. Wake them with the method, or exit. Nothing is recorded and your routine doesn't change.">
+            <Card footer="Your bedtime apps sleep right away, for real. Home opens a test morning for the method: win it to wake them. Nothing is recorded and your routine doesn't change.">
               {LAB_METHODS.map((m, i) => (
                 <ValueRow
                   key={m.value}
@@ -365,86 +366,6 @@ export function YouScreen() {
               ))}
             </Card>
           )}
-        </>
-      ) : null}
-
-      {__DEV__ ? (
-        <>
-          <Text style={styles.heading} accessibilityRole="header">
-            UI
-          </Text>
-          {/* Home in each of its looks (`HomeLook`), from the app-states lab's Looks group. */}
-          <Card footer="Home dressed as each state, with nothing real changed. On Home, ‹ › steps through every state. All of them: Developer → App states.">
-            {APP_STATES.filter((s) => s.group === 'Looks').map((s, i, all) => (
-              <ValueRow
-                key={s.id}
-                icon={LOOK_ICONS[s.id] ?? sym('house.fill', 'home')}
-                title={s.label}
-                value=""
-                onPress={() => {
-                  pickAppState(s.id);
-                  router.push('/');
-                }}
-                last={i === all.length - 1}
-              />
-            ))}
-          </Card>
-
-          {/* Each morning screen on the phone at any hour, every sensor faked (features/dev/wake-lab/wake-preview.ts). */}
-          <Card footer="The real screens with fake sensors and a fake morning. Nothing is recorded. More states: Developer → Wake preview.">
-            <ValueRow icon={sym('house.fill', 'home')} title="Home, morning" value="" onPress={() => preview('/')} />
-            <ValueRow icon={sym('figure.walk', 'directions_walk')} title="Walk steps (on Home)" value="" onPress={() => preview('/', 'steps')} />
-            <ValueRow icon={sym('figure.stairs', 'stairs')} title="Go downstairs (on Home)" value="" onPress={() => preview('/', 'downstairs')} />
-            <ValueRow
-              icon={sym('figure.strengthtraining.functional', 'fitness_center')}
-              title="Push-ups (on Home)"
-              value=""
-              onPress={() => preview('/', 'pushups')}
-            />
-            <ValueRow icon={sym('barcode.viewfinder', 'barcode_scanner')} title="Scan a code (on Home)" value="" onPress={() => preview('/', 'scan')} />
-            <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Get to a place (on Home)" value="" onPress={() => preview('/', 'place')} />
-            {/* The screen after a wake-up, moonrise and all, with made-up facts (app/morning-won.tsx). */}
-            <ValueRow icon={sym('moon.stars.fill', 'bedtime')} title="Morning payoff" value="" onPress={() => router.push('/morning-won?demo=1')} last />
-          </Card>
-
-          <Text style={styles.heading} accessibilityRole="header">
-            Developer
-          </Text>
-          <Card>
-            <ValueRow icon={sym('hammer.fill', 'build')} title="Screen Time lab" value="" onPress={() => router.push('/screen-time-lab')} />
-            {/* The whole cancel flow with a sample offer: nothing charged, cancelled or recorded. */}
-            <ValueRow icon={sym('xmark.circle', 'cancel')} title="Cancel flow" value="" onPress={() => router.push('/cancel?preview=1')} last />
-          </Card>
-          {/* Each wake-up method's real flow at any hour; a pass records nothing (features/dev/wake-lab). */}
-          <Card>
-            <ValueRow icon={sym('figure.walk', 'directions_walk')} title="Test walk steps" value="" onPress={() => router.push('/wake-lab?method=steps')} />
-            <ValueRow icon={sym('figure.stairs', 'stairs')} title="Test go downstairs" value="" onPress={() => router.push('/wake-lab?method=downstairs')} />
-            <ValueRow icon={sym('barcode.viewfinder', 'barcode_scanner')} title="Test scan a code" value="" onPress={() => router.push('/wake-lab?method=scan')} />
-            <ValueRow icon={sym('mappin.and.ellipse', 'location_on')} title="Test get to a place" value="" onPress={() => router.push('/wake-lab?method=place')} />
-            <ValueRow
-              icon={sym('figure.strengthtraining.functional', 'fitness_center')}
-              title="Test push-ups"
-              value=""
-              onPress={() => router.push('/wake-lab?method=pushups')}
-              last
-            />
-          </Card>
-          {/* Every method's real morning screen at any hour, each fake and state picked by hand (features/dev/wake-lab). */}
-          <Card>
-            <ValueRow icon={sym('wand.and.stars', 'auto_fix_high')} title="Wake preview" value="" onPress={() => router.push('/wake-preview')} last />
-          </Card>
-          {/* Every state Home can be in, made up, with arrows on Home to step through them (features/dev/state-lab). */}
-          <Card footer="Home in any state: night, morning, naps, pauses, trial, lapses, access off. Nothing real changes.">
-            <ValueRow icon={sym('square.stack.3d.up.fill', 'layers')} title="App states" value="" onPress={() => router.push('/app-states')} last />
-          </Card>
-          {/* Every move Loc makes, frame by frame, his style and his model sheet (features/dev/loc-studio). */}
-          <Card footer="Loc on the real rig: every move frame by frame, his style, his model sheet and his art.">
-            <ValueRow icon={sym('pawprint.fill', 'pets')} title="Loc studio" value="" onPress={() => router.push('/loc-studio')} last />
-          </Card>
-          {/* The nav buttons bouncing as Loc burrows, tuned live over Home (features/dev/knock-lab). */}
-          <Card footer="Sliders for how the nav buttons bounce when Loc burrows under them. Opens over Home.">
-            <ValueRow icon={sym('circle.grid.cross.fill', 'sports_baseball')} title="Knock lab" value="" onPress={() => router.push('/knock-lab')} last />
-          </Card>
         </>
       ) : null}
 

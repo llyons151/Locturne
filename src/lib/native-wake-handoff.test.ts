@@ -127,14 +127,16 @@ const SCENARIOS: Scenario[] = [
   { name: 'steps-at-goal', method: 'steps', pedometer: { steps: 240 }, woke: 'steps', opens: false },
   { name: 'steps-short', method: 'steps', pedometer: { steps: 120 }, woke: false, opens: false },
   { name: 'downstairs-floor', method: 'downstairs', pedometer: { steps: 30, descended: 1 }, woke: 'downstairs', opens: false },
-  { name: 'downstairs-walked', method: 'downstairs', pedometer: { steps: 220 }, woke: 'steps', opens: false },
+  // 200 steps no longer wake another method's morning by themselves (user 2026-10-28).
+  { name: 'downstairs-walked', method: 'downstairs', pedometer: { steps: 220 }, woke: false, opens: false },
   { name: 'downstairs-short', method: 'downstairs', pedometer: { steps: 12, descended: 1 }, woke: false, opens: false },
-  { name: 'scan-short', method: 'scan', pedometer: { steps: 50 }, woke: false, opens: true },
+  // No code or place set up here, so those mornings are walks (`methodInUse`): judged on the shield.
+  { name: 'scan-short', method: 'scan', pedometer: { steps: 50 }, woke: false, opens: false },
   { name: 'scan-walked', method: 'scan', pedometer: { steps: 260 }, woke: 'steps', opens: false },
-  { name: 'place-short', method: 'place', pedometer: { steps: 50, descended: 2 }, woke: false, opens: true },
+  { name: 'place-short', method: 'place', pedometer: { steps: 50, descended: 2 }, woke: false, opens: false },
   { name: 'place-walked', method: 'place', pedometer: { steps: 260 }, woke: 'steps', opens: false },
   { name: 'pushups-short', method: 'pushups', pedometer: { steps: 10 }, woke: false, opens: true },
-  { name: 'pushups-walked', method: 'pushups', pedometer: { steps: 300 }, woke: 'steps', opens: false },
+  { name: 'pushups-walked', method: 'pushups', pedometer: { steps: 300 }, woke: false, opens: true },
 ];
 
 /** The tap: Tuesday 07:25, the night armed Monday afternoon and synced last at 22:00. */

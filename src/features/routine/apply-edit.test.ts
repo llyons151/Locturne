@@ -53,6 +53,7 @@ function load(world: { wouldArm?: boolean; phase?: string; held?: (phase: string
       getRoutine: () => world.routine ?? ROUTINE,
       nightMinutes: (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440,
       nightTooShort: (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440 < 240,
+      nightTooLong: (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440 > 960,
       saveRoutine() {
         saved.push(1);
       },

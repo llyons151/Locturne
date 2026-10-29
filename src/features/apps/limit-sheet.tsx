@@ -86,11 +86,25 @@ export function LimitSheet() {
   const retimed = total !== req.chosen && total > 0;
   // Named first, so the minutes' save keeps the new name.
   const saveName = () => renamed && req.name!.onRename(name);
-  const save = () => {
+  const commit = () => {
     haptic.done();
     saveName();
     if (retimed) req.onChange(total);
     closeSleepSheet();
+  };
+  // A shorter limit starts at once, and one already used up today puts the apps to sleep until
+  // midnight with no way back before bedtime, so it asks first, as the apps row does.
+  const save = () => {
+    const shorter = retimed && req.chosen !== null && total < req.chosen;
+    if (!shorter || Platform.OS === 'web') return commit();
+    Alert.alert(
+      'Start the shorter limit now?',
+      `If these apps have had ${limitLabel(total)} today, they sleep until midnight. A longer limit waits until bedtime.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Save', isPreferred: true, onPress: commit },
+      ],
+    );
   };
   const { onRemove } = req;
   const remove = () => {

@@ -1091,6 +1091,25 @@ const torque = (pivot: Vec, tip: Vec, acc: Vec) => {
 export type LocSnapshot = { readonly __loc: unique symbol };
 /** The rig's fields that are drawing machinery, not state. */
 const NOT_STATE = new Set(['canvas', 'ctx', 'gl', 'glCanvas', 'eyeLayer', 'texHands', 'inkHex', 'posBuf', 'resLoc', 'inkLoc', 'skinned', 'onCue', 'onYell', 'texMain', 'texNoPaw']);
+/**
+ * What `passPose` hands over: everything that moves him, in rig units, so it means the same on any
+ * canvas. Not the canvas's own setup (`share`, `rises`, `roam`, `look`), and not a running bit.
+ */
+const POSE_KEYS = [
+  'cur', 'vel', 'goal', 'pending', 'clock', 'mood', 'blinkAt', 'nextBlink', 'glance', 'nextGlance', 'nextHabit', 'gaze',
+  'gazeV', 'squeezeAt', 'swaySeed', 'lag', 'phys', 'track', 'head', 'blink', 'blinkR', 'hands', 'flicks', 'hidden',
+  'lumpX', 'lumpH', 'lumpW', 'spot', 'landing', 'parts',
+] as const;
+
+/** `takePose`'s merge: numbers into the objects already there (springs keep their methods), the rest as given. */
+function mergePose(into: unknown, from: unknown): unknown {
+  if (from === null || typeof from !== 'object' || Array.isArray(from)) return from;
+  if (into === null || typeof into !== 'object' || Array.isArray(into)) return from;
+  const target = into as Record<string, unknown>;
+  for (const [key, value] of Object.entries(from)) target[key] = mergePose(target[key], value);
+  return target;
+}
+
 /** A deep copy of rig state. Bit definitions (with their event functions) are shared, not copied. */
 function copyState(v: unknown): unknown {
   if (v === null || typeof v !== 'object') return v;
@@ -2028,6 +2047,42 @@ export class LocRig {
 
   restore(snap: LocSnapshot) {
     for (const [key, value] of Object.entries(snap)) (this as unknown as Record<string, unknown>)[key] = copyState(value);
+  }
+
+  /**
+   * His pose and motion right now as plain numbers, for another Loc on another canvas to carry on
+   * from (`takePose`): the morning payoff's Loc handing over to Home's, so the screen dissolving
+   * between them shows one raccoon, not a jump back to Home's own pose (user 2026-10-28). Unlike
+   * `snapshot`, it crosses webviews: no bit (its events are functions) and nothing tied to the
+   * canvas's size.
+   */
+  passPose(): string {
+    const self = this as unknown as Record<string, unknown>;
+    return JSON.stringify(Object.fromEntries(POSE_KEYS.map((key) => [key, self[key]])));
+  }
+
+  /**
+   * Carries on from another Loc's `passPose`. A bit he was in the middle of is dropped: his springs
+   * take him on from exactly where it left him. Numbers are merged into the springs and trackers
+   * in place, so they keep their methods.
+   */
+  takePose(json: string) {
+    let pose: Record<string, unknown>;
+    try {
+      pose = JSON.parse(json) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    const self = this as unknown as Record<string, unknown>;
+    for (const key of POSE_KEYS) {
+      if (!(key in pose)) continue;
+      // The yell's mouth and fists, still settling: a sim of their own to land in.
+      const into = key === 'parts' && pose.parts && !self.parts ? new PartsSim() : self[key];
+      self[key] = mergePose(into, pose[key]);
+    }
+    this.bit = null;
+    this.next = null;
+    this.faceHold = null;
   }
 
   /** Frees the WebGL context. */

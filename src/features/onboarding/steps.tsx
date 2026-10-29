@@ -20,7 +20,7 @@ import { type NotificationPermission } from '@/lib/notifications';
 import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
 import { getScanEditRefusal, type ScanCode } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
-import { MIN_NIGHT, nightTooShort, type WakeMethod } from '@/lib/routine';
+import { MAX_NIGHT, MIN_NIGHT, nightTooLong, nightTooShort, type WakeMethod } from '@/lib/routine';
 import type { Night } from '@/lib/lock-state';
 import { scheduleCopy } from './schedule-copy';
 import { noOrphan } from '@/lib/text';
@@ -219,8 +219,11 @@ export function renderStep(ctx: StepContext): StepView {
   const phoneDown = formatWhen(numbers.phoneDown);
   // The morning branch asks the alarm first, so bedtime is still the default on `wake`.
   const bedtimeAsked = pain !== 'morning' || editing;
-  // Under `MIN_NIGHT` the lock wouldn't mean anything: once both times are set, it doesn't move on.
+  // Under `MIN_NIGHT` the lock wouldn't mean anything, and over `MAX_NIGHT` the morning runs into
+  // the next night: once both times are set, it doesn't move on.
   const shortNight = nightTooShort(answers.bedtime, answers.wake);
+  const longNight = nightTooLong(answers.bedtime, answers.wake);
+  const badNight = shortNight || longNight;
 
   switch (step) {
     case 'hello': {
@@ -395,20 +398,20 @@ export function renderStep(ctx: StepContext): StepView {
             </View>
             {/* Wake time isn't set yet here (except in the morning branch, which asked it first),
                 so only warn when it is. */}
-            {(editing || pain === 'morning') && (shortNight || numbers.scheduleLooksWrong) ? (
-              <ScheduleWarning minutes={numbers.timeInBed} short={shortNight} />
+            {(editing || pain === 'morning') && (badNight || numbers.scheduleLooksWrong) ? (
+              <ScheduleWarning minutes={numbers.timeInBed} short={shortNight} long={longNight} />
             ) : null}
           </View>
         ),
         footer: (
           <PrimaryButton
             label={editing ? 'Save' : (REPLY_BUTTON.bedtime ?? 'Continue')}
-            disabled={(editing || pain === 'morning') && shortNight}
+            disabled={(editing || pain === 'morning') && badNight}
             onPress={next}
           />
         ),
         // The wheel already holds a time, so later just keeps it; Routine changes it any time.
-        secondary: editing || (pain === 'morning' && shortNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing || (pain === 'morning' && badNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
       };
 
     case 'wake':
@@ -420,16 +423,16 @@ export function renderStep(ctx: StepContext): StepView {
             <View style={styles.timeWrap}>
               <TimeList value={answers.wake} onChange={(v) => set('wake', v)} label="Alarm time" />
             </View>
-            {bedtimeAsked && (shortNight || numbers.scheduleLooksWrong) ? (
-              <ScheduleWarning minutes={numbers.timeInBed} short={shortNight} />
+            {bedtimeAsked && (badNight || numbers.scheduleLooksWrong) ? (
+              <ScheduleWarning minutes={numbers.timeInBed} short={shortNight} long={longNight} />
             ) : null}
           </View>
         ),
         footer: (
-          <PrimaryButton label={editing ? 'Save' : (REPLY_BUTTON.wake ?? 'Continue')} disabled={bedtimeAsked && shortNight} onPress={next} />
+          <PrimaryButton label={editing ? 'Save' : (REPLY_BUTTON.wake ?? 'Continue')} disabled={bedtimeAsked && badNight} onPress={next} />
         ),
         // The wheel already holds a time, so later just keeps it; Routine changes it any time.
-        secondary: editing || (bedtimeAsked && shortNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing || (bedtimeAsked && badNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
       };
 
     case 'method': {
@@ -1066,12 +1069,13 @@ function TrailStop({
 }
 
 /** Shown when bedtime to wake is implausibly long or short, which is usually AM/PM mixed up. */
-function ScheduleWarning({ minutes, short }: { minutes: number; short?: boolean }) {
+function ScheduleWarning({ minutes, short, long }: { minutes: number; short?: boolean; long?: boolean }) {
   // Equal times read as a whole day in bed to the estimate, but as no night to the lock.
   const inBed = short && minutes >= 24 * 60 ? 0 : minutes;
   const hours = formatHoursFromMinutes(inBed);
   const amount = inBed < 60 ? `${inBed} ${inBed === 1 ? 'minute' : 'minutes'}` : `${hours} ${hours === '1' ? 'hour' : 'hours'}`;
   if (short) return <Body style={styles.warning}>That’s {amount} in bed. Locturne needs at least {MIN_NIGHT / 60} hours.</Body>;
+  if (long) return <Body style={styles.warning}>That’s {amount} in bed. Locturne allows up to {MAX_NIGHT / 60} hours.</Body>;
   return <Body style={styles.warning}>That’s {amount} in bed. Check AM and PM.</Body>;
 }
 

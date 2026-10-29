@@ -10,6 +10,8 @@ export type NativeNightDialProps = {
   off?: boolean;
   /** The shortest night a handle can make, in minutes. */
   minWindow?: number;
+  /** The longest night a handle can make, in minutes. */
+  maxWindow?: number;
   bandColor?: string;
   trackColor?: string;
   /** The moon and sun inside the handles. */

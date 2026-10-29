@@ -6,6 +6,7 @@ import { currentMorning } from '@/lib/lock-state';
 import { toLockSettings, type Routine } from '@/lib/routine';
 
 import { useProveMorning } from '../wake/use-prove-morning';
+import { pretendSince } from '../dev/wake-lab/wake-preview';
 
 export type MorningWalk =
   | { kind: 'counting'; steps: number | null; goal: number }
@@ -17,12 +18,15 @@ export type MorningWalk =
  * before opening the app already count and leaving Home loses nothing. At the goal it proves
  * the morning in place and Home turns to day. Null while `enabled` is false.
  */
-export function useMorningWalk(enabled: boolean, routine: Routine): MorningWalk | null {
+export function useMorningWalk(enabled: boolean, routine: Routine, proves = true): MorningWalk | null {
   const goal = routine.stepGoal;
-  const morningStart = currentMorning(new Date(), toLockSettings(routine)).start;
+  // A pretend morning (the wake preview's tests) counts from when it began.
+  const morningStart = pretendSince() ?? currentMorning(new Date(), toLockSettings(routine)).start;
   const { status, steps } = useStepCount(enabled, morningStart, goal);
   const prove = useProveMorning();
-  const walked = enabled && status === 'counting' && steps >= goal;
+  // Counted under every method, for "Walk 200 steps instead"; it only wakes the apps when the
+  // walk is the morning's way or they chose it instead (`proves`, user 2026-10-28).
+  const walked = enabled && proves && status === 'counting' && steps >= goal;
   // Shown a step at a time between the pedometer's batches; proved on the raw count above.
   const shown = useSmoothSteps(enabled && status === 'counting' ? Math.min(steps, goal) : null);
 

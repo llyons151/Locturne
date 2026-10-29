@@ -623,20 +623,31 @@ func locturneHeldMorning(now: Date = Date()) -> LocturneMorning? {
   return LocturneMorning(
     key: locturneDayKey(start),
     start: start,
-    method: routine["method"] as? String ?? "steps",
+    method: locturneMethodInUse(routine["method"] as? String ?? "steps"),
     stepGoal: (routine["stepGoal"] as? NSNumber)?.intValue ?? 200,
     bedtime: judged.bedtime,
     morningStart: judged.morningStart
   )
 }
 
-/// Pure: the proof the motion history gives, or nil. Enough steps prove any morning (walking
-/// always works instead, GAME_PLAN); a floor changed with a few steps proves "go downstairs".
+/// Pure: the proof the motion history gives, or nil. Steps prove only a steps morning (user
+/// 2026-10-28: 200 steps no longer beat the other methods by themselves; walking instead is
+/// chosen in Locturne); a floor changed with a few steps proves "go downstairs".
 func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int) -> String? {
   if method == "downstairs" && floors >= 1 && steps >= LOCTURNE_FLOOR_STEPS { return "downstairs" }
   // A goal of 0 or less (never saved by the app) mustn't wake on no steps at all.
-  if steps >= max(stepGoal, 1) { return "steps" }
+  // A method this extension doesn't know (a newer app's) still takes a walk, so nobody is stuck.
+  let walks = !["downstairs", "scan", "place", "pushups"].contains(method)
+  if walks && steps >= max(stepGoal, 1) { return "steps" }
   return nil
+}
+
+/// The method the morning really asks for, as `methodInUse` in src/lib/scan-code.ts: a scan
+/// morning with no code set up yet, or a place morning with no place picked, is a walk.
+func locturneMethodInUse(_ method: String) -> String {
+  if method == "scan" && userDefaults?.object(forKey: "locturne.scanCode") == nil { return "steps" }
+  if method == "place" && userDefaults?.object(forKey: "locturne.morningPlace") == nil { return "steps" }
+  return method
 }
 
 /// Pure: the morning shield's line while the morning isn't proven yet: how far they've got.
@@ -646,11 +657,12 @@ func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> Stri
   let left = max(0, stepGoal - steps)
   switch method {
   case "downstairs":
-    return "No stairs yet. Go down a floor, then tap I’m up. Or walk \(left) more \(left == 1 ? "step" : "steps")."
+    return "No stairs yet. Go down a floor, then tap I’m up."
   case "steps":
     return "\(steps) of \(stepGoal) steps. \(left) more, then tap I’m up."
   default:
-    return "\(steps) of \(stepGoal) steps. Walk \(left) more and tap I’m up, or open Locturne."
+    // The camera and the check-in live in Locturne, and so does walking instead.
+    return "This one’s in Locturne. Open it and I’ll wake them."
   }
 }
 

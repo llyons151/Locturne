@@ -4,7 +4,7 @@
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
@@ -36,6 +36,7 @@ import { Voice } from '../exits/voice';
 import { awakeStatus } from '../wake/awake-status';
 import { askWalk } from '../home/walk-request';
 import { announceWoke } from '../wake/use-prove-morning';
+import { openPayoffNow, openPretendPayoff } from '../wake/open-payoff';
 import { awakeBody, savedBody } from './next-morning';
 import { nextLockedMorning } from './next-locked-morning';
 import { QrCode } from './qr';
@@ -169,6 +170,7 @@ type ScanScreenProps = {
 
 export function ScanScreen({ mode, header, start, onClose }: ScanScreenProps) {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const lock = useLock();
   const [storedStage, setStage] = useState<Stage>(() => firstStage(mode, start));
@@ -189,16 +191,24 @@ export function ScanScreen({ mode, header, start, onClose }: ScanScreenProps) {
     const pretend = pretendPhase() !== null;
     const result = pretend ? (matches(shownScanCode(), data) ? 'unlocked' : 'wrongCode') : submitScan(data);
     if (result === 'unlocked') {
+      // Straight to the payoff (user 2026-10-28: no "I'm up" page in between): the camera closes,
+      // and Home, back on top, opens /morning-won (`usePayoff`, or `usePretendPayoff` for the
+      // wake preview's pretend morning).
+      // The camera gives way straight to the payoff over Home, so the page between never shows
+      // (user 2026-10-28: Home flashed up first, then the payoff). It goes without sliding down:
+      // its slide showed Home before the payoff came in over it.
+      navigation.setOptions({ animation: 'none' });
       if (pretend) {
         haptic.done();
         pretendWoke('scan');
+        if (openPretendPayoff('replace')) return;
       } else {
-        // Home is where the morning ends (docs/HOME_INTERACTIVE.md): the camera closes and the
-        // apps wake there, Loc's line and all.
         announceWoke(readLock());
-        if (router.canGoBack()) return router.back();
+        if (openPayoffNow('replace')) return;
       }
-      setStage({ kind: 'unlocked', morningKey: readLock().morningKey });
+      if (router.canGoBack()) return router.back();
+      // Opened from a link with nothing under it: Home is where the morning ends.
+      return router.replace('/');
     } else if (result === 'notMorning') setStage(notMorning(pretendPhase() ?? readLock().phase) ?? { kind: 'awake' });
     else if (result === 'noCode') setStage({ kind: 'noCode' });
     else if (result === 'notMethod') setStage({ kind: 'notMethod' });
@@ -214,6 +224,8 @@ export function ScanScreen({ mode, header, start, onClose }: ScanScreenProps) {
     const result = wrong ? 'unusable' : registerScanCode({ kind: source, data: scan.data, type: scan.type });
     if (result === null) {
       haptic.done();
+      // Opened from the code sheet (`/code`): back to it, where the code turns into a tick and
+      // the sheet then slides down (`CodeSheet`, which hears the save from `onScanCodeChange`).
       if (start) return close();
       setStage({ kind: 'saved' });
     } else if (result === 'asleep') setStage({ kind: 'asleep' });

@@ -22,6 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 
 import { MoonWater } from '@/components/moon-water';
+import { Text } from '@/components/text';
+import { exitTestMorning, useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Knockable, useNavKnock } from '@/components/nav-knock';
 import { tap } from '@/lib/haptics';
 import { Nocturne, Space } from '@/theme';
@@ -164,6 +166,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const height = tabStripHeight(insets.bottom);
+  const testing = useWakePreview().phase !== 'real';
   // These bounce as Loc burrows under them (components/nav-knock): the tabs, then the moon.
   const knock = useNavKnock(state.routes.length + 1, reduced);
 
@@ -194,7 +197,15 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
             </Knockable>
           );
         })}
-        <View style={styles.spacer} />
+        <View style={styles.spacer}>
+          {/* Dev: a test morning (You → Morning unlocks) can be left without doing it, quietly, so
+              the screen still looks as it will (user 2026-10-28). */}
+          {testing ? (
+            <Pressable onPress={exitTestMorning} accessibilityRole="button" hitSlop={12} style={({ pressed }) => pressed && styles.exitPressed}>
+              <Text style={styles.exit}>Exit test</Text>
+            </Pressable>
+          ) : null}
+        </View>
         <Knockable knock={knock} index={state.routes.length}>
           <SleepButton reduced={reduced} />
         </Knockable>
@@ -333,7 +344,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Space.s,
   },
-  spacer: { flex: 1 },
+  spacer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  exit: { color: Nocturne.text, fontSize: 13, fontWeight: '600' },
+  exitPressed: { opacity: 0.5 },
   scene: { flex: 1 },
   circle: {
     width: BUTTON,

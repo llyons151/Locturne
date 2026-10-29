@@ -6,18 +6,19 @@ import { PUSHUP_MAX, PUSHUP_MIN } from '@/lib/routine';
 
 import type { PushupWheelProps } from './pushup-wheel-types';
 
-const COUNTS = Array.from({ length: PUSHUP_MAX - PUSHUP_MIN + 1 }, (_, i) => PUSHUP_MIN + i);
+const PUSHUPS = { min: PUSHUP_MIN, max: PUSHUP_MAX, by: 1 };
 
 /** Apple's own wheel picker (HIG: Pickers), as in the Apps tab's daily limit. */
-export function PushupWheel({ value, onChange }: PushupWheelProps) {
+export function PushupWheel({ value, onChange, range = PUSHUPS, label = 'Push-ups' }: PushupWheelProps) {
+  const counts = Array.from({ length: Math.floor((range.max - range.min) / range.by) + 1 }, (_, i) => range.min + i * range.by);
   return (
     <Host matchContents={{ vertical: true }} style={{ alignSelf: 'stretch' }} colorScheme="dark">
       <Picker
         selection={value}
         onSelectionChange={(next: number) => onChange(next)}
-        modifiers={[pickerStyle('wheel'), labelsHidden(), accessibilityLabel('Push-ups')]}
+        modifiers={[pickerStyle('wheel'), labelsHidden(), accessibilityLabel(label)]}
       >
-        {COUNTS.map((n) => (
+        {counts.map((n) => (
           <Text key={n} modifiers={[tag(n)]}>
             {`${n}`}
           </Text>

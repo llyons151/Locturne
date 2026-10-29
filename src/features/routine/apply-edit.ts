@@ -6,7 +6,7 @@ import { armRoutine, inPendingFirstNight, readLock, syncLock, wouldArmOnEdit } f
 import { dateKey, nightInto, nightsAround, wallClock } from '@/lib/lock-state';
 import { getProofs } from '@/lib/morning-proof';
 import { rescheduleNotifications } from '@/lib/notifications';
-import { getPendingRoutine, getRoutine, nightMinutes, nightTooShort, saveRoutine, toLockSettings, type Routine } from '@/lib/routine';
+import { getPendingRoutine, getRoutine, nightMinutes, nightTooLong, nightTooShort, saveRoutine, toLockSettings, type Routine } from '@/lib/routine';
 import { editRefusal } from '@/lib/scan';
 import { getArmedNight } from '@/lib/screen-time';
 
@@ -73,13 +73,15 @@ export function sleepsAtOnce(next: Routine, now = new Date()): 'night' | 'mornin
 export function applyRoutineEdit(next: Routine): Promise<boolean> {
   const savedAt = new Date();
   if (routineEditRefusal(savedAt)) return Promise.resolve(false);
-  // The dial can't make one, but nothing else may either (`MIN_NIGHT`). Only times that change
-  // are judged, and a routine saved short before the rule may still lengthen toward it, so its
-  // other settings (method, nights, step goal) stay editable.
+  // The dial can't make one, but nothing else may either (`MIN_NIGHT`, `MAX_NIGHT`). Only times
+  // that change are judged, and a routine saved outside the rules before them may still move
+  // toward them, so its other settings (method, nights, step goal) stay editable.
   const current = getSetRoutine(savedAt);
   const moved = next.bedtime !== current.bedtime || next.morningStart !== current.morningStart;
-  const shorter = nightMinutes(next.bedtime, next.morningStart) <= nightMinutes(current.bedtime, current.morningStart);
-  if (moved && nightTooShort(next.bedtime, next.morningStart) && shorter) return Promise.resolve(false);
+  const nextSpan = nightMinutes(next.bedtime, next.morningStart);
+  const currentSpan = nightMinutes(current.bedtime, current.morningStart);
+  if (moved && nightTooShort(next.bedtime, next.morningStart) && nextSpan <= currentSpan) return Promise.resolve(false);
+  if (moved && nightTooLong(next.bedtime, next.morningStart) && nextSpan >= currentSpan) return Promise.resolve(false);
   // Inside a waiting edit's early first night (from before edits were refused from bed), that
   // edit governs tonight: this one waits for its next bedtime rather than handing tonight back
   // to the old, later bedtime.

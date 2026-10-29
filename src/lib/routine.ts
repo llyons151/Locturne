@@ -38,6 +38,9 @@ export const DEFAULT_PUSHUP_GOAL = 10;
 
 export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;
 
+/** The step targets on the Routine tab's wheel (user 2026-10-28: picked like push-ups), in fifties. */
+export const STEPS_RANGE = { min: 50, max: 2000, by: 50 };
+
 /**
  * The shortest night a routine can have, in minutes (user, 2026-10-28): a 1-minute bedtime set
  * over and over would make the lock meaningless. The dial won't drag shorter, onboarding won't
@@ -45,11 +48,20 @@ export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pu
  */
 export const MIN_NIGHT = 4 * 60;
 
+/**
+ * The longest night, in minutes (user, 2026-10-28): with a near-whole-day night a slow morning
+ * runs into the next bedtime and only passes get out. Held the same ways as `MIN_NIGHT`.
+ */
+export const MAX_NIGHT = 16 * 60;
+
 /** Minutes from bedtime to morning start, going forward. Equal times are no night at all: 0. */
 export const nightMinutes = (bedtime: number, morningStart: number) => (((morningStart - bedtime) % 1440) + 1440) % 1440;
 
 /** Is this night shorter than `MIN_NIGHT`? */
 export const nightTooShort = (bedtime: number, morningStart: number) => nightMinutes(bedtime, morningStart) < MIN_NIGHT;
+
+/** Is this night longer than `MAX_NIGHT`? */
+export const nightTooLong = (bedtime: number, morningStart: number) => nightMinutes(bedtime, morningStart) > MAX_NIGHT;
 
 export const DEFAULT_ROUTINE: Routine = {
   bedtime: 23 * 60,

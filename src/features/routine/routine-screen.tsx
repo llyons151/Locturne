@@ -37,7 +37,6 @@ import {
 import { getMorningPlace, getPlaceEditRefusal } from '@/lib/place';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
-import { sharedGet, sharedSet } from '@/lib/screen-time';
 import { formatPreset, noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
@@ -76,7 +75,6 @@ const SHADOW_LOC = false;
 
 type Method = WakeMethod;
 
-const HINT_SEEN = 'locturne.dialHintSeen';
 
 /** The screen's shape. Nights are Monday first, like onboarding's day picker (`nights.ts`). */
 type Routine = {
@@ -127,7 +125,8 @@ const methods = (
   {
     value: 'steps',
     icon: sym('figure.walk', 'directions_walk'),
-    title: `Walk ${goal} steps`,
+    // Just "Walk": how many is the Steps row under the card (user 2026-10-28).
+    title: 'Walk',
     detail: `From ${formatPreset(wake)} · Recommended`,
   },
   {
@@ -223,7 +222,7 @@ export function RoutineScreen() {
     const armed = applyRoutineEdit(toStored(next));
     const loaded = load();
     setLoaded(loaded);
-    // Turned down (a night under `MIN_NIGHT`): the dial goes back to the times saved.
+    // Turned down (a night under `MIN_NIGHT` or over `MAX_NIGHT`): the dial goes back to the times saved.
     armed.then((ok) => {
       if (ok) return;
       haptic.thud();
@@ -261,29 +260,24 @@ export function RoutineScreen() {
   // A scan with no code, or a place with none picked, wakes with steps until it's set up (as
   // Home's "Tomorrow" says), so the picked row says so rather than looking like it's in force.
   const fallsBack = methodInUse(saved.method) !== saved.method;
-  // The dial's how-to, until the first change (user's ask, October 9, 2026).
-  const [hintSeen, setHintSeen] = useState(() => sharedGet<boolean>(HINT_SEEN) === true);
-  const edited = <T,>(apply: (value: T) => void) => (value: T) => {
-    if (!hintSeen) {
-      sharedSet(HINT_SEEN, true);
-      setHintSeen(true);
-    }
-    apply(value);
-  };
   // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
   const offerReps = saved.method === 'pushups';
+  // Walk picked, or another way not set up yet (it walks for now): how many steps.
+  const offerSteps = methodInUse(saved.method) === 'steps';
   // Scan picked: set up a code, or choose a new one, like a place, only while it's allowed (not from bed).
   const offerCodeSetup = saved.method === 'scan' && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
   const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
-  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps;
+  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerSteps;
   // "Get to a place" with no place yet: straight to the picker, which selects it once one is
   // saved. Closing it leaves the routine alone, so nobody ends up on a place they don't have.
-  // "Scan a code" with no code: the same, with the code sheet (user 2026-10-28).
+  // "Scan a code" is selected at once and stays selected however the code sheet closes (user
+  // 2026-10-28); with no code yet the sheet opens to print one. Until a code is scanned in, its
+  // mornings are 200 steps (`methodInUse`), so nobody is stuck.
   const pick = (method: Method) => {
     if (method === 'scan' && saved.method !== 'scan' && !getScanCode() && !getScanEditRefusal()) {
-      haptic.tap();
-      router.push({ pathname: '/code', params: { select: '1' } });
+      set({ method });
+      router.push('/code');
       return;
     }
     if (method === 'place' && saved.method !== 'place' && !place && !getPlaceEditRefusal()) {
@@ -325,7 +319,7 @@ export function RoutineScreen() {
           morningStart={saved.morningStart}
           nightsLabel={saved.nights.length === 0 ? 'Every night off' : nightsLabel(saved.nights)}
           off={saved.nights.length === 0}
-          onChange={edited((times: { bedtime: number; morningStart: number }) => set(times))}
+          onChange={(times: { bedtime: number; morningStart: number }) => set(times)}
           scrollRef={scroll}
         />
         </View>
@@ -340,7 +334,7 @@ export function RoutineScreen() {
           <DayStrip
             value={saved.nights}
             tonight={tonightOf(active, now)}
-            onChange={edited((nights: number[]) => set({ nights }))}
+            onChange={(nights: number[]) => set({ nights })}
           />
         </View>
       </Card>
@@ -352,7 +346,8 @@ export function RoutineScreen() {
           </View>
         </GlassCard>
       ) : null}
-      {hintSeen || asleep ? null : (
+      {/* The dial's how-to, always (user 2026-10-28: it went after the first change, and the dial isn't obvious). */}
+      {asleep ? null : (
         <Text style={styles.hint}>
           {noOrphan('Drag the moon or sun. Tap a day to skip it.')}
         </Text>
@@ -417,6 +412,10 @@ export function RoutineScreen() {
         {offerReps ? (
           // A wheel in the floating sheet: any count, not a short menu (user's ask, 2026-10-10).
           <ValueRow title="Push-ups" value={`${reps}`} onPress={() => router.push('/pushups')} last />
+        ) : null}
+        {offerSteps && !offerCodeSetup && !offerPlaceSetup ? (
+          // The same wheel, in fifties (user 2026-10-28).
+          <ValueRow title="Steps" value={`${saved.stepGoal}`} onPress={() => router.push('/steps')} last />
         ) : null}
       </Card>
       </Animated.View>

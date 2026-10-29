@@ -18,6 +18,9 @@ const SECOND_HIT_MS = 2500;
 /** How much sharper than on screen the share card's picture of him is drawn. */
 const SNAP_SCALE = 2.5;
 
+/** How long a Loc keeps the mood he was handed (`take`) before easing into his own. */
+const CARRIED_MOOD_MS = 4000;
+
 /** A beat for Home to start fading in before the lump comes running. */
 const ARRIVE_DELAY_MS = 120;
 
@@ -37,6 +40,9 @@ export default function LocStage({
   onYell,
   snapNonce = 0,
   onSnap,
+  passNonce = 0,
+  onPass,
+  take,
   rim,
   knock,
   burrowOnTap = false,
@@ -75,6 +81,12 @@ export default function LocStage({
   snapNonce?: number;
   /** The picture: his canvas as a PNG data URL, transparent round him. A native action on iOS. */
   onSnap?: (png: string) => void;
+  /** Bumped to hand his pose and motion over to another Loc (`LocRig.passPose`): the payoff's, to Home's. */
+  passNonce?: number;
+  /** The pose, for `take` on the other Loc. A native action on iOS. */
+  onPass?: (pose: string) => void;
+  /** Another Loc's pose to carry on from (`LocRig.takePose`), then ease into this one's mood. A new `nonce` takes it. */
+  take?: { nonce: number; pose: string } | null;
   /** The screen's edge, for the ultra zoomies (rim.ts); left out, he never goes round it. */
   rim?: Rim;
   /** The knock lab's live tuning; inside the webview this module is a copy, so it comes as a prop. */
@@ -120,6 +132,7 @@ export default function LocStage({
   const onTapRef = useRef(onTap);
   const onYellRef = useRef(onYell);
   const onSnapRef = useRef(onSnap);
+  const onPassRef = useRef(onPass);
   const onBurrowRef = useRef(onBurrow);
   const rimRef = useRef<Rim | null>(null);
 
@@ -220,7 +233,8 @@ export default function LocStage({
     onBurrowRef.current = onBurrow;
     onYellRef.current = onYell;
     onSnapRef.current = onSnap;
-  }, [onCue, onTap, onBurrow, onYell, onSnap]);
+    onPassRef.current = onPass;
+  }, [onCue, onTap, onBurrow, onYell, onSnap, onPass]);
 
   useEffect(() => {
     if (knock) Object.assign(NAV_KNOCK, knock);
@@ -270,6 +284,34 @@ export default function LocStage({
     rigRef.current?.yell();
     wakeRef.current();
   }, [yellNonce]);
+
+  useEffect(() => {
+    const rig = rigRef.current;
+    if (!passNonce || !rig) return;
+    onPassRef.current?.(rig.passPose());
+  }, [passNonce]);
+
+  // Only the nonce: the same pose handed over again on a re-render changes nothing.
+  const takeNonce = take?.nonce ?? 0;
+  const takeRef = useRef(take);
+  // Kept current before the effect below reads it (effects run in order).
+  useEffect(() => {
+    takeRef.current = take;
+  }, [take]);
+  useEffect(() => {
+    const rig = rigRef.current;
+    const given = takeRef.current;
+    if (!takeNonce || !rig || !given) return;
+    rig.takePose(given.pose);
+    wakeRef.current();
+    // He carries on as the other Loc was, in its mood, and only later eases into his own: a
+    // change of face right at the hand-over read as a glitch (user 2026-10-28).
+    const relax = setTimeout(() => {
+      rig.setMood(moodRef.current);
+      wakeRef.current();
+    }, CARRIED_MOOD_MS);
+    return () => clearTimeout(relax);
+  }, [takeNonce]);
 
   // Plain numbers, so a new object with the same edge (every render) changes nothing.
   const rimW = rim?.W, rimH = rim?.H, rimRb = rim?.Rb, rimRt = rim?.Rt;

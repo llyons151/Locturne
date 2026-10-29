@@ -12,7 +12,7 @@ import { useTabBarInset } from '@/components/app-tabs';
 import { useHealth } from '@/hooks/use-health';
 import { askAccessAgain } from '@/lib/ask-access';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
-import { lapseStillCovers, nextBedtime, routineAt, subscriptionEnded } from '@/lib/lock-controller';
+import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
 import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
@@ -24,8 +24,6 @@ import {
   bedtimeAppCount,
   isScreenTimeAvailable,
   isStoodDown,
-  sharedGet,
-  sharedSet,
   listChangeLandsAt,
   nightLockArmed,
   nightPickCount,
@@ -41,7 +39,8 @@ import { Gap, Space } from '@/theme';
 import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent, type HomeAction, type HomeMeter } from './home-content';
 import type { HomeLook } from './home-look';
-import { LocCue, markLocSaid } from './loc';
+import { LocCue } from './loc';
+import { openPayoff, openPretendPayoff } from '../wake/open-payoff';
 import type { LocMoment } from './loc-lines';
 import { bigClock, duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -211,14 +210,16 @@ export function HomeScreen() {
   // The morning happens right here (docs/HOME_INTERACTIVE.md): a walk is counted on Home, the
   // stairs and the place check-in run on it, and the scan and push-ups open only their camera
   // (push-ups used to open the old wake page; user, 2026-10-15). Steps count under every
-  // method, and prove the morning by themselves (GAME_PLAN: walking always works instead).
+  // method, but only wake the apps when the walk is the morning's way or was chosen instead with
+  // "Walk 200 steps instead" (user 2026-10-28: 200 steps no longer beat the other methods by themselves).
   const morningHere = !unprotected && phase === 'morning';
-  const walked = useMorningWalk(morningHere, routine);
   // "Walk 200 steps instead" turns this morning's Home into the walk (user, 2026-10-15). Kept
   // per morning, so tomorrow starts on the routine's own method again.
   const [walkingFor, setWalkingFor] = useState<string | null>(null);
   // That morning's walk asked for from elsewhere (`/wake?method=steps`).
   const walkAsked = useWalkRequest();
+  const walkChosen = method === 'steps' || walkingFor === lock.morningKey || walkAsked === lock.morningKey;
+  const walked = useMorningWalk(morningHere, routine, walkChosen);
   const canWalk = walked?.kind === 'counting';
   const walkingInstead = morningHere && method !== 'steps' && canWalk && (walkingFor === lock.morningKey || walkAsked === lock.morningKey);
   const walkInstead = canWalk && method !== 'steps' ? { label: `Walk ${walked.goal} steps instead`, onPress: () => setWalkingFor(lock.morningKey) } : undefined;
@@ -481,12 +482,10 @@ const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };
 /** A wake-up older than this, found on opening the app, gets Home's done look but no payoff. */
 const PAYOFF_FOR = 15 * 60_000;
 /** The morning key whose payoff was last shown: each morning's opens once. */
-const PAYOFF_KEY = 'locturne.payoffShown';
-
 /**
  * Opens the morning payoff (/morning-won) once per morning, as soon as Home is on top after a
- * real wake-up (not a pass): straight away for a walk or the stairs on Home, after the camera
- * closes for a scan or push-ups. Loc's wake-up line on Home counts as said: the payoff is the moment.
+ * real wake-up (not a pass): straight away for a walk or the stairs on Home. A scan's camera
+ * opens it itself in Home's place (`openPayoffNow`), so nothing of Home shows in between.
  */
 function usePayoff(proof: MorningProof | null, live: boolean) {
   const focused = useIsFocused();
@@ -494,41 +493,21 @@ function usePayoff(proof: MorningProof | null, live: boolean) {
   const key = won ? proof.morningKey : null;
   const at = won ? proof.at : 0;
   useEffect(() => {
-    if (!live || !focused || !key || Date.now() - at > PAYOFF_FOR || sharedGet<string>(PAYOFF_KEY) === key) return;
-    sharedSet(PAYOFF_KEY, key);
-    markLocSaid(`woke:${key}`);
-    router.push('/morning-won');
+    if (!live || !focused || !key || Date.now() - at > PAYOFF_FOR) return;
+    openPayoff(key);
   }, [live, focused, key, at]);
 }
 
-/** The pretend morning's win last opened (its `won.at`): each opens the payoff once. */
-let pretendShown = 0;
-
 /**
  * Dev: a pretend morning won in the wake preview records nothing, so `usePayoff` never sees
- * it. Opens the payoff with made-up facts for the method that won, the time now and the real
- * count plus this one.
+ * it (`openPretendPayoff`).
  */
 function usePretendPayoff(live: boolean) {
   const focused = useIsFocused();
   const { won } = useWakePreview();
   useEffect(() => {
-    if (!live || !focused || !won || pretendShown === won.at) return;
-    pretendShown = won.at;
-    const at = new Date(won.at);
-    const upAt = at.getHours() * 60 + at.getMinutes();
-    // A pretend morning runs at any hour: past three hours after the real morning start, call it on time.
-    const start = routineAt(at).morningStart;
-    router.push({
-      pathname: '/morning-won',
-      params: {
-        demo: '1',
-        method: won.method,
-        at: String(upAt),
-        start: String(upAt >= start && upAt - start <= 180 ? start : upAt),
-        mornings: String(getMorningsWon() + 1),
-      },
-    });
+    if (!live || !focused || !won) return;
+    openPretendPayoff();
   }, [live, focused, won]);
 }
 
@@ -579,7 +558,7 @@ function walkHero(walk: MorningWalk) {
 function walkMeter(walk: Extract<MorningWalk, { kind: 'counting' }>) {
   return {
     value: walk.steps === null ? '–' : String(walk.steps),
-    caption: `of ${walk.goal} steps`,
+    // No "of 200 steps": the line under the bar says how many are left (user 2026-10-28).
     progress: walk.goal > 0 ? (walk.steps ?? 0) / walk.goal : 1,
   };
 }

@@ -9,7 +9,7 @@ import { fakeDeviceActivity } from './fake-device-activity.ts';
 const fake = fakeDeviceActivity({ available: false });
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
-const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, MIN_NIGHT, nightMinutes, nightTooShort, nextNightOn, nightAt, nightRanUnder, nightWasOn, saveRoutine } = await import('./routine.ts');
+const { applyEdit, asArmed, settleRoutine, DEFAULT_ROUTINE, MAX_NIGHT, MIN_NIGHT, nightMinutes, nightTooLong, nightTooShort, nextNightOn, nightAt, nightRanUnder, nightWasOn, saveRoutine } = await import('./routine.ts');
 const { sharedSet } = await import('./screen-time.ts');
 
 /** Thursday 2026-10-01 at hh:mm, local time. Default routine: 23:00 to 07:00. */
@@ -168,4 +168,13 @@ test('a night is at least 4 hours: shorter, or equal times, is too short', () =>
   assert.equal(nightTooShort(3 * 60 + 1, 7 * 60), true);
   assert.equal(nightTooShort(7 * 60 - 1, 7 * 60), true, 'a 1-minute night');
   assert.equal(nightTooShort(7 * 60, 7 * 60), true, 'no night');
+});
+
+test('a night is at most 16 hours', () => {
+  assert.equal(MAX_NIGHT, 960);
+  assert.equal(nightTooLong(23 * 60, 7 * 60), false);
+  assert.equal(nightTooLong(18 * 60, 10 * 60), false, 'exactly 16 hours');
+  assert.equal(nightTooLong(18 * 60 - 1, 10 * 60), true);
+  assert.equal(nightTooLong(7 * 60 + 15, 7 * 60), true, 'a 23h45 night');
+  assert.equal(nightTooLong(7 * 60, 7 * 60), false, 'no night is too short, not too long');
 });

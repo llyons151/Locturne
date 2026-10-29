@@ -514,14 +514,14 @@ export const FOUNDER = {
 };
 
 /**
- * The chapter break before the setup (`build`), leading with their end of the night. The first
- * time they see Loc, so he says hello (user 2026-10-28). DRAFT copy.
+ * The chapter break before the setup (`build`). The first time they see Loc, so he says hello
+ * (user 2026-10-28). Every branch sets up the morning next (`method`), so every branch says so.
  */
 export const BUILD: Record<Pain, string> = {
-  all: 'Hi, I’m Loc.\nLet’s fix your mornings.',
-  morning: 'Hi, I’m Loc.\nLet’s fix your mornings.',
-  night: 'Hi, I’m Loc.\nLet’s fix your nights.',
-  overall: 'Hi, I’m Loc.\nLet’s fix your nights.',
+  all: 'Hi, I’m Loc.\nLet’s set up your mornings.',
+  morning: 'Hi, I’m Loc.\nLet’s set up your mornings.',
+  night: 'Hi, I’m Loc.\nLet’s set up your mornings.',
+  overall: 'Hi, I’m Loc.\nLet’s set up your mornings.',
 };
 
 export const NEW_YEAR = {

@@ -11,7 +11,9 @@ const require = createRequire(import.meta.url);
 const babel = require('@babel/core');
 type Tree = { type: unknown; props: Record<string, any>; children: (Tree | Tree[] | string | null)[] };
 
-function harness(source: string, nav: { canGoBack: () => boolean; back: () => void; announced?: boolean } = { canGoBack: () => false, back() {} }) {
+type Nav = { canGoBack: () => boolean; back: () => void; replace?: (to: string) => void; announced?: boolean; payoffs?: string[] };
+
+function harness(source: string, nav: Nav = { canGoBack: () => false, back() {}, replace() {} }) {
   let index = 0;
   const state: any[] = [];
   let lock = { phase: 'night', morningKey: '2026-10-06', blockNowUntil: null as Date | null, nextChange: new Date(2026, 9, 6, 22) };
@@ -26,7 +28,7 @@ function harness(source: string, nav: { canGoBack: () => boolean; back: () => vo
     },
   };
   const mocks: Record<string, unknown> = {
-    react, 'expo-router': { useRouter: () => nav }, 'expo-symbols': { SymbolView: 'Symbol' },
+    react, 'expo-router': { useRouter: () => nav, useNavigation: () => ({ setOptions() {} }) }, 'expo-symbols': { SymbolView: 'Symbol' },
     '@/components/grouped-list': { sym: (ios: string) => ios },
     '@/components/text': { Text: 'text', TextInput: 'input' },
     'react-native': { StyleSheet: { create: (s: unknown) => s }, ScrollView: 'ScrollView', View: 'View', Text: 'Text', Pressable: 'Pressable' },
@@ -58,6 +60,11 @@ function harness(source: string, nav: { canGoBack: () => boolean; back: () => vo
     '../dev/wake-lab/stand-ins': { shownScanCode: () => ({ kind: 'qr', data: 'registered-code' }) },
     '../dev/wake-lab/wake-preview': { pretendPhase: () => null, pretendWoke() {} },
     '../wake/use-prove-morning': { announceWoke: () => { nav.announced = true; } },
+    // The payoff takes the camera's place (open-payoff.ts); recorded here.
+    '../wake/open-payoff': {
+      openPayoffNow: (how: string) => { (nav.payoffs ??= []).push(how); return true; },
+      openPretendPayoff: () => false,
+    },
   };
   const load = (text: string, filename: string) => {
     const code = babel.transformSync(text, {
@@ -87,15 +94,17 @@ function find(tree: unknown, type: string): Tree | undefined {
   return node.type === type ? node : find(node.children, type);
 }
 
-test('mounted morning scan becomes usable at morning start and retires stale success at bedtime', () => {
+test('mounted morning scan becomes usable at morning start; a match goes straight back to Home', () => {
+  // No "I'm up" page in between (user 2026-10-28): Home, back on top, opens the payoff.
   const source = readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8');
-  const h = harness(source);
+  const nav: Nav = { canGoBack: () => false, back() {}, replace() {} };
+  const h = harness(source, nav);
   assert.equal(find(h.render(), 'Scanner'), undefined);
   h.phase('morning');
   const scanner = find(h.render(), 'Scanner');
   assert.ok(scanner, 'morning boundary must reveal the camera without reopening');
   scanner.props.onScan({ data: 'registered-code' });
-  assert.equal(find(h.render(), 'Voice')?.props.text, "I'm up. Don't talk to me yet.");
+  assert.deepEqual(nav.payoffs, ['replace'], 'the payoff in the camera’s place');
   h.phase('night');
   assert.equal(find(h.render(), 'Voice')?.props.text, 'Shh. Still bedtime.');
 });
@@ -106,50 +115,11 @@ function texts(tree: unknown): string {
   return Array.isArray(tree) ? tree.map(texts).join(' ') : texts((tree as Tree).children);
 }
 
-test('successful scan still reports an independent Block now and updates when it ends', () => {
-  const h = harness(readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8'));
-  h.phase('morning');
-  h.nap(new Date(2026, 9, 6, 8));
-  find(h.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
-  assert.match(texts(h.render()), /Block now: apps asleep until/);
-  h.nap(null);
-  assert.doesNotMatch(texts(h.render()), /Block now:/);
-});
-
-test('successful scan does not promise a bedtime when tonight is off or a lapse has ended', () => {
-  const source = readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8');
-  const on = harness(source);
-  on.phase('morning');
-  find(on.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
-  assert.match(texts(on.render()), /Apps awake until 7:00 AM\./);
-
-  const off = harness(source);
-  off.phase('morning');
-  off.world({ tonightOn: false });
-  find(off.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
-  assert.match(texts(off.render()), /Apps awake\. Tonight is off\./);
-  assert.doesNotMatch(texts(off.render()), /until bedtime/);
-
-  // The last paid morning: the scan works, but nothing is scheduled after it.
-  const lapsed = harness(source);
-  lapsed.phase('morning');
-  lapsed.world({ ended: true, lapseCovers: null });
-  find(lapsed.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
-  assert.match(texts(lapsed.render()), /Apps awake\. Nothing is scheduled to sleep\./);
-});
-
-test('an emptied bedtime list: no bedtime promised after the scan, and no morning named to scan for', () => {
+test('an emptied bedtime list: no morning named to scan for', () => {
   // Every bedtime app removed from bed: the removal waits for the next bedtime, so this
   // morning is still held and the scan works, but nothing sleeps at the next bedtime.
+  // Opened later in the day: tomorrow morning is free, so it isn't named.
   const source = readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8');
-  const h = harness(source);
-  h.phase('morning');
-  h.world({ bedtimeApps: false });
-  find(h.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
-  assert.doesNotMatch(texts(h.render()), /until/);
-  assert.match(texts(h.render()), /No bedtime apps picked, so nothing sleeps at bedtime\./);
-
-  // Opened again later in the day: tomorrow morning is free, so it isn't named.
   const later = harness(source);
   later.phase('day');
   later.world({ bedtimeApps: false });
@@ -157,12 +127,13 @@ test('an emptied bedtime list: no bedtime promised after the scan, and no mornin
   assert.doesNotMatch(texts(later.render()), /tomorrow/);
 });
 
-test('a match opened from Home closes the camera, so the apps wake on Home', () => {
+test('a match opened from Home goes straight to the payoff in the camera’s place, not back to Home first', () => {
   let back = 0;
-  const nav = { canGoBack: () => true, back: () => { back++; }, announced: false };
+  const nav: Nav = { canGoBack: () => true, back: () => { back++; }, announced: false };
   const h = harness(readFileSync(new URL('./scan-screen.tsx', import.meta.url), 'utf8'), nav);
   h.phase('morning');
   find(h.render(), 'Scanner')!.props.onScan({ data: 'registered-code' });
-  assert.equal(back, 1);
+  assert.deepEqual(nav.payoffs, ['replace']);
+  assert.equal(back, 0, 'no stop on Home');
   assert.equal(nav.announced, true);
 });

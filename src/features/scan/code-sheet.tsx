@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { TextButton } from '@/components/buttons';
@@ -10,17 +10,23 @@ import { Text } from '@/components/text';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import * as haptic from '@/lib/haptics';
 import { draftQrData, getScanCode, getScanEditRefusal, type ScanCode } from '@/lib/scan';
+import { onScanCodeChange } from '@/lib/scan-code';
 import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
 import { SCAN_CODE_HEADLINE, SCAN_CODE_WORDS } from '../onboarding/screens/scan-code';
 import { applyRoutineEdit, getSetRoutine } from '../routine/apply-edit';
 import { printCode } from './print-code';
 import { QrCode } from './qr';
+import { SavedCheck } from './saved-check';
 
 type Source = ScanCode['kind'];
 
 /** Smaller than onboarding's full page: the sheet floats over the Routine tab. */
 const CODE_SIZE = 180;
+/** A code saved: the tick starts once the camera has closed over the sheet (`SavedCheck`)... */
+const CAMERA_GONE_MS = 450;
+/** ...and the sheet slides down after it has had a moment on screen (user 2026-10-28). */
+const SAVED_CLOSE_MS = 1900;
 
 /**
  * Setting up the wake-up code from Routine (or You), in the Sleep sheet's floating card like
@@ -45,17 +51,25 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
   const [printing, setPrinting] = useState(false);
   const [refused] = useState(() => getScanEditRefusal() !== null);
 
-  // Back from the camera with a new code saved: done here too.
-  const [before] = useState(() => getScanCode()?.data);
-  useFocusEffect(
-    useCallback(() => {
-      const now = getScanCode()?.data;
-      if (!now || now === before) return;
-      // Opened by choosing "Scan a code" with none yet: a saved code also makes it the method.
-      if (select) applyRoutineEdit({ ...getSetRoutine(), method: 'scan' });
-      closeSleepSheet();
-    }, [before, select]),
-  );
+  // A new code saved (from the camera over this sheet): the code turns into a tick, then the
+  // sheet slides down. Heard from the save itself (`onScanCodeChange`), with coming back into
+  // focus as a fallback: on iPhone the camera closing doesn't reliably refocus this sheet.
+  // By when it was registered, not its data: scanning the same barcode again is a save too.
+  const [before] = useState(() => getScanCode()?.registeredAt);
+  const [saved, setSaved] = useState(false);
+  const check = useCallback(() => {
+    const now = getScanCode()?.registeredAt;
+    if (now !== undefined && now !== before) setSaved(true);
+  }, [before]);
+  useEffect(() => onScanCodeChange(() => setSaved(true)), []);
+  useFocusEffect(check);
+  useEffect(() => {
+    if (!saved) return;
+    // Opened by choosing "Scan a code" with none yet: a saved code also makes it the method.
+    if (select) applyRoutineEdit({ ...getSetRoutine(), method: 'scan' });
+    const away = setTimeout(closeSleepSheet, SAVED_CLOSE_MS);
+    return () => clearTimeout(away);
+  }, [saved, select]);
 
   const print = () => {
     if (printing) return;
@@ -89,10 +103,12 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
   }
 
   const toPrint = source === 'qr' && !printed;
+  const barcode = <SymbolView name={sym('barcode', 'barcode')} size={CODE_SIZE * 0.4} tintColor={Nocturne.text2} />;
+  const codeTile = source === 'qr' ? <QrCode data={qr} size={CODE_SIZE} /> : <View style={styles.tile}>{barcode}</View>;
   return (
     <View style={styles.sheet}>
       <Text style={styles.title} accessibilityRole="header">
-        {SCAN_CODE_HEADLINE}
+        {saved ? 'Code saved.' : SCAN_CODE_HEADLINE}
       </Text>
       <Split label="Which code">
         <SplitHalf
@@ -124,15 +140,20 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
         ))}
       </View>
       <View style={styles.code}>
-        {source === 'qr' ? (
-          <QrCode data={qr} size={CODE_SIZE} />
+        {saved ? (
+          // The code itself is locked on and turns into the tick (gallery #17).
+          <SavedCheck
+            size={CODE_SIZE}
+            delay={CAMERA_GONE_MS}
+            code={source === 'qr' ? codeTile : <View style={styles.bare}>{barcode}</View>}
+            tile={source === 'qr' ? undefined : styles.tile}
+          />
         ) : (
-          <View style={styles.tile}>
-            <SymbolView name={sym('barcode', 'barcode')} size={CODE_SIZE * 0.4} tintColor={Nocturne.text2} />
-          </View>
+          codeTile
         )}
       </View>
-      <View style={styles.actions}>
+      {/* Kept in the layout once saved, just out of sight, so the sheet doesn't jump as it goes. */}
+      <View style={[styles.actions, saved && styles.hidden]} pointerEvents={saved ? 'none' : 'auto'} accessibilityElementsHidden={saved}>
         {toPrint ? (
           <SheetButton label="Print it" onPress={print} />
         ) : (
@@ -171,6 +192,8 @@ const styles = StyleSheet.create({
   over: { marginLeft: '-100%' },
   hidden: { opacity: 0 },
   code: { alignSelf: 'center', width: CODE_SIZE, height: CODE_SIZE, borderRadius: Space.m, borderCurve: 'continuous', overflow: 'hidden' },
+  // The barcode with no tile under it, for the check, which keeps the tile.
+  bare: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tile: {
     flex: 1,
     alignItems: 'center',

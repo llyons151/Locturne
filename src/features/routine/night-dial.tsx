@@ -9,7 +9,7 @@ import { NativeNightDial, NIGHT_DIAL_ROW, isNightDialAvailable } from '../../../
 import { Text } from '@/components/text';
 import { sym } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
-import { MIN_NIGHT } from '@/lib/routine';
+import { MAX_NIGHT, MIN_NIGHT } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
 import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -119,6 +119,7 @@ function SwiftNightDial({ bedtime, morningStart, nightsLabel, off, onChange }: P
         nightsLabel={nightsLabel}
         off={off}
         minWindow={MIN_NIGHT}
+        maxWindow={MAX_NIGHT}
         bandColor={off ? Nocturne.progressTrack : (Nocturne.accent ?? Nocturne.text)}
         trackColor={Nocturne.frost}
         iconColor={Nocturne.onCta}
@@ -174,8 +175,8 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
     const moved = d.moved + turn(d.at, m);
     const shift = snap(moved);
     const startSpan = span(d.startBed, d.startWake);
-    // A handle can't pass the other one: the night stays between MIN_NIGHT and a day.
-    const clamp = (s: number) => Math.min(DAY - SNAP, Math.max(MIN_NIGHT, s));
+    // A handle can't pass the other one: the night stays between MIN_NIGHT and MAX_NIGHT.
+    const clamp = (s: number) => Math.min(MAX_NIGHT, Math.max(MIN_NIGHT, s));
     let next;
     if (d.part === 'bed') next = { bed: wrap(d.startWake - clamp(startSpan - shift)), wake: d.startWake };
     else if (d.part === 'wake') next = { bed: d.startBed, wake: wrap(d.startBed + clamp(startSpan + shift)) };
@@ -214,8 +215,9 @@ function JsNightDial({ bedtime, morningStart, nightsLabel, off, onChange, scroll
 
   const nudge = (part: 'bed' | 'wake', by: number) => {
     const s = span(bedtime, morningStart) + (part === 'bed' ? -by : by);
-    // Toward the minimum is allowed from a night saved shorter before it (`MIN_NIGHT`).
-    if ((s < MIN_NIGHT && s <= span(bedtime, morningStart)) || s > DAY - SNAP) return;
+    // Toward a limit is allowed from a night saved past it before the rule (`MIN_NIGHT`, `MAX_NIGHT`).
+    const was = span(bedtime, morningStart);
+    if ((s < MIN_NIGHT && s <= was) || (s > MAX_NIGHT && s >= was) || s > DAY - SNAP) return;
     haptic.tick();
     onChange(
       part === 'bed'

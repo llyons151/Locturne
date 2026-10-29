@@ -22,6 +22,23 @@ export function getScanCode(): ScanCode | null {
   return sharedGet<ScanCode>(SCAN_CODE_KEY) ?? null;
 }
 
+const codeListeners = new Set<() => void>();
+
+/**
+ * Hears a code saved (`registerScanCode`). The code sheet listens, so it shows the tick even
+ * when iOS doesn't tell it it's back on top after the camera (a full-screen modal closing over
+ * a transparent one). Returns the unsubscribe.
+ */
+export function onScanCodeChange(listener: () => void): () => void {
+  codeListeners.add(listener);
+  return () => void codeListeners.delete(listener);
+}
+
+/** Tells `onScanCodeChange` listeners a code was saved. */
+export function scanCodeChanged(): void {
+  for (const listener of codeListeners) listener();
+}
+
 /**
  * The method the morning really asks for: a scan morning with no code set up yet, or a place
  * morning with no place picked yet, falls back to steps.

@@ -18,7 +18,7 @@ import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg'
 import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
 import { homeEntrance, REPLAY_START_MS } from '../home/entrance';
-import { holdLocLines, markLocSaid } from '../home/loc';
+import { holdLocLines, markLocSaid, passLocPose } from '../home/loc';
 import { LocBubble } from '../home/loc-bubble';
 import { locSpecial } from '../home/loc-lines';
 import { LOC_VIEW } from '../home/loc-rig';
@@ -84,6 +84,12 @@ const SETTLE = Easing.bezier(0.33, 0, 0.15, 1);
 /** Last, the screen dissolves over Home (identical by then but for Loc's pose and the tabs). */
 // Short: by now only the sky, Loc and the strip are left, and Home's pieces wait for it to go.
 const DISSOLVE_MS = 220;
+/**
+ * His pose goes over to Home's Loc this long before the dissolve (`passLocPose`), so the trip
+ * from one webview to the other is over and both show the same raccoon as it starts (user
+ * 2026-10-28: he glitched back to Home's own pose).
+ */
+const PASS_LEAD_MS = 160;
 
 /** The moon's rise behind him once he yells, all the way to the top: quick off the edge, a long settle. */
 const RISE_MS = 2200;
@@ -161,6 +167,8 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const yelled = useRef(false);
   // Tap him and he yells again (user, 2026-10-27: he shouldn't just sit there once it's over).
   const [yells, setYells] = useState(1);
+  // Bumped on the way back: his pose goes to Home's Loc (`passLocPose`).
+  const [passes, setPasses] = useState(0);
   const leaving = useRef(false);
   // Home's entrance is played once on the way back, whichever comes first: the hand-back or
   // this screen unmounting (which must never leave Home's pieces hidden). A second play restarts it.
@@ -270,6 +278,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     // Home's Loc keeps anything he'd say until its six pieces are in focus.
     const gone = settled + DISSOLVE_MS + 30;
     holdLocLines(gone + REPLAY_START_MS + 5 * FOCUS_STEP_MS + FOCUS_MS);
+    setTimeout(() => setPasses((n) => n + 1), Math.max(0, settled - PASS_LEAD_MS));
     screen.set(withDelay(settled, withTiming(0, { duration: DISSOLVE_MS, easing: Easing.inOut(Easing.quad) })));
     // Home's pieces come in once this screen has gone, not under it: closing it is heavy work,
     // and the entrance started first stalled halfway, then played again from unmounting, so it
@@ -421,6 +430,8 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
           onTap={onTap}
           snapNonce={snaps}
           onSnap={setLocShot}
+          passNonce={passes}
+          onPass={passLocPose}
           dom={dom}
         />
       </Animated.View>

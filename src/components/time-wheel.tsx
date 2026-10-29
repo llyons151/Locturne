@@ -189,19 +189,22 @@ export function NumberWheel({
   onChange,
   min,
   max,
+  by = 1,
   label,
 }: {
   value: number;
   onChange: (value: number) => void;
   min: number;
   max: number;
+  /** Each row's step up from the one before (50 for the step target). */
+  by?: number;
   /** What the number counts, for VoiceOver. */
   label: string;
 }) {
   const { height } = useWindowDimensions();
   const row = height < 700 ? 40 : 48;
   const visible = height < 700 ? 5 : 7;
-  const items = useMemo(() => Array.from({ length: max - min + 1 }, (_, i) => `${min + i}`), [min, max]);
+  const items = useMemo(() => Array.from({ length: Math.floor((max - min) / by) + 1 }, (_, i) => `${min + i * by}`), [min, max, by]);
 
   return (
     <Reveal style={styles.wrap}>
@@ -209,8 +212,8 @@ export function NumberWheel({
         <View style={[styles.band, { top: (row * (visible - 1)) / 2, height: row }]} />
         <Column
           items={items}
-          index={value - min}
-          onIndex={(i) => onChange(min + i)}
+          index={Math.round((value - min) / by)}
+          onIndex={(i) => onChange(min + i * by)}
           row={row}
           visible={visible}
           label={label}

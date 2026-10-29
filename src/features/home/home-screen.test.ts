@@ -354,7 +354,8 @@ describe('Home during a walk morning', () => {
   test('the live count is the hero, no Loc line under it, and nothing to press: no pass is offered', () => {
     const { hero, meter, action } = home({ now, phase: 'morning' });
     // Made in Home's own context, so it's copied out before comparing.
-    assert.deepEqual({ ...meter }, { value: '64', caption: 'of 200 steps', progress: 0.32 });
+    // No "of 200 steps" caption: the line under the bar says how many are left (user 2026-10-28).
+    assert.deepEqual({ ...meter }, { value: '64', progress: 0.32 });
     assert.equal(hero.title, '64 of 200 steps');
     assert.equal(hero.body, '136 more and your apps wake up.');
     assert.equal(hero.aside, undefined);

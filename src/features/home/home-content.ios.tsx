@@ -34,6 +34,7 @@ import {
   padding,
   shapes,
   type ModifierConfig,
+  id as identity,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState, type ComponentProps } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -102,6 +103,12 @@ export function HomeContent(props: HomeContentProps) {
   // Held still while catching up after the background, so the digits change without rolling
   // from hours-old numbers.
   const rollKey = props.catchingUp ? -1 : heroKey;
+  // What the middle is showing (not its numbers). When it changes (the place's morning turned
+  // into the walk), every piece but the number is a new view: the old one fades where it was and
+  // the new one fades in where it goes, rather than sliding across with the number's morph (user
+  // 2026-10-28). The number keeps its identity, so it still rolls into place. Not the button's
+  // label: Check in turning to Checking… mustn't refade the page.
+  const piece = identity(`${icon?.ios ?? ''}|${meter?.unit ?? ''}|${meter?.caption ?? ''}|${meter?.progress !== undefined}|${look}`);
   const [usageIn, setUsageIn] = useState(false);
 
   /** Piece `step`: opacity and blur, ending with everything else; on a replay, one step apart. */
@@ -191,15 +198,15 @@ export function HomeContent(props: HomeContentProps) {
           ]}
         >
           {searching ? (
-            <ZStack modifiers={[frame({ width: 20, height: 20 }), ...enter(2)]}>
+            <ZStack modifiers={[frame({ width: 20, height: 20 }), piece, ...enter(2)]}>
               <RNHostView matchContents>
                 <SearchingOrb />
               </RNHostView>
             </ZStack>
           ) : look === 'problem' ? (
-            <Image systemName="exclamationmark.circle" size={30} color={Nocturne.text} modifiers={enter(2)} />
+            <Image systemName="exclamationmark.circle" size={30} color={Nocturne.text} modifiers={[piece, ...enter(2)]} />
           ) : (
-            <Image systemName={(icon?.ios ?? 'moon.fill') as SymbolName} size={18} color={Nocturne.text2} modifiers={enter(2)} />
+            <Image systemName={(icon?.ios ?? 'moon.fill') as SymbolName} size={18} color={Nocturne.text2} modifiers={[piece, ...enter(2)]} />
           )}
           {meter ? (
             // The morning's live count in place of the headline, rolling as it climbs.
@@ -226,14 +233,14 @@ export function HomeContent(props: HomeContentProps) {
                   {meter.value}
                 </Text>
                 {meter.unit ? (
-                  <Text modifiers={[font({ size: 28, weight: 'light' }), foregroundStyle(Nocturne.text2)]}>{meter.unit}</Text>
+                  <Text modifiers={[font({ size: 28, weight: 'light' }), foregroundStyle(Nocturne.text2), piece]}>{meter.unit}</Text>
                 ) : null}
               </HStack>
               {meter.caption ? (
-                <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(Nocturne.text2)]}>{meter.caption}</Text>
+                <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(Nocturne.text2), piece]}>{meter.caption}</Text>
               ) : null}
               {meter.progress !== undefined ? (
-                <ZStack alignment="leading" modifiers={[frame({ width: TRACK, height: 6 }), padding({ top: Space.s })]}>
+                <ZStack alignment="leading" modifiers={[frame({ width: TRACK, height: 6 }), padding({ top: Space.s }), piece]}>
                   <Capsule modifiers={[foregroundStyle(Nocturne.progressTrack)]} />
                   <Capsule
                     modifiers={[
@@ -267,6 +274,7 @@ export function HomeContent(props: HomeContentProps) {
               foregroundStyle(Nocturne.text2),
               multilineTextAlignment('center'),
               frame({ maxWidth: 320 }),
+              piece,
               ...enter(4),
             ]}
           >
@@ -281,6 +289,7 @@ export function HomeContent(props: HomeContentProps) {
                 multilineTextAlignment('center'),
                 frame({ maxWidth: 300 }),
                 accessibilityLabel(`Loc: ${hero.aside}`),
+                piece,
                 ...enter(4),
               ]}
             >
@@ -289,7 +298,7 @@ export function HomeContent(props: HomeContentProps) {
           ) : null}
           {!action ? null : weight === 'primary' ? (
             // The screen's one white button, as wide as the column (buttons.tsx's PrimaryButton).
-            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}>
+            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}>
               <Text
                 modifiers={[
                   font({ size: 17, weight: 'semibold' }),
@@ -303,7 +312,7 @@ export function HomeContent(props: HomeContentProps) {
               </Text>
             </Button>
           ) : weight === 'link' ? (
-            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}>
+            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}>
               <HStack spacing={4} modifiers={[padding({ vertical: Space.xs })]}>
                 <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>{action.label}</Text>
                 {action.opens ? (
@@ -314,7 +323,7 @@ export function HomeContent(props: HomeContentProps) {
           ) : (
             <Button
               onPress={action.onPress}
-              modifiers={[buttonStyle('plain'), padding({ top: Space.s }), ...enter(5)]}
+              modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}
             >
               <HStack spacing={6} modifiers={[padding({ vertical: 10, horizontal: 20 }), background(BUTTON, shapes.capsule())]}>
                 <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(Nocturne.text)]}>
@@ -327,7 +336,7 @@ export function HomeContent(props: HomeContentProps) {
             </Button>
           )}
           {alt ? (
-            <Button onPress={alt.onPress} modifiers={[buttonStyle('plain'), ...enter(5)]}>
+            <Button onPress={alt.onPress} modifiers={[buttonStyle('plain'), piece, ...enter(5)]}>
               <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2), padding({ vertical: Space.xs })]}>
                 {alt.label}
               </Text>

@@ -130,7 +130,8 @@ describe('the words', () => {
     for (const method of ['scan', 'pushups'] as const) {
       const { subtitle } = shieldCopy('morning', { ...DEFAULT_ROUTINE, method });
       assert.match(subtitle, /^Open Locturne/, `${method}: ${subtitle}`);
-      assert.match(subtitle, /walk \d+ steps and tap I’m up/, `${method}: walking still works`);
+      // Walking only wakes a steps morning from the shield (user 2026-10-28); instead is chosen in Locturne.
+      assert.doesNotMatch(subtitle, /walk/i, `${method}: no walk offered`);
     }
   });
 

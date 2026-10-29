@@ -16,7 +16,7 @@
  */
 import { judgedAt, pastLastPaid, readLock, syncLock } from './lock-controller.ts';
 import { recordProof } from './morning-proof.ts';
-import { getScanCode, SCAN_CODE_KEY, type ScanCode } from './scan-code.ts';
+import { getScanCode, SCAN_CODE_KEY, scanCodeChanged, type ScanCode } from './scan-code.ts';
 import { sharedGet, sharedRemove, sharedSet } from './screen-time.ts';
 
 export type { ScanCode } from './scan-code.ts';
@@ -103,6 +103,7 @@ export function registerScanCode(
   if (code.kind === 'qr') sharedRemove(QR_DRAFT_KEY);
   // Tonight's shield said "walk" while there was no code; it now says "scan".
   syncLock(now);
+  scanCodeChanged();
   return null;
 }
 

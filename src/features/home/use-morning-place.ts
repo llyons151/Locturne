@@ -107,14 +107,25 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     imperial,
     now,
   });
-  // The live distance is right above, so a miss doesn't repeat the check-in's older one.
-  const said = shown.kind === 'notThere' && away !== null ? 'Not there yet. Keep going, then try again.' : body;
+  // The live distance is right above, so a miss doesn't repeat the check-in's older one. Checking
+  // keeps the morning's sentence, and a miss says one the same length, so tapping Check in
+  // never moves the page about (user 2026-10-28).
+  const morningBody = placeWords({ kind: 'morning' }, { place: place.name, awake: '', next: null, morningStart: '', stepGoal, imperial, now }).body;
+  const said =
+    shown.kind === 'checking'
+      ? morningBody
+      : shown.kind === 'notThere' && away !== null
+        ? `Not there yet. Get to ${place.name}, then try again.`
+        : body;
+  // No Loc line over the check-in itself ("Go on then. Out.", user 2026-10-28): the sentence says it.
+  const quiet = shown.kind === 'morning' || shown.kind === 'checking' || shown.kind === 'notThere';
 
   return {
     icon: { ios: 'location.fill', android: 'location_on' },
     searching: shown.kind === 'checking',
-    hero: { title: titleFor(shown, place, away, imperial), body: here && shown.kind === 'morning' ? 'Tap Check in.' : said, aside: line },
-    meter: away !== null && away > PLACE_RADIUS_M ? { value: formatDistance(away - PLACE_RADIUS_M, imperial), caption: `to ${place.name}` } : undefined,
+    hero: { title: titleFor(shown, place, away, imperial), body: here && shown.kind === 'morning' ? 'Tap Check in.' : said, aside: quiet ? undefined : line },
+    // "away", not "to <place>": the sentence under it names the place (user 2026-10-28).
+    meter: away !== null && away > PLACE_RADIUS_M ? { value: formatDistance(away - PLACE_RADIUS_M, imperial), caption: 'away' } : undefined,
     action:
       shown.kind === 'noFix' && settingsCanFix(shown.why)
         ? { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) }

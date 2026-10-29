@@ -63,6 +63,14 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
+          <Stack.Screen
+            name="steps"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           {/* Setting up the wake-up code, in the same floating card; its camera opens over it. */}
           <Stack.Screen
             name="code"
@@ -102,7 +110,12 @@ export default function RootLayout() {
               screen, so Home stays drawn under it and Done can dissolve it away over Home. */}
           <Stack.Screen
             name="morning-won"
-            options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+            // `?cut=1`: taking a camera's place, which already covers Home, so no fade in.
+            options={({ route }) => ({
+              presentation: 'transparentModal',
+              animation: (route.params as { cut?: string } | undefined)?.cut ? 'none' : 'fade',
+              contentStyle: { backgroundColor: 'transparent' },
+            })}
           />
           {/* Cancelling: full-screen, no swipe away mid-step; every step has its own way out. */}
           <Stack.Screen name="cancel" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />

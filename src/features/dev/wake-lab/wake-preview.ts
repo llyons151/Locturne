@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import type { WakeMethod } from '@/lib/routine';
+import { endTestLock, getTestLock } from '@/lib/screen-time';
 
 import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
 
@@ -36,6 +37,11 @@ export type WakePreview = {
   standIns: boolean;
   /** The pretend morning just won, and with what: Home opens the payoff for it, made up. */
   won: { method: WakeMethod; at: number } | null;
+  /**
+   * When the pretend morning began, in ms: a real pedometer counts from here, not from the real
+   * morning start, or a test in the afternoon is already 200 steps in (user 2026-10-28).
+   */
+  since: number;
 };
 
 // A browser has none of the sensors, so the fakes start on there; a phone starts real.
@@ -49,6 +55,7 @@ const START: WakePreview = {
   place: web ? 'walking' : 'real',
   standIns: true,
   won: null,
+  since: 0,
 };
 
 let current = START;
@@ -57,7 +64,8 @@ const listeners = new Set<() => void>();
 export const getWakePreview = () => current;
 
 export function setWakePreview(change: Partial<WakePreview>) {
-  current = { ...current, ...change };
+  const starts = change.phase === 'morning' && current.phase !== 'morning';
+  current = { ...current, ...change, ...(starts && { since: Date.now() }) };
   listeners.forEach((l) => l());
 }
 
@@ -76,6 +84,18 @@ export function pretendPhase(): 'morning' | 'day' | null {
   return phase === 'real' ? null : phase === 'morning' ? 'morning' : 'day';
 }
 
+/**
+ * Drops the test morning without doing the wake-up, and a test lock with it (user 2026-10-28:
+ * some of it is just checking the screens). The tab bar's Exit test (app-tabs.tsx).
+ */
+export function exitTestMorning() {
+  if (getTestLock()) endTestLock();
+  setWakePreview({ phase: 'real', won: null });
+}
+
+/** When the pretend morning under way began (`since`), or null outside one. */
+export const pretendSince = (): Date | null => (current.phase === 'morning' ? new Date(current.since) : null);
+
 /** The method a pretend morning puts on Home, or null to use the routine's. */
 export const pretendMethod = (): WakeMethod | null =>
   current.phase !== 'real' && current.method !== 'routine' ? current.method : null;
@@ -84,19 +104,29 @@ export const pretendMethod = (): WakeMethod | null =>
  * A pretend morning won: nothing is recorded, the preview just moves on to "done". With the
  * method that won it, Home then opens the payoff (/morning-won) with made-up facts.
  */
-export const pretendWoke = (method?: WakeMethod) =>
+export const pretendWoke = (method?: WakeMethod) => {
+  // You → Test the lock: the bedtime apps really sleep until the test morning on Home is won.
+  if (method && getTestLock()) endTestLock();
   setWakePreview({ phase: 'woke', won: method ? { method, at: Date.now() } : null });
+};
 
 /**
- * One tap from You → Developer → UI: a pretend morning with every sensor faked (a fake already
- * picked in /wake-preview is kept; only "real" ones switch), so each morning screen can be seen
- * on the phone at any hour, without walking, stairs, a code, a trip or a set of push-ups.
+ * One tap from You → Developer → UI: a pretend morning at any hour. On a phone the sensors stay
+ * as they are, real unless one was faked in /wake-preview (user 2026-10-28: the demo is there to
+ * check the real thing works, so a code has to really be scanned). A browser has none of them,
+ * so there every "real" one switches to its fake.
  */
 export function fakeTheMorning(method: WakePreview['method'] = 'routine') {
   const p = current;
+  // A fresh test each tap: its steps count from now (`since`).
+  if (!web) {
+    setWakePreview({ phase: 'morning', method, since: Date.now() });
+    return;
+  }
   setWakePreview({
     phase: 'morning',
     method,
+    since: Date.now(),
     steps: p.steps === 'real' ? 'walking' : p.steps,
     stairs: p.stairs === 'real' ? 'down' : p.stairs,
     scan: p.scan === 'real' ? 'fake' : p.scan,

@@ -123,7 +123,8 @@ func registerShieldTapTests() {
   }
 
   test("shield tap: at 3 am the bedtime words, and the button only closes") {
-    pick("night", ["tiktok"]); saveRoutine(routine()); armNight(); appClosesInTheEvening(method: "steps")
+    var r = routine(); r["method"] = "steps"
+    pick("night", ["tiktok"]); saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
     at("2026-10-05 23:00"); start("night-0")
     at("2026-10-06 03:00")
     expectEqual(drawn("tiktok").title, "Shh. I’m sleeping. So are they.")
@@ -280,15 +281,15 @@ func registerShieldTapTests() {
     at("2026-10-06 07:10")
     expectEqual(tap("tiktok", .data(steps: 19, ascended: 0, descended: 2)), [.defer])
     expectStillAsleep()
-    expectEqual(drawn("tiktok").subtitle, "No stairs yet. Go down a floor, then tap I’m up. Or walk 181 more steps.")
+    expectEqual(drawn("tiktok").subtitle, "No stairs yet. Go down a floor, then tap I’m up.")
     expect(sentTaps().isEmpty, "said on the shield")
   }
 
-  test("shield tap, downstairs: no barometer, or no floors, and 200 steps still wakes them") {
+  test("shield tap, downstairs: 200 steps with no floors doesn't wake them (walking instead is chosen in Locturne)") {
     closedNight(method: "downstairs")
     at("2026-10-06 07:10")
     tap("tiktok", .data(steps: 200, ascended: nil, descended: nil))
-    expectWoke("steps")
+    expectStillAsleep()
   }
 
   test("shield tap, downstairs: a pedometer error opens Locturne, whose stairs listen live") {
@@ -301,8 +302,24 @@ func registerShieldTapTests() {
 
   // MARK: Scan, place, push-ups: the shield can't do them, so the tap opens Locturne
 
+  for method in ["scan", "place"] {
+    test("shield tap, \(method) with nothing set up yet: it's a walk, and 200 steps wake them") {
+      closedNight(method: method)
+      at("2026-10-06 07:15")
+      tap("tiktok", .data(steps: 240))
+      expectWoke("steps")
+    }
+  }
+
+  /// A scan or place morning with its code or place set up (without one it's a walk: `locturneMethodInUse`).
+  func setUpMethod(_ method: String) {
+    if method == "scan" { set("locturne.scanCode", ["kind": "barcode", "data": "5012345678900", "registeredAt": 0]) }
+    if method == "place" { set("locturne.morningPlace", ["name": "Gym", "latitude": 1.0, "longitude": 1.0, "radius": 100]) }
+  }
+
   for method in ["scan", "place", "pushups"] {
-    test("shield tap, \(method): short of the steps, the tap opens Locturne and wakes nothing") {
+    test("shield tap, \(method): the tap opens Locturne and wakes nothing") {
+      setUpMethod(method)
       closedNight(method: method)
       expectEqual(drawn("tiktok").subtitle, proofLine[method])
       at("2026-10-06 07:15")
@@ -310,18 +327,20 @@ func registerShieldTapTests() {
       expectStillAsleep()
       expectEqual(sentTaps().count, 1, "the open-Locturne notification")
       expectEqual(sentTaps().first?.content.userInfo["url"] as? String, "locturne://wake")
-      expectEqual(drawn("tiktok").subtitle, "50 of 200 steps. Walk 150 more and tap I’m up, or open Locturne.")
+      expectEqual(drawn("tiktok").subtitle, "This one’s in Locturne. Open it and I’ll wake them.")
     }
 
-    test("shield tap, \(method): 200 steps wakes them anyway, Locturne closed") {
+    test("shield tap, \(method): 200 steps don't wake them by themselves (user 2026-10-28), Locturne opens") {
+      setUpMethod(method)
       closedNight(method: method)
       at("2026-10-06 07:15")
       tap("tiktok", .data(steps: 240))
-      expectWoke("steps")
-      expect(sentTaps().isEmpty, "no notification once they're awake")
+      expectStillAsleep()
+      expectEqual(sentTaps().count, 1, "the open-Locturne notification")
     }
 
     test("shield tap, \(method): floors never prove it (only downstairs uses them)") {
+      setUpMethod(method)
       closedNight(method: method)
       at("2026-10-06 07:15")
       tap("tiktok", .data(steps: 40, ascended: 2, descended: 2))
@@ -329,6 +348,7 @@ func registerShieldTapTests() {
     }
 
     test("shield tap, \(method): proved in Locturne a moment ago, the tap only wakes them") {
+      setUpMethod(method)
       closedNight(method: method)
       at("2026-10-06 07:20")
       set(LOCTURNE_PROOFS_KEY, [["morningKey": "2026-10-06", "kind": method, "at": ms(local("2026-10-06 07:19"))]])
@@ -413,7 +433,8 @@ func registerShieldTapTests() {
     workTooHoldsTiktok()
     // The bedtime list larger than Work's (two apps to one): iOS's order is then Work first by
     // day, whatever the dictionary order. The smaller-bedtime-list case is the test below.
-    pick("night", ["tiktok", "instagram"]); saveRoutine(routine()); armNight(); appClosesInTheEvening(method: "steps")
+    var r = routine(); r["method"] = "steps"
+    pick("night", ["tiktok", "instagram"]); saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
     at("2026-10-05 23:00"); start("night-0")
     expectEqual(drawn("tiktok").title, "Shh. I’m sleeping. So are they.")
     // Won in the morning; Work starts at 9.
@@ -493,7 +514,8 @@ func registerShieldTapTests() {
   test("by day, an app on a bedtime list no bigger than a schedule's shows the schedule's words") {
     // Work holds tiktok and youtube; the bedtime list only tiktok. Won at 7:30, Work from 9.
     workTooHoldsTiktok(); pick("sched-0", ["tiktok", "youtube"])
-    pick("night", ["tiktok"]); saveRoutine(routine()); armNight(); appClosesInTheEvening(method: "steps")
+    var r = routine(); r["method"] = "steps"
+    pick("night", ["tiktok"]); saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
     at("2026-10-05 23:00"); start("night-0")
     at("2026-10-06 07:00"); end("night-2")
     at("2026-10-06 07:30"); tap("tiktok", .data(steps: 250))
