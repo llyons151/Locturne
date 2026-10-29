@@ -50,6 +50,7 @@ export default function LocStage({
   rise = false,
   look,
   roam = 0,
+  offset = 0,
   pick,
   sharp = false,
   edge,
@@ -101,6 +102,8 @@ export default function LocStage({
   look?: [number, number];
   /** How much of the ledge he dashes about on by himself, 0..1 (the paywall's wide canvas). */
   roam?: number;
+  /** Where he stands along the ledge, a share of the canvas's width from the middle (+ right); `LocRig.offset`. */
+  offset?: number;
   /** The paywall's plan as he sees it: a change sets off his reaction (`LocRig.guard`). */
   pick?: 'good' | 'bad';
   /** Drawn at the phone's full 3x, not 2x: the paywall's, next to sharp text (looked soft at 2x). */
@@ -124,6 +127,7 @@ export default function LocStage({
   const riseRef = useRef(rise);
   const lookRef = useRef(look);
   const roamRef = useRef(roam);
+  const offsetRef = useRef(offset);
   const pickRef = useRef(pick);
   const sharpRef = useRef(sharp);
   const waryRef = useRef(wary);
@@ -147,6 +151,7 @@ export default function LocStage({
     rig.rises = riseRef.current;
     if (lookRef.current) rig.look = lookRef.current;
     rig.roam = roamRef.current;
+    rig.offset = offsetRef.current;
     rig.onCue = (cue) => onCueRef.current?.(cue);
     rig.onYell = () => onYellRef.current?.();
     rig.onBurrow = (path) => onBurrowRef.current?.(path);
@@ -220,6 +225,12 @@ export default function LocStage({
     }, ARRIVE_DELAY_MS);
     return () => clearTimeout(t);
   }, [present]);
+
+  useEffect(() => {
+    offsetRef.current = offset;
+    if (rigRef.current) rigRef.current.offset = offset;
+    wakeRef.current();
+  }, [offset]);
 
   useEffect(() => {
     shareRef.current = share;

@@ -13,7 +13,6 @@ import { PushupsCamera } from '../wake/pushups-view';
 import { useProveMorning } from '../wake/use-prove-morning';
 import type { HomeMorning } from './home-content';
 import { WALK_INSTEAD } from './morning';
-import type { MorningWalk } from './use-morning-walk';
 
 const ICON = { ios: 'figure.strengthtraining.functional', android: 'fitness_center' };
 
@@ -21,16 +20,13 @@ const ICON = { ios: 'figure.strengthtraining.functional', android: 'fitness_cent
  * Home's morning when the wake-up is push-ups (docs/HOME_INTERACTIVE.md): the count so far is
  * the hero, with the setup under it, and Start opens the camera straight away, full screen, as
  * the scan does. The set proves the morning when the camera closes, and the apps wake on Home.
- * What pushups-view.tsx does on the wake screen. Null while `enabled` is false. `walk` is the
- * steps fallback, counted underneath.
+ * What pushups-view.tsx does on the wake screen. Null while `enabled` is false. Walking instead
+ * is Home's own button, under Start; the camera has none.
  */
 export function useMorningPushups(
   enabled: boolean,
-  walk: MorningWalk | null,
   target: number,
   morning: string,
-  /** "Walk N steps instead" in the camera: Home turns into the walk. */
-  onWalk: () => void,
 ): { morning: HomeMorning; camera: ReactNode } | null {
   const camera = useCameraAccess();
   const prove = useProveMorning();
@@ -48,7 +44,6 @@ export function useMorningPushups(
   // Read each render: closing the camera re-renders Home with the total so far.
   const done = Math.min(target, getRepsDone(morning));
   const left = Math.max(0, target - done);
-  const instead = walk?.kind === 'counting' ? `Walk ${walk.goal} steps instead` : 'Not now';
   const restricted = camera.access === 'restricted' || failed === 'restricted';
   const denied = camera.access === 'denied' || (failed === 'denied' && camera.access !== 'granted');
   const meter = { value: String(done), caption: `of ${target} push-ups`, progress: target > 0 ? done / target : 1 };
@@ -122,15 +117,9 @@ export function useMorningPushups(
       <PushupsCamera
         target={target}
         morning={morning}
-        instead={instead}
         onMet={() => {
           setOpen(false);
           prove('pushups');
-        }}
-        // Steps count on Home all along, so walking is closing the camera onto the walk.
-        onSteps={() => {
-          setOpen(false);
-          onWalk();
         }}
         onClose={() => setOpen(false)}
         onError={(reason) => {

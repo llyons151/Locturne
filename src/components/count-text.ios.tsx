@@ -7,12 +7,12 @@ import { Nocturne } from '@/theme';
  * The big count over a meter ("84"), rolling its digits as it changes: SwiftUI's numeric text
  * transition, as Home's countdown and step count do (home-content.ios.tsx).
  */
-export function CountText({ value }: { value: string }) {
+export function CountText({ value, size = 72 }: { value: string; size?: number }) {
   return (
     <Host matchContents colorScheme="dark">
       <Text
         modifiers={[
-          font({ size: 72, weight: 'bold' }),
+          font({ size, weight: 'bold' }),
           monospacedDigit(),
           foregroundStyle(Nocturne.text),
           contentTransition('numericText'),

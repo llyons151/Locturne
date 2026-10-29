@@ -38,8 +38,24 @@ const MAX_WIDTH = 250;
  * `room` caps its height, gap included, so it never reaches what's above it (Home's button on
  * a small phone or with large text): it keeps to the lines that fit, widening to `wide` when
  * that's one, and iOS shrinks the words to fit them. Left out, it grows with its line.
+ *
+ * `smoked` is a dark pane instead of glass, for over the push-up camera: white words stay readable
+ * on a bright room, and the screen turns on its side, where iOS drew the glass as a flat grey box.
  */
-export function LocBubble({ line, onDismiss, room, wide }: { line: string; onDismiss: () => void; room?: number; wide?: number }) {
+export function LocBubble({
+  line,
+  onDismiss,
+  room,
+  wide,
+  smoked = false,
+}: {
+  line: string;
+  onDismiss: () => void;
+  room?: number;
+  wide?: number;
+  smoked?: boolean;
+}) {
+  const glass = LIQUID && !smoked;
   const scale = Math.min(PixelRatio.getFontScale(), DISPLAY_MAX_SCALE);
   // Lines that fit in `room`, at the text size in use; three or more is the bubble's own look.
   const lines = room === undefined ? undefined : Math.max(1, Math.floor((room - PAD_V * 2 - GAP) / (LINE * scale)));
@@ -49,8 +65,8 @@ export function LocBubble({ line, onDismiss, room, wide }: { line: string; onDis
   return (
     <Animated.View entering={BURROW_IN} exiting={FadeOut.duration(150)} style={styles.wrap}>
       <Pressable onPress={onDismiss} accessibilityRole="text" accessibilityLabel={`Loc: ${line}`} accessibilityHint="Dismisses">
-        <View style={[styles.bubble, !LIQUID && styles.pane, wider ? { maxWidth: Math.max(MAX_WIDTH, wide) } : null]}>
-          {LIQUID ? <GlassView glassEffectStyle="regular" style={styles.glass} /> : null}
+        <View style={[styles.bubble, !glass && (smoked ? styles.smoke : styles.pane), wider ? { maxWidth: Math.max(MAX_WIDTH, wide) } : null]}>
+          {glass ? <GlassView glassEffectStyle="regular" style={styles.glass} /> : null}
           <Animated.View entering={WORDS_IN}>
             <Text
               style={styles.line}
@@ -96,6 +112,7 @@ const styles = StyleSheet.create({
     borderColor: EDGE,
     ...Platform.select({ web: { backdropFilter: 'blur(10px) saturate(180%)' } as ViewStyle }),
   },
+  smoke: { backgroundColor: 'rgba(10,10,12,0.66)', borderWidth: StyleSheet.hairlineWidth, borderColor: EDGE },
   glass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: CAPSULE, overflow: 'hidden' },
   line: { color: '#FFFFFF', fontSize: FONT, lineHeight: LINE, fontWeight: '600', letterSpacing: -0.16, textAlign: 'center' },
 });

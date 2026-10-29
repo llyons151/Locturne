@@ -65,6 +65,7 @@
     "studio": "npm --prefix studio install --no-audit --no-fund --silent && npm --prefix studio start",
     "studio:dev": "npm --prefix studio run dev",
     "onboarding-preview": "tools/onboarding-preview/start.sh",
+    "pushups-preview": "tools/pushups-preview/start.sh",
     "store-shots": "node tools/store-shots/server.mjs",
     "payoff-lab": "node tools/payoff-lab/server.mjs",
     "bubble-lab": "node tools/bubble-lab/server.mjs",

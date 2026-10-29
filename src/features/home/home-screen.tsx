@@ -238,7 +238,7 @@ export function HomeScreen() {
   const own = morningHere && !walkingInstead;
   const stairs = useMorningStairs(own && method === 'downstairs', walked);
   const place = useMorningPlace(own && method === 'place', walked, routine.stepGoal);
-  const pushups = useMorningPushups(own && method === 'pushups', walked, pushupGoalOf(routine), lock.morningKey, () => walkInstead?.onPress());
+  const pushups = useMorningPushups(own && method === 'pushups', pushupGoalOf(routine), lock.morningKey);
   const morningHero = stairs ?? place ?? pushups?.morning ?? (own && method === 'scan' ? scanMorning() : null);
   // The method's "walk instead" placeholder, made real; never the passes (they stay in You).
   const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));

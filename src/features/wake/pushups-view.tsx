@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, Line, LinearGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { SymbolView } from 'expo-symbols';
 
+import { PANEL_RADIUS } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
+import { CountText } from '@/components/count-text';
 import { Track } from '@/components/meter';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
@@ -14,7 +17,7 @@ import { pushupsLine, spokenRep } from '@/lib/wake/lines';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
 import { PUSHUPS, repProgress, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
-import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
+import { CTA_HEIGHT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { hush, isPoseCameraAvailable, PoseCameraView, say, type PoseCameraError } from '../../../modules/pose-camera';
 import { LocBubble } from '../home/loc-bubble';
@@ -28,15 +31,17 @@ import { PoseOverlay } from './pose-overlay';
 import { usePhone } from './use-phone-hint';
 import { usePushups } from './use-pushups';
 
-/** Loc's width as a share of the screen, as on Home (loc.tsx). */
-const LOC_SHARE = 0.27;
-/** Sideways, Loc stands small in the bottom-left corner, under his bubble, out of your way. */
-const LOC_SIDE = { canvas: 260, loc: 96 };
+/** Loc's width in points, both ways up; his canvas is the screen's width, as on Home. */
+const LOC_PT = 116;
+/** About how long he takes to run in under the covers and pop up (loc-rig ARRIVE), before his first line. */
+const ARRIVE_MS = 1_300;
 /** His bubble's tail, as a share of his canvas's height up from its bottom: just over his head. */
 const BUBBLE_AT = 0.78;
-/** The black strip under him: the meter and the buttons. Sideways the buttons sit in a row. */
-const STRIP = 132;
-const STRIP_SIDE = 84;
+/** The black ledge he stands on, holding the meter, above the home bar; sideways, thinner. */
+const LEDGE = Space.l + 6;
+const LEDGE_SIDE = Space.l + 6 + Space.m;
+/** The ledge's extra room for Keep going after a timeout. */
+const AGAIN = CTA_HEIGHT + Space.l;
 /** A beat on the last rep before the apps wake, so the count and his line land. */
 const MET_BEAT_MS = 1_600;
 /** Out of sight at least this long before he says "Go on." again on finding you. */
@@ -161,17 +166,12 @@ export function PushupsView({
         <PushupsCamera
           target={target}
           morning={morning}
-          instead={instead}
           preview={preview}
           onMet={() => {
             // Closed either way: if the morning ended meanwhile (bedtime came round), nothing
             // replaces this page, and the camera mustn't stay up on a finished set.
             setOpen(false);
             onMet();
-          }}
-          onSteps={() => {
-            setOpen(false);
-            onSteps();
           }}
           onClose={() => setOpen(false)}
           onError={(reason) => {
@@ -214,7 +214,7 @@ function Scrim({ height, flip }: { height: number; flip?: boolean }) {
     <Svg width="100%" height={height} style={flip ? styles.scrimBottom : styles.scrimTop} pointerEvents="none">
       <Defs>
         <LinearGradient id={id} x1="0" y1={flip ? '1' : '0'} x2="0" y2={flip ? '0' : '1'}>
-          <Stop offset="0" stopColor="#000000" stopOpacity={0.7} />
+          <Stop offset="0" stopColor="#000000" stopOpacity={0.6} />
           <Stop offset="1" stopColor="#000000" stopOpacity={0} />
         </LinearGradient>
       </Defs>
@@ -227,12 +227,6 @@ const PHONE_LINES: Record<PhoneHint, string> = {
   flat: 'Stand me up. I can only see the ceiling.',
   upsideDown: 'Other way up. Please.',
   tall: 'On my side. I can’t fit all of you in.',
-};
-
-const PHONE_PILLS: Record<PhoneHint, string> = {
-  flat: 'Lean me on my side against something, screen facing you.',
-  upsideDown: 'Turn me the right way up.',
-  tall: 'Turn me sideways, the long way, so all of you fits.',
 };
 
 /** Which way the phone stands: the preview's pretend one, or the accelerometer's. Upright until it knows. */
@@ -286,16 +280,63 @@ const moodFor = (s: PushupsSession | null): LocMood => {
   return 'awake';
 };
 
+/** The ledge floods up over everything, then drains back down into the turned layout. */
+const FLOOD_UP = { duration: 480, easing: Easing.bezier(0.45, 0, 0.55, 1) };
+const FLOOD_DOWN = { duration: 900, easing: Easing.bezier(0.22, 1, 0.36, 1) };
+/** A beat fully black while the new layout settles under it. */
+const FLOOD_HOLD_MS = 140;
+
+/**
+ * Turning with the phone (user 2026-10-29: tilting the layout round looked glitchy). The black
+ * ledge floods up over the picture, the screen swaps to the turned layout under it, and the black
+ * drains back down to the new ledge, the picture and Loc coming back as it goes. `flood` is 0 (the
+ * ledge where it sits) to 1 (black to the top); `shown` is the turn laid out, which trails `turn`
+ * while it's black. Transform and opacity only (the iOS fast path). Reduce Motion: quicker, same shape.
+ */
+function useFlood(turn: PhoneTurn) {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(turn);
+  const flood = useSharedValue(0);
+
+  useEffect(() => {
+    if (turn === shown) return;
+    const swap = (finished?: boolean) => {
+      'worklet';
+      if (finished) scheduleOnRN(setShown, turn);
+    };
+    flood.set(withTiming(1, reduced ? { duration: 120 } : FLOOD_UP, swap));
+  }, [turn, shown, reduced, flood]);
+
+  useEffect(() => {
+    flood.set(withDelay(FLOOD_HOLD_MS, withTiming(0, reduced ? { duration: 160 } : FLOOD_DOWN)));
+  }, [shown, reduced, flood]);
+
+  return { shown, flood };
+}
+
+/**
+ * The ledge's top corners: the black curves up into the picture's rounded bottom corners, as
+ * Home's strip meets its panel (PANEL_RADIUS); Loc's covers bend up the same curve.
+ */
+function Corners({ width }: { width: number }) {
+  const R = PANEL_RADIUS;
+  return (
+    <Svg width={width} height={R} pointerEvents="none">
+      <Path d={`M0 0 L0 ${R} L${R} ${R} A${R} ${R} 0 0 1 0 0 Z`} fill="#000000" />
+      <Path d={`M${width} 0 L${width} ${R} L${width - R} ${R} A${R} ${R} 0 0 0 ${width} 0 Z`} fill="#000000" />
+    </Svg>
+  );
+}
+
 /**
  * The set itself, full screen: the front camera, you traced in white over it, the count big at
- * the top, and Loc on the black strip at the bottom, as on Home, saying what he thinks of it.
- * The phone is on the floor and you're looking down, so he says the count out loud too.
+ * the top, and Loc, black as on Home, standing on a black ledge at the bottom that fills as the
+ * reps come, saying what he thinks of it. Nothing else to read: the phone is on the floor and
+ * you're down there, so he says the count out loud too. Walking instead is on Home, not here.
  */
 export function PushupsCamera({
   target,
-  instead,
   onMet,
-  onSteps,
   onClose,
   onError,
   preview,
@@ -303,31 +344,29 @@ export function PushupsCamera({
 }: {
   target: number;
   morning?: string;
-  instead: string;
   preview?: PushupsPreview;
   onMet: () => void;
-  onSteps: () => void;
   onClose: () => void;
   onError: (reason: PoseCameraError) => void;
 }) {
   const safe = useSafeAreaInsets();
   const screen = useWindowDimensions();
   const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning);
-  const [quiet, setQuiet] = useState(false);
 
   const status = session?.status ?? 'finding';
   const timedOut = status === 'timedOut';
   // The phone on its side (the main way) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
+  const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
   const height = side ? screen.width : screen.height;
   // The notch and the home bar end up at the turned screen's ends.
   const insets = {
-    top: side ? Space.m : safe.top,
-    bottom: side ? Space.m : safe.bottom,
+    top: side ? Space.l : safe.top,
+    bottom: side ? Space.l : safe.bottom,
     left: turn === 'landscapeLeft' ? safe.top : turn === 'landscapeRight' ? safe.bottom : 0,
     right: turn === 'landscapeLeft' ? safe.bottom : turn === 'landscapeRight' ? safe.top : 0,
   };
@@ -336,6 +375,12 @@ export function PushupsCamera({
   const reps = session?.reps ?? 0;
   const met = status === 'met';
   const counting = status === 'counting' || met;
+  // His bubble waits for him: he runs in under the covers first.
+  const [arrived, setArrived] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setArrived(true), ARRIVE_MS);
+    return () => clearTimeout(t);
+  }, []);
   const metNow = useRef(met);
   useEffect(() => {
     metNow.current = met;
@@ -352,16 +397,14 @@ export function PushupsCamera({
   }, [start, cancel]);
 
   // VoiceOver reads the count itself; his voice on top of it would talk over it.
-  const [screenReader, setScreenReader] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isScreenReaderEnabled().then(setScreenReader).catch(() => {});
-    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReader);
-    return () => sub.remove();
-  }, []);
   const silent = useRef(false);
   useEffect(() => {
-    silent.current = quiet || screenReader;
-  }, [quiet, screenReader]);
+    AccessibilityInfo.isScreenReaderEnabled()
+      .then((on) => (silent.current = on))
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', (on) => (silent.current = on));
+    return () => sub.remove();
+  }, []);
 
   // Each rep: the count out loud, and a tap. Not the morning's saved total the session opens on.
   const said = useRef<number | null>(null);
@@ -418,31 +461,32 @@ export function PushupsCamera({
   const close = () => (met ? finish() : onClose());
 
   // The phone lying flat, upside down or upright: say that first, it's why he can't see (all of) you.
+  // His bubble is the only words on the picture: the setup is on Home, before Start.
   const line = phone ? PHONE_LINES[phone] : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null);
-  const locCanvas = side ? LOC_SIDE.canvas : width;
-  const locShare = side ? LOC_SIDE.loc / LOC_SIDE.canvas : LOC_SHARE;
-  const locH = Math.round((locCanvas * locShare * LOC_VIEW.height) / LOC_VIEW.width);
-  // The same object between renders: the camera re-renders this about 30 times a second, and Loc's
-  // DOM view would otherwise be handed new props every time.
+  const locH = Math.round((LOC_PT * LOC_VIEW.height) / LOC_VIEW.width);
+  // The same object between renders: the camera re-renders this about 30 times a second, and
+  // Loc's DOM view would otherwise be handed new props every time. The whole width, as on Home,
+  // so the covers he runs in under bend up the ledge's corners at the screen's edges.
   const dom = useMemo(
     () => ({
-      style: { width: locCanvas, height: locH, backgroundColor: 'transparent' },
+      style: { width, height: locH, backgroundColor: 'transparent' },
       scrollEnabled: false,
       bounces: false,
       contentInsetAdjustmentBehavior: 'never' as const,
     }),
-    [locCanvas, locH],
+    [width, locH],
   );
-  const strip = side ? STRIP_SIDE : STRIP + Math.max(insets.bottom, Space.l);
+  const ledge = (side ? LEDGE_SIDE : LEDGE + Math.max(insets.bottom, Space.l)) + (timedOut ? AGAIN : 0);
   const ends = { paddingLeft: Gap.gutter + insets.left, paddingRight: Gap.gutter + insets.right };
+  // Loc in the bottom-left corner, out of the way of you, his bubble over him reading from the
+  // same edge (user 2026-10-29: in the middle, he and his lines covered the person).
+  const edge = Gap.gutter + insets.left;
+  const offset = (edge + LOC_PT / 2) / width - 0.5;
+  // The black: sits as the ledge, and floods up to the top while the screen turns.
+  const ground = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - flood.get()) * (height - ledge) }] }));
+  // The meter goes first as the black comes up, and comes back last.
+  const ledgeIn = useAnimatedStyle(() => ({ opacity: Math.max(0, 1 - flood.get() * 3) }));
   const drawn = !!preview && (preview.scene !== 'camera' || !!fails(preview));
-  const pill = phone
-    ? PHONE_PILLS[phone]
-    : status === 'finding'
-      ? session?.hint === 'notPlank'
-        ? 'Get into a plank, side-on to me.'
-        : 'Lights on. Two steps back, side-on, all of you in the picture.'
-      : null;
 
   return (
     <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={close} statusBarTranslucent>
@@ -466,82 +510,58 @@ export function PushupsCamera({
               active={!met && !timedOut}
               onPose={onPose}
               onCameraError={onError}
-              tagTop={insets.top + (side ? 112 : 48)}
+              tagTop={insets.top + (side ? 96 : 180)}
             />
           ) : null}
           <PoseOverlay pose={pose} counting={counting} />
-          <Scrim height={insets.top + (side ? 130 : 200)} />
-          <Scrim height={strip + locH + (side ? 40 : 80)} flip />
-
-          <View style={[styles.bar, { paddingTop: insets.top, left: Gap.gutter + insets.left, right: Gap.gutter + insets.right }]}>
-            <Text style={Type.label}>Push-ups</Text>
-            <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel={met ? 'Done' : 'Stop'}>
-              <SymbolView name={sym('xmark', 'close')} size={20} weight="semibold" tintColor={Nocturne.text} />
-            </Pressable>
-          </View>
+          <Scrim height={insets.top + (side ? 120 : 190)} />
+          <Scrim height={ledge + Space.xxxl} flip />
 
           <View
-            style={[styles.reading, short && styles.readingShort, side && styles.readingSide]}
+            style={[styles.reading, { top: insets.top + (side ? 0 : short ? Space.l : Space.xxl) }]}
             accessible
             accessibilityLabel={`${reps} of ${target} push-ups.`}
           >
-            <Text
-              style={[styles.count, short && styles.countShort, side && styles.countSide, !counting && styles.countIdle]}
-              maxFontSizeMultiplier={1.2}
-            >
-              {reps}
-            </Text>
-            <Text style={styles.of}>{`of ${target} push-ups`}</Text>
+            {/* Rolls each rep, as Home's and the onboarding's counts do. */}
+            <View style={!counting && styles.countIdle}>
+              <CountText value={String(reps)} size={short || side ? 68 : 96} />
+            </View>
           </View>
+
+          <Pressable
+            onPress={close}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={met ? 'Done' : 'Stop'}
+            style={({ pressed }) => [styles.close, { top: insets.top + Space.s, right: Gap.gutter + insets.right }, pressed && styles.pressed]}
+          >
+            <SymbolView name={sym('xmark', 'close')} size={15} weight="bold" tintColor={Nocturne.text} />
+          </Pressable>
 
           {preview?.readout ? <TuningReadout session={session} pose={pose} /> : null}
 
-          {pill ? (
-            <Animated.View
-              key={pill}
-              entering={FadeIn.duration(300)}
-              exiting={FadeOut.duration(200)}
-              style={[styles.hint, side && styles.hintSide]}
-              pointerEvents="none"
-            >
-              <Text style={styles.hintText}>{pill}</Text>
-            </Animated.View>
+          <View style={[styles.loc, { height: locH, bottom: ledge - 1 }]} pointerEvents="none">
+            <LocStage mood={moodFor(session)} share={LOC_PT / width} offset={offset} present dom={dom} />
+          </View>
+          {arrived ? (
+            <View style={[styles.speech, { left: edge, bottom: ledge + Math.round(locH * BUBBLE_AT) }]} pointerEvents="box-none">
+              <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} smoked />
+            </View>
           ) : null}
 
-          <View
-            style={[side ? [styles.locSide, { left: Gap.gutter + insets.left, width: locCanvas }] : styles.loc, { height: locH, bottom: strip - 1 }]}
-            pointerEvents="none"
-          >
-            <LocStage mood={moodFor(session)} share={locShare} present ink={Nocturne.text3} dom={dom} />
-          </View>
-          <View
-            style={[
-              side ? [styles.speechSide, { left: Gap.gutter + insets.left, width: locCanvas }] : styles.speech,
-              { bottom: strip + Math.round(locH * BUBBLE_AT) },
-            ]}
-            pointerEvents="box-none"
-          >
-            <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} />
-          </View>
-
-          <View
-            style={[
-              styles.strip,
-              side ? [styles.stripSide, ends] : { paddingBottom: Math.max(insets.bottom, Space.l) },
-              { height: strip },
-            ]}
-          >
+          <Animated.View style={[styles.ground, { height: height + PANEL_RADIUS }, ground]} pointerEvents="none">
+            <Corners width={width} />
+            <View style={styles.black} />
+          </Animated.View>
+          <Animated.View style={[styles.ledge, ends, { height: ledge, paddingBottom: side ? Space.m : Math.max(insets.bottom, Space.l) }, ledgeIn]}>
             <Track progress={session ? repProgress(session) : 0} />
-            <View style={[styles.actions, side && styles.actionsSide]}>
-              {timedOut ? (
-                // The reps done stay: a long set with a break in it carries on from where it was.
+            {timedOut ? (
+              // The reps done stay: a long set with a break in it carries on from where it was.
+              <Animated.View entering={FadeIn.duration(250)} style={side && styles.againSide}>
                 <PrimaryButton label={reps > 0 ? 'Keep going' : 'Start again'} onPress={start} />
-              ) : (
-                <TextButton label={quiet ? 'Count out loud' : 'Count quietly'} onPress={() => setQuiet((q) => !q)} />
-              )}
-              {met ? null : <TextButton label={instead} onPress={onSteps} />}
-            </View>
-          </View>
+              </Animated.View>
+            ) : null}
+          </Animated.View>
         </View>
       </View>
     </Modal>
@@ -560,53 +580,24 @@ const styles = StyleSheet.create({
   turned: { position: 'absolute', overflow: 'hidden' },
   scrimTop: { position: 'absolute', top: 0, left: 0 },
   scrimBottom: { position: 'absolute', bottom: 0, left: 0 },
-  bar: {
+  close: {
     position: 'absolute',
-    top: 0,
-    left: Gap.gutter,
-    right: Gap.gutter,
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 44,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.42)',
   },
-  reading: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', marginTop: 96 },
-  count: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 112, lineHeight: 120, fontVariant: ['tabular-nums'] },
-  countShort: { fontSize: 76, lineHeight: 84 },
-  readingShort: { marginTop: 64 },
-  readingSide: { marginTop: Space.s },
-  countSide: { fontSize: 64, lineHeight: 70 },
+  pressed: { opacity: 0.6 },
+  reading: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   countIdle: { opacity: 0.45 },
-  of: { ...Type.body, color: Nocturne.text, fontWeight: '600' },
-  hint: { position: 'absolute', top: '42%', left: Gap.gutter, right: Gap.gutter, alignItems: 'center' },
-  hintSide: { top: '36%' },
-  hintText: {
-    ...Type.body,
-    color: Nocturne.text,
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: Space.l,
-    paddingVertical: Space.s,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
   loc: { position: 'absolute', left: 0, right: 0 },
-  locSide: { position: 'absolute' },
   tuning: { position: 'absolute', top: '30%', left: Gap.gutter, right: Gap.gutter, padding: Space.s, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.6)' },
   tuningText: { ...Type.caption, color: Nocturne.text, fontVariant: ['tabular-nums'] },
-  speech: { position: 'absolute', left: Space.l, right: Space.l, alignItems: 'center' },
-  speechSide: { position: 'absolute', alignItems: 'center' },
-  strip: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#000000',
-    paddingHorizontal: Gap.gutter,
-    paddingTop: Space.xl,
-    gap: Space.l,
-  },
-  actions: { alignItems: 'center', gap: Space.s },
-  stripSide: { paddingTop: Space.m, gap: Space.xs },
-  actionsSide: { flexDirection: 'row', justifyContent: 'flex-end', gap: Space.xl },
+  speech: { position: 'absolute', alignItems: 'flex-start' },
+  ground: { position: 'absolute', left: 0, right: 0, top: -PANEL_RADIUS },
+  black: { flex: 1, backgroundColor: '#000000' },
+  ledge: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: Space.l, gap: Space.l },
+  againSide: { alignSelf: 'flex-end', minWidth: 220 },
 });

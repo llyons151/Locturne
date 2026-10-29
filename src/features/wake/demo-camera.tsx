@@ -72,6 +72,7 @@ export function DemoCamera({
 }
 
 const styles = StyleSheet.create({
-  box: { backgroundColor: '#0b0b0d' },
+  // A dim lit room's grey, as a real morning's picture is, so black Loc and the dark fades read as they will.
+  box: { backgroundColor: '#4a4a50' },
   tag: { position: 'absolute', alignSelf: 'center' },
 });

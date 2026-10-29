@@ -1150,6 +1150,12 @@ export class LocRig {
   roam = 0;
   /** Where along the ledge he's settled, rig units: each dash moves it (`landDash`). */
   private spot = 0;
+  /**
+   * Where he lives along the ledge, as a share of the canvas's width from the middle (+ right):
+   * the push-up camera on its side keeps him in a corner, out of your way, on a canvas still the
+   * screen's width so the covers bend up its real corners. His lump runs in to it the same.
+   */
+  offset = 0;
   private nextRoam = 2.5;
   private nextGlance = 2;
   private nextHabit = 4;
@@ -1592,7 +1598,7 @@ export class LocRig {
   private view(): Mat {
     const cw = this.canvas.width, ch = this.canvas.height;
     const s = (cw * this.share) / LOC_VIEW.width;
-    return [s, 0, 0, s, (cw - cw * this.share) / 2 - LOC_VIEW.x * s, ch - LEDGE * s];
+    return [s, 0, 0, s, (cw - cw * this.share) / 2 + cw * this.offset - LOC_VIEW.x * s, ch - LEDGE * s];
   }
 
   /** The blanket lump: the strip's black, bulging up from the bottom edge where he is. */
@@ -1620,7 +1626,7 @@ export class LocRig {
     // Straining, it trembles: quick and uneven, so it reads as effort, not a vibration.
     const strain = shake * (Math.sin(this.clock * 58) * 0.6 + Math.sin(this.clock * 37) * 0.4);
     const top = 9 * dpr * h * (1 + (this.reduced ? 0 : Math.sin(this.clock * 6) * 0.08) + strain * 0.12);
-    const cx = cw * (0.5 + x) + strain * dpr * 2, w = cw * 0.085 * wide;
+    const cx = cw * (0.5 + x + this.offset) + strain * dpr * 2, w = cw * 0.085 * wide;
     // A ripple trails whichever way he's moving, so it flows like a wave.
     const dir = Math.sign(vx);
     const ripple = this.reduced ? 0 : top * 0.42 * Math.min(1, Math.abs(vx) * 1.6) * (0.65 + 0.35 * Math.sin(this.clock * 10));
