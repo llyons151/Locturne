@@ -176,6 +176,8 @@ func handleAction(
   // "Fine" shield up past morning start. Put up the morning shield first, so this tap is "I'm up".
   // Inside the night, or with the night already let go, it does nothing.
   locturneMorningShieldIfDue()
+  // The same for a rehearsal night (dev and preview builds) whose window's end never came.
+  locturneRehearsalMorningIfDue()
 
   if let shieldActionConfig = getActivitySelectionPrefixedConfigFromUserDefaults(
     keyPrefix: SHIELD_ACTIONS_FOR_SELECTION_PREFIX,
@@ -196,6 +198,11 @@ func handleAction(
       // Locturne: "I'm up" on the morning shield checks the walk itself (LocturneMorningCheck.swift).
       if configForSelectedAction["type"] as? String == LOCTURNE_MORNING_CHECK {
         locturneMorningCheck(config: configForSelectedAction, completion: completionHandler)
+        return
+      }
+      // A rehearsal's "I'm up": the same check against the rehearsal's own morning.
+      if configForSelectedAction["type"] as? String == LOCTURNE_REHEARSAL_CHECK {
+        locturneRehearsalCheck(config: configForSelectedAction, completion: completionHandler)
         return
       }
       let placeholders: [String: String?] = [

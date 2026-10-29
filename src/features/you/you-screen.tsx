@@ -31,6 +31,7 @@ import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '
 import type { WakeMethod } from '@/lib/routine';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
+import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 
@@ -321,6 +322,9 @@ export function YouScreen() {
           )}
         </>
       ) : null}
+
+      {/* Dev and preview builds only: a real night of minutes from iOS, run with Locturne closed (features/dev/rehearsal). */}
+      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? <RehearsalSection headingStyle={styles.heading} icons={METHOD_ICONS} /> : null}
 
       <Text style={styles.signOff}>
         Locturne {Constants.expoConfig?.version ?? ''}

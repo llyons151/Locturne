@@ -60,7 +60,7 @@ done
 swiftc -swift-version 5 -suppress-warnings -o "$build/native-tests" \
   "$here/Shims.swift" "$build/Shared.swift" "$build/Locturne.swift" "$build/DeviceActivityMonitorExtension.swift" \
   "$build/ShieldActionExtension.swift" "$build/LocturneMorningCheck.swift" "$build/ShieldConfigurationExtension.swift" \
-  "$here/Harness.swift" "$here/Tests.swift" "$here/ShieldTapTests.swift" "$here/RobustnessTests.swift" "$here/Fixtures.swift" "$here/WakeFixtures.swift" "$here/main.swift"
+  "$here/Harness.swift" "$here/Tests.swift" "$here/ShieldTapTests.swift" "$here/RehearsalTests.swift" "$here/RobustnessTests.swift" "$here/Fixtures.swift" "$here/WakeFixtures.swift" "$here/main.swift"
 
 # The handoff fixtures: the real app code's App Group writes, in this time zone. The wake
 # fixtures go under fixtures/wake: a night per wake-up method and a tap on its shield.

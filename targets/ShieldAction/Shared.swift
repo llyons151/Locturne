@@ -935,6 +935,28 @@ func renameFamilyActivitySelectionId(previousId: String, newId: String) {
 /// and its "I'm up" come first; awake, a schedule's ("Asleep until 5 PM."). Anything else keeps
 /// its place: the always list's words still win, as "I'm up" can't wake those apps.
 func locturneNightFirst(_ ids: [FamilyActivitySelectionWithIdWithMatching]) -> [FamilyActivitySelectionWithIdWithMatching] {
+  let ordered = locturneNightOrder(ids)
+  // A rehearsal under way speaks just ahead of the bedtime list it copies: its night's words,
+  // then its own "I'm up".
+  guard locturneRehearsalLive(),
+    let rehearsal = ordered.firstIndex(where: { $0.id == "rehearsal" }),
+    let night = ordered.firstIndex(where: { $0.id == "night" }),
+    rehearsal > night
+  else { return ordered }
+  var moved = ordered
+  moved.insert(moved.remove(at: rehearsal), at: night)
+  return moved
+}
+
+/// Locturne: a rehearsal night under way (dev and preview builds: `startRehearsal` in
+/// src/lib/screen-time.ts): its night started and its morning isn't won or ended yet. Read here,
+/// not in Locturne.swift, because the ShieldConfiguration extension has only this file.
+func locturneRehearsalLive() -> Bool {
+  guard let rehearsal = userDefaults?.dictionary(forKey: "locturne.rehearsal") else { return false }
+  return rehearsal["heldAt"] != nil && rehearsal["wonAt"] == nil && rehearsal["endedAt"] == nil
+}
+
+private func locturneNightOrder(_ ids: [FamilyActivitySelectionWithIdWithMatching]) -> [FamilyActivitySelectionWithIdWithMatching] {
   guard let night = ids.firstIndex(where: { $0.id == "night" }) else { return ids }
   let schedule = { (s: FamilyActivitySelectionWithIdWithMatching) in s.id.hasPrefix("sched-") }
   if userDefaults?.bool(forKey: "locturne.nightHeld") == true {
@@ -1011,9 +1033,11 @@ func getPossibleFamilyActivitySelectionIds(
 
   let idsWithMatchings = familyActivitySelectionIds.map({ (activitySelection) in
     if onlyFamilySelectionIdsContainingMonitoredActivityNames {
+      // Locturne: a rehearsal's one-off window may be gone from iOS's list once its morning
+      // starts, and its "I'm up" must still be found.
       let isActivityMonitored = monitoredActivities.contains(where: {
         return $0.self.rawValue.contains(activitySelection.id)
-      })
+      }) || (activitySelection.id == "rehearsal" && locturneRehearsalLive())
 
       if !isActivityMonitored {
         return FamilyActivitySelectionWithIdWithMatching(

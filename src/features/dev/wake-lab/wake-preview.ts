@@ -2,7 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import type { WakeMethod } from '@/lib/routine';
-import { endTestLock, getTestLock } from '@/lib/screen-time';
+import { syncLock } from '@/lib/lock-controller';
+import { endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, winRehearsal } from '@/lib/screen-time';
 
 import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
 
@@ -65,7 +66,8 @@ export const getWakePreview = () => current;
 
 export function setWakePreview(change: Partial<WakePreview>) {
   const starts = change.phase === 'morning' && current.phase !== 'morning';
-  current = { ...current, ...change, ...(starts && { since: Date.now() }) };
+  // A rehearsal's morning counts from its own start (`rehearseTheMorning`).
+  current = { ...current, ...change, ...(starts && change.since === undefined && { since: Date.now() }) };
   listeners.forEach((l) => l());
 }
 
@@ -90,6 +92,7 @@ export function pretendPhase(): 'morning' | 'day' | null {
  */
 export function exitTestMorning() {
   if (getTestLock()) endTestLock();
+  if (getRehearsal()) endRehearsal();
   setWakePreview({ phase: 'real', won: null });
 }
 
@@ -107,8 +110,28 @@ export const pretendMethod = (): WakeMethod | null =>
 export const pretendWoke = (method?: WakeMethod) => {
   // You → Test the lock: the bedtime apps really sleep until the test morning on Home is won.
   if (method && getTestLock()) endTestLock();
+  // You → Rehearse a night: won in Locturne rather than from the shield.
+  if (method && rehearsalHeld(getRehearsal())) {
+    winRehearsal();
+    syncLock();
+  }
   setWakePreview({ phase: 'woke', won: method ? { method, at: Date.now() } : null });
 };
+
+/** Ends a rehearsal unwon (You, or Exit test on its morning), then puts the day's shield words back. */
+export function endRehearsal() {
+  finishRehearsal();
+  syncLock();
+}
+
+/**
+ * A rehearsal night's morning on Home (features/dev/rehearsal): a test morning for its method
+ * whose steps count from its morning start, as the shield's do. Winning it wakes the copy
+ * (`pretendWoke`).
+ */
+export function rehearseTheMorning(method: WakeMethod, since: number) {
+  setWakePreview({ phase: 'morning', method, since, won: null });
+}
 
 /**
  * One tap from You → Developer → UI: a pretend morning at any hour. On a phone the sensors stay

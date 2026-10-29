@@ -59,7 +59,8 @@ import { formatPreset } from './text.ts';
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
  * Block now session picks, one list per daily limit and one per app schedule (schedules.ts).
  */
-export type SelectionId = 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId | typeof BLOCK_DRAFT | typeof TEST_LOCK;
+export type SelectionId =
+  | 'night' | 'always' | 'block' | LimitId | ScheduleId | DraftId | typeof BLOCK_DRAFT | typeof TEST_LOCK | typeof REHEARSAL;
 
 /** Where Apple's picker writes while apps are added to a running Block now (`beginBlockAdd`). */
 export const BLOCK_DRAFT = 'block-next';
@@ -313,6 +314,7 @@ function heldLists(): SelectionId[] {
   if (nap && Date.now() < nap.end) held.push(nap.list);
   for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
   if (getTestLock()) held.push(TEST_LOCK);
+  if (rehearsalHeld(getRehearsal())) held.push(REHEARSAL);
   // Two minutes on, as the extension judges (`reapplyLocturneBlocks`): iOS can deliver a block's
   // start or end a little early, and an open right after mustn't undo what it did.
   const soon = scheduleSoon();
@@ -352,6 +354,167 @@ export function endTestLock(): void {
   if (!isAvailable()) return;
   unshield(TEST_LOCK);
   clearSelection(TEST_LOCK);
+  reapplyStandingBlocks();
+}
+
+/*
+ * A rehearsal night (dev and preview builds: You → Rehearse a night, features/dev/rehearsal). A
+ * real one-off iOS window of minutes, run by the extensions with Locturne closed, on a copy of
+ * the bedtime picks: its start shields the copy in the monitor extension (`locturneRehearsalNight`),
+ * its end puts up the rehearsal's morning shield (`locturneRehearsalMorning`), and "I'm up" on that
+ * reads the pedometer in the ShieldAction extension (`locturneRehearsalCheck`). The extensions note
+ * when each ran, so the app can say what iOS really did. The night lock, its proofs, passes and the
+ * count never see it.
+ */
+export const REHEARSAL = 'rehearsal';
+const REHEARSAL_KEY = 'locturne.rehearsal';
+const REHEARSAL_LAST_KEY = 'locturne.rehearsalLast';
+const REHEARSAL_ACTIVITY = 'locturne-rehearsal';
+const REHEARSAL_NIGHT_SHIELD = 'locturne-rehearsal-night';
+const REHEARSAL_MORNING_SHIELD = 'locturne-rehearsal-morning';
+/** The rehearsal morning shield's button type (`LOCTURNE_REHEARSAL_CHECK` in Locturne.swift). */
+const REHEARSAL_CHECK = 'locturneRehearsalCheck';
+
+/** A rehearsal and what happened in it. Times in ms; the extensions write the optional ones. */
+export type Rehearsal = {
+  method: string;
+  stepGoal: number;
+  /** When it was handed to iOS, and its bedtime and morning start. */
+  armedAt: number;
+  start: number;
+  end: number;
+  /** The monitor extension ran the window's start. */
+  heldAt?: number;
+  /** The morning shield went up: from the window's end (`iOS`), a later callback or tap (`late`), or the app. */
+  morningAt?: number;
+  morningBy?: 'iOS' | 'late' | 'app';
+  wonAt?: number;
+  wonBy?: 'shield' | 'app';
+  /** What the shield's pedometer read at the winning or last tap (-1: nothing). */
+  steps?: number;
+  floors?: number;
+  /** The last shield tap's verdict: a proof kind, `short`, `noHistory` or `early`. */
+  lastCheck?: string;
+  /** Ended without a win: from You, or found with no night ever started. */
+  endedAt?: number;
+};
+
+export function getRehearsal(): Rehearsal | null {
+  return sharedGet<Rehearsal>(REHEARSAL_KEY) ?? null;
+}
+
+/** The last rehearsal finished, for You to report. */
+export function getLastRehearsal(): Rehearsal | null {
+  return sharedGet<Rehearsal>(REHEARSAL_LAST_KEY) ?? null;
+}
+
+/** Is its copy asleep: started by iOS, not yet won or ended. As `locturneRehearsalLive` in Shared.swift. */
+export function rehearsalHeld(r: Rehearsal | null): r is Rehearsal & { heldAt: number } {
+  return !!r && r.heldAt !== undefined && r.wonAt === undefined && r.endedAt === undefined;
+}
+
+/**
+ * Hands iOS a night from the next whole minute after a minute from now, `minutes` long (iOS
+ * refuses under 15), for `method`. The shields' words are the real ones for that method, with
+ * the rehearsal's morning start. Throws what's in the way, in words for an alert.
+ */
+export async function startRehearsal(opts: {
+  method: string;
+  stepGoal: number;
+  night: (morningStart: Date) => ShieldText;
+  morning: (morningStart: Date) => ShieldText;
+  tap: ShieldTap;
+  minutes?: number;
+  now?: Date;
+}): Promise<Rehearsal> {
+  const { minutes = NAP_SHORTEST, now = new Date() } = opts;
+  if (!isAvailable()) throw new Error('A rehearsal needs Screen Time, so run it on the phone.');
+  if (getAccess() !== 'approved') throw new Error('Allow Screen Time first.');
+  if (selectionSize('night') === 0) throw new Error('Pick some bedtime apps in Apps first. The rehearsal puts those to sleep.');
+  if (isStoodDown()) throw new Error('Nothing locks without a subscription, so a rehearsal wouldn’t either.');
+  if (rehearsalHeld(getRehearsal())) throw new Error('A rehearsal is already under way.');
+  const start = Math.ceil((now.getTime() + 60_000) / 60_000) * 60_000;
+  const end = start + minutes * 60_000;
+  if (new Date(start).getTimezoneOffset() !== new Date(end).getTimezoneOffset()) {
+    throw new Error('The clocks change during that night. Try again after.');
+  }
+  // Whatever an earlier one left.
+  if (getRehearsal()) finishRehearsal();
+  copySelection('night', REHEARSAL);
+  updateShieldWithId(shieldConfig(opts.night(new Date(end))), shieldActions(null), REHEARSAL_NIGHT_SHIELD);
+  updateShieldWithId(
+    shieldConfig(opts.morning(new Date(end))),
+    {
+      primary: {
+        behavior: 'defer' as const,
+        // Not one of the library's types: Locturne's own, as `MORNING_CHECK`.
+        type: REHEARSAL_CHECK as unknown as 'sendNotification',
+        actions: opts.tap ? [{ type: 'sendNotification' as const, payload: opts.tap }] : [],
+      },
+    },
+    REHEARSAL_MORNING_SHIELD,
+  );
+  const rehearsal: Rehearsal = { method: opts.method, stepGoal: opts.stepGoal, armedAt: now.getTime(), start, end };
+  // Before iOS has it: the extension reads it at the window's start.
+  sharedSet(REHEARSAL_KEY, rehearsal);
+  try {
+    makeRoomFor(REHEARSAL_ACTIVITY);
+    configureActions({
+      activityName: REHEARSAL_ACTIVITY,
+      callbackName: 'intervalDidStart',
+      actions: [{ type: 'blockSelection', familyActivitySelectionId: REHEARSAL, shieldId: REHEARSAL_NIGHT_SHIELD }],
+    });
+    await startMonitoring(
+      REHEARSAL_ACTIVITY,
+      { intervalStart: napClockOf(start), intervalEnd: napClockOf(end), repeats: false },
+      [],
+    );
+  } catch (error) {
+    sharedRemove(REHEARSAL_KEY);
+    finishRehearsal();
+    throw error;
+  }
+  return rehearsal;
+}
+
+/**
+ * The app's part once the morning is due, as `syncLock` covers a night window's end iOS never
+ * made: the morning shield goes on the copy, noted as the app's, so the report still shows iOS
+ * didn't. Nothing before the morning or with the night never started.
+ */
+export function rehearsalMorningIfDue(now = new Date()): void {
+  const r = getRehearsal();
+  if (!rehearsalHeld(r) || r.morningAt !== undefined || now.getTime() < r.end || !isAvailable()) return;
+  const config = sharedGet<object>(`shieldConfiguration_${REHEARSAL_MORNING_SHIELD}`);
+  const actions = sharedGet<object>(`shieldActions_${REHEARSAL_MORNING_SHIELD}`);
+  if (config) userDefaultsSet(`${CONFIG_FOR_LIST}${REHEARSAL}`, config);
+  if (actions) userDefaultsSet(`${ACTIONS_FOR_LIST}${REHEARSAL}`, actions);
+  sharedSet(REHEARSAL_KEY, { ...r, morningAt: now.getTime(), morningBy: 'app' } satisfies Rehearsal);
+}
+
+/** Won in Locturne: noted, then finished. */
+export function winRehearsal(now = new Date()): void {
+  const r = getRehearsal();
+  if (!rehearsalHeld(r)) return;
+  sharedSet(REHEARSAL_KEY, { ...r, wonAt: now.getTime(), wonBy: 'app' } satisfies Rehearsal);
+  finishRehearsal(now);
+}
+
+/**
+ * Stops the window, wakes the copy (what a real rule holds stays asleep) and forgets it, keeping
+ * the record as the last one. One not won is noted as ended now.
+ */
+export function finishRehearsal(now = new Date()): void {
+  const r = getRehearsal();
+  if (r) sharedSet(REHEARSAL_LAST_KEY, r.wonAt === undefined && r.endedAt === undefined ? { ...r, endedAt: now.getTime() } : r);
+  // First, so nothing re-shields the copy on the way out.
+  sharedRemove(REHEARSAL_KEY);
+  if (!isAvailable()) return;
+  stopMonitoring([REHEARSAL_ACTIVITY]);
+  cleanUpAfterActivity(REHEARSAL_ACTIVITY);
+  unshield(REHEARSAL);
+  clearSelection(REHEARSAL);
+  for (const key of [`${CONFIG_FOR_LIST}${REHEARSAL}`, `${ACTIONS_FOR_LIST}${REHEARSAL}`]) userDefaultsRemove(key);
   reapplyStandingBlocks();
 }
 

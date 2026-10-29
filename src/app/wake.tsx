@@ -9,6 +9,8 @@ import { leaveLab } from '@/components/leave-route';
 import { readLock, routineAt } from '@/lib/lock-controller';
 import { shownScanCode } from '@/features/dev/wake-lab/stand-ins';
 import { askWalk } from '@/features/home/walk-request';
+import { resumeRehearsal } from '@/features/dev/rehearsal/rehearsal';
+import { getRehearsal, rehearsalHeld } from '@/lib/screen-time';
 
 /**
  * The morning wake-up has no page of its own: it happens on Home (docs/HOME_INTERACTIVE.md;
@@ -21,6 +23,12 @@ import { askWalk } from '@/features/home/walk-request';
 export default function WakeRoute() {
   const { method } = useLocalSearchParams<{ method?: string }>();
   useEffect(() => {
+    // A rehearsal's shield sent it (You → Rehearse a night): its test morning is on Home.
+    const rehearsal = getRehearsal();
+    if (rehearsalHeld(rehearsal) && Date.now() >= rehearsal.end) {
+      resumeRehearsal();
+      return leaveLab();
+    }
     const routine = routineAt(new Date());
     if (method !== 'steps' && routine.method === 'scan' && shownScanCode()) return router.replace('/scan?mode=morning');
     // A scan routine with no code saved can only be walked.

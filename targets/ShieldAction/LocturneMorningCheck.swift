@@ -65,3 +65,60 @@ func locturneMorningCheck(config: [String: Any], completion: @escaping (ShieldAc
   }
   DispatchQueue.main.asyncAfter(deadline: .now() + LOCTURNE_MOTION_TIMEOUT) { finish(nil, 0) }
 }
+
+/// "I'm up" on a rehearsal's morning shield (Locturne.swift's rehearsal section): the same reading
+/// and judging as `locturneMorningCheck`, from the rehearsal's own morning start, method and goal,
+/// and only its copy of the bedtime apps wakes. What each tap found is noted in its record.
+@available(iOS 15.0, *)
+func locturneRehearsalCheck(config: [String: Any], completion: @escaping (ShieldActionResponse) -> Void) {
+  CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication)
+  guard locturneRehearsalLive(), let rehearsal = locturneRehearsal(), let start = locturneRehearsalTime("end") else {
+    completion(.defer)
+    return
+  }
+  if Date() < start {
+    locturneShowRehearsalProgress(locturneEarlyTapLine(morningStart: locturneMinute(start)))
+    locturneNoteRehearsal(["lastCheck": "early"])
+    completion(.defer)
+    return
+  }
+  let method = locturneMethodInUse(rehearsal["method"] as? String ?? "steps")
+  let stepGoal = (rehearsal["stepGoal"] as? NSNumber)?.intValue ?? 200
+
+  var answered = false
+  let pedometer = CMPedometer()
+  let finish = { (steps: Int?, floors: Int) in
+    DispatchQueue.main.async {
+      if answered { return }
+      answered = true
+      if !locturneRehearsalLive() {
+        // Won in Locturne meanwhile: nothing left to do.
+      } else if let steps, let kind = locturneMotionProof(method: method, stepGoal: stepGoal, steps: steps, floors: floors) {
+        locturneNoteRehearsal(["lastCheck": kind])
+        locturneWakeRehearsal(steps: steps, floors: floors)
+      } else {
+        locturneShowRehearsalProgress(locturneMorningProgress(method: method, stepGoal: stepGoal, steps: steps))
+        locturneNoteRehearsal(["lastCheck": steps == nil ? "noHistory" : "short", "steps": steps ?? -1, "floors": floors])
+        if steps == nil || !["steps", "downstairs"].contains(method) {
+          for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {
+            if let payload = action["payload"] as? [String: Any] { sendNotification(contents: payload, placeholders: [:]) }
+          }
+        }
+      }
+      CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication)
+      completion(.defer)
+      _ = pedometer
+    }
+  }
+
+  guard CMPedometer.isStepCountingAvailable() else {
+    finish(nil, 0)
+    return
+  }
+  pedometer.queryPedometerData(from: start, to: Date()) { data, error in
+    if let error { logger.log("rehearsal check: pedometer \(error.localizedDescription, privacy: .public)") }
+    let floors = (data?.floorsDescended?.intValue ?? 0) + (data?.floorsAscended?.intValue ?? 0)
+    finish(data?.numberOfSteps.intValue, floors)
+  }
+  DispatchQueue.main.asyncAfter(deadline: .now() + LOCTURNE_MOTION_TIMEOUT) { finish(nil, 0) }
+}

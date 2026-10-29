@@ -17,6 +17,19 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     super.intervalDidStart(for: activity)
     logger.log("intervalDidStart")
 
+    // A rehearsal night (dev and preview builds) touches nothing of the real lock's: no list
+    // settles, no night is held. Only its copy of the bedtime apps sleeps.
+    if activity.rawValue == LOCTURNE_REHEARSAL_ACTIVITY {
+      if locturneRehearsalNight() {
+        self.executeActionsForEvent(activityName: activity.rawValue, callbackName: "intervalDidStart", eventName: nil)
+      }
+      persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidStart")
+      reapplyLocturneBlocks(triggeredBy: "locturne_rehearsal_intervalDidStart")
+      recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidStart")
+      notifyAppWithName(name: "intervalDidStart")
+      return
+    }
+
     if locturneObsoleteNightCallback(activity.rawValue) { return }
 
     // First, so a bedtime window shields the edited list, not the old one.
@@ -150,6 +163,16 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
     logger.log("intervalDidEnd")
+
+    // A rehearsal night's end: its morning shield, on its copy only.
+    if activity.rawValue == LOCTURNE_REHEARSAL_ACTIVITY {
+      locturneRehearsalMorning(by: "iOS")
+      persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidEnd")
+      reapplyLocturneBlocks(triggeredBy: "locturne_rehearsal_intervalDidEnd")
+      recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidEnd")
+      notifyAppWithName(name: "intervalDidEnd")
+      return
+    }
 
     if locturneObsoleteNightCallback(activity.rawValue) { return }
 

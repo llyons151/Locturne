@@ -398,6 +398,8 @@ func reapplyLocturneBlocks(triggeredBy: String) {
     if let id = schedule["id"] as? String { held.append(id) }
   }
 
+  if locturneRehearsalLive() { held.append(LOCTURNE_REHEARSAL_LIST) }
+
   var selection = FamilyActivitySelection()
   for id in held {
     if let picked = getFamilyActivitySelectionById(id: id) {
@@ -406,6 +408,7 @@ func reapplyLocturneBlocks(triggeredBy: String) {
   }
   blockSelectedApps(blockSelection: selection, triggeredBy: triggeredBy)
   locturneMorningShieldIfDue()
+  locturneRehearsalMorningIfDue()
 }
 
 /// Is the bedtime list showing the morning's shield, whose button runs "I'm up"?
@@ -806,4 +809,95 @@ private func locturneLogMorningCheck(_ entry: [String: Any], now: Date) {
   entry["at"] = (now.timeIntervalSince1970 * 1000).rounded()
   let earlier = userDefaults?.array(forKey: LOCTURNE_MORNING_CHECKS_KEY) ?? []
   userDefaults?.set([entry] + earlier.prefix(LOCTURNE_MORNING_CHECKS_KEEP - 1), forKey: LOCTURNE_MORNING_CHECKS_KEY)
+}
+
+// MARK: - Rehearsal nights (dev and preview builds)
+
+// A night of minutes on a real one-off iOS window, run here with Locturne closed, on a copy of
+// the bedtime picks (`startRehearsal` in src/lib/screen-time.ts, You → Rehearse a night). Its start
+// shields the copy, its end puts up the morning shield, and "I'm up" on that reads the pedometer
+// (`locturneRehearsalCheck`). Each step notes when it ran in the record, so the app can say what
+// iOS really did. The night lock, its proofs and the count never see it.
+
+let LOCTURNE_REHEARSAL_ACTIVITY = "locturne-rehearsal"
+let LOCTURNE_REHEARSAL_KEY = "locturne.rehearsal"
+let LOCTURNE_REHEARSAL_LIST = "rehearsal"
+let LOCTURNE_REHEARSAL_MORNING_SHIELD = "locturne-rehearsal-morning"
+/// The button type the app puts on the rehearsal's morning shield.
+let LOCTURNE_REHEARSAL_CHECK = "locturneRehearsalCheck"
+
+func locturneRehearsal() -> [String: Any]? { userDefaults?.dictionary(forKey: LOCTURNE_REHEARSAL_KEY) }
+
+func locturneRehearsalTime(_ key: String) -> Date? {
+  guard let at = (locturneRehearsal()?[key] as? NSNumber)?.doubleValue else { return nil }
+  return Date(timeIntervalSince1970: at / 1000)
+}
+
+/// Adds `changes` to the record, if there still is one.
+func locturneNoteRehearsal(_ changes: [String: Any]) {
+  guard var rehearsal = locturneRehearsal() else { return }
+  for (key, value) in changes { rehearsal[key] = value }
+  userDefaults?.set(rehearsal, forKey: LOCTURNE_REHEARSAL_KEY)
+}
+
+private func locturneStamp(_ date: Date) -> Double { (date.timeIntervalSince1970 * 1000).rounded() }
+
+/// The window's start: notes the night held, unless it isn't this rehearsal's (a late call from
+/// an older one, or none under way). True when the window's `blockSelection` should run.
+func locturneRehearsalNight(now: Date = Date()) -> Bool {
+  guard let rehearsal = locturneRehearsal(), rehearsal["wonAt"] == nil, rehearsal["endedAt"] == nil,
+    let start = locturneRehearsalTime("start"), let end = locturneRehearsalTime("end"),
+    // iOS can start a window a little early, as with the night's.
+    now >= start.addingTimeInterval(-300), now < end
+  else { return false }
+  if rehearsal["heldAt"] == nil { locturneNoteRehearsal(["heldAt": locturneStamp(now)]) }
+  return true
+}
+
+/// The window's end, or the first callback or tap after it if iOS never made that call
+/// (`by` says which): the copy shows the rehearsal's morning words, whose button is "I'm up".
+@available(iOS 15.0, *)
+@discardableResult
+func locturneRehearsalMorning(by: String, now: Date = Date()) -> Bool {
+  guard locturneRehearsalLive(), locturneRehearsal()?["morningAt"] == nil,
+    let end = locturneRehearsalTime("end"),
+    // Up to 5 minutes early, as `showLocturneMorningShield` allows.
+    now >= end.addingTimeInterval(-300)
+  else { return false }
+  locturneNoteRehearsal(["morningAt": locturneStamp(now), "morningBy": by])
+  updateShield(
+    shieldId: LOCTURNE_REHEARSAL_MORNING_SHIELD,
+    triggeredBy: "locturne_rehearsal_morning",
+    activitySelectionId: LOCTURNE_REHEARSAL_LIST
+  )
+  return true
+}
+
+/// The rehearsal's morning, if its window's end never put it up.
+@available(iOS 15.0, *)
+func locturneRehearsalMorningIfDue(now: Date = Date()) {
+  guard let end = locturneRehearsalTime("end"), now >= end else { return }
+  locturneRehearsalMorning(by: "late", now: now)
+}
+
+/// Won from the shield: the copy wakes, the day's words come back, every real rule's apps stay asleep.
+@available(iOS 15.0, *)
+func locturneWakeRehearsal(steps: Int?, floors: Int, now: Date = Date()) {
+  // First, so the re-apply below no longer holds it.
+  locturneNoteRehearsal(["wonAt": locturneStamp(now), "wonBy": "shield", "steps": steps ?? -1, "floors": floors])
+  if let picked = getFamilyActivitySelectionById(id: LOCTURNE_REHEARSAL_LIST) {
+    unblockSelection(removeSelection: picked, triggeredBy: "locturne_rehearsalUp")
+  }
+  restoreLocturneFallbackShield(triggeredBy: "locturne_rehearsalUp")
+  reapplyLocturneBlocks(triggeredBy: "locturne_rehearsalUp")
+}
+
+/// Puts how far they've got on the rehearsal's morning shield, as `locturneShowMorningProgress`
+/// does on the bedtime list's.
+func locturneShowRehearsalProgress(_ subtitle: String) {
+  for key in ["\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_\(LOCTURNE_REHEARSAL_LIST)", FALLBACK_SHIELD_CONFIGURATION_KEY] {
+    guard var config = userDefaults?.dictionary(forKey: key) else { continue }
+    config["subtitle"] = subtitle
+    userDefaults?.set(config, forKey: key)
+  }
 }
