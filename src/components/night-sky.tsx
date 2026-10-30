@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect, useId } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image as RNImage, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
@@ -46,6 +46,9 @@ export const moonBottom = (width: number) => MOON_TOP + moonSize(width);
  */
 const SKY = { width: 590, height: 1278 };
 const BAKED_MOON = { cx: 624, cy: -40, r: 217 };
+
+/** The original sky's brightness at 16 bits, for the live sky (tools/moon-lab/bake.py `sky_luma`). */
+const SKY_LUMA = isMoonSkyViewAvailable ? RNImage.resolveAssetSource(require('@/assets/moons/sky-luma.png')).uri : '';
 
 /** How long the moon takes to move between the opener and its resting place. */
 export const FLIGHT_MS = 1400;
@@ -442,24 +445,18 @@ export function NightSky({
     // scrolls the page (iOS clips at the screen anyway).
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
       <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
-        {/* Drawn live in Metal where the build has it (modules/moon-sky), the light gathered round
-            the resting moon; the baked image on the web and older builds. */}
+        {/* The same sky drawn live in Metal where the build has it (modules/moon-sky), over the baked
+            image, which shows on the web, on older builds, and until the live one has loaded. */}
+        <Image
+          source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
+          style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
+          contentFit="cover"
+          contentPosition="top right"
+          accessible={false}
+        />
         {isMoonSkyViewAvailable ? (
-          <MoonSkyView
-            style={StyleSheet.absoluteFill}
-            colors={moon.skyColors}
-            anchor={[to.left + to.size / 2 + (moon.cx - 0.5) * width, to.top + to.size / 2, (to.size / 2) * moon.scale]}
-            paused={reduced}
-          />
-        ) : (
-          <Image
-            source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
-            style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
-            contentFit="cover"
-            contentPosition="top right"
-            accessible={false}
-          />
-        )}
+          <MoonSkyView style={StyleSheet.absoluteFill} colors={moon.skyColors} texture={SKY_LUMA} paused={reduced} />
+        ) : null}
       </Animated.View>
       {/* A wrapper's opacity, since the glow's own is animated and would win. */}
       <View style={[StyleSheet.absoluteFill, moonless && styles.hidden]}>

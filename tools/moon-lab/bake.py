@@ -139,6 +139,28 @@ def save(px, name):
     return name
 
 
+def sky_luma():
+    """
+    The original sky's brightness for the live sky (modules/moon-sky): smoothed at 2x like the baked
+    skies, spread over its own darkest to brightest, and stored at 16 bits as two 8-bit channels
+    (red the high byte, green the low) in a lossless PNG, so the GPU's filtering stays smooth and
+    every moon's colours are mapped onto it in the shader, at the screen's resolution.
+    """
+    src = Image.open(SKY).convert('RGBA')
+    a = np.asarray(src, dtype=np.float64)
+    l0 = lum(a)
+    lo, hi = l0.min(), l0.max()
+    size = (src.width * 2, src.height * 2)
+    l = np.asarray(Image.fromarray(l0.astype(np.float32), 'F').resize(size, Image.BICUBIC), dtype=np.float64)
+    t = np.clip((blur(l, 3) - lo) / (hi - lo), 0, 1)
+    v = np.round(t * 65535).astype(np.uint32)
+    out = np.zeros((size[1], size[0], 4), dtype=np.uint8)
+    out[..., 0] = v >> 8
+    out[..., 1] = v & 0xFF
+    out[..., 3] = 255
+    Image.fromarray(out, 'RGBA').save(OUT / 'sky-luma.png', optimize=True)
+
+
 def ring_glow(m, box=2048):
     """
     The soft light under the Eclipse's ring, in a box 1.6 moon-widths wide centred on the moon. The
@@ -186,9 +208,10 @@ def twin_offsets(m):
 def main():
     data = json.loads((HERE / 'moons.json').read_text())
     OUT.mkdir(parents=True, exist_ok=True)
-    for old in OUT.glob('*.webp'):
+    for old in [*OUT.glob('*.webp'), *OUT.glob('*.png')]:
         old.unlink()
     sky_img, moon_img = Image.open(SKY), Image.open(MOON)
+    sky_luma()
     entries = []
     for m in data['moons']:
         e = {'id': m['id'], 'name': m['name'], 'kind': m['kind'], 'tag': m['tag'], 'glow': m['glow'],

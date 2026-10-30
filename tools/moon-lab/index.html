@@ -488,35 +488,35 @@ function addOrbs(root) {
     orbs.push({ canvas, ctx: canvas.getContext('2d'), colours: orbColours(BY_ID[canvas.dataset.orb]).map((c) => c.map((v) => v / 255)) });
   });
 }
-// ——— The live sky: soft bands of light round the resting moon, drawn every frame (MoonSkyModule.swift is the same math). ———
+// ——— The live sky: the original sky, from its 16-bit brightness map (assets/moons/sky-luma.png),
+// in each moon's colours, drifting and breathing a little. MoonSkyModule.swift is the same math. ———
 const SKY_FRAG = `precision highp float;
-uniform vec2 size; uniform float time; uniform vec3 C0, C1, C2, C3; uniform vec3 moon;
+uniform vec2 size; uniform float time; uniform vec3 C0, C1, C2, C3; uniform sampler2D luma; uniform vec2 lumaSize;
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
 float fbm(vec2 p){ float v = 0.0, a = 0.5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
-  for (int i = 0; i < 4; i++) { v += a * noise(p); p = m * p; a *= 0.5; } return v / 0.9375; }
+  for (int i = 0; i < 3; i++) { v += a * noise(p); p = m * p; a *= 0.5; } return v / 0.875; }
 vec3 ramp(float t){ t = clamp(t, 0.0, 1.0) * 3.0;
   if (t < 1.0) return mix(C0, C1, t); if (t < 2.0) return mix(C1, C2, t - 1.0); return mix(C2, C3, t - 2.0); }
 void main(){
   vec2 frag = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y);
-  vec2 p = (frag - moon.xy) / moon.z;
-  vec2 q = frag / moon.z;
+  // As the app laid the sky image: covering the screen, pinned top right, then flipped upside down.
+  float s = max(size.x / lumaSize.x, size.y / lumaSize.y);
+  vec2 drawn = lumaSize * s;
+  vec2 uv = vec2((frag.x - (size.x - drawn.x)) / drawn.x, (size.y - frag.y) / drawn.y);
+  // Subtly alive: the light drifts a little and breathes.
   float T = time;
-  // Mist: cloud noise folded through itself, rolling slowly sideways and up. No rings.
-  vec2 w = vec2(fbm(q * 0.9 + vec2(T * 0.035, T * 0.012)), fbm(q * 0.9 + vec2(4.7 - T * 0.03, 2.1 + T * 0.018)));
-  vec2 v = vec2(fbm(q * 1.3 + w * 1.8 + vec2(T * 0.05, -T * 0.02)), fbm(q * 1.3 + w * 1.8 + vec2(8.3 - T * 0.04, 3.1 + T * 0.025)));
-  float mist = fbm(q * 1.6 + v * 2.2 + vec2(T * 0.06, -T * 0.015));
-  mist = smoothstep(0.28, 0.95, mist);
-  // The light round the moon: a soft lift from the horizon, flattened so it spreads sideways.
-  float d = length(vec2(p.x * 0.6, p.y));
-  float lift = exp(-max(d - 1.0, 0.0) * 1.4);
-  float reach = exp(-max(d - 1.0, 0.0) * 0.7);
-  // The top of the sky (where the time sits) stays near black.
-  float low = smoothstep(0.18, 0.7, frag.y / size.y);
-  float t = (lift * (0.35 + 0.35 * mist) + reach * mist * 0.45) * low;
-  t = 1.0 - exp(-t * 1.6);
-  vec3 col = ramp(t) + (hash(frag + fract(time)) - 0.5) / 255.0;
+  vec2 n = vec2(fbm(uv * vec2(2.0, 4.0) + vec2(T * 0.04, T * 0.02)), fbm(uv * vec2(2.0, 4.0) + vec2(5.0 - T * 0.03, 3.0 + T * 0.025)));
+  uv += (n - 0.5) * 0.018;
+  vec4 c = texture2D(luma, uv);
+  float t = (c.r * 255.0 * 256.0 + c.g * 255.0) / 65535.0;
+  t *= 0.96 + 0.06 * (0.5 + 0.5 * sin(T * 0.25));
+  // Triangular dither of about one and a half 8-bit steps, new each frame and each channel: dark gradients
+  // only span a few dozen steps, and without it they show as contour lines.
+  vec2 seed = frag + fract(time * 7.0) * 61.0;
+  vec3 dn = vec3(hash(seed) + hash(seed + 17.1), hash(seed + 31.7) + hash(seed + 47.3), hash(seed + 59.9) + hash(seed + 73.1)) - 1.0;
+  vec3 col = ramp(t) + dn * 1.5 / 255.0;
   gl_FragColor = vec4(col, 1.0);
 }`;
 const SKY_K = Math.min(window.devicePixelRatio || 1, 2);
@@ -537,7 +537,22 @@ const skyGL = (() => {
   gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   gl.uniform2f(gl.getUniformLocation(prog, 'size'), canvas.width, canvas.height);
   gl.viewport(0, 0, canvas.width, canvas.height);
-  return { canvas, gl, C: [0, 1, 2, 3].map((i) => gl.getUniformLocation(prog, 'C' + i)), moon: gl.getUniformLocation(prog, 'moon'), time: gl.getUniformLocation(prog, 'time') };
+  const state = { canvas, gl, ready: false, C: [0, 1, 2, 3].map((i) => gl.getUniformLocation(prog, 'C' + i)), time: gl.getUniformLocation(prog, 'time') };
+  const img = new Image();
+  img.onload = () => {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.uniform1i(gl.getUniformLocation(prog, 'luma'), 0);
+    gl.uniform2f(gl.getUniformLocation(prog, 'lumaSize'), img.naturalWidth, img.naturalHeight);
+    state.ready = true;
+  };
+  img.src = '/assets/moons/sky-luma.png';
+  return state;
 })();
 /** A moon's sky stops as the shader's four colours (three-stop skies repeat their brightest). */
 const skyColours = (m) => { const c = m.sky.map((h) => hex(h).map((v) => v / 255)); while (c.length < 4) c.push(c[c.length - 1]); return c; };
@@ -547,23 +562,20 @@ function addSkies(root) {
     canvas.width = skyGL ? skyGL.canvas.width : 1; canvas.height = skyGL ? skyGL.canvas.height : 1;
     canvas._visible = true;
     seen.observe(canvas);
-    const size = BASE * (m.scale ?? 1);
-    skies.push({ canvas, ctx: canvas.getContext('2d'), colours: skyColours(m),
-      moon: [W * (m.cx ?? 0.5) * SKY_K, (PANEL - size * 0.36 + size / 2) * SKY_K, (size / 2) * SKY_K] });
+    skies.push({ canvas, ctx: canvas.getContext('2d'), colours: skyColours(m) });
   });
 }
 let lastSky = 0;
 function drawSkies(ms) {
   // 30 a second, as the app's sky will run.
-  if (!skyGL || !document.body.classList.contains('sky-live') || ms - lastSky < 33) return;
+  if (!skyGL?.ready || !document.body.classList.contains('sky-live') || ms - lastSky < 33) return;
   lastSky = ms;
   skies = skies.filter((s) => s.canvas.isConnected);
-  const { gl, C, moon, time, canvas } = skyGL;
+  const { gl, C, time, canvas } = skyGL;
   gl.uniform1f(time, ms / 1000);
   for (const s of skies) {
     if (!s.canvas._visible) continue;
     s.colours.forEach((c, i) => gl.uniform3fv(C[i], c));
-    gl.uniform3fv(moon, s.moon);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     s.ctx.drawImage(canvas, 0, 0);
   }

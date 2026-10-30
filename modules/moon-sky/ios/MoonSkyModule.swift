@@ -3,14 +3,16 @@ import MetalKit
 import UIKit
 
 /**
- The night sky behind every screen, drawn live by a Metal shader at the screen's own resolution:
- a slow mist rolling through the light gathered round the resting moon, in the worn moon's four
- colours, dithered so the dark gradients never band. It replaces the baked sky image, which looked
- fuzzy and low-res on the phone (user, 2026-10-29: "drawn live … native Swift"). The same math runs
- in the moon lab (tools/moon-lab, SKY_FRAG), where the look is tuned.
+ The night sky behind every screen, drawn live in Metal: the original sky (its brightness baked at
+ 16 bits into assets/moons/sky-luma.png), in the worn moon's four colours, at the screen's own
+ resolution, drifting and breathing a little. The baked sky images looked fuzzy and banded on the
+ phone; the user wanted the same sky, "just subtly animated and rendered natively" (2026-10-29).
+ The same math runs in the moon lab (tools/moon-lab, SKY_FRAG), where the look is tuned.
 
- It runs at 30 frames a second, only while on screen with the app active, and holds still for
- Reduce Motion or `paused`, drawing one frame on demand instead.
+ Drawn in 10-bit colour with a triangular dither, so dark gradients don't show contour lines. It
+ runs at 30 frames a second, only while on screen with the app active, and holds still for Reduce
+ Motion or `paused`. Until its brightness map has loaded (or if it can't), it shows nothing and the
+ baked image under it stays in view.
  */
 public class MoonSkyModule: Module {
   public func definition() -> ModuleDefinition {
@@ -20,8 +22,9 @@ public class MoonSkyModule: Module {
       Prop("colors") { (view: MoonSkyView, colors: [String]) in
         view.setColors(colors)
       }
-      Prop("anchor") { (view: MoonSkyView, anchor: [Double]) in
-        view.setAnchor(anchor)
+      /// Where sky-luma.png is: a file:// or http:// URI (Metro, in development), or a path in the app.
+      Prop("texture") { (view: MoonSkyView, uri: String) in
+        view.setTexture(uri)
       }
       Prop("paused") { (view: MoonSkyView, paused: Bool) in
         view.pausedByProp = paused
@@ -34,26 +37,31 @@ public class MoonSkyModule: Module {
 final class MoonSkyView: ExpoView {
   private let metalView: MTKView
   private let renderer: MoonSkyRenderer?
+  private let loader: MTKTextureLoader?
+  private var textureURI: String?
   var pausedByProp = false
   private var observers: [NSObjectProtocol] = []
 
   required init(appContext: AppContext? = nil) {
     let device = MTLCreateSystemDefaultDevice()
     metalView = MTKView(frame: .zero, device: device)
-    renderer = device.flatMap { MoonSkyRenderer(device: $0, pixelFormat: .bgra8Unorm) }
+    renderer = device.flatMap { MoonSkyRenderer(device: $0, pixelFormat: .bgr10_xr) }
+    loader = device.map { MTKTextureLoader(device: $0) }
     super.init(appContext: appContext)
 
-    backgroundColor = .black
+    backgroundColor = .clear
     clipsToBounds = true
-    metalView.colorPixelFormat = .bgra8Unorm
+    // 10-bit: four times the steps of 8-bit, so the sky's dark gradients stay smooth.
+    metalView.colorPixelFormat = .bgr10_xr
     metalView.isOpaque = true
     metalView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
     metalView.framebufferOnly = true
     metalView.preferredFramesPerSecond = 30
     metalView.isUserInteractionEnabled = false
-    // 2x even on 3x screens: the mist has no sharp edges, so it looks the same at under half the work.
-    metalView.contentScaleFactor = min(UIScreen.main.scale, 2)
+    metalView.contentScaleFactor = UIScreen.main.scale
     metalView.delegate = renderer
+    // Hidden until the brightness map is in, so the baked image under it shows meanwhile.
+    metalView.isHidden = true
     addSubview(metalView)
 
     let center = NotificationCenter.default
@@ -83,10 +91,39 @@ final class MoonSkyView: ExpoView {
     redrawIfStill()
   }
 
-  func setAnchor(_ anchor: [Double]) {
-    guard anchor.count == 3 else { return }
-    renderer?.anchor = SIMD3(Float(anchor[0]), Float(anchor[1]), Float(anchor[2]))
-    redrawIfStill()
+  func setTexture(_ uri: String) {
+    guard uri != textureURI, let loader else { return }
+    textureURI = uri
+    let options: [MTKTextureLoader.Option: Any] = [
+      .SRGB: false,
+      .generateMipmaps: false,
+      .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
+      .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
+    ]
+    let done: (MTLTexture?) -> Void = { [weak self] texture in
+      DispatchQueue.main.async {
+        guard let self, self.textureURI == uri, let texture else { return }
+        self.renderer?.luma = texture
+        self.metalView.isHidden = false
+        self.redrawIfStill()
+      }
+    }
+    if uri.hasPrefix("http://") || uri.hasPrefix("https://"), let url = URL(string: uri) {
+      URLSession.shared.dataTask(with: url) { data, _, _ in
+        guard let data else { return done(nil) }
+        loader.newTexture(data: data, options: options) { texture, _ in done(texture) }
+      }.resume()
+    } else if let url = fileURL(uri) {
+      loader.newTexture(URL: url, options: options) { texture, _ in done(texture) }
+    }
+  }
+
+  /// A file:// URI, an absolute path, or a path inside the app bundle.
+  private func fileURL(_ uri: String) -> URL? {
+    if uri.hasPrefix("file://") { return URL(string: uri) }
+    if uri.hasPrefix("/") { return URL(fileURLWithPath: uri) }
+    let inBundle = Bundle.main.bundleURL.appendingPathComponent(uri)
+    return FileManager.default.fileExists(atPath: inBundle.path) ? inBundle : nil
   }
 
   private func redrawIfStill() {
@@ -119,8 +156,8 @@ private struct MoonSkyUniforms {
   var size: SIMD2<Float>
   var time: Float
   var pad: Float
-  /// The resting moon in pixels: centre x, centre y (down from the top), radius; w unused.
-  var moon: SIMD4<Float>
+  var lumaSize: SIMD2<Float>
+  var pad2: SIMD2<Float>
   var c0: SIMD4<Float>
   var c1: SIMD4<Float>
   var c2: SIMD4<Float>
@@ -144,8 +181,7 @@ final class MoonSkyRenderer: NSObject, MTKViewDelegate {
   private var time = Float.random(in: 0..<200)
   private var last = CACurrentMediaTime()
   var colors = moonlightSky
-  /// In points; scaled to pixels when drawn.
-  var anchor = SIMD3<Float>(0, 0, 0)
+  var luma: MTLTexture?
 
   init?(device: MTLDevice, pixelFormat: MTLPixelFormat) {
     guard
@@ -171,23 +207,20 @@ final class MoonSkyRenderer: NSObject, MTKViewDelegate {
     last = now
     guard
       colors.count == 4,
+      let luma,
       let pass = view.currentRenderPassDescriptor,
       let drawable = view.currentDrawable,
       let buffer = queue.makeCommandBuffer(),
       let encoder = buffer.makeRenderCommandEncoder(descriptor: pass)
     else { return }
-    let scale = Float(view.contentScaleFactor)
-    // No anchor yet: the bottom middle, a moon as wide as the screen.
-    let width = Float(view.drawableSize.width), height = Float(view.drawableSize.height)
-    let moon = anchor.z > 0
-      ? SIMD4(anchor.x * scale, anchor.y * scale, anchor.z * scale, 0)
-      : SIMD4(width / 2, height + width * 0.14, width * 0.45, 0)
     var uniforms = MoonSkyUniforms(
-      size: SIMD2(width, height), time: time, pad: 0, moon: moon,
+      size: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)), time: time, pad: 0,
+      lumaSize: SIMD2(Float(luma.width), Float(luma.height)), pad2: .zero,
       c0: colors[0], c1: colors[1], c2: colors[2], c3: colors[3]
     )
     encoder.setRenderPipelineState(pipeline)
     encoder.setFragmentBytes(&uniforms, length: MemoryLayout<MoonSkyUniforms>.stride, index: 0)
+    encoder.setFragmentTexture(luma, index: 0)
     encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
     encoder.endEncoding()
     buffer.present(drawable)
@@ -201,7 +234,7 @@ private let moonSkyShaderSource = """
 using namespace metal;
 
 struct VOut { float4 position [[position]]; };
-struct Uniforms { float2 size; float time; float pad; float4 moon; float4 c0; float4 c1; float4 c2; float4 c3; };
+struct Uniforms { float2 size; float time; float pad; float2 lumaSize; float2 pad2; float4 c0; float4 c1; float4 c2; float4 c3; };
 
 vertex VOut moon_sky_vertex(uint vid [[vertex_id]]) {
   float2 corners[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
@@ -228,8 +261,8 @@ static float fbm(float2 p) {
   float v = 0.0;
   float a = 0.5;
   float2x2 m = float2x2(float2(1.6, 1.2), float2(-1.2, 1.6));
-  for (int i = 0; i < 4; i++) { v += a * noise(p); p = m * p; a *= 0.5; }
-  return v / 0.9375;
+  for (int i = 0; i < 3; i++) { v += a * noise(p); p = m * p; a *= 0.5; }
+  return v / 0.875;
 }
 
 static float3 ramp(float t, constant Uniforms &u) {
@@ -239,25 +272,25 @@ static float3 ramp(float t, constant Uniforms &u) {
   return mix(u.c2.rgb, u.c3.rgb, t - 2.0);
 }
 
-fragment float4 moon_sky_fragment(VOut in [[stage_in]], constant Uniforms &u [[buffer(0)]]) {
+fragment float4 moon_sky_fragment(VOut in [[stage_in]], constant Uniforms &u [[buffer(0)]], texture2d<float> luma [[texture(0)]]) {
+  constexpr sampler smooth(filter::linear, address::clamp_to_edge);
   float2 frag = in.position.xy;
-  float2 p = (frag - u.moon.xy) / u.moon.z;
-  float2 q = frag / u.moon.z;
+  // As the app laid the sky image: covering the screen, pinned top right, then flipped upside down.
+  float s = max(u.size.x / u.lumaSize.x, u.size.y / u.lumaSize.y);
+  float2 drawn = u.lumaSize * s;
+  float2 uv = float2((frag.x - (u.size.x - drawn.x)) / drawn.x, (u.size.y - frag.y) / drawn.y);
+  // Subtly alive: the light drifts a little and breathes.
   float T = u.time;
-  // Mist: cloud noise folded through itself, rolling slowly sideways and up. No rings (user, 2026-10-29).
-  float2 w = float2(fbm(q * 0.9 + float2(T * 0.035, T * 0.012)), fbm(q * 0.9 + float2(4.7 - T * 0.03, 2.1 + T * 0.018)));
-  float2 v = float2(fbm(q * 1.3 + w * 1.8 + float2(T * 0.05, -T * 0.02)), fbm(q * 1.3 + w * 1.8 + float2(8.3 - T * 0.04, 3.1 + T * 0.025)));
-  float mist = fbm(q * 1.6 + v * 2.2 + float2(T * 0.06, -T * 0.015));
-  mist = smoothstep(0.28, 0.95, mist);
-  // The light round the moon: a soft lift from the horizon, flattened so it spreads sideways.
-  float d = length(float2(p.x * 0.6, p.y));
-  float lift = exp(-max(d - 1.0, 0.0) * 1.4);
-  float reach = exp(-max(d - 1.0, 0.0) * 0.7);
-  // The top of the sky (where the time sits) stays near black.
-  float low = smoothstep(0.18, 0.7, frag.y / u.size.y);
-  float t = (lift * (0.35 + 0.35 * mist) + reach * mist * 0.45) * low;
-  t = 1.0 - exp(-t * 1.6);
-  float3 col = ramp(t, u) + (hash(frag + fract(u.time)) - 0.5) / 255.0;
+  float2 n = float2(fbm(uv * float2(2.0, 4.0) + float2(T * 0.04, T * 0.02)), fbm(uv * float2(2.0, 4.0) + float2(5.0 - T * 0.03, 3.0 + T * 0.025)));
+  uv += (n - 0.5) * 0.018;
+  // 16 bits in two channels: red the high byte, green the low. Filtering each keeps the sum exact.
+  float4 c = luma.sample(smooth, uv);
+  float t = (c.r * 255.0 * 256.0 + c.g * 255.0) / 65535.0;
+  t *= 0.96 + 0.06 * (0.5 + 0.5 * sin(T * 0.25));
+  // Triangular dither of about one and a half 8-bit steps, new each frame and each channel.
+  float2 seed = frag + fract(T * 7.0) * 61.0;
+  float3 dn = float3(hash(seed) + hash(seed + 17.1), hash(seed + 31.7) + hash(seed + 47.3), hash(seed + 59.9) + hash(seed + 73.1)) - 1.0;
+  float3 col = ramp(t, u) + dn * 1.5 / 255.0;
   return float4(col, 1.0);
 }
 """
