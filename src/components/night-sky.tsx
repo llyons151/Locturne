@@ -16,6 +16,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { MoonRingView, isMoonRingViewAvailable } from 'moon-ring';
+
 import { useMoon } from '@/features/moons/moon-theme';
 import type { MoonDef } from '@/features/moons/moon-types';
 
@@ -466,8 +468,14 @@ export function NightSky({
             contentFit="contain"
             accessible={false}
           />
-          {moon.ring ? <MoonPart source={moon.ring} box={frostBase} x={0} y={0} size={1.6} /> : null}
-          {moon.ringLine ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
+          {moon.ringLine?.kind === 'eclipse' && isMoonRingViewAvailable ? (
+            <MoonRingView style={ringBox(frostBase)} />
+          ) : (
+            <>
+              {moon.ring ? <MoonPart source={moon.ring} box={frostBase} x={0} y={0} size={1.6} /> : null}
+              {moon.ringLine ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
+            </>
+          )}
           {moon.twin && moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
         </Animated.View>
       </View>
@@ -496,8 +504,15 @@ function MoonPart({ source, box, x, y, size, tint }: { source: number | object; 
   );
 }
 
+/** The Eclipse's native ring (modules/moon-ring): a square 1.6 moon-widths wide on the moon's centre, in its layer. */
+function ringBox(box: number) {
+  const side = (1.6 * box) / FROST_PAD;
+  return { position: 'absolute' as const, width: side, height: side, left: (box - side) / 2, top: (box - side) / 2 };
+}
+
 /**
- * A ring's sharp lines as vectors, so they're crisp at any size: the Eclipse's bright edge (the
+ * A ring's sharp lines as vectors, so they're crisp at any size (the Eclipse's, where the native
+ * ring isn't in the build: the web and older builds): the Eclipse's bright edge (the
  * user asked for this ring of light, on the Eclipse only, 2026-10-29) or a flat Saturn ring.
  */
 function MoonRing({ line, box }: { line: NonNullable<MoonDef['ringLine']>; box: number }) {
