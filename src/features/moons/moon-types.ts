@@ -17,6 +17,8 @@ export type MoonDef = {
   cx: number;
   /** The Sleep orb's four colours, dark to light (the Moonwell shader's C0…C3). */
   orb: [string, string, string, string];
+  /** The live sky's four colours, dark to light (modules/moon-sky). */
+  skyColors: [string, string, string, string];
   /** Recoloured sky and moon; today's moon has none and keeps the original images. */
   sky?: ImageSourcePropType;
   moon?: ImageSourcePropType;

@@ -19,6 +19,9 @@
       "moon-ring": [
         "./modules/moon-ring"
       ],
+      "moon-sky": [
+        "./modules/moon-sky"
+      ],
       "day-dots": [
         "./modules/day-dots"
       ]

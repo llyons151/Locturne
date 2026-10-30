@@ -78,6 +78,10 @@
     box-shadow: 0 0 0 8px #1e1f24, 0 18px 40px rgba(0,0,0,0.5); color: var(--text); transition: box-shadow .2s; }
   .panel { position: absolute; left: 0; right: 0; top: 0; overflow: hidden; border-radius: 0 0 36px 36px; background: #000; }
   .sky { position: absolute; inset: 0; background: var(--sky-img) right top / cover no-repeat; transform: scaleY(-1); }
+  /* The live sky (MoonSky): drawn every frame by a shader, in place of the baked image. */
+  .livesky { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; }
+  body.sky-live .livesky { display: block; }
+  body.sky-live .sky { display: none; }
   .abs { position: absolute; }
   /* The halo: the moon's glow image as a mask, filled with that moon's colour. */
   .glow { position: absolute; background-color: var(--glow); -webkit-mask: var(--glow-img) center / contain no-repeat; mask: var(--glow-img) center / contain no-repeat; }
@@ -124,7 +128,7 @@
   .lineup-item .cap b { color: #fff; font-size: 13px; display: block; }
 </style>
 </head>
-<body>
+<body class="sky-live">
 <svg width="0" height="0" style="position:absolute"><defs id="filters"></defs></svg>
 
 <header class="top">
@@ -138,6 +142,10 @@
   <div>
     <div class="seg-label">Halo</div>
     <div class="seg" id="halo"><button data-v="matched" class="on">Matched</button><button data-v="blue">Today's blue</button><button data-v="off">Off</button></div>
+  </div>
+  <div>
+    <div class="seg-label">Sky</div>
+    <div class="seg" id="skymode"><button data-v="live" class="on">Live</button><button data-v="baked">Baked</button></div>
   </div>
 </header>
 
@@ -480,7 +488,87 @@ function addOrbs(root) {
     orbs.push({ canvas, ctx: canvas.getContext('2d'), colours: orbColours(BY_ID[canvas.dataset.orb]).map((c) => c.map((v) => v / 255)) });
   });
 }
+// ——— The live sky: soft bands of light round the resting moon, drawn every frame (MoonSkyModule.swift is the same math). ———
+const SKY_FRAG = `precision highp float;
+uniform vec2 size; uniform float time; uniform vec3 C0, C1, C2, C3; uniform vec3 moon;
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 3; i++) { v += a * noise(p); p = m * p; a *= 0.5; } return v / 0.875; }
+vec3 ramp(float t){ t = clamp(t, 0.0, 1.0) * 3.0;
+  if (t < 1.0) return mix(C0, C1, t); if (t < 2.0) return mix(C1, C2, t - 1.0); return mix(C2, C3, t - 2.0); }
+void main(){
+  vec2 frag = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y);
+  vec2 p = (frag - moon.xy) / moon.z;
+  float T = time * 0.05;
+  vec2 q = frag / moon.z * 1.1;
+  vec2 w = vec2(fbm(q * 0.6 + vec2(T, -0.6 * T)), fbm(q * 0.6 + vec2(5.2 - 0.7 * T, 1.3 + 0.4 * T)));
+  // Flattened: wide sweeps of light across the sky, not rings round the moon.
+  float r = length(vec2(p.x * 0.55, p.y)) + (w.x - 0.5) * 0.75 + (w.y - 0.5) * 0.25 * p.x;
+  float ang = atan(p.x, -p.y);
+  float rings = 0.95 * exp(-pow((r - 1.18) / 0.15, 2.0)) + 0.65 * exp(-pow((r - 1.6) / 0.2, 2.0)) + 0.3 * exp(-pow((r - 2.15) / 0.28, 2.0));
+  float haze = exp(-max(r - 1.0, 0.0) * 1.5);
+  float side = 0.6 + 0.4 * sin(ang * 1.4 + 0.9 + (w.y - 0.5) * 2.5);
+  float patches = 0.55 + 0.9 * fbm(q * 0.9 + w * 1.6 - T * 0.5);
+  // The light stays low, round the moon: the top of the sky (where the time sits) is near black.
+  float low = smoothstep(0.15, 0.62, frag.y / size.y);
+  float t = (rings * side * patches * 0.72 + haze * 0.45) * low;
+  t = 1.0 - exp(-t * 1.25);
+  vec3 col = ramp(t) + (hash(frag + fract(time)) - 0.5) / 255.0;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+const SKY_K = Math.min(window.devicePixelRatio || 1, 2);
+let skies = [];
+const skyGL = (() => {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(W * SKY_K); canvas.height = Math.round(PANEL * SKY_K);
+  const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+  if (!gl) return null;
+  const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x);
+    if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(x)); return x; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, SKY_FRAG));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform2f(gl.getUniformLocation(prog, 'size'), canvas.width, canvas.height);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  return { canvas, gl, C: [0, 1, 2, 3].map((i) => gl.getUniformLocation(prog, 'C' + i)), moon: gl.getUniformLocation(prog, 'moon'), time: gl.getUniformLocation(prog, 'time') };
+})();
+/** A moon's sky stops as the shader's four colours (three-stop skies repeat their brightest). */
+const skyColours = (m) => { const c = m.sky.map((h) => hex(h).map((v) => v / 255)); while (c.length < 4) c.push(c[c.length - 1]); return c; };
+function addSkies(root) {
+  root.querySelectorAll('canvas[data-sky]').forEach((canvas) => {
+    const m = BY_ID[canvas.dataset.sky];
+    canvas.width = skyGL ? skyGL.canvas.width : 1; canvas.height = skyGL ? skyGL.canvas.height : 1;
+    canvas._visible = true;
+    seen.observe(canvas);
+    const size = BASE * (m.scale ?? 1);
+    skies.push({ canvas, ctx: canvas.getContext('2d'), colours: skyColours(m),
+      moon: [W * (m.cx ?? 0.5) * SKY_K, (PANEL - size * 0.36 + size / 2) * SKY_K, (size / 2) * SKY_K] });
+  });
+}
+let lastSky = 0;
+function drawSkies(ms) {
+  // 30 a second, as the app's sky will run.
+  if (!skyGL || !document.body.classList.contains('sky-live') || ms - lastSky < 33) return;
+  lastSky = ms;
+  skies = skies.filter((s) => s.canvas.isConnected);
+  const { gl, C, moon, time, canvas } = skyGL;
+  gl.uniform1f(time, ms / 1000);
+  for (const s of skies) {
+    if (!s.canvas._visible) continue;
+    s.colours.forEach((c, i) => gl.uniform3fv(C[i], c));
+    gl.uniform3fv(moon, s.moon);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    s.ctx.drawImage(canvas, 0, 0);
+  }
+}
 function tick(ms) {
+  drawSkies(ms);
   if (shared) {
     orbs = orbs.filter((o) => o.canvas.isConnected);
     const { gl, C, time, canvas } = shared;
@@ -561,6 +649,7 @@ function phoneHTML(m) {
   return `<div class="phone">
     <div class="panel" style="height:${PANEL}px">
       <div class="sky" style="${m.original ? '' : `filter:url(#sky-${m.id})`}"></div>
+      <canvas class="livesky" data-sky="${m.id}"></canvas>
       ${behind}
       <div class="glow${m.original ? ' orig' : ''}" style="${box(G)};--glow:${m.glow};opacity:${m.glowOpacity ?? 1}"></div>
       <div class="moonwrap" style="${box(F)}">
@@ -664,6 +753,7 @@ function renderGroups() {
     groups.append(h, grid);
   }
   addOrbs(groups);
+  addSkies(groups);
 }
 
 function renderLadder() {
@@ -680,6 +770,7 @@ function renderLadder() {
   const n = picks.slots.filter(Boolean).length;
   document.getElementById('ladder-count').textContent = `${n} of 11 picked · ${picks.nope.length} marked no`;
   addOrbs(slotsEl);
+  addSkies(slotsEl);
 }
 
 function renderMarks() {
@@ -718,6 +809,7 @@ function renderLineup() {
     </div>`;
   }).join('');
   addOrbs(row);
+  addSkies(row);
 }
 
 // Dragging: a card onto a slot fills it; a slot onto another swaps them.
@@ -771,6 +863,7 @@ function seg(id, on) {
     on(b.dataset.v);
   });
 }
+seg('skymode', (v) => { document.body.classList.toggle('sky-live', v === 'live'); });
 seg('halo', (v) => { document.body.classList.toggle('halo-blue', v === 'blue'); document.body.classList.toggle('halo-off', v === 'off'); });
 seg('show', (v) => { show = v; applyFilter(); });
 seg('nopes', (v) => { nopes = v; applyFilter(); });

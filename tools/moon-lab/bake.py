@@ -192,7 +192,9 @@ def main():
     entries = []
     for m in data['moons']:
         e = {'id': m['id'], 'name': m['name'], 'kind': m['kind'], 'tag': m['tag'], 'glow': m['glow'],
-             'glowOpacity': m.get('glowOpacity', 1), 'scale': m.get('scale', 1), 'cx': m.get('cx', 0.5), 'orb': orb(m)}
+             'glowOpacity': m.get('glowOpacity', 1), 'scale': m.get('scale', 1), 'cx': m.get('cx', 0.5), 'orb': orb(m),
+             # The live sky's four colours (modules/moon-sky): the sky's stops, three-stop skies repeating their brightest.
+             'skyColors': (m['sky'] + [m['sky'][-1]] * 4)[:4]}
         if not m.get('original'):
             e['sky'] = save(gradient_map(sky_img, m['sky'], scale=2, sigma=3), f"{m['id']}-sky.webp")
             px = gradient_map(moon_img, m['moon'], scale=2, sigma=1.2)

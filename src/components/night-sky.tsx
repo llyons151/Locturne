@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { MoonRingView, isMoonRingViewAvailable } from 'moon-ring';
+import { MoonSkyView, isMoonSkyViewAvailable } from 'moon-sky';
 
 import { useMoon } from '@/features/moons/moon-theme';
 import type { MoonDef } from '@/features/moons/moon-types';
@@ -441,13 +442,24 @@ export function NightSky({
     // scrolls the page (iOS clips at the screen anyway).
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
       <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
-        <Image
-          source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
-          style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
-          contentFit="cover"
-          contentPosition="top right"
-          accessible={false}
-        />
+        {/* Drawn live in Metal where the build has it (modules/moon-sky), the light gathered round
+            the resting moon; the baked image on the web and older builds. */}
+        {isMoonSkyViewAvailable ? (
+          <MoonSkyView
+            style={StyleSheet.absoluteFill}
+            colors={moon.skyColors}
+            anchor={[to.left + to.size / 2 + (moon.cx - 0.5) * width, to.top + to.size / 2, (to.size / 2) * moon.scale]}
+            paused={reduced}
+          />
+        ) : (
+          <Image
+            source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
+            style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
+            contentFit="cover"
+            contentPosition="top right"
+            accessible={false}
+          />
+        )}
       </Animated.View>
       {/* A wrapper's opacity, since the glow's own is animated and would win. */}
       <View style={[StyleSheet.absoluteFill, moonless && styles.hidden]}>
