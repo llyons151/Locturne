@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 
 import { MoonWater } from '@/components/moon-water';
+import { useMoon } from '@/features/moons/moon-theme';
 import { Text } from '@/components/text';
 import { exitTestMorning, useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Knockable, useNavKnock } from '@/components/nav-knock';
@@ -224,6 +225,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 function SleepButton({ reduced }: { reduced: boolean }) {
   const press = useSharedValue(1);
   const [pressed, setPressed] = useState(false);
+  const moon = useMoon();
   const style = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
   return (
     <Pressable
@@ -245,9 +247,9 @@ function SleepButton({ reduced }: { reduced: boolean }) {
     >
       <Animated.View style={[styles.sleep, style]}>
         {isMoonOrbViewAvailable ? (
-          <MoonOrbView style={StyleSheet.absoluteFill} pressed={pressed} paused={reduced} />
+          <MoonOrbView style={StyleSheet.absoluteFill} pressed={pressed} paused={reduced} colors={moon.orb} />
         ) : (
-          <MoonWater size={BUTTON} reduced={reduced} />
+          <MoonWater size={BUTTON} reduced={reduced} colors={moon.orb} />
         )}
         <SymbolView
           name={{ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' }}

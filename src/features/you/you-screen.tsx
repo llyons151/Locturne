@@ -29,9 +29,11 @@ import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import type { WakeMethod } from '@/lib/routine';
+import { methodInUse } from '@/lib/scan-code';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
+import { useMoon } from '@/features/moons/moon-theme';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 
@@ -89,6 +91,19 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
  */
 function testLock(method: WakeMethod) {
   if (!isScreenTimeAvailable()) return Alert.alert('iPhone only', 'The test lock needs Screen Time, so run it on the phone.');
+  // Tests the real thing (user 2026-10-29): with no code or place set up, the test morning fell
+  // back on a made-up one that can never be reached.
+  if (methodInUse(method) !== method) {
+    const scan = method === 'scan';
+    return Alert.alert(
+      scan ? 'No code yet' : 'No place yet',
+      scan ? 'The test scans your real code, so set one up first.' : 'The test checks you in at your real place, so pick one first.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: scan ? 'Set up a code' : 'Pick a place', onPress: () => router.push(scan ? '/code' : '/place-pick') },
+      ],
+    );
+  }
   if (!startTestLock(method)) {
     return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');
   }
@@ -143,6 +158,7 @@ function rate() {
 
 export function YouScreen() {
   const insets = useSafeAreaInsets();
+  const moon = useMoon();
   const scroll = useRef<ScrollView>(null);
   useTopOnLeave(scroll);
 
@@ -272,6 +288,18 @@ export function YouScreen() {
         <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
         <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
       </Card>
+
+      {/* Dev and preview builds only: wear any moon, all unlocked, to test them (features/moons). */}
+      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
+        <>
+          <Text style={styles.heading} accessibilityRole="header">
+            Moon
+          </Text>
+          <Card footer="Every moon, unlocked for testing: your ladder from the moon lab, then all the others.">
+            <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} last />
+          </Card>
+        </>
+      ) : null}
 
       {/* Dev and preview builds only: the whole onboarding again from the first screen. */}
       {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (

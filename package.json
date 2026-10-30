@@ -69,6 +69,8 @@
     "store-shots": "node tools/store-shots/server.mjs",
     "payoff-lab": "node tools/payoff-lab/server.mjs",
     "bubble-lab": "node tools/bubble-lab/server.mjs",
+    "moon-lab": "node tools/moon-lab/server.mjs",
+    "moons:bake": "node tools/moon-lab/export.mjs && python3 tools/moon-lab/bake.py",
     "lint": "expo lint",
     "test": "node --test --experimental-test-module-mocks",
     "test:tz": "for tz in UTC America/New_York Europe/London Pacific/Chatham America/Santiago; do echo \"TZ=$tz\"; TZ=$tz npm test --silent || exit 1; done",

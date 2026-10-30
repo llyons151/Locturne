@@ -9,9 +9,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
 import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { setClockReader } from '@/lib/clock-guard';
+import { holdSplash } from '@/lib/launch-splash';
 import { startPurchases } from '@/lib/purchases-start';
 import { Nocturne } from '@/theme';
 
+// The launch screen stays until the right first screen has drawn (launch-splash.ts).
+holdSplash();
 // RevenueCat, or the dev stub without a key. Before any screen asks about the subscription.
 startPurchases();
 // PostHog, or nothing without a key. After purchases: it links the two (analytics-start.ts).
@@ -41,7 +44,12 @@ export default function RootLayout() {
           <Stack.Screen name="list" />
           <Stack.Screen
             name="onboarding"
-            options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+            // `?launch=1`: a first launch opening it under the launch screen, so no slide up over Home.
+            options={({ route }) => ({
+              presentation: 'fullScreenModal',
+              gestureEnabled: false,
+              ...((route.params as { launch?: string } | undefined)?.launch ? { animation: 'none' as const } : null),
+            })}
           />
           <Stack.Screen name="exits" options={{ presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
           {/* Short, like a system action sheet: it floats above the tabs at the height of its contents. */}
@@ -127,6 +135,11 @@ export default function RootLayout() {
             options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
           />
           <Stack.Screen name="(dev)/loc-studio" options={{ presentation: 'fullScreenModal' }} />
+          {/* Every moon to wear (features/moons): a sheet, so the sky behind changes as you pick. */}
+          <Stack.Screen
+            name="(dev)/moons"
+            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.55, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
+          />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>

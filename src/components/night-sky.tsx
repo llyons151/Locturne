@@ -16,6 +16,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useMoon } from '@/features/moons/moon-theme';
+import type { MoonDef } from '@/features/moons/moon-types';
 
 /**
  * Every onboarding screen sits under the same night sky: blue light from the
@@ -324,6 +326,16 @@ export function NightSky({
   const risen = useSharedValue(quiz ? 1 : 0);
   // 0 = wherever the above put it, 1 = risen over the home screen. Starts low so it rises on launch.
   const homed = useSharedValue(0);
+  // The moon you're wearing (features/moons): its size, how far off centre it sits, and its halo's strength.
+  const moon = useMoon();
+  const lookScale = useSharedValue(moon.scale);
+  const lookShift = useSharedValue((moon.cx - 0.5) * width);
+  const lookGlow = useSharedValue(moon.glowOpacity);
+  useEffect(() => {
+    lookScale.set(moon.scale);
+    lookShift.set((moon.cx - 0.5) * width);
+    lookGlow.set(moon.glowOpacity);
+  }, [moon, width, lookScale, lookShift, lookGlow]);
 
   useEffect(() => {
     const target = opening ? 0 : 1;
@@ -397,9 +409,9 @@ export function NightSky({
   const place = (d: { size: number; left: number; top: number }, pad: number, base: number, sink: number, k: number) => {
     'worklet';
     return [
-      { translateX: d.left + d.size / 2 - base / 2 },
+      { translateX: d.left + d.size / 2 - base / 2 + lookShift.value },
       { translateY: d.top + d.size / 2 + sink * d.size * SINK_DEPTH - base / 2 },
-      { scale: (d.size * pad * k) / base },
+      { scale: (d.size * pad * k * lookScale.value) / base },
     ];
   };
 
@@ -409,7 +421,10 @@ export function NightSky({
 
   const glowStyle = useAnimatedStyle(() => ({
     transform: place(disc(progress.value, risen.value, homed.value), GLOW_PAD, glowBase, moonSink.value, moonScale.value),
-    opacity: interpolate(progress.value, [0, 1], [OPENER_GLOW, 1]) * interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP),
+    opacity:
+      interpolate(progress.value, [0, 1], [OPENER_GLOW, 1]) *
+      interpolate(moonSink.value, [0, 1, MOON_GONE], [1, SUNK_GLOW, 0], Extrapolation.CLAMP) *
+      lookGlow.value,
   }));
 
   const washStyle = useAnimatedStyle(() => ({
@@ -422,7 +437,7 @@ export function NightSky({
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
       <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
         <Image
-          source={require('@/assets/onboarding/night-sky-moonless.png')}
+          source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
           style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
           contentFit="cover"
           contentPosition="top right"
@@ -437,23 +452,61 @@ export function NightSky({
               source={require('@/assets/onboarding/moon-glow.png')}
               style={StyleSheet.absoluteFill}
               contentFit="contain"
+              // Another moon's halo is today's, filled with its colour.
+              tintColor={moon.sky ? moon.glow : undefined}
               accessible={false}
             />
           </Animated.View>
         ) : null}
         <Animated.View style={[styles.moon, { width: frostBase, height: frostBase }, moonStyle]}>
+          {moon.twin && !moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
           <Image
-            source={require('@/assets/onboarding/moon-frosted.png')}
+            source={moon.moon ?? require('@/assets/onboarding/moon-frosted.png')}
             style={StyleSheet.absoluteFill}
             contentFit="contain"
             accessible={false}
           />
+          {moon.ring ? <MoonPart source={moon.ring} box={frostBase} x={0} y={0} size={1.6} /> : null}
+          {moon.twin && moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
         </Animated.View>
       </View>
       <Animated.View style={[StyleSheet.absoluteFill, washStyle]}>
         <QuizWash width={width} height={height} />
       </Animated.View>
     </View>
+  );
+}
+
+/**
+ * An image laid out round the moon, inside the moon's own layer (`box` square, its disc 1/FROST_PAD
+ * of that), so it moves, sinks and rises with the moon. `x`, `y` and `size` are in moon widths.
+ */
+function MoonPart({ source, box, x, y, size, tint }: { source: number | object; box: number; x: number; y: number; size: number; tint?: string }) {
+  const disc = box / FROST_PAD;
+  const side = size * disc;
+  return (
+    <Image
+      source={source}
+      style={{ position: 'absolute', width: side, height: side, left: box / 2 + x * disc - side / 2, top: box / 2 + y * disc - side / 2 }}
+      contentFit="contain"
+      tintColor={tint}
+      accessible={false}
+    />
+  );
+}
+
+/** A twin moon's second moon and its halo (moon lab's twins), placed off the main moon. */
+function TwinMoon({ moon, box }: { moon: MoonDef; box: number }) {
+  const at = moon.twinAt!;
+  return (
+    <>
+      {at.glowOpacity > 0 ? (
+        <View style={[StyleSheet.absoluteFill, { opacity: at.glowOpacity }]}>
+          <MoonPart source={require('@/assets/onboarding/moon-glow.png')} box={box} x={at.x} y={at.y} size={at.size * GLOW_PAD} tint={at.glow} />
+        </View>
+      ) : null}
+      <MoonPart source={moon.twin!} box={box} x={at.x} y={at.y} size={at.size * FROST_PAD} />
+    </>
   );
 }
 

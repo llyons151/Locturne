@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sans: 'SF Pro Display', -apple-system, Inter, system-ui, sans-serif;
+    --text: #EEF6FB; --text2: #9FB3CC;
+    --sky-img: url(/assets/onboarding/night-sky-moonless.png);
+    --moon-img: url(/assets/onboarding/moon-frosted.png);
+    --glow-img: url(/assets/onboarding/moon-glow.png);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #101114; color: #ddd; font-family: var(--sans); padding: 0 24px 80px; }
+  button { font-family: var(--sans); }
+  header.top { max-width: 1560px; margin: 0 auto; padding: 28px 0 18px; display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  header.top > div:first-child { flex: 1; min-width: 300px; }
+  h1 { font-size: 22px; font-weight: 600; color: #fff; }
+  header.top p { color: #9a9ca3; font-size: 13.5px; margin-top: 6px; max-width: 760px; line-height: 1.5; }
+  kbd { background: #24262c; border-radius: 4px; padding: 1px 5px; font: 600 11px var(--sans); color: #ddd; }
+  .seg { display: flex; gap: 4px; background: #1c1d22; border-radius: 20px; padding: 4px; }
+  .seg button { background: none; color: #9a9ca3; border: 0; border-radius: 16px; height: 30px; padding: 0 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .seg button.on { background: #EEF6FB; color: #0B1428; }
+  .seg-label { color: #6f7279; font-size: 11.5px; margin-bottom: 6px; }
+
+  /* ——— The ladder: your 1–10 and the secret, left to right, always on screen. ——— */
+  .ladder { position: sticky; top: 0; z-index: 20; background: rgba(16,17,20,0.96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    margin: 0 -24px 24px; padding: 12px 24px 14px; border-bottom: 1px solid #22242a; }
+  .ladder-head { max-width: 1560px; margin: 0 auto 10px; display: flex; align-items: center; gap: 12px; }
+  .ladder-head b { color: #fff; font-size: 14px; }
+  .ladder-head span { color: #6f7279; font-size: 12px; flex: 1; }
+  .ladder-head button { background: #24262c; color: #ddd; border: 0; border-radius: 14px; height: 28px; padding: 0 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .ladder-head button.primary { background: #EEF6FB; color: #0B1428; }
+  .slots { max-width: 1560px; margin: 0 auto; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+  .slot { flex: 0 0 auto; width: 104px; display: flex; flex-direction: column; gap: 5px; }
+  .slot-label { font-size: 11px; color: #9a9ca3; white-space: nowrap; }
+  .slot-label b { color: #fff; margin-right: 4px; }
+  .slot-box { width: 104px; height: 225px; border-radius: 16px; border: 1.5px dashed #33363d; display: grid; place-items: center;
+    color: #55585f; font-size: 11px; text-align: center; padding: 8px; position: relative; cursor: default; }
+  .slot-box.filled { border: 0; cursor: grab; }
+  .slot-box.over { border-color: #EEF6FB; background: rgba(238,246,251,0.05); }
+  .slot-name { font-size: 11.5px; color: #ddd; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: #2c2e34; color: #ddd;
+    font-size: 12px; line-height: 20px; cursor: pointer; z-index: 2; opacity: 0; transition: opacity .15s; }
+  .slot:hover .slot-x { opacity: 1; }
+  .ladder.compact .slot-box { height: 34px; }
+  .ladder.compact .slot-box .mini { display: none; }
+  .ladder.compact .slot-box.filled { background: #1c1d22; }
+
+  /* ——— Filters and groups. ——— */
+  .bar { max-width: 1560px; margin: 0 auto 18px; display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+  h2 { max-width: 1560px; margin: 26px auto 16px; font-size: 16px; color: #fff; font-weight: 600; }
+  h2 span { color: #6f7279; font-weight: 500; font-size: 13px; margin-left: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 40px 28px; max-width: 1560px; margin: 0 auto; }
+  figure { display: flex; flex-direction: column; align-items: center; gap: 12px; border-radius: 52px; transition: opacity .2s; }
+  figure.nope { opacity: 0.28; }
+  figure.picked .phone { box-shadow: 0 0 0 8px #EEF6FB, 0 18px 40px rgba(0,0,0,0.5); }
+  figcaption { width: 320px; }
+  figcaption .name { display: flex; align-items: baseline; gap: 6px; }
+  figcaption b { color: #fff; font-size: 15px; font-weight: 600; }
+  figcaption .num { color: #6f7279; font-weight: 500; font-size: 13px; }
+  figcaption .kind { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8a8d94; margin-left: auto; }
+  figcaption .tag { color: #6f7279; font-size: 12px; }
+  figcaption p { color: #9a9ca3; font-size: 12.5px; line-height: 1.45; margin-top: 4px; min-height: 36px; }
+  .pick { display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap; }
+  .pick button { width: 26px; height: 26px; border-radius: 8px; border: 0; background: #1f2126; color: #9a9ca3; font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; }
+  .pick button:hover { background: #2a2c32; color: #fff; }
+  .pick button.on { background: #EEF6FB; color: #0B1428; }
+  .pick button.no { width: auto; padding: 0 9px; margin-left: auto; }
+  .pick button.no.on { background: #4a2024; color: #ffb4b4; }
+
+  /* ——— The phone: Home's sky panel over the black tab strip (app-background.tsx, app-tabs.tsx). ——— */
+  .phone { width: 320px; height: 693px; border-radius: 46px; background: #000; position: relative; overflow: hidden; flex: 0 0 auto;
+    box-shadow: 0 0 0 8px #1e1f24, 0 18px 40px rgba(0,0,0,0.5); color: var(--text); transition: box-shadow .2s; }
+  .panel { position: absolute; left: 0; right: 0; top: 0; overflow: hidden; border-radius: 0 0 36px 36px; background: #000; }
+  .sky { position: absolute; inset: 0; background: var(--sky-img) right top / cover no-repeat; transform: scaleY(-1); }
+  .abs { position: absolute; }
+  /* The halo: the moon's glow image as a mask, filled with that moon's colour. */
+  .glow { position: absolute; background-color: var(--glow); -webkit-mask: var(--glow-img) center / contain no-repeat; mask: var(--glow-img) center / contain no-repeat; }
+  .glow.orig, body.halo-blue .glow { background: var(--glow-img) center / contain no-repeat; -webkit-mask: none; mask: none; }
+  body.halo-off .glow { display: none; }
+  .moonwrap { position: absolute; isolation: isolate; }
+  .frost { position: absolute; inset: 0; background: var(--moon-img) center / contain no-repeat; }
+  .masked { position: absolute; inset: 0; -webkit-mask: var(--moon-img) center / contain no-repeat; mask: var(--moon-img) center / contain no-repeat; }
+  .tint { mix-blend-mode: color; }
+  .shadow { position: absolute; border-radius: 50%; }
+  .twin { position: absolute; background: var(--moon-img) center / contain no-repeat; }
+  svg.ring { position: absolute; overflow: visible; pointer-events: none; }
+  /* Loc as on Home (features/home/loc.tsx): 0.27 of the width, peeking over the panel's bottom edge. */
+  .loc { position: absolute; left: 50%; bottom: -1px; width: 86px; margin-left: -43px; display: block; }
+  .home { position: absolute; inset: 0; padding: 54px 22px 0; text-align: center; }
+  .home .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text2); }
+  .home .row b { color: var(--text); font-weight: 700; letter-spacing: 0.02em; }
+  .state { margin-top: 64px; font-size: 13px; color: var(--text2); letter-spacing: 0.04em; text-transform: uppercase; }
+  .time { font-size: 76px; font-weight: 200; letter-spacing: -0.03em; line-height: 1; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .sub { margin-top: 12px; font-size: 15px; color: var(--text2); }
+  .count { margin-top: 36px; display: inline-block; padding: 9px 16px; border-radius: 18px; font-size: 13.5px;
+    background: rgba(10,14,24,0.55); border: 1px solid rgba(221,240,248,0.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .strip { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 11px 18px 0; }
+  .tabs { display: flex; gap: 10px; }
+  .tab { width: 43px; height: 43px; border-radius: 50%; background: #1d1e22; display: grid; place-items: center; }
+  .tab.on { background: #EEF6FB; }
+  .tab svg { width: 19px; height: 19px; }
+  .orb { width: 43px; height: 43px; border-radius: 50%; position: relative; overflow: hidden; }
+  .orb canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .orb svg { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+  .mini { position: relative; overflow: hidden; border-radius: 16px; }
+  .mini .phone { position: absolute; left: 0; top: 0; transform-origin: top left; box-shadow: none; }
+
+  /* ——— Full lineup: the ladder big, left to right. ——— */
+  .lineup { position: fixed; inset: 0; z-index: 50; background: #0b0c0e; display: none; flex-direction: column; }
+  .lineup.open { display: flex; }
+  .lineup header { display: flex; align-items: center; gap: 16px; padding: 18px 28px; }
+  .lineup header b { color: #fff; font-size: 16px; flex: 1; }
+  .lineup header label { color: #9a9ca3; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .lineup header button { background: #EEF6FB; color: #0B1428; border: 0; border-radius: 16px; height: 32px; padding: 0 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .lineup-row { flex: 1; display: flex; gap: 18px; overflow-x: auto; padding: 8px 28px 28px; align-items: flex-start; }
+  .lineup-item { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
+  .lineup-item .cap { font-size: 12px; color: #9a9ca3; }
+  .lineup-item .cap b { color: #fff; font-size: 13px; display: block; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs id="filters"></defs></svg>
+
+<header class="top">
+  <div>
+    <h1>Moon lab</h1>
+    <p>Fifty moons on a mock of Home: twenty real ones and thirty made-up ones. Each moon recolours the sky, the moon, its halo and the sleep
+      orb together. To build your ladder, click a number under a moon, or hover over it and press <kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd> for 10,
+      <kbd>S</kbd> for the secret, <kbd>X</kbd> for no and <kbd>⌫</kbd> to clear. You can drag moons between slots, or from a card into a slot.
+      Your picks save as you go.</p>
+  </div>
+  <div>
+    <div class="seg-label">Halo</div>
+    <div class="seg" id="halo"><button data-v="matched" class="on">Matched</button><button data-v="blue">Today's blue</button><button data-v="off">Off</button></div>
+  </div>
+</header>
+
+<section class="ladder" id="ladder">
+  <div class="ladder-head">
+    <b>Your ladder</b>
+    <span id="ladder-count"></span>
+    <button id="compact">Hide previews</button>
+    <button id="clear">Clear</button>
+    <button id="open-lineup" class="primary">View lineup</button>
+  </div>
+  <div class="slots" id="slots"></div>
+</section>
+
+<div class="bar">
+  <div>
+    <div class="seg-label">Show</div>
+    <div class="seg" id="show">
+      <button data-v="all" class="on">All</button><button data-v="real">Real</button><button data-v="creative">Creative</button><button data-v="twin">Twins</button>
+      <button data-v="unpicked">Not picked</button><button data-v="picked">Picked</button>
+    </div>
+  </div>
+  <div>
+    <div class="seg-label">Moons marked no</div>
+    <div class="seg" id="nopes"><button data-v="dim" class="on">Dim</button><button data-v="hide">Hide</button></div>
+  </div>
+</div>
+
+<div id="groups"></div>
+
+<div class="lineup" id="lineup">
+  <header>
+    <b>Lineup: morning 1 to the secret, left to right</b>
+    <label>Size <input type="range" id="lineup-size" min="0.3" max="1" step="0.02" value="0.42"></label>
+    <button id="close-lineup">Close <kbd>Esc</kbd></button>
+  </header>
+  <div class="lineup-row" id="lineup-row"></div>
+</div>
+
+<script>
+/*
+ * Each moon is a gradient map: the original images' brightness is mapped onto that moon's
+ * colours (an SVG filter), so the sky keeps its bands and the moon keeps its texture.
+ * `sky` and `moon` run dark to light; `glow` is the halo's colour. Optional: `scale` (moon size),
+ * `phase` (Earth's shadow), `tint` (a colour wash across the disc), `ring` (the Eclipse),
+ * `saturn` (a crisp ring), `twin` (a second moon), `orb` (the Moonwell's C0..C3; derived if left out).
+ */
+const BASELINE = { id: 'moonlight', name: 'Moonlight', kind: 'today', tag: 'you start with this', original: true,
+  note: 'What the app looks like now: the moon everyone has from the start.',
+  sky: ['#05060A', '#1C2A55', '#2C3F78'], moon: ['#3E5A8E', '#9FB6D8'], glow: '#7090D8',
+  orb: ['#040A1F', '#123C8C', '#5E9BEA', '#E9F3FF'] };
+
+const REAL = [
+  { id: 'full', name: 'Full Moon', tag: 'as it really looks', note: 'A plain full moon, true to life: grey-white, on a deep night sky.',
+    sky: ['#030407', '#0D1422', '#283550'], moon: ['#5E6470', '#B9BEC6', '#F1F0EA'], glow: '#AEB8CC' },
+  { id: 'harvest', name: 'Harvest Moon', tag: 'September', note: 'The big orange moon low over the fields, on a warm amber sky.',
+    sky: ['#050302', '#2E1806', '#74400F'], moon: ['#8A4A16', '#F6C27E'], glow: '#E0913C' },
+  { id: 'supermoon', name: 'Supermoon', tag: 'closest to Earth', note: 'Warm white and a quarter bigger: the moon at its closest.',
+    sky: ['#050505', '#1F1C19', '#4E4840'], moon: ['#9C948A', '#FFF8EE'], glow: '#D8CDBE', scale: 1.25 },
+  { id: 'micromoon', name: 'Micromoon', tag: 'farthest from Earth', note: 'Small and far away: a silver moon with lots of dark sky round it.',
+    sky: ['#020306', '#0A0F1C', '#1E2840'], moon: ['#7D838E', '#E6E9EE'], glow: '#8E9AB4', scale: 0.72, glowOpacity: 0.6 },
+  { id: 'blood', name: 'Blood Moon', tag: 'total lunar eclipse', note: 'The red of a total lunar eclipse, from sunlight bent through Earth’s air.',
+    sky: ['#050203', '#2C0709', '#651519'], moon: ['#5A1012', '#D25446'], glow: '#B3342C' },
+  { id: 'bluemoon', name: 'Blue Moon', tag: 'once in a blue moon', note: 'A true sapphire, deeper than today’s blue. Rare on purpose.',
+    sky: ['#020309', '#071A4A', '#1240A0'], moon: ['#1C4FB8', '#A9C6FF'], glow: '#2F6BEA' },
+  { id: 'snow', name: 'Snow Moon', tag: 'February', note: 'A white moon on a grey sky. The quietest one, close to monochrome.',
+    sky: ['#050506', '#1E2026', '#4C505A'], moon: ['#8E939D', '#F5F7F9'], glow: '#C9CED6' },
+  { id: 'strawberry', name: 'Strawberry Moon', tag: 'June', note: 'Soft rose. Named for the strawberry harvest, not its colour.',
+    sky: ['#060305', '#2B0E1D', '#6C2B4A'], moon: ['#8E3D60', '#F7BCD2'], glow: '#E07CA6' },
+  { id: 'flower', name: 'Flower Moon', tag: 'May', note: 'Lavender, close to the lavender glass reference you liked.',
+    sky: ['#050409', '#1D1636', '#4C3F84'], moon: ['#61529E', '#DCD2F8'], glow: '#9D8DE2' },
+  { id: 'honey', name: 'Honey Moon', tag: 'June, in Europe', note: 'Yellow-gold, sweeter and paler than the Harvest Moon.',
+    sky: ['#050403', '#241A08', '#5E4614'], moon: ['#A87C2C', '#FFE7A6'], glow: '#E8B850' },
+  { id: 'crescent', name: 'Crescent', tag: 'a phase', note: 'Only a sliver lit, with the rest in Earth’s shadow. Today’s colours in a new shape.',
+    sky: ['#05060A', '#1C2A55', '#2C3F78'], moon: ['#3E5A8E', '#9FB6D8'], glow: '#7090D8', phase: 'crescent', glowOpacity: 0.55 },
+  { id: 'half', name: 'Half Moon', tag: 'first quarter', note: 'Lit down the right side and dark down the left, cut clean down the middle.',
+    sky: ['#030407', '#0F1626', '#2A3858'], moon: ['#5E6470', '#C9CDD4', '#F4F3EE'], glow: '#A8B4CC', phase: 'half', glowOpacity: 0.7 },
+  { id: 'gibbous', name: 'Gibbous Moon', tag: 'almost full', note: 'Nearly full, with a thin dark slice still missing on the left.',
+    sky: ['#030407', '#0F1626', '#2A3858'], moon: ['#5E6470', '#C9CDD4', '#F4F3EE'], glow: '#A8B4CC', phase: 'gibbous', glowOpacity: 0.85 },
+  { id: 'earthshine', name: 'Earthshine', tag: 'the ghost moon', note: 'A thin lit crescent, with the dark part faintly lit by light bouncing off Earth.',
+    sky: ['#030409', '#0C1530', '#22336A'], moon: ['#3A4E7A', '#B8C8E8'], glow: '#6A84C8', phase: 'earthshine', glowOpacity: 0.5 },
+  { id: 'newmoon', name: 'New Moon', tag: 'the dark one', note: 'Almost invisible: a dark disc you only see by its faint rim.',
+    sky: ['#040406', '#111320', '#262A40'], moon: ['#0C0E14', '#2C3246'], glow: '#4A5270', glowOpacity: 0.5 },
+  { id: 'partial', name: 'Partial Eclipse', tag: 'the bite', note: 'Earth’s shadow taking a red-brown bite out of the top of the moon.',
+    sky: ['#030304', '#121218', '#2C2C3A'], moon: ['#6E6A66', '#E8E4DC'], glow: '#B0A8A0', phase: 'bite' },
+  { id: 'ashen', name: 'Ashen Moon', tag: 'the darkest eclipse', note: 'The rare eclipse when the moon goes ash-grey and nearly vanishes.',
+    sky: ['#030303', '#100E0D', '#2A2522'], moon: ['#1E1A18', '#5A504A'], glow: '#5A4A40', glowOpacity: 0.4 },
+  { id: 'smoke', name: 'Smoke Moon', tag: 'wildfire season', note: 'The orange-red moon you get through smoke on a hazy, brown sky.',
+    sky: ['#060403', '#2A1A10', '#6A4426'], moon: ['#8A2E10', '#E86A2A'], glow: '#C8501E' },
+  { id: 'bluehour', name: 'Blue Hour', tag: 'just before sunrise', note: 'The bright blue of the sky right before sunrise, with a pale moon in it.',
+    sky: ['#04070F', '#13305C', '#3E6CA8', '#8FB4DC'], moon: ['#C8D6E8', '#FFFFFF'], glow: '#9CC0E8' },
+  { id: 'eclipse', name: 'Eclipse', tag: 'the rarest', note: 'A black disc in a ring of fire. For a year of mornings.',
+    sky: ['#060403', '#2A1915', '#6E4636'], moon: ['#060403', '#140C09'], glow: '#E8A060', glowOpacity: 0.45, ring: true,
+    orb: ['#030201', '#1A0E08', '#8A4A1A', '#FFD9A0'] },
+];
+
+const CREATIVE = [
+  { id: 'dawn', name: 'Dawn Moon', tag: 'the morning', note: 'Plum night into a peach sunrise: the moon you see on your way up.',
+    sky: ['#050406', '#26132E', '#7A3E58', '#D88A6E'], moon: ['#A0607A', '#FFD8C4'], glow: '#E89A88' },
+  { id: 'aurora', name: 'Aurora', tag: 'the northern one', note: 'A green sky shading into violet near the moon.',
+    sky: ['#030605', '#0B2A20', '#2A7058', '#7A68C0'], moon: ['#4E6EA0', '#D8F2E8'], glow: '#7AA8B8' },
+  { id: 'dusk', name: 'Dusk', tag: 'teal into tangerine', note: 'Deep teal up top and tangerine at the horizon, with a peach moon. The evening version of Dawn.',
+    sky: ['#03060A', '#0B2634', '#2F5A62', '#E08A52'], moon: ['#D07850', '#FFE4C8'], glow: '#F0A070' },
+  { id: 'lilac', name: 'Lilac Hour', tag: 'violet, pink, gold', note: 'Violet up top, through pink, to a little gold at the edge. A lilac moon.',
+    sky: ['#060409', '#2A1840', '#7A4A8A', '#E8A8A0'], moon: ['#B08AC0', '#FBE8F0'], glow: '#D8A0C8' },
+  { id: 'opal', name: 'Opal', tag: 'iridescent', note: 'A pale moon that shifts from pink to aqua across its face, like an opal.',
+    sky: ['#05040A', '#1A1636', '#3A3870'], moon: ['#C8C8D8', '#FFFFFF'], glow: '#C0B8E8',
+    tint: { angle: 100, stops: ['#FFB8D8', '#C8B8FF', '#9CE8F0'], amount: 0.6 } },
+  { id: 'nebula', name: 'Nebula', tag: 'deep space', note: 'Magenta and plum clouds with a white-pink moon in the middle.',
+    sky: ['#050208', '#2A0A3A', '#8A1E6A', '#E070A8'], moon: ['#E8B0D8', '#FFF0FA'], glow: '#D060A0' },
+  { id: 'golden', name: 'Golden Hour', tag: 'warm light', note: 'Rust into honey-gold light, with a butter-yellow moon.',
+    sky: ['#060403', '#3A1A08', '#B0602A', '#F0C070'], moon: ['#E0A040', '#FFF2C8'], glow: '#F0B050' },
+  { id: 'cottoncandy', name: 'Cotton Candy', tag: 'pink and baby blue', note: 'Pink bands melting into baby blue, with a soft white moon. The sweetest one.',
+    sky: ['#05050A', '#2A1A3A', '#C07AB0', '#9CC8F0'], moon: ['#F0D0E8', '#FFFFFF'], glow: '#E0B0E0' },
+  { id: 'deepsea', name: 'Deep Sea', tag: 'underwater', note: 'Navy into teal, as if seen from under the sea. A sea-glass moon.',
+    sky: ['#020508', '#062A38', '#0E6A70', '#3AC0A8'], moon: ['#3A9A90', '#D8FFF4'], glow: '#3AB8A0' },
+  { id: 'ember', name: 'Ember', tag: 'burning low', note: 'Coal-black sky with crimson and orange bands. A charcoal moon lit from inside.',
+    sky: ['#040202', '#2A0604', '#8A1E08', '#F07A20'], moon: ['#1A1210', '#5A2A18', '#E07030'], glow: '#E05A18', glowOpacity: 0.8 },
+  { id: 'matcha', name: 'Matcha', tag: 'soft green', note: 'Muted tea greens and a cream moon. Calm.',
+    sky: ['#040504', '#162016', '#4A6A3A', '#B8C890'], moon: ['#C8D4A8', '#FBFFF0'], glow: '#A8C080' },
+  { id: 'rose', name: 'Rosé', tag: 'wine and blush', note: 'A wine-dark sky that warms to blush, with a pink-white moon.',
+    sky: ['#060304', '#2E0A16', '#7A2A40', '#D88A90'], moon: ['#E0A8B0', '#FFF0F0'], glow: '#E09098' },
+  { id: 'ultraviolet', name: 'Ultraviolet', tag: 'electric violet', note: 'Black into electric violet, with a lilac moon. The boldest purple.',
+    sky: ['#030208', '#160A3A', '#4A1AA0', '#9A6AF0'], moon: ['#8A6AE0', '#EDE4FF'], glow: '#7A50E8' },
+  { id: 'midnightsun', name: 'Midnight Sun', tag: 'night and day at once', note: 'A deep blue night with a band of gold sunlight under it. A white moon.',
+    sky: ['#030612', '#0E2258', '#3A4A8A', '#F0C060'], moon: ['#F4E8C8', '#FFFFFF'], glow: '#F0D890' },
+  { id: 'gilded', name: 'Gilded', tag: 'black and gold', note: 'Almost all black, with a metallic gold moon. Expensive-looking.',
+    sky: ['#020202', '#0C0A06', '#2A2412'], moon: ['#5A3A10', '#C89838', '#FFF0B0'], glow: '#C8A040', glowOpacity: 0.6 },
+  { id: 'noir', name: 'Noir', tag: 'black and white', note: 'Pure black and white, like an old film. A high-contrast moon with a faint halo.',
+    sky: ['#000000', '#0E0E0E', '#3A3A3A'], moon: ['#3A3A3A', '#B0B0B0', '#FFFFFF'], glow: '#FFFFFF', glowOpacity: 0.35 },
+  { id: 'sepia', name: 'Sepia', tag: 'old photograph', note: 'Faded browns, like a photo of the moon from 1900.',
+    sky: ['#060403', '#2A2016', '#6A5640'], moon: ['#8A7050', '#F4E4C8'], glow: '#C8A880' },
+  { id: 'desert', name: 'Desert', tag: 'dusty pink and sand', note: 'Terracotta into dusty peach, with a sand-coloured moon.',
+    sky: ['#060403', '#3A1E14', '#A8604A', '#E8B088'], moon: ['#E8C098', '#FFF4E4'], glow: '#E8A078' },
+  { id: 'tropic', name: 'Tropic', tag: 'magenta and mango', note: 'Magenta into coral into mango, with a yellow moon. Loud and warm.',
+    sky: ['#06020A', '#4A0A4A', '#D03A5A', '#F8A030'], moon: ['#F8D050', '#FFFBE0'], glow: '#F89040' },
+  { id: 'lagoon', name: 'Lagoon', tag: 'turquoise and sand', note: 'Turquoise water colours with a warm sand moon, so it reads as a beach at night.',
+    sky: ['#020608', '#06303A', '#0E8A90', '#7AE0D0'], moon: ['#F0C8A0', '#FFF4E8'], glow: '#60D0C0' },
+  { id: 'absinthe', name: 'Absinthe', tag: 'green fairy', note: 'Bottle green into chartreuse, with a lime-pale moon. Strange in a good way.',
+    sky: ['#030503', '#0E2A10', '#3A7A20', '#B8E050'], moon: ['#C8E878', '#F8FFE0'], glow: '#9AD040' },
+  { id: 'twilight', name: 'Twilight', tag: 'blue, violet, pink', note: 'All three twilight colours stacked: blue, then violet, then pink at the bottom.',
+    sky: ['#03040C', '#141A4A', '#5A3A8A', '#E08AA8'], moon: ['#C8B8E8', '#FFF4FA'], glow: '#C090D0' },
+  { id: 'storm', name: 'Storm', tag: 'slate and steel', note: 'Slate cloud bands and a steel moon. Moody and grey-blue.',
+    sky: ['#030406', '#14181E', '#3A4450', '#6A7A8A'], moon: ['#4A5462', '#C8D0DA'], glow: '#7A8898', glowOpacity: 0.7 },
+  { id: 'borealis', name: 'Borealis', tag: 'green and magenta', note: 'An aurora gone pink: green bands that turn magenta right by the moon.',
+    sky: ['#030506', '#0A3A2A', '#2AA070', '#D04A9A'], moon: ['#E0D8F0', '#FFFFFF'], glow: '#8AD0B0' },
+  { id: 'solstice', name: 'Solstice', tag: 'the longest night', note: 'Indigo up top, wine in the middle and a gold band at the bottom. A cream moon.',
+    sky: ['#030310', '#141050', '#7A2050', '#F0A030'], moon: ['#F0D8A8', '#FFFAF0'], glow: '#E0904A' },
+  { id: 'prism', name: 'Prism', tag: 'a rainbow moon', note: 'A white moon with a soft rainbow running across its face. Dark sky so it stands out.',
+    sky: ['#030306', '#12122A', '#2A2A50'], moon: ['#C0C0D0', '#FFFFFF'], glow: '#C0C8F0',
+    tint: { angle: 90, stops: ['#FF7A9A', '#FFD070', '#7AF0B0', '#7AB8FF', '#C08AFF'], amount: 0.7 } },
+  { id: 'chrome', name: 'Chrome', tag: 'liquid metal', note: 'A mirror-bright silver moon with hard contrast, on near-black.',
+    sky: ['#020306', '#0C1018', '#26303E'], moon: ['#20242A', '#8A929C', '#F0F4F8', '#FFFFFF'], glow: '#A0A8B8', glowOpacity: 0.5 },
+  { id: 'galaxy', name: 'Galaxy', tag: 'purple and pink', note: 'Indigo into purple into pink, with a blue-white moon that blushes on one side.',
+    sky: ['#040310', '#1A1050', '#5A2A90', '#D070C0'], moon: ['#A8B8F0', '#FFFFFF'], glow: '#9A90F0',
+    tint: { angle: 135, stops: ['#FFB0E0', '#A0C0FF'], amount: 0.4 } },
+  { id: 'ringed', name: 'Ringed Moon', tag: 'like Saturn', note: 'A cream moon with a thin, crisp ring arcing across it.',
+    sky: ['#040508', '#151A28', '#3A4258'], moon: ['#C8A880', '#FFF0D8'], glow: '#C8B090', saturn: '#E8D8C0' },
+];
+
+/*
+ * Twin moons, drafted for the secret (user, 2026-10-29): two moons that differ in colour, size and
+ * place. `twin` is the second moon: `x` and `y` as shares of the width and the sky panel (`y: 'rise'`
+ * rises from the bottom edge like the main moon), `size` its disc as a share of the width, its own
+ * `moon` ramp and `glow`, and `front` to draw it over the main moon. `cx` moves the main moon sideways.
+ */
+const TWINS = [
+  { id: 'twin-sisters', name: 'Sisters', tag: 'peach and mint', note: 'Dawn’s plum-to-peach sky with a second, mint moon off to the right.',
+    sky: ['#050406', '#26132E', '#7A3E58', '#D88A6E'], moon: ['#A0607A', '#FFD8C4'], glow: '#E89A88',
+    twin: { x: 0.8, y: 0.66, size: 0.24, moon: ['#3E8C7A', '#D8FFF0'], glow: '#7AD8B8', glowOpacity: 0.6 } },
+  { id: 'twin-binary', name: 'Binary', tag: 'side by side', note: 'Two equal moons rising together, one violet and one rose. A clear pair.',
+    sky: ['#03040C', '#141A4A', '#5A3A8A', '#E08AA8'], moon: ['#7A68C0', '#E8E0FF'], glow: '#A090E0', cx: 0.27, scale: 0.6,
+    twin: { x: 0.75, y: 'rise', size: 0.54, moon: ['#B0607A', '#FFD8E4'], glow: '#E890B0', glowOpacity: 0.85 } },
+  { id: 'twin-transit', name: 'Transit', tag: 'a moon crossing a moon', note: 'A small black moon passing in front of a pale gold one, like a tiny eclipse in progress.',
+    sky: ['#050403', '#241A0C', '#5E4A24'], moon: ['#A88A50', '#FFF2CC'], glow: '#E0C080',
+    twin: { x: 0.64, y: 0.925, size: 0.15, moon: ['#050403', '#1A140C'], glow: '#000000', glowOpacity: 0, front: true } },
+  { id: 'twin-giant', name: 'Giant', tag: 'a planet next door', note: 'A huge lavender moon looming in from the left edge, over a smaller rose one.',
+    sky: ['#050409', '#1D1636', '#4C3F84', '#9A7AC0'], moon: ['#A06080', '#FFD0E0'], glow: '#E090B0', scale: 0.8,
+    twin: { x: -0.1, y: 0.57, size: 0.78, moon: ['#4A3E78', '#D8D0F8'], glow: '#9A8AE0', glowOpacity: 0.5 } },
+  { id: 'twin-moonlet', name: 'Moonlet', tag: 'a little one tucked in', note: 'A small gold moon tucked behind the shoulder of a white one, like it’s hiding.',
+    sky: ['#030407', '#0F1626', '#2A3858'], moon: ['#6E7480', '#D9DCE2', '#F6F5F0'], glow: '#B4BED0',
+    twin: { x: 0.83, y: 0.85, size: 0.2, moon: ['#A87C2C', '#FFE7A6'], glow: '#E8B850', glowOpacity: 0.7 } },
+  { id: 'twin-redblue', name: 'Red & Blue', tag: 'opposites', note: 'A crimson moon below and a small sapphire one above: the two loudest moons together.',
+    sky: ['#040306', '#1E0A1A', '#4A1430', '#2A3A8A'], moon: ['#6A1416', '#E05A4A'], glow: '#C03A30',
+    twin: { x: 0.79, y: 0.65, size: 0.19, moon: ['#1C4FB8', '#B8D0FF'], glow: '#3A70E8', glowOpacity: 0.7 } },
+  { id: 'twin-alien', name: 'Alien', tag: 'gold and green', note: 'A chartreuse sky, a gold moon and a green one. Very obviously another planet.',
+    sky: ['#030503', '#0E2A10', '#3A7A20', '#A8D050'], moon: ['#B88A30', '#FFF0B8'], glow: '#E0B850',
+    twin: { x: 0.21, y: 0.67, size: 0.26, moon: ['#3A8A40', '#D0FFC8'], glow: '#7AD060', glowOpacity: 0.6 } },
+  { id: 'twin-highlow', name: 'High & Low', tag: 'lilac and peach', note: 'A big peach moon hanging high on the right, a lilac one rising below.',
+    sky: ['#060409', '#2A1840', '#7A4A8A', '#E8A8A0'], moon: ['#8A70B8', '#F0E4FF'], glow: '#C0A0E0',
+    twin: { x: 0.76, y: 0.68, size: 0.3, moon: ['#C07A5A', '#FFE4CC'], glow: '#F0A880', glowOpacity: 0.6 } },
+  { id: 'twin-cotton', name: 'Sugar Twins', tag: 'pink and baby blue', note: 'Cotton Candy’s sky, a pink moon and a baby-blue one. Soft and sweet.',
+    sky: ['#05050A', '#2A1A3A', '#C07AB0', '#9CC8F0'], moon: ['#D890C0', '#FFF0FA'], glow: '#E0A0D0',
+    twin: { x: 0.2, y: 0.67, size: 0.22, moon: ['#6A9ED8', '#E4F2FF'], glow: '#9CC8F0', glowOpacity: 0.6 } },
+  { id: 'twin-duskdawn', name: 'Dusk & Dawn', tag: 'teal and tangerine', note: 'A tangerine moon below and a deep teal moon above, one for each end of the night.',
+    sky: ['#03060A', '#0B2634', '#2F5A62', '#E08A52'], moon: ['#D07850', '#FFE4C8'], glow: '#F0A070',
+    twin: { x: 0.2, y: 0.67, size: 0.24, moon: ['#1E5A64', '#BFF0EC'], glow: '#4AA8A8', glowOpacity: 0.55 } },
+];
+
+REAL.forEach((m) => (m.kind = 'real'));
+CREATIVE.forEach((m) => (m.kind = 'creative'));
+TWINS.forEach((m) => (m.kind = 'twin'));
+const ALL = [BASELINE, ...REAL, ...CREATIVE, ...TWINS];
+const BY_ID = Object.fromEntries(ALL.map((m) => [m.id, m]));
+const NUMBER = Object.fromEntries([...REAL, ...CREATIVE, ...TWINS].map((m, i) => [m.id, i + 1]));
+
+const LADDER = ['Morning 1', 'Morning 3', 'Morning 7', 'Morning 14', 'Morning 30', 'Morning 50', 'Morning 100', 'Morning 150', 'Morning 200', 'Week 50', 'Secret'];
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'S'];
+
+const W = 320, H = 693, S = W / 390;
+const STRIP = Math.round((14 + 52 + 34) * S);
+const PANEL = H - STRIP;
+// risingMoon() in night-sky.tsx: 0.9 of the width, 36% of it above the panel's edge.
+const BASE = W * 0.9, FROST_PAD = 1.5, GLOW_PAD = 2;
+
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const lerp = (a, b, t) => a + (b - a) * t;
+const mix = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
+function ramp(stops, t) {
+  const cs = stops.map(hex);
+  const x = Math.min(Math.max(t, 0), 1) * (cs.length - 1);
+  const i = Math.min(Math.floor(x), cs.length - 2), f = x - i;
+  return mix(cs[i], cs[i + 1], f);
+}
+
+/** The darkest and brightest luminance in an image (opaque pixels only), so a ramp spans exactly its range. */
+async function lumRange(src) {
+  const im = await new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = src; });
+  const c = document.createElement('canvas');
+  c.width = 240; c.height = Math.round((240 * im.naturalHeight) / im.naturalWidth);
+  const g = c.getContext('2d');
+  g.drawImage(im, 0, 0, c.width, c.height);
+  const p = g.getImageData(0, 0, c.width, c.height).data;
+  let lo = 1, hi = 0;
+  for (let i = 0; i < p.length; i += 4) {
+    if (p[i + 3] < 128) continue;
+    const l = (0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2]) / 255;
+    if (l < lo) lo = l; if (l > hi) hi = l;
+  }
+  return { lo, hi };
+}
+
+/** A gradient-map filter: luminance, then a lookup table along the ramp across [lo, hi]. */
+function filterDef(id, stops, { lo, hi }) {
+  const n = 160, R = [], G = [], B = [];
+  for (let i = 0; i < n; i++) {
+    const [r, g, b] = ramp(stops, (i / (n - 1) - lo) / (hi - lo || 1));
+    R.push((r / 255).toFixed(4)); G.push((g / 255).toFixed(4)); B.push((b / 255).toFixed(4));
+  }
+  const l = '0.2126 0.7152 0.0722 0 0';
+  return `<filter id="${id}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+    <feColorMatrix type="matrix" values="${l} ${l} ${l} 0 0 0 1 0"/>
+    <feComponentTransfer><feFuncR type="table" tableValues="${R.join(' ')}"/><feFuncG type="table" tableValues="${G.join(' ')}"/>
+      <feFuncB type="table" tableValues="${B.join(' ')}"/></feComponentTransfer></filter>`;
+}
+
+// ——— Moonwell: the shader in modules/moon-orb/ios/MoonOrbModule.swift, ported to GLSL with its colours as uniforms. ———
+const VERT = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }';
+const FRAG = `precision highp float;
+uniform vec2 size; uniform float time; uniform vec3 C0, C1, C2, C3;
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p = m * p; a *= 0.5; } return v / 0.9375; }
+void main(){
+  const float warp = 1.1, swirl = 0.15, core = 0.25, glass = 0.55, ribbons = 0.2, spec = 0.8, shade = 0.5;
+  float T = time;
+  vec2 frag = gl_FragCoord.xy;
+  vec2 p = frag / size * 2.0 - 1.0;
+  float r = length(p);
+  float aa = 2.0 / (size.x * 0.5);
+  float mask = 1.0 - smoothstep(1.0 - aa, 1.0, r);
+  if (mask <= 0.0) { gl_FragColor = vec4(0.0); return; }
+  vec2 q = p;
+  float z = sqrt(max(0.0, 1.0 - min(dot(q, q), 1.0)));
+  vec3 n = vec3(q, z);
+  vec2 uv = q * (1.0 - 0.38 * (1.0 - z));
+  float a = swirl * (1.0 - r) * 1.6 + T * 0.12 * swirl;
+  uv = mat2(cos(a), -sin(a), sin(a), cos(a)) * uv;
+  uv *= 1.35;
+  vec2 w1 = vec2(fbm(uv * 1.1 + vec2(0.0, T * 0.13)), fbm(uv * 1.1 + vec2(5.2, 1.3) - T * 0.11));
+  vec2 w2 = vec2(fbm(uv + warp * 2.0 * w1 + vec2(1.7, 9.2) + T * 0.09), fbm(uv + warp * 2.0 * w1 + vec2(8.3, 2.8) - T * 0.07));
+  float f = fbm(uv + warp * 2.0 * w2);
+  vec3 col = mix(C0, C1, smoothstep(0.25, 0.75, w2.x));
+  col = mix(col, C2, smoothstep(0.4, 0.85, f));
+  col = mix(col, C3, smoothstep(0.62, 0.95, w1.y * 0.6 + f * 0.5) * 0.85);
+  float layer = 0.5 + 0.5 * sin(6.2832 * (f * 2.2 + w2.y * 0.7 + T * 0.03));
+  col *= mix(1.0, 0.8 + 0.32 * layer, ribbons);
+  col += ribbons * 0.2 * pow(layer, 10.0) * (C3 * 0.6 + 0.4);
+  col *= mix(1.0, smoothstep(0.05, 0.92, r), core);
+  vec3 L = normalize(vec3(-0.45, 0.6, 0.75));
+  col *= mix(1.0, 0.55 + 0.6 * max(dot(n, L), 0.0), shade);
+  col += glass * pow(1.0 - z, 2.6) * 0.85;
+  vec3 Hv = normalize(L + vec3(0.0, 0.0, 1.0));
+  col += spec * 0.9 * pow(max(dot(n, Hv), 0.0), 90.0);
+  float edge = smoothstep(0.84, 0.965, r) * (1.0 - smoothstep(0.965, 1.0, r));
+  col += spec * 0.28 * edge * smoothstep(-0.1, 0.9, q.y * 0.9 - q.x * 0.4);
+  col += (hash(frag + fract(T * 7.0)) - 0.5) / 128.0;
+  col = clamp(col, 0.0, 1.0);
+  gl_FragColor = vec4(col * mask, mask);
+}`;
+
+/** The orb's four colours: given, or taken from the moon's sky, halo and moon. */
+function orbColours(m) {
+  if (m.orb) return m.orb.map(hex);
+  const sky = m.sky.map(hex), moon = m.moon.map(hex);
+  return [mix(sky[1], [0, 0, 0], 0.55), sky[sky.length >= 4 ? sky.length - 2 : sky.length - 1], hex(m.glow), mix(moon[moon.length - 1], [255, 255, 255], 0.5)];
+}
+
+// One WebGL context draws every visible orb in turn and copies it out: browsers cap live
+// contexts at about 16, and there are far more phones than that.
+const ORB_PX = Math.round(43 * Math.min(window.devicePixelRatio || 1, 2) * 1.25);
+let orbs = [];
+const seen = new IntersectionObserver((entries) => entries.forEach((e) => (e.target._visible = e.isIntersecting)));
+const shared = (() => {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = ORB_PX;
+  const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, preserveDrawingBuffer: true });
+  if (!gl) return null;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform2f(gl.getUniformLocation(prog, 'size'), ORB_PX, ORB_PX);
+  gl.viewport(0, 0, ORB_PX, ORB_PX);
+  const C = [0, 1, 2, 3].map((i) => gl.getUniformLocation(prog, 'C' + i));
+  return { canvas, gl, C, time: gl.getUniformLocation(prog, 'time') };
+})();
+function addOrbs(root) {
+  root.querySelectorAll('canvas[data-orb]').forEach((canvas) => {
+    canvas.width = canvas.height = ORB_PX;
+    canvas._visible = true;
+    seen.observe(canvas);
+    orbs.push({ canvas, ctx: canvas.getContext('2d'), colours: orbColours(BY_ID[canvas.dataset.orb]).map((c) => c.map((v) => v / 255)) });
+  });
+}
+function tick(ms) {
+  if (shared) {
+    orbs = orbs.filter((o) => o.canvas.isConnected);
+    const { gl, C, time, canvas } = shared;
+    gl.uniform1f(time, ms / 1000);
+    for (const o of orbs) {
+      if (!o.canvas._visible) continue;
+      o.colours.forEach((c, i) => gl.uniform3fv(C[i], c));
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      o.ctx.clearRect(0, 0, ORB_PX, ORB_PX);
+      o.ctx.drawImage(canvas, 0, 0);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+const ICON = {
+  home: '<path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" fill="#0B1428"/>',
+  alarm: '<circle cx="12" cy="13" r="8" fill="#C9CED6"/><path d="M12 9v4l3 2" stroke="#1d1e22" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  apps: '<rect x="3" y="3" width="8" height="8" rx="2" fill="#C9CED6"/><rect x="13" y="3" width="8" height="8" rx="2" fill="#C9CED6"/><rect x="3" y="13" width="8" height="8" rx="2" fill="#C9CED6"/><rect x="13" y="13" width="8" height="8" rx="2" fill="#C9CED6"/>',
+  you: '<circle cx="12" cy="8" r="4.5" fill="#C9CED6"/><path d="M3.5 21c1-4.5 4.5-7 8.5-7s7.5 2.5 8.5 7z" fill="#C9CED6"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" fill="#fff"/>',
+};
+const svg = (k) => `<svg viewBox="0 0 24 24">${ICON[k]}</svg>`;
+
+/** Earth's shadow over part of the disc, in the moon layer's own box (`F` square, disc radius `r`). */
+function shadowHTML(phase, F, r) {
+  const c = F / 2;
+  const circle = (x, y, R, colour, blur) =>
+    `<div class="shadow" style="left:${x - R}px;top:${y - R}px;width:${2 * R}px;height:${2 * R}px;background:${colour};filter:blur(${blur}px)"></div>`;
+  const parts = {
+    // A lit sliver along the top right, the part that shows above the panel's edge.
+    crescent: circle(c - r * 0.32, c + r * 0.3, r * 1.02, 'rgba(6,9,18,0.94)', r * 0.06),
+    earthshine: circle(c - r * 0.32, c + r * 0.3, r * 1.02, 'rgba(10,16,34,0.72)', r * 0.06),
+    half: `<div class="shadow" style="border-radius:0;left:${c - r * 1.3}px;top:${c - r * 1.3}px;width:${r * 1.3}px;height:${r * 2.6}px;background:rgba(6,8,14,0.93);filter:blur(${r * 0.05}px)"></div>`,
+    gibbous: circle(c - r * 1.55, c, r, 'rgba(6,8,14,0.93)', r * 0.08),
+    // The umbra's edge is fuzzy and red-brown.
+    bite: circle(c + r * 0.85, c - r * 1.2, r * 1.0, 'rgba(58,12,6,0.9)', r * 0.16),
+  };
+  return `<div class="masked">${parts[phase]}</div>`;
+}
+
+/** The Eclipse's ring of fire, after the user's reference photo (2026-10-29), without the sun burst. The user asked for this ring, on the Eclipse only. */
+function eclipseRing(size, cx, cy) {
+  const r = size / 2, box = size * 1.6, o = box / 2;
+  return `<svg class="ring" width="${box}" height="${box}" style="left:${cx - o}px;top:${cy - o}px" viewBox="0 0 ${box} ${box}">
+    <defs>
+      <filter id="ring-soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r * 0.035}"/></filter>
+      <filter id="ring-wide" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r * 0.09}"/></filter>
+    </defs>
+    <circle cx="${o}" cy="${o}" r="${r * 0.985}" fill="none" stroke="#FF9A3C" stroke-width="${r * 0.07}" opacity="0.55" filter="url(#ring-wide)"/>
+    <circle cx="${o}" cy="${o}" r="${r * 0.985}" fill="none" stroke="#FFB45E" stroke-width="${r * 0.035}" filter="url(#ring-soft)"/>
+    <circle cx="${o}" cy="${o}" r="${r * 0.985}" fill="none" stroke="#FFF0D0" stroke-width="${r * 0.012}"/>
+  </svg>`;
+}
+
+/** A crisp, flat ring like Saturn's, tilted across the moon. No glow: two plain strokes. */
+function saturnRing(size, cx, cy, colour) {
+  const r = size / 2;
+  const e = (rx, ry, w, o) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(-16 ${cx} ${cy})" fill="none" stroke="${colour}" stroke-width="${w}" opacity="${o}"/>`;
+  return `<svg class="ring" width="${W}" height="${PANEL}" style="left:0;top:0" viewBox="0 0 ${W} ${PANEL}">
+    ${e(r * 1.45, r * 0.85, r * 0.045, 0.85)}${e(r * 1.33, r * 0.76, r * 0.018, 0.5)}</svg>`;
+}
+
+function phoneHTML(m) {
+  const size = BASE * (m.scale ?? 1), cx = W * (m.cx ?? 0.5), cy = PANEL - size * 0.36 + size / 2;
+  const F = size * FROST_PAD, G = size * GLOW_PAD, r = size / 2;
+  const moonFilter = m.original ? '' : `filter:url(#moon-${m.id})`;
+  const box = (s) => `width:${s}px;height:${s}px;left:${cx - s / 2}px;top:${cy - s / 2}px`;
+  let twin = '';
+  if (m.twin) {
+    const t = m.twin, d = W * t.size, tx = W * t.x, ty = t.y === 'rise' ? PANEL - d * 0.36 + d / 2 : PANEL * t.y;
+    const at = (s) => `width:${s}px;height:${s}px;left:${tx - s / 2}px;top:${ty - s / 2}px`;
+    twin = `${t.glowOpacity === 0 ? '' : `<div class="glow" style="${at(d * GLOW_PAD)};--glow:${t.glow};opacity:${t.glowOpacity ?? 0.6}"></div>`}
+      <div class="twin" style="${at(d * FROST_PAD)};filter:url(#twin-${m.id})"></div>`;
+  }
+  const behind = m.twin && !m.twin.front ? twin : '', over = m.twin?.front ? twin : '';
+  return `<div class="phone">
+    <div class="panel" style="height:${PANEL}px">
+      <div class="sky" style="${m.original ? '' : `filter:url(#sky-${m.id})`}"></div>
+      ${behind}
+      <div class="glow${m.original ? ' orig' : ''}" style="${box(G)};--glow:${m.glow};opacity:${m.glowOpacity ?? 1}"></div>
+      <div class="moonwrap" style="${box(F)}">
+        <div class="frost" style="${moonFilter}"></div>
+        ${m.tint ? `<div class="masked tint" style="background:linear-gradient(${m.tint.angle}deg, ${m.tint.stops.join(', ')});opacity:${m.tint.amount}"></div>` : ''}
+        ${m.phase ? shadowHTML(m.phase, F, r) : ''}
+      </div>
+      ${m.ring ? eclipseRing(size, cx, cy) : ''}
+      ${m.saturn ? saturnRing(size, cx, cy, m.saturn) : ''}
+      ${over}
+      <img class="loc" src="/loc/loc-peek-eyes.svg" alt="">
+      <div class="home">
+        <div class="row"><b>Locturne</b><span>Thu, Oct 29</span></div>
+        <div class="state">Apps asleep</div>
+        <div class="time">11:42</div>
+        <div class="sub">Awake after 200 steps from 7:00</div>
+        <div class="count">23 mornings up</div>
+      </div>
+    </div>
+    <div class="strip" style="height:${STRIP}px">
+      <div class="tabs"><div class="tab on">${svg('home')}</div><div class="tab">${svg('alarm')}</div><div class="tab">${svg('apps')}</div><div class="tab">${svg('you')}</div></div>
+      <div class="orb"><canvas data-orb="${m.id}"></canvas>${svg('moon')}</div>
+    </div>
+  </div>`;
+}
+
+/** A phone shrunk to `k`, laid out at its shrunk size. */
+function miniHTML(m, k) {
+  return `<div class="mini" style="width:${W * k}px;height:${H * k}px;border-radius:${46 * k}px">
+    <div class="phone" style="transform:scale(${k})">${phoneHTML(m).replace(/^<div class="phone">|<\/div>$/g, '')}</div></div>`;
+}
+
+// ——— Picks: eleven slots of moon ids, plus the ones marked no. Saved in the browser and to docs/moon-lab-picks.json. ———
+let picks = { slots: Array(11).fill(null), nope: [] };
+const slotOf = (id) => picks.slots.indexOf(id);
+let saveTimer;
+function save() {
+  try { localStorage.setItem('moon-lab-picks', JSON.stringify(picks)); } catch {}
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const named = { ...picks, ladder: picks.slots.map((id, i) => ({ slot: LADDER[i], moon: id && BY_ID[id].name })) };
+    fetch('/__moon-picks', { method: 'POST', body: JSON.stringify(named) }).catch(() => {});
+  }, 300);
+}
+function assign(id, i) {
+  if (picks.slots[i] === id) picks.slots[i] = null;
+  else {
+    const was = slotOf(id);
+    if (was >= 0) picks.slots[was] = null;
+    picks.slots[i] = id;
+    picks.nope = picks.nope.filter((n) => n !== id);
+  }
+  changed();
+}
+function unassign(id) { const i = slotOf(id); if (i >= 0) picks.slots[i] = null; changed(); }
+function toggleNope(id) {
+  if (picks.nope.includes(id)) picks.nope = picks.nope.filter((n) => n !== id);
+  else { picks.nope.push(id); unassign(id); }
+  changed();
+}
+function changed() { save(); renderLadder(); renderMarks(); applyFilter(); if (lineup.classList.contains('open')) renderLineup(); }
+
+// ——— Rendering. ———
+const groups = document.getElementById('groups');
+const slotsEl = document.getElementById('slots');
+const lineup = document.getElementById('lineup');
+
+function card(m) {
+  const fig = document.createElement('figure');
+  fig.dataset.id = m.id;
+  fig.draggable = !m.original;
+  const n = m.original ? '—' : String(NUMBER[m.id]).padStart(2, '0');
+  fig.innerHTML = `${phoneHTML(m)}
+    <figcaption>
+      <div class="name"><span class="num">${n}</span><b>${m.name}</b><span class="tag">· ${m.tag}</span><span class="kind">${m.kind}</span></div>
+      <p>${m.note}</p>
+      ${m.original ? '' : `<div class="pick">${KEYS.map((k, i) => `<button data-slot="${i}" title="${LADDER[i]}">${k}</button>`).join('')}<button class="no">No</button></div>`}
+    </figcaption>`;
+  fig.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.classList.contains('no')) toggleNope(m.id); else assign(m.id, Number(b.dataset.slot));
+  });
+  fig.addEventListener('mouseenter', () => (hovered = m.id));
+  fig.addEventListener('mouseleave', () => (hovered = hovered === m.id ? null : hovered));
+  fig.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/moon', m.id));
+  return fig;
+}
+
+function renderGroups() {
+  for (const [title, sub, list] of [
+    ['Today', 'the starting moon', [BASELINE]],
+    ['Real moons', 'twenty, as they really look', REAL],
+    ['Twin moons', 'ten drafts for the secret', TWINS],
+    ['Creative moons', 'made-up ones', CREATIVE],
+  ]) {
+    const h = document.createElement('h2');
+    h.innerHTML = `${title}<span>${sub}</span>`;
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    list.forEach((m) => grid.appendChild(card(m)));
+    groups.append(h, grid);
+  }
+  addOrbs(groups);
+}
+
+function renderLadder() {
+  slotsEl.innerHTML = LADDER.map((label, i) => {
+    const id = picks.slots[i], m = id && BY_ID[id];
+    return `<div class="slot" data-i="${i}">
+      <div class="slot-label"><b>${KEYS[i]}</b>${label}</div>
+      <div class="slot-box${m ? ' filled' : ''}" data-i="${i}" ${m ? 'draggable="true"' : ''}>
+        ${m ? `${miniHTML(m, 104 / W)}<button class="slot-x" data-x="${id}" title="Remove">✕</button>` : `Press ${KEYS[i] === '10' ? '0' : KEYS[i]} on a moon`}
+      </div>
+      <div class="slot-name">${m ? m.name : ''}</div>
+    </div>`;
+  }).join('');
+  const n = picks.slots.filter(Boolean).length;
+  document.getElementById('ladder-count').textContent = `${n} of 11 picked · ${picks.nope.length} marked no`;
+  addOrbs(slotsEl);
+}
+
+function renderMarks() {
+  document.querySelectorAll('#groups figure').forEach((fig) => {
+    const id = fig.dataset.id, i = slotOf(id);
+    fig.classList.toggle('picked', i >= 0);
+    fig.classList.toggle('nope', picks.nope.includes(id));
+    fig.querySelectorAll('.pick button[data-slot]').forEach((b) => b.classList.toggle('on', Number(b.dataset.slot) === i));
+    fig.querySelector('.pick .no')?.classList.toggle('on', picks.nope.includes(id));
+  });
+}
+
+let show = 'all', nopes = 'dim';
+function applyFilter() {
+  document.querySelectorAll('#groups figure').forEach((fig) => {
+    const m = BY_ID[fig.dataset.id], picked = slotOf(m.id) >= 0, no = picks.nope.includes(m.id);
+    const ok = show === 'all' || (show === 'real' && m.kind === 'real') || (show === 'creative' && m.kind === 'creative') || (show === 'twin' && m.kind === 'twin')
+      || (show === 'unpicked' && !picked && !m.original) || (show === 'picked' && picked);
+    fig.style.display = ok && !(no && nopes === 'hide') ? '' : 'none';
+  });
+  document.querySelectorAll('#groups .grid').forEach((g) => {
+    const any = [...g.children].some((f) => f.style.display !== 'none');
+    g.style.display = any ? '' : 'none';
+    g.previousElementSibling.style.display = any ? '' : 'none';
+  });
+}
+
+function renderLineup() {
+  const k = Number(document.getElementById('lineup-size').value);
+  const row = document.getElementById('lineup-row');
+  row.innerHTML = LADDER.map((label, i) => {
+    const id = picks.slots[i], m = id && BY_ID[id];
+    return `<div class="lineup-item">
+      ${m ? miniHTML(m, k) : `<div class="slot-box" style="width:${W * k}px;height:${H * k}px">empty</div>`}
+      <div class="cap"><b>${KEYS[i]} · ${m ? m.name : '—'}</b>${label}</div>
+    </div>`;
+  }).join('');
+  addOrbs(row);
+}
+
+// Dragging: a card onto a slot fills it; a slot onto another swaps them.
+slotsEl.addEventListener('dragstart', (e) => {
+  const box = e.target.closest('.slot-box.filled');
+  if (box) e.dataTransfer.setData('text/slot', box.dataset.i);
+});
+slotsEl.addEventListener('dragover', (e) => {
+  const box = e.target.closest('.slot-box'); if (!box) return;
+  e.preventDefault();
+  slotsEl.querySelectorAll('.over').forEach((b) => b.classList.remove('over'));
+  box.classList.add('over');
+});
+slotsEl.addEventListener('dragleave', (e) => e.target.closest?.('.slot-box')?.classList.remove('over'));
+slotsEl.addEventListener('drop', (e) => {
+  const box = e.target.closest('.slot-box'); if (!box) return;
+  e.preventDefault();
+  const to = Number(box.dataset.i), from = e.dataTransfer.getData('text/slot'), id = e.dataTransfer.getData('text/moon');
+  if (from !== '') {
+    const f = Number(from);
+    [picks.slots[f], picks.slots[to]] = [picks.slots[to], picks.slots[f]];
+    changed();
+  } else if (id) assign(id, to);
+});
+slotsEl.addEventListener('click', (e) => {
+  const x = e.target.closest('[data-x]');
+  if (x) return unassign(x.dataset.x);
+  const box = e.target.closest('.slot-box.filled');
+  if (box) document.querySelector(`#groups figure[data-id="${picks.slots[box.dataset.i]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+let hovered = null;
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') return lineup.classList.remove('open');
+  if (!hovered || BY_ID[hovered].original || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (/^[1-9]$/.test(k)) assign(hovered, Number(k) - 1);
+  else if (k === '0') assign(hovered, 9);
+  else if (k === 's') assign(hovered, 10);
+  else if (k === 'x') toggleNope(hovered);
+  else if (k === 'backspace' || k === 'delete') unassign(hovered);
+  else return;
+  e.preventDefault();
+});
+
+function seg(id, on) {
+  const el = document.getElementById(id);
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    el.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    on(b.dataset.v);
+  });
+}
+seg('halo', (v) => { document.body.classList.toggle('halo-blue', v === 'blue'); document.body.classList.toggle('halo-off', v === 'off'); });
+seg('show', (v) => { show = v; applyFilter(); });
+seg('nopes', (v) => { nopes = v; applyFilter(); });
+document.getElementById('compact').addEventListener('click', (e) => {
+  const on = document.getElementById('ladder').classList.toggle('compact');
+  e.target.textContent = on ? 'Show previews' : 'Hide previews';
+});
+document.getElementById('clear').addEventListener('click', () => { picks = { slots: Array(11).fill(null), nope: [] }; changed(); });
+document.getElementById('open-lineup').addEventListener('click', () => { lineup.classList.add('open'); renderLineup(); });
+document.getElementById('close-lineup').addEventListener('click', () => lineup.classList.remove('open'));
+document.getElementById('lineup-size').addEventListener('input', renderLineup);
+
+async function start() {
+  const [skyRange, moonRange] = await Promise.all([lumRange('/assets/onboarding/night-sky-moonless.png'), lumRange('/assets/onboarding/moon-frosted.png')]);
+  document.getElementById('filters').innerHTML = [...REAL, ...CREATIVE, ...TWINS]
+    .map((m) => filterDef(`sky-${m.id}`, m.sky, skyRange) + filterDef(`moon-${m.id}`, m.moon, moonRange)
+      + (m.twin ? filterDef(`twin-${m.id}`, m.twin.moon, moonRange) : '')).join('');
+  // The file wins (so picks survive a cleared browser); the browser's copy is the fallback.
+  try {
+    const saved = await (await fetch('/__moon-picks')).json();
+    if (saved.slots) picks = { slots: saved.slots.map((id) => (id && BY_ID[id] ? id : null)), nope: saved.nope ?? [] };
+    else picks = JSON.parse(localStorage.getItem('moon-lab-picks')) ?? picks;
+  } catch {}
+  while (picks.slots.length < 11) picks.slots.push(null);
+  // ?show=creative (or real, picked…) opens on that filter.
+  const preset = new URLSearchParams(location.search).get('show');
+  if (preset) {
+    show = preset;
+    document.querySelectorAll('#show button').forEach((b) => b.classList.toggle('on', b.dataset.v === preset));
+  }
+  renderGroups();
+  renderLadder();
+  renderMarks();
+  applyFilter();
+  requestAnimationFrame(tick);
+}
+start();
+</script>
+</body>
+</html>

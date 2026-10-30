@@ -22,6 +22,10 @@ public class MoonOrbModule: Module {
         view.pausedByProp = paused
         view.updateRunning()
       }
+      // The moon you're wearing: four hex colours, dark to light (features/moons).
+      Prop("colors") { (view: MoonOrbView, colors: [String]?) in
+        view.setColors(colors ?? [])
+      }
     }
   }
 }
@@ -82,6 +86,12 @@ final class MoonOrbView: ExpoView {
     }
   }
 
+  func setColors(_ hexes: [String]) {
+    let parsed = hexes.compactMap(moonOrbColor)
+    renderer?.colors = parsed.count == 4 ? parsed : moonwellColors
+    if metalView.isPaused { metalView.setNeedsDisplay() }
+  }
+
   /// Run the frame loop only while the orb is on screen, the app is active, and motion is on.
   /// Otherwise draw one still frame on demand.
   func updateRunning() {
@@ -110,6 +120,22 @@ private struct MoonOrbUniforms {
   var size: SIMD2<Float>
   var time: Float
   var press: Float
+  var c0: SIMD4<Float>
+  var c1: SIMD4<Float>
+  var c2: SIMD4<Float>
+  var c3: SIMD4<Float>
+}
+
+/// Moonwell's own colours (#040A1F, #123C8C, #5E9BEA, #E9F3FF): today's moon.
+private let moonwellColors: [SIMD4<Float>] = [
+  SIMD4(0.016, 0.039, 0.122, 1), SIMD4(0.071, 0.235, 0.549, 1), SIMD4(0.369, 0.608, 0.918, 1), SIMD4(0.914, 0.953, 1.0, 1),
+]
+
+/// "#RRGGBB" to a colour the shader reads, or nil.
+private func moonOrbColor(_ hex: String) -> SIMD4<Float>? {
+  let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+  guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+  return SIMD4(Float((value >> 16) & 0xFF) / 255, Float((value >> 8) & 0xFF) / 255, Float(value & 0xFF) / 255, 1)
 }
 
 final class MoonOrbRenderer: NSObject, MTKViewDelegate {
@@ -121,6 +147,7 @@ final class MoonOrbRenderer: NSObject, MTKViewDelegate {
   var press: Float = 0
   var targetPress: Float = 0
   var moving = true
+  var colors = moonwellColors
 
   init?(device: MTLDevice, pixelFormat: MTLPixelFormat) {
     guard
@@ -157,7 +184,11 @@ final class MoonOrbRenderer: NSObject, MTKViewDelegate {
     var uniforms = MoonOrbUniforms(
       size: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)),
       time: time,
-      press: press
+      press: press,
+      c0: colors[0],
+      c1: colors[1],
+      c2: colors[2],
+      c3: colors[3]
     )
     encoder.setRenderPipelineState(pipeline)
     encoder.setFragmentBytes(&uniforms, length: MemoryLayout<MoonOrbUniforms>.stride, index: 0)
@@ -176,7 +207,7 @@ private let moonOrbShaderSource = """
 using namespace metal;
 
 struct VOut { float4 position [[position]]; };
-struct Uniforms { float2 size; float time; float press; };
+struct Uniforms { float2 size; float time; float press; float4 c0; float4 c1; float4 c2; float4 c3; };
 
 vertex VOut moon_orb_vertex(uint vid [[vertex_id]]) {
   float2 corners[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
@@ -208,10 +239,8 @@ static float fbm(float2 p) {
 }
 
 fragment float4 moon_orb_fragment(VOut in [[stage_in]], constant Uniforms &u [[buffer(0)]]) {
-  const float3 C0 = float3(0.016, 0.039, 0.122);  // #040A1F
-  const float3 C1 = float3(0.071, 0.235, 0.549);  // #123C8C
-  const float3 C2 = float3(0.369, 0.608, 0.918);  // #5E9BEA
-  const float3 C3 = float3(0.914, 0.953, 1.0);    // #E9F3FF
+  // Moonwell's colours, or the worn moon's (MoonOrbView.setColors).
+  const float3 C0 = u.c0.rgb, C1 = u.c1.rgb, C2 = u.c2.rgb, C3 = u.c3.rgb;
   const float warp = 1.1, swirl = 0.15, core = 0.25, glass = 0.55;
   const float ribbons = 0.2, spec = 0.8, shade = 0.5;
   float T = u.time;

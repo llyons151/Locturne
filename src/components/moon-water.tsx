@@ -62,8 +62,15 @@ function PoolCircle({ pool, size, clock }: { pool: Pool; size: number; clock: Sh
   return <AnimatedCircle animatedProps={props} r={pool.r * size} fill={`url(#moon-water-${pool.id})`} />;
 }
 
-export function MoonWater({ size, reduced }: { size: number; reduced: boolean }) {
+/**
+ * With `colors` (the worn moon's four, dark to light, as the Metal orb takes them) the water takes
+ * that moon's colours: its base runs from the third to the second, its rim is the first, and its
+ * pools are the light end.
+ */
+export function MoonWater({ size, reduced, colors }: { size: number; reduced: boolean; colors?: string[] }) {
   const clock = useSharedValue(0);
+  const [c0, c1, c2, c3] = colors?.length === 4 ? colors : [];
+  const pools = c3 ? POOLS.map((p, i) => ({ ...p, color: [c3, c2, c3, c2][i] })) : POOLS;
 
   useEffect(() => {
     if (reduced) return;
@@ -79,8 +86,8 @@ export function MoonWater({ size, reduced }: { size: number; reduced: boolean })
           <Circle cx={c} cy={c} r={c} />
         </ClipPath>
         <LinearGradient id="moon-water-base" x1="0.2" y1="0" x2="0.8" y2="1">
-          <Stop offset="0" stopColor="#5FA6EC" />
-          <Stop offset="1" stopColor="#17488F" />
+          <Stop offset="0" stopColor={c2 ?? '#5FA6EC'} />
+          <Stop offset="1" stopColor={c1 ?? '#17488F'} />
         </LinearGradient>
         {/* The orb's gloss: a soft light up and to the left, held still while the pools move. */}
         <RadialGradient id="moon-water-gloss" cx="34%" cy="26%" r="42%">
@@ -89,10 +96,10 @@ export function MoonWater({ size, reduced }: { size: number; reduced: boolean })
         </RadialGradient>
         {/* A darker edge, so it reads as a sphere rather than a flat disc. */}
         <RadialGradient id="moon-water-rim" cx="50%" cy="50%" r="50%">
-          <Stop offset="0.72" stopColor="#0A2D5E" stopOpacity={0} />
-          <Stop offset="1" stopColor="#0A2D5E" stopOpacity={0.45} />
+          <Stop offset="0.72" stopColor={c0 ?? '#0A2D5E'} stopOpacity={0} />
+          <Stop offset="1" stopColor={c0 ?? '#0A2D5E'} stopOpacity={0.45} />
         </RadialGradient>
-        {POOLS.map((p) => (
+        {pools.map((p) => (
           <RadialGradient key={p.id} id={`moon-water-${p.id}`} cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor={p.color} stopOpacity={p.opacity} />
             <Stop offset="0.55" stopColor={p.color} stopOpacity={p.opacity * 0.35} />
@@ -102,7 +109,7 @@ export function MoonWater({ size, reduced }: { size: number; reduced: boolean })
       </Defs>
       <G clipPath="url(#moon-water-clip)">
         <Rect width={size} height={size} fill="url(#moon-water-base)" />
-        {POOLS.map((p) => (
+        {pools.map((p) => (
           <PoolCircle key={p.id} pool={p} size={size} clock={clock} />
         ))}
         <Rect width={size} height={size} fill="url(#moon-water-rim)" />
