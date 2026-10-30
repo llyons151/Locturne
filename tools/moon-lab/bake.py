@@ -152,7 +152,11 @@ def sky_luma():
     lo, hi = l0.min(), l0.max()
     size = (src.width * 2, src.height * 2)
     l = np.asarray(Image.fromarray(l0.astype(np.float32), 'F').resize(size, Image.BICUBIC), dtype=np.float64)
-    t = np.clip((blur(l, 3) - lo) / (hi - lo), 0, 1)
+    # Softened far past the original's own blur, to one smooth wash like Gemini's: its thin streaks of light read as lines on the phone
+    # once drawn cleanly (user, 2026-10-29), so they're blended into one smooth wash. Re-stretched after,
+    # since blurring pulls the brightest light down.
+    t = blur(l, 70)
+    t = np.clip((t - t.min()) / (t.max() - t.min()), 0, 1)
     v = np.round(t * 65535).astype(np.uint32)
     out = np.zeros((size[1], size[0], 4), dtype=np.uint8)
     out[..., 0] = v >> 8
