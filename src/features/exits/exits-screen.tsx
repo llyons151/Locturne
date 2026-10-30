@@ -178,6 +178,8 @@ export function ExitsScreen() {
   // tonight, an empty bedtime list, or after a lapse's last paid morning. No "Rough morning".
   const unheld = (phase === 'night' || phase === 'morning') && heldPhase(phase) !== phase ? phase : null;
   const heldMorning = phase === 'morning' && !unheld;
+  // In the day (a pass on a Block now) there's no sleep to go back to.
+  const stayLabel = phase === 'night' || phase === 'morning' ? 'Go back to sleep' : 'Never mind';
 
 
   // What the day holds once the morning is woken, as the wake and scan screens say it: tonight
@@ -187,10 +189,10 @@ export function ExitsScreen() {
   const words = (() => {
     if (stage.kind === 'wait') {
       return stage.night
-        ? { line: 'A pass. At this hour.', body: `${plan ? describe(plan, awake) : ''} You have ${passesLabel(left)} this month.` }
+        ? { line: plan?.pauseNight ? 'A pass. At this hour.' : 'A pass. Sure.', body: `${plan ? describe(plan, awake) : ''} You have ${passesLabel(left)} this month.` }
         : {
             line: 'A pass. Sure.',
-            body: `It wakes your apps this morning, no walking. ${awake}${endsNap ? ' Your Block now session ends.' : ''} You have ${passesLabel(left)} this month.`,
+            body: `It wakes your apps this morning, no wake-up needed. ${awake}${endsNap ? ' Your Block now session ends.' : ''} You have ${passesLabel(left)} this month.`,
           };
     }
     if (stage.kind === 'done') {
@@ -248,7 +250,7 @@ export function ExitsScreen() {
             />
           </Section>
           {stage.notice ? <Text style={styles.notice}>{stage.notice}</Text> : null}
-          <PrimaryButton label="Go back to sleep" onPress={close} />
+          <PrimaryButton label={stayLabel} onPress={close} />
         </View>
       ) : null}
 
@@ -261,7 +263,7 @@ export function ExitsScreen() {
           >
             {wait > 0 ? `0:${String(wait).padStart(2, '0')}` : '0:00'}
           </Text>
-          <PrimaryButton label="Go back to sleep" onPress={close} />
+          <PrimaryButton label={stayLabel} onPress={close} />
           {wait <= 0 ? (
             <TextButton label="Use the pass" onPress={() => setConfirming(true)} />
           ) : (
@@ -272,7 +274,7 @@ export function ExitsScreen() {
             title="Use a pass?"
             message={stage.night ? (plan ? describe(plan, awake) : '') : `It wakes your apps this morning. ${awake}`}
             confirmLabel="Use the pass"
-            cancelLabel="Go back to sleep"
+            cancelLabel={stayLabel}
             onConfirm={() => unlock(stage.night)}
             onCancel={close}
             onDismiss={() => setConfirming(false)}

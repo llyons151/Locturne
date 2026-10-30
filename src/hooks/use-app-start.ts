@@ -6,6 +6,7 @@ import { resumeRehearsal } from '@/features/dev/rehearsal/rehearsal';
 import { setPaywallOpen, wasClosedAtPaywall } from '@/features/onboarding/setup';
 import { track } from '@/lib/analytics';
 import { armTonight } from '@/lib/arm';
+import { revealApp } from '@/lib/launch-splash';
 import { paidSettleCount, settleSubscription } from '@/lib/lock-controller';
 import { onProofChange } from '@/lib/morning-proof';
 import {
@@ -121,10 +122,14 @@ export function useAppStart(): void {
       // would be pushed on top, and finishing one would land on the other.
       // Nor over a dev lab: it's what they came to look at. (In a release build the lab route
       // sends itself to onboarding: `leaveLab`.)
-      if (pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') router.push('/onboarding');
+      // Still under the launch screen, so straight in, no slide: onboarding lifts it once drawn.
+      if (pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') router.push({ pathname: '/onboarding', params: { launch: '1' } });
+      else if (pathname !== '/onboarding') revealApp();
       armIfPaid();
       return;
     }
+    // Opening on the tabs: they're drawn.
+    revealApp();
     // Closed at the paywall last time: back to it with their setup, unless they've paid since
     // (a purchase that finished as the app died). Offline, the paywall says the store isn't answering.
     if (wasClosedAtPaywall() && pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') {

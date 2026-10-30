@@ -33,7 +33,7 @@ import { methodInUse } from '@/lib/scan-code';
 import { PlacePick } from '@/features/place/place-pick';
 import { ScanScreen } from '@/features/scan/scan-screen';
 import { printCode } from '@/features/scan/print-code';
-import { draftQrData, getScanCode, type ScanCode } from '@/lib/scan';
+import { draftQrData, getScanCode, notePrinted, type ScanCode } from '@/lib/scan';
 import {
   getOffers,
   isEntitled,
@@ -94,6 +94,24 @@ const PAYWALL: StepId[] = ['offer', 'plans'];
 
 /** Once any of these is reached the setup is complete, so leaving saves it (unarmed). */
 const SETUP_DONE: StepId[] = ['commit', 'offer', 'plans', 'declined'];
+/** The pages that only sell: skipped by someone who restored a subscription on `hello`. */
+const QUIZ_ONLY: StepId[] = [
+  'pain',
+  'morning-minutes',
+  'night-minutes',
+  'night-feel',
+  'worst-time',
+  'nights-per-week',
+  'time-back',
+  'tried',
+  'found',
+  'age',
+  'reveal',
+  'build',
+  'founder',
+  'offer',
+  'plans',
+];
 
 /**
  * The library saves Apple's picks about 0.1 s after Done, so counts read on close alone are
@@ -320,9 +338,11 @@ export function OnboardingFlow({
     saveSetup(answers);
     setPaywallOpen(true);
   });
+  // Again on each page after that: back on `commit` from changing a time, the method or the apps
+  // there, so a kill at the paywall keeps the change (user 2026-10-29).
   useEffect(() => {
     if (reachedSetup) saveAtPaywall();
-  }, [reachedSetup]);
+  }, [reachedSetup, step]);
   const lastView = useRef<{ step: StepId; at: number } | null>(null);
   const wentBack = useRef(false);
   const stepShown = useEffectEvent(() => {
@@ -377,7 +397,10 @@ export function OnboardingFlow({
     }
     dispatch({ type: 'go', to });
   };
-  const next = () => dispatch({ type: 'next', at: history.length, visit: nav.visit });
+  const [restored, setRestored] = useState(false);
+  // Restored on the first screen: only the setup, none of the quiz (user 2026-10-29), so
+  // bedtime, the alarm, the method, tomorrow, access, the apps, then the card and arming.
+  const next = () => dispatch({ type: 'next', at: history.length, visit: nav.visit, ...(restored && { skip: QUIZ_ONLY }) });
   const edit = (to: StepId) => dispatch({ type: 'edit', to });
   const back = canGoBack(nav)
     ? () => {
@@ -411,9 +434,13 @@ export function OnboardingFlow({
   // flow under its own back and chapter bar. Saved moves on; back without one stays put.
   const [settingUp, setSettingUp] = useState<'place' | 'scan' | null>(null);
   const setUpMethod = () => (answers.method === 'place' ? setSettingUp('place') : go('scan-code'));
+  // A code counts as set up once printed (`notePrinted`), so the camera moves on only when it
+  // saved a scan: backing out to print again stays on the page (user 2026-10-29).
+  const [scanMark, setScanMark] = useState<number | undefined>(undefined);
   const setUpClosed = () => {
+    const scanned = settingUp !== 'scan' || getScanCode()?.registeredAt !== scanMark;
     setSettingUp(null);
-    if ((step === 'tomorrow' || step === 'scan-code') && answers.method && methodInUse(answers.method) === answers.method) next();
+    if (scanned && (step === 'tomorrow' || step === 'scan-code') && answers.method && methodInUse(answers.method) === answers.method) next();
   };
   // The code on `scan-code`: the one already printed, or a new one that stays for this visit.
   const [scanSource, setScanSource] = useState<ScanCode['kind']>(() => getScanCode()?.kind ?? 'qr');
@@ -427,9 +454,11 @@ export function OnboardingFlow({
   const printScanCode = () => {
     if (printing) return;
     setPrinting(true);
-    printCode(scanQr).finally(() => {
+    printCode(scanQr).then((done) => {
       setPrinting(false);
       setScanPrinted(true);
+      // Printed is set up (user 2026-10-29); scanning it next still confirms the camera reads it.
+      if (done) notePrinted(scanQr);
     });
   };
   /** `armed` with every night off: done here, on to the Routine tab to turn one on. */
@@ -551,7 +580,6 @@ export function OnboardingFlow({
     runArm();
   };
   /** A Restore found a subscription in this session, so finishing from `commit` is a restore. */
-  const [restored, setRestored] = useState(false);
   /**
    * Saves the setup and arms. Only ever after a purchase or a restored subscription, or for
    * someone already subscribed when the flow opened (`entitled`: nothing was restored).
@@ -636,7 +664,7 @@ export function OnboardingFlow({
     } else if (result.status === 'failed') {
       // Paid but not showing yet: Restore is the advice, not trying again.
       if (result.retry === false) say('Not showing yet', result.message);
-      else say('That didn’t go through', `${result.message} Nothing is set up yet. Try again in a moment.`);
+      else say('That didn’t go through', `${result.message} Nothing was charged and nothing sleeps yet. Try again in a moment.`);
     }
     // Cancelled: they closed Apple's sheet. Closest to buying of anyone who leaves, so the one
     // exit offer shows here too (once per install, same as closing the paywall). Apple allows
@@ -682,7 +710,7 @@ export function OnboardingFlow({
     // From the first screen: set up the nights, then arm without a paywall.
     // `step` is from the tap; they may have tapped on since. Only move them if still on `hello`
     // (`entitled` and `restored` are set, so wherever they are ends without a paywall).
-    say('You’re subscribed', 'Set up your nights and I’ll arm them. No paywall.', () => {
+    say('You’re subscribed', 'Just your nights and your wake-up, then I’ll arm them. No paywall.', () => {
       if (latestStep.get('value') === 'hello') go('bedtime');
     });
   };
@@ -890,7 +918,10 @@ export function OnboardingFlow({
     scanQr,
     scanPrinted,
     printScanCode,
-    openScanner: () => setSettingUp('scan'),
+    openScanner: () => {
+      setScanMark(getScanCode()?.registeredAt);
+      setSettingUp('scan');
+    },
     screenTime,
     askScreenTime,
     setUpLater,

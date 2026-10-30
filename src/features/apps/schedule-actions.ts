@@ -1,6 +1,6 @@
 import { syncLock } from '@/lib/lock-controller';
 import { asSet, editSchedule, freeScheduleId, isBlocking, nextBlock, scheduleRemovalsAt, type Schedule, type ScheduleId } from '@/lib/schedules';
-import { getSchedules, saveSchedules, setScheduleShieldText, type ShieldText } from '@/lib/screen-time';
+import { getSchedules, isStoodDown, saveSchedules, setScheduleShieldText, type ShieldText } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 
 /** A schedule as the sheet edits it: everything but its id and any waiting edit. */
@@ -47,6 +47,8 @@ export function whenLabel(at: Date, now: Date): string {
 
 /** How a schedule stands right now, for its tile and page: asleep until when, or when it's next. */
 export function scheduleStatus(s: Schedule, now = new Date()): { asleep: boolean; text: string } | null {
+  // No subscription: nothing sleeps, as the Apps header says (`listStatus`).
+  if (isStoodDown()) return null;
   if (isBlocking(s, now)) {
     const ends = scheduleRemovalsAt(s, now);
     return { asleep: true, text: `Asleep now. Awake ${whenLabel(ends, now)}.` };

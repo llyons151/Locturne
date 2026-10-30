@@ -107,6 +107,24 @@ export function registerScanCode(
   return null;
 }
 
+/**
+ * The QR has been through the print sheet: from now it's the code, so Routine stops saying "not
+ * set up" and a scan morning asks for it (user 2026-10-29: the printout could well be up and
+ * working). Nothing can check it was printed; a morning without it still has "Walk 200 steps
+ * instead", and scanning it once (`registerScanCode`) still confirms the camera reads it. Never
+ * over a barcode in use, which keeps working until the QR is scanned in, nor from bed. True when
+ * it was saved.
+ */
+export function notePrinted(data: string, now = new Date()): boolean {
+  const old = getScanCode();
+  if ((old && old.kind !== 'qr') || old?.data === data.trim() || getScanEditRefusal(now) || !registrable(data)) return false;
+  sharedSet(SCAN_CODE_KEY, { kind: 'qr', data: data.trim(), type: 'qr', registeredAt: now.getTime() } satisfies ScanCode);
+  sharedRemove(QR_DRAFT_KEY);
+  syncLock(now);
+  scanCodeChanged();
+  return true;
+}
+
 export type ScanResult = 'unlocked' | 'wrongCode' | 'noCode' | 'notMorning' | 'notMethod';
 
 /**

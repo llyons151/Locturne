@@ -3,10 +3,16 @@ import { Platform } from 'react-native';
 
 import { printableHtml } from './qr';
 
-/** The print dialog with the code's own sheet. Resolves once it closes, however it closed. */
-export function printCode(data: string): Promise<void> {
-  if (Platform.OS === 'web') return printOnWeb(printableHtml(data));
-  return printAsync({ html: printableHtml(data) }).catch(() => {});
+/**
+ * The print dialog with the code's own sheet. Resolves once it closes, however it closed: true
+ * unless it was cancelled (a browser can't tell, so there it's always true).
+ */
+export function printCode(data: string): Promise<boolean> {
+  if (Platform.OS === 'web') return printOnWeb(printableHtml(data)).then(() => true);
+  return printAsync({ html: printableHtml(data) }).then(
+    () => true,
+    () => false,
+  );
 }
 
 /**

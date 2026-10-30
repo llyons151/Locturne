@@ -59,14 +59,16 @@ const fromStrip = (days: number[]) => days.map((d) => (d + 1) % 7).sort((a, b) =
  * title with a round close button, the presets for a new one (user's pick, 2026-10-14), its
  * name, one card with All day, From and To (Apple's time pickers) and the days, then Done and a
  * quieter Delete. It saves however it closes, Done, the close button or a swipe (user,
- * 2026-10-14: "it should just always automatically save"); a looser edit made while it's
+ * 2026-10-14: "it should just always automatically save"), except a new one closed before Done,
+ * which is never made (an empty schedule took a slot); a looser edit made while it's
  * blocking waits for the block's end (`editSchedule`). A new schedule's apps' page opens after.
  */
 export function ScheduleSheet() {
   const [req] = useState(() => request);
   const [draft, setDraft] = useState<ScheduleDraft>(() => (req && !req.isNew && scheduleAsSet(req.id)) || blank());
   const [preset, setPreset] = useState<string | null>(req?.isNew ? PRESETS[0].key : null);
-  const latest = useRef({ draft, deleted: false });
+  // A new one is kept only once they go on to its apps: closed before that, it was never made.
+  const latest = useRef({ draft, deleted: false, kept: !req?.isNew });
   useEffect(() => {
     latest.current.draft = draft;
   }, [draft]);
@@ -80,7 +82,8 @@ export function ScheduleSheet() {
   useEffect(
     () => () => {
       if (!req) return;
-      const { draft: last, deleted } = latest.current;
+      const { draft: last, deleted, kept } = latest.current;
+      if (!kept) return;
       if (deleted) saveSchedule(req.id, null);
       else if (!problem(last)) saveSchedule(req.id, last);
       afterClose.current?.();
@@ -99,6 +102,7 @@ export function ScheduleSheet() {
   const wrong = problem(draft);
   const done = () => {
     haptic.done();
+    latest.current.kept = true;
     if (req.isNew) afterClose.current = () => router.push({ pathname: '/list', params: { id: req.id } });
     closeSleepSheet();
   };
@@ -120,6 +124,7 @@ export function ScheduleSheet() {
   };
   const openApps = () => {
     haptic.tap();
+    latest.current.kept = true;
     // Apple's picker can't open over this sheet: the apps' page opens once it has gone.
     afterClose.current = () => router.push({ pathname: '/list', params: { id: req.id } });
     closeSleepSheet();

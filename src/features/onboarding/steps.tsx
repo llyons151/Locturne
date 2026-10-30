@@ -829,7 +829,7 @@ export function renderStep(ctx: StepContext): StepView {
                   <View style={page.gapBlock} />
                   <Body>
                     {answers.remindTrial && ctx.trialEnds !== null
-                      ? `First, iOS asks about notifications, so I can remind you two days before your free trial ends on ${trialDay(ctx.trialEnds)}.`
+                      ? `First, iOS asks about notifications, so I can remind you before your free trial ends on ${trialDay(ctx.trialEnds)}.`
                       : 'First, iOS asks about notifications. Just bedtime and morning.'}
                   </Body>
                 </>

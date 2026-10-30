@@ -15,7 +15,7 @@ import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import { isLimitId, limitLabel } from '@/lib/daily-limits';
 import * as haptic from '@/lib/haptics';
-import { isScheduleId } from '@/lib/schedules';
+import { isBlocking, isScheduleId } from '@/lib/schedules';
 import { editedSelection, getSchedules, isScreenTimeAvailable, listChangeStarts } from '@/lib/screen-time';
 import { WebsitesCard } from '@/features/websites/websites-card';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
@@ -201,7 +201,11 @@ function SchedulePage({
             haptic.tap();
             const remove = () => saveSchedule(schedule.id, null);
             if (Platform.OS === 'web') return remove();
-            Alert.alert('Delete this schedule?', 'Its apps stay awake at these times again.', [
+            // Mid-block, a delete waits for the block's end (`editSchedule`), as the sheet says.
+            const why = isBlocking(schedule, new Date())
+              ? 'It keeps its apps asleep until this block is over, then it’s gone.'
+              : 'Its apps stay awake at these times again.';
+            Alert.alert('Delete this schedule?', why, [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Delete', style: 'destructive', onPress: remove },
             ]);

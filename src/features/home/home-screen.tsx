@@ -71,8 +71,11 @@ const MOCK_WEEK = __DEV__;
  * one sentence and one quiet button. Over the moon only Loc, peeking over the panel's edge.
  */
 
-/** The evening button names tomorrow's wake-up, the part of the night that's still to come. */
-const METHOD_NAME = { downstairs: 'Downstairs', steps: '200 steps', scan: 'Scan my code', place: 'Leave the house', pushups: 'Push-ups' } as const;
+/**
+ * The evening button names tomorrow's wake-up, the part of the night that's still to come, in
+ * Routine's words (steps and push-ups carry their counts where it's built).
+ */
+const METHOD_NAME = { downstairs: 'Go downstairs', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups' } as const;
 
 /** `pauseWording`'s answer: the paused night's words. */
 type PauseWords = ReturnType<typeof pauseWording>;
@@ -303,8 +306,9 @@ export function HomeScreen() {
   // Tomorrow's morning will hold (tonight sleeps, or is asleep), so the button says how it
   // ends rather than offering the schedule. Nights off and nothing scheduled keep Edit schedule,
   // which is the fix there.
+  // Not on a night a pass paused: its morning is free too.
   const tomorrowLocked =
-    !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
+    !paused && !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
   // Asks right here (askAccessAgain), which offers Settings only if it's refused again.
   const turnAccessOn = () => askAccessAgain().then(recheckHealth);
   // A walk with Motion & Fitness off: Settings, with the other ways under it.
@@ -314,7 +318,8 @@ export function HomeScreen() {
   // In its last hour the line above already gives the time, so just the method.
   const nextMorningLabel = () => {
     const today = now.getHours() * 60 + now.getMinutes() < routine.morningStart;
-    const name = method === 'steps' ? `${routine.stepGoal} steps` : METHOD_NAME[method];
+    const name =
+      method === 'steps' ? `${routine.stepGoal} steps` : method === 'pushups' ? `${pushupGoalOf(routine)} push-ups` : METHOD_NAME[method];
     // A day sleeper's "morning" is in the afternoon: "Later today", as onboarding says it (wake-day.ts).
     const thisOne = routine.morningStart >= 12 * 60 ? 'Later today' : 'This morning';
     if (today && phase === 'night' && minutes !== null && minutes <= 60) return `${thisOne}: ${name}`;
@@ -548,9 +553,11 @@ function walkHero(walk: MorningWalk) {
       title: "I can't count steps on this",
       body: 'Steps need the iPhone’s motion sensor, and this device doesn’t have one I can read.',
     };
-  const left = walk.goal - (walk.steps ?? 0);
+  // Still reading the history: no "200 more" for someone already 180 in.
+  if (walk.steps === null) return { title: `${walk.goal} steps`, body: 'Counting your steps…' };
+  const left = walk.goal - walk.steps;
   return {
-    title: `${walk.steps ?? 0} of ${walk.goal} steps`,
+    title: `${walk.steps} of ${walk.goal} steps`,
     body: left > 0 ? `${left} more and your apps wake up.` : 'That will do.',
   };
 }

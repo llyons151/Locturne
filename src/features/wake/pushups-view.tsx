@@ -207,18 +207,22 @@ function SetupSketch() {
   );
 }
 
-/** A neutral dark fade, so white type reads over the picture. Black only, never tinted. */
-function Scrim({ height, flip }: { height: number; flip?: boolean }) {
+/**
+ * A neutral dark fade, so white type reads over the picture. Black only, never tinted. Its width in
+ * points: "100%" inside the turned layer came out the upright screen's width, so on its side each
+ * fade stopped halfway along with a hard edge (user 2026-10-29).
+ */
+function Scrim({ width, height, flip }: { width: number; height: number; flip?: boolean }) {
   const id = flip ? 'scrimUp' : 'scrimDown';
   return (
-    <Svg width="100%" height={height} style={flip ? styles.scrimBottom : styles.scrimTop} pointerEvents="none">
+    <Svg width={width} height={height} style={flip ? styles.scrimBottom : styles.scrimTop} pointerEvents="none">
       <Defs>
         <LinearGradient id={id} x1="0" y1={flip ? '1' : '0'} x2="0" y2={flip ? '0' : '1'}>
           <Stop offset="0" stopColor="#000000" stopOpacity={0.6} />
           <Stop offset="1" stopColor="#000000" stopOpacity={0} />
         </LinearGradient>
       </Defs>
-      <Rect width="100%" height="100%" fill={`url(#${id})`} />
+      <Rect width={width} height={height} fill={`url(#${id})`} />
     </Svg>
   );
 }
@@ -514,8 +518,8 @@ export function PushupsCamera({
             />
           ) : null}
           <PoseOverlay pose={pose} counting={counting} />
-          <Scrim height={insets.top + (side ? 120 : 190)} />
-          <Scrim height={ledge + Space.xxxl} flip />
+          <Scrim width={width} height={insets.top + (side ? 120 : 190)} />
+          <Scrim width={width} height={ledge + Space.xxxl} flip />
 
           <View
             style={[styles.reading, { top: insets.top + (side ? 0 : short ? Space.l : Space.xxl) }]}

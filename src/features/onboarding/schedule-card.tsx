@@ -88,7 +88,7 @@ export function ScheduleCard({
   apps: string[];
   liveCount?: number;
   compact: boolean;
-  onChange: (what: 'bedtime' | 'wake' | 'apps') => void;
+  onChange: (what: 'bedtime' | 'wake' | 'method' | 'apps') => void;
   /** The earliest it starts building, in ms from the page's start (it also waits its turn). */
   enterAt?: number;
 }) {
@@ -157,6 +157,10 @@ export function ScheduleCard({
             <WalkGlyph name={METHOD_GLYPH[method]} />
           </Animated.View>
         </View>
+        {/* The wake-up changes here too, like the times above (user 2026-10-29: "tap anything"). */}
+        <Animated.View style={[styles.methodChange, play(fade(stepAt(side + 1), 400))]}>
+          <ChangeLink label="Change wake-up" onPress={() => onChange('method')} />
+        </Animated.View>
 
         <Animated.View style={[styles.divider, play(fade(landAt, 400))]} />
 
@@ -264,6 +268,7 @@ const styles = StyleSheet.create({
   suffix: { color: Nocturne.text2, fontSize: 16, fontWeight: '600' },
   change: { color: Nocturne.text2, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
   walk: { flexDirection: 'row', alignItems: 'center', gap: Space.s, marginTop: Space.l },
+  methodChange: { alignSelf: 'center', marginTop: Space.xs },
   // Evenly spaced dashes, clipped to whatever width the row leaves.
   dashes: { flex: 1, flexDirection: 'row', gap: 4, overflow: 'hidden' },
   // Round dots, like footprints across the night.

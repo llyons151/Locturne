@@ -93,8 +93,10 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
   // Only a fix sharp enough for Check in to say yes: a fuzzy one could say "You're here" from bed.
   const away = you && sharpFix(you) ? distanceMeters(you, place) : null;
   const here = away !== null && away <= PLACE_RADIUS_M;
-  // Got there since a check-in said "not there yet": that miss is old news, so it's Check in again.
-  const shown: Check = here && stage.kind === 'notThere' ? { kind: 'morning' } : stage;
+  // Got there, sharp, since a check-in missed (not there yet, too fuzzy, no fix): that miss is
+  // old news, so it's Check in again. Not one only Settings can fix.
+  const stale = stage.kind === 'notThere' || stage.kind === 'unsure' || (stage.kind === 'noFix' && !settingsCanFix(stage.why));
+  const shown: Check = here && stale ? { kind: 'morning' } : stage;
 
   const now = new Date();
   const imperial = usesMiles();

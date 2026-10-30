@@ -290,3 +290,12 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
     }
   });
 });
+
+test('restored on hello: the quiz is skipped, the setup isn’t', () => {
+  // `QUIZ_ONLY` in onboarding-flow.tsx.
+  const quiz = ['pain', 'morning-minutes', 'night-minutes', 'night-feel', 'worst-time', 'nights-per-week', 'time-back', 'tried', 'found', 'age', 'reveal', 'build', 'founder', 'offer', 'plans'] as const;
+  const skip = [...quiz];
+  const path = ['bedtime'];
+  while (path.at(-1) !== 'commit') path.push(nextStep(path.at(-1) as never, skip));
+  assert.deepEqual(path, ['bedtime', 'wake', 'method', 'tomorrow', 'screen-time', 'apps', 'commit']);
+});

@@ -169,7 +169,8 @@ export function useListActions() {
     // ask again first, since Apple's picker needs it.
     if (protection !== 'on' && !(await askAccess())) return;
     if (isPickerSettling(list) || (isLimitId(list) && armingLimits.has(list))) {
-      setLimitError('Still saving this limit. Try again in a moment.');
+      // Not "this limit" for the bedtime, all-day or a schedule's list.
+      setLimitError(isLimitId(list) ? 'Still saving this limit. Try again in a moment.' : 'Still saving your picks. Try again in a moment.');
       return;
     }
     beginListEdit(list);
@@ -188,7 +189,8 @@ export function useListActions() {
   const removed = (list: StandingList, pick: RemovedPick) => {
     haptic.tap();
     if (isPickerSettling(list) || (isLimitId(list) && armingLimits.has(list))) {
-      setLimitError('Still saving this limit. Try again in a moment.');
+      // Not "this limit" for the bedtime, all-day or a schedule's list.
+      setLimitError(isLimitId(list) ? 'Still saving this limit. Try again in a moment.' : 'Still saving your picks. Try again in a moment.');
       refresh();
       return;
     }

@@ -111,3 +111,21 @@ test('a registered QR printout survives a switch to a barcode and back', () => {
   assert.equal(scan.registerScanCode({ kind: 'qr', data: printed, type: 'qr' }, at(10, 5, 16)), null);
   assert.equal(scan.getScanCode()?.data, printed);
 });
+
+test('a printed QR is the code: no longer "not set up", and only in the day', () => {
+  const draft = scan.draftQrData();
+  assert.ok(!scan.notePrinted(draft, at(10, 6, 3)), 'not from bed');
+  recordProof({ morningKey: '2026-10-05', kind: 'steps', at: at(10, 5, 7, 30).getTime() });
+  assert.equal(scan.getScanCode(), null);
+  assert.ok(scan.notePrinted(draft, at(10, 5, 15)));
+  assert.equal(scan.getScanCode()?.data, draft);
+  assert.equal(scan.getScanCode()?.kind, 'qr');
+  assert.ok(!scan.notePrinted(draft, at(10, 5, 16)), 'printing it again changes nothing');
+});
+
+test('printing a QR never replaces a barcode in use', () => {
+  recordProof({ morningKey: '2026-10-05', kind: 'steps', at: at(10, 5, 7, 30).getTime() });
+  assert.equal(scan.registerScanCode({ kind: 'barcode', data: '5000112637922', type: 'ean13' }, at(10, 5, 12)), null);
+  assert.ok(!scan.notePrinted(scan.draftQrData(), at(10, 5, 15)));
+  assert.equal(scan.getScanCode()?.kind, 'barcode');
+});

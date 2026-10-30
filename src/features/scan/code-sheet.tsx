@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { TextButton } from '@/components/buttons';
@@ -9,7 +9,7 @@ import { Split, SplitHalf } from '@/components/split-choice';
 import { Text } from '@/components/text';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import * as haptic from '@/lib/haptics';
-import { draftQrData, getScanCode, getScanEditRefusal, type ScanCode } from '@/lib/scan';
+import { draftQrData, getScanCode, getScanEditRefusal, notePrinted, type ScanCode } from '@/lib/scan';
 import { onScanCodeChange } from '@/lib/scan-code';
 import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
@@ -55,13 +55,16 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
   // sheet slides down. Heard from the save itself (`onScanCodeChange`), with coming back into
   // focus as a fallback: on iPhone the camera closing doesn't reliably refocus this sheet.
   // By when it was registered, not its data: scanning the same barcode again is a save too.
-  const [before] = useState(() => getScanCode()?.registeredAt);
+  // A printout saved as the code (`notePrinted`) moves the mark on without counting as a scan.
+  const [first] = useState(() => getScanCode()?.registeredAt);
+  const before = useRef(first);
+  const printing$ = useRef(false);
   const [saved, setSaved] = useState(false);
   const check = useCallback(() => {
     const now = getScanCode()?.registeredAt;
-    if (now !== undefined && now !== before) setSaved(true);
-  }, [before]);
-  useEffect(() => onScanCodeChange(() => setSaved(true)), []);
+    if (now !== undefined && now !== before.current) setSaved(true);
+  }, []);
+  useEffect(() => onScanCodeChange(() => !printing$.current && setSaved(true)), []);
   useFocusEffect(check);
   useEffect(() => {
     if (!saved) return;
@@ -74,9 +77,13 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
   const print = () => {
     if (printing) return;
     setPrinting(true);
-    printCode(qr).finally(() => {
+    printCode(qr).then((done) => {
       setPrinting(false);
       setPrinted(true);
+      if (!done) return;
+      printing$.current = true;
+      if (notePrinted(qr)) before.current = getScanCode()?.registeredAt;
+      printing$.current = false;
     });
   };
   const scan = () =>
@@ -165,6 +172,16 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
             <TextButton label="Print again" onPress={print} />
           </View>
         ) : null}
+        {/* A way out besides swiping down (user 2026-10-29), last, under everything else. */}
+        <View style={styles.again}>
+          <TextButton
+            label="Close"
+            onPress={() => {
+              haptic.tap();
+              closeSleepSheet();
+            }}
+          />
+        </View>
       </View>
     </View>
   );

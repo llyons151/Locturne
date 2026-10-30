@@ -111,7 +111,7 @@ test("a refused Block now names this zone's clock change, not the US one", { ski
         assert.ok(error instanceof st.NapClockChangeError);
         assert.equal(
           error.message,
-          `The clocks go back at ${before} during that nap. Pick one that ends before ${before}, or start it after the clocks change.`,
+          `The clocks go back at ${before} during that session. Pick one that ends before ${before}, or start it after the clocks change.`,
         );
         return true;
       });

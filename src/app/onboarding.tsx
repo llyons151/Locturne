@@ -1,8 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 import { OnboardingFlow } from '@/features/onboarding/onboarding-flow';
+import { revealApp } from '@/lib/launch-splash';
 import { hasRoutine } from '@/lib/routine';
 
 export default function OnboardingScreen() {
@@ -22,6 +24,12 @@ export default function OnboardingScreen() {
     insets?: string;
     paywall?: string;
   }>();
+  // A first launch opens here under the launch screen (`useAppStart`): lift it once this page has
+  // drawn, a beat after mounting, as the modal is put up without its slide.
+  useEffect(() => {
+    const t = setTimeout(revealApp, 80);
+    return () => clearTimeout(t);
+  }, []);
   const review = __DEV__ || Platform.OS === 'web';
   const devLabs = review || process.env.EXPO_PUBLIC_DEV_LABS === '1';
   // `?resume=paywall` (the You tab and Home's Subscribe): straight to the plans with the

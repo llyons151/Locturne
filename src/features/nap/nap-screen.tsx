@@ -82,7 +82,7 @@ const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
 
 /** Loc's lines (VOICE.md line bank). */
 const LINES: Record<NapLine, string> = {
-  idle: 'Finally. A nap.',
+  idle: 'Finally. Some quiet.',
   napping: 'Tucked in. Do not perceive me.',
   ended: "I'm up. Don't talk to me yet.",
   woken: 'Fine. *Fine.*',
@@ -92,17 +92,17 @@ type Nap = ActiveNap;
 
 /** Why a nap can't start right now, or null if it can. */
 function blocker(list: List): string | null {
-  if (!isScreenTimeAvailable()) return 'Naps need Screen Time, which only iPhone has.';
+  if (!isScreenTimeAvailable()) return 'Block now needs Screen Time, which only iPhone has.';
   if (getProtection() !== 'on') return 'Turn on Screen Time access first.';
   if (isStoodDown()) return 'Block now needs a subscription. Subscribe from the You tab.';
   if (list === 'night' && nightPickCount() === 0) {
     // A night pass parks the picks until the next bedtime (`pauseNightUntil`): they're
     // still chosen, just awake, and a nap on the empty live list would shield nothing.
     return shownSelection('night').size > 0
-      ? 'Your bedtime apps are awake until bedtime after your pass. Pick apps for this nap instead.'
+      ? 'Your bedtime apps are awake until bedtime after your pass. Pick apps for this session instead.'
       : 'Pick your bedtime apps on the Apps tab first.';
   }
-  if (list === 'block' && !hasSelection('block')) return 'Pick the apps for this nap first.';
+  if (list === 'block' && !hasSelection('block')) return 'Pick the apps for this session first.';
   if (list === 'night' && isNightHeld()) return 'Your bedtime apps are already asleep.';
   return null;
 }
@@ -224,7 +224,7 @@ export function NapScreen() {
       setNap(started);
       setLine('napping');
     } catch (error) {
-      refuse(error instanceof NapClockChangeError ? error.message : "iOS wouldn't start the nap. Try again in a moment.");
+      refuse(error instanceof NapClockChangeError ? error.message : "iOS wouldn't start Block now. Try again in a moment.");
     } finally {
       setStarting(false);
     }
@@ -280,7 +280,7 @@ export function NapScreen() {
       if (!running) return;
       const parts = [
         added > 0 ? `${added === 1 ? 'One more' : `${added} more`} asleep until ${timeOf(running.end)}.` : null,
-        dropped ? 'Anything you took off stays asleep until the nap ends.' : null,
+        dropped ? 'Anything you took off stays asleep until the session ends.' : null,
       ].filter(Boolean);
       if (parts.length) refuse(parts.join(' '));
     });
@@ -347,14 +347,14 @@ export function NapScreen() {
           <SplitHalf
             icon={sym('moon.zzz.fill', 'bedtime')}
             title="Bedtime apps"
-            detail="Every night"
+            detail="Your bedtime list"
             selected={list === 'night'}
             onPress={() => choose('night')}
           />
           <SplitHalf
             icon={sym('square.grid.2x2.fill', 'apps')}
             title="Pick apps"
-            detail={list === 'block' ? (picks ? countPicks(picks) : 'None yet') : 'Just this nap'}
+            detail={list === 'block' ? (picks ? countPicks(picks) : 'None yet') : 'Just this session'}
             selected={list === 'block'}
             onPress={() => (list === 'block' ? pickApps() : choose('block'))}
           />
@@ -394,8 +394,8 @@ export function NapScreen() {
       {adding && nap && (
         <ScreenTimePicker
           list={adding}
-          header="Add to this nap"
-          footer={`They sleep until ${timeOf(nap.end)}. Taking one off waits until the nap ends.`}
+          header="Add to this session"
+          footer={`They sleep until ${timeOf(nap.end)}. Taking one off waits until the session ends.`}
           onClose={() => addClosed(adding)}
         />
       )}

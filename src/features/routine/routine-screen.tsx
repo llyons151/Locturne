@@ -245,9 +245,12 @@ export function RoutineScreen() {
     if (!moved) return commit(next);
     // Its night has already begun (a bedtime moved before now, a morning moved past now): say
     // so before the apps sleep.
+    // A night switched back on keeps its bedtime: say that, not "your new bedtime".
     const why = moved === 'morning'
       ? 'Your new wake-up time hasn’t come yet, so your apps sleep until you’re up after it.'
-      : 'Your new bedtime has already passed, so tonight starts now.';
+      : patch.nights !== undefined && patch.bedtime === undefined
+        ? 'Tonight is back on and its bedtime has passed, so it starts now.'
+        : 'Your new bedtime has already passed, so tonight starts now.';
     Alert.alert('This puts your apps to sleep now', why, [
       { text: 'Cancel', style: 'cancel', onPress: () => setDialKey((k) => k + 1) },
       { text: 'Sleep now', onPress: () => commit(next) },

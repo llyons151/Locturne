@@ -880,8 +880,8 @@ export class NapClockChangeError extends Error {
   constructor(at?: string) {
     super(
       at
-        ? `The clocks go back at ${at} during that nap. Pick one that ends before ${at}, or start it after the clocks change.`
-        : 'The clocks go back during that nap. Pick one that ends before they change, or start it after.',
+        ? `The clocks go back at ${at} during that session. Pick one that ends before ${at}, or start it after the clocks change.`
+        : 'The clocks go back during that session. Pick one that ends before they change, or start it after.',
     );
   }
 }
@@ -929,7 +929,7 @@ function napClockOf(ms: number) {
  * closed. iOS refuses windows under 15 minutes (`NAP_SHORTEST`), so shorter ones never start.
  */
 export async function startNap(list: ActiveNap['list'], minutes: number): Promise<ActiveNap> {
-  if (minutes < NAP_SHORTEST) throw new Error(`A nap needs at least ${NAP_SHORTEST} minutes.`);
+  if (minutes < NAP_SHORTEST) throw new Error(`Block now needs at least ${NAP_SHORTEST} minutes.`);
   if (isStoodDown()) throw new Error('Block now needs a subscription.');
   if (napStarting) throw new Error('A nap is already starting.');
   const start = Date.now();
