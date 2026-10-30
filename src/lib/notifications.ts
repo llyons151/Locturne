@@ -301,23 +301,6 @@ export function configureNotifications(): void {
   });
 }
 
-/**
- * Right after notifications are allowed in onboarding: one real note a few seconds later, so
- * the first thing they hear from him is what the first night's will look like. `when` is that
- * night as `scheduleCopy(...).note` words it ("Tomorrow at 8:00 AM"). It deliberately doesn't
- * start with `ID_PREFIX`, so a reschedule can't cancel it before it lands.
- */
-export async function sendFirstNote(when: string): Promise<void> {
-  if (!isIOS() || (await getNotificationPermission()) !== 'granted') return;
-  configureNotifications();
-  const { title, body } = COPY.bedtime;
-  await Notifications.scheduleNotificationAsync({
-    identifier: 'onboarding.firstNote',
-    content: { title: `Like this. ${title}`, body: `${body} ${when}.` },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 4 },
-  });
-}
-
 /** iOS's answer so far. Provisional and ephemeral count as granted. */
 export async function getNotificationPermission(): Promise<NotificationPermission> {
   if (!isIOS()) return 'denied';

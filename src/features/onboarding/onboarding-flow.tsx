@@ -27,7 +27,7 @@ import {
 import { armTonight, type ArmResult } from '@/lib/arm';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { settleSubscription } from '@/lib/lock-controller';
-import { askForNotifications, getNotificationPermission, rescheduleNotifications, sendFirstNote, type NotificationPermission } from '@/lib/notifications';
+import { askForNotifications, getNotificationPermission, rescheduleNotifications, type NotificationPermission } from '@/lib/notifications';
 import { isPurchasePending, markPurchasePending, takePendingApproval } from '@/lib/pending-purchase';
 import { methodInUse } from '@/lib/scan-code';
 import { PlacePick } from '@/features/place/place-pick';
@@ -62,7 +62,7 @@ import {
 } from '@/lib/screen-time';
 import { Nocturne } from '@/theme';
 
-import { firstEnabledNight, scheduleCopy } from './schedule-copy';
+import { firstEnabledNight } from './schedule-copy';
 import { chaptersFor, initialAnswers, isNewYearWeek, PAINS, type Answers, type ExitOffer, type Pain, type StepId } from './content';
 import { estimate, isInsideBedtime } from './estimate';
 import { methodAccessFor, methodAccessPending, requestMethodAccess } from './method-access';
@@ -783,10 +783,6 @@ export function OnboardingFlow({
         const granted = await askForNotifications().catch(() => false);
         got.notifications = granted ? 'granted' : 'denied';
         setNotifications(got.notifications);
-        // The first thing they hear from him is what the first night's will look like, on the
-        // day the armed screen names. Nothing to sample with every night off or one already started.
-        const when = scheduleCopy(scheduledNight, new Date()).note;
-        if (granted && when) sendFirstNote(when).catch(() => {});
       }
       if (asksMotion) {
         const access = await requestMotion();
