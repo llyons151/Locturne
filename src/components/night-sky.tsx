@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { useEffect, useId } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
   Easing,
   Extrapolation,
@@ -467,6 +467,7 @@ export function NightSky({
             accessible={false}
           />
           {moon.ring ? <MoonPart source={moon.ring} box={frostBase} x={0} y={0} size={1.6} /> : null}
+          {moon.ringLine ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
           {moon.twin && moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
         </Animated.View>
       </View>
@@ -492,6 +493,30 @@ function MoonPart({ source, box, x, y, size, tint }: { source: number | object; 
       tintColor={tint}
       accessible={false}
     />
+  );
+}
+
+/**
+ * A ring's sharp lines as vectors, so they're crisp at any size: the Eclipse's bright edge (the
+ * user asked for this ring of light, on the Eclipse only, 2026-10-29) or a flat Saturn ring.
+ */
+function MoonRing({ line, box }: { line: NonNullable<MoonDef['ringLine']>; box: number }) {
+  const r = box / FROST_PAD / 2;
+  const c = box / 2;
+  return (
+    <Svg width={box} height={box} style={StyleSheet.absoluteFill} pointerEvents="none">
+      {line.kind === 'eclipse' ? (
+        <>
+          <Circle cx={c} cy={c} r={r * 0.985} fill="none" stroke="#FFB45E" strokeWidth={r * 0.022} strokeOpacity={0.9} />
+          <Circle cx={c} cy={c} r={r * 0.985} fill="none" stroke="#FFF0D0" strokeWidth={r * 0.012} />
+        </>
+      ) : (
+        <>
+          <Ellipse cx={c} cy={c} rx={r * 1.45} ry={r * 0.85} transform={`rotate(-16 ${c} ${c})`} fill="none" stroke={line.color} strokeWidth={r * 0.045} strokeOpacity={0.85} />
+          <Ellipse cx={c} cy={c} rx={r * 1.33} ry={r * 0.76} transform={`rotate(-16 ${c} ${c})`} fill="none" stroke={line.color} strokeWidth={r * 0.018} strokeOpacity={0.5} />
+        </>
+      )}
+    </Svg>
   );
 }
 

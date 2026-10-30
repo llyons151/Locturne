@@ -20,8 +20,10 @@ export type MoonDef = {
   /** Recoloured sky and moon; today's moon has none and keeps the original images. */
   sky?: ImageSourcePropType;
   moon?: ImageSourcePropType;
-  /** The Eclipse's ring or a Saturn ring: a box 1.6 moon-widths wide, centred on the moon. */
+  /** The soft light under the Eclipse's ring: a box 1.6 moon-widths wide, centred on the moon. */
   ring?: ImageSourcePropType;
+  /** A ring's sharp lines, drawn as vectors so they stay crisp at any size (MoonRing). */
+  ringLine?: { kind: 'eclipse' } | { kind: 'saturn'; color: string };
   /** A second moon, placed in moon-widths from the main moon's centre. */
   twin?: ImageSourcePropType;
   twinAt?: { x: number; y: number; size: number; glow: string; glowOpacity: number; front: boolean };

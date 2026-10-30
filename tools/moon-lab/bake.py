@@ -40,13 +40,39 @@ def lum(px):
     return (0.2126 * px[..., 0] + 0.7152 * px[..., 1] + 0.0722 * px[..., 2]) / 255
 
 
-def gradient_map(img, stops):
-    a = np.asarray(img.convert('RGBA'), dtype=np.float64)
-    l = lum(a)
+def blur(x, sigma):
+    """A Gaussian blur of a float array, separable, in numpy (no scipy here)."""
+    if sigma <= 0:
+        return x
+    r = int(sigma * 3) + 1
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    rows = np.pad(x, ((0, 0), (r, r)), mode='edge')
+    x = sum(k[i] * rows[:, i:i + x.shape[1]] for i in range(2 * r + 1))
+    cols = np.pad(x, ((r, r), (0, 0)), mode='edge')
+    return sum(k[i] * cols[i:i + x.shape[0], :] for i in range(2 * r + 1))
+
+
+def gradient_map(img, stops, scale=2, sigma=1.0):
+    """
+    The source images are dark and 8-bit: the sky has about 60 brightness levels and the moon about
+    35, and stretching them over a whole colour ramp shows as bands and blotches (user, on the phone,
+    2026-10-29). So the brightness is taken as floats, scaled up `scale` times (the phone shows these
+    at about 2x their source size) and softened by `sigma` (in output pixels) to fill in between the
+    levels, then mapped, and `save` dithers it back to 8 bits.
+    """
+    src = img.convert('RGBA')
+    a = np.asarray(src, dtype=np.float64)
+    l0 = lum(a)
     solid = a[..., 3] >= 128
-    lo, hi = l[solid].min(), l[solid].max()
-    out = a.copy()
+    lo, hi = l0[solid].min(), l0[solid].max()
+    size = (src.width * scale, src.height * scale)
+    l = np.asarray(Image.fromarray(l0.astype(np.float32), 'F').resize(size, Image.BICUBIC), dtype=np.float64)
+    l = blur(l, sigma)
+    alpha = np.asarray(src.getchannel('A').resize(size, Image.BICUBIC), dtype=np.float64)
+    out = np.zeros((size[1], size[0], 4))
     out[..., :3] = ramp(stops, (l - lo) / ((hi - lo) or 1))
+    out[..., 3] = alpha
     return out
 
 
@@ -101,39 +127,33 @@ def shadow(px, phase):
     return px
 
 
-def save(px, name, size=None):
-    img = Image.fromarray(np.clip(px, 0, 255).astype(np.uint8), 'RGBA')
-    if size:
-        img = img.resize(size, Image.LANCZOS)
-    img.save(OUT / name, 'WEBP', quality=86, method=6)
+RNG = np.random.default_rng(7)
+
+
+def save(px, name):
+    """Dithered to 8 bits (triangular noise of one level), so smooth gradients don't step, then near-lossless webp."""
+    px = px.copy()
+    px[..., :3] += RNG.random(px.shape[:2] + (3,)) - RNG.random(px.shape[:2] + (3,))
+    img = Image.fromarray(np.clip(np.round(px), 0, 255).astype(np.uint8), 'RGBA')
+    img.save(OUT / name, 'WEBP', quality=96, method=6, alpha_quality=100)
     return name
 
 
-def ring_image(m, px_size=720):
-    """The Eclipse's ring of fire, or a Saturn ring, in a box 1.6 moon-widths wide centred on the moon."""
-    box = px_size
+def ring_glow(m, box=2048):
+    """
+    The soft light under the Eclipse's ring, in a box 1.6 moon-widths wide centred on the moon. The
+    ring's sharp lines are drawn natively (components/moon-ring.tsx): a baked line looked like a
+    zoomed-in image on the phone (user, 2026-10-29).
+    """
     r = box / 1.6 / 2
     o = box / 2
     img = Image.new('RGBA', (box, box), (0, 0, 0, 0))
-    if m.get('ring'):
-        def stroke(colour, width, alpha, blur):
-            layer = Image.new('RGBA', (box, box), (0, 0, 0, 0))
-            R = r * 0.985
-            ImageDraw.Draw(layer).ellipse([o - R, o - R, o + R, o + R], outline=colour + (int(255 * alpha),), width=max(1, round(width)))
-            return layer.filter(ImageFilter.GaussianBlur(blur)) if blur else layer
-        for layer in (stroke((255, 154, 60), r * 0.07, 0.55, r * 0.09), stroke((255, 180, 94), r * 0.035, 1, r * 0.035), stroke((255, 240, 208), r * 0.012, 1, 0)):
-            img = Image.alpha_composite(img, layer)
-    else:
-        # Drawn flat at 4x, rotated, then scaled down: a crisp ring with no glow.
-        big = box * 4
-        layer = Image.new('RGBA', (big, big), (0, 0, 0, 0))
-        d = ImageDraw.Draw(layer)
-        colour = tuple(int(v) for v in rgb(m['saturn']))
-        for rx, ry, w, a in ((1.45, 0.85, 0.045, 0.85), (1.33, 0.76, 0.018, 0.5)):
-            R = r * 4
-            d.ellipse([big / 2 - rx * R, big / 2 - ry * R, big / 2 + rx * R, big / 2 + ry * R], outline=colour + (int(255 * a),), width=max(1, round(w * R)))
-        img = layer.rotate(16, resample=Image.BICUBIC).resize((box, box), Image.LANCZOS)
-    img.save(OUT / f"{m['id']}-ring.webp", 'WEBP', quality=90, method=6)
+    for colour, width, alpha, blur in (((255, 154, 60), 0.07, 0.55, 0.09), ((255, 180, 94), 0.035, 1, 0.035)):
+        layer = Image.new('RGBA', (box, box), (0, 0, 0, 0))
+        R = r * 0.985
+        ImageDraw.Draw(layer).ellipse([o - R, o - R, o + R, o + R], outline=colour + (int(255 * alpha),), width=max(1, round(width * r)))
+        img = Image.alpha_composite(img, layer.filter(ImageFilter.GaussianBlur(blur * r)))
+    img.save(OUT / f"{m['id']}-ring.webp", 'WEBP', quality=96, method=6, alpha_quality=100)
     return f"{m['id']}-ring.webp"
 
 
@@ -174,18 +194,21 @@ def main():
         e = {'id': m['id'], 'name': m['name'], 'kind': m['kind'], 'tag': m['tag'], 'glow': m['glow'],
              'glowOpacity': m.get('glowOpacity', 1), 'scale': m.get('scale', 1), 'cx': m.get('cx', 0.5), 'orb': orb(m)}
         if not m.get('original'):
-            e['sky'] = save(gradient_map(sky_img, m['sky']), f"{m['id']}-sky.webp")
-            px = gradient_map(moon_img, m['moon'])
+            e['sky'] = save(gradient_map(sky_img, m['sky'], scale=2, sigma=3), f"{m['id']}-sky.webp")
+            px = gradient_map(moon_img, m['moon'], scale=2, sigma=1.2)
             if m.get('tint'):
                 px = tint(px, m['tint'])
             if m.get('phase'):
                 px = shadow(px, m['phase'])
             e['moon'] = save(px, f"{m['id']}-moon.webp")
-            if m.get('ring') or m.get('saturn'):
-                e['ring'] = ring_image(m)
+            if m.get('ring'):
+                e['ring'] = ring_glow(m)
+                e['ringLine'] = {'kind': 'eclipse'}
+            if m.get('saturn'):
+                e['ringLine'] = {'kind': 'saturn', 'color': m['saturn']}
             if m.get('twin'):
                 t = m['twin']
-                e['twin'] = save(gradient_map(moon_img, t['moon']), f"{m['id']}-twin.webp", (360, 360))
+                e['twin'] = save(gradient_map(moon_img, t['moon'], scale=2, sigma=1.2), f"{m['id']}-twin.webp")
                 x, y, size = twin_offsets(m)
                 e['twinAt'] = {'x': x, 'y': y, 'size': size, 'glow': t['glow'], 'glowOpacity': t.get('glowOpacity', 0.6), 'front': bool(t.get('front'))}
         entries.append(e)
