@@ -4,7 +4,7 @@ import UIKit
 
 /**
  The night sky behind every screen, drawn live by a Metal shader at the screen's own resolution:
- wide, slowly drifting sweeps of light gathered round the resting moon, in the worn moon's four
+ a slow mist rolling through the light gathered round the resting moon, in the worn moon's four
  colours, dithered so the dark gradients never band. It replaces the baked sky image, which looked
  fuzzy and low-res on the phone (user, 2026-10-29: "drawn live … native Swift"). The same math runs
  in the moon lab (tools/moon-lab, SKY_FRAG), where the look is tuned.
@@ -51,7 +51,8 @@ final class MoonSkyView: ExpoView {
     metalView.framebufferOnly = true
     metalView.preferredFramesPerSecond = 30
     metalView.isUserInteractionEnabled = false
-    metalView.contentScaleFactor = UIScreen.main.scale
+    // 2x even on 3x screens: the mist has no sharp edges, so it looks the same at under half the work.
+    metalView.contentScaleFactor = min(UIScreen.main.scale, 2)
     metalView.delegate = renderer
     addSubview(metalView)
 
@@ -227,8 +228,8 @@ static float fbm(float2 p) {
   float v = 0.0;
   float a = 0.5;
   float2x2 m = float2x2(float2(1.6, 1.2), float2(-1.2, 1.6));
-  for (int i = 0; i < 3; i++) { v += a * noise(p); p = m * p; a *= 0.5; }
-  return v / 0.875;
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p = m * p; a *= 0.5; }
+  return v / 0.9375;
 }
 
 static float3 ramp(float t, constant Uniforms &u) {
@@ -241,21 +242,21 @@ static float3 ramp(float t, constant Uniforms &u) {
 fragment float4 moon_sky_fragment(VOut in [[stage_in]], constant Uniforms &u [[buffer(0)]]) {
   float2 frag = in.position.xy;
   float2 p = (frag - u.moon.xy) / u.moon.z;
-  float T = u.time * 0.05;
-  float2 q = frag / u.moon.z * 1.1;
-  float2 w = float2(fbm(q * 0.6 + float2(T, -0.6 * T)), fbm(q * 0.6 + float2(5.2 - 0.7 * T, 1.3 + 0.4 * T)));
-  // Flattened: wide sweeps of light across the sky, not rings round the moon.
-  float r = length(float2(p.x * 0.55, p.y)) + (w.x - 0.5) * 0.75 + (w.y - 0.5) * 0.25 * p.x;
-  float ang = atan2(p.x, -p.y);
-  float rings = 0.95 * exp(-pow((r - 1.18) / 0.15, 2.0)) + 0.65 * exp(-pow((r - 1.6) / 0.2, 2.0))
-    + 0.3 * exp(-pow((r - 2.15) / 0.28, 2.0));
-  float haze = exp(-max(r - 1.0, 0.0) * 1.5);
-  float side = 0.6 + 0.4 * sin(ang * 1.4 + 0.9 + (w.y - 0.5) * 2.5);
-  float patches = 0.55 + 0.9 * fbm(q * 0.9 + w * 1.6 - T * 0.5);
-  // The light stays low, round the moon: the top of the sky (where the time sits) is near black.
-  float low = smoothstep(0.15, 0.62, frag.y / u.size.y);
-  float t = (rings * side * patches * 0.72 + haze * 0.45) * low;
-  t = 1.0 - exp(-t * 1.25);
+  float2 q = frag / u.moon.z;
+  float T = u.time;
+  // Mist: cloud noise folded through itself, rolling slowly sideways and up. No rings (user, 2026-10-29).
+  float2 w = float2(fbm(q * 0.9 + float2(T * 0.035, T * 0.012)), fbm(q * 0.9 + float2(4.7 - T * 0.03, 2.1 + T * 0.018)));
+  float2 v = float2(fbm(q * 1.3 + w * 1.8 + float2(T * 0.05, -T * 0.02)), fbm(q * 1.3 + w * 1.8 + float2(8.3 - T * 0.04, 3.1 + T * 0.025)));
+  float mist = fbm(q * 1.6 + v * 2.2 + float2(T * 0.06, -T * 0.015));
+  mist = smoothstep(0.28, 0.95, mist);
+  // The light round the moon: a soft lift from the horizon, flattened so it spreads sideways.
+  float d = length(float2(p.x * 0.6, p.y));
+  float lift = exp(-max(d - 1.0, 0.0) * 1.4);
+  float reach = exp(-max(d - 1.0, 0.0) * 0.7);
+  // The top of the sky (where the time sits) stays near black.
+  float low = smoothstep(0.18, 0.7, frag.y / u.size.y);
+  float t = (lift * (0.35 + 0.35 * mist) + reach * mist * 0.45) * low;
+  t = 1.0 - exp(-t * 1.6);
   float3 col = ramp(t, u) + (hash(frag + fract(u.time)) - 0.5) / 255.0;
   return float4(col, 1.0);
 }

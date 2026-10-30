@@ -495,26 +495,27 @@ float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32);
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
 float fbm(vec2 p){ float v = 0.0, a = 0.5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
-  for (int i = 0; i < 3; i++) { v += a * noise(p); p = m * p; a *= 0.5; } return v / 0.875; }
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p = m * p; a *= 0.5; } return v / 0.9375; }
 vec3 ramp(float t){ t = clamp(t, 0.0, 1.0) * 3.0;
   if (t < 1.0) return mix(C0, C1, t); if (t < 2.0) return mix(C1, C2, t - 1.0); return mix(C2, C3, t - 2.0); }
 void main(){
   vec2 frag = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y);
   vec2 p = (frag - moon.xy) / moon.z;
-  float T = time * 0.05;
-  vec2 q = frag / moon.z * 1.1;
-  vec2 w = vec2(fbm(q * 0.6 + vec2(T, -0.6 * T)), fbm(q * 0.6 + vec2(5.2 - 0.7 * T, 1.3 + 0.4 * T)));
-  // Flattened: wide sweeps of light across the sky, not rings round the moon.
-  float r = length(vec2(p.x * 0.55, p.y)) + (w.x - 0.5) * 0.75 + (w.y - 0.5) * 0.25 * p.x;
-  float ang = atan(p.x, -p.y);
-  float rings = 0.95 * exp(-pow((r - 1.18) / 0.15, 2.0)) + 0.65 * exp(-pow((r - 1.6) / 0.2, 2.0)) + 0.3 * exp(-pow((r - 2.15) / 0.28, 2.0));
-  float haze = exp(-max(r - 1.0, 0.0) * 1.5);
-  float side = 0.6 + 0.4 * sin(ang * 1.4 + 0.9 + (w.y - 0.5) * 2.5);
-  float patches = 0.55 + 0.9 * fbm(q * 0.9 + w * 1.6 - T * 0.5);
-  // The light stays low, round the moon: the top of the sky (where the time sits) is near black.
-  float low = smoothstep(0.15, 0.62, frag.y / size.y);
-  float t = (rings * side * patches * 0.72 + haze * 0.45) * low;
-  t = 1.0 - exp(-t * 1.25);
+  vec2 q = frag / moon.z;
+  float T = time;
+  // Mist: cloud noise folded through itself, rolling slowly sideways and up. No rings.
+  vec2 w = vec2(fbm(q * 0.9 + vec2(T * 0.035, T * 0.012)), fbm(q * 0.9 + vec2(4.7 - T * 0.03, 2.1 + T * 0.018)));
+  vec2 v = vec2(fbm(q * 1.3 + w * 1.8 + vec2(T * 0.05, -T * 0.02)), fbm(q * 1.3 + w * 1.8 + vec2(8.3 - T * 0.04, 3.1 + T * 0.025)));
+  float mist = fbm(q * 1.6 + v * 2.2 + vec2(T * 0.06, -T * 0.015));
+  mist = smoothstep(0.28, 0.95, mist);
+  // The light round the moon: a soft lift from the horizon, flattened so it spreads sideways.
+  float d = length(vec2(p.x * 0.6, p.y));
+  float lift = exp(-max(d - 1.0, 0.0) * 1.4);
+  float reach = exp(-max(d - 1.0, 0.0) * 0.7);
+  // The top of the sky (where the time sits) stays near black.
+  float low = smoothstep(0.18, 0.7, frag.y / size.y);
+  float t = (lift * (0.35 + 0.35 * mist) + reach * mist * 0.45) * low;
+  t = 1.0 - exp(-t * 1.6);
   vec3 col = ramp(t) + (hash(frag + fract(time)) - 0.5) / 255.0;
   gl_FragColor = vec4(col, 1.0);
 }`;
