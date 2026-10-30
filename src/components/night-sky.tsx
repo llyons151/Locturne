@@ -8,9 +8,12 @@ import Animated, {
   Extrapolation,
   interpolate,
   makeMutable,
+  runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withTiming,
@@ -535,18 +538,47 @@ function MoonRing({ line, box }: { line: NonNullable<MoonDef['ringLine']>; box: 
   );
 }
 
-/** A twin moon's second moon and its halo (moon lab's twins), placed off the main moon. */
+/** How long after the main moon the twin starts rising, and how long its rise takes. */
+const TWIN_DELAY_MS = 650;
+const TWIN_RISE_MS = 1300;
+
+/**
+ * A twin moon's second moon and its halo (moon lab's twins), placed off the main moon. It rises
+ * on its own, a beat after the main moon, from below the panel's edge, so the two read as two
+ * moons and not one picture (user, 2026-10-29): when the moon is first worn, on launch, and each
+ * time the moon comes back up onto Home.
+ */
 function TwinMoon({ moon, box }: { moon: MoonDef; box: number }) {
   const at = moon.twinAt!;
+  const reduced = useReducedMotion();
+  const disc = box / FROST_PAD;
+  // How far below its place it starts: far enough that its whole disc is under the main moon's centre.
+  const drop = Math.max(0, -at.y + at.size * 0.75 + 0.4) * disc;
+  // 1 = still down there, 0 = risen.
+  const down = useSharedValue(reduced ? 0 : 1);
+  const rise = () => {
+    if (reduced) return;
+    down.set(1);
+    down.set(withDelay(TWIN_DELAY_MS, withTiming(0, { duration: TWIN_RISE_MS, easing: Easing.bezier(0.33, 0, 0.2, 1) })));
+  };
+  useEffect(rise, [moon.id, reduced, down]);
+  // Back up onto Home after another tab sank the moon: rise again behind it.
+  useAnimatedReaction(
+    () => moonSink.value < 0.5,
+    (up, wasUp) => {
+      if (up && wasUp === false) runOnJS(rise)();
+    },
+  );
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: down.value * drop }] }));
   return (
-    <>
+    <Animated.View style={[StyleSheet.absoluteFill, style]}>
       {at.glowOpacity > 0 ? (
         <View style={[StyleSheet.absoluteFill, { opacity: at.glowOpacity }]}>
           <MoonPart source={require('@/assets/onboarding/moon-glow.png')} box={box} x={at.x} y={at.y} size={at.size * GLOW_PAD} tint={at.glow} />
         </View>
       ) : null}
       <MoonPart source={moon.twin!} box={box} x={at.x} y={at.y} size={at.size * FROST_PAD} />
-    </>
+    </Animated.View>
   );
 }
 

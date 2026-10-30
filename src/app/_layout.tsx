@@ -135,10 +135,10 @@ export default function RootLayout() {
             options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
           />
           <Stack.Screen name="(dev)/loc-studio" options={{ presentation: 'fullScreenModal' }} />
-          {/* Every moon to wear (features/moons): a sheet, so the sky behind changes as you pick. */}
+          {/* Every moon to wear (features/moons), on a wheel in the floating card, like the step target. */}
           <Stack.Screen
             name="(dev)/moons"
-            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.55, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
+            options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
           />
         </Stack>
       </ThemeProvider>

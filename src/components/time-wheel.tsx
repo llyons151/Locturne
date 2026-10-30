@@ -225,6 +225,21 @@ export function NumberWheel({
   );
 }
 
+/** A single wheel of words (the moons), same feel as the number wheel. */
+export function TextWheel({ items, index, onIndex, label }: { items: string[]; index: number; onIndex: (index: number) => void; label: string }) {
+  const { height } = useWindowDimensions();
+  const row = height < 700 ? 40 : 48;
+  const visible = height < 700 ? 5 : 7;
+  return (
+    <Reveal style={styles.wrap}>
+      <View style={[styles.wheels, { height: row * visible }]}>
+        <View style={[styles.band, { top: (row * (visible - 1)) / 2, height: row }]} />
+        <Column items={items} index={index} onIndex={onIndex} row={row} visible={visible} label={label} align="center" words />
+      </View>
+    </Reveal>
+  );
+}
+
 /** An hours and minutes length of time (0 hr up to `maxHours`, 0–59 min), same feel as the time wheel. */
 export function DurationWheel({
   value,
@@ -289,6 +304,8 @@ type ColumnProps = {
   align: 'left' | 'right' | 'center';
   /** Bigger type for a single-column wheel. */
   wide?: boolean;
+  /** Room for words (the moons' names) instead of numbers. */
+  words?: boolean;
   /** The time list: the centred row turns dark to sit on its white pill. */
   pill?: boolean;
   /** The symbol beside the pill's time. */
@@ -312,6 +329,7 @@ function Column({
   label,
   align,
   wide = false,
+  words = false,
   pill = false,
   icon = 'alarm',
 }: ColumnProps) {
@@ -412,7 +430,7 @@ function Column({
   return (
     <GestureDetector gesture={gesture}>
       <View
-        style={[styles.column, wide && styles.columnWide, pill && styles.columnPill, { height: row * visible }]}
+        style={[styles.column, wide && styles.columnWide, words && styles.columnWords, pill && styles.columnPill, { height: row * visible }]}
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={label}
@@ -527,6 +545,7 @@ const styles = StyleSheet.create({
   band: { position: 'absolute', left: -20, right: -20, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
   column: { width: 56, overflow: 'hidden' },
   columnWide: { width: 120 },
+  columnWords: { width: 300 },
   columnPill: { width: PILL_COLUMN },
   list: { alignSelf: 'stretch', alignItems: 'center', gap: Space.s },
   arrow: { padding: 6 },
