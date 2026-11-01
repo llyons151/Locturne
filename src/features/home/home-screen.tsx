@@ -48,6 +48,7 @@ import { useLocMind } from './use-loc-mind';
 import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
+import { MoonTap } from '../moons/moon-tap';
 import { useCatchingUp } from './catch-up';
 import { scanMorning, WALK_INSTEAD } from './morning';
 import { useMorningPlace } from './use-morning-place';
@@ -452,6 +453,8 @@ export function HomeScreen() {
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
+      {/* The moon opens your moons (features/moons). */}
+      <MoonTap floor={0} arc={moonArc} />
       {/* Only while Home is the tab showing: a morning left running under Routine or You can sleep. */}
       {focused && here?.keepAwake ? <StayAwake /> : null}
       {pushups?.camera}

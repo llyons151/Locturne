@@ -502,7 +502,7 @@ export function NightSky({
  * An image laid out round the moon, inside the moon's own layer (`box` square, its disc 1/FROST_PAD
  * of that), so it moves, sinks and rises with the moon. `x`, `y` and `size` are in moon widths.
  */
-function MoonPart({ source, box, x, y, size, tint }: { source: number | object; box: number; x: number; y: number; size: number; tint?: string }) {
+export function MoonPart({ source, box, x, y, size, tint }: { source: number | object; box: number; x: number; y: number; size: number; tint?: string }) {
   const disc = box / FROST_PAD;
   const side = size * disc;
   return (
@@ -527,7 +527,7 @@ function ringBox(box: number) {
  * ring isn't in the build: the web and older builds): the Eclipse's bright edge (the
  * user asked for this ring of light, on the Eclipse only, 2026-10-29) or a flat Saturn ring.
  */
-function MoonRing({ line, box }: { line: NonNullable<MoonDef['ringLine']>; box: number }) {
+export function MoonRing({ line, box }: { line: NonNullable<MoonDef['ringLine']>; box: number }) {
   const r = box / FROST_PAD / 2;
   const c = box / 2;
   return (

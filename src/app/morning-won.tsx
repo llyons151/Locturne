@@ -6,6 +6,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 
 import { LeaveRoute } from '@/components/leave-route';
+import { settleMoons, unpresented } from '@/features/moons/moon-collection';
+import { MOONS } from '@/features/moons/moon-data';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
 import { currentProof, routineAt } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
@@ -17,7 +19,8 @@ import { getRoutineChange, nightWasOn, type WakeMethod } from '@/lib/routine';
  * The morning payoff, after a wake-up wakes the apps (features/wake/payoff-screen.tsx). Home
  * opens it once per morning. `?demo=1` (the wake preview, dev) shows made-up facts instead:
  * `method`, `at`, `start` and `earliest` (minutes since midnight; `earliest` defaults to `at`,
- * today the week's earliest), `mornings`, `week` (days got up so far this week, today included; all of them by default).
+ * today the week's earliest), `mornings`, `week` (days got up so far this week, today included; all of them by default),
+ * `newMoon` (a new moon's id).
  */
 export default function MorningWonRoute() {
   const params = useLocalSearchParams<Record<string, string>>();
@@ -51,6 +54,8 @@ function realFacts(): PayoffFacts | null {
   if (!proof || proof.kind === 'pass' || proof.kind === 'emergency') return null;
   const at = new Date(proof.at);
   const ups = getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency');
+  // Any moon this morning brought (features/moons); earning is safe to repeat.
+  settleMoons();
   return {
     method: proof.kind,
     upAt: at.getHours() * 60 + at.getMinutes(),
@@ -61,6 +66,7 @@ function realFacts(): PayoffFacts | null {
     earliest: earliestThisWeek(ups, proof.morningKey, at.getHours() * 60 + at.getMinutes()),
     free: freeThisWeek(proof.morningKey, new Set(ups.map((p) => p.morningKey)), now),
     sayKey: '',
+    newMoons: unpresented(proof.morningKey).map((m) => m.id),
   };
 }
 
@@ -86,6 +92,8 @@ function demoFacts(p: Record<string, string>): PayoffFacts {
     earliest: Math.min(num(p.at, 7 * 60 + 6), num(p.earliest, num(p.at, 7 * 60 + 6))),
     free: new Set(),
     sayKey: null,
+    // `newMoon=<id>`: a made-up new moon (the wake preview). Not `moon`, which the web uses to wear one.
+    newMoons: p.newMoon && MOONS.some((m) => m.id === p.newMoon) ? [p.newMoon] : [],
   };
 }
 

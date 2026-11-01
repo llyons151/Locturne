@@ -33,6 +33,9 @@ import { methodInUse } from '@/lib/scan-code';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
+import { devEarnNext, devForgetMoons, getMoonsAsPage, getOwned, openMoons, setMoonsAsPage, settleMoons } from '@/features/moons/moon-collection';
+import { LADDER } from '@/features/moons/moon-data';
+import { LADDER_MORNINGS } from '@/features/moons/moon-ladder';
 import { useMoon } from '@/features/moons/moon-theme';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
@@ -54,6 +57,16 @@ import { LocProfile } from './loc-profile';
  * plan in src/lib/notifications.ts. Beta diagnostics hide behind a long press on the You
  * title, so App Review never sees a "beta" row.
  */
+
+/** The ladder's moons with a count (nine by mornings, then the Eclipse): the secret isn't counted. */
+const COUNTED_MOONS = LADDER.slice(0, LADDER_MORNINGS.length + 1).filter(Boolean).length;
+
+/** Moons of the ladder you own, after earning any due. */
+function moonCount() {
+  settleMoons();
+  const owned = getOwned();
+  return LADDER.slice(0, LADDER_MORNINGS.length + 1).filter((id) => id && owned[id]).length;
+}
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
 
@@ -178,8 +191,10 @@ export function YouScreen() {
     mornings: getMorningsWon(),
     // A test lock left on (dev and preview builds): the way back to it.
     testRun: getTestLock(),
+    moons: moonCount(),
   });
-  const [{ inTrial, trialEnd, passesLeft, mornings, testRun }, setFacts] = useState(read);
+  const [{ inTrial, trialEnd, passesLeft, mornings, testRun, moons }, setFacts] = useState(read);
+  const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
 
   // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
   // Asked again on focus: the paywall may have just sold one.
@@ -236,6 +251,11 @@ export function YouScreen() {
           mornings for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
       <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} />
       <View style={styles.divider} />
+
+      {/* The moon collection (features/moons), also behind Home's moon. */}
+      <Card>
+        <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moons" value={`${moons} of ${COUNTED_MOONS}`} onPress={openMoons} last />
+      </Card>
 
       {/* Brink's profile (user reference, 2026-10-14): the plan's name and state, then what you can do about it. */}
       <Text style={styles.heading} accessibilityRole="header">
@@ -295,8 +315,38 @@ export function YouScreen() {
           <Text style={styles.heading} accessibilityRole="header">
             Moon
           </Text>
-          <Card footer="Every moon, unlocked for testing: your ladder from the moon lab, then all the others.">
-            <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} last />
+          <Card footer="Wear any moon, unlocked or not. Earn the next one as if this morning brought it, or start over with none. The switch opens the collection as its own page instead of a sheet.">
+            <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} />
+            <SwitchRow
+              icon={sym('rectangle.portrait', 'crop_portrait')}
+              title="Moons as a page"
+              value={moonsAsPage}
+              onChange={(on) => {
+                setMoonsAsPage(on);
+                setAsPage(on);
+              }}
+            />
+            <ValueRow
+              icon={sym('plus.circle', 'add_circle')}
+              title="Earn the next moon"
+              value=""
+              onPress={() => {
+                haptic.done();
+                devEarnNext();
+                setFacts(read());
+              }}
+            />
+            <ValueRow
+              icon={sym('arrow.counterclockwise', 'replay')}
+              title="Forget my moons"
+              value=""
+              onPress={() => {
+                haptic.tap();
+                devForgetMoons();
+                setFacts(read());
+              }}
+              last
+            />
           </Card>
         </>
       ) : null}

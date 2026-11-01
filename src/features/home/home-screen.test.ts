@@ -134,6 +134,7 @@ function home({
     './use-visit': { useVisit: () => 0 },
     './use-loc-mind': { useLocMind: () => ({ proud: false, wary: 0, moment: null }) },
     './use-moon-sink': { useMoonSink() {} },
+    '../moons/moon-tap': { MoonTap: 'MoonTap' },
     './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
     './walk-request': { askWalk() {}, useWalkRequest: () => null },
@@ -165,6 +166,7 @@ function home({
       look: string;
     }),
     mood: (loc.props as { mood: string }).mood,
+    moonTap: screen.children.find((c) => c && c.type === 'MoonTap')?.props as { floor: number; arc: number } | undefined,
   };
 }
 
@@ -488,4 +490,22 @@ describe('Home’s looks', () => {
     assert.equal(look, 'plain');
     assert.equal(meter, undefined);
   });
+});
+
+describe('Home\'s moon opens your moons (features/moons)', () => {
+  const cases: [string, Setup][] = [
+    ['by day', { now: new Date(2026, 9, 9, 14), phase: 'day' }],
+    ['at night', { now: new Date(2026, 9, 9, 23, 30), phase: 'night' }],
+    ['during a walk morning', { now: new Date(2026, 9, 10, 7, 5), phase: 'morning' }],
+    ['in the trial\'s last day', { now: new Date(2026, 9, 9, 14), phase: 'day', trialEnd: new Date(2026, 9, 10, 9) }],
+  ];
+  for (const [when, setup] of cases) {
+    test(`the moon is a button ${when}, on the panel's edge, as tall as the moon showing`, () => {
+      const { moonTap } = home(setup);
+      assert.ok(moonTap, 'MoonTap rendered');
+      assert.equal(moonTap.floor, 0);
+      // The same arc Home keeps clear of its content (390pt wide in this test).
+      assert.equal(moonTap.arc, 390 * 0.9 * 0.36);
+    });
+  }
 });

@@ -1,7 +1,7 @@
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { File, Paths } from 'expo-file-system';
-import { Platform, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, Pressable, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,6 +17,12 @@ import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg'
 
 import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
+import { markPresented, openMoons, SECRET_MOON } from '../moons/moon-collection';
+import { MOONS } from '../moons/moon-data';
+import { RARE_MOON } from '../moons/moon-ladder';
+import { payoffMoon } from '../moons/payoff-moon';
+import { setMoon, useMoon } from '../moons/moon-theme';
+import { MoonThumb } from '../moons/moon-thumb';
 import { homeEntrance, REPLAY_START_MS } from '../home/entrance';
 import { holdLocLines, markLocSaid, passLocPose } from '../home/loc';
 import { LocBubble } from '../home/loc-bubble';
@@ -46,7 +52,13 @@ export type PayoffFacts = {
   free: Set<string>;
   /** Home's key prefix for what Loc has said (`markLocSaid`), or null for made-up facts, which mark nothing. */
   sayKey: string | null;
+  /** Moons this morning brought, not yet shown on a payoff, the ladder's first (features/moons). */
+  newMoons: string[];
 };
+
+/** The new moon beside its name, under the headline; smaller on an SE. */
+const NEW_MOON_SIZE = 44;
+const NEW_MOON_SIZE_SHORT = 32;
 
 /** Loc's width as a share of the screen: Home's. */
 const LOC_SHARE = 0.27;
@@ -194,6 +206,33 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     setTimeout(() => setShown(true), reduced ? 0 : PAGE_AT_MS);
     setTimeout(() => setSnaps(1), SNAP_MS);
   }, [reduced]);
+  // A moon this morning brought (user, 2026-11-01): shown here, worn with a tap or left for later.
+  // The rare and the secret are a surprise: tap to see which (docs/reports/Moon collection flow.md).
+  // Kept from the first render: once shown they're marked, and the route's next read would drop them.
+  const [newMoons] = useState(facts.newMoons);
+  const [tapped, setTapped] = useState(false);
+  const worn = useMoon();
+  const { moon: newMoon, more: moreMoons, hidden, toWear } = payoffMoon({
+    newMoons,
+    moons: MOONS,
+    worn: worn.id,
+    revealed: tapped,
+    surprises: [RARE_MOON, SECRET_MOON],
+  });
+  const revealed = !hidden;
+  useEffect(() => {
+    if (shown && sayKey !== null && newMoons.length) markPresented(newMoons);
+  }, [shown, sayKey, newMoons]);
+  const reveal = () => {
+    if (revealed) return;
+    haptic.done();
+    setTapped(true);
+  };
+  const wear = () => {
+    if (!toWear) return;
+    haptic.done();
+    setMoon(toWear.id);
+  };
   // His line once the page is in (user, 2026-10-27: Loc's voice instead of a log line), said once:
   // Home won't say its wake-up line again after it.
   const [line] = useState(() => payoffMoment(mornings, Math.random));
@@ -241,7 +280,8 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const weekOutStyle = useAnimatedStyle(() => ({ opacity: weekOut.get() }));
   const flyStyle = useAnimatedStyle(() => ({ transform: [{ translateX: flyX.get() }, { translateY: flyY.get() }] }));
   const navigation = useNavigation();
-  const close = () => {
+  /** Back to Home; `then` runs once it's there (Your moons opens over Home, not over this screen). */
+  const close = (then?: () => void) => {
     if (leaving.current) return;
     leaving.current = true;
     setSaid(null);
@@ -261,6 +301,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
       drop.set(lift);
       back();
       handBack();
+      then?.();
       return;
     }
     page.set(withTiming(0, { duration: OUT_MS, easing: Easing.out(Easing.cubic) }));
@@ -286,6 +327,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     setTimeout(() => {
       back();
       requestAnimationFrame(handBack);
+      if (then) setTimeout(then, REPLAY_START_MS);
     }, gone);
   };
   // Share sends the card: the screen as a picture (share-card.tsx), with the line as its caption.
@@ -381,12 +423,32 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
         <Animated.View style={pageStyle}>
         <In shown={shown} step={1} style={styles.reward} accessible accessibilityLabel={[APPS_AWAKE.replace('\n', ' '), brag].filter(Boolean).join(' ')}>
           <Text style={[styles.heading, short && styles.headingShort]}>{APPS_AWAKE}</Text>
-          {/* An SE has no room for it under the two-line headline. */}
-          {brag && !short ? <Text style={styles.brag}>{brag}</Text> : null}
+          {/* An SE has no room for it under the two-line headline. A new moon takes its place. */}
+          {brag && !short && !newMoon ? <Text style={styles.brag}>{brag}</Text> : null}
         </In>
+        {newMoon ? (
+          <In shown={shown} step={1}>
+            <Pressable
+              onPress={revealed ? undefined : reveal}
+              disabled={revealed}
+              accessibilityRole={revealed ? 'text' : 'button'}
+              accessibilityLabel={revealed ? `New moon: ${newMoon.name}` : 'A rare moon. Tap to see it'}
+              style={[styles.newMoon, short && styles.newMoonShort]}
+            >
+              <MoonThumb moon={newMoon} size={short ? NEW_MOON_SIZE_SHORT : NEW_MOON_SIZE} round locked={!revealed} secret={!revealed} />
+              <View>
+                <Text style={styles.newMoonName}>{revealed ? newMoon.name : 'Something rare came up'}</Text>
+                <Text style={styles.newMoonNote}>
+                  {revealed ? (moreMoons > 0 ? `New moon, and ${moreMoons} more in Moons` : 'New moon') : 'Tap to see it'}
+                </Text>
+              </View>
+            </Pressable>
+          </In>
+        ) : null}
         </Animated.View>
         <In shown={shown} step={2} style={[styles.week, short && styles.weekShort]}>
-          <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>
+          {/* An SE has no room for both the new moon and the label. */}
+          {short && newMoon ? null : <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>}
           {/* Home's week dots, the mist ones on iPhone (week-strip.ios.tsx; user, 2026-10-28). */}
           <Animated.View ref={weekRef} style={[flyStyle, weekOutStyle]}>
             <WeekStrip days={days} reduced={reduced} />
@@ -408,8 +470,21 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
         <View style={styles.strip}>
           <Animated.View style={[{ height: strip, paddingBottom: foot }, pageStyle]}>
             <In shown={shown} step={3} style={styles.actions}>
-              <PrimaryButton label="Done" onPress={close} />
-              <TextButton label="Share" onPress={share} />
+              {/* A new moon to wear, or later from Moons (user, 2026-11-01); either way, secondary links under the button. */}
+              {toWear ? <PrimaryButton label={`Wear ${toWear.name}`} onPress={wear} /> : <PrimaryButton label="Done" onPress={() => close()} />}
+              <View style={styles.links}>
+                {toWear ? <TextButton label="Later" onPress={() => close()} /> : null}
+                <TextButton label="Share" onPress={share} />
+                {toWear ? null : (
+                  <TextButton
+                    label="Your moons"
+                    onPress={() => {
+                      haptic.tap();
+                      close(openMoons);
+                    }}
+                  />
+                )}
+              </View>
             </In>
           </Animated.View>
         </View>
@@ -508,4 +583,10 @@ const styles = StyleSheet.create({
   // Bloom's "THIS WEEK" over the dots.
   weekLabel: { ...Type.label, textAlign: 'center' },
   actions: { gap: Space.xs, alignItems: 'stretch' },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: Space.xxl },
+  // Under the headline, centred: the new moon, its name and a note.
+  newMoon: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: Space.m, marginTop: Space.l },
+  newMoonShort: { marginTop: Space.s, gap: Space.s },
+  newMoonName: { ...Type.headingSub, color: Nocturne.text, fontWeight: '600' },
+  newMoonNote: { ...Type.caption, color: Nocturne.text2 },
 });

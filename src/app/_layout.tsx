@@ -52,6 +52,15 @@ export default function RootLayout() {
             })}
           />
           <Stack.Screen name="exits" options={{ presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
+          {/* The moon collection (features/moons): a sheet that slides up and scrolls, or its own page; You → Developer switches. */}
+          <Stack.Screen
+            name="moon-sheet"
+            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
+          />
+          <Stack.Screen
+            name="moon-page"
+            options={{ headerShown: true, title: 'Moons', headerLargeTitle: true, headerBackTitle: 'Back', contentStyle: { backgroundColor: Nocturne.bg } }}
+          />
           {/* Short, like a system action sheet: it floats above the tabs at the height of its contents. */}
           <Stack.Screen
             name="sleep"
