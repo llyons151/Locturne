@@ -3,46 +3,52 @@
 // React. The React Compiler would cache those reads from the first render (Home mounts under
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { PrimaryButton, TextButton } from '@/components/buttons';
-import { Section, sym, ValueRow } from '@/components/grouped-list';
+import { sym } from '@/components/grouped-list';
+import { holdFill } from '@/features/nap/nap-screen';
+import { useMoon } from '@/features/moons/moon-theme';
+import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import { useLock } from '@/hooks/use-lock';
 import { awakeStatus } from '@/features/wake/awake-status';
 import { DAY_OPENER, morningDoneToday } from '@/features/wake/morning-done';
 import { track } from '@/lib/analytics';
-import { EMERGENCY_WAIT_SECONDS, heldPhase, pauseWording, type EmergencyPlan } from '@/lib/emergency';
+import { heldPhase, pauseWording, type EmergencyPlan } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { currentProof, readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
-import { getPassesLeft, getPassRefusal, previewPass, redeemPass, type PassRefusal } from '@/lib/passes';
+import { getPassesLeft, getPassRefusal, passRefillDate, previewPass, redeemPass, type PassRefusal } from '@/lib/passes';
 import { toLockSettings } from '@/lib/routine';
 import { isScreenTimeAvailable, isStoodDown, peekNap, selectionSize } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
-import { Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
+import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
-import { Confirm } from './confirm';
+import { HoldButton } from '../../../modules/hold-button';
 import { offBody, unheldBody } from './unheld-words';
 import { Voice } from './voice';
 
 /**
  * The way out (GAME_PLAN, "Humane exits"): a pass, two a month. There is no unlimited
  * emergency unlock (decided 2026-10-14) and no scanning a code instead of the morning's own
- * method (2026-10-15): a pass is the only way out early, at night as well as in the morning. It goes
- * through a short wait with "Go back to sleep" as the big button (NIGHT_PHONE_SCIENCE.md,
- * Principle 10: the delay plus a dismiss option is what worked), then the system's dialog.
+ * method (2026-10-15): a pass is the only way out early, at night as well as in the morning. It's
+ * held, not tapped, like the Sleep sheet's button (user 2026-11-02): the hold is the pause that the
+ * old wait and dialog were (NIGHT_PHONE_SCIENCE.md, Principle 10), with "Never mind" under it.
  *
  * Loc is strict about the situation and never about the person: no streaks, no guilt, no
  * "are you sure you want to give up". The always-blocked list never wakes from here.
+ *
+ * Laid out in the Sleep sheet's floating card like Block now (user 2026-11-02): his line as a
+ * small centred title, the count big in the middle, the hold, Never mind under it. Nothing under
+ * the buttons: a pass that can't be used says why on the button itself, after a shake.
  */
 
 /** `night`: the pass lifts the rest of a night or a Block now (`previewPass`), not a morning. */
-type Stage = { kind: 'menu'; notice?: string } | { kind: 'wait'; night: boolean } | { kind: 'done'; night: boolean; until: number };
+type Stage = { kind: 'menu' } | { kind: 'done'; night: boolean; until: number };
 
 const timeOf = (ms: number) => {
   const d = new Date(ms);
@@ -74,12 +80,16 @@ function opener(phase: Phase, left: number): { line: string; body: string } {
 /** His line for a night or morning by the clock with nothing asleep (`unheldBody` says why). */
 const AWAKE_LINE = "I'm awake. Technically.";
 
+/** What the button turns into when a held pass can't be used: short, it's a button's label. */
 const PASS_REFUSALS: Record<PassRefusal, string> = {
-  notMorning: 'Passes work in the morning, while your apps wait for you to get up.',
-  noneLeft: NONE_LEFT,
-  alreadyUsed: 'This morning is already covered.',
-  nothingAsleep: "Nothing is asleep that a pass can wake. The always-blocked list doesn't wake.",
+  notMorning: 'Nothing is asleep',
+  noneLeft: 'No passes left',
+  alreadyUsed: 'Already used today',
+  nothingAsleep: 'Nothing is asleep',
 };
+
+/** The refused hold's shake: a few quick swings either way, settling. */
+const SHAKE = [-10, 9, -7, 5, -3, 0];
 
 /**
  * What a night or Block now pass wakes, in plain words. Never vague (VOICE.md, "Clear when it
@@ -106,12 +116,7 @@ function describe(plan: EmergencyPlan, awake: string): string {
   return parts.join(' ');
 }
 
-const samePlan = (a: EmergencyPlan, b: EmergencyPlan) =>
-  a.pauseNight === b.pauseNight && a.unlockMorning === b.unlockMorning && a.endBlockNow === b.endBlockNow && a.resumesAt === b.resumesAt;
-
 export function ExitsScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
   const lock = useLock();
   const [storedStage, setStage] = useState<Stage>({ kind: 'menu' });
   // The route can remain mounted overnight; a completed exit describes only that window.
@@ -120,47 +125,37 @@ export function ExitsScreen() {
   const [storedLeft, setLeft] = useState(() => getPassesLeft());
   const [storedPlan, setPlan] = useState(() => previewPass());
   const left = stage.kind === 'menu' ? getPassesLeft() : storedLeft;
-  // Keep the exact effect frozen while confirming; the menu always reflects the live lock.
+  // Once used, `plan` keeps what the pass did; the menu always reflects the live lock.
   const plan = stage.kind === 'menu' ? previewPass() : storedPlan;
-  const [wait, setWait] = useState(EMERGENCY_WAIT_SECONDS);
-  const [confirming, setConfirming] = useState(false);
+  const fill = holdFill(useMoon());
+  // A held pass that couldn't be used: why, on the button (user 2026-11-02).
+  const [refused, setRefused] = useState<PassRefusal | null>(null);
+  const shake = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
 
-  const refresh = () => {
-    setLeft(getPassesLeft());
-    setPlan(previewPass());
-  };
-
-  const close = useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), [router]);
-
-  // The wait counts down once a second; the button appears at zero.
-  useEffect(() => {
-    if (stage.kind !== 'wait' || wait <= 0) return;
-    const id = setTimeout(() => setWait((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [stage.kind, wait]);
+  const close = closeSleepSheet;
 
   const [endsNap, setEndsNap] = useState(false);
-  const begin = () => {
-    const refusal = getPassRefusal();
-    if (refusal) return setStage({ kind: 'menu', notice: PASS_REFUSALS[refusal] });
-    refresh();
-    // A pass ends a running Block now too: say so.
-    setEndsNap(peekNap() !== null);
-    setWait(EMERGENCY_WAIT_SECONDS);
-    setStage({ kind: 'wait', night: previewPass() !== null });
+  const refuse = (why: PassRefusal) => {
+    haptic.thud();
+    shake.set(withSequence(...SHAKE.map((x) => withTiming(x, { duration: 55 }))));
+    setRefused(why);
   };
-
-  const unlock = (night: boolean) => {
-    setConfirming(false);
-    const current = previewPass();
-    if (current && (!night || !plan || !samePlan(current, plan))) {
-      // A confirmation left open across bedtime must not silently unlock more than it said.
-      setPlan(current);
-      setStage({ kind: 'wait', night: true });
-      return;
-    }
+  // A night or morning by the clock with nothing asleep to wake: no lock armed, already paused
+  // tonight, an empty bedtime list, or after a lapse's last paid morning. No "Rough morning".
+  const unheld = (phase === 'night' || phase === 'morning') && heldPhase(phase) !== phase ? phase : null;
+  const heldMorning = phase === 'morning' && !unheld;
+  // The hold reached the end: use the pass, or shake and say why it can't (nothing asleep, none left).
+  const usePass = () => {
+    if (left === 0) return refuse('noneLeft');
+    if (!heldMorning && !plan) return refuse('nothingAsleep');
+    const refusal = getPassRefusal();
+    if (refusal) return refuse(refusal);
+    // `plan` and the Block now line keep describing what just happened.
+    setPlan(previewPass());
+    setEndsNap(peekNap() !== null);
     const result = redeemPass();
-    if (result.refusal) return setStage({ kind: 'menu', notice: PASS_REFUSALS[result.refusal] });
+    if (result.refusal) return refuse(result.refusal);
     const use = result.night;
     track('pass_used', {
       passes_left: getPassesLeft(),
@@ -170,31 +165,14 @@ export function ExitsScreen() {
     });
     haptic.done();
     setStage({ kind: 'done', night: use !== null, until: readLock().nextChange.getTime() });
-    // `plan` keeps describing what just happened; only the pass count moves.
     setLeft(getPassesLeft());
   };
-
-  // A night or morning by the clock with nothing asleep to wake: no lock armed, already paused
-  // tonight, an empty bedtime list, or after a lapse's last paid morning. No "Rough morning".
-  const unheld = (phase === 'night' || phase === 'morning') && heldPhase(phase) !== phase ? phase : null;
-  const heldMorning = phase === 'morning' && !unheld;
-  // In the day (a pass on a Block now) there's no sleep to go back to.
-  const stayLabel = phase === 'night' || phase === 'morning' ? 'Go back to sleep' : 'Never mind';
-
 
   // What the day holds once the morning is woken, as the wake and scan screens say it: tonight
   // may be off, or nothing sleeps again after a lapse's last morning. A pass ends a Block now.
   const awake = stage.kind === 'menu' ? '' : awakeStatus({ ...lock, blockNowUntil: null });
 
   const words = (() => {
-    if (stage.kind === 'wait') {
-      return stage.night
-        ? { line: plan?.pauseNight ? 'A pass. At this hour.' : 'A pass. Sure.', body: `${plan ? describe(plan, awake) : ''} You have ${passesLabel(left)} this month.` }
-        : {
-            line: 'A pass. Sure.',
-            body: `It wakes your apps this morning, no wake-up needed. ${awake}${endsNap ? ' Your Block now session ends.' : ''} You have ${passesLabel(left)} this month.`,
-          };
-    }
     if (stage.kind === 'done') {
       return stage.night
         ? { line: "I'll allow it. This once. Maybe.", body: `${plan ? describe(plan, awake) : ''} ${passesLabel(left)} left this month.` }
@@ -222,82 +200,66 @@ export function ExitsScreen() {
     return opener(phase, left);
   })();
 
-  // What the pass row says: how many, or that there's nothing for one to wake.
+  // Under the count: how many, or that there's nothing for one to wake.
   const passValue = left === 0 ? 'None left' : heldMorning || plan ? `${left} left` : 'Nothing asleep';
+  // Under the count, only when they refill (user 2026-11-02): the You tab no longer explains passes.
+  const passCaption = left === 0 || heldMorning || plan ? `Refills ${passRefillDate()}` : 'Nothing asleep for one to wake';
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: Space.xl, paddingBottom: insets.bottom + Space.l }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <Animated.View key={`${stage.kind}-${words.line}`} entering={FadeIn.duration(300)} style={styles.top}>
-        <Voice text={words.line} />
+    <View style={styles.sheet}>
+      <Animated.View key={`${stage.kind}-${words.line}`} entering={FadeIn.duration(300)} style={styles.head}>
+        <Voice text={words.line} sheet />
         <Text style={styles.body}>{words.body}</Text>
       </Animated.View>
 
-      <View style={styles.flex} />
-
       {stage.kind === 'menu' ? (
-        <View style={styles.bottom}>
-          <Section footer="Whatever happens here, the always-blocked list stays asleep.">
-            <ValueRow
-              icon={sym('ticket', 'confirmation_number')}
-              title="Use a pass"
-              value={passValue}
-              onPress={begin}
-              last
+        <>
+          {/* The count where Block now has its length, with its line under it. */}
+          <View style={styles.count} accessible accessibilityLabel={`Passes: ${passValue}`}>
+            <Text style={styles.countValue} maxFontSizeMultiplier={1.2}>
+              {left}
+            </Text>
+            <View style={styles.caption}>
+              <SymbolView name={sym('ticket.fill', 'confirmation_number')} size={13} tintColor={Nocturne.text2} />
+              <Text style={styles.captionText} numberOfLines={1}>
+                {passCaption}
+              </Text>
+            </View>
+          </View>
+          {/* Held, like the Sleep sheet's button, in the worn moon's colours. Refused, it shakes and says why. */}
+          <Animated.View style={shakeStyle}>
+            <HoldButton
+              label={refused ? PASS_REFUSALS[refused] : 'Use a pass'}
+              symbol={refused ? undefined : 'ticket.fill'}
+              duration={1200}
+              disabled={refused !== null}
+              color={Nocturne.cta}
+              fillTopColor={fill.top}
+              fillColor={fill.bottom}
+              textColor={Nocturne.onCta}
+              filledTextColor={Nocturne.text}
+              onComplete={usePass}
+              style={styles.hold}
             />
-          </Section>
-          {stage.notice ? <Text style={styles.notice}>{stage.notice}</Text> : null}
-          <PrimaryButton label={stayLabel} onPress={close} />
-        </View>
+          </Animated.View>
+          {/* Under the main button, like every secondary link (user 2026-10-15). */}
+          <TextButton label="Never mind" onPress={close} />
+        </>
       ) : null}
 
-      {stage.kind === 'wait' ? (
-        <View style={styles.bottom}>
-          <Text
-            style={styles.count}
-            accessibilityLiveRegion="polite"
-            accessibilityLabel={wait > 0 ? `${wait} ${wait === 1 ? 'second' : 'seconds'}` : 'Ready'}
-          >
-            {wait > 0 ? `0:${String(wait).padStart(2, '0')}` : '0:00'}
-          </Text>
-          <PrimaryButton label={stayLabel} onPress={close} />
-          {wait <= 0 ? (
-            <TextButton label="Use the pass" onPress={() => setConfirming(true)} />
-          ) : (
-            <Text style={styles.notice}>Take a second. It&apos;s still there after.</Text>
-          )}
-          <Confirm
-            open={confirming}
-            title="Use a pass?"
-            message={stage.night ? (plan ? describe(plan, awake) : '') : `It wakes your apps this morning. ${awake}`}
-            confirmLabel="Use the pass"
-            cancelLabel={stayLabel}
-            onConfirm={() => unlock(stage.night)}
-            onCancel={close}
-            onDismiss={() => setConfirming(false)}
-          />
-        </View>
-      ) : null}
-
-      {stage.kind === 'done' ? (
-        <View style={styles.bottom}>
-          <PrimaryButton label="Done" onPress={close} />
-        </View>
-      ) : null}
-    </ScrollView>
+      {stage.kind === 'done' ? <PrimaryButton label="Done" onPress={close} /> : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Nocturne.bg },
-  content: { flexGrow: 1, paddingHorizontal: Gap.gutter },
-  top: { gap: Space.l, marginTop: Space.l },
-  body: { ...Type.body, color: Nocturne.text2 },
-  flex: { flex: 1, minHeight: Space.xxl },
-  bottom: { gap: Space.l, paddingBottom: Space.s },
-  notice: { ...Type.caption, color: Nocturne.text3, textAlign: 'center' },
-  count: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 56, lineHeight: 64, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  // Sized to its contents inside the card, padded like the Sleep sheet (nap-screen.tsx).
+  sheet: { paddingHorizontal: SHEET_PADDING, paddingTop: Space.m, gap: Space.xl },
+  head: { gap: Space.xs, alignItems: 'center' },
+  body: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
+  count: { alignItems: 'center', gap: Space.xs },
+  countValue: { ...NUMBER_FONT, color: Nocturne.text, fontSize: 56, lineHeight: 62, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  caption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  captionText: { ...Type.caption, fontWeight: '500', color: Nocturne.text2 },
+  hold: { height: 56 },
 });

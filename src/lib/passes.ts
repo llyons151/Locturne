@@ -26,6 +26,12 @@ import { emergencyUnlock, previewEmergency, type EmergencyUse } from './emergenc
  */
 export const PASSES_PER_MONTH = 2;
 
+/** When the passes refill, as "Dec 1": the 1st after the month of the morning `now` belongs to (they count by mornings). */
+export function passRefillDate(now: Date = new Date()): string {
+  const [year, month] = readLock(now).morningKey.split('-').map(Number);
+  return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export type SpentPass = {
   /** `LockState.morningKey` of the morning it unlocked, YYYY-MM-DD. */
   morningKey: string;

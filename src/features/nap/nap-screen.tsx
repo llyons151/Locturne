@@ -86,7 +86,7 @@ const mixHex = (a: string, b: string, t: number) => {
   const ch = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
   return `#${[0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, '0')).join('')}`;
 };
-const holdFill = (moon: MoonDef) =>
+export const holdFill = (moon: MoonDef) =>
   moon.id === DEFAULT_MOON.id ? MOONLIGHT_FILL : { top: mixHex(moon.orb[1], moon.orb[2], 0.5), bottom: mixHex(moon.orb[0], moon.orb[1], 0.5) };
 
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */

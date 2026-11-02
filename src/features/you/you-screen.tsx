@@ -23,9 +23,9 @@ import {
   setNotificationPrefs,
   type NotificationPrefs,
 } from '@/lib/notifications';
-import { onLockChange, readLock } from '@/lib/lock-controller';
+import { onLockChange } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
-import { getPassesLeft, PASSES_PER_MONTH } from '@/lib/passes';
+import { getPassesLeft } from '@/lib/passes';
 import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import type { WakeMethod } from '@/lib/routine';
@@ -70,17 +70,7 @@ function moonCount() {
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
 
-/** The 1st after the month of the morning `now` belongs to: passes count by mornings (passes.ts). */
-function refillDate(now: Date) {
-  const [year, month] = readLock(now).morningKey.split('-').map(Number);
-  return new Date(year, month, 1).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 const open = (url: string) => Linking.openURL(url).catch(() => {});
-
 
 /**
  * Dev: unlock a moon and play the payoff for it, as a morning that earned it would. The next moon
@@ -322,7 +312,8 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
         <ValueRow iconTint={Nocturne.text} icon={sym('arrow.clockwise', 'restore')} title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} last />
       </Group>
 
-      <Group note={`${PASSES_PER_MONTH} a month, for sick days, travel and emergencies. The only way out early. Refills ${refillDate(new Date())}.`}>
+      {/* No note: the passes page says when they refill (user 2026-11-02). */}
+      <Group>
         <ValueRow iconTint={Nocturne.text} icon={sym('ticket', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} last />
       </Group>
 
@@ -337,8 +328,11 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
         <ValueRow iconTint={Nocturne.text} icon={sym('star', 'star')} title="Rate Locturne" value="" onPress={rate} last />
       </Group>
 
-      {/* Dev and preview builds only: wear any moon, all unlocked, to test them (features/moons). */}
+      {/* Dev and preview builds only, all under one Developer row that's closed by default, so the page
+          reads as it ships (user 2026-11-02). */}
       {devLabs ? (
+        <DevSection>
+          {/* Wear any moon, all unlocked, to test them (features/moons). */}
         <Group label="Moon" note="Wear any moon, unlocked or not. Unlock the next one and play the victory screen for it (the rare one once the ladder's done), earn the next one quietly, earn them all, or start over with none. The switch opens the collection as its own page instead of a sheet.">
           <ValueRow iconTint={Nocturne.text} icon={sym('moon.circle', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} last />
           <SwitchRow
@@ -396,18 +390,14 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
             last
           />
         </Group>
-      ) : null}
 
-      {/* Dev and preview builds only: the whole onboarding again from the first screen. */}
-      {devLabs ? (
+          {/* The whole onboarding again from the first screen. */}
         <Group note="The whole onboarding again from the start. Finishing it saves its answers as your routine.">
           <ValueRow iconTint={Nocturne.text} icon={sym('arrow.counterclockwise', 'replay')} title="Redo onboarding" value="" onPress={() => router.push('/onboarding?paywall=1')} last />
         </Group>
-      ) : null}
 
-      {/* Dev and preview builds only: a real lock on the bedtime apps, woken by one method (wake-lab.tsx). */}
-      {devLabs ? (
-        testRun ? (
+          {/* A real lock on the bedtime apps, woken by one method (wake-lab.tsx). */}
+          {testRun ? (
           <Group label="Morning unlocks" note="A test lock is still on. Your bedtime apps stay asleep until its test morning on Home is won, or it's ended here.">
             <ValueRow iconTint={Nocturne.text} icon={sym('lock', 'lock')} title="Back to the test morning" value="" onPress={() => preview('/', testRun.method as WakeMethod)} last />
             <ValueRow
@@ -428,17 +418,16 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
               <ValueRow key={m.value} iconTint={Nocturne.text} icon={METHOD_ICONS[m.value]} title={m.title} value="" onPress={() => testLock(m.value)} last />
             ))}
           </Group>
-        )
-      ) : null}
+          )}
 
-      {/* Dev and preview builds only: a real night of minutes from iOS, run with Locturne closed (features/dev/rehearsal). */}
-      {devLabs ? (
+          {/* A real night of minutes from iOS, run with Locturne closed (features/dev/rehearsal). */}
         <>
           <View style={styles.divider} />
           <View style={styles.carded}>
             <RehearsalSection headingStyle={styles.devHeading} icons={METHOD_ICONS} />
           </View>
         </>
+        </DevSection>
       ) : null}
 
       {/* The rows you rarely need, quieter: grey, no icons, as Brilliant's Log out and Legal. */}
@@ -482,6 +471,32 @@ function Group({ first, label, note, children }: { first?: boolean; label?: stri
       ) : null}
       <View style={styles.group}>{children}</View>
       {note ? <Text style={styles.note}>{note}</Text> : null}
+    </>
+  );
+}
+
+/**
+ * Every dev and preview tool under one quiet "Developer" row, closed until tapped, so the page
+ * can be seen as it ships (user 2026-11-02). Tapping it again folds it all away.
+ */
+function DevSection({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <View style={styles.divider} />
+      <Pressable
+        onPress={() => {
+          haptic.tap();
+          setOpen((was) => !was);
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}
+      >
+        <Text style={styles.quietText}>Developer</Text>
+        <SymbolView name={sym(open ? 'chevron.down' : 'chevron.right', open ? 'expand_more' : 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.text3} />
+      </Pressable>
+      {open ? children : null}
     </>
   );
 }
