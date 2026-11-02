@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useEffect, useId } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Image as RNImage, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -17,12 +17,14 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import { MoonRingView, isMoonRingViewAvailable } from 'moon-ring';
 import { MoonSkyView, isMoonSkyViewAvailable } from 'moon-sky';
 
-import { useMoon } from '@/features/moons/moon-theme';
+import { DRAG_BOX, MOON_DRAG } from '@/features/moons/moon-drag';
+import { moonFadeMs, useMoon } from '@/features/moons/moon-theme';
 import type { MoonDef } from '@/features/moons/moon-types';
 
 /**
@@ -142,6 +144,8 @@ export function moonSinkForCentre(width: number, height: number, floor: number, 
 }
 /** The Apps tab's moon: risen above its resting place, into the sky under the tiles. */
 export const MOON_RAISED = -0.35;
+/** How far the Apps tab's raised moon reaches up from the panel's edge (points): its tap area (moon-tap.tsx). */
+export const raisedMoonArc = (width: number) => width * 0.9 * (MOON_SHOWS - MOON_RAISED * SINK_DEPTH);
 /**
  * The `moonSink` that lifts the resting moon until its disc's top is at `top` (window points):
  * the morning payoff raises it to the top of the screen (user, 2026-10-27). `floor` as NightSky's.
@@ -309,6 +313,7 @@ export function NightSky({
   moonless = false,
   drift = false,
   riseMs = QUIZ_RISE_MS,
+  drag,
 }: {
   opening?: boolean;
   /** How long the quiz rise (or the sink out of it) takes this time: the reveal's is slower. */
@@ -325,6 +330,8 @@ export function NightSky({
   home?: boolean;
   /** The opener: the sky (not the moon) drifts sideways, slowly enough to be felt more than seen. */
   drift?: boolean;
+  /** The morning payoff: how much of the moon's drag shows under it, 0 to 1 (MoonDrag). */
+  drag?: SharedValue<number>;
 }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -337,14 +344,26 @@ export function NightSky({
   const homed = useSharedValue(0);
   // The moon you're wearing (features/moons): its size, how far off centre it sits, and its halo's strength.
   const moon = useMoon();
+  // A change asked to blend (`previewMoon`'s fade): the old moon's whole scene stays on top and
+  // fades out over the new one, so the sky's colours run into the new ones instead of swapping.
+  // Worked out while rendering, so no frame shows the new moon without the old over it.
+  const [shown, setShown] = useState(moon);
+  const [going, setGoing] = useState<{ moon: MoonDef; ms: number } | null>(null);
+  if (shown !== moon) {
+    const ms = reduced ? 0 : moonFadeMs();
+    setGoing(ms > 0 && shown.id !== moon.id ? { moon: shown, ms } : null);
+    setShown(moon);
+  }
   const lookScale = useSharedValue(moon.scale);
   const lookShift = useSharedValue((moon.cx - 0.5) * width);
   const lookGlow = useSharedValue(moon.glowOpacity);
+  const lookMs = going?.ms ?? 0;
   useEffect(() => {
-    lookScale.set(moon.scale);
-    lookShift.set((moon.cx - 0.5) * width);
-    lookGlow.set(moon.glowOpacity);
-  }, [moon, width, lookScale, lookShift, lookGlow]);
+    const to = (v: number) => (lookMs ? withTiming(v, { duration: lookMs, easing: SKY_FADE }) : v);
+    lookScale.set(to(moon.scale));
+    lookShift.set(to((moon.cx - 0.5) * width));
+    lookGlow.set(to(moon.glowOpacity));
+  }, [moon, width, lookScale, lookShift, lookGlow, lookMs]);
 
   useEffect(() => {
     const target = opening ? 0 : 1;
@@ -440,10 +459,9 @@ export function NightSky({
     opacity: interpolate(risen.value, [WASH_FROM, 1], [0, 1], Extrapolation.CLAMP),
   }));
 
-  return (
-    // Clipped: the risen moon's glow runs past the screen edges, which on the web widens and
-    // scrolls the page (iOS clips at the screen anyway).
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
+  /** The sky, the halo and the moon, drawn in `moon`. */
+  const scene = (moon: MoonDef) => (
+    <>
       <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
         {/* The same sky drawn live in Metal where the build has it (modules/moon-sky), over the baked
             image, which shows on the web, on older builds, and until the live one has loaded. */}
@@ -473,6 +491,7 @@ export function NightSky({
           </Animated.View>
         ) : null}
         <Animated.View style={[styles.moon, { width: frostBase, height: frostBase }, moonStyle]}>
+          {drag && MOON_DRAG[moon.id] ? <MoonDrag source={MOON_DRAG[moon.id]} box={frostBase} drag={drag} /> : null}
           {moon.twin && !moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
           {/* A Saturn ring sits behind the moon's frosted edge, so it reads as part of the moon (user, 2026-11-02). */}
           {moon.ringLine?.kind === 'saturn' ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
@@ -493,10 +512,91 @@ export function NightSky({
           {moon.twin && moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
         </Animated.View>
       </View>
+    </>
+  );
+
+  return (
+    // Clipped: the risen moon's glow runs past the screen edges, which on the web widens and
+    // scrolls the page (iOS clips at the screen anyway).
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.clip]}>
+      {/* The moon on show, and over it the one it's blending from, fading out. One keyed list, so
+          the scene that was on show carries on as the fading one. */}
+      {[
+        <SkyScene key={moon.id}>{scene(moon)}</SkyScene>,
+        ...(going && going.moon.id !== moon.id
+          ? [
+              <SkyScene key={going.moon.id} fadeMs={going.ms} onGone={() => setGoing(null)}>
+                {scene(going.moon)}
+              </SkyScene>,
+            ]
+          : []),
+      ]}
       <Animated.View style={[StyleSheet.absoluteFill, washStyle]}>
         <QuizWash width={width} height={height} />
       </Animated.View>
     </View>
+  );
+}
+
+/** How the sky blends from one moon's colours into the next (`previewMoon`'s fade). */
+const SKY_FADE = Easing.inOut(Easing.cubic);
+
+/**
+ * One moon's sky and moon, as a layer: whole, or with `fadeMs`, fading out over the next moon's
+ * and then gone (`onGone`). Keyed by moon, so the scene on show becomes the fading one as it is,
+ * its live sky already drawn.
+ */
+function SkyScene({ children, fadeMs = 0, onGone }: { children: ReactNode; fadeMs?: number; onGone?: () => void }) {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    if (!fadeMs) return;
+    opacity.set(withTiming(0, { duration: fadeMs, easing: SKY_FADE }, (done) => {
+      if (done && onGone) runOnJS(onGone)();
+    }));
+    // onGone is read once the fade ends, not a change of its own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fadeMs, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * The light the moon leaves under it as it rises on the morning payoff (user, 2026-11-02): its own
+ * picture stretched down, blurred and spread into the sky, baked per moon by
+ * tools/moon-lab/bake-drag.py. In the moon's own layer, under the moon, so it rises and shrinks
+ * with it. `drag` fades it in and lets it run down from the moon (0 gone, 1 all there).
+ */
+function MoonDrag({ source, box, drag }: { source: number; box: number; drag: SharedValue<number> }) {
+  // The disc's radius in the moon's layer (its box is FROST_PAD times the disc).
+  const r = box / FROST_PAD / 2;
+  const width = DRAG_BOX.width * r;
+  const height = DRAG_BOX.height * r;
+  const style = useAnimatedStyle(() => {
+    const v = drag.get();
+    return { opacity: v, transform: [{ scaleY: 0.35 + 0.65 * v }] };
+  });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          left: box / 2 - DRAG_BOX.cx * r,
+          top: box / 2 - DRAG_BOX.cy * r,
+          width,
+          height,
+          // Runs down from the moon's middle.
+          transformOrigin: [DRAG_BOX.cx * r, DRAG_BOX.cy * r, 0],
+        },
+        style,
+      ]}
+    >
+      <Image source={source} style={StyleSheet.absoluteFill} contentFit="fill" accessible={false} />
+    </Animated.View>
   );
 }
 

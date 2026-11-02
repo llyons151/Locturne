@@ -549,14 +549,23 @@ export const ALWAYS_SHIELD = 'locturne-always';
 /** A used-up limit's words, restored by the extension instead while one is used up today. */
 export const LIMIT_SHIELD = 'locturne-limit';
 
+/** The worn moon's icon in the app group's folder, once copied there (features/moons/shield-moon.ts). */
+export const SHIELD_MOON_KEY = 'locturne.shieldMoon';
+
 function shieldConfig({ title, subtitle, button }: ShieldText) {
+  const moonIcon = sharedGet<string>(SHIELD_MOON_KEY);
   return {
     title,
     subtitle,
     primaryButtonLabel: button,
-    // Monochrome, matching the app's Nocturne look: near-black, white text, white pill.
-    backgroundColor: { red: 11, green: 11, blue: 12 },
+    // iOS's dark frosted material over the app you tried to open (user, 2026-11-02, shield lab
+    // take 6), with white text and a white pill.
+    // UIBlurEffectStyle.systemThinMaterialDark, as a number: the tests fake the library.
+    backgroundBlurStyle: 17 as const,
+    // The worn moon's icon; the extension falls back to the symbol if the file can't be read.
+    // The tint is for the symbol only (ShieldConfigurationExtension.swift's `resolveIcon`).
     iconSystemName: 'moon.zzz.fill',
+    ...(moonIcon ? { iconAppGroupRelativePath: moonIcon } : {}),
     iconTint: { red: 255, green: 255, blue: 255 },
     titleColor: { red: 255, green: 255, blue: 255 },
     subtitleColor: { red: 161, green: 161, blue: 166 },

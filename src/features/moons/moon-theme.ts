@@ -26,6 +26,13 @@ const listeners = new Set<() => void>();
 let current: MoonDef | undefined;
 /** A moon shown but not worn: the payoff's new moon, until it's applied or the payoff closes. */
 let preview: MoonDef | undefined;
+/** How long the sky takes to blend into the moon now on show, from the last change (0: at once). */
+let fadeMs = 0;
+
+/** The last change's crossfade (`previewMoon`'s `fade`), for NightSky to blend the old sky into the new. */
+export function moonFadeMs(): number {
+  return fadeMs;
+}
 
 /** The moon on show: the sky, the moon, its halo and the orb are drawn in it. */
 export function getMoon(): MoonDef {
@@ -48,18 +55,21 @@ export function setMoon(id: string) {
   const next = BY_ID.get(id) ?? DEFAULT_MOON;
   if (next === getWornMoon()) return;
   current = next;
+  fadeMs = 0;
   sharedSet(KEY, next.id);
   listeners.forEach((listener) => listener());
 }
 
 /**
  * Shows a moon without wearing it (user, 2026-11-02: the payoff's new moon rises); null goes back to
- * the worn one. Nothing is saved: `setMoon` wears it.
+ * the worn one. Nothing is saved: `setMoon` wears it. `fade` blends the sky, moon and halo into it
+ * over that many ms instead of swapping them (user, 2026-11-02: Done without Apply "glitches" back).
  */
-export function previewMoon(id: string | null) {
+export function previewMoon(id: string | null, fade = 0) {
   const next = id ? BY_ID.get(id) : undefined;
   if (next === preview) return;
   preview = next;
+  fadeMs = fade;
   listeners.forEach((listener) => listener());
 }
 

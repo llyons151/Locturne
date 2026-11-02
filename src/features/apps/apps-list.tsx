@@ -28,6 +28,7 @@ import {
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { GlassCard } from '@/components/glass-card';
 import { appsMoonRoom } from '@/components/night-sky';
+import { RaisedMoonTap } from '@/features/moons/moon-tap';
 import { sym } from '@/components/grouped-list';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { freeLimitId, limitLabel, MAX_LIMITS, type DailyLimit } from '@/lib/daily-limits';
@@ -162,7 +163,13 @@ function TabSwitch({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }
 }
 
 export function AppsList() {
-  return isScreenTimeAvailable() ? <LiveAppsList /> : <PreviewAppsList />;
+  return (
+    <View style={styles.page}>
+      {isScreenTimeAvailable() ? <LiveAppsList /> : <PreviewAppsList />}
+      {/* The raised moon under the tiles opens your moons, as Home's does (features/moons). */}
+      <RaisedMoonTap />
+    </View>
+  );
 }
 
 export const LIVE_GROUPS: { key: 'night' | 'always'; label: string; about: string; when: string }[] = [
@@ -853,6 +860,7 @@ function AppIconView({ app }: { app: AppEntry }) {
 const styles = StyleSheet.create({
   // Lists spaced by the gap, not their own margins, so the last one ends one gutter above
   // the panel's bottom edge: the same distance as from its sides.
+  page: { flex: 1 },
   content: { paddingHorizontal: Gap.gutter, paddingBottom: Gap.gutter, gap: Gap.section },
   header: { gap: Gap.headline },
   tiles: { gap: TILE_GAP },

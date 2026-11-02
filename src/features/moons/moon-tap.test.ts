@@ -18,7 +18,7 @@ const code = babel.transformSync(readFileSync(new URL('./moon-tap.tsx', import.m
 
 const LOC_VIEW = { x: -40, y: -200, width: 898, height: 752 };
 
-function tap(width: number, arc = width * 0.9 * 0.36) {
+function tap(width: number, arc = width * 0.9 * 0.36, room = true) {
   let opened = 0;
   const React = {
     Fragment: 'Fragment',
@@ -29,6 +29,8 @@ function tap(width: number, arc = width * 0.9 * 0.36) {
     '@/lib/haptics': { tap() {} },
     '../home/loc-rig': { LOC_VIEW },
     './moon-collection': { openMoons: () => opened++ },
+    react: { useSyncExternalStore: (_: unknown, get: () => unknown) => get() },
+    '@/components/night-sky': { appsMoonRoom: { subscribe: () => () => {}, get: () => room }, raisedMoonArc: (w: number) => w * 0.9 * (0.36 + 0.35 * 0.3) },
   };
   const exports: Record<string, any> = {};
   runInNewContext(code, { exports, React, require: (id: string) => mocks[id] ?? assert.fail(`unmocked import ${id}`), Math });
@@ -36,7 +38,8 @@ function tap(width: number, arc = width * 0.9 * 0.36) {
   const locHeight = Math.round((width * 0.27 * LOC_VIEW.height) / LOC_VIEW.width);
   const [left, right] = exports.MoonSides({ bottom: 82, height: locHeight }).children;
   const boxOf = (n: any) => Object.assign({}, ...n.props.style);
-  return { el, box: boxOf(el), left: boxOf(left), right: boxOf(right), pads: [left, right], opened: () => opened };
+  const raised = exports.RaisedMoonTap();
+  return { el, box: boxOf(el), left: boxOf(left), right: boxOf(right), pads: [left, right], raised, raisedBox: raised && boxOf(raised), opened: () => opened };
 }
 
 for (const width of [375, 390, 402, 430, 440]) {
@@ -83,3 +86,21 @@ for (const width of [375, 390, 402, 430, 440]) {
     assert.equal(opened(), 2);
   });
 }
+
+for (const width of [375, 390, 430]) {
+  test(`at ${width}pt wide the Apps tab's raised moon opens the moons, over the moon only`, () => {
+    const { raised, raisedBox, opened } = tap(width);
+    const arc = width * 0.9 * (0.36 + 0.35 * 0.3);
+    assert.equal(raisedBox.position, 'absolute');
+    assert.equal(raisedBox.bottom, 0, 'from the panel\'s edge');
+    assert.equal(raisedBox.height, arc + 16, 'up to the moon\'s top, plus a little room');
+    assert.ok(raisedBox.left > 0 && raisedBox.left === raisedBox.right, 'centred, inside the screen');
+    assert.equal(raised.props.accessibilityLabel, 'Your moons');
+    raised.props.onPress();
+    assert.equal(opened(), 1);
+  });
+}
+
+test('with a third tile the Apps tab sinks its moon, and there is nothing to tap', () => {
+  assert.equal(tap(390, undefined, false).raised, null);
+});

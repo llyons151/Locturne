@@ -54,14 +54,16 @@ func resolveIcon(dict: [String: Any]) -> UIImage? {
 
   if let iconSystemName = iconSystemName {
     image = UIImage(systemName: iconSystemName)
+    // The tint is for the symbol only: a picture (Locturne's moon icon) keeps its colours.
+    if let iconTint = getColor(color: dict["iconTint"] as? [String: Double]) {
+      image = image?.withTintColor(iconTint, renderingMode: .alwaysOriginal)
+    }
   }
 
-  if let iconAppGroupRelativePath = iconAppGroupRelativePath {
-    image = loadImageFromAppGroupDirectory(relativeFilePath: iconAppGroupRelativePath)
-  }
-
-  if let iconTint = getColor(color: dict["iconTint"] as? [String: Double]) {
-    image = image?.withTintColor(iconTint, renderingMode: .alwaysOriginal)
+  // A picture from the app group wins, but only if it loads: a missing file keeps the symbol.
+  if let iconAppGroupRelativePath = iconAppGroupRelativePath,
+    let picture = loadImageFromAppGroupDirectory(relativeFilePath: iconAppGroupRelativePath) {
+    image = picture
   }
 
   return image

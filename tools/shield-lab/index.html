@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shield lab</title>
+<style>
+  :root { --bg: #0b0b0c; --ink: #f2f2f4; --muted: #8e8e93; --line: #232326; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.4 -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif; padding: 32px 16px 80px; }
+  header { text-align: center; max-width: 760px; margin: 0 auto 28px; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; }
+  header p { color: var(--muted); margin-top: 8px; }
+  .controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  .controls button { background: #1c1c1e; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  .controls button.on { background: var(--ink); color: #000; }
+  .takes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 640px), 1fr)); gap: 28px; max-width: 1360px; margin: 0 auto; }
+  .take { border: 1px solid var(--line); border-radius: 24px; padding: 20px 16px; text-align: center; }
+  .take h2 { font-size: 17px; }
+  .take .why { color: var(--muted); font-size: 13px; margin: 4px auto 16px; max-width: 520px; }
+  .pair { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .phone-wrap small { color: var(--muted); font-size: 12px; }
+
+  /* An iPhone, drawn at 1/1.3 scale of a 393pt screen. The shield is iOS's layout: icon,
+     title, subtitle, then the button pinned near the bottom. Only colours, the icon image
+     and the words are Locturne's to choose. */
+  .phone { width: 300px; height: 650px; border-radius: 46px; border: 7px solid #1d1d1f; position: relative; overflow: hidden; background: var(--shield-bg, #0b0b0c); color: var(--shield-ink, #fff); }
+  .phone .island { position: absolute; top: 10px; left: 50%; translate: -50% 0; width: 94px; height: 27px; border-radius: 20px; background: #000; z-index: 3; }
+  .phone .status { position: absolute; top: 14px; left: 28px; right: 26px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; z-index: 2; }
+  .phone .behind { position: absolute; inset: 0; background: url(/assets/moons/bluehour-sky.webp) center/cover; filter: blur(22px) saturate(1.2); transform: scale(1.2); }
+  .phone .behind::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 22px, rgba(255,255,255,.25) 22px 70px, transparent 70px 92px); mask: repeating-linear-gradient(180deg, transparent 0 60px, #000 60px 108px); }
+  .phone .material { position: absolute; inset: 0; background: rgba(20, 20, 24, .62); }
+  .shield { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 0 26px; z-index: 1; }
+  .shield .icon { margin-top: 196px; height: 92px; display: flex; align-items: flex-end; justify-content: center; }
+  .shield .title { margin-top: 18px; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; text-align: center; color: var(--title, #fff); }
+  .shield .subtitle { margin-top: 8px; font-size: 14px; text-align: center; color: var(--sub, #a1a1a6); max-width: 230px; }
+  .shield .btn { position: absolute; left: 22px; right: 22px; bottom: 58px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; background: var(--btn-bg, #fff); color: var(--btn-ink, #0b0b0c); }
+  .home-bar { position: absolute; bottom: 8px; left: 50%; translate: -50% 0; width: 110px; height: 4px; border-radius: 2px; background: var(--shield-ink, #fff); opacity: .8; z-index: 2; }
+
+  /* Icons */
+  .sym { width: 74px; height: 74px; }
+  .loc-mask { width: 132px; aspect-ratio: 818 / 552; background: var(--loc, #fff); mask: url(/loc/loc-peek.svg) center bottom / contain no-repeat; -webkit-mask: url(/loc/loc-peek.svg) center bottom / contain no-repeat; }
+  .loc-img { width: 132px; aspect-ratio: 818 / 552; display: block; }
+  .moon-loc { position: relative; width: 112px; height: 124px; margin-bottom: 0; }
+  .moon-loc .m { position: absolute; left: 50%; top: 0; translate: -50% 0; width: 96px; height: 96px; }
+  .moon-loc .l { position: absolute; left: 50%; bottom: 0; translate: -50% 0; width: 112px; }
+  .moon-only { width: 92px; height: 92px; }
+  .big .icon { margin-top: 150px; height: 140px; }
+  .big .loc-mask, .big .loc-img { width: 200px; }
+
+  footer { max-width: 760px; margin: 36px auto 0; color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shield lab</h1>
+  <p>Eight takes on the screen iOS shows when you open a sleeping app. Each one shows the night shield and the morning one. iOS fixes the layout, so all we can choose is the background colour (or a blur), one icon image, the words and the button colours.</p>
+  <div class="controls" id="moons"></div>
+</header>
+<main class="takes" id="takes"></main>
+<footer>The icon size is roughly right; iOS scales the image to fit its slot, so a very wide Loc comes out smaller than drawn here. Moon picker changes takes 3, 4, 5 and 9 (their moon). Static mockups, not the app.</footer>
+
+<script>
+const MOONS = {
+  bluehour: { name: 'Blue Hour', sky: '#22426e' },
+  lilac:    { name: 'Lilac',     sky: '#442954' },
+  deepsea:  { name: 'Deep Sea',  sky: '#093e47' },
+  ember:    { name: 'Ember',     sky: '#4a1006' },
+  rose:     { name: 'Rose',      sky: '#461724' },
+  full:     { name: 'Full',      sky: '#0d131f' },
+};
+let moon = 'bluehour';
+
+const NIGHT = { title: 'Shh. I’m sleeping. So are they.', sub: 'They wake up after 7 am, once you’re out of bed.', btn: 'Fine' };
+const MORNING = { title: 'No.', sub: 'Walk 200 steps, then tap I’m up.', btn: 'I’m up' };
+
+const SYMBOL = `<svg class="sym" viewBox="0 0 24 24" fill="currentColor"><path d="M12.3 3.1a8.9 8.9 0 1 0 8.6 11.4 7.2 7.2 0 0 1-8.6-11.4Z"/><text x="15" y="9" font-size="5.5" font-weight="700" font-family="system-ui">z</text><text x="18.6" y="5.6" font-size="4" font-weight="700" font-family="system-ui">z</text></svg>`;
+const locWhite = (c = '#fff') => `<div class="loc-mask" style="--loc:${c}"></div>`;
+const locEyes = () => `<img class="loc-img" src="/loc/loc-peek-eyes.svg" alt="">`;
+const moonLoc = (m, eyes) => `<div class="moon-loc"><img class="m" src="/assets/moons/${m}-moon.webp" alt=""><img class="l" src="/loc/${eyes ? 'loc-peek-eyes' : 'loc-peek'}.svg" alt=""></div>`;
+const moonOnly = (m) => `<img class="moon-only" src="/assets/moons/${m}-moon.webp" alt="">`;
+
+// Each take: a name, a reason, and a look per phase.
+const TAKES = () => [
+  // Picked first.
+  null,
+  { name: '1 · Today', why: 'What ships now: Apple’s moon symbol on near-black. Clean, but it could be any app’s.',
+    night: { icon: SYMBOL }, morning: { icon: SYMBOL } },
+  { name: '2 · Loc in white', why: 'Same black screen, the symbol swapped for Loc’s silhouette in white. Smallest change, and now it’s obviously Locturne.',
+    night: { icon: locWhite() }, morning: { icon: locWhite() } },
+  { name: '3 · Loc in front of their moon', why: 'The Home look: their moon with black Loc peeking up in front of it, baked into one image. Changes as they collect moons.',
+    night: { icon: moonLoc(moon) }, morning: { icon: moonLoc(moon, true) } },
+  { name: '4 · Their sky', why: 'Take 3, plus the background in their moon’s sky colour instead of black. Most “part of the app”; only a flat colour is allowed, no gradient.',
+    night: { icon: moonLoc(moon), bg: MOONS[moon].sky, sub: 'rgba(255,255,255,.72)' }, morning: { icon: moonLoc(moon, true), bg: MOONS[moon].sky, sub: 'rgba(255,255,255,.72)' } },
+  { name: '5 · Just their moon', why: 'No Loc, only the moon they’re on. Calm and premium, but quieter on personality.',
+    night: { icon: moonOnly(moon), bg: MOONS[moon].sky, sub: 'rgba(255,255,255,.72)' }, morning: { icon: moonOnly(moon), bg: MOONS[moon].sky, sub: 'rgba(255,255,255,.72)' } },
+  { name: '6 · Frosted over the app', why: 'iOS’s dark blur material instead of a colour: you can faintly see the app you tried to open behind it. Very native.',
+    night: { icon: locWhite(), blur: true }, morning: { icon: locWhite(), blur: true } },
+  { name: '9 · Frosted, their moon (building)', why: 'Take 6 with the flat icon of the moon they wear instead of Loc (user, 2026-11-02). This is what the app now sets.',
+    night: { icon: `<img class="moon-only" src="/assets/moons/icons/${moon}.webp" alt="">`, blur: true },
+    morning: { icon: `<img class="moon-only" src="/assets/moons/icons/${moon}.webp" alt="">`, blur: true } },
+  { name: '7 · Night dark, morning light', why: 'Night stays black with white Loc; the morning shield turns pale with black Loc and his eyes open. You can tell at a glance which one you hit.',
+    night: { icon: locWhite() },
+    morning: { icon: locEyes(), bg: '#ece8e1', ink: '#111', title: '#111', sub: '#5c5a57', btnBg: '#111', btnInk: '#fff' } },
+  { name: '8 · Big Loc', why: 'Loc as large as the slot allows, eyes open in the morning. Loudest; the best one for filming.',
+    big: true, night: { icon: locWhite() }, morning: { icon: `<div class="loc-mask" style="--loc:#fff;mask-image:none;-webkit-mask:none;background:none"><img class="loc-img" style="width:100%;filter:invert(1)" src="/loc/loc-peek-eyes.svg" alt=""></div>` } },
+];
+
+function phone(look, words, big) {
+  const vars = [
+    look.bg && `--shield-bg:${look.bg}`, look.ink && `--shield-ink:${look.ink}`, look.title && `--title:${look.title}`,
+    look.sub && `--sub:${look.sub}`, look.btnBg && `--btn-bg:${look.btnBg}`, look.btnInk && `--btn-ink:${look.btnInk}`,
+  ].filter(Boolean).join(';');
+  return `<div class="phone${big ? ' big' : ''}" style="${vars}">
+    ${look.blur ? '<div class="behind"></div><div class="material"></div>' : ''}
+    <div class="island"></div><div class="status"><span>2:14</span><span>▮▮▮ ▭</span></div>
+    <div class="shield"><div class="icon">${look.icon}</div><div class="title">${words.title}</div><div class="subtitle">${words.sub}</div><div class="btn">${words.btn}</div></div>
+    <div class="home-bar"></div></div>`;
+}
+
+function render() {
+  document.getElementById('moons').innerHTML = Object.entries(MOONS)
+    .map(([id, m]) => `<button class="${id === moon ? 'on' : ''}" data-m="${id}">${m.name}</button>`).join('');
+  document.getElementById('takes').innerHTML = (() => { const t = TAKES().filter(Boolean); const i = t.findIndex((x) => x.name.startsWith('9')); return [t[i], ...t.filter((_, j) => j !== i)]; })().map((t) => `<section class="take"><h2>${t.name}</h2><p class="why">${t.why}</p>
+    <div class="pair"><div class="phone-wrap">${phone(t.night, NIGHT, t.big)}<small>Night</small></div>
+    <div class="phone-wrap">${phone(t.morning, MORNING, t.big)}<small>Morning</small></div></div></section>`).join('');
+}
+document.getElementById('moons').addEventListener('click', (e) => { const m = e.target.dataset?.m; if (m) { moon = m; render(); } });
+render();
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@ import { setClockReader } from '@/lib/clock-guard';
 import { holdSplash } from '@/lib/launch-splash';
 import { startPurchases } from '@/lib/purchases-start';
 import { MOONS_BG } from '@/features/moons/moon-collection';
+import { useShieldMoon } from '@/features/moons/shield-moon';
 import { Nocturne } from '@/theme';
 
 // The launch screen stays until the right first screen has drawn (launch-splash.ts).
@@ -33,6 +34,7 @@ export const unstable_settings = { initialRouteName: '(tabs)' };
 // Locturne is dark in both system appearances: the night sky never turns light.
 export default function RootLayout() {
   useStandingBlocks();
+  useShieldMoon();
   useScreenViews();
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -52,7 +54,11 @@ export default function RootLayout() {
               ...((route.params as { launch?: string } | undefined)?.launch ? { animation: 'none' as const } : null),
             })}
           />
-          <Stack.Screen name="exits" options={{ presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
+          {/* Passes, in the Sleep sheet's floating card (features/nap/sleep-sheet.tsx, user 2026-11-02). */}
+          <Stack.Screen
+            name="exits"
+            options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
+          />
           {/* The moon collection (features/moons): a sheet that slides up and scrolls, or its own page; You → Developer switches. */}
           <Stack.Screen
             name="moon-sheet"

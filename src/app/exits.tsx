@@ -1,6 +1,11 @@
 import { ExitsScreen } from '@/features/exits/exits-screen';
+import { SleepSheet } from '@/features/nap/sleep-sheet';
 
-/** Passes, the emergency unlock and the way to Scan. Presented as a sheet (see `_layout.tsx`). */
+/** Passes: the only way out early. Slides up in the Sleep sheet's floating card, like Block now (user 2026-11-02). */
 export default function ExitsRoute() {
-  return <ExitsScreen />;
+  return (
+    <SleepSheet>
+      <ExitsScreen />
+    </SleepSheet>
+  );
 }

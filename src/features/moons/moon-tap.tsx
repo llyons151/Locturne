@@ -1,4 +1,7 @@
+import { useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+
+import { appsMoonRoom, raisedMoonArc } from '@/components/night-sky';
 
 import * as haptic from '@/lib/haptics';
 
@@ -49,6 +52,26 @@ export function MoonSides({ bottom, height }: { bottom: number; height: number }
       <Pressable onPress={open} accessible={false} style={[styles.tap, side, { left: width * SIDE }]} />
       <Pressable onPress={open} accessible={false} style={[styles.tap, side, { right: width * SIDE }]} />
     </>
+  );
+}
+
+/**
+ * The Apps tab's moon, raised under its tiles, opens the collection too (user, 2026-11-02: "you should be
+ * able to open the moons from the schedules page as well"), the same way Home's does: the moons page
+ * grows out of the strip over whichever tab is showing (components/strip-page.tsx). No Loc there, so
+ * one tap area over the moon; none once a third tile has sunk the moon (`appsMoonRoom`).
+ */
+export function RaisedMoonTap() {
+  const { width } = useWindowDimensions();
+  const room = useSyncExternalStore(appsMoonRoom.subscribe, appsMoonRoom.get, appsMoonRoom.get);
+  if (!room) return null;
+  return (
+    <Pressable
+      onPress={open}
+      accessibilityRole="button"
+      accessibilityLabel="Your moons"
+      style={[styles.tap, { bottom: 0, height: raisedMoonArc(width) + OVER, left: width * SIDE, right: width * SIDE }]}
+    />
   );
 }
 

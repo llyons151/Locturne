@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -15,7 +16,8 @@ import { NightSky } from './night-sky';
  * With `panel` (the tabs), the sky ends in rounded bottom corners above the black strip
  * that holds the tab buttons, as in the user's nav reference. `strip` sets that strip's height
  * where it holds something else (the morning payoff's Done). `corners={false}` leaves the panel's
- * corner pieces off, for a screen that draws its own edge over the strip (the payoff's).
+ * corner pieces off, for a screen that draws its own edge over the strip (the payoff's). `drag` shows the
+ * moon's drag under it (the payoff's; NightSky's MoonDrag).
  */
 export function AppBackground({
   children,
@@ -23,7 +25,8 @@ export function AppBackground({
   strip,
   moonless,
   corners = true,
-}: PropsWithChildren<{ panel?: boolean; strip?: number; moonless?: boolean; corners?: boolean }>) {
+  drag,
+}: PropsWithChildren<{ panel?: boolean; strip?: number; moonless?: boolean; corners?: boolean; drag?: SharedValue<number> }>) {
   const insets = useSafeAreaInsets();
   const floor = panel ? (strip ?? tabStripHeight(insets.bottom)) : 0;
   return (
@@ -31,7 +34,7 @@ export function AppBackground({
       <View style={[styles.sky, panel && { bottom: floor }, panel && styles.panel]}>
         {/* The moon stays at the panel's bottom edge on every tab, Home included: the user
             asked for it there, poking up, its light rising into the black. */}
-        <NightSky floor={floor} moonless={moonless} />
+        <NightSky floor={floor} moonless={moonless} drag={drag} />
       </View>
       {children}
       {panel && corners ? <PanelCorners bottom={floor} /> : null}
