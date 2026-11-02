@@ -23,7 +23,7 @@ import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 
 import { MoonWater } from '@/components/moon-water';
 import { useMoon } from '@/features/moons/moon-theme';
-import { tabsShown } from '@/features/moons/moons-cover';
+import { tabPagesShown, tabsShown } from '@/features/moons/moons-cover';
 import { Text } from '@/components/text';
 import { exitTestMorning, useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Knockable, useNavKnock } from '@/components/nav-knock';
@@ -117,8 +117,8 @@ function TabScene({ children }: { children: ReactNode }) {
   const style = useAnimatedStyle(() => ({
     // Never quite 0: at opacity 0 iOS stops drawing liquid glass in the page (expo-glass-effect's
     // known issue), and it stayed flat after fading back in. 1% is invisible.
-    // `tabsShown`: faded for the moons page, which grows up out of the strip over it.
-    opacity: 0.01 + 0.99 * shown.value * (ownFade ? 1 : tabsShown.value),
+    // `tabPagesShown`: faded for a strip page (the moons, Settings), which grows up out of the strip over it.
+    opacity: 0.01 + 0.99 * shown.value * (ownFade ? 1 : tabPagesShown.value),
     transform: [
       // A hidden page also moves far off the panel: at 1% it still showed faintly behind the
       // shown one, glass cards most of all (web keeps hidden tabs mounted and in place).

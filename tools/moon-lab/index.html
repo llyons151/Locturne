@@ -432,6 +432,26 @@ function addSkies(root) {
     skies.push({ canvas, ctx: canvas.getContext('2d'), colours: skyColours(m) });
   });
 }
+/**
+ * Copies a shader's frame into a 2D canvas (same as copyOut in tools/moon-studio/render.js). Not with drawImage:
+ * on the user's Linux Chrome drawImage of a WebGL canvas swaps red and blue, so blue skies came out orange
+ * (2026-11-02). readPixels is always RGBA, bottom row first, premultiplied: flip it, and unpremultiply for alpha.
+ */
+function copyOut(g, ctx, alpha) {
+  const { gl, canvas } = g, w = canvas.width, h = canvas.height;
+  if (!g.buf || g.buf.length !== w * h * 4) { g.buf = new Uint8Array(w * h * 4); g.img = new ImageData(w, h); }
+  gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, g.buf);
+  const src = g.buf, dst = g.img.data, row = w * 4;
+  for (let y = 0; y < h; y++) {
+    const from = (h - 1 - y) * row;
+    if (!alpha) { dst.set(src.subarray(from, from + row), y * row); continue; }
+    for (let i = 0, j = y * row; i < row; i += 4, j += 4) {
+      const a = src[from + i + 3], k = a ? 255 / a : 0;
+      dst[j] = src[from + i] * k; dst[j + 1] = src[from + i + 1] * k; dst[j + 2] = src[from + i + 2] * k; dst[j + 3] = a;
+    }
+  }
+  ctx.putImageData(g.img, 0, 0);
+}
 let lastSky = 0;
 function drawSkies(ms) {
   // 30 a second, as the app's sky will run.
@@ -444,7 +464,7 @@ function drawSkies(ms) {
     if (!s.canvas._visible) continue;
     s.colours.forEach((c, i) => gl.uniform3fv(C[i], c));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    s.ctx.drawImage(canvas, 0, 0);
+    copyOut(skyGL, s.ctx, false);
   }
 }
 function tick(ms) {
@@ -458,8 +478,7 @@ function tick(ms) {
       o.colours.forEach((c, i) => gl.uniform3fv(C[i], c));
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
-      o.ctx.clearRect(0, 0, ORB_PX, ORB_PX);
-      o.ctx.drawImage(canvas, 0, 0);
+      copyOut(shared, o.ctx, true);
     }
   }
   requestAnimationFrame(tick);
@@ -645,7 +664,8 @@ function testCard(m) {
   return fig;
 }
 
-let testSet = 'all';
+// ?show=test&set=bluemoon opens on one test set.
+let testSet = new URLSearchParams(location.search).get('set') ?? 'all';
 function renderTests() {
   if (!TEST.length) return;
   const h = document.createElement('h2');
@@ -654,7 +674,7 @@ function renderTests() {
   const bar = document.createElement('div');
   bar.className = 'bar';
   bar.innerHTML = `<div><div class="seg-label">Set</div><div class="seg" id="test-set" style="flex-wrap:wrap">
-    <button data-v="all" class="on">All</button><button data-v="liked">♥ Liked</button>${TEST_SETS.map((x) => `<button data-v="${x.key}">${x.title}</button>`).join('')}</div></div>`;
+    <button data-v="all"${testSet === 'all' ? ' class="on"' : ''}>All</button><button data-v="liked"${testSet === 'liked' ? ' class="on"' : ''}>♥ Liked</button>${TEST_SETS.map((x) => `<button data-v="${x.key}"${testSet === x.key ? ' class="on"' : ''}>${x.title}</button>`).join('')}</div></div>`;
   const grid = document.createElement('div');
   grid.className = 'grid test-grid';
   TEST.forEach((m) => grid.appendChild(testCard(m)));

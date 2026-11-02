@@ -99,7 +99,7 @@ export function secretsMet(f: SecretFacts): SecretRule[] {
  * bake (tools/moon-lab/bake.py, from moons.json's `rare`); the first rolls on the morning's key alone (as the
  * single rare moon always did), the rest on the key and their id.
  */
-export const RARE_MOONS: readonly string[] = ['bluemoon', 'ringed'];
+export const RARE_MOONS: readonly string[] = ['bluemoon'];
 /** Whether an id is one of the rare moons. */
 export const isRare = (id: string) => RARE_MOONS.includes(id);
 

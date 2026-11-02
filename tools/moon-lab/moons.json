@@ -1,13 +1,13 @@
 {
   "ladder": [
-    "dawn",
-    "harvest",
-    "twilight",
-    "full",
-    "ember",
-    "matcha",
-    "blood",
     "deepsea",
+    "harvest",
+    "full",
+    "twilight",
+    "ember",
+    "noir",
+    "blood",
+    "lagoon",
     "prism",
     "eclipse",
     "bluehour",
@@ -132,17 +132,18 @@
       "id": "bluemoon",
       "name": "Blue Moon",
       "tag": "once in a blue moon",
-      "note": "A true sapphire, deeper than today’s blue. Rare on purpose.",
+      "note": "A true sapphire: a jewel-blue moon on an inky navy night. Rare on purpose.",
       "sky": [
-        "#020309",
-        "#071A4A",
-        "#123887"
+        "#000103",
+        "#020D3B",
+        "#07277D",
+        "#1649AE"
       ],
       "moon": [
-        "#061F51",
-        "#4B7CDD"
+        "#051861",
+        "#4A81EB"
       ],
-      "glow": "#2F6BEA",
+      "glow": "#4D81EB",
       "kind": "real"
     },
     {
@@ -1254,8 +1255,7 @@
     }
   ],
   "rare": [
-    "bluemoon",
-    "ringed"
+    "bluemoon"
   ],
   "limited": []
 }

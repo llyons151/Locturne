@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
@@ -7,7 +7,6 @@ import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
-import { LocBubble } from '@/features/home/loc-bubble';
 import LocStage from '@/features/home/loc-stage';
 import { morningsLabel } from '@/features/home/week';
 
@@ -17,50 +16,16 @@ const CANVAS = Math.round(SIZE * 1.2);
 /** The circle's inside height: his ears get the room above him. */
 const LOC_H = SIZE - 8;
 
-/** Where his bubble's tail lands, up from the circle's bottom: just over his ears. */
-const BUBBLE_AT = Math.round(SIZE * 0.68);
-
 /** Home's mornings pill's height. */
 const PILL = 36;
-
-/** His one line here, the best of Home's poke lines (loc-lines.ts). */
-const LINE = 'There’s a reason I’m not allowed at airports.';
-
-/** How long a line stays up, as on Home. */
-const LINE_MS = 3200;
 
 /**
  * The top of the You tab, like CapWords' profile (user reference, 2026-10-14): Loc as the
  * profile picture, the real Loc from Home (loc-stage.tsx) peeking up from the circle's bottom,
- * and your mornings in Home's pill under him. He says `LINE` when the tab opens and when he's poked; it fades like his lines on Home. A long press on the
- * pill opens beta diagnostics.
+ * and your mornings in Home's pill under him. He doesn't talk here: no lines in Settings (user,
+ * 2026-11-02). A poke still gets his own reaction. A long press on the pill opens beta diagnostics.
  */
-export function LocProfile({ mornings, onLongPress, sayAfter = 0 }: { mornings: number; onLongPress: () => void; sayAfter?: number }) {
-  const [said, setSaid] = useState<number | null>(sayAfter ? null : 0);
-  // On a page that slides up (Settings), he speaks once he's peeked up (his "hello"), not mid-slide;
-  // `sayAfter` is only the fallback if he never says it.
-  const spoke = useRef(!sayAfter);
-  const speak = useCallback(() => {
-    if (spoke.current) return;
-    spoke.current = true;
-    setSaid(0);
-  }, []);
-  useEffect(() => {
-    if (!sayAfter) return;
-    const t = setTimeout(speak, sayAfter);
-    return () => clearTimeout(t);
-  }, [sayAfter, speak]);
-  useEffect(() => {
-    if (said === null) return;
-    const t = setTimeout(() => setSaid(null), LINE_MS);
-    return () => clearTimeout(t);
-  }, [said]);
-  const again = () => setSaid((n) => (n ?? 0) + 1000);
-  // A poke on him (handled in his webview) says it again; hiding doesn't.
-  const onCue = useCallback((cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') => {
-    if (cue === 'poke' || cue === 'angry') setSaid((n) => (n ?? 0) + 1000);
-    if (cue === 'hello') speak();
-  }, [speak]);
+export function LocProfile({ mornings, onLongPress }: { mornings: number; onLongPress: () => void }) {
   const dom = useMemo(
     () => ({
       style: { width: CANVAS, height: LOC_H, backgroundColor: 'transparent' },
@@ -73,23 +38,15 @@ export function LocProfile({ mornings, onLongPress, sayAfter = 0 }: { mornings: 
   return (
     <View style={styles.wrap}>
       <Pressable
-        onPress={() => {
-          haptic.tap();
-          again();
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={`Loc says: ${LINE}`}
-        accessibilityHint="Says it again"
+        onPress={() => haptic.tap()}
+        accessibilityRole="image"
+        accessibilityLabel="Loc"
         style={styles.avatar}
       >
         <View style={[styles.loc, { width: CANVAS, height: LOC_H }]}>
-          <LocStage mood="awake" share={0.9} present onCue={onCue} dom={dom} />
+          <LocStage mood="awake" share={0.9} present dom={dom} />
         </View>
       </Pressable>
-      {/* Floats over the circle's empty top and the space above it, so it never moves the page. */}
-      <View style={styles.speech} pointerEvents="box-none">
-        {said !== null ? <LocBubble key={said} line={LINE} onDismiss={() => setSaid(null)} /> : null}
-      </View>
       <Pressable
         onLongPress={onLongPress}
         delayLongPress={800}
@@ -106,10 +63,7 @@ export function LocProfile({ mornings, onLongPress, sayAfter = 0 }: { mornings: 
 }
 
 const styles = StyleSheet.create({
-  // A little room up top, so a two-line bubble clears the status bar.
   wrap: { alignItems: 'center', paddingTop: Space.l },
-  // Its tail's tip is the bottom edge, placed just over his head.
-  speech: { position: 'absolute', left: 0, right: 0, bottom: PILL + Space.l + BUBBLE_AT, alignItems: 'center' },
   // A light ring round a frosted circle, like the photo's white border. No shadow, no glow.
   avatar: {
     width: SIZE,

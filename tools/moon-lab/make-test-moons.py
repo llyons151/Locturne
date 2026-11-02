@@ -50,6 +50,7 @@ def wash(*hues, l=0.82, c=0.13):
 
 
 SETS = [
+    ('bluemoon', 'Blue Moon', 'five takes on the rare Blue Moon'),
     ('quiet', 'Quiet', 'one colour, held back'),
     ('vivid', 'Vivid', 'one colour, turned all the way up'),
     ('pairs', 'Pairs', 'a moon against its opposite sky'),
@@ -67,6 +68,29 @@ def mono(set_, name, note, h, v, hor_l=0.6, moon_v=None, light_l=0.96):
     """One hue all the way through: sky, moon and halo."""
     mv = v if moon_v is None else moon_v
     add(set_, name, note, sky(h, h, h, v, hor_l), moon(h, h, mv, light_l=light_l), glow(h, mv))
+
+
+# ——— Blue Moon: five takes on the rare moon (user, 2026-11-02). The real one is a blue disc, not a white
+# moon in a blue sky (that is Blue Hour), so every take keeps the disc itself blue. ———
+def bm(name, note, sky_, moon_, glow_h, gv=1.0):
+    add('bluemoon', name, note, sky_, moon_, oklch(0.62, 0.17 * gv, glow_h), glowOpacity=1)
+
+
+bm('Blue Sapphire', 'The current Blue Moon, deeper and richer: a jewel on an inky navy night.',
+   [oklch(0.06, 0.02, 265), oklch(0.19, 0.09, 265), oklch(0.32, 0.15, 264), oklch(0.44, 0.17, 262)],
+   [oklch(0.26, 0.13, 265), oklch(0.62, 0.17, 262)], 263)
+bm('Blue Cobalt', 'Turned all the way up: an electric blue moon on a near-black sky with one bright band.',
+   [oklch(0.05, 0.015, 262), oklch(0.13, 0.05, 262), oklch(0.30, 0.16, 260), oklch(0.52, 0.21, 258)],
+   [oklch(0.38, 0.2, 260), oklch(0.74, 0.15, 252)], 258, 1.2)
+bm('Blue Cornflower', 'Softer and lighter: a powder-blue moon over navy fading to cornflower.',
+   [oklch(0.07, 0.02, 262), oklch(0.22, 0.07, 262), oklch(0.42, 0.11, 260), oklch(0.62, 0.11, 258)],
+   [oklch(0.52, 0.12, 258), oklch(0.86, 0.07, 255)], 257, 0.7)
+bm('Blue Cerulean', 'Leaning toward cyan: a clear sky-blue moon, the night turning teal-blue at the bottom.',
+   [oklch(0.06, 0.02, 250), oklch(0.20, 0.07, 252), oklch(0.38, 0.11, 238), oklch(0.56, 0.12, 225)],
+   [oklch(0.42, 0.13, 240), oklch(0.80, 0.11, 230)], 232)
+bm('Blue Ultramarine', 'Leaning toward violet: a royal-blue moon on indigo going violet at the horizon.',
+   [oklch(0.06, 0.025, 278), oklch(0.19, 0.09, 276), oklch(0.34, 0.15, 272), oklch(0.48, 0.17, 285)],
+   [oklch(0.30, 0.16, 270), oklch(0.66, 0.17, 268)], 270)
 
 
 # ——— Quiet: one hue, low chroma. Restraint reads as expensive. ———
@@ -201,11 +225,11 @@ twin('Lovers', 'A pink moon and a small violet one, on a pink-to-violet night.',
 twin('Tide', 'An aqua moon and a little gold one, over the sea.', sky(232, 200, 172), 182, 75, (0.78, 0.68), 0.18)
 twin('Lemon & Lime', 'A lemon moon and a small lime one, on a green-gold night.', sky(150, 122, 95), 100, 135, (0.22, 0.67), 0.22)
 
-assert len(MOONS) == 100, len(MOONS)
+assert len(MOONS) == 105, len(MOONS)
 for m in MOONS:
     m['id'] = 'test-' + re.sub(r'[^a-z0-9]+', '-', m['name'].lower().replace('é', 'e')).strip('-')
     m['kind'] = 'test'
     m['tag'] = next(t for k, t, _ in SETS if k == m['set']).lower()
-assert len({m['id'] for m in MOONS}) == 100
+assert len({m['id'] for m in MOONS}) == 105
 OUT.write_text(json.dumps({'sets': [{'key': k, 'title': t, 'sub': s} for k, t, s in SETS], 'moons': MOONS}, indent=1, ensure_ascii=False) + '\n')
 print(len(MOONS), '->', OUT)

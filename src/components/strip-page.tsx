@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
 import { HOME_RISE_MS, MOON_GONE, MOON_SHOWS_FROM, moonSink } from '@/components/night-sky';
 import { homeEntrance, HIDE_FADE_MS } from '@/features/home/entrance';
-import { locAway, tabsShown } from '@/features/moons/moons-cover';
+import { locAway, tabPagesShown, tabsShown } from '@/features/moons/moons-cover';
 
 /**
  * Two steps, one after the other (user, 2026-11-01: "I want to see everything fade out before it
@@ -31,7 +31,8 @@ const SHOW_AT = UP_AT + 360;
 const SHOW_MS = 260;
 /** Going, backwards: the contents go, the page slides down into the strip, then the tabs fade back. */
 const HIDE_MS = 160;
-const DOWN_MS = 460;
+// A touch slower than the way up: at 460 the drop felt abrupt (user, 2026-11-02).
+const DOWN_MS = 560;
 const BACK_MS = 320;
 /** The moon drops out of sight with the fade, and rises back with the tabs once the page has gone. */
 const MOON_DROP_MS = FADE_MS;
@@ -75,6 +76,7 @@ export function StripPage({ background, children }: { background: string; childr
       // any other tab under the page fade here.
       homeEntrance.fadeOut();
       tabsShown.set(reduced ? 0 : withTiming(0, { duration: FADE_MS }));
+      tabPagesShown.set(reduced ? 0 : withTiming(0, { duration: FADE_MS }));
       if (was < MOON_SHOWS_FROM) moonSink.set(reduced ? MOON_GONE : withTiming(MOON_GONE, { duration: MOON_DROP_MS, easing: Easing.in(Easing.cubic) }));
     }
     if (!reduced) {
@@ -89,6 +91,7 @@ export function StripPage({ background, children }: { background: string; childr
       if (leaving.current || nested.current) return;
       homeEntrance.play();
       tabsShown.set(1);
+      tabPagesShown.set(1);
       locAway.set(false);
       if (was < MOON_SHOWS_FROM) moonSink.set(was);
     };
@@ -103,6 +106,7 @@ export function StripPage({ background, children }: { background: string; childr
       if (cover) {
         homeEntrance.play();
         tabsShown.set(1);
+        tabPagesShown.set(1);
         locAway.set(false);
         if (was < MOON_SHOWS_FROM) moonSink.set(was);
       }
@@ -118,6 +122,8 @@ export function StripPage({ background, children }: { background: string; childr
       ),
     );
     if (!cover) return;
+    // The tab under it is whole again before the page starts down: it's revealed, not faded in.
+    tabPagesShown.set(1);
     // Only once the page is all the way down does anything come back: the tabs fade in, the moon
     // (a new one, if one was picked) rises, and Loc pops up (user, 2026-11-01).
     const home = HIDE_MS / 2 + DOWN_MS;

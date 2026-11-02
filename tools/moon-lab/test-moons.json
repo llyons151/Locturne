@@ -1,6 +1,11 @@
 {
  "sets": [
   {
+   "key": "bluemoon",
+   "title": "Blue Moon",
+   "sub": "five takes on the rare Blue Moon"
+  },
+  {
    "key": "quiet",
    "title": "Quiet",
    "sub": "one colour, held back"
@@ -27,6 +32,106 @@
   }
  ],
  "moons": [
+  {
+   "set": "bluemoon",
+   "name": "Blue Sapphire",
+   "note": "The current Blue Moon, deeper and richer: a jewel on an inky navy night.",
+   "sky": [
+    "#000103",
+    "#020D3B",
+    "#07277D",
+    "#1649AE"
+   ],
+   "moon": [
+    "#051861",
+    "#4A81EB"
+   ],
+   "glow": "#4D81EB",
+   "glowOpacity": 1,
+   "id": "test-blue-sapphire",
+   "kind": "test",
+   "tag": "blue moon"
+  },
+  {
+   "set": "bluemoon",
+   "name": "Blue Cobalt",
+   "note": "Turned all the way up: an electric blue moon on a near-black sky with one bright band.",
+   "sky": [
+    "#000002",
+    "#01061B",
+    "#00276C",
+    "#1163CE"
+   ],
+   "moon": [
+    "#043B90",
+    "#6BAFFA"
+   ],
+   "glow": "#2581FE",
+   "glowOpacity": 1,
+   "id": "test-blue-cobalt",
+   "kind": "test",
+   "tag": "blue moon"
+  },
+  {
+   "set": "bluemoon",
+   "name": "Blue Cornflower",
+   "note": "Softer and lighter: a powder-blue moon over navy fading to cornflower.",
+   "sky": [
+    "#000104",
+    "#07183A",
+    "#274B88",
+    "#5B87C8"
+   ],
+   "moon": [
+    "#3A69AD",
+    "#B3D4FF"
+   ],
+   "glow": "#5587CD",
+   "glowOpacity": 1,
+   "id": "test-blue-cornflower",
+   "kind": "test",
+   "tag": "blue moon"
+  },
+  {
+   "set": "bluemoon",
+   "name": "Blue Cerulean",
+   "note": "Leaning toward cyan: a clear sky-blue moon, the night turning teal-blue at the bottom.",
+   "sky": [
+    "#000103",
+    "#001634",
+    "#044869",
+    "#0B80A2"
+   ],
+   "moon": [
+    "#00537C",
+    "#6BCBF7"
+   ],
+   "glow": "#1F92C1",
+   "glowOpacity": 1,
+   "id": "test-blue-cerulean",
+   "kind": "test",
+   "tag": "blue moon"
+  },
+  {
+   "set": "bluemoon",
+   "name": "Blue Ultramarine",
+   "note": "Leaning toward violet: a royal-blue moon on indigo going violet at the horizon.",
+   "sky": [
+    "#000004",
+    "#0C093B",
+    "#212883",
+    "#5847B7"
+   ],
+   "moon": [
+    "#15197C",
+    "#668AF9"
+   ],
+   "glow": "#5F7CEB",
+   "glowOpacity": 1,
+   "id": "test-blue-ultramarine",
+   "kind": "test",
+   "tag": "blue moon"
+  },
   {
    "set": "quiet",
    "name": "Pearl Grey",

@@ -188,9 +188,6 @@ function rate() {
   else StoreReview.requestReview().catch(() => {});
 }
 
-/** Loc's line waits for him to peek up once the page has landed; this is only the fallback. */
-const SAY_AFTER_MS = 4000;
-
 /** Settings' background: pure black, like the strip it grows out of (user, 2026-11-02). */
 export const SETTINGS_BG = '#000000';
 
@@ -299,7 +296,7 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
       {/* Loc as the profile picture and your mornings under him, like CapWords' profile (user
           reference, 2026-10-14). Long press the mornings for beta diagnostics: what iOS ran
           overnight, to paste into a bug report. */}
-      <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} sayAfter={SAY_AFTER_MS} />
+      <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} />
 
       {/* Flat rows on black, a hairline between groups, as in Brilliant's settings (user reference,
           2026-11-02): no cards and no headings. */}

@@ -25,7 +25,9 @@ const DOT = 32;
 export function WeekDots({ days, reduced, modifiers }: { days: WeekDay[]; reduced: boolean; modifiers?: ModifierConfig[] }) {
   // The mist takes the worn moon's colours, as the Sleep orb does; Moonlight keeps the mist's own tuned blues.
   const moon = useMoon();
-  const mist = moon.id === DEFAULT_MOON.id ? undefined : moon.orb;
+  // Never undefined: a prop that goes missing isn't sent to the native view, so switching back to
+  // Moonlight left the last moon's mist in the dots (user, 2026-11-02). An empty list is Moonlight.
+  const mist: string[] = moon.id === DEFAULT_MOON.id ? [] : [...moon.orb];
   return (
     <HStack modifiers={modifiers}>
       {days.flatMap((day, i) => [

@@ -10,6 +10,14 @@ import { makeMutable } from 'react-native-reanimated';
 export const tabsShown = makeMutable(1);
 
 /**
+ * The other tabs' pages (not Home, which fades its own pieces): faded with `tabsShown` on the way
+ * in, but back at full at once while the page still covers them, so the page drops away off a
+ * finished page. Fading them back in as a whole left them half see-through, then popping in, on
+ * Routine and Apps (user, 2026-11-02), as Home's did before it got its own fade.
+ */
+export const tabPagesShown = makeMutable(1);
+
+/**
  * Loc pops down (rather than running off along the edge) while the moons page is up, and pops
  * back up when it goes: `quick` stays on a moment after `away` ends, for his way back.
  */
