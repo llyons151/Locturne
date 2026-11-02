@@ -49,6 +49,7 @@ test('an active nap reports revoked protection and recovers its status when acce
     './use-sideways': { useSideways: () => false },
     './nap-line': { shownLine: (line: string) => line }, './nap-clock': { NapClock: 'NapClock' },
     './sleep-sheet': { closeSleepSheet() {}, SHEET_PADDING: 18 },
+    '../moons/moon-theme': { DEFAULT_MOON: { id: 'moonlight' }, useMoon: () => ({ id: 'moonlight', orb: ['#040A1F', '#123C8C', '#5E9BEA', '#E9F3FF'] }) },
   };
   const code = babel.transformSync(readFileSync(new URL('./nap-screen.tsx', import.meta.url), 'utf8'), {
     filename: 'nap-screen.tsx', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
@@ -105,6 +106,7 @@ test('VoiceOver hears the nap length and when the apps wake on the ruler', () =>
     './length-ruler': { LengthRuler: 'LengthRuler' },
     './use-sideways': { useSideways: () => false },
     './nap-line': { shownLine: (line: string) => line },
+    '../moons/moon-theme': { DEFAULT_MOON: { id: 'moonlight' }, useMoon: () => ({ id: 'moonlight', orb: ['#040A1F', '#123C8C', '#5E9BEA', '#E9F3FF'] }) },
   };
   const exports: any = {};
   runInNewContext(compile('./nap-screen.tsx'), { exports, require: (id: string) => mocks[id] ?? {}, React: react });

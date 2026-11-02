@@ -22,6 +22,12 @@ export type MorningProof = {
    */
   bedtime?: number;
   morningStart?: number;
+  /**
+   * A scan morning's registered code, the one the scan matched, as it was that morning (the
+   * Coca-Cola secret moon reads it: a code saved since can't change what was scanned). Missing on
+   * other methods and on scan proofs saved before it was kept.
+   */
+  code?: { data: string; type: string };
 };
 
 /**

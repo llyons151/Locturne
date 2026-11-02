@@ -1,7 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { useSyncExternalStore } from 'react';
 import { getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
-import { getScanCode } from '@/lib/scan-code';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER } from './moon-data';
@@ -106,12 +105,13 @@ export function checkSecretMoons(now = Date.now()): string[] {
   const open = SECRET_MOONS.filter((s) => !owned[s.id]);
   const proof = latestWin();
   if (!open.length || !proof) return [];
-  const scan = proof.kind === 'scan' ? getScanCode() : null;
   const far = sharedGet<{ morningKey: string; metres: number }>(FARTHEST_KEY);
   const met = secretsMet({
     kind: proof.kind,
     hour: new Date(proof.at).getHours(),
-    scanned: scan ? { data: scan.data, type: scan.type } : null,
+    // The code that morning's scan matched, kept on its proof: the code saved now could be a Coke
+    // can set up after an ordinary scan morning.
+    scanned: proof.kind === 'scan' ? (proof.code ?? null) : null,
     farthest: far?.morningKey === proof.morningKey ? far.metres : null,
   });
   const earned = open.filter((s) => met.includes(s.rule)).map((s) => s.id);

@@ -202,7 +202,10 @@ export function settleLadder(facts: LadderFacts): { owned: Record<string, OwnedM
       if (rollFor(rare.seed, i === 0 ? latest : `${latest}:${id}`) < 1 / RARE_ODDS) due.push(id);
     });
   }
-  if (due.length && !ladderToday) {
+  // Never two rare moons on one morning: settling again the same morning (the payoff settles on
+  // every render) leaves the next one waiting for a later morning.
+  const rareToday = Object.values(owned).some((m) => rareMoons.includes(m.id) && m.morningKey === latest);
+  if (due.length && !ladderToday && !rareToday) {
     own(due[0], mornings);
     due = due.slice(1);
   }

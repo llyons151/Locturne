@@ -140,7 +140,7 @@ export function submitScan(data: string, now = new Date()): ScanResult {
   // A morning after the last one a lapsed subscription covers holds nothing (`pastLastPaid`).
   if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return 'notMorning';
   if (judgedAt(now).routine.method !== 'scan') return 'notMethod';
-  recordProof({ morningKey: state.morningKey, kind: 'scan', at: now.getTime() }, judgedAt(now));
+  recordProof({ morningKey: state.morningKey, kind: 'scan', at: now.getTime(), code: { data: code.data, type: code.type } }, judgedAt(now));
   syncLock(now);
   return 'unlocked';
 }

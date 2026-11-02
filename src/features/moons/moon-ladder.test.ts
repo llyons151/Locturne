@@ -299,6 +299,10 @@ test('two rare hits the same morning: one now, the other on the next non-ladder 
   const first = settleLadder(facts({ mornings: 4, latest: key, owned: earlier(), rareMoons: RARES, rare: { due: [], rolled: null, seed: seedForBoth(key, true) } }));
   assert.deepEqual(first.earned, [RARE_MOON]);
   assert.deepEqual(first.rare.due, [BLUE]);
+  // The payoff settles on every render: settling again that morning still gives only the one.
+  const again = settleLadder(facts({ mornings: 4, latest: key, owned: first.owned, rareMoons: RARES, rare: first.rare }));
+  assert.deepEqual(again.earned, [], 'never two rare moons on one morning');
+  assert.deepEqual(again.rare.due, [BLUE]);
   const next = settleLadder(facts({ mornings: 5, latest: '2026-11-07', owned: first.owned, rareMoons: RARES, rare: first.rare }));
   assert.deepEqual(next.earned, [BLUE]);
   assert.deepEqual(next.rare.due, []);

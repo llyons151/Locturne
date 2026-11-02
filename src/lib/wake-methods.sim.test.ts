@@ -735,6 +735,8 @@ describe('scan', () => {
     await sleepThroughNight();
     assert.equal(scan.submitScan('0012345678905'), 'unlocked');
     await assertWoke('scan');
+    // The proof keeps the registered code it matched, for the Coca-Cola secret moon.
+    assert.deepEqual(mp.getProofs()[0].code, { data: '012345678905', type: 'upc_a' });
   });
 
   test('a scan during the night is refused: bedtime wins', async () => {

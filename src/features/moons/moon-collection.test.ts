@@ -24,7 +24,7 @@ const code = babel.transformSync(readFileSync(new URL('./moon-collection.ts', im
 
 const LADDER = ['dawn', 'harvest', 'aurora', 'supermoon', 'nebula', 'midnightsun', 'blood', 'deepsea', 'prism', 'eclipse', 'bluehour', 'strawberry', 'micromoon'];
 
-type Proof = { morningKey: string; kind: string; at: number; morningStart?: number };
+type Proof = { morningKey: string; kind: string; at: number; morningStart?: number; code?: { data: string; type: string } };
 
 /** A cold launch: the store over `disk` (the App Group, kept between launches) and today's facts. */
 function launch({
@@ -32,6 +32,7 @@ function launch({
   proofs = [] as Proof[],
   mornings = proofs.filter((p: Proof) => p.kind !== 'pass' && p.kind !== 'emergency').length,
   first = null as string | null,
+  /** The scan code saved now, which the store must not read (the proof keeps that morning's). */
   scanCode = null as null | { kind: string; data: string; type: string; registeredAt: number },
 } = {}) {
   const pushed: string[] = [];
@@ -182,6 +183,8 @@ const scanProof = (key: string, extra: Partial<Proof> = {}): Proof => walk(key, 
 const placeProof = (key: string, extra: Partial<Proof> = {}): Proof => walk(key, { kind: 'place', ...extra });
 /** A Coca-Cola 12 oz can, as the camera reads it (UPC-A written as EAN-13). */
 const COKE_CAN = { kind: 'barcode', data: '0049000006346', type: 'ean13', registeredAt: 0 };
+/** The same can as a scan proof keeps it. */
+const COKE = { data: COKE_CAN.data, type: COKE_CAN.type };
 
 test('early: a wake-up before 5:00 earns it, 5:00 on the dot does not', () => {
   const early = launch({ proofs: [walk('2026-11-02', { at: at('2026-11-02', 4, 59) })], first: '2026-11-02' });
@@ -191,12 +194,19 @@ test('early: a wake-up before 5:00 earns it, 5:00 on the dot does not', () => {
 });
 
 test('coke: a scan morning on a Coca-Cola barcode earns it; another barcode or a walk does not', () => {
-  const coke = launch({ proofs: [scanProof('2026-11-02')], first: '2026-11-02', scanCode: COKE_CAN });
+  const coke = launch({ proofs: [scanProof('2026-11-02', { code: COKE })], first: '2026-11-02', scanCode: COKE_CAN });
   assert.deepEqual([...coke.m.checkSecretMoons()], ['strawberry']);
-  const other = launch({ proofs: [scanProof('2026-11-02')], first: '2026-11-02', scanCode: { ...COKE_CAN, data: '5012345678900' } });
+  const other = launch({ proofs: [scanProof('2026-11-02', { code: { ...COKE, data: '5012345678900' } })], first: '2026-11-02' });
   assert.deepEqual([...other.m.checkSecretMoons()], []);
   const walked = launch({ proofs: [walk('2026-11-02')], first: '2026-11-02', scanCode: COKE_CAN });
   assert.deepEqual([...walked.m.checkSecretMoons()], [], 'a Coke code saved, but the morning was a walk');
+});
+
+test('coke: a Coke can saved as the code after an ordinary scan morning earns nothing (user, 2026-11-02)', () => {
+  const later = launch({ proofs: [scanProof('2026-11-02', { code: { ...COKE, data: '5012345678900' } })], first: '2026-11-02', scanCode: COKE_CAN });
+  assert.deepEqual([...later.m.checkSecretMoons()], [], 'the can is the code now, but it was not what got them up');
+  const old = launch({ proofs: [scanProof('2026-11-02')], first: '2026-11-02', scanCode: COKE_CAN });
+  assert.deepEqual([...old.m.checkSecretMoons()], [], 'a scan proof saved before codes were kept never counts');
 });
 
 test('far: a place morning Home saw start 2 km or more away earns it, only that morning', () => {
@@ -223,7 +233,7 @@ test('the secrets: a pass never counts, nor nothing at all, and each is earned o
   const pass = { morningKey: '2026-11-03', kind: 'pass', at: at('2026-11-03', 4, 0), morningStart: at('2026-11-03', 4, 0) };
   assert.deepEqual([...launch({ proofs: [pass], mornings: 0 }).m.checkSecretMoons()], []);
   assert.deepEqual([...launch().m.checkSecretMoons()], []);
-  const app = launch({ proofs: [scanProof('2026-11-02', { at: at('2026-11-02', 4, 30) })], first: '2026-11-02', scanCode: COKE_CAN });
+  const app = launch({ proofs: [scanProof('2026-11-02', { at: at('2026-11-02', 4, 30), code: COKE })], first: '2026-11-02' });
   assert.deepEqual([...app.m.checkSecretMoons()].sort(), ['bluehour', 'strawberry'], 'one morning can earn two');
   assert.deepEqual([...app.m.checkSecretMoons()], []);
 });
