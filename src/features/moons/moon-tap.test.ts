@@ -20,7 +20,10 @@ const LOC_VIEW = { x: -40, y: -200, width: 898, height: 752 };
 
 function tap(width: number, arc = width * 0.9 * 0.36) {
   let opened = 0;
-  const React = { createElement: (type: unknown, props: Record<string, any>) => ({ type, props }) };
+  const React = {
+    Fragment: 'Fragment',
+    createElement: (type: unknown, props: Record<string, any> | null, ...children: unknown[]) => ({ type, props: props ?? {}, children: children.flat().filter(Boolean) }),
+  };
   const mocks: Record<string, unknown> = {
     'react-native': { Pressable: 'Pressable', StyleSheet: { create: (s: unknown) => s }, useWindowDimensions: () => ({ width, height: 800 }) },
     '@/lib/haptics': { tap() {} },
@@ -30,8 +33,10 @@ function tap(width: number, arc = width * 0.9 * 0.36) {
   const exports: Record<string, any> = {};
   runInNewContext(code, { exports, React, require: (id: string) => mocks[id] ?? assert.fail(`unmocked import ${id}`), Math });
   const el = exports.MoonTap({ floor: 0, arc });
-  const box = Object.assign({}, ...el.props.style);
-  return { el, box, opened: () => opened };
+  const locHeight = Math.round((width * 0.27 * LOC_VIEW.height) / LOC_VIEW.width);
+  const [left, right] = exports.MoonSides({ bottom: 82, height: locHeight }).children;
+  const boxOf = (n: any) => Object.assign({}, ...n.props.style);
+  return { el, box: boxOf(el), left: boxOf(left), right: boxOf(right), pads: [left, right], opened: () => opened };
 }
 
 for (const width of [375, 390, 402, 430, 440]) {
@@ -54,3 +59,27 @@ test('if the moon ever sits lower than Loc, the button shrinks to the little roo
   const { box } = tap(390, 10);
   assert.equal(box.height, 16);
 });
+
+for (const width of [375, 390, 402, 430, 440]) {
+  test(`at ${width}pt wide the moon either side of Loc opens the moons too, and Loc stays pokeable`, () => {
+    const { left, right, pads, opened } = tap(width);
+    const locHeight = Math.round((width * 0.27 * LOC_VIEW.height) / LOC_VIEW.width);
+    const locLeft = width * (0.5 - 0.27 / 2);
+    const locRight = width - locLeft;
+    for (const pad of [left, right]) {
+      assert.equal(pad.position, 'absolute');
+      assert.equal(pad.bottom, 82, 'on Loc\'s canvas');
+      assert.equal(pad.height, locHeight, 'as tall as Loc\'s canvas, meeting the band above');
+      assert.ok(pad.width >= 44, `at least 44pt wide (${pad.width})`);
+    }
+    assert.ok(left.left + left.width <= locLeft - 8 + 1e-9, 'left pad stops short of Loc');
+    assert.ok(width - right.right - right.width >= locRight + 8 - 1e-9, 'right pad stops short of Loc');
+    // The moon is wider than the pads: its half-width at the panel edge is ~0.43 of the screen.
+    assert.ok(left.left >= width * 0.07, 'inside the moon');
+    for (const pad of pads) {
+      assert.equal(pad.props.accessible, false, 'VoiceOver hears one button, not three');
+      pad.props.onPress();
+    }
+    assert.equal(opened(), 2);
+  });
+}

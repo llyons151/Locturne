@@ -11,6 +11,7 @@ import { useTabSelected } from '@/hooks/use-tab-selected';
 import { thud, tick } from '@/lib/haptics';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
+import { MoonSides } from '../moons/moon-tap';
 import { LocBubble } from './loc-bubble';
 import { HELLO_CHANCE, isLocBirthday, locLine, locSpecial, type LocCue as Cue, type LocMoment } from './loc-lines';
 import { LOC_VIEW, type LocMood } from './loc-rig';
@@ -335,6 +336,8 @@ export function Loc() {
           }}
         />
       </View>
+      {/* The moon either side of him opens your moons; the rest of the moon is Home's (MoonTap). */}
+      {present ? <MoonSides bottom={bottom} height={h} /> : null}
       {present && said ? (
         <View style={[styles.speech, { bottom: bottom + tail }]} pointerEvents="box-none">
           <LocBubble key={said.id} line={said.line} room={room} wide={Math.min(width - 32, 320)} onDismiss={() => setSaid(null)} />
