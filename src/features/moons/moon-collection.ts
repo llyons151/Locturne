@@ -7,7 +7,7 @@ import { getFirstMorning, getMorningsWon, getProofs, onProofChange, proofMorning
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER } from './moon-data';
-import { SECRET_STEPS, SECRET_WINDOW_MS, settleLadder, type OwnedMoon, type RareState } from './moon-ladder';
+import { RARE_MOON, SECRET_STEPS, SECRET_WINDOW_MS, settleLadder, type OwnedMoon, type RareState } from './moon-ladder';
 
 /**
  * The moons you own (docs/reports/Moon collection flow.md). Earned by mornings (moon-ladder.ts),
@@ -143,15 +143,32 @@ export function devEarnNext(): string | null {
   return id;
 }
 
+/** Dev and preview builds: every moon on the ladder and the rare one, for testing the collection. */
+export function devEarnAll(): number {
+  const key = latestWin()?.morningKey ?? new Date().toISOString().slice(0, 10);
+  const next = { ...getOwned() };
+  let added = 0;
+  for (const id of [...LADDER, RARE_MOON]) {
+    if (!id || next[id]) continue;
+    next[id] = { id, morningKey: key, morning: Math.max(1, getMorningsWon()), at: Date.now() };
+    added++;
+  }
+  if (added) saveOwned(next);
+  return added;
+}
+
 /** Dev and preview builds: back to owning nothing. */
 export function devForgetMoons() {
   sharedSet(RARE_KEY, null);
   saveOwned({});
 }
 
-/** Whether the collection opens as its own page rather than a sheet over the screen (a dev switch for now, user 2026-11-01). */
+/** The collection's background: black, as the rest of the app reads, not the theme's navy (user, 2026-11-01). */
+export const MOONS_BG = '#000000';
+
+/** Whether the collection opens as its own page (the default, user 2026-11-01) rather than a sheet over the screen. */
 export function getMoonsAsPage(): boolean {
-  return sharedGet<boolean>(AS_PAGE_KEY) === true;
+  return sharedGet<boolean>(AS_PAGE_KEY) !== false;
 }
 
 export function setMoonsAsPage(on: boolean) {

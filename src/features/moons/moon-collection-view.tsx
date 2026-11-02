@@ -14,18 +14,21 @@ import { readLock } from '@/lib/lock-controller';
 import { getFirstMorning, getMorningsWon } from '@/lib/morning-proof';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
-import { checkSecretMoon, LIMITED, markSeen, SECRET_MOON, settleMoons, useOwnedMoons } from './moon-collection';
+import { checkSecretMoon, LIMITED, markSeen, MOONS_BG, SECRET_MOON, settleMoons, useOwnedMoons } from './moon-collection';
 import { LADDER, MOONS } from './moon-data';
 import { LADDER_MORNINGS, ladderNeed, RARE_MOON, SECRET_STEPS } from './moon-ladder';
-import { DEFAULT_MOON, setMoon, useMoon } from './moon-theme';
+import { wearAndRise } from './moon-rise';
+import { DEFAULT_MOON, useMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
 import type { MoonDef } from './moon-types';
 
 const BY_ID = new Map(MOONS.map((m) => [m.id, m]));
 const COLUMNS = 3;
 const GAP = Space.m;
-/** The sheet's close button, as on the schedule sheet. */
+/** The top bar's close button, as on the schedule sheet. */
 const CLOSE = 30;
+/** Each side of the top bar, equal so the title sits in the middle. */
+const SIDE = 72;
 /** The ladder's moons with a count (nine by mornings, the Eclipse): the secret isn't counted. */
 const COUNTED = LADDER.slice(0, LADDER_MORNINGS.length + 1).filter((id): id is string => !!id);
 
@@ -41,12 +44,13 @@ type Slot = {
  * The moon collection (docs/reports/Moon collection flow.md, decisions 2026-11-01): Moonlight,
  * then the ladder in order, the secret's "?", then rare and limited moons, shown only once
  * yours (nothing you can miss ever sits there empty). Locked moons are grey with their name and
- * when they come; only the next says how many mornings are left. Tap one you own to wear it.
+ * when they come; only the next says how many mornings are left. Tap one you own to wear it:
+ * the collection closes and that moon rises.
  *
- * Shown as a sheet over the screen or as its own page (`/moon-sheet`, `/moon-page`); `title`
- * draws the heading inside, for the sheet (the page has the native one).
+ * Shown as a sheet over the screen or as its own page grown out of the tab strip (`/moon-sheet`,
+ * `/moon-page`, moons-page.tsx, which closes it with its own `onClose`). Both draw one top bar: close, "Moons", the count (user, 2026-11-01).
  */
-export function MoonCollection({ title }: { title: boolean }) {
+export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'page'; onClose?: () => void }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const owned = useOwnedMoons();
@@ -97,31 +101,45 @@ export function MoonCollection({ title }: { title: boolean }) {
   const press = (slot: Slot) => {
     if (slot.secret) return askSecret();
     if (!slot.owned) return haptic.tick();
+    // Wear it and go back: the page slides away and the new moon rises behind it (user, 2026-11-01).
+    wearAndRise(slot.moon.id);
     haptic.tap();
-    setMoon(slot.moon.id);
+    onClose();
   };
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior={title ? 'never' : 'automatic'} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Gap.section }]}>
+    <ScrollView
+      style={styles.screen}
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={[styles.content, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
+    >
+      {/* One row: the way out (the page slides up, so it goes back down), the title, the count. */}
       <View style={styles.head}>
-        {title ? (
-          <>
-            <Text style={styles.title} accessibilityRole="header">
-              Moons
-            </Text>
-            {/* The sheet's way out besides the swipe down (the web shows it full screen, with no grabber). */}
-            <Pressable
-              onPress={closeMoons}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={8}
-              style={({ pressed }) => [styles.close, pressed && styles.pressed]}
-            >
-              <SymbolView name={sym('xmark', 'close')} size={13} weight="bold" tintColor={Nocturne.text2} />
-            </Pressable>
-          </>
-        ) : null}
-        <Text style={styles.count}>{`${count} of ${COUNTED.length}`}</Text>
+        <View style={styles.side}>
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            onClose();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          hitSlop={8}
+          style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+        >
+          <SymbolView
+            name={as === 'page' ? sym('chevron.down', 'expand_more') : sym('xmark', 'close')}
+            size={13}
+            weight="bold"
+            tintColor={Nocturne.text2}
+          />
+        </Pressable>
+        </View>
+        <Text style={styles.title} accessibilityRole="header">
+          Moons
+        </Text>
+        <View style={[styles.side, styles.sideEnd]}>
+          <Text style={styles.count} accessibilityLabel={`${count} of ${COUNTED.length} moons`}>{`${count} of ${COUNTED.length}`}</Text>
+        </View>
       </View>
       <Grid slots={slots} tile={tile} worn={worn.id} onPress={press} />
       {extras.length ? (
@@ -165,7 +183,6 @@ function Grid({ slots, tile, worn, onPress }: { slots: Slot[]; tile: number; wor
 }
 
 function closeMoons() {
-  haptic.tap();
   if (router.canGoBack()) router.back();
   else router.replace('/');
 }
@@ -180,12 +197,10 @@ function askSecret() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Gap.gutter, paddingTop: Space.xl },
-  head: { alignItems: 'center', justifyContent: 'center', gap: Space.xs, minHeight: CLOSE, marginBottom: Gap.block },
+  screen: { flex: 1, backgroundColor: MOONS_BG },
+  content: { paddingHorizontal: Gap.gutter },
+  head: { flexDirection: 'row', alignItems: 'center', minHeight: CLOSE, marginBottom: Gap.block },
   close: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
     width: CLOSE,
     height: CLOSE,
     borderRadius: CLOSE / 2,
@@ -193,8 +208,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Nocturne.frost,
   },
-  title: { ...DisplayFont, color: Nocturne.text, fontSize: 22, lineHeight: 28, textAlign: 'center' },
-  count: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
+  title: { ...DisplayFont, flex: 1, color: Nocturne.text, fontSize: 22, lineHeight: 28, textAlign: 'center' },
+  side: { width: SIDE },
+  sideEnd: { alignItems: 'flex-end' },
+  count: { ...Type.secondary, color: Nocturne.text2, textAlign: 'right' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, rowGap: Space.l },
   slot: { alignItems: 'center', gap: Space.xs },
   name: { ...Type.secondary, color: Nocturne.text, textAlign: 'center', marginTop: Space.xs },

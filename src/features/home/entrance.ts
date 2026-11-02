@@ -32,13 +32,15 @@ const STAGGER_MS = 55;
  */
 export const REPLAY_START_MS = 120;
 export const REPLAY_STEP_MS = FOCUS_STEP_MS;
+/** How long `homeEntrance.fadeOut` takes. */
+export const HIDE_FADE_MS = 320;
 
 /**
  * Home's entrance played again from outside: the morning payoff hides Home's pieces while its
  * own screen still covers them, then plays them in as it dissolves (payoff-screen.tsx, user
  * 2026-10-27: "stuff moves back into normal positions and then stuff fades in").
  */
-let replay: { hidden: boolean; nonce: number; keep: readonly number[] } = { hidden: false, nonce: 0, keep: [] };
+let replay: { hidden: boolean; nonce: number; keep: readonly number[]; fade: boolean } = { hidden: false, nonce: 0, keep: [], fade: false };
 const listeners = new Set<() => void>();
 const set = (next: typeof replay) => {
   replay = next;
@@ -49,9 +51,14 @@ export const homeEntrance = {
    * Home's pieces gone at once, under a screen about to leave; but the steps in `keep` stay as
    * they are, and don't replay: the payoff flies its own week onto Home's (step 1, week-spot.ts).
    */
-  hide: (keep: readonly number[] = []) => set({ hidden: true, nonce: replay.nonce, keep }),
+  hide: (keep: readonly number[] = []) => set({ hidden: true, nonce: replay.nonce, keep, fade: false }),
+  /**
+   * Home's pieces fading out where they stand (`HIDE_FADE_MS`), in front of the moons page: it
+   * grows up over Home once they've gone, and plays them back in as it closes (user, 2026-11-01).
+   */
+  fadeOut: () => set({ hidden: true, nonce: replay.nonce, keep: [], fade: true }),
   /** And in again, the entrance's own way. */
-  play: () => set({ hidden: false, nonce: replay.nonce + 1, keep: replay.keep }),
+  play: () => set({ hidden: false, nonce: replay.nonce + 1, keep: replay.keep, fade: false }),
 };
 /** Whether piece `step` sits out the payoff's hide and replay. */
 export const keptPiece = (keep: readonly number[], step: number) => keep.includes(step);
@@ -67,7 +74,7 @@ export const useReplay = () =>
 /** Fades piece `step` in once, ending with everything else; on a replay, into focus (`focusIn`). */
 function usePiece(step: number) {
   const opacity = useSharedValue(0);
-  const { hidden: hiding, nonce: replays, keep } = useReplay();
+  const { hidden: hiding, nonce: replays, keep, fade } = useReplay();
   const kept = keptPiece(keep, step);
   const hidden = hiding && !kept;
   const nonce = kept ? 0 : replays;
@@ -76,10 +83,10 @@ function usePiece(step: number) {
     opacity.value = withDelay(START_MS + offset, withTiming(1, { duration: DURATION_MS - offset, easing: EASE_OUT }));
   }, [opacity, step]);
   useEffect(() => {
-    if (hidden) opacity.set(0);
+    if (hidden) opacity.set(fade ? withTiming(0, { duration: HIDE_FADE_MS, easing: Easing.in(Easing.cubic) }) : 0);
     // The replay's own fade is the focus animation below; this one just stands aside.
     else if (nonce) opacity.set(1);
-  }, [opacity, hidden, nonce]);
+  }, [opacity, hidden, nonce, fade]);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   if (!nonce || hidden) return style;
   // Typed as the piece's own style: it goes on views and text alike, and it's only opacity and a

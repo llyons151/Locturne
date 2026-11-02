@@ -22,6 +22,10 @@ public class MistDotModule: Module {
         view.pausedByProp = paused
         view.updateRunning()
       }
+      // The worn moon's four colours, dark to light, as "#RRGGBB" (features/moons). Empty: Moonlight's.
+      Prop("colors") { (view: MistDotView, colors: [String]) in
+        view.setColors(colors)
+      }
     }
   }
 }
@@ -138,6 +142,13 @@ final class MistDotView: ExpoView {
     updateRunning()
   }
 
+  /// Four "#RRGGBB" colours, dark to light; anything else keeps Moonlight's blues.
+  func setColors(_ hexes: [String]) {
+    let parsed = hexes.compactMap(mistColor)
+    renderer?.palette = parsed.count == 4 ? parsed : MistDotRenderer.moonlight
+    if metalView.isPaused { metalView.setNeedsDisplay() }
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
     metalView.frame = bounds
@@ -149,6 +160,16 @@ private struct MistDotUniforms {
   var size: SIMD2<Float>
   var time: Float
   var cells: Float
+  var c0: SIMD4<Float>
+  var c1: SIMD4<Float>
+  var c2: SIMD4<Float>
+  var c3: SIMD4<Float>
+}
+
+private func mistColor(_ hex: String) -> SIMD4<Float>? {
+  let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+  guard digits.count == 6, let v = UInt32(digits, radix: 16) else { return nil }
+  return SIMD4(Float((v >> 16) & 0xFF) / 255, Float((v >> 8) & 0xFF) / 255, Float(v & 0xFF) / 255, 1)
 }
 
 /// What every dot shares: the device, one command queue, and the pipeline compiled once, so
@@ -213,6 +234,11 @@ final class MistDotRenderer: NSObject, MTKViewDelegate {
   private var time = Float.random(in: 0..<40)
   private var last = CACurrentMediaTime()
   var moving = true
+  /// The jar's dark, deep mist, the moon's colour and its pale heart. Main thread only.
+  static let moonlight: [SIMD4<Float>] = [
+    SIMD4(0.027, 0.039, 0.075, 1), SIMD4(0.110, 0.200, 0.430, 1), SIMD4(0.443, 0.576, 0.847, 1), SIMD4(0.800, 0.855, 0.965, 1),
+  ]
+  var palette = MistDotRenderer.moonlight
 
   init?(device: MTLDevice, pixelFormat: MTLPixelFormat) {
     shared = MistDotShared.shared
@@ -298,7 +324,11 @@ final class MistDotRenderer: NSObject, MTKViewDelegate {
     var uniforms = MistDotUniforms(
       size: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)),
       time: time,
-      cells: Float(n)
+      cells: Float(n),
+      c0: palette[0],
+      c1: palette[1],
+      c2: palette[2],
+      c3: palette[3]
     )
     encoder.setRenderPipelineState(pipeline)
     encoder.setFragmentBytes(&uniforms, length: MemoryLayout<MistDotUniforms>.stride, index: 0)
@@ -312,15 +342,15 @@ final class MistDotRenderer: NSObject, MTKViewDelegate {
 }
 
 /// The mist, drawn: the simulated density pushed through a slow drifting warp and a 9-tap blur
-/// so it reads as fog, given a fine grain, coloured from the jar's dark through the frosted
-/// moon's blue (#7193D8) to its pale heart, behind a faint glass edge lit from the upper left.
+/// so it reads as fog, given a fine grain, coloured from the jar's dark through the worn
+/// moon's colour (Moonlight's #7193D8) to its pale heart, behind a faint glass edge lit from the upper left.
 /// Checked off-device against a numpy mirror of the same maths. Output is premultiplied alpha.
 private let mistDotShaderSource = """
 #include <metal_stdlib>
 using namespace metal;
 
 struct VOut { float4 position [[position]]; };
-struct Uniforms { float2 size; float time; float cells; };
+struct Uniforms { float2 size; float time; float cells; float4 c0; float4 c1; float4 c2; float4 c3; };
 
 vertex VOut mist_dot_vertex(uint vid [[vertex_id]]) {
   float2 corners[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
@@ -356,10 +386,11 @@ static float fbm(float2 p) {
 
 fragment float4 mist_dot_fragment(VOut in [[stage_in]], constant Uniforms &u [[buffer(0)]],
                                   texture2d<float> mist [[texture(0)]], sampler s [[sampler(0)]]) {
-  const float3 C0 = float3(0.027, 0.039, 0.075);  // the jar's dark
-  const float3 C1 = float3(0.110, 0.200, 0.430);  // deep mist
-  const float3 C2 = float3(0.443, 0.576, 0.847);  // the frosted moon, #7193D8
-  const float3 C3 = float3(0.800, 0.855, 0.965);  // its pale heart
+  // The jar's dark, deep mist, the moon's colour, its pale heart: the worn moon's (Moonlight's by default).
+  float3 C0 = u.c0.rgb;
+  float3 C1 = u.c1.rgb;
+  float3 C2 = u.c2.rgb;
+  float3 C3 = u.c3.rgb;
   float T = u.time;
   float N = u.cells;
 

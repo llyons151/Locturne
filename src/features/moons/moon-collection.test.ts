@@ -268,20 +268,30 @@ test('the secret, once earned, is dated to the morning that earned it', async ()
 
 // ---- Opening the collection ----
 
-test('the collection opens as a sheet by default, as a page once switched', () => {
+test('the collection opens as a page by default, as a sheet once switched', () => {
   const app = launch();
-  app.m.openMoons();
-  app.m.setMoonsAsPage(true);
   app.m.openMoons();
   app.m.setMoonsAsPage(false);
   app.m.openMoons();
-  assert.deepEqual(app.pushed, ['/moon-sheet', '/moon-page', '/moon-sheet']);
+  app.m.setMoonsAsPage(true);
+  app.m.openMoons();
+  assert.deepEqual(app.pushed, ['/moon-page', '/moon-sheet', '/moon-page']);
+});
+
+test('earning every moon (dev) gives the whole ladder and the rare one, once', () => {
+  const app = launch();
+  const added = app.m.devEarnAll();
+  const owned = app.m.getOwned();
+  assert.ok(added > 0);
+  assert.ok(Object.keys(owned).includes('ringed'));
+  assert.ok(Object.keys(owned).includes('eclipse'));
+  assert.equal(app.m.devEarnAll(), 0);
 });
 
 test('the sheet-or-page switch is kept between launches', () => {
   const app = launch();
-  app.m.setMoonsAsPage(true);
-  assert.equal(launch({ disk: app.disk }).m.getMoonsAsPage(), true);
+  app.m.setMoonsAsPage(false);
+  assert.equal(launch({ disk: app.disk }).m.getMoonsAsPage(), false);
 });
 
 // ---- Dev tools ----

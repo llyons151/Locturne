@@ -79,7 +79,8 @@ function render({
     },
     './moon-data': { LADDER, MOONS },
     './moon-ladder': ladder,
-    './moon-theme': { DEFAULT_MOON: MOONS[0], setMoon: (id: string) => calls.wear.push(id), useMoon: () => MOONS.find((m) => m.id === worn) },
+    './moon-rise': { wearAndRise: (id: string) => calls.wear.push(id) },
+    './moon-theme': { DEFAULT_MOON: MOONS[0], useMoon: () => MOONS.find((m) => m.id === worn) },
     './moon-thumb': { MoonThumb: 'MoonThumb' },
   };
   const exports: Record<string, any> = {};
@@ -90,7 +91,7 @@ function render({
     if (typeof n.type === 'function') return expand(n.type({ ...n.props, children: n.children }));
     return { ...n, children: (n.children ?? []).map(expand) };
   };
-  const tree = expand(exports.MoonCollection({ title: true })) as Node;
+  const tree = expand(exports.MoonCollection({ as: 'sheet' })) as Node;
   const all: Node[] = [];
   const walk = (n: any) => {
     if (!n || typeof n !== 'object') return;
@@ -175,12 +176,15 @@ test('a limited moon not owned is never shown, owned it joins the Rare group', (
   assert.ok(!render({ limited }).texts.includes('Rare'));
 });
 
-test('tapping a moon you own wears it; a locked one only ticks', () => {
+test('tapping a moon you own wears it (rising) and closes the collection; a locked one only ticks', () => {
   const { tiles, calls } = render({ owned: own(['dawn']), mornings: 1 });
   tiles.find((t) => t.id === 'dawn')!.press();
   tiles.find((t) => t.id === 'moonlight')!.press();
+  const closed = calls.back;
   tiles.find((t) => t.id === 'nebula')!.press();
   assert.deepEqual(calls.wear, ['dawn', 'moonlight']);
+  assert.equal(closed, 2);
+  assert.equal(calls.back, 2);
   assert.equal(calls.ticks, 1);
 });
 

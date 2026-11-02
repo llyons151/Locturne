@@ -33,7 +33,7 @@ import { methodInUse } from '@/lib/scan-code';
 import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
-import { devEarnNext, devForgetMoons, getMoonsAsPage, getOwned, openMoons, setMoonsAsPage, settleMoons } from '@/features/moons/moon-collection';
+import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, getOwned, openMoons, setMoonsAsPage, settleMoons } from '@/features/moons/moon-collection';
 import { LADDER } from '@/features/moons/moon-data';
 import { LADDER_MORNINGS } from '@/features/moons/moon-ladder';
 import { useMoon } from '@/features/moons/moon-theme';
@@ -315,7 +315,7 @@ export function YouScreen() {
           <Text style={styles.heading} accessibilityRole="header">
             Moon
           </Text>
-          <Card footer="Wear any moon, unlocked or not. Earn the next one as if this morning brought it, or start over with none. The switch opens the collection as its own page instead of a sheet.">
+          <Card footer="Wear any moon, unlocked or not. Earn the next one as if this morning brought it, earn them all, or start over with none. The switch opens the collection as its own page instead of a sheet.">
             <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} />
             <SwitchRow
               icon={sym('rectangle.portrait', 'crop_portrait')}
@@ -333,6 +333,16 @@ export function YouScreen() {
               onPress={() => {
                 haptic.done();
                 devEarnNext();
+                setFacts(read());
+              }}
+            />
+            <ValueRow
+              icon={sym('sparkles', 'auto_awesome')}
+              title="Earn every moon"
+              value=""
+              onPress={() => {
+                haptic.done();
+                devEarnAll();
                 setFacts(read());
               }}
             />

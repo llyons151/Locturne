@@ -23,6 +23,7 @@ import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 
 import { MoonWater } from '@/components/moon-water';
 import { useMoon } from '@/features/moons/moon-theme';
+import { tabsShown } from '@/features/moons/moons-cover';
 import { Text } from '@/components/text';
 import { exitTestMorning, useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Knockable, useNavKnock } from '@/components/nav-knock';
@@ -104,6 +105,9 @@ function TabScene({ children }: { children: ReactNode }) {
     return !was;
   });
   const shown = useSharedValue(first && focused ? 1 : 0);
+  // Home fades its own pieces for the moons page, in SwiftUI (features/home/entrance.ts): a fade
+  // here as well fought it, and they popped in mid-fade when a moon was picked (user, 2026-11-01).
+  const ownFade = route.name === 'index';
 
   useEffect(() => {
     if (!focused) shown.set(0);
@@ -113,7 +117,8 @@ function TabScene({ children }: { children: ReactNode }) {
   const style = useAnimatedStyle(() => ({
     // Never quite 0: at opacity 0 iOS stops drawing liquid glass in the page (expo-glass-effect's
     // known issue), and it stayed flat after fading back in. 1% is invisible.
-    opacity: 0.01 + 0.99 * shown.value,
+    // `tabsShown`: faded for the moons page, which grows up out of the strip over it.
+    opacity: 0.01 + 0.99 * shown.value * (ownFade ? 1 : tabsShown.value),
     transform: [
       // A hidden page also moves far off the panel: at 1% it still showed faintly behind the
       // shown one, glass cards most of all (web keeps hidden tabs mounted and in place).
@@ -170,10 +175,12 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
   const testing = useWakePreview().phase !== 'real';
   // These bounce as Loc burrows under them (components/nav-knock): the tabs, then the moon.
   const knock = useNavKnock(state.routes.length + 1, reduced);
+  // The buttons fade with the page for the moons page, leaving the black strip it rises out of.
+  const rowStyle = useAnimatedStyle(() => ({ opacity: tabsShown.value }));
 
   return (
     <View style={[styles.strip, { height }]}>
-      <View style={styles.row} onLayout={knock.row}>
+      <Animated.View style={[styles.row, rowStyle]} onLayout={knock.row}>
         {state.routes.map((route, index) => {
           const tab = TABS[route.name];
           if (!tab) return null;
@@ -210,7 +217,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
         <Knockable knock={knock} index={state.routes.length}>
           <SleepButton reduced={reduced} />
         </Knockable>
-      </View>
+      </Animated.View>
     </View>
   );
 }

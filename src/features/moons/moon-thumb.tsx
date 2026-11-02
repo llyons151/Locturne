@@ -5,15 +5,20 @@ import { FROST_PAD, MoonPart, MoonRing } from '@/components/night-sky';
 import { Text } from '@/components/text';
 import { Nocturne, Radius } from '@/theme';
 
+import { MOON_ICONS, NIGHT_ICON } from './moon-icons';
 import type { MoonDef } from './moon-types';
 
-/** The moon's width inside its square. */
+/** The moon's width inside its square (the payoff's round moon). */
 const DISC = 0.56;
+/** The icon's width inside its square, and its disc within it (tools/moon-lab/bake-icons.py). */
+const ICON = 0.8;
+const ICON_DISC = { x: 262 / 512, y: 238.5 / 512, r: 163.5 / 512 };
 
 /**
- * A moon in a square of its own sky, as Home shows it: the collection's tiles and the payoff's
- * new moon. Still (no rise, no halo). `locked`: no colour, only a grey disc, so the colours stay
- * the surprise (docs/reports/Moon collection flow.md); `secret` puts a "?" in it.
+ * A collection tile: the night icon (a moon behind two clouds) in a square of smoked glass, the
+ * moon's own art and colours once it's yours (user, 2026-11-01). `locked`: the icon in grey, so
+ * the colours stay the surprise (docs/reports/Moon collection flow.md); `secret` puts a "?" in it.
+ * `round`: the moon itself, still (no rise, no halo), as the payoff shows a new one on the sky.
  */
 export function MoonThumb({
   moon,
@@ -31,6 +36,28 @@ export function MoonThumb({
   /** Just the moon, no square of sky (the payoff's, on the real sky). */
   round?: boolean;
 }) {
+  if (!round) {
+    const icon = size * ICON;
+    const r = icon * ICON_DISC.r;
+    return (
+      <View style={[styles.tile, styles.glassTile, { width: size, height: size, borderRadius: Radius.card }, wearing && styles.wearing]}>
+        <View style={{ width: icon, height: icon }}>
+          <Image
+            source={locked ? NIGHT_ICON : (MOON_ICONS[moon.id] ?? NIGHT_ICON)}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            tintColor={locked ? LOCKED_ICON : undefined}
+            accessible={false}
+          />
+          {locked && secret ? (
+            <View style={[styles.secretSpot, { left: icon * ICON_DISC.x - r, top: icon * ICON_DISC.y - r, width: r * 2, height: r * 2 }]}>
+              <Text style={[styles.secret, { fontSize: r * 0.9 }]}>?</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   const disc = size * (round ? 1 : DISC);
   const box = disc * FROST_PAD;
   return (
@@ -75,12 +102,17 @@ export function MoonThumb({
   );
 }
 
+/** A moon not yet yours: the icon in a faint grey. */
+const LOCKED_ICON = '#2C2C30';
+
 const styles = StyleSheet.create({
   tile: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   unclipped: { overflow: 'visible' },
   ownedTile: { backgroundColor: Nocturne.bg },
   // Plain smoked glass, as the cards (docs/CARD_CONSISTENCY.md).
   lockedTile: { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: Nocturne.edge },
+  glassTile: { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: Nocturne.edge },
+  secretSpot: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   lockedDisc: { backgroundColor: 'rgba(255, 255, 255, 0.08)', alignItems: 'center', justifyContent: 'center' },
   secret: { color: Nocturne.text2, fontWeight: '600' },
   // The moon you're wearing: a plain white edge (no glow).

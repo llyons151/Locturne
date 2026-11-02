@@ -15,6 +15,7 @@ import { MoonSides } from '../moons/moon-tap';
 import { LocBubble } from './loc-bubble';
 import { HELLO_CHANCE, isLocBirthday, locLine, locSpecial, type LocCue as Cue, type LocMoment } from './loc-lines';
 import { LOC_VIEW, type LocMood } from './loc-rig';
+import { locAway } from '../moons/moons-cover';
 import LocStage from './loc-stage';
 import { seeded, ultraRun } from './loc-ultra';
 import type { BurrowPath } from './nav-knock-tune';
@@ -143,7 +144,10 @@ export function LocCue({ mood, wary = 0, moment = null, floor }: { mood: LocMood
 export function Loc() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { mood, wary, present, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
+  const { mood, wary, present: onHome, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
+  // The moons page is up: he pops down out of its way, and back up when it goes.
+  const moons = useSyncExternalStore(locAway.subscribe, locAway.get);
+  const present = onHome && !moons.away;
   const take = useSyncExternalStore(subscribeCarry, carriedPose);
   // The knock lab's Burrow button and live tuning (dev only; at rest it never changes).
   const lab = useKnockLab();
@@ -319,6 +323,7 @@ export function Loc() {
           wary={wary}
           share={SHARE}
           present={present}
+          quick={moons.quick}
           onCue={onCue}
           onTap={onTap}
           onBurrow={onBurrow}

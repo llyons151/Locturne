@@ -11,6 +11,7 @@ import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { setClockReader } from '@/lib/clock-guard';
 import { holdSplash } from '@/lib/launch-splash';
 import { startPurchases } from '@/lib/purchases-start';
+import { MOONS_BG } from '@/features/moons/moon-collection';
 import { Nocturne } from '@/theme';
 
 // The launch screen stays until the right first screen has drawn (launch-splash.ts).
@@ -55,11 +56,12 @@ export default function RootLayout() {
           {/* The moon collection (features/moons): a sheet that slides up and scrolls, or its own page; You → Developer switches. */}
           <Stack.Screen
             name="moon-sheet"
-            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: Nocturne.bg } }}
+            options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: MOONS_BG } }}
           />
+          {/* The tabs fade and the black strip slides up into it (features/moons/moons-page.tsx, user 2026-11-01). */}
           <Stack.Screen
             name="moon-page"
-            options={{ headerShown: true, title: 'Moons', headerLargeTitle: true, headerBackTitle: 'Back', contentStyle: { backgroundColor: Nocturne.bg } }}
+            options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
           />
           {/* Short, like a system action sheet: it floats above the tabs at the height of its contents. */}
           <Stack.Screen

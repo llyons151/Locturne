@@ -310,6 +310,18 @@ const POP_UP: Bit = { ms: 700, tracks: {
 /** How far down he goes to be out of sight: his body, and his paws (which only need to clear the edge). */
 const HIDDEN = { sink: 720, paw: 80 };
 
+/**
+ * Leaving quickly, the other way to POP_UP: he drops straight down behind the ledge, ears folding,
+ * paws letting go last, with no lump running off. For the moons page (user, 2026-11-01: "Loc can
+ * just pop down, not run off that way, it's faster").
+ */
+const POP_DOWN: Bit = { ms: 320, events: [[0, (r) => r.say('hide')]], tracks: {
+  sink: [[0, 'S'], [60, -10, 'out'], [300, HIDDEN.sink, 'in']],
+  paw: [[0, 'S'], [120, 'S'], [260, HIDDEN.paw, 'in']],
+  earL: [[0, 'S'], [200, 14, 'io']],
+  earR: [[0, 'S'], [200, -14, 'io']],
+} };
+
 // He lives under the covers, the nav strip (docs/LOC_SILHOUETTE.md, round 6). Off the edge the
 // lump runs to the right, toward the other tabs' buttons, and comes back in from there.
 const OFFSTAGE = 0.62;
@@ -1374,8 +1386,11 @@ export class LocRig {
   }
   /** Hears each burrow's planned run, for the nav strip's bounce. */
   onBurrow: ((path: BurrowPath) => void) | null = null;
-  /** Off Home he dives under the covers and runs off; back on Home he runs in and bursts out. */
-  setPresent(present: boolean) {
+  /**
+   * Off Home he dives under the covers and runs off; back on Home he runs in and bursts out.
+   * `quick` (the moons page): he pops straight down, and back straight up.
+   */
+  setPresent(present: boolean, quick = false) {
     if (present === !this.hidden) return;
     this.hidden = !present;
     if (this.reduced) {
@@ -1383,7 +1398,8 @@ export class LocRig {
       this.play(present ? ARRIVE_CALM : LEAVE_CALM);
       return;
     }
-    this.play(present ? (this.rises ? POP_UP : this.mood === 'asleep' ? ARRIVE_ASLEEP : ARRIVE) : LEAVE);
+    if (present) this.play(this.rises || quick ? POP_UP : this.mood === 'asleep' ? ARRIVE_ASLEEP : ARRIVE);
+    else this.play(quick ? POP_DOWN : LEAVE);
   }
   /**
    * Out of sight with nothing playing: every frame would draw the same empty canvas, so the

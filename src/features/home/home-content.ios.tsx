@@ -45,7 +45,7 @@ import { getAccess } from '@/lib/screen-time';
 import { CTA_HEIGHT, Nocturne, Space } from '@/theme';
 import { isScreenTimeReportAvailable, ScreenTimeReport } from '../../../modules/screen-time-report';
 
-import { keptPiece, REPLAY_START_MS, REPLAY_STEP_MS, useReplay } from './entrance';
+import { HIDE_FADE_MS, keptPiece, REPLAY_START_MS, REPLAY_STEP_MS, useReplay } from './entrance';
 import { setHomeWeekSpot } from './week-spot';
 import type { HomeContentProps } from './home-content';
 import { actionWeight, topLevel } from './home-look';
@@ -92,7 +92,8 @@ export function HomeContent(props: HomeContentProps) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
   // The payoff hides the pieces while it covers Home, then plays them in again.
-  const { hidden, nonce, keep } = useReplay();
+  // The moons page fades them out instead (`fade`), in SwiftUI like the rest (user, 2026-11-01).
+  const { hidden, nonce, keep, fade } = useReplay();
   const on = shown && !hidden;
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
   const { content, visible } = useHeroSwap(props, props.catchingUp);
@@ -117,7 +118,9 @@ export function HomeContent(props: HomeContentProps) {
     if (keptPiece(keep, step) && (hidden || nonce)) return [opacity(shown ? level : 0), blur(0)];
     const d = step * STAGGER;
     const curve = hidden
-      ? Animation.linear({ duration: 0 })
+      ? fade
+        ? Animation.easeIn({ duration: HIDE_FADE_MS / 1000 })
+        : Animation.linear({ duration: 0 })
       : nonce
         ? Animation.spring({ duration: REPLAY_S, bounce: 0 }).delay((REPLAY_START_MS + step * REPLAY_STEP_MS) / 1000)
         : Animation.spring({ duration: TOTAL - d, bounce: 0 }).delay(START + d);

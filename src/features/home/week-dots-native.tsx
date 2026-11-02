@@ -13,6 +13,7 @@ import {
 import { Nocturne, Space } from '@/theme';
 
 import { isMistDotViewAvailable, MistDotView } from '../../../modules/mist-dot';
+import { DEFAULT_MOON, useMoon } from '../moons/moon-theme';
 import { dayLabel, type WeekDay } from './week';
 
 const DOT = 32;
@@ -22,6 +23,9 @@ const DOT = 32;
  * through week-strip.ios.tsx, the morning payoff. iOS only; nothing on web imports this.
  */
 export function WeekDots({ days, reduced, modifiers }: { days: WeekDay[]; reduced: boolean; modifiers?: ModifierConfig[] }) {
+  // The mist takes the worn moon's colours, as the Sleep orb does; Moonlight keeps the mist's own tuned blues.
+  const moon = useMoon();
+  const mist = moon.id === DEFAULT_MOON.id ? undefined : moon.orb;
   return (
     <HStack modifiers={modifiers}>
       {days.flatMap((day, i) => [
@@ -39,7 +43,7 @@ export function WeekDots({ days, reduced, modifiers }: { days: WeekDay[]; reduce
             {day.done && isMistDotViewAvailable ? (
               // A won day holds a little of the moon's mist, which sloshes as the phone moves.
               <RNHostView matchContents>
-                <MistDotView paused={reduced} style={{ width: DOT, height: DOT }} />
+                <MistDotView paused={reduced} colors={mist} style={{ width: DOT, height: DOT }} />
               </RNHostView>
             ) : null}
             {day.done && !isMistDotViewAvailable ? (
