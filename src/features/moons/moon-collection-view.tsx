@@ -1,10 +1,13 @@
 'use no memo';
 // Reads the App Group stores during render (the mornings, the moons), which change outside React.
 
+import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
@@ -21,6 +24,8 @@ import type { MoonDef } from './moon-types';
 const BY_ID = new Map(MOONS.map((m) => [m.id, m]));
 const COLUMNS = 3;
 const GAP = Space.m;
+/** The sheet's close button, as on the schedule sheet. */
+const CLOSE = 30;
 /** The ladder's moons with a count (nine by mornings, the Eclipse): the secret isn't counted. */
 const COUNTED = LADDER.slice(0, LADDER_MORNINGS.length + 1).filter((id): id is string => !!id);
 
@@ -100,9 +105,21 @@ export function MoonCollection({ title }: { title: boolean }) {
     <ScrollView contentInsetAdjustmentBehavior={title ? 'never' : 'automatic'} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Gap.section }]}>
       <View style={styles.head}>
         {title ? (
-          <Text style={styles.title} accessibilityRole="header">
-            Moons
-          </Text>
+          <>
+            <Text style={styles.title} accessibilityRole="header">
+              Moons
+            </Text>
+            {/* The sheet's way out besides the swipe down (the web shows it full screen, with no grabber). */}
+            <Pressable
+              onPress={closeMoons}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={8}
+              style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+            >
+              <SymbolView name={sym('xmark', 'close')} size={13} weight="bold" tintColor={Nocturne.text2} />
+            </Pressable>
+          </>
         ) : null}
         <Text style={styles.count}>{`${count} of ${COUNTED.length}`}</Text>
       </View>
@@ -147,6 +164,12 @@ function Grid({ slots, tile, worn, onPress }: { slots: Slot[]; tile: number; wor
   );
 }
 
+function closeMoons() {
+  haptic.tap();
+  if (router.canGoBack()) router.back();
+  else router.replace('/');
+}
+
 /** The "?": Loc's riddle, and the plain answer for anyone who asks (Xbox's opt-in reveal). */
 function askSecret() {
   haptic.tap();
@@ -158,7 +181,18 @@ function askSecret() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Gap.gutter, paddingTop: Space.xl },
-  head: { alignItems: 'center', gap: Space.xs, marginBottom: Gap.block },
+  head: { alignItems: 'center', justifyContent: 'center', gap: Space.xs, minHeight: CLOSE, marginBottom: Gap.block },
+  close: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: CLOSE,
+    height: CLOSE,
+    borderRadius: CLOSE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Nocturne.frost,
+  },
   title: { ...DisplayFont, color: Nocturne.text, fontSize: 22, lineHeight: 28, textAlign: 'center' },
   count: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, rowGap: Space.l },

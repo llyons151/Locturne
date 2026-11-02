@@ -39,7 +39,7 @@ function render({
   today = '2026-11-10',
   limited = [] as { id: string; date: string }[],
 } = {}) {
-  const calls = { settle: 0, secret: 0, wear: [] as string[], alerts: [] as { title: string; body: string; buttons: any[] }[], seen: [] as string[][], ticks: 0 };
+  const calls = { back: 0, settle: 0, secret: 0, wear: [] as string[], alerts: [] as { title: string; body: string; buttons: any[] }[], seen: [] as string[][], ticks: 0 };
   const cleanups: (() => void)[] = [];
   const react = {
     createElement: (type: unknown, props: Record<string, any> | null, ...children: unknown[]) => ({ type, props: props ?? {}, children: children.flat() }),
@@ -60,6 +60,9 @@ function render({
       StyleSheet: { create: (s: unknown) => s },
       useWindowDimensions: () => ({ width: 390, height: 844 }),
     },
+    'expo-router': { router: { canGoBack: () => true, back: () => calls.back++, replace() {} } },
+    'expo-symbols': { SymbolView: 'SymbolView' },
+    '@/components/grouped-list': { sym: (ios: string) => ios },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 34 }) },
     '@/components/text': { Text: 'Text' },
     '@/lib/haptics': { tap() {}, tick: () => calls.ticks++ },
@@ -95,13 +98,14 @@ function render({
     (n.children ?? []).forEach(walk);
   };
   walk(tree);
-  const tiles = all.filter((n) => n.type === 'Pressable').map((n) => {
+  const closeBtn = all.find((n) => n.type === 'Pressable' && n.props.accessibilityLabel === 'Close');
+  const tiles = all.filter((n) => n.type === 'Pressable' && n.children.some((c: Node) => c?.type === 'MoonThumb')).map((n) => {
     const thumb = n.children.find((c: Node) => c?.type === 'MoonThumb') as Node;
     const [name, status] = n.children.filter((c: Node) => c?.type === 'Text').map((t: Node) => t.children.join(''));
     return { id: thumb.props.moon.id as string, name, status, locked: thumb.props.locked as boolean, wearing: thumb.props.wearing as boolean, press: n.props.onPress as () => void, label: n.props.accessibilityLabel as string };
   });
   const texts = all.filter((n) => n.type === 'Text').map((n) => n.children.join(''));
-  return { tiles, texts, calls, close: () => cleanups.forEach((c) => c()) };
+  return { tiles, texts, calls, closeBtn, close: () => cleanups.forEach((c) => c()) };
 }
 
 const own = (ids: string[], extra: Partial<Owned[string]> = {}): Owned =>
@@ -226,4 +230,11 @@ test('wearing a moon you don\'t own (the dev picker) never marks a locked tile a
   assert.equal(blood.wearing, false);
   assert.equal(blood.status, 'Morning 100');
   assert.ok(tiles.every((t) => !t.wearing));
+});
+
+test('the sheet has a Close button that goes back', () => {
+  const { closeBtn, calls } = render();
+  assert.ok(closeBtn, 'no Close button');
+  closeBtn.props.onPress();
+  assert.equal(calls.back, 1);
 });
