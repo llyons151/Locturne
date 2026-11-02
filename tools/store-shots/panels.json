@@ -73,11 +73,36 @@
           "blur": 34
         }
       ]
+    },
+    "times": {
+      "note": "Time-of-day skies (user, 2026-11-02): each panel with a `time` gets its own sky, top to horizon, blended across the seams like the panorama. Stars thin out as it gets lighter. Colour only: no glow.",
+      "midnight": {
+        "zenith": "#050A1E",
+        "sky": "#0C1536",
+        "horizon": "#1A2658",
+        "dark": true,
+        "stars": 70
+      },
+      "dawn": {
+        "zenith": "#111C46",
+        "sky": "#2C3D7E",
+        "horizon": "#7D8CC6",
+        "dark": true,
+        "stars": 18
+      },
+      "sunrise": {
+        "zenith": "#9DB0E6",
+        "sky": "#C7CDEB",
+        "horizon": "#F3C3A2",
+        "dark": false,
+        "stars": 0
+      }
     }
   },
   "panels": [
     {
       "id": "promise",
+      "time": "midnight",
       "headline": "Your apps sleep until *you're up.*",
       "shot": "01-shield.png",
       "note": "The shield over a blocked app at night. Pick a category (Social) so no third-party icon shows. Real phone only. This is the panel people decide on: plain promise over real UI.",
@@ -86,6 +111,7 @@
     },
     {
       "id": "steps",
+      "time": "dawn",
       "headline": "Walk *200 steps.* They wake up.",
       "shot": "02-steps.png",
       "note": "Steps view near the end, around 180 of 200.",
@@ -105,6 +131,7 @@
     },
     {
       "id": "payoff",
+      "time": "sunrise",
       "headline": "*You're up.* So are your apps.",
       "shot": "03-payoff.png",
       "note": "Morning payoff (/morning-won): Loc's yell, the moon up.",
@@ -119,10 +146,10 @@
     },
     {
       "id": "bedtime",
+      "time": "midnight",
       "headline": "Bedtime at *11:30.* Not a request.",
       "shot": "04-routine.png",
       "note": "Routine: bedtime 11:30 PM, morning time, wake-up method.",
-      "dark": true,
       "phoneTop": 640,
       "callouts": [
         {
@@ -186,6 +213,7 @@
     },
     {
       "id": "maker",
+      "time": "sunrise",
       "headline": "Made by *one student,* not a company.",
       "shot": "08-home.png",
       "note": "Home in the day state, apps awake, Loc's line on top.",

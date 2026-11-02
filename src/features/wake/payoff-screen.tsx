@@ -2,7 +2,7 @@ import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { File, Paths } from 'expo-file-system';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Platform, Pressable, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -60,8 +60,6 @@ export type PayoffFacts = {
 };
 
 /** The new moon beside its name, under the headline; smaller on an SE. */
-const NEW_MOON_SIZE = 44;
-const NEW_MOON_SIZE_SHORT = 32;
 
 /** Loc's width as a share of the screen: Home's. */
 const LOC_SHARE = 0.27;
@@ -222,7 +220,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const [newMoons] = useState(facts.newMoons);
   const [tapped, setTapped] = useState(false);
   const worn = useWornMoon();
-  const { moon: newMoon, more: moreMoons, hidden, toWear } = payoffMoon({
+  const { moon: newMoon, hidden, toWear } = payoffMoon({
     newMoons,
     moons: MOONS,
     worn: worn.id,
@@ -272,8 +270,6 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     setMoon(toWear.id);
     setApplied(true);
   };
-  // Apply under the week (user, 2026-11-02): for a new moon not already worn, held invisible while a surprise is still hidden.
-  const applySlot = !!newMoon && (hidden || applied || worn.id !== newMoon.id);
   // His line once the page is in (user, 2026-10-27: Loc's voice instead of a log line), said once:
   // Home won't say its wake-up line again after it.
   const [line] = useState(() => payoffMoment(mornings, Math.random));
@@ -477,27 +473,14 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
           {/* An SE has no room for it under the two-line headline. A new moon takes its place. */}
           {brag && !short && !newMoon ? <Text style={styles.brag}>{brag}</Text> : null}
         </In>
+        {/* The new moon's Apply pill, where its card used to be (user, 2026-11-02). A surprise taps open here first. */}
         {newMoon ? (
-          <In shown={shown} step={1}>
-            <Pressable
-              onPress={revealed ? undefined : reveal}
-              disabled={revealed}
-              accessibilityRole={revealed ? 'text' : 'button'}
-              accessibilityLabel={revealed ? `New moon: ${newMoon.name}` : 'A rare moon. Tap to see it'}
-              style={[styles.newMoon, short && styles.newMoonShort]}
-            >
-              <MoonThumb moon={newMoon} size={short ? NEW_MOON_SIZE_SHORT : NEW_MOON_SIZE} round locked={!revealed} secret={!revealed} />
-              <View>
-                <Text style={styles.newMoonName}>{revealed ? newMoon.name : 'Something rare came up'}</Text>
-                <Text style={styles.newMoonNote}>
-                  {revealed ? (moreMoons > 0 ? `New moon, and ${moreMoons} more in Moons` : 'New moon') : 'Tap to see it'}
-                </Text>
-              </View>
-            </Pressable>
+          <In shown={shown} step={1} style={[styles.apply, short && styles.applyShort]}>
+            <ApplyPill moon={newMoon} applied={applied || worn.id === newMoon.id} hidden={hidden} onPress={hidden ? reveal : wear} />
           </In>
         ) : null}
         </Animated.View>
-        <In shown={shown} step={2} style={[styles.week, short && styles.weekShort, short && applySlot && styles.weekShortApply]}>
+        <In shown={shown} step={2} style={[styles.week, short && styles.weekShort]}>
           {/* An SE has no room for both the new moon and the label. */}
           {short && newMoon ? null : <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>}
           {/* Home's week dots, the mist ones on iPhone (week-strip.ios.tsx; user, 2026-10-28). */}
@@ -505,15 +488,6 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
             <WeekStrip days={days} reduced={reduced} />
           </Animated.View>
         </In>
-        {applySlot ? (
-          <In shown={shown} step={2} style={[styles.apply, short && styles.applyShort]}>
-            <Animated.View style={pageStyle} pointerEvents={hidden ? 'none' : 'auto'}>
-              <View style={hidden && styles.unseen} accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
-                <ApplyPill moon={newMoon} applied={applied} hidden={hidden} onPress={wear} />
-              </View>
-            </Animated.View>
-          </In>
-        ) : null}
       </View>
       </View>
 
@@ -585,16 +559,16 @@ function ApplyPill({ moon, applied, hidden, onPress }: { moon: MoonDef; applied:
   return (
     <PressScale
       onPress={onPress}
-      disabled={applied || hidden}
+      disabled={applied}
       accessibilityRole="button"
-      accessibilityLabel={applied ? `Applied ${moon.name}` : `Apply ${moon.name}`}
+      accessibilityLabel={hidden ? 'A rare moon. Tap to see it' : applied ? `Applied ${moon.name}` : `Apply ${moon.name}`}
       accessibilityState={{ disabled: applied }}
       style={styles.applyPill}
     >
-      {applied ? <SymbolView name={CHECK} size={14} weight="bold" tintColor={Nocturne.text} /> : <MoonThumb moon={moon} size={20} round />}
-      <Text style={styles.applyValue}>{applied ? 'Applied' : 'Apply'}</Text>
+      {applied ? <SymbolView name={CHECK} size={14} weight="bold" tintColor={Nocturne.text} /> : <MoonThumb moon={moon} size={20} round locked={hidden} secret={hidden} />}
       {/* A surprise's name stays hidden until it's tapped open. */}
-      <Text style={styles.applyLabel} numberOfLines={1}>{hidden ? '' : moon.name}</Text>
+      <Text style={styles.applyValue}>{hidden ? 'Tap to see' : applied ? 'Applied' : 'Apply'}</Text>
+      <Text style={styles.applyLabel} numberOfLines={1}>{hidden ? 'a rare moon' : moon.name}</Text>
     </PressScale>
   );
 }
@@ -655,7 +629,6 @@ const styles = StyleSheet.create({
   week: { alignSelf: 'stretch', marginTop: Space.xxxl, gap: Space.m },
   weekShort: { marginTop: Space.xl, gap: Space.s },
   // An SE with Apply under the week: no room to spare over Loc's line.
-  weekShortApply: { marginTop: Space.m },
   // Bloom's "THIS WEEK" over the dots.
   weekLabel: { ...Type.label, textAlign: 'center' },
   actions: { gap: Space.xs, alignItems: 'stretch' },
@@ -679,8 +652,4 @@ const styles = StyleSheet.create({
   applyLabel: { ...Type.secondary, color: Nocturne.text2 },
   links: { flexDirection: 'row', justifyContent: 'center', gap: Space.xxl },
   // Under the headline, centred: the new moon, its name and a note.
-  newMoon: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: Space.m, marginTop: Space.l },
-  newMoonShort: { marginTop: Space.s, gap: Space.s },
-  newMoonName: { ...Type.headingSub, color: Nocturne.text, fontWeight: '600' },
-  newMoonNote: { ...Type.caption, color: Nocturne.text2 },
 });

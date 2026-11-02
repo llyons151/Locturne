@@ -19,14 +19,21 @@
       .then(() => fetch('/panels.json', { cache: 'no-store' })).then((r) => r.json()).then(async ({ style, panels }) => {
         const p = panels[i];
         const el = document.getElementById('panel');
+        // A panel's time of day (style.times): its sky from top to horizon, and whether it's a dark one.
+        const timeOf = (q) => (q.time ? style.times?.[q.time] : null);
+        const isDark = (q) => (timeOf(q) ? timeOf(q).dark : !!q.dark);
+        const t = timeOf(p);
         // Night panels keep the dark class's own text colours.
-        const colours = p.dark ? {} : { text: style.text, text2: style.text2, accent: style.accent };
-        for (const [k, v] of Object.entries({ bg: p.bg ?? style.bg, 'bg-light': style.bgLight, 'bg-deep': style.bgDeep, ...colours }))
+        const colours = isDark(p) ? {} : { text: style.text, text2: style.text2, accent: style.accent };
+        // A timed sky's own horizon stands in for the lavender's pale tone, so the frost's bottom stays in the sky.
+        for (const [k, v] of Object.entries({ bg: p.bg ?? style.bg, 'bg-light': t ? t.horizon : style.bgLight, 'bg-deep': style.bgDeep, ...colours }))
           el.style.setProperty(`--${k}`, v);
         document.body.style.setProperty('--bg', p.bg ?? style.bg);
 
-        el.style.setProperty('--tone', p.dark ? style.night : p.bg ?? style.bg);
-        if (p.dark) el.classList.add('dark');
+        // The frost below the phone washes into the sky's own bottom colour.
+        el.style.setProperty('--tone', t ? t.horizon : p.dark ? style.night : p.bg ?? style.bg);
+        if (isDark(p)) el.classList.add('dark');
+        if (t) el.classList.add('timed', `time-${p.time}`);
         const top = p.phoneTop ?? (p.sub ? 690 : 600);
         const shotUrl = `/shots/${encodeURIComponent(p.shot ?? '')}`;
         const has = p.shot && (await fetch(shotUrl, { method: 'HEAD', cache: 'no-store' })).ok;
@@ -38,12 +45,33 @@
         // Panorama: one background drawn across the whole set side by side; this panel shows its own 1320px slice,
         // so a disc sitting on a seam carries on into the next panel when you swipe.
         const W = 1320, n = panels.length;
-        const tone = (q) => (q.dark ? style.night : q.bg ?? style.bg);
-        const stops = panels.flatMap((q, k) => [`${tone(q)} ${k * W + 90}px`, `${tone(q)} ${k * W + W - 90}px`]).join(', ');
-        const discs = (style.panorama?.discs ?? []).map((c) => `<i class="disc" style="left:${c.x - c.r}px;top:${c.y - c.r}px;
+        const tone = (q) => (timeOf(q) ? timeOf(q).sky : q.dark ? style.night : q.bg ?? style.bg);
+        // One horizontal strip per band of the sky (its top, its middle, its horizon), each blending across the
+        // seams; panels with no time use their one tone in all three, so they look as before.
+        const band = (pick) => panels.flatMap((q, k) => {
+          const c = timeOf(q) ? pick(timeOf(q)) : tone(q);
+          return [`${c} ${k * W + 90}px`, `${c} ${k * W + W - 90}px`];
+        }).join(', ');
+        const stops = band((x) => x.sky);
+        // The discs are the lavender set's; any touching a timed panel would read as a light in the night sky.
+        const timedAt = (x) => { const k = Math.floor(x / W); return [k - 1, k].some((j) => timeOf(panels[j] ?? {})) && (x % W === 0 || timeOf(panels[k] ?? {})); };
+        const discs = (style.panorama?.discs ?? []).filter((c) => !timedAt(c.x)).map((c) => `<i class="disc" style="left:${c.x - c.r}px;top:${c.y - c.r}px;
           width:${c.r * 2}px;height:${c.r * 2}px;background:${c.color};filter:blur(${c.blur ?? 0}px)"></i>`).join('');
+        // Stars: small sharp dots in the upper sky, many at midnight, a few at dawn, none by sunrise. Seeded, so
+        // every export draws the same sky.
+        let seed = 7;
+        const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+        const stars = panels.flatMap((q, k) => {
+          const count = timeOf(q)?.stars ?? 0;
+          return Array.from({ length: count }, () => {
+            const x = k * W + rand() * W, y = rand() ** 1.4 * 1700, r = 1.5 + rand() * 2.5, o = 0.25 + rand() * 0.6;
+            return `<i class="star" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;width:${(r * 2).toFixed(1)}px;height:${(r * 2).toFixed(1)}px;opacity:${o.toFixed(2)}"></i>`;
+          });
+        }).join('');
         const pano = `<div class="pano" style="left:${-i * W}px;width:${n * W}px;background:linear-gradient(90deg, ${stops})">
-          <div class="pano-sky"></div>${discs}</div>`;
+          <div class="pano-zenith" style="background:linear-gradient(90deg, ${band((x) => x.zenith)})"></div>
+          <div class="pano-horizon" style="background:linear-gradient(90deg, ${band((x) => x.horizon)})"></div>
+          <div class="pano-sky"></div>${stars}${discs}</div>`;
 
         // Phones are always upright and centred; scale makes one bigger and cropped by the frost.
         const scale = p.scale ?? 1;
