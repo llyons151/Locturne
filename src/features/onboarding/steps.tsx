@@ -74,6 +74,7 @@ import { RollingCount } from './rolling-count';
 import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
 import { Body, Eyebrow, HoldButton, Options, page, PreviewNote, Ready, Reply, Title, Voice } from './ui';
 import { wakeDayFor } from './wake-day';
+import { WelcomeDemo, WelcomeWords } from './welcome-demo';
 
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */
 export type StepContext = {
@@ -162,12 +163,15 @@ export type StepContext = {
 
 /**
  * The opener's lines come into focus top to bottom, buttons and fine print included, this far
- * apart: Mercury's hero step (docs/MERCURY_MOTION.md). Then the moon rises (intro.tsx).
+ * apart: Mercury's hero step (docs/MERCURY_MOTION.md).
  */
 const OPENER_LINE_MS = 150;
 
-/** The cold open. Same line at every hour; New Year week has its own (`NEW_YEAR`). */
-const HELLO = { head: 'No apps until you’re out of bed.', sub: 'I’m Loc. Raccoon. I don’t do mornings well either.' };
+/**
+ * The cold open, under the lock happening on a phone (welcome-demo.tsx). Same line at every
+ * hour; New Year week has its own headline (`NEW_YEAR`).
+ */
+const HELLO = { head: 'Your apps go to bed\nwhen you do.', sub: 'They wake up when you’re out of bed.' };
 
 /** `commit`: the card starts building once the title's in, and the line under it once it's built. */
 const DEAL_CARD_AT_MS = 700;
@@ -230,31 +234,27 @@ export function renderStep(ctx: StepContext): StepView {
       const hello = ctx.newYear ? NEW_YEAR.hello : HELLO;
       return {
         body: (
-          // Ahead's opener (user, 2026-10-26): the moon up top, then the name and one line just
-          // above the buttons, and the fine print under them.
+          // Cal AI's opener (user, 2026-11-02, docs/WELCOME_SCREEN.md): the app working on a
+          // phone up top, then the promise and the line under it just above the buttons.
           <View style={styles.opener}>
-            <Reveal>
-              <Text style={styles.wordmark} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
-                Locturne
-              </Text>
-            </Reveal>
-            <View style={page.gapHeadline} />
-            <Voice text={hello.head} size={20} center delay={OPENER_LINE_MS} />
+            <WelcomeDemo />
+            <View style={page.gapBlock} />
+            <WelcomeWords head={hello.head} sub={HELLO.sub} delay={OPENER_LINE_MS} />
           </View>
         ),
         footer: (
           // No accounts, so no "Sign in" (a reviewer would ask for demo credentials): it's a restore.
           <View>
-            <Reveal delay={OPENER_LINE_MS * 2}>
+            <Reveal delay={OPENER_LINE_MS * 3}>
               <PrimaryButton label="Get started" onPress={next} />
             </Reveal>
-            <Reveal delay={OPENER_LINE_MS * 3}>
+            <Reveal delay={OPENER_LINE_MS * 4}>
               <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
             </Reveal>
           </View>
         ),
         secondary: (
-          <Reveal delay={OPENER_LINE_MS * 4}>
+          <Reveal delay={OPENER_LINE_MS * 5}>
             <Text style={styles.openerFine}>
               {'By continuing, you agree to Locturne’s\n'}
               <FineLink label="Terms of Service" url={LEGAL_URLS.terms} /> and <FineLink label="Privacy Policy" url={LEGAL_URLS.privacy} />
@@ -1174,8 +1174,7 @@ function FineLink({ label, url }: { label: string; url: string }) {
 const styles = StyleSheet.create({
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
-  opener: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: Space.xl },
-  wordmark: { ...DisplayFont, color: Nocturne.text, fontSize: 40, letterSpacing: -1 },
+  opener: { flex: 1, alignItems: 'center', paddingBottom: Space.l },
   openerFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center', paddingTop: Space.s },
   fineLink: { color: Nocturne.text },
   gap8: { height: Space.s },

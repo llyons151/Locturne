@@ -23,7 +23,8 @@ export type GlyphName =
   | 'homeFill'
   | 'bookmark'
   | 'plus'
-  | 'reels';
+  | 'reels'
+  | 'hourglass';
 
 type Props = { name: GlyphName; size: number; color?: string };
 
@@ -54,6 +55,13 @@ export function Glyph({ name, size, color = '#FFFFFF' }: Props) {
           <Rect x="2.8" y="8.3" width="15.9" height="7.4" rx="1.8" fill={color} />
           <Path d="M21.8 10.2c.8.3 1.2.9 1.2 1.8s-.4 1.5-1.2 1.8Z" fill={color} fillOpacity={0.45} />
         </>
+      ) : null}
+      {name === 'hourglass' ? (
+        // SF Symbols' hourglass, filled: what Screen Time puts beside a blocked app's name.
+        <Path
+          d="M6 2.5h12a1 1 0 0 1 0 2h-.6c-.2 3-1.6 5.2-3.8 7.5 2.2 2.3 3.6 4.5 3.8 7.5h.6a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2h.6c.2-3 1.6-5.2 3.8-7.5C8.2 9.7 6.8 7.5 6.6 4.5H6a1 1 0 0 1 0-2Z"
+          fill={color}
+        />
       ) : null}
       {name === 'search' ? (
         <>

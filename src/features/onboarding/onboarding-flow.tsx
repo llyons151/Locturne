@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppPickerSheet, PICKER_HEADER } from '@/components/app-picker';
 import { MoonSurface } from '@/components/moon-surface';
 import type { TextMotion } from '@/components/motion';
-import { FLIGHT_MS, MOON_SHOWS_FROM, moonSink, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
+import { MOON_SHOWS_FROM, moonSink, NightSky, QUIZ_RISE_MS, quizContentTop } from '@/components/night-sky';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import LocStage from '@/features/home/loc-stage';
 import { useCompact } from '@/hooks/use-compact';
@@ -75,8 +75,8 @@ import { BUILD_EXIT_MS, BUILD_RISE_FIRST_MS, BuildFloor, moonBelow } from './scr
 import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './screens/reveal-screen';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { morningWarnings, renderStep } from './steps';
-import { Intro } from './intro';
 import { OpenerScene } from './opener-scene';
+import { WELCOME_EXIT_MS } from './welcome-demo';
 import { FooterEnter, Shell, StepEnter, TopBar, useSwap, type Progress } from './ui';
 
 
@@ -220,9 +220,6 @@ export function OnboardingFlow({
     });
   });
   const { history, answers, returnTo } = nav;
-  // A fresh launch: the opener's lines come in, then the moon rises into place (intro.tsx).
-  const [intro, setIntro] = useState(() => !isStep(initialStep) || initialStep === 'hello');
-  const introDone = useCallback(() => setIntro(false), []);
   // Opened over the tabs (You → Redo onboarding), Home stays mounted and its tab may have sunk the
   // moon out of sight, which the intro's moon then dropped into at the hand-off. Unsunk while
   // the flow is up; back to the tab's on the way out.
@@ -234,8 +231,6 @@ export function OnboardingFlow({
   const [simulated, setSimulated] = useState<Simulated | null>(null);
 
   const step = currentStep(nav);
-  // Leaving the opener before the moon is up hands it straight to the sky's own, which flies on from its place.
-  const rising = intro && step === 'hello';
   const numbers = useMemo(
     () =>
       estimate({
@@ -812,14 +807,15 @@ export function OnboardingFlow({
   const reducedMotion = useReducedMotion();
   const opening = step === 'hello';
   const quiz = moonQuizFor(answers.pain).includes(step);
-  const moonPlace = opening ? 'opener' : quiz ? 'quiz' : 'rest';
+  // The opener's big moon gave way to the welcome demo (docs/WELCOME_SCREEN.md, 2026-11-02): the
+  // moon rests at the bottom there as on every other page, so nothing flies on the way out.
+  const moonPlace = quiz ? 'quiz' : 'rest';
   const [lastMoonPlace, setLastMoonPlace] = useState(moonPlace);
   const riseMs = step === 'reveal' ? REVEAL_SKY_MS : QUIZ_RISE_MS;
   const [moonMoving, setMoonMoving] = useState(0);
   if (lastMoonPlace !== moonPlace) {
     setLastMoonPlace(moonPlace);
-    const flying = moonPlace === 'opener' || lastMoonPlace === 'opener';
-    if (!reducedMotion) setMoonMoving(flying ? FLIGHT_MS : riseMs);
+    if (!reducedMotion) setMoonMoving(riseMs);
   }
   // The reveal happens in the dark (RevealDark): the moon sinks off the screen under it, so `build`
   // can raise it from below behind Loc, one scene (user 2026-10-26). Back to the quiz, it comes
@@ -945,8 +941,15 @@ export function OnboardingFlow({
   const isBuild = (key: string) => key.startsWith('build-');
   // The reveal's dots drop off the screen before `build` comes up (a light user's text-only reveal just fades).
   const isReveal = (key: string) => key.startsWith('reveal-');
+  // The opener runs its own way out too: its phone sinks and fades, its words fade after (welcome-demo.tsx).
   const holds = (key: string) =>
-    isBuild(key) ? BUILD_EXIT_MS : isReveal(key) && (numbers.skipped || !numbers.lightUser) ? REVEAL_EXIT_MS : 0;
+    isBuild(key)
+      ? BUILD_EXIT_MS
+      : isReveal(key) && (numbers.skipped || !numbers.lightUser)
+        ? REVEAL_EXIT_MS
+        : key.startsWith('hello-')
+          ? WELCOME_EXIT_MS
+          : 0;
   // The page and its button swap as one, so the page that leaves is cleared in one render, not
   // one for the page and another for its button just as the next page's words come in.
   const pages = useSwap(
@@ -993,9 +996,8 @@ export function OnboardingFlow({
           <LocStage mood="awake" share={0.5} present={false} dom={WARM_LOC_DOM} />
         </View>
       ) : null}
-      <NightSky opening={opening} quiz={quiz} moonless={rising} drift={opening} riseMs={riseMs} />
+      <NightSky quiz={quiz} drift={opening} riseMs={riseMs} />
       <OpenerScene shown={opening && !moonMoving} />
-      {rising ? <Intro onDone={introDone} /> : null}
       <RevealDark shown={dark} />
       {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} after={buildPage.held} /> : null}
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
