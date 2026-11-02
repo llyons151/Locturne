@@ -30,6 +30,8 @@
 
     /* Scaled live panel: an iframe at full 1320×2868, shrunk to the box. */
     .shot { position: relative; overflow: hidden; background: #000; flex: none; }
+    .shot.thumb { background: #1a1b1e center / cover no-repeat; }
+    .shot.thumb img { display: block; width: 100%; height: 100%; opacity: 0; }
     .shot iframe { position: absolute; top: 0; left: 0; width: 1320px; height: 2868px; border: 0; transform-origin: 0 0; pointer-events: none; }
 
     /* Panels view */
@@ -112,11 +114,18 @@
     const $ = (s, el = document) => el.querySelector(s);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-    // A live panel scaled to a given width. Every preview is the real export page, so what you see is what ships.
-    function shot(i, width, radius) {
+    // A panel at a given width. Small ones are PNG thumbnails the server renders once per change (live full-size
+    // panels with the frost's blurs lagged the page); only the big editor preview is live. While a new thumbnail
+    // renders, the previous one stays underneath it.
+    const lastThumb = (window.lastThumb = {});
+    function shot(i, width, radius, live = false) {
       const s = width / W;
-      return `<div class="shot" style="width:${width}px;height:${Math.round(H * s)}px${radius ? `;border-radius:${radius}px` : ''}">
+      const box = `width:${width}px;height:${Math.round(H * s)}px${radius ? `;border-radius:${radius}px` : ''}`;
+      if (live) return `<div class="shot" style="${box}">
         <iframe src="/panel.html?i=${i}&t=${Date.now()}" style="transform:scale(${s})" loading="lazy"></iframe></div>`;
+      const prev = lastThumb[i] ? `;background-image:url('${lastThumb[i]}')` : '';
+      return `<div class="shot thumb" style="${box}${prev}">
+        <img src="/api/thumb?i=${i}&v=${encodeURIComponent(version ?? '')}" alt="" onload="lastThumb[${i}]=this.src;this.style.opacity=1"></div>`;
     }
 
     function phone(inner, caption) {
@@ -137,7 +146,7 @@
             <div class="label"><b>${i + 1}</b> · ${esc(q.id)}${i < 3 ? ' · in search' : ''}</div></div>`).join('')}
         </div>
         <div class="editor">
-          ${shot(sel, 400, 22)}
+          ${shot(sel, 400, 22, true)}
           <div class="form">
             <label>Headline<textarea id="f-headline">${esc(p.headline)}</textarea></label>
             <label>Subline (optional)<input id="f-sub" value="${esc(p.sub)}"></label>
@@ -238,11 +247,10 @@
     let version = null;
     setInterval(async () => {
       const v = await (await fetch('/api/version', { cache: 'no-store' })).text();
-      if (version !== null && v !== version) { await load(); status('Updated'); }
-      version = v;
+      if (v !== version) { version = v; await load(); status('Updated'); }
     }, 1500);
 
-    load();
+    fetch('/api/version', { cache: 'no-store' }).then((r) => r.text()).then((v) => { version = v; load(); });
   </script>
 </body>
 </html>

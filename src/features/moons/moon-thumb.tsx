@@ -87,6 +87,8 @@ export function MoonThumb({
       ) : (
         <View style={{ width: box, height: box }}>
           {moon.twin && moon.twinAt && !moon.twinAt.front ? <MoonPart source={moon.twin} box={box} x={moon.twinAt.x} y={moon.twinAt.y} size={moon.twinAt.size * FROST_PAD} /> : null}
+          {/* A Saturn ring behind the moon's frosted edge, as on Home (night-sky.tsx). */}
+          {moon.ringLine?.kind === 'saturn' ? <MoonRing line={moon.ringLine} box={box} /> : null}
           <Image
             source={moon.moon ?? require('@/assets/onboarding/moon-frosted.png')}
             style={[StyleSheet.absoluteFill, { transform: [{ scale: moon.scale }] }]}
@@ -94,7 +96,7 @@ export function MoonThumb({
             accessible={false}
           />
           {moon.ring ? <MoonPart source={moon.ring} box={box} x={0} y={0} size={1.6} /> : null}
-          {moon.ringLine ? <MoonRing line={moon.ringLine} box={box} /> : null}
+          {moon.ringLine?.kind === 'eclipse' ? <MoonRing line={moon.ringLine} box={box} /> : null}
           {moon.twin && moon.twinAt?.front ? <MoonPart source={moon.twin} box={box} x={moon.twinAt.x} y={moon.twinAt.y} size={moon.twinAt.size * FROST_PAD} /> : null}
         </View>
       )}

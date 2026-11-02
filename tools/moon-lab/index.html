@@ -134,10 +134,15 @@
 <header class="top">
   <div>
     <h1>Moon lab</h1>
-    <p>Fifty moons on a mock of Home: twenty real ones and thirty made-up ones. Each moon recolours the sky, the moon, its halo and the sleep
+    <p>Every moon on a mock of Home (from moons.json: edit them in the moon studio, <kbd>npm run moon-studio</kbd>). Each moon recolours the sky, the moon, its halo and the sleep
       orb together. To build your ladder, click a number under a moon, or hover over it and press <kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd> for 10,
       <kbd>S</kbd> for the secret, <kbd>X</kbd> for no and <kbd>⌫</kbd> to clear. You can drag moons between slots, or from a card into a slot.
       Your picks save as you go.</p>
+  </div>
+  <div>
+    <div class="seg-label">Collection icons</div>
+    <a class="seg" href="/icons.html" style="text-decoration:none"><span style="background:#EEF6FB;color:#0B1428;border-radius:16px;height:30px;line-height:30px;padding:0 14px;font-size:12.5px;font-weight:600">Compare icon versions →</span></a>
+    <a class="seg" href="?show=test" style="text-decoration:none;margin-top:6px"><span style="background:#EEF6FB;color:#0B1428;border-radius:16px;height:30px;line-height:30px;padding:0 14px;font-size:12.5px;font-weight:600">Test moons →</span></a>
   </div>
   <div>
     <div class="seg-label">Halo</div>
@@ -164,7 +169,7 @@
   <div>
     <div class="seg-label">Show</div>
     <div class="seg" id="show">
-      <button data-v="all" class="on">All</button><button data-v="real">Real</button><button data-v="creative">Creative</button><button data-v="twin">Twins</button>
+      <button data-v="all" class="on">All</button><button data-v="real">Real</button><button data-v="creative">Creative</button><button data-v="twin">Twins</button><button data-v="test">Test moons</button>
       <button data-v="unpicked">Not picked</button><button data-v="picked">Picked</button>
     </div>
   </div>
@@ -193,164 +198,26 @@
  * `phase` (Earth's shadow), `tint` (a colour wash across the disc), `ring` (the Eclipse),
  * `saturn` (a crisp ring), `twin` (a second moon), `orb` (the Moonwell's C0..C3; derived if left out).
  */
-const BASELINE = { id: 'moonlight', name: 'Moonlight', kind: 'today', tag: 'you start with this', original: true,
-  note: 'What the app looks like now: the moon everyone has from the start.',
-  sky: ['#05060A', '#1C2A55', '#2C3F78'], moon: ['#3E5A8E', '#9FB6D8'], glow: '#7090D8',
-  orb: ['#040A1F', '#123C8C', '#5E9BEA', '#E9F3FF'] };
-
-const REAL = [
-  { id: 'full', name: 'Full Moon', tag: 'as it really looks', note: 'A plain full moon, true to life: grey-white, on a deep night sky.',
-    sky: ['#030407', '#0D1422', '#283550'], moon: ['#5E6470', '#B9BEC6', '#F1F0EA'], glow: '#AEB8CC' },
-  { id: 'harvest', name: 'Harvest Moon', tag: 'September', note: 'The big orange moon low over the fields, on a warm amber sky.',
-    sky: ['#050302', '#2E1806', '#74400F'], moon: ['#8A4A16', '#F6C27E'], glow: '#E0913C' },
-  { id: 'supermoon', name: 'Supermoon', tag: 'closest to Earth', note: 'Warm white and a quarter bigger: the moon at its closest.',
-    sky: ['#050505', '#1F1C19', '#4E4840'], moon: ['#9C948A', '#FFF8EE'], glow: '#D8CDBE', scale: 1.25 },
-  { id: 'micromoon', name: 'Micromoon', tag: 'farthest from Earth', note: 'Small and far away: a silver moon with lots of dark sky round it.',
-    sky: ['#020306', '#0A0F1C', '#1E2840'], moon: ['#7D838E', '#E6E9EE'], glow: '#8E9AB4', scale: 0.72, glowOpacity: 0.6 },
-  { id: 'blood', name: 'Blood Moon', tag: 'total lunar eclipse', note: 'The red of a total lunar eclipse, from sunlight bent through Earth’s air.',
-    sky: ['#050203', '#2C0709', '#651519'], moon: ['#5A1012', '#D25446'], glow: '#B3342C' },
-  { id: 'bluemoon', name: 'Blue Moon', tag: 'once in a blue moon', note: 'A true sapphire, deeper than today’s blue. Rare on purpose.',
-    sky: ['#020309', '#071A4A', '#1240A0'], moon: ['#1C4FB8', '#A9C6FF'], glow: '#2F6BEA' },
-  { id: 'snow', name: 'Snow Moon', tag: 'February', note: 'A white moon on a grey sky. The quietest one, close to monochrome.',
-    sky: ['#050506', '#1E2026', '#4C505A'], moon: ['#8E939D', '#F5F7F9'], glow: '#C9CED6' },
-  { id: 'strawberry', name: 'Strawberry Moon', tag: 'June', note: 'Soft rose. Named for the strawberry harvest, not its colour.',
-    sky: ['#060305', '#2B0E1D', '#6C2B4A'], moon: ['#8E3D60', '#F7BCD2'], glow: '#E07CA6' },
-  { id: 'flower', name: 'Flower Moon', tag: 'May', note: 'Lavender, close to the lavender glass reference you liked.',
-    sky: ['#050409', '#1D1636', '#4C3F84'], moon: ['#61529E', '#DCD2F8'], glow: '#9D8DE2' },
-  { id: 'honey', name: 'Honey Moon', tag: 'June, in Europe', note: 'Yellow-gold, sweeter and paler than the Harvest Moon.',
-    sky: ['#050403', '#241A08', '#5E4614'], moon: ['#A87C2C', '#FFE7A6'], glow: '#E8B850' },
-  { id: 'crescent', name: 'Crescent', tag: 'a phase', note: 'Only a sliver lit, with the rest in Earth’s shadow. Today’s colours in a new shape.',
-    sky: ['#05060A', '#1C2A55', '#2C3F78'], moon: ['#3E5A8E', '#9FB6D8'], glow: '#7090D8', phase: 'crescent', glowOpacity: 0.55 },
-  { id: 'half', name: 'Half Moon', tag: 'first quarter', note: 'Lit down the right side and dark down the left, cut clean down the middle.',
-    sky: ['#030407', '#0F1626', '#2A3858'], moon: ['#5E6470', '#C9CDD4', '#F4F3EE'], glow: '#A8B4CC', phase: 'half', glowOpacity: 0.7 },
-  { id: 'gibbous', name: 'Gibbous Moon', tag: 'almost full', note: 'Nearly full, with a thin dark slice still missing on the left.',
-    sky: ['#030407', '#0F1626', '#2A3858'], moon: ['#5E6470', '#C9CDD4', '#F4F3EE'], glow: '#A8B4CC', phase: 'gibbous', glowOpacity: 0.85 },
-  { id: 'earthshine', name: 'Earthshine', tag: 'the ghost moon', note: 'A thin lit crescent, with the dark part faintly lit by light bouncing off Earth.',
-    sky: ['#030409', '#0C1530', '#22336A'], moon: ['#3A4E7A', '#B8C8E8'], glow: '#6A84C8', phase: 'earthshine', glowOpacity: 0.5 },
-  { id: 'newmoon', name: 'New Moon', tag: 'the dark one', note: 'Almost invisible: a dark disc you only see by its faint rim.',
-    sky: ['#040406', '#111320', '#262A40'], moon: ['#0C0E14', '#2C3246'], glow: '#4A5270', glowOpacity: 0.5 },
-  { id: 'partial', name: 'Partial Eclipse', tag: 'the bite', note: 'Earth’s shadow taking a red-brown bite out of the top of the moon.',
-    sky: ['#030304', '#121218', '#2C2C3A'], moon: ['#6E6A66', '#E8E4DC'], glow: '#B0A8A0', phase: 'bite' },
-  { id: 'ashen', name: 'Ashen Moon', tag: 'the darkest eclipse', note: 'The rare eclipse when the moon goes ash-grey and nearly vanishes.',
-    sky: ['#030303', '#100E0D', '#2A2522'], moon: ['#1E1A18', '#5A504A'], glow: '#5A4A40', glowOpacity: 0.4 },
-  { id: 'smoke', name: 'Smoke Moon', tag: 'wildfire season', note: 'The orange-red moon you get through smoke on a hazy, brown sky.',
-    sky: ['#060403', '#2A1A10', '#6A4426'], moon: ['#8A2E10', '#E86A2A'], glow: '#C8501E' },
-  { id: 'bluehour', name: 'Blue Hour', tag: 'just before sunrise', note: 'The bright blue of the sky right before sunrise, with a pale moon in it.',
-    sky: ['#04070F', '#13305C', '#3E6CA8', '#8FB4DC'], moon: ['#C8D6E8', '#FFFFFF'], glow: '#9CC0E8' },
-  { id: 'eclipse', name: 'Eclipse', tag: 'the rarest', note: 'A black disc in a ring of fire. For a year of mornings.',
-    sky: ['#060403', '#2A1915', '#6E4636'], moon: ['#060403', '#140C09'], glow: '#E8A060', glowOpacity: 0.45, ring: true,
-    orb: ['#030201', '#1A0E08', '#8A4A1A', '#FFD9A0'] },
-];
-
-const CREATIVE = [
-  { id: 'dawn', name: 'Dawn Moon', tag: 'the morning', note: 'Plum night into a peach sunrise: the moon you see on your way up.',
-    sky: ['#050406', '#26132E', '#7A3E58', '#D88A6E'], moon: ['#A0607A', '#FFD8C4'], glow: '#E89A88' },
-  { id: 'aurora', name: 'Aurora', tag: 'the northern one', note: 'A green sky shading into violet near the moon.',
-    sky: ['#030605', '#0B2A20', '#2A7058', '#7A68C0'], moon: ['#4E6EA0', '#D8F2E8'], glow: '#7AA8B8' },
-  { id: 'dusk', name: 'Dusk', tag: 'teal into tangerine', note: 'Deep teal up top and tangerine at the horizon, with a peach moon. The evening version of Dawn.',
-    sky: ['#03060A', '#0B2634', '#2F5A62', '#E08A52'], moon: ['#D07850', '#FFE4C8'], glow: '#F0A070' },
-  { id: 'lilac', name: 'Lilac Hour', tag: 'violet, pink, gold', note: 'Violet up top, through pink, to a little gold at the edge. A lilac moon.',
-    sky: ['#060409', '#2A1840', '#7A4A8A', '#E8A8A0'], moon: ['#B08AC0', '#FBE8F0'], glow: '#D8A0C8' },
-  { id: 'opal', name: 'Opal', tag: 'iridescent', note: 'A pale moon that shifts from pink to aqua across its face, like an opal.',
-    sky: ['#05040A', '#1A1636', '#3A3870'], moon: ['#C8C8D8', '#FFFFFF'], glow: '#C0B8E8',
-    tint: { angle: 100, stops: ['#FFB8D8', '#C8B8FF', '#9CE8F0'], amount: 0.6 } },
-  { id: 'nebula', name: 'Nebula', tag: 'deep space', note: 'Magenta and plum clouds with a white-pink moon in the middle.',
-    sky: ['#050208', '#2A0A3A', '#8A1E6A', '#E070A8'], moon: ['#E8B0D8', '#FFF0FA'], glow: '#D060A0' },
-  { id: 'golden', name: 'Golden Hour', tag: 'warm light', note: 'Rust into honey-gold light, with a butter-yellow moon.',
-    sky: ['#060403', '#3A1A08', '#B0602A', '#F0C070'], moon: ['#E0A040', '#FFF2C8'], glow: '#F0B050' },
-  { id: 'cottoncandy', name: 'Cotton Candy', tag: 'pink and baby blue', note: 'Pink bands melting into baby blue, with a soft white moon. The sweetest one.',
-    sky: ['#05050A', '#2A1A3A', '#C07AB0', '#9CC8F0'], moon: ['#F0D0E8', '#FFFFFF'], glow: '#E0B0E0' },
-  { id: 'deepsea', name: 'Deep Sea', tag: 'underwater', note: 'Navy into teal, as if seen from under the sea. A sea-glass moon.',
-    sky: ['#020508', '#062A38', '#0E6A70', '#3AC0A8'], moon: ['#3A9A90', '#D8FFF4'], glow: '#3AB8A0' },
-  { id: 'ember', name: 'Ember', tag: 'burning low', note: 'Coal-black sky with crimson and orange bands. A charcoal moon lit from inside.',
-    sky: ['#040202', '#2A0604', '#8A1E08', '#F07A20'], moon: ['#1A1210', '#5A2A18', '#E07030'], glow: '#E05A18', glowOpacity: 0.8 },
-  { id: 'matcha', name: 'Matcha', tag: 'soft green', note: 'Muted tea greens and a cream moon. Calm.',
-    sky: ['#040504', '#162016', '#4A6A3A', '#B8C890'], moon: ['#C8D4A8', '#FBFFF0'], glow: '#A8C080' },
-  { id: 'rose', name: 'Rosé', tag: 'wine and blush', note: 'A wine-dark sky that warms to blush, with a pink-white moon.',
-    sky: ['#060304', '#2E0A16', '#7A2A40', '#D88A90'], moon: ['#E0A8B0', '#FFF0F0'], glow: '#E09098' },
-  { id: 'ultraviolet', name: 'Ultraviolet', tag: 'electric violet', note: 'Black into electric violet, with a lilac moon. The boldest purple.',
-    sky: ['#030208', '#160A3A', '#4A1AA0', '#9A6AF0'], moon: ['#8A6AE0', '#EDE4FF'], glow: '#7A50E8' },
-  { id: 'midnightsun', name: 'Midnight Sun', tag: 'night and day at once', note: 'A deep blue night with a band of gold sunlight under it. A white moon.',
-    sky: ['#030612', '#0E2258', '#3A4A8A', '#F0C060'], moon: ['#F4E8C8', '#FFFFFF'], glow: '#F0D890' },
-  { id: 'gilded', name: 'Gilded', tag: 'black and gold', note: 'Almost all black, with a metallic gold moon. Expensive-looking.',
-    sky: ['#020202', '#0C0A06', '#2A2412'], moon: ['#5A3A10', '#C89838', '#FFF0B0'], glow: '#C8A040', glowOpacity: 0.6 },
-  { id: 'noir', name: 'Noir', tag: 'black and white', note: 'Pure black and white, like an old film. A high-contrast moon with a faint halo.',
-    sky: ['#000000', '#0E0E0E', '#3A3A3A'], moon: ['#3A3A3A', '#B0B0B0', '#FFFFFF'], glow: '#FFFFFF', glowOpacity: 0.35 },
-  { id: 'sepia', name: 'Sepia', tag: 'old photograph', note: 'Faded browns, like a photo of the moon from 1900.',
-    sky: ['#060403', '#2A2016', '#6A5640'], moon: ['#8A7050', '#F4E4C8'], glow: '#C8A880' },
-  { id: 'desert', name: 'Desert', tag: 'dusty pink and sand', note: 'Terracotta into dusty peach, with a sand-coloured moon.',
-    sky: ['#060403', '#3A1E14', '#A8604A', '#E8B088'], moon: ['#E8C098', '#FFF4E4'], glow: '#E8A078' },
-  { id: 'tropic', name: 'Tropic', tag: 'magenta and mango', note: 'Magenta into coral into mango, with a yellow moon. Loud and warm.',
-    sky: ['#06020A', '#4A0A4A', '#D03A5A', '#F8A030'], moon: ['#F8D050', '#FFFBE0'], glow: '#F89040' },
-  { id: 'lagoon', name: 'Lagoon', tag: 'turquoise and sand', note: 'Turquoise water colours with a warm sand moon, so it reads as a beach at night.',
-    sky: ['#020608', '#06303A', '#0E8A90', '#7AE0D0'], moon: ['#F0C8A0', '#FFF4E8'], glow: '#60D0C0' },
-  { id: 'absinthe', name: 'Absinthe', tag: 'green fairy', note: 'Bottle green into chartreuse, with a lime-pale moon. Strange in a good way.',
-    sky: ['#030503', '#0E2A10', '#3A7A20', '#B8E050'], moon: ['#C8E878', '#F8FFE0'], glow: '#9AD040' },
-  { id: 'twilight', name: 'Twilight', tag: 'blue, violet, pink', note: 'All three twilight colours stacked: blue, then violet, then pink at the bottom.',
-    sky: ['#03040C', '#141A4A', '#5A3A8A', '#E08AA8'], moon: ['#C8B8E8', '#FFF4FA'], glow: '#C090D0' },
-  { id: 'storm', name: 'Storm', tag: 'slate and steel', note: 'Slate cloud bands and a steel moon. Moody and grey-blue.',
-    sky: ['#030406', '#14181E', '#3A4450', '#6A7A8A'], moon: ['#4A5462', '#C8D0DA'], glow: '#7A8898', glowOpacity: 0.7 },
-  { id: 'borealis', name: 'Borealis', tag: 'green and magenta', note: 'An aurora gone pink: green bands that turn magenta right by the moon.',
-    sky: ['#030506', '#0A3A2A', '#2AA070', '#D04A9A'], moon: ['#E0D8F0', '#FFFFFF'], glow: '#8AD0B0' },
-  { id: 'solstice', name: 'Solstice', tag: 'the longest night', note: 'Indigo up top, wine in the middle and a gold band at the bottom. A cream moon.',
-    sky: ['#030310', '#141050', '#7A2050', '#F0A030'], moon: ['#F0D8A8', '#FFFAF0'], glow: '#E0904A' },
-  { id: 'prism', name: 'Prism', tag: 'a rainbow moon', note: 'A white moon with a soft rainbow running across its face. Dark sky so it stands out.',
-    sky: ['#030306', '#12122A', '#2A2A50'], moon: ['#C0C0D0', '#FFFFFF'], glow: '#C0C8F0',
-    tint: { angle: 90, stops: ['#FF7A9A', '#FFD070', '#7AF0B0', '#7AB8FF', '#C08AFF'], amount: 0.7 } },
-  { id: 'chrome', name: 'Chrome', tag: 'liquid metal', note: 'A mirror-bright silver moon with hard contrast, on near-black.',
-    sky: ['#020306', '#0C1018', '#26303E'], moon: ['#20242A', '#8A929C', '#F0F4F8', '#FFFFFF'], glow: '#A0A8B8', glowOpacity: 0.5 },
-  { id: 'galaxy', name: 'Galaxy', tag: 'purple and pink', note: 'Indigo into purple into pink, with a blue-white moon that blushes on one side.',
-    sky: ['#040310', '#1A1050', '#5A2A90', '#D070C0'], moon: ['#A8B8F0', '#FFFFFF'], glow: '#9A90F0',
-    tint: { angle: 135, stops: ['#FFB0E0', '#A0C0FF'], amount: 0.4 } },
-  { id: 'ringed', name: 'Ringed Moon', tag: 'like Saturn', note: 'A cream moon with a thin, crisp ring arcing across it.',
-    sky: ['#040508', '#151A28', '#3A4258'], moon: ['#C8A880', '#FFF0D8'], glow: '#C8B090', saturn: '#E8D8C0' },
-];
-
-/*
- * Twin moons, drafted for the secret (user, 2026-10-29): two moons that differ in colour, size and
- * place. `twin` is the second moon: `x` and `y` as shares of the width and the sky panel (`y: 'rise'`
- * rises from the bottom edge like the main moon), `size` its disc as a share of the width, its own
- * `moon` ramp and `glow`, and `front` to draw it over the main moon. `cx` moves the main moon sideways.
- */
-const TWINS = [
-  { id: 'twin-sisters', name: 'Sisters', tag: 'peach and mint', note: 'Dawn’s plum-to-peach sky with a second, mint moon off to the right.',
-    sky: ['#050406', '#26132E', '#7A3E58', '#D88A6E'], moon: ['#A0607A', '#FFD8C4'], glow: '#E89A88',
-    twin: { x: 0.8, y: 0.66, size: 0.24, moon: ['#3E8C7A', '#D8FFF0'], glow: '#7AD8B8', glowOpacity: 0.6 } },
-  { id: 'twin-binary', name: 'Binary', tag: 'side by side', note: 'Two equal moons rising together, one violet and one rose. A clear pair.',
-    sky: ['#03040C', '#141A4A', '#5A3A8A', '#E08AA8'], moon: ['#7A68C0', '#E8E0FF'], glow: '#A090E0', cx: 0.27, scale: 0.6,
-    twin: { x: 0.75, y: 'rise', size: 0.54, moon: ['#B0607A', '#FFD8E4'], glow: '#E890B0', glowOpacity: 0.85 } },
-  { id: 'twin-transit', name: 'Transit', tag: 'a moon crossing a moon', note: 'A small black moon passing in front of a pale gold one, like a tiny eclipse in progress.',
-    sky: ['#050403', '#241A0C', '#5E4A24'], moon: ['#A88A50', '#FFF2CC'], glow: '#E0C080',
-    twin: { x: 0.64, y: 0.925, size: 0.15, moon: ['#050403', '#1A140C'], glow: '#000000', glowOpacity: 0, front: true } },
-  { id: 'twin-giant', name: 'Giant', tag: 'a planet next door', note: 'A huge lavender moon looming in from the left edge, over a smaller rose one.',
-    sky: ['#050409', '#1D1636', '#4C3F84', '#9A7AC0'], moon: ['#A06080', '#FFD0E0'], glow: '#E090B0', scale: 0.8,
-    twin: { x: -0.1, y: 0.57, size: 0.78, moon: ['#4A3E78', '#D8D0F8'], glow: '#9A8AE0', glowOpacity: 0.5 } },
-  { id: 'twin-moonlet', name: 'Moonlet', tag: 'a little one tucked in', note: 'A small gold moon tucked behind the shoulder of a white one, like it’s hiding.',
-    sky: ['#030407', '#0F1626', '#2A3858'], moon: ['#6E7480', '#D9DCE2', '#F6F5F0'], glow: '#B4BED0',
-    twin: { x: 0.83, y: 0.85, size: 0.2, moon: ['#A87C2C', '#FFE7A6'], glow: '#E8B850', glowOpacity: 0.7 } },
-  { id: 'twin-redblue', name: 'Red & Blue', tag: 'opposites', note: 'A crimson moon below and a small sapphire one above: the two loudest moons together.',
-    sky: ['#040306', '#1E0A1A', '#4A1430', '#2A3A8A'], moon: ['#6A1416', '#E05A4A'], glow: '#C03A30',
-    twin: { x: 0.79, y: 0.65, size: 0.19, moon: ['#1C4FB8', '#B8D0FF'], glow: '#3A70E8', glowOpacity: 0.7 } },
-  { id: 'twin-alien', name: 'Alien', tag: 'gold and green', note: 'A chartreuse sky, a gold moon and a green one. Very obviously another planet.',
-    sky: ['#030503', '#0E2A10', '#3A7A20', '#A8D050'], moon: ['#B88A30', '#FFF0B8'], glow: '#E0B850',
-    twin: { x: 0.21, y: 0.67, size: 0.26, moon: ['#3A8A40', '#D0FFC8'], glow: '#7AD060', glowOpacity: 0.6 } },
-  { id: 'twin-highlow', name: 'High & Low', tag: 'lilac and peach', note: 'A big peach moon hanging high on the right, a lilac one rising below.',
-    sky: ['#060409', '#2A1840', '#7A4A8A', '#E8A8A0'], moon: ['#8A70B8', '#F0E4FF'], glow: '#C0A0E0',
-    twin: { x: 0.76, y: 0.68, size: 0.3, moon: ['#C07A5A', '#FFE4CC'], glow: '#F0A880', glowOpacity: 0.6 } },
-  { id: 'twin-cotton', name: 'Sugar Twins', tag: 'pink and baby blue', note: 'Cotton Candy’s sky, a pink moon and a baby-blue one. Soft and sweet.',
-    sky: ['#05050A', '#2A1A3A', '#C07AB0', '#9CC8F0'], moon: ['#D890C0', '#FFF0FA'], glow: '#E0A0D0',
-    twin: { x: 0.2, y: 0.67, size: 0.22, moon: ['#6A9ED8', '#E4F2FF'], glow: '#9CC8F0', glowOpacity: 0.6 } },
-  { id: 'twin-duskdawn', name: 'Dusk & Dawn', tag: 'teal and tangerine', note: 'A tangerine moon below and a deep teal moon above, one for each end of the night.',
-    sky: ['#03060A', '#0B2634', '#2F5A62', '#E08A52'], moon: ['#D07850', '#FFE4C8'], glow: '#F0A070',
-    twin: { x: 0.2, y: 0.67, size: 0.24, moon: ['#1E5A64', '#BFF0EC'], glow: '#4AA8A8', glowOpacity: 0.55 } },
-];
-
-REAL.forEach((m) => (m.kind = 'real'));
-CREATIVE.forEach((m) => (m.kind = 'creative'));
-TWINS.forEach((m) => (m.kind = 'twin'));
-const ALL = [BASELINE, ...REAL, ...CREATIVE, ...TWINS];
-const BY_ID = Object.fromEntries(ALL.map((m) => [m.id, m]));
-const NUMBER = Object.fromEntries([...REAL, ...CREATIVE, ...TWINS].map((m, i) => [m.id, i + 1]));
+// The moons come from moons.json, which the moon studio (tools/moon-studio) edits.
+let BASELINE, REAL, CREATIVE, TWINS, ALL, BY_ID, NUMBER, SAVED_LADDER = [];
+// Test moons (test-moons.json, user 2026-11-02): a lab-only playground, never in the ladder or moons.json.
+let TEST = [], TEST_SETS = [], TEST_NUM = {};
+async function loadMoons() {
+  const d = await (await fetch('/moons.json', { cache: 'no-store' })).json();
+  BASELINE = d.moons.find((m) => m.original) ?? d.moons[0];
+  REAL = d.moons.filter((m) => m.kind === 'real');
+  CREATIVE = d.moons.filter((m) => m.kind === 'creative');
+  TWINS = d.moons.filter((m) => m.kind === 'twin');
+  ALL = [BASELINE, ...REAL, ...CREATIVE, ...TWINS];
+  BY_ID = Object.fromEntries(ALL.map((m) => [m.id, m]));
+  NUMBER = Object.fromEntries([...REAL, ...CREATIVE, ...TWINS].map((m, i) => [m.id, i + 1]));
+  SAVED_LADDER = d.ladder ?? [];
+  try {
+    const t = await (await fetch('/test-moons.json', { cache: 'no-store' })).json();
+    TEST = t.moons; TEST_SETS = t.sets;
+    TEST.forEach((m, i) => { BY_ID[m.id] = m; TEST_NUM[m.id] = i + 1; });
+  } catch {}
+}
 
 const LADDER = ['Morning 1', 'Morning 3', 'Morning 7', 'Morning 14', 'Morning 30', 'Morning 50', 'Morning 100', 'Morning 150', 'Morning 200', 'Week 50', 'Secret'];
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'S'];
@@ -696,7 +563,7 @@ function miniHTML(m, k) {
 }
 
 // ——— Picks: eleven slots of moon ids, plus the ones marked no. Saved in the browser and to docs/moon-lab-picks.json. ———
-let picks = { slots: Array(11).fill(null), nope: [] };
+let picks = { slots: Array(11).fill(null), nope: [], likes: [] };
 const slotOf = (id) => picks.slots.indexOf(id);
 let saveTimer;
 function save() {
@@ -720,7 +587,12 @@ function assign(id, i) {
 function unassign(id) { const i = slotOf(id); if (i >= 0) picks.slots[i] = null; changed(); }
 function toggleNope(id) {
   if (picks.nope.includes(id)) picks.nope = picks.nope.filter((n) => n !== id);
-  else { picks.nope.push(id); unassign(id); }
+  else { picks.nope.push(id); picks.likes = picks.likes.filter((n) => n !== id); unassign(id); }
+  changed();
+}
+function toggleLike(id) {
+  picks.likes = picks.likes.includes(id) ? picks.likes.filter((n) => n !== id) : [...picks.likes, id];
+  if (picks.likes.includes(id)) picks.nope = picks.nope.filter((n) => n !== id);
   changed();
 }
 function changed() { save(); renderLadder(); renderMarks(); applyFilter(); if (lineup.classList.contains('open')) renderLineup(); }
@@ -731,6 +603,7 @@ const slotsEl = document.getElementById('slots');
 const lineup = document.getElementById('lineup');
 
 function card(m) {
+  if (m.kind === 'test') return testCard(m);
   const fig = document.createElement('figure');
   fig.dataset.id = m.id;
   fig.draggable = !m.original;
@@ -751,6 +624,49 @@ function card(m) {
   return fig;
 }
 
+/** A test moon's card: like or no, never the ladder (its ids aren't in the app). */
+function testCard(m) {
+  const fig = document.createElement('figure');
+  fig.dataset.id = m.id;
+  fig.dataset.set = m.set;
+  const set = TEST_SETS.find((x) => x.key === m.set);
+  fig.innerHTML = `${phoneHTML(m)}
+    <figcaption>
+      <div class="name"><span class="num">T${String(TEST_NUM[m.id]).padStart(3, '0')}</span><b>${m.name}</b><span class="kind">${set ? set.title : 'test'}</span></div>
+      <p>${m.note}</p>
+      <div class="pick"><button class="like" style="width:auto;padding:0 10px">♥ Like</button><button class="no">No</button></div>
+    </figcaption>`;
+  fig.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.classList.contains('no')) toggleNope(m.id); else toggleLike(m.id);
+  });
+  fig.addEventListener('mouseenter', () => (hovered = m.id));
+  fig.addEventListener('mouseleave', () => (hovered = hovered === m.id ? null : hovered));
+  return fig;
+}
+
+let testSet = 'all';
+function renderTests() {
+  if (!TEST.length) return;
+  const h = document.createElement('h2');
+  h.id = 'test-moons';
+  h.innerHTML = `Test moons<span>${TEST.length} premium takes in ${TEST_SETS.length} sets, to try out · lab only</span>`;
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.innerHTML = `<div><div class="seg-label">Set</div><div class="seg" id="test-set" style="flex-wrap:wrap">
+    <button data-v="all" class="on">All</button><button data-v="liked">♥ Liked</button>${TEST_SETS.map((x) => `<button data-v="${x.key}">${x.title}</button>`).join('')}</div></div>`;
+  const grid = document.createElement('div');
+  grid.className = 'grid test-grid';
+  TEST.forEach((m) => grid.appendChild(testCard(m)));
+  groups.append(h, bar, grid);
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    bar.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    testSet = b.dataset.v;
+    applyFilter();
+  });
+}
+
 function renderGroups() {
   for (const [title, sub, list] of [
     ['Today', 'the starting moon', [BASELINE]],
@@ -765,6 +681,7 @@ function renderGroups() {
     list.forEach((m) => grid.appendChild(card(m)));
     groups.append(h, grid);
   }
+  renderTests();
   addOrbs(groups);
   addSkies(groups);
 }
@@ -793,6 +710,8 @@ function renderMarks() {
     fig.classList.toggle('nope', picks.nope.includes(id));
     fig.querySelectorAll('.pick button[data-slot]').forEach((b) => b.classList.toggle('on', Number(b.dataset.slot) === i));
     fig.querySelector('.pick .no')?.classList.toggle('on', picks.nope.includes(id));
+    fig.classList.toggle('picked', i >= 0 || picks.likes.includes(id));
+    fig.querySelector('.pick .like')?.classList.toggle('on', picks.likes.includes(id));
   });
 }
 
@@ -800,14 +719,17 @@ let show = 'all', nopes = 'dim';
 function applyFilter() {
   document.querySelectorAll('#groups figure').forEach((fig) => {
     const m = BY_ID[fig.dataset.id], picked = slotOf(m.id) >= 0, no = picks.nope.includes(m.id);
-    const ok = show === 'all' || (show === 'real' && m.kind === 'real') || (show === 'creative' && m.kind === 'creative') || (show === 'twin' && m.kind === 'twin')
-      || (show === 'unpicked' && !picked && !m.original) || (show === 'picked' && picked);
+    const test = m.kind === 'test';
+    const inSet = !test || testSet === 'all' || (testSet === 'liked' ? picks.likes.includes(m.id) : m.set === testSet);
+    const ok = (show === 'test' ? test && inSet : test ? show === 'all' && inSet : false) || (show === 'real' && m.kind === 'real') || (show === 'creative' && m.kind === 'creative') || (show === 'twin' && m.kind === 'twin')
+      || (!test && show === 'all') || (!test && show === 'unpicked' && !picked && !m.original) || (!test && show === 'picked' && picked);
     fig.style.display = ok && !(no && nopes === 'hide') ? '' : 'none';
   });
   document.querySelectorAll('#groups .grid').forEach((g) => {
     const any = [...g.children].some((f) => f.style.display !== 'none');
     g.style.display = any ? '' : 'none';
-    g.previousElementSibling.style.display = any ? '' : 'none';
+    // The test grid keeps its heading and set bar, so an empty set can be switched away from.
+    if (!g.classList.contains('test-grid')) g.previousElementSibling.style.display = any ? '' : 'none';
   });
 }
 
@@ -859,6 +781,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') return lineup.classList.remove('open');
   if (!hovered || BY_ID[hovered].original || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  if (BY_ID[hovered].kind === 'test') {
+    if (k === 'x') toggleNope(hovered); else if (k === 'l') toggleLike(hovered); else return;
+    return e.preventDefault();
+  }
   if (/^[1-9]$/.test(k)) assign(hovered, Number(k) - 1);
   else if (k === '0') assign(hovered, 9);
   else if (k === 's') assign(hovered, 10);
@@ -884,22 +810,24 @@ document.getElementById('compact').addEventListener('click', (e) => {
   const on = document.getElementById('ladder').classList.toggle('compact');
   e.target.textContent = on ? 'Show previews' : 'Hide previews';
 });
-document.getElementById('clear').addEventListener('click', () => { picks = { slots: Array(11).fill(null), nope: [] }; changed(); });
+document.getElementById('clear').addEventListener('click', () => { picks = { slots: Array(11).fill(null), nope: [], likes: picks.likes }; changed(); });
 document.getElementById('open-lineup').addEventListener('click', () => { lineup.classList.add('open'); renderLineup(); });
 document.getElementById('close-lineup').addEventListener('click', () => lineup.classList.remove('open'));
 document.getElementById('lineup-size').addEventListener('input', renderLineup);
 
 async function start() {
+  await loadMoons();
   const [skyRange, moonRange] = await Promise.all([lumRange('/assets/onboarding/night-sky-moonless.png'), lumRange('/assets/onboarding/moon-frosted.png')]);
-  document.getElementById('filters').innerHTML = [...REAL, ...CREATIVE, ...TWINS]
+  document.getElementById('filters').innerHTML = [...REAL, ...CREATIVE, ...TWINS, ...TEST]
     .map((m) => filterDef(`sky-${m.id}`, m.sky, skyRange) + filterDef(`moon-${m.id}`, m.moon, moonRange)
       + (m.twin ? filterDef(`twin-${m.id}`, m.twin.moon, moonRange) : '')).join('');
-  // The file wins (so picks survive a cleared browser); the browser's copy is the fallback.
+  // The ladder is moons.json's (shared with the moon studio); the no's are the lab's own.
   try {
     const saved = await (await fetch('/__moon-picks')).json();
-    if (saved.slots) picks = { slots: saved.slots.map((id) => (id && BY_ID[id] ? id : null)), nope: saved.nope ?? [] };
-    else picks = JSON.parse(localStorage.getItem('moon-lab-picks')) ?? picks;
-  } catch {}
+    picks = { slots: SAVED_LADDER.map((id) => (id && BY_ID[id] ? id : null)), nope: saved.nope ?? [], likes: saved.likes ?? [] };
+  } catch {
+    picks.slots = SAVED_LADDER.map((id) => (id && BY_ID[id] ? id : null));
+  }
   while (picks.slots.length < 11) picks.slots.push(null);
   // ?show=creative (or real, picked…) opens on that filter.
   const preset = new URLSearchParams(location.search).get('show');

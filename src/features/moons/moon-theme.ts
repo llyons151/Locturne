@@ -24,8 +24,16 @@ export const OTHER_MOONS: MoonDef[] = MOONS.filter((m) => m !== DEFAULT_MOON && 
 
 const listeners = new Set<() => void>();
 let current: MoonDef | undefined;
+/** A moon shown but not worn: the payoff's new moon, until it's applied or the payoff closes. */
+let preview: MoonDef | undefined;
 
+/** The moon on show: the sky, the moon, its halo and the orb are drawn in it. */
 export function getMoon(): MoonDef {
+  return preview ?? getWornMoon();
+}
+
+/** The moon you chose to wear (saved), whatever is on show. */
+export function getWornMoon(): MoonDef {
   current ??= BY_ID.get(sharedGet<string>(KEY) ?? webMoon() ?? '') ?? DEFAULT_MOON;
   return current;
 }
@@ -38,9 +46,20 @@ function webMoon(): string | undefined {
 
 export function setMoon(id: string) {
   const next = BY_ID.get(id) ?? DEFAULT_MOON;
-  if (next === current) return;
+  if (next === getWornMoon()) return;
   current = next;
   sharedSet(KEY, next.id);
+  listeners.forEach((listener) => listener());
+}
+
+/**
+ * Shows a moon without wearing it (user, 2026-11-02: the payoff's new moon rises); null goes back to
+ * the worn one. Nothing is saved: `setMoon` wears it.
+ */
+export function previewMoon(id: string | null) {
+  const next = id ? BY_ID.get(id) : undefined;
+  if (next === preview) return;
+  preview = next;
   listeners.forEach((listener) => listener());
 }
 
@@ -49,6 +68,12 @@ function subscribe(listener: () => void) {
   return () => void listeners.delete(listener);
 }
 
+/** The moon on show (`getMoon`): for drawing. */
 export function useMoon(): MoonDef {
   return useSyncExternalStore(subscribe, getMoon, getMoon);
+}
+
+/** The moon worn (`getWornMoon`): for "Wearing" marks and Apply. */
+export function useWornMoon(): MoonDef {
+  return useSyncExternalStore(subscribe, getWornMoon, getWornMoon);
 }

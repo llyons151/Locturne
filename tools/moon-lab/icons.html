@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon icons</title>
+<!-- Three takes on the collection icons next to today's (user, 2026-11-02: they look like cutout
+     PNGs). Baked by bake-icon-variants.py; served by the moon lab (npm run moon-lab → /icons.html). -->
+<style>
+  :root { --bg: #0B0B0C; --text: #FFFFFF; --text2: #A1A1A6; --text3: #7C7C82; --edge: rgba(255,255,255,0.16); --tile: 112px; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  header { max-width: 980px; margin: 0 auto; padding: 32px 16px 8px; text-align: center; }
+  h1 { margin: 0 0 6px; font-size: 26px; font-weight: 700; }
+  header p { margin: 0 auto 18px; max-width: 640px; color: var(--text2); }
+  header a { color: var(--text2); }
+  .controls { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+  .seg-label { font-size: 12px; color: var(--text3); margin-bottom: 4px; }
+  .seg { display: inline-flex; background: rgba(255,255,255,0.06); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: none; color: var(--text2); font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button.on { background: rgba(255,255,255,0.14); color: var(--text); }
+  main { max-width: 980px; margin: 0 auto; padding: 16px 16px 64px; }
+
+  /* Compare: one row per moon, a column per take. */
+  .cols, .row { display: grid; grid-template-columns: 110px repeat(4, var(--tile)); gap: 14px; justify-content: center; align-items: center; }
+  .cols { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 10px 0; }
+  .cols div { text-align: center; font-size: 13px; font-weight: 600; color: var(--text2); }
+  .cols div small { display: block; font-weight: 400; color: var(--text3); }
+  .row { margin-bottom: 14px; }
+  .name { font-size: 13px; color: var(--text2); text-align: right; }
+
+  /* The app's tile (moon-thumb.tsx): smoked glass, hairline edge, radius 20 at its size. */
+  .tile { width: var(--tile); height: var(--tile); border-radius: calc(var(--tile) * 0.18); background: rgba(255,255,255,0.05); border: 0.5px solid var(--edge);
+          display: grid; place-items: center; overflow: hidden; }
+  .tile img { width: 80%; height: 80%; display: block; }
+
+  /* As the collection: one take, three across, as the sheet lays them out. */
+  .grid { display: grid; grid-template-columns: repeat(3, var(--tile)); gap: 12px; justify-content: center; }
+  .grid figure { margin: 0; text-align: center; }
+  .grid figcaption { font-size: 12px; color: var(--text3); margin-top: 6px; }
+
+  @media (max-width: 640px) {
+    :root { --tile: 72px; }
+    .cols, .row { grid-template-columns: 64px repeat(4, var(--tile)); gap: 8px; }
+    .name { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Moon icons</h1>
+  <p>Today's collection icons next to three takes on fixing the cutout look. Each one uses the same moon art; only the shading and the tile change.
+    Re-bake with <code>python3 tools/moon-lab/bake-icon-variants.py</code>. <a href="/">Back to the moon lab</a></p>
+  <div class="controls">
+    <div><div class="seg-label">View</div><div class="seg" id="view"><button data-v="compare" class="on">Side by side</button><button data-v="grid">As the collection</button></div></div>
+    <div id="take-wrap" hidden><div class="seg-label">Take</div><div class="seg" id="take"></div></div>
+    <div><div class="seg-label">Size</div><div class="seg" id="size"><button data-v="112" class="on">Phone</button><button data-v="180">Big</button></div></div>
+  </div>
+</header>
+<main id="main"></main>
+
+<script>
+const TAKES = [
+  { id: 'today', label: 'Today', note: 'flat cutout' },
+  { id: 'sphere', label: 'Sphere', note: 'shaded as a ball' },
+  { id: 'sky', label: 'Sphere + sky', note: 'on its own night' },
+  { id: 'flat', label: 'Flat', note: 'three tones' },
+];
+let moons = [];
+let view = 'compare';
+let take = 'sky';
+
+const src = (t, id) => (t === 'today' ? `/assets/moons/icons/${id}.webp` : `icon-variants/${t === 'sky' ? 'sphere' : t}/${id}.webp`);
+
+function tile(t, m) {
+  const el = document.createElement('div');
+  el.className = 'tile';
+  // The sky take: a plain top-to-bottom gradient in the moon's own night colours (no light around the moon).
+  if (t === 'sky' && m.skyColors) el.style.background = `linear-gradient(to bottom, ${m.skyColors[0]}, ${m.skyColors[1]})`;
+  const img = new Image();
+  img.src = src(t, m.id);
+  img.alt = '';
+  el.append(img);
+  return el;
+}
+
+function render() {
+  const main = document.getElementById('main');
+  main.replaceChildren();
+  document.getElementById('take-wrap').hidden = view !== 'grid';
+  if (view === 'compare') {
+    const cols = document.createElement('div');
+    cols.className = 'cols';
+    cols.innerHTML = '<div></div>' + TAKES.map((t) => `<div>${t.label}<small>${t.note}</small></div>`).join('');
+    main.append(cols);
+    for (const m of moons) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = m.name ?? m.id;
+      row.append(name, ...TAKES.map((t) => tile(t.id, m)));
+      main.append(row);
+    }
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    for (const m of moons) {
+      const fig = document.createElement('figure');
+      const cap = document.createElement('figcaption');
+      cap.textContent = m.name ?? m.id;
+      fig.append(tile(take, m), cap);
+      grid.append(fig);
+    }
+    main.append(grid);
+  }
+}
+
+function seg(id, onPick) {
+  const el = document.getElementById(id);
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    el.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    onPick(b.dataset.v);
+  });
+}
+
+document.getElementById('take').innerHTML = TAKES.map((t) => `<button data-v="${t.id}" class="${t.id === take ? 'on' : ''}">${t.label}</button>`).join('');
+seg('view', (v) => { view = v; render(); });
+seg('take', (v) => { take = v; render(); });
+seg('size', (v) => { document.documentElement.style.setProperty('--tile', `${v}px`); });
+
+fetch('icon-variants/moons.json', { cache: 'no-store' }).then((r) => r.json()).then((d) => { moons = d; render(); });
+</script>
+</body>
+</html>

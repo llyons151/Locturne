@@ -30,6 +30,12 @@ const BUBBLE_AT = 0.78;
 /** How long a line stays up before it fades. */
 const LINE_MS = 3200;
 
+/**
+ * His hello (or news) waits this long after he's up: a bubble the moment he pops in broke the
+ * flow of Home coming in (user, November 2, 2026). A poke before then speaks for itself.
+ */
+const HELLO_WAIT_MS = 2500;
+
 /** This many pokes inside `STREAK_MS` and he says something about it instead. */
 const STREAK = 5;
 const STREAK_MS = 30_000;
@@ -178,6 +184,8 @@ export function Loc() {
   const pineappleDue = useRef(false);
   const lastSpoke = useRef(0);
   const pokeSpoke = useRef(false);
+  const helloTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(helloTimer.current), []);
   useEffect(() => {
     moodRef.current = mood;
     momentRef.current = moment;
@@ -215,15 +223,21 @@ export function Loc() {
   /** News always gets said; a plain hello only now and then. */
   const hello = useCallback(() => {
     greeted.current = true;
-    const line = news();
-    if (line) return speak(line);
-    if (Math.random() < HELLO_CHANCE) speak(locLine('hello', moodRef.current, new Date().getHours()));
+    clearTimeout(helloTimer.current);
+    helloTimer.current = setTimeout(() => {
+      // Already talking (a poke got in first): the hello is dropped, not stacked on top.
+      if (Date.now() - lastSpoke.current < HELLO_WAIT_MS) return;
+      const line = news();
+      if (line) return speak(line);
+      if (Math.random() < HELLO_CHANCE) speak(locLine('hello', moodRef.current, new Date().getHours()));
+    }, HELLO_WAIT_MS);
   }, [news, speak]);
   useEffect(() => {
     // A hello is once per visit to Home.
     if (!present) {
       greeted.current = false;
       helloDue.current = false;
+      clearTimeout(helloTimer.current);
     } else if (seen && helloDue.current) {
       helloDue.current = false;
       if (!greeted.current) hello();

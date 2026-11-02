@@ -2,15 +2,17 @@
   "ladder": [
     "dawn",
     "harvest",
-    "aurora",
-    "supermoon",
-    "nebula",
-    "midnightsun",
+    "twilight",
+    "full",
+    "ember",
+    "matcha",
     "blood",
     "deepsea",
     "prism",
     "eclipse",
-    "twin-moonlet"
+    "bluehour",
+    "strawberry",
+    "micromoon"
   ],
   "moons": [
     {
@@ -62,12 +64,12 @@
       "note": "The big orange moon low over the fields, on a warm amber sky.",
       "sky": [
         "#050302",
-        "#2E1806",
-        "#74400F"
+        "#2A1300",
+        "#542900"
       ],
       "moon": [
-        "#8A4A16",
-        "#F6C27E"
+        "#B58530",
+        "#D9B07B"
       ],
       "glow": "#E0913C",
       "kind": "real"
@@ -116,12 +118,12 @@
       "note": "The red of a total lunar eclipse, from sunlight bent through Earth’s air.",
       "sky": [
         "#050203",
-        "#2C0709",
-        "#651519"
+        "#260002",
+        "#3A0608"
       ],
       "moon": [
-        "#5A1012",
-        "#D25446"
+        "#3A0002",
+        "#B13123"
       ],
       "glow": "#B3342C",
       "kind": "real"
@@ -134,11 +136,11 @@
       "sky": [
         "#020309",
         "#071A4A",
-        "#1240A0"
+        "#123887"
       ],
       "moon": [
-        "#1C4FB8",
-        "#A9C6FF"
+        "#061F51",
+        "#4B7CDD"
       ],
       "glow": "#2F6BEA",
       "kind": "real"
@@ -585,7 +587,7 @@
         "#F07A20"
       ],
       "moon": [
-        "#1A1210",
+        "#1C0803",
         "#5A2A18",
         "#E07030"
       ],
@@ -1250,5 +1252,10 @@
       },
       "kind": "twin"
     }
-  ]
+  ],
+  "rare": [
+    "bluemoon",
+    "ringed"
+  ],
+  "limited": []
 }

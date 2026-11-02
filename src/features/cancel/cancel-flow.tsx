@@ -47,7 +47,7 @@ const BAR: Partial<Record<Step, number>> = { stay: 0, why: 1, fix: 1, offer: 2 }
 export function CancelFlow() {
   const { preview: previewParam } = useLocalSearchParams<{ preview?: string }>();
   const preview = previewParam === '1';
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/profile'));
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
 
   const [step, setStep] = useState<Step>('stay');
   const [history, setHistory] = useState<Step[]>([]);

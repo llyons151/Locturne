@@ -4,7 +4,7 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sym } from '@/components/grouped-list';
@@ -14,11 +14,11 @@ import { readLock } from '@/lib/lock-controller';
 import { getFirstMorning, getMorningsWon } from '@/lib/morning-proof';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
-import { checkSecretMoon, LIMITED, markSeen, MOONS_BG, SECRET_MOON, settleMoons, useOwnedMoons } from './moon-collection';
+import { checkSecretMoons, isSecret, LIMITED, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
 import { LADDER, MOONS } from './moon-data';
-import { LADDER_MORNINGS, ladderNeed, RARE_MOON, SECRET_STEPS } from './moon-ladder';
+import { LADDER_MORNINGS, ladderNeed, RARE_MOONS } from './moon-ladder';
 import { wearAndRise } from './moon-rise';
-import { DEFAULT_MOON, useMoon } from './moon-theme';
+import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
 import type { MoonDef } from './moon-types';
 
@@ -35,16 +35,16 @@ const COUNTED = LADDER.slice(0, LADDER_MORNINGS.length + 1).filter((id): id is s
 type Slot = {
   moon: MoonDef;
   owned: boolean;
-  /** Under its name: "Wearing", "New", "Morning 3", "1 morning left"… */
-  status: string;
+  /** A locked moon's one line instead of its name: "Morning 3", "Week 50" (user, 2026-11-02: no name till it's yours). */
+  title?: string;
   secret?: boolean;
 };
 
 /**
  * The moon collection (docs/reports/Moon collection flow.md, decisions 2026-11-01): Moonlight,
  * then the ladder in order, the secret's "?", then rare and limited moons, shown only once
- * yours (nothing you can miss ever sits there empty). Locked moons are grey with their name and
- * when they come; only the next says how many mornings are left. Tap one you own to wear it:
+ * yours (nothing you can miss ever sits there empty). Locked moons are grey with only when they
+ * come, "Morning 3"; once yours, just its name, with no line under it (user, 2026-11-02). Tap one you own to wear it:
  * the collection closes and that moon rises.
  *
  * Shown as a sheet over the screen or as its own page grown out of the tab strip (`/moon-sheet`,
@@ -54,14 +54,14 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const owned = useOwnedMoons();
-  const worn = useMoon();
+  const worn = useWornMoon();
 
   // Earned before the first paint, so a moon that's due never shows as "0 mornings left".
   useState(() => settleMoons());
   useEffect(() => {
-    checkSecretMoon().catch(() => {});
+    checkSecretMoons();
   }, []);
-  // What's new keeps its "New" for this visit, and has been seen once it closes.
+  // Every owned moon counts as seen once it closes.
   const ownedNow = useRef(owned);
   useEffect(() => {
     ownedNow.current = owned;
@@ -71,35 +71,26 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
   const mornings = getMorningsWon();
   const today = readLock().morningKey;
   const firstMorning = getFirstMorning();
-  const statusOf = (id: string, fallback: string) => {
-    if (worn.id === id) return 'Wearing';
-    if (owned[id] && !owned[id].seen) return 'New';
-    return fallback;
-  };
 
-  // The next moon by mornings: the only one that counts down.
-  const next = LADDER.findIndex((id, i) => i < LADDER_MORNINGS.length && id && !owned[id]);
   const ladder: Slot[] = LADDER.flatMap((id, i): Slot[] => {
     const moon = id ? BY_ID.get(id) : undefined;
     if (!id || !moon) return [];
-    if (id === SECRET_MOON) {
-      return owned[id] ? [{ moon, owned: true, status: statusOf(id, 'Secret') }] : [{ moon, owned: false, status: 'Tap for a hint', secret: true }];
+    if (isSecret(id)) {
+      return owned[id] ? [{ moon, owned: true }] : [{ moon, owned: false, secret: true }];
     }
-    if (owned[id]) return [{ moon, owned: true, status: statusOf(id, `Morning ${owned[id].morning}`) }];
+    if (owned[id]) return [{ moon, owned: true }];
     const need = ladderNeed(i, { mornings, firstMorning, today });
-    const status = i === next && need && need.left > 0 ? `${need.left} morning${need.left === 1 ? '' : 's'} left` : (need?.at ?? '');
-    return [{ moon, owned: false, status }];
+    return [{ moon, owned: false, title: need?.at ?? moon.name }];
   });
-  const extras: Slot[] = [RARE_MOON, ...LIMITED.map((l) => l.id)].flatMap((id): Slot[] => {
+  const extras: Slot[] = [...RARE_MOONS, ...LIMITED.map((l) => l.id)].flatMap((id): Slot[] => {
     const moon = BY_ID.get(id);
-    return moon && owned[id] ? [{ moon, owned: true, status: statusOf(id, id === RARE_MOON ? '1 in 365' : `Morning ${owned[id].morning}`) }] : [];
+    return moon && owned[id] ? [{ moon, owned: true }] : [];
   });
-  const slots: Slot[] = [{ moon: DEFAULT_MOON, owned: true, status: statusOf(DEFAULT_MOON.id, 'The first') }, ...ladder];
+  const slots: Slot[] = [{ moon: DEFAULT_MOON, owned: true }, ...ladder];
   const count = COUNTED.filter((id) => owned[id]).length;
 
   const tile = Math.floor((width - Gap.gutter * 2 - GAP * (COLUMNS - 1)) / COLUMNS);
   const press = (slot: Slot) => {
-    if (slot.secret) return askSecret();
     if (!slot.owned) return haptic.tick();
     // Wear it and go back: the page slides away and the new moon rises behind it (user, 2026-11-01).
     wearAndRise(slot.moon.id);
@@ -158,22 +149,19 @@ function Grid({ slots, tile, worn, onPress }: { slots: Slot[]; tile: number; wor
   return (
     <View style={styles.grid}>
       {slots.map((slot) => {
-        const name = slot.owned || !slot.secret ? slot.moon.name : 'Secret moon';
+        const name = slot.owned ? slot.moon.name : slot.secret ? 'Secret moon' : (slot.title ?? slot.moon.name);
         return (
           <Pressable
             key={slot.moon.id}
             onPress={() => onPress(slot)}
             accessibilityRole="button"
-            accessibilityLabel={`${name}, ${slot.status}`}
-            accessibilityState={{ selected: slot.moon.id === worn, disabled: !slot.owned && !slot.secret }}
+            accessibilityLabel={slot.owned ? name : `${name}, locked`}
+            accessibilityState={{ selected: slot.moon.id === worn, disabled: !slot.owned }}
             style={({ pressed }) => [{ width: tile }, styles.slot, pressed && slot.owned && styles.pressed]}
           >
             <MoonThumb moon={slot.moon} size={tile} locked={!slot.owned} secret={slot.secret} wearing={slot.owned && slot.moon.id === worn} />
             <Text style={[styles.name, !slot.owned && styles.lockedName]} numberOfLines={1}>
               {name}
-            </Text>
-            <Text style={[styles.status, (slot.status === 'New' || slot.status === 'Wearing') && styles.statusOn]} numberOfLines={1}>
-              {slot.status}
             </Text>
           </Pressable>
         );
@@ -185,15 +173,6 @@ function Grid({ slots, tile, worn, onPress }: { slots: Slot[]; tile: number; wor
 function closeMoons() {
   if (router.canGoBack()) router.back();
   else router.replace('/');
-}
-
-/** The "?": Loc's riddle, and the plain answer for anyone who asks (Xbox's opt-in reveal). */
-function askSecret() {
-  haptic.tap();
-  Alert.alert('There’s another one up there', 'It comes to people who keep walking after they were allowed to stop. I don’t trust them.', [
-    { text: 'Tell me how', onPress: () => Alert.alert('The secret moon', `Walk ${SECRET_STEPS} steps within 20 minutes of getting up.`) },
-    { text: 'OK', style: 'cancel' },
-  ]);
 }
 
 const styles = StyleSheet.create({
@@ -216,8 +195,6 @@ const styles = StyleSheet.create({
   slot: { alignItems: 'center', gap: Space.xs },
   name: { ...Type.secondary, color: Nocturne.text, textAlign: 'center', marginTop: Space.xs },
   lockedName: { color: Nocturne.text2 },
-  status: { ...Type.caption, color: Nocturne.text3, textAlign: 'center' },
-  statusOn: { color: Nocturne.text },
   group: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', marginTop: Gap.section, marginBottom: Space.l },
   pressed: { opacity: 0.7 },
 });

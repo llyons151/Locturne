@@ -2,11 +2,17 @@
 (twin moon, Eclipse ring, Saturn ring), as webp in assets/moons/, and src/features/moons/moon-data.ts.
 
 The colouring is the lab's (index.html): each image's brightness, spread over its own darkest to
-brightest, mapped onto the moon's colour ramp. Run `npm run moons:bake` after changing the lab.
+brightest, mapped onto the moon's colour ramp. The moons come from moons.json, which the moon studio
+(tools/moon-studio, `npm run moon-studio`) edits and bakes; `npm run moons:bake` bakes them all, and
+`--only id,id` re-bakes just those moons. It also writes the rare moons (moon-ladder.ts) and the limited
+moons (moon-collection.ts) when moons.json has `rare` / `limited`.
 """
 
+import argparse
 import json
 import math
+import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -14,8 +20,10 @@ from PIL import Image, ImageDraw, ImageFilter
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
-OUT = REPO / 'assets' / 'moons'
-DATA = REPO / 'src' / 'features' / 'moons' / 'moon-data.ts'
+OUT = Path(os.environ.get('MOONS_OUT', REPO / 'assets' / 'moons'))
+DATA = Path(os.environ.get('MOONS_DATA', REPO / 'src' / 'features' / 'moons' / 'moon-data.ts'))
+LADDER_TS = REPO / 'src' / 'features' / 'moons' / 'moon-ladder.ts'
+COLLECTION_TS = REPO / 'src' / 'features' / 'moons' / 'moon-collection.ts'
 SKY = REPO / 'assets' / 'onboarding' / 'night-sky-moonless.png'
 MOON = REPO / 'assets' / 'onboarding' / 'moon-frosted.png'
 
@@ -209,37 +217,62 @@ def twin_offsets(m):
     return round((tx - cx) / size, 4), round((ty - cy) / size, 4), round(d / size, 4)
 
 
+def patch(path, pattern, line):
+    """Rewrites one constant's line in an app file (the rare moon, the limited moons), if it changed."""
+    text = path.read_text()
+    new = re.sub(pattern, line, text, count=1, flags=re.M)
+    if new != text:
+        path.write_text(new)
+
+
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--only', default='', help='comma-separated moon ids to re-bake; the rest keep their images')
+    only = {s for s in ap.parse_args().only.split(',') if s}
     data = json.loads((HERE / 'moons.json').read_text())
     OUT.mkdir(parents=True, exist_ok=True)
-    for old in [*OUT.glob('*.webp'), *OUT.glob('*.png')]:
-        old.unlink()
+    if not only:
+        for old in [*OUT.glob('*.webp'), *OUT.glob('*.png')]:
+            old.unlink()
     sky_img, moon_img = Image.open(SKY), Image.open(MOON)
-    sky_luma()
+    if not only or not (OUT / 'sky-luma.png').exists():
+        sky_luma()
     entries = []
-    for m in data['moons']:
+    for n, m in enumerate(data['moons'], 1):
+        redo = not only or m['id'] in only
+        # An image this moon keeps from the last bake; re-baked if it's missing.
+        kept = lambda name: not redo and (OUT / name).exists()
         e = {'id': m['id'], 'name': m['name'], 'kind': m['kind'], 'tag': m['tag'], 'glow': m['glow'],
              'glowOpacity': m.get('glowOpacity', 1), 'scale': m.get('scale', 1), 'cx': m.get('cx', 0.5), 'orb': orb(m),
              # The live sky's four colours (modules/moon-sky): the sky's stops, three-stop skies repeating their brightest.
              'skyColors': (m['sky'] + [m['sky'][-1]] * 4)[:4]}
         if not m.get('original'):
-            e['sky'] = save(gradient_map(sky_img, m['sky'], scale=2, sigma=3), f"{m['id']}-sky.webp")
-            px = gradient_map(moon_img, m['moon'], scale=2, sigma=1.2)
-            if m.get('tint'):
-                px = tint(px, m['tint'])
-            if m.get('phase'):
-                px = shadow(px, m['phase'])
-            e['moon'] = save(px, f"{m['id']}-moon.webp")
+            name = f"{m['id']}-sky.webp"
+            e['sky'] = name if kept(name) else save(gradient_map(sky_img, m['sky'], scale=2, sigma=3), name)
+            name = f"{m['id']}-moon.webp"
+            if kept(name):
+                e['moon'] = name
+            else:
+                px = gradient_map(moon_img, m['moon'], scale=2, sigma=1.2)
+                if m.get('tint'):
+                    px = tint(px, m['tint'])
+                if m.get('phase'):
+                    px = shadow(px, m['phase'])
+                e['moon'] = save(px, name)
             if m.get('ring'):
-                e['ring'] = ring_glow(m)
+                name = f"{m['id']}-ring.webp"
+                e['ring'] = name if kept(name) else ring_glow(m)
                 e['ringLine'] = {'kind': 'eclipse'}
             if m.get('saturn'):
                 e['ringLine'] = {'kind': 'saturn', 'color': m['saturn']}
             if m.get('twin'):
                 t = m['twin']
-                e['twin'] = save(gradient_map(moon_img, t['moon'], scale=2, sigma=1.2), f"{m['id']}-twin.webp")
+                name = f"{m['id']}-twin.webp"
+                e['twin'] = name if kept(name) else save(gradient_map(moon_img, t['moon'], scale=2, sigma=1.2), name)
                 x, y, size = twin_offsets(m)
                 e['twinAt'] = {'x': x, 'y': y, 'size': size, 'glow': t['glow'], 'glowOpacity': t.get('glowOpacity', 0.6), 'front': bool(t.get('front'))}
+            if redo:
+                print(f"  {n}/{len(data['moons'])} {m['name']}", flush=True)
         entries.append(e)
 
     req = lambda name: f"require('@/assets/moons/{name}')"
@@ -251,13 +284,23 @@ def main():
         lines.append(f"  {{ {body}{', ' + art if art else ''} }},")
     DATA.parent.mkdir(parents=True, exist_ok=True)
     DATA.write_text(
-        '// Generated by tools/moon-lab/bake.py from the moon lab (`npm run moons:bake`). Do not edit by hand.\n'
+        '// Generated by tools/moon-lab/bake.py from tools/moon-lab/moons.json (the moon studio, `npm run moon-studio`). Do not edit by hand.\n'
         "import type { MoonDef } from './moon-types';\n\n"
         f"export const LADDER: (string | null)[] = {json.dumps(data['ladder'])};\n\n"
         'export const MOONS: MoonDef[] = [\n' + '\n'.join(lines) + '\n];\n'
     )
+    if 'MOONS_DATA' not in os.environ:
+        if data.get('rare'):
+            rare = data['rare'] if isinstance(data['rare'], list) else [data['rare']]
+            items = ', '.join(f"'{r}'" for r in rare)
+            patch(LADDER_TS, r"^export const RARE_MOONS: readonly string\[\] = .*$", f"export const RARE_MOONS: readonly string[] = [{items}];")
+        if 'limited' in data:
+            items = ', '.join(f"{{ id: '{l['id']}', date: '{l['date']}' }}" for l in data['limited'])
+            patch(COLLECTION_TS, r"^export const LIMITED: readonly \{ id: string; date: string \}\[\] = .*$",
+                  f"export const LIMITED: readonly {{ id: string; date: string }}[] = [{items}];")
     total = sum(f.stat().st_size for f in OUT.glob('*.webp'))
-    print(f'baked {len(entries)} moons, {len(list(OUT.glob("*.webp")))} images, {total / 1e6:.1f} MB')
+    redone = sum(m['id'] in only for m in data['moons']) if only else 'all'
+    print(f'baked {len(entries)} moons ({redone} re-baked), {len(list(OUT.glob("*.webp")))} images, {total / 1e6:.1f} MB')
 
 
 if __name__ == '__main__':

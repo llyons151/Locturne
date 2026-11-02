@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
+
+<header class="top">
+  <div class="brand"><span class="brand-dot"></span>Moon studio</div>
+  <nav class="modes" id="modes">
+    <button data-mode="moon" class="on">Moon <kbd>M</kbd></button>
+    <button data-mode="collection">Collection <kbd>L</kbd></button>
+  </nav>
+  <div class="grow"></div>
+  <div class="status" id="status"></div>
+  <div class="btn-group">
+    <button class="icon-btn" id="undo" title="Undo (⌘Z)"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button class="icon-btn" id="redo" title="Redo (⇧⌘Z)"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+  </div>
+  <button class="btn" id="history-btn" title="Earlier saves">History</button>
+  <button class="btn" id="save" title="Save to moons.json (⌘S)">Save <kbd>⌘S</kbd></button>
+  <div class="split">
+    <button class="btn primary" id="bake" title="Bake the changed moons into the app (⌘B)">Bake</button>
+    <button class="btn primary caret" id="bake-menu-btn" aria-label="More bake options"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <div class="menu" id="bake-menu">
+      <button data-bake="changed">Bake changed moons <span>fast</span></button>
+      <button data-bake="all">Bake every moon <span>~6 min</span></button>
+    </div>
+  </div>
+</header>
+
+<div class="draft-banner" id="draft-banner" hidden>
+  <span>You have unsaved edits from last time.</span>
+  <button class="btn small" id="draft-restore">Restore them</button>
+  <button class="btn small ghost" id="draft-discard">Discard</button>
+</div>
+
+<main class="app" id="app">
+  <!-- The moons. -->
+  <aside class="side" id="side">
+    <div class="side-head">
+      <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Find a moon" spellcheck="false"><kbd>/</kbd></div>
+      <div class="chips" id="kind-filter">
+        <button data-k="all" class="on">All</button><button data-k="real">Real</button><button data-k="creative">Creative</button><button data-k="twin">Twin</button><button data-k="used">In use</button>
+      </div>
+    </div>
+    <ol class="list" id="list"></ol>
+    <div class="side-foot">
+      <button class="btn small" id="new-moon" title="New moon (N)">New</button>
+      <button class="btn small" id="dup-moon" title="Duplicate (⌘D)">Duplicate</button>
+      <button class="btn small danger" id="del-moon" title="Delete">Delete</button>
+    </div>
+  </aside>
+
+  <!-- The preview. -->
+  <section class="stage" id="stage">
+    <div class="stage-bar">
+      <div class="seg" id="views">
+        <button data-view="home" class="on" title="Home (1)">Home</button>
+        <button data-view="close" title="Close-up (2)">Close-up</button>
+        <button data-view="orb" title="Sleep orb (3)">Orb</button>
+        <button data-view="tile" title="Collection tile (4)">Tile</button>
+        <button data-view="all" title="Every moon (5)">Every moon</button>
+      </div>
+      <div class="grow"></div>
+      <div class="seg" id="compare" title="Show a second phone (C)">
+        <button data-c="off" class="on">Single</button><button data-c="saved">vs Saved</button><button data-c="baked">vs Baked</button><button data-c="start">vs Moonlight</button>
+      </div>
+      <div class="seg" id="skymode" title="The sky as the app draws it (live shader) or the baked image">
+        <button data-v="live" class="on">Live sky</button><button data-v="baked">Image sky</button>
+      </div>
+      <div class="seg" id="halo">
+        <button data-v="matched" class="on">Halo</button><button data-v="blue">Blue</button><button data-v="off">Off</button>
+      </div>
+      <button class="icon-btn" id="rise" title="Play the moonrise (R)"><svg viewBox="0 0 24 24"><path d="M12 19V7m-5 5 5-5 5 5M4 21h16"/></svg></button>
+      <button class="icon-btn" id="pause" title="Pause the sky and orb (P)"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></button>
+    </div>
+    <div class="stage-body" id="stage-body"></div>
+    <div class="refs" id="refs" hidden></div>
+    <div class="drop-hint" id="drop-hint">Drop an image to keep it beside the phone as a reference</div>
+  </section>
+
+  <!-- The editor. -->
+  <aside class="inspector" id="inspector"></aside>
+
+  <!-- The collection: ladder, secret, rare and limited moons. -->
+  <section class="collection" id="collection" hidden></section>
+</main>
+
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-head"><b id="drawer-title">Bake</b><span id="drawer-sub"></span><div class="grow"></div><button class="icon-btn" id="drawer-close" title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <pre id="drawer-log"></pre>
+</div>
+
+<div class="modal" id="history" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><b>Earlier saves</b><span>A copy of moons.json from before each save (docs/moon-studio-history, the last 80)</span><div class="grow"></div><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <ol class="history-list" id="history-list"></ol>
+  </div>
+</div>
+
+<div class="modal" id="help" hidden>
+  <div class="modal-card narrow">
+    <div class="modal-head"><b>Keys</b><div class="grow"></div><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <dl class="keys">
+      <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous / next moon</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Home, close-up, orb, tile, every moon</dd>
+      <dt><kbd>C</kbd></dt><dd>Cycle the comparison</dd>
+      <dt><kbd>R</kbd></dt><dd>Play the moonrise</dd>
+      <dt><kbd>P</kbd></dt><dd>Pause the sky and orb</dd>
+      <dt><kbd>M</kbd> / <kbd>L</kbd></dt><dd>Moon editor / collection</dd>
+      <dt><kbd>N</kbd></dt><dd>New moon</dd>
+      <dt><kbd>⌘D</kbd></dt><dd>Duplicate</dd>
+      <dt><kbd>⌘Z</kbd> <kbd>⇧⌘Z</kbd></dt><dd>Undo / redo</dd>
+      <dt><kbd>⌘S</kbd></dt><dd>Save</dd>
+      <dt><kbd>⌘B</kbd></dt><dd>Save and bake the changed moons</dd>
+      <dt><kbd>/</kbd></dt><dd>Find a moon</dd>
+      <dt>Drag the moon</dt><dd>Move it sideways; scroll on it to resize</dd>
+      <dt>Drag the twin</dt><dd>Place it; scroll on it to resize</dd>
+      <dt><kbd>Alt</kbd>-click a colour</dt><dd>Pick a colour from anywhere on screen</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="studio.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
@@ -35,8 +35,21 @@ const LINE_MS = 3200;
  * and your mornings in Home's pill under him. He says `LINE` when the tab opens and when he's poked; it fades like his lines on Home. A long press on the
  * pill opens beta diagnostics.
  */
-export function LocProfile({ mornings, onLongPress }: { mornings: number; onLongPress: () => void }) {
-  const [said, setSaid] = useState<number | null>(0);
+export function LocProfile({ mornings, onLongPress, sayAfter = 0 }: { mornings: number; onLongPress: () => void; sayAfter?: number }) {
+  const [said, setSaid] = useState<number | null>(sayAfter ? null : 0);
+  // On a page that slides up (Settings), he speaks once he's peeked up (his "hello"), not mid-slide;
+  // `sayAfter` is only the fallback if he never says it.
+  const spoke = useRef(!sayAfter);
+  const speak = useCallback(() => {
+    if (spoke.current) return;
+    spoke.current = true;
+    setSaid(0);
+  }, []);
+  useEffect(() => {
+    if (!sayAfter) return;
+    const t = setTimeout(speak, sayAfter);
+    return () => clearTimeout(t);
+  }, [sayAfter, speak]);
   useEffect(() => {
     if (said === null) return;
     const t = setTimeout(() => setSaid(null), LINE_MS);
@@ -46,7 +59,8 @@ export function LocProfile({ mornings, onLongPress }: { mornings: number; onLong
   // A poke on him (handled in his webview) says it again; hiding doesn't.
   const onCue = useCallback((cue: 'poke' | 'angry' | 'hello' | 'hide' | 'ultra') => {
     if (cue === 'poke' || cue === 'angry') setSaid((n) => (n ?? 0) + 1000);
-  }, []);
+    if (cue === 'hello') speak();
+  }, [speak]);
   const dom = useMemo(
     () => ({
       style: { width: CANVAS, height: LOC_H, backgroundColor: 'transparent' },

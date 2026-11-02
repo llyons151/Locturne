@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble appear</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..900&display=swap" rel="stylesheet">
+<style>
+  /* How Loc's Home bubble comes in (user, 2026-11-02: the Burrow pop is too bouncy). The look is
+     the app's (clear glass capsule, white semibold words, neutral shadow); only the entrance
+     changes. No glow. */
+  :root {
+    --sans: 'SF Pro Display', -apple-system, Inter, system-ui, sans-serif;
+    --out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ios: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --soft: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #101114; color: #ddd; font-family: var(--sans); padding: 32px 24px 80px; }
+  header { max-width: 1480px; margin: 0 auto 28px; display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  header div { flex: 1; min-width: 280px; }
+  h1 { font-size: 22px; font-weight: 600; color: #fff; }
+  header p { color: #9a9ca3; font-size: 14px; margin-top: 6px; max-width: 760px; line-height: 1.5; }
+  .controls { display: flex; gap: 10px; align-items: center; }
+  button { background: #EEF6FB; color: #0B1428; border: 0; border-radius: 20px; height: 40px; padding: 0 18px; font: 600 14px var(--sans); cursor: pointer; }
+  button.ghost { background: #26282e; color: #ddd; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 36px 28px; max-width: 1480px; margin: 0 auto; }
+  figure { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  figcaption { width: 340px; }
+  figcaption b { color: #fff; font-size: 14px; font-weight: 600; }
+  figcaption b span { color: #6f7279; font-weight: 500; margin-right: 6px; }
+  figcaption p { color: #9a9ca3; font-size: 12.5px; line-height: 1.45; margin-top: 4px; }
+  figcaption code { color: #c7cbd3; font-size: 11.5px; }
+  .tag { display: inline-block; font-size: 10.5px; color: #c9a86a; border: 1px solid #4a3f2a; border-radius: 6px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+
+  /* The scene: the foot of Home's sky, Loc peeking up. */
+  .stage { width: 340px; height: 300px; position: relative; overflow: hidden; border-radius: 0 0 36px 36px; cursor: pointer;
+    background: linear-gradient(180deg, #05060A 0%, #1C2A55 60%, #2C3F78 100%); }
+  .stage::after { content: '↻ replay'; position: absolute; right: 14px; top: 12px; font-size: 11px; color: #7C90AE; opacity: 0; transition: opacity .2s; }
+  .stage:hover::after { opacity: 1; }
+  .loc { position: absolute; left: 50%; bottom: -2px; width: 132px; margin-left: -66px; z-index: 3; }
+  .loc img { width: 100%; display: block; }
+  .anchor { position: absolute; left: 16px; right: 16px; bottom: 112px; display: flex; justify-content: center; z-index: 2; }
+  /* LocBubble's pane: clear and frosted, a bright hairline rim, a neutral lift. Foot = bottom middle. */
+  .b { transform-origin: 50% 100%; max-width: 250px; padding: 12px 22px; border-radius: 999px;
+    background: rgba(255,255,255,0.10); border: 0.5px solid rgba(255,255,255,0.30);
+    backdrop-filter: blur(10px) saturate(180%); -webkit-backdrop-filter: blur(10px) saturate(180%);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.35); }
+  .w { color: #fff; font-size: 16px; line-height: 20px; font-weight: 600; letter-spacing: -0.16px; text-align: center; }
+  .w .t { display: inline-block; white-space: pre; }
+  .hidden { opacity: 0; }
+
+  /* Animations run only while .play is on the figure, so replay = remove + reflow + add. */
+  @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+
+  /* 00 · current: Burrow pop (loc-bubble.tsx BURROW_IN + WORDS_IN). */
+  @keyframes burrow {
+    0% { opacity: 0; transform: translateY(40px) scale(0.3, 0.5) }
+    25% { opacity: 1 }
+    45% { transform: translateY(-14px) scale(0.92, 1.12); animation-timing-function: cubic-bezier(0.33,1,0.68,1) }
+    65% { transform: translateY(0) scale(1.12, 0.84); animation-timing-function: cubic-bezier(0.45,0,0.55,1) }
+    80% { transform: translateY(0) scale(0.97, 1.04); animation-timing-function: cubic-bezier(0.45,0,0.55,1) }
+    100% { opacity: 1; transform: none }
+  }
+  .play.v0 .b { animation: burrow 900ms linear both; }
+  .play.v0 .w { animation: fade 220ms ease-out 200ms both; }
+
+  /* 01 · Rise: a short lift, everything together. */
+  @keyframes rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+  .play.v1 .b { animation: rise 260ms var(--out) both; }
+
+  /* 02 · Grow from his head: scale up from the foot, no overshoot. */
+  @keyframes grow { from { opacity: 0; transform: scale(0.86) } to { opacity: 1; transform: none } }
+  .play.v2 .b { animation: grow 240ms var(--out) both; }
+
+  /* 03 · One small settle: a 2% overshoot, once. */
+  @keyframes settle { 0% { opacity: 0; transform: translateY(6px) scale(0.9) } 60% { opacity: 1; transform: translateY(0) scale(1.02) } 100% { opacity: 1; transform: none } }
+  .play.v3 .b { animation: settle 340ms var(--soft) both; }
+
+  /* 04 · Crisp pop: no fade at all, just scale. */
+  @keyframes crisp { from { transform: scale(0.82) } to { transform: none } }
+  .play.v4 .b { animation: crisp 170ms var(--out) both; }
+
+  /* 05 · Unfold: the capsule stretches out sideways like the Dynamic Island, then the words. */
+  @keyframes unfold { 0% { opacity: 0; transform: scaleX(0.25) scaleY(0.8) } 30% { opacity: 1 } 100% { opacity: 1; transform: none } }
+  .play.v5 .b { animation: unfold 360ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+  .play.v5 .w { animation: fade 180ms ease-out 200ms both; }
+
+  /* 06 · Island: starts as a dot over his head, widens, then grows tall. */
+  @keyframes island { 0% { opacity: 0; transform: scale(0.12, 0.5) } 20% { opacity: 1 } 60% { transform: scale(1, 0.7) } 100% { opacity: 1; transform: none } }
+  .play.v6 .b { animation: island 420ms var(--out) both; }
+  .play.v6 .w { animation: fade 160ms ease-out 300ms both; }
+
+  /* 07 · Quiet fade: the opacity only, quick. */
+  .play.v7 .b { animation: fade 180ms ease-out both; }
+
+  /* 08 · Just there: on in one frame. */
+  .play.v8 .b { animation: none; }
+
+  /* 09 · Rise, then typed: the pane comes up empty and the line types in (JS). */
+  .play.v9 .b { animation: rise 220ms var(--out) both; }
+
+  /* 10 · Word by word: the pane rises, each word rises in after the last (JS staggers). */
+  @keyframes wordUp { from { opacity: 0; transform: translateY(5px) } to { opacity: 1; transform: none } }
+  .play.v10 .b { animation: rise 220ms var(--out) both; }
+  .play.v10 .w .t { animation: wordUp 220ms var(--out) both; }
+
+  /* 11 · Focus: comes into focus like the onboarding's Mercury words. */
+  @keyframes focus { from { opacity: 0; filter: blur(8px); transform: scale(0.97) } to { opacity: 1; filter: blur(0); transform: none } }
+  .play.v11 .b { animation: focus 360ms var(--out) both; }
+
+  /* 12 · Slide up from Loc: a longer travel out of his head, no bounce. */
+  @keyframes slideUp { from { opacity: 0; transform: translateY(26px) scale(0.94) } to { opacity: 1; transform: none } }
+  .play.v12 .b { animation: slideUp 380ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* 13 · Drop in: settles down onto him from a touch above. */
+  @keyframes drop { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: none } }
+  .play.v13 .b { animation: drop 280ms var(--out) both; }
+
+  /* 14 · Pane first, words second: the empty glass grows, then the words fade. */
+  .play.v14 .b { animation: grow 200ms var(--out) both; }
+  .play.v14 .w { animation: rise 220ms var(--out) 140ms both; }
+
+  /* 15 · Breathe: a slow, soft scale and fade, sleepy. */
+  @keyframes breathe { from { opacity: 0; transform: scale(0.94) } to { opacity: 1; transform: none } }
+  .play.v15 .b { animation: breathe 600ms cubic-bezier(0.45, 0, 0.2, 1) both; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Bubble appear: how Loc's line comes in</h1>
+    <p>Same bubble as the app, only the entrance changes. No. 00 is today's Burrow pop for comparison. Click a scene to replay it,
+      or swap the line length below. Everything except no. 11 is opacity and transform only, so it stays on iOS's fast path.</p>
+  </div>
+  <div class="controls">
+    <button class="ghost" onclick="nextLine()">Another line</button>
+    <button onclick="playAll()">Replay all</button>
+  </div>
+</header>
+<div class="grid" id="grid"></div>
+
+<script>
+const LINES = ['I am doom.', 'Go to bed. I have files on you.', 'Gerald lost his case. You will lose yours.'];
+let lineAt = 0;
+
+const TAKES = [
+  ['Current: Burrow pop', 'What ships today. Shoots up stretched, lands squashed, wobbles, settles; words fade in at 200 ms. <code>900 ms</code>'],
+  ['Rise', 'Fades in while lifting 8 px. Everything at once, nothing after. <code>260 ms, ease-out</code>'],
+  ['Grow from his head', 'Scales 86% → 100% from its foot, with the fade. No overshoot. <code>240 ms</code>'],
+  ['One small settle', 'Lifts and grows to 102%, then back to 100%. One tiny give, not a bounce. <code>340 ms</code>'],
+  ['Crisp pop', 'No fade at all: it is there at once, scaling 82% → 100%. Snappy. <code>170 ms</code>'],
+  ['Unfold', 'The capsule stretches out sideways from the middle, like the Dynamic Island; words after. <code>360 ms</code>'],
+  ['Island', 'Starts as a small dot over his head, widens, then grows tall; words last. <code>420 ms</code>'],
+  ['Quiet fade', 'Opacity only, quick. The plainest. <code>180 ms</code>'],
+  ['Just there', 'No entrance. On in one frame, like a caption.'],
+  ['Rise, then typed', 'The empty pane rises, then the line types out a letter at a time. <code>~25 ms/letter</code>'],
+  ['Word by word', 'The pane rises, then each word lifts in after the last. <code>70 ms stagger</code>'],
+  ['Focus', 'Blurs into focus, like the onboarding words (Mercury). <span class="tag">blur: off the iOS fast path</span> <code>360 ms</code>'],
+  ['Slide up from Loc', 'Travels 26 px out of his head and slows to a stop, no bounce. <code>380 ms, expo-out</code>'],
+  ['Drop in', 'Settles down onto him from 10 px above. <code>280 ms</code>'],
+  ['Pane first, words second', 'The empty glass grows in, then the words rise into it. <code>200 + 220 ms</code>'],
+  ['Breathe', 'Slow, soft scale and fade. Sleepy rather than snappy. <code>600 ms</code>'],
+];
+
+const grid = document.getElementById('grid');
+TAKES.forEach(([name, note], i) => {
+  const fig = document.createElement('figure');
+  fig.innerHTML = `
+    <div class="stage v${i}" data-i="${i}">
+      <div class="anchor"><div class="b"><div class="w"></div></div></div>
+      <div class="loc"><img src="/loc/loc-peek-eyes.svg" alt=""></div>
+    </div>
+    <figcaption><b><span>${String(i).padStart(2, '0')}</span>${name}</b><p>${note}</p></figcaption>`;
+  const stage = fig.querySelector('.stage');
+  stage.addEventListener('click', () => play(stage));
+  grid.appendChild(fig);
+});
+
+const timers = new WeakMap();
+function play(stage) {
+  const i = Number(stage.dataset.i);
+  const w = stage.querySelector('.w');
+  (timers.get(stage) ?? []).forEach(clearTimeout);
+  const ts = [];
+  const line = LINES[lineAt];
+  stage.classList.remove('play');
+  w.textContent = '';
+  if (i === 9) {
+    // Hold the pane's size so it doesn't grow as the letters come.
+    w.innerHTML = `<span style="visibility:hidden">${line}</span>`;
+    const ghost = w.firstChild;
+    const shown = document.createElement('span');
+    shown.style.position = 'absolute';
+    w.style.position = 'relative';
+    shown.style.left = '0'; shown.style.right = '0'; shown.style.top = '0';
+    w.appendChild(shown);
+    [...line].forEach((ch, k) => ts.push(setTimeout(() => (shown.textContent += ch), 200 + k * 25)));
+  } else if (i === 10) {
+    w.innerHTML = line.split(' ').map((word, k) => `<span class="t" style="animation-delay:${160 + k * 70}ms">${word}${k < line.split(' ').length - 1 ? ' ' : ''}</span>`).join('');
+  } else {
+    w.textContent = line;
+  }
+  stage.querySelector('.b').classList.add('hidden');
+  void stage.offsetWidth;
+  // A beat of empty sky first, so the entrance is seen from nothing.
+  ts.push(setTimeout(() => { stage.querySelector('.b').classList.remove('hidden'); stage.classList.add('play'); }, 350));
+  timers.set(stage, ts);
+}
+function playAll() { document.querySelectorAll('.stage').forEach(play); }
+function nextLine() { lineAt = (lineAt + 1) % LINES.length; playAll(); }
+playAll();
+</script>
+</body>
+</html>

@@ -474,6 +474,8 @@ export function NightSky({
         ) : null}
         <Animated.View style={[styles.moon, { width: frostBase, height: frostBase }, moonStyle]}>
           {moon.twin && !moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
+          {/* A Saturn ring sits behind the moon's frosted edge, so it reads as part of the moon (user, 2026-11-02). */}
+          {moon.ringLine?.kind === 'saturn' ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
           <Image
             source={moon.moon ?? require('@/assets/onboarding/moon-frosted.png')}
             style={StyleSheet.absoluteFill}
@@ -485,7 +487,7 @@ export function NightSky({
           ) : (
             <>
               {moon.ring ? <MoonPart source={moon.ring} box={frostBase} x={0} y={0} size={1.6} /> : null}
-              {moon.ringLine ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
+              {moon.ringLine?.kind === 'eclipse' ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
             </>
           )}
           {moon.twin && moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}

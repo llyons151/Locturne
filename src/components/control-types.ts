@@ -52,4 +52,6 @@ export type SwitchRowProps = {
   value: boolean;
   onChange: (on: boolean) => void;
   last?: boolean;
+  /** The icon's colour: grey by default, white on Settings' flat rows. */
+  iconTint?: string;
 };

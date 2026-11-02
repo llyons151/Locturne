@@ -1,13 +1,11 @@
 import { router, type Href } from 'expo-router';
 import { useSyncExternalStore } from 'react';
-import { Pedometer } from 'expo-sensors';
-import { Platform } from 'react-native';
-
-import { getFirstMorning, getMorningsWon, getProofs, onProofChange, proofMorningStart, type MorningProof } from '@/lib/morning-proof';
+import { getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
+import { getScanCode } from '@/lib/scan-code';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER } from './moon-data';
-import { RARE_MOON, SECRET_STEPS, SECRET_WINDOW_MS, settleLadder, type OwnedMoon, type RareState } from './moon-ladder';
+import { RARE_MOONS, SECRET_FROM, SECRET_RULES, secretsMet, settleLadder, type OwnedMoon, type RareState, type SecretRule } from './moon-ladder';
 
 /**
  * The moons you own (docs/reports/Moon collection flow.md). Earned by mornings (moon-ladder.ts),
@@ -18,12 +16,18 @@ import { RARE_MOON, SECRET_STEPS, SECRET_WINDOW_MS, settleLadder, type OwnedMoon
 const OWNED_KEY = 'locturne.moons.owned';
 const RARE_KEY = 'locturne.moons.rare';
 const AS_PAGE_KEY = 'locturne.moons.asPage';
+/** The farthest Home's live location has seen you from your place, this place morning. */
+const FARTHEST_KEY = 'locturne.moons.farthest';
 
 /** Limited moons, each earned by getting up on its date. None yet: each needs its own moon art (docs/MOON_ANGLES.md). */
 export const LIMITED: readonly { id: string; date: string }[] = [];
 
-/** The secret moon: the ladder's last. */
-export const SECRET_MOON = LADDER[LADDER.length - 1] ?? null;
+/** The secret moons, by their rule: the ladder's slots after the Eclipse (moon-ladder.ts `SECRET_RULES`). */
+export const SECRET_MOONS: readonly { rule: SecretRule; id: string }[] = SECRET_RULES.flatMap((rule, i) => {
+  const id = LADDER[SECRET_FROM + i];
+  return id ? [{ rule, id }] : [];
+});
+export const isSecret = (id: string) => SECRET_MOONS.some((s) => s.id === id);
 
 const isWin = (p: MorningProof) => p.kind !== 'pass' && p.kind !== 'emergency';
 
@@ -49,7 +53,7 @@ function saveOwned(owned: Record<string, OwnedMoon>) {
 function getRare(): RareState {
   const saved = sharedGet<RareState>(RARE_KEY);
   if (saved) return saved;
-  const fresh: RareState = { due: false, rolled: null, seed: Math.floor(Math.random() * 2 ** 31) };
+  const fresh: RareState = { due: [], rolled: null, seed: Math.floor(Math.random() * 2 ** 31) };
   sharedSet(RARE_KEY, fresh);
   return fresh;
 }
@@ -71,7 +75,7 @@ export function settleMoons(now = Date.now()): string[] {
     now,
   });
   const before = getRare();
-  if (rare.due !== before.due || rare.rolled !== before.rolled) sharedSet(RARE_KEY, rare);
+  if (JSON.stringify(rare.due) !== JSON.stringify(before.due) || rare.rolled !== before.rolled) sharedSet(RARE_KEY, rare);
   if (earned.length) saveOwned(owned);
   return earned;
 }
@@ -79,25 +83,43 @@ export function settleMoons(now = Date.now()): string[] {
 // A wake-up recorded while the app is open earns its moons at once.
 onProofChange(() => {
   settleMoons();
-  checkSecretMoon().catch(() => {});
+  checkSecretMoons();
 });
 
 /**
- * The secret moon: `SECRET_STEPS` from the latest morning's start to `SECRET_WINDOW_MS` after
- * you got up, from the motion chip's history (as the walk reads it). Checked whenever the moons
- * are settled; the payoff and the collection show it when it comes.
+ * Home's live location on a place morning (use-morning-place.ts): keeps the farthest it has
+ * seen you from the place, this morning, for the `far` secret.
  */
-export async function checkSecretMoon(now = Date.now()): Promise<boolean> {
-  if (Platform.OS !== 'ios' || !SECRET_MOON || getOwned()[SECRET_MOON]) return false;
+export function noteFarthest(morningKey: string, metres: number) {
+  const saved = sharedGet<{ morningKey: string; metres: number }>(FARTHEST_KEY);
+  if (saved?.morningKey === morningKey && saved.metres >= metres) return;
+  sharedSet(FARTHEST_KEY, { morningKey, metres: Math.round(metres) });
+}
+
+/**
+ * The secret moons (moon-ladder.ts `secretsMet`), from the latest real wake-up. Checked whenever
+ * a wake-up is recorded and when the collection opens; the payoff and the collection show one
+ * when it comes. Returns the ids earned this time.
+ */
+export function checkSecretMoons(now = Date.now()): string[] {
+  const owned = getOwned();
+  const open = SECRET_MOONS.filter((s) => !owned[s.id]);
   const proof = latestWin();
-  const start = proof ? proofMorningStart(proof) : null;
-  if (!proof || !start) return false;
-  const end = Math.min(now, proof.at + SECRET_WINDOW_MS);
-  if (end <= start.getTime()) return false;
-  const { steps } = await Pedometer.getStepCountAsync(start, new Date(end));
-  if (steps < SECRET_STEPS || getOwned()[SECRET_MOON]) return false;
-  saveOwned({ ...getOwned(), [SECRET_MOON]: { id: SECRET_MOON, morningKey: proof.morningKey, morning: getMorningsWon(), at: now } });
-  return true;
+  if (!open.length || !proof) return [];
+  const scan = proof.kind === 'scan' ? getScanCode() : null;
+  const far = sharedGet<{ morningKey: string; metres: number }>(FARTHEST_KEY);
+  const met = secretsMet({
+    kind: proof.kind,
+    hour: new Date(proof.at).getHours(),
+    scanned: scan ? { data: scan.data, type: scan.type } : null,
+    farthest: far?.morningKey === proof.morningKey ? far.metres : null,
+  });
+  const earned = open.filter((s) => met.includes(s.rule)).map((s) => s.id);
+  if (!earned.length) return [];
+  const next = { ...owned };
+  for (const id of earned) next[id] = { id, morningKey: proof.morningKey, morning: getMorningsWon(), at: now };
+  saveOwned(next);
+  return earned;
 }
 
 export const ownsMoon = (id: string) => !!getOwned()[id];
@@ -143,12 +165,12 @@ export function devEarnNext(): string | null {
   return id;
 }
 
-/** Dev and preview builds: every moon on the ladder and the rare one, for testing the collection. */
+/** Dev and preview builds: every moon on the ladder, the secrets and the rare ones, for testing the collection. */
 export function devEarnAll(): number {
   const key = latestWin()?.morningKey ?? new Date().toISOString().slice(0, 10);
   const next = { ...getOwned() };
   let added = 0;
-  for (const id of [...LADDER, RARE_MOON]) {
+  for (const id of [...LADDER, ...RARE_MOONS]) {
     if (!id || next[id]) continue;
     next[id] = { id, morningKey: key, morning: Math.max(1, getMorningsWon()), at: Date.now() };
     added++;

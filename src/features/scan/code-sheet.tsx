@@ -23,8 +23,11 @@ type Source = ScanCode['kind'];
 
 /** Smaller than onboarding's full page: the sheet floats over the Routine tab. */
 const CODE_SIZE = 180;
-/** A code saved: the tick starts once the camera has closed over the sheet (`SavedCheck`)... */
-const CAMERA_GONE_MS = 450;
+/**
+ * A code saved: the camera is cut away at once (`ScanScreen`), so the tick starts right
+ * away, as if the camera locked on (`SavedCheck`; user 2026-11-02: no gap after the scan)...
+ */
+const CAMERA_GONE_MS = 0;
 /** ...and the sheet slides down after it has had a moment on screen (user 2026-10-28). */
 const SAVED_CLOSE_MS = 1900;
 

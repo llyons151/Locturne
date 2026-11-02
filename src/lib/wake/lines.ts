@@ -40,20 +40,20 @@ export function downstairsLine(status: DownstairsStatus | 'idle', progress: numb
 
 /**
  * Push-ups, before Start and while the camera watches. A missed rep says why first: he's the
- * one keeping count. While it goes well he's himself (loc-lines.ts's unhinged register, kept to
+ * one keeping count. While it goes well he's himself (loc-lines.ts, from docs/locs-lore, kept to
  * a bubble's length), a different line every rep, the same one for the same rep every time.
  */
 const DURING = [
-  'One. Gerald is watching.',
-  'Down. Up. Feed the moon.',
-  'I am doom. You are push-ups.',
-  'Each one wakes an app. Grimly.',
-  'Dennis does these with no arms.',
-  'Push like the floor owes you money.',
-  'I ate a pigeon to watch this.',
-  'The possums are taking notes.',
-  'Your chest has a deadline.',
-  'I would help but I am small.',
+  'One. Gerald is watching. Allegedly.',
+  'Down. Up. Very bear of you.',
+  'Each one wakes an app.',
+  'Good behaviour. I’m counting.',
+  'Bears do these. Probably.',
+  'Lower than I fish. Low bar.',
+  'The grizzly does these. I assume.',
+  'Push like you’re getting out early.',
+  'I did these in the zoo. Briefly.',
+  'I would help but I came out small.',
 ] as const;
 
 export function pushupsLine(
@@ -71,7 +71,7 @@ export function pushupsLine(
       return reps > 0 ? 'Where did you go. Come back.' : "I can't see you. Back up.";
     case 'counting':
       if (miss === 'shallow') return 'That was a nod. Lower.';
-      if (miss === 'quick') return "Slower. I'm a raccoon, I count slow.";
+      if (miss === 'quick') return 'Slower. Bears count slow.';
       if (reps === 0) return 'Arms straight. Now go down.';
       if (goal - reps <= 2) return 'Almost. I’m *furious* about it.';
       return DURING[(reps - 1) % DURING.length];

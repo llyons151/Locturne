@@ -4,18 +4,18 @@
 // onboarding before a routine exists, and showed the defaults after), so it stays out here.
 
 import Constants from 'expo-constants';
+import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActionSheetIOS, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SwitchRow } from '@/components/controls';
-import { Card, ControlRow, sym, ValueRow } from '@/components/grouped-list';
+import { ControlRow, sym, ValueRow } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
-import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
 import {
   getNotificationPrefs,
@@ -30,12 +30,12 @@ import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/pu
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import type { WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
-import { APP_FONT, Gap, Nocturne, Space, Type } from '@/theme';
+import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, getOwned, openMoons, setMoonsAsPage, settleMoons } from '@/features/moons/moon-collection';
 import { LADDER } from '@/features/moons/moon-data';
-import { LADDER_MORNINGS } from '@/features/moons/moon-ladder';
+import { LADDER_MORNINGS, RARE_MOONS } from '@/features/moons/moon-ladder';
 import { useMoon } from '@/features/moons/moon-theme';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
@@ -44,7 +44,7 @@ import { refusal, SIGN_OFF } from './fire-loc';
 import { LocProfile } from './loc-profile';
 
 /**
- * The You tab: everything that isn't tonight. Routine holds the schedule and the wake-up
+ * Settings (the You button, grown out of the tab strip, app/settings.tsx): everything that isn't tonight. Routine holds the schedule and the wake-up
  * method, Apps holds both lists, and Home says whether he's working, so this is where you
  * find your record, Loc, the ways out, the step target, notifications and the subscription.
  *
@@ -81,6 +81,25 @@ function refillDate(now: Date) {
 
 const open = (url: string) => Linking.openURL(url).catch(() => {});
 
+
+/**
+ * Dev: unlock a moon and play the payoff for it, as a morning that earned it would. The next moon
+ * on the ladder, really earned; with the ladder done, the rare one (its tap-to-see surprise). Home
+ * first, so Done lands where the real payoff's does.
+ */
+function simulateMoonUnlock() {
+  const id = devEarnNext() ?? RARE_MOONS[0];
+  const rung = LADDER.indexOf(id);
+  const mornings = rung >= 0 && rung < LADDER_MORNINGS.length ? LADDER_MORNINGS[rung] : getMorningsWon() + 1;
+  router.navigate('/');
+  setTimeout(
+    () => router.push({ pathname: '/morning-won', params: { demo: '1', newMoon: id, mornings: String(mornings), method: 'steps' } }),
+    SIMULATE_OVER_HOME_MS,
+  );
+}
+
+/** Home's entrance settles before the payoff goes over it (as morning-won.tsx's cold open). */
+const SIMULATE_OVER_HOME_MS = 1200;
 
 function preview(href: Href, method?: WakeMethod) {
   fakeTheMorning(method);
@@ -169,11 +188,15 @@ function rate() {
   else StoreReview.requestReview().catch(() => {});
 }
 
-export function YouScreen() {
+/** Loc's line waits for him to peek up once the page has landed; this is only the fallback. */
+const SAY_AFTER_MS = 4000;
+
+/** Settings' background: pure black, like the strip it grows out of (user, 2026-11-02). */
+export const SETTINGS_BG = '#000000';
+
+export function YouScreen({ onClose }: { onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const moon = useMoon();
-  const scroll = useRef<ScrollView>(null);
-  useTopOnLeave(scroll);
 
   const [alerts, setAlerts] = useState<NotificationPrefs>(getNotificationPrefs);
   const toggle = (key: keyof NotificationPrefs) => (on: boolean) => {
@@ -241,178 +264,191 @@ export function YouScreen() {
     }
   };
 
+  const devLabs = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
+  const planLine = inTrial && trialEnd ? `Your trial ends on ${trialDate(trialEnd)}.` : plan === null ? 'Nothing sleeps without one.' : undefined;
+
   return (
     <ScrollView
-      ref={scroll}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: Gap.gutter }]}
+      style={styles.screen}
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
     >
-      {/* No page title (user, 2026-10-10: "remove the you"). Loc as the profile picture and your
-          mornings under him, like CapWords' profile (user reference, 2026-10-14). Long press the
-          mornings for beta diagnostics: what iOS ran overnight, to paste into a bug report. */}
-      <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} />
-      <View style={styles.divider} />
+      {/* One row, as on the moons page it shares the slide with: the way out (the page slid up, so
+          it goes back down), the title, and nothing on the right. */}
+      <View style={styles.head}>
+        <View style={styles.side}>
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              onClose();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+            style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+          >
+            <SymbolView name={sym('chevron.down', 'expand_more')} size={13} weight="bold" tintColor={Nocturne.text2} />
+          </Pressable>
+        </View>
+        <Text style={styles.title} accessibilityRole="header">
+          Settings
+        </Text>
+        <View style={styles.side} />
+      </View>
 
-      {/* The moon collection (features/moons), also behind Home's moon. */}
-      <Card>
-        <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moons" value={`${moons} of ${COUNTED_MOONS}`} onPress={openMoons} last />
-      </Card>
+      {/* Loc as the profile picture and your mornings under him, like CapWords' profile (user
+          reference, 2026-10-14). Long press the mornings for beta diagnostics: what iOS ran
+          overnight, to paste into a bug report. */}
+      <LocProfile mornings={mornings} onLongPress={() => router.push('/diagnostics')} sayAfter={SAY_AFTER_MS} />
 
-      {/* Brink's profile (user reference, 2026-10-14): the plan's name and state, then what you can do about it. */}
-      <Text style={styles.heading} accessibilityRole="header">
-        Subscription
-      </Text>
-      <Card
-        footer={
-          inTrial && trialEnd ? `Your trial ends on ${trialDate(trialEnd)}.` : plan === null ? 'Nothing sleeps without one.' : undefined
-        }
-      >
-        <ControlRow icon={sym('moon.stars.fill', 'bedtime')} title="Locturne">
+      {/* Flat rows on black, a hairline between groups, as in Brilliant's settings (user reference,
+          2026-11-02): no cards and no headings. */}
+      <Group first>
+        <ValueRow iconTint={Nocturne.text} icon={sym('moon', 'dark_mode')} title="Moons" value={`${moons} of ${COUNTED_MOONS}`} onPress={openMoons} last />
+      </Group>
+
+      <Group note={planLine}>
+        <ControlRow iconTint={Nocturne.text} icon={sym('moon.stars', 'bedtime')} title="Locturne" last>
           <Text style={styles.planValue}>
             {plan === null ? 'None' : plan ? `${PLAN_LABEL[plan]}${inTrial ? ' trial' : ''}` : ' '}
           </Text>
         </ControlRow>
         {plan === null ? (
-          <ValueRow icon={sym('sparkles', 'auto_awesome')} title="Subscribe" value="" onPress={() => router.push('/onboarding?resume=paywall')} />
+          <ValueRow iconTint={Nocturne.text} icon={sym('sparkles', 'auto_awesome')} title="Subscribe" value="" onPress={() => router.push('/onboarding?resume=paywall')} last />
         ) : (
           <>
-            <ValueRow icon={sym('gearshape', 'settings')} title="Manage subscription" value="" onPress={manage} />
+            <ValueRow iconTint={Nocturne.text} icon={sym('gearshape', 'settings')} title="Manage subscription" value="" onPress={manage} last />
             {/* The cancel flow on the way to Apple's sheet (features/cancel). Manage stays direct, for switching plans. */}
-            <ValueRow icon={sym('xmark.circle', 'cancel')} title="Cancel subscription" value="" onPress={() => router.push('/cancel')} />
+            <ValueRow iconTint={Nocturne.text} icon={sym('xmark.circle', 'cancel')} title="Cancel subscription" value="" onPress={() => router.push('/cancel')} last />
           </>
         )}
-        <ValueRow icon={sym('arrow.clockwise', 'restore')} title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} last />
-      </Card>
+        <ValueRow iconTint={Nocturne.text} icon={sym('arrow.clockwise', 'restore')} title="Restore purchases" value={restoring ? 'Checking…' : ''} onPress={restorePurchases} last />
+      </Group>
 
-      <Text style={styles.heading} accessibilityRole="header">
-        Ways out
-      </Text>
-      <Card footer={`${PASSES_PER_MONTH} a month, for sick days, travel and emergencies. The only way out early. Refills ${refillDate(new Date())}.`}>
-        <ValueRow icon={sym('ticket.fill', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} last />
-      </Card>
+      <Group note={`${PASSES_PER_MONTH} a month, for sick days, travel and emergencies. The only way out early. Refills ${refillDate(new Date())}.`}>
+        <ValueRow iconTint={Nocturne.text} icon={sym('ticket', 'confirmation_number')} title="Passes" value={`${passesLeft} left`} onPress={() => router.push('/exits')} last />
+      </Group>
 
-      <Text style={styles.heading} accessibilityRole="header">
-        Notifications
-      </Text>
-      <Card>
-        <SwitchRow icon={sym('moon.fill', 'bedtime')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} />
-        <SwitchRow icon={sym('sunrise.fill', 'wb_twilight')} title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} last={!inTrial} />
-        {inTrial ? <SwitchRow icon={sym('calendar', 'event')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last /> : null}
-      </Card>
+      <Group>
+        <SwitchRow iconTint={Nocturne.text} icon={sym('bell', 'notifications')} title="Bedtime heads-up" value={alerts.bedtime} onChange={toggle('bedtime')} last />
+        <SwitchRow iconTint={Nocturne.text} icon={sym('sunrise', 'wb_twilight')} title="Morning nudge" value={alerts.morning} onChange={toggle('morning')} last />
+        {inTrial ? <SwitchRow iconTint={Nocturne.text} icon={sym('calendar', 'event')} title="Trial reminder" value={alerts.trial} onChange={toggle('trial')} last /> : null}
+      </Group>
 
-      <Text style={styles.heading} accessibilityRole="header">
-        About
-      </Text>
-      <Card>
-        <ValueRow icon={sym('questionmark.bubble.fill', 'help')} title="Help & feedback" value="" onPress={helpOrFeedback} />
-        <ValueRow icon={sym('star.fill', 'star')} title="Rate Locturne" value="" onPress={rate} />
-        <ValueRow icon={sym('hand.raised.fill', 'privacy_tip')} title="Privacy Policy" value="" onPress={() => open(LEGAL_URLS.privacy)} />
-        <ValueRow icon={sym('doc.text.fill', 'description')} title="Terms of Use" value="" onPress={() => open(LEGAL_URLS.terms)} last />
-      </Card>
+      <Group>
+        <ValueRow iconTint={Nocturne.text} icon={sym('lifepreserver', 'support')} title="Help & feedback" value="" onPress={helpOrFeedback} last />
+        <ValueRow iconTint={Nocturne.text} icon={sym('star', 'star')} title="Rate Locturne" value="" onPress={rate} last />
+      </Group>
 
       {/* Dev and preview builds only: wear any moon, all unlocked, to test them (features/moons). */}
-      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
-        <>
-          <Text style={styles.heading} accessibilityRole="header">
-            Moon
-          </Text>
-          <Card footer="Wear any moon, unlocked or not. Earn the next one as if this morning brought it, earn them all, or start over with none. The switch opens the collection as its own page instead of a sheet.">
-            <ValueRow icon={sym('moon.circle.fill', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} />
-            <SwitchRow
-              icon={sym('rectangle.portrait', 'crop_portrait')}
-              title="Moons as a page"
-              value={moonsAsPage}
-              onChange={(on) => {
-                setMoonsAsPage(on);
-                setAsPage(on);
-              }}
-            />
+      {devLabs ? (
+        <Group label="Moon" note="Wear any moon, unlocked or not. Unlock the next one and play the victory screen for it (the rare one once the ladder's done), earn the next one quietly, earn them all, or start over with none. The switch opens the collection as its own page instead of a sheet.">
+          <ValueRow iconTint={Nocturne.text} icon={sym('moon.circle', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} last />
+          <SwitchRow
+            iconTint={Nocturne.text} icon={sym('rectangle.portrait', 'crop_portrait')}
+            title="Moons as a page"
+            value={moonsAsPage}
+            onChange={(on) => {
+              setMoonsAsPage(on);
+              setAsPage(on);
+            }}
+            last
+          />
+          <ValueRow
+            iconTint={Nocturne.text} icon={sym('sunrise', 'wb_twilight')}
+            title="Unlock a moon, with the payoff"
+            value=""
+            onPress={() => {
+              haptic.done();
+              simulateMoonUnlock();
+              setFacts(read());
+            }}
+            last
+          />
+          <ValueRow
+            iconTint={Nocturne.text} icon={sym('plus.circle', 'add_circle')}
+            title="Earn the next moon"
+            value=""
+            onPress={() => {
+              haptic.done();
+              devEarnNext();
+              setFacts(read());
+            }}
+            last
+          />
+          <ValueRow
+            iconTint={Nocturne.text} icon={sym('sparkles', 'auto_awesome')}
+            title="Earn every moon"
+            value=""
+            onPress={() => {
+              haptic.done();
+              devEarnAll();
+              setFacts(read());
+            }}
+            last
+          />
+          <ValueRow
+            iconTint={Nocturne.text} icon={sym('arrow.counterclockwise', 'replay')}
+            title="Forget my moons"
+            value=""
+            onPress={() => {
+              haptic.tap();
+              devForgetMoons();
+              setFacts(read());
+            }}
+            last
+          />
+        </Group>
+      ) : null}
+
+      {/* Dev and preview builds only: the whole onboarding again from the first screen. */}
+      {devLabs ? (
+        <Group note="The whole onboarding again from the start. Finishing it saves its answers as your routine.">
+          <ValueRow iconTint={Nocturne.text} icon={sym('arrow.counterclockwise', 'replay')} title="Redo onboarding" value="" onPress={() => router.push('/onboarding?paywall=1')} last />
+        </Group>
+      ) : null}
+
+      {/* Dev and preview builds only: a real lock on the bedtime apps, woken by one method (wake-lab.tsx). */}
+      {devLabs ? (
+        testRun ? (
+          <Group label="Morning unlocks" note="A test lock is still on. Your bedtime apps stay asleep until its test morning on Home is won, or it's ended here.">
+            <ValueRow iconTint={Nocturne.text} icon={sym('lock', 'lock')} title="Back to the test morning" value="" onPress={() => preview('/', testRun.method as WakeMethod)} last />
             <ValueRow
-              icon={sym('plus.circle', 'add_circle')}
-              title="Earn the next moon"
-              value=""
-              onPress={() => {
-                haptic.done();
-                devEarnNext();
-                setFacts(read());
-              }}
-            />
-            <ValueRow
-              icon={sym('sparkles', 'auto_awesome')}
-              title="Earn every moon"
-              value=""
-              onPress={() => {
-                haptic.done();
-                devEarnAll();
-                setFacts(read());
-              }}
-            />
-            <ValueRow
-              icon={sym('arrow.counterclockwise', 'replay')}
-              title="Forget my moons"
+              iconTint={Nocturne.text} icon={sym('lock.open', 'lock_open')}
+              title="End the test lock"
               value=""
               onPress={() => {
                 haptic.tap();
-                devForgetMoons();
+                endTestLock();
                 setFacts(read());
               }}
               last
             />
-          </Card>
-        </>
-      ) : null}
-
-      {/* Dev and preview builds only: the whole onboarding again from the first screen. */}
-      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
-        <Card footer="The whole onboarding again from the start. Finishing it saves its answers as your routine.">
-          <ValueRow icon={sym('arrow.counterclockwise', 'replay')} title="Redo onboarding" value="" onPress={() => router.push('/onboarding?paywall=1')} last />
-        </Card>
-      ) : null}
-
-      {/* Dev and preview builds only: a real lock on the bedtime apps, woken by one method (wake-lab.tsx). */}
-      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? (
-        <>
-          <Text style={styles.heading} accessibilityRole="header">
-            Morning unlocks
-          </Text>
-          {testRun ? (
-            <Card footer="A test lock is still on. Your bedtime apps stay asleep until its test morning on Home is won, or it's ended here.">
-              <ValueRow
-                icon={sym('lock.fill', 'lock')}
-                title="Back to the test morning"
-                value=""
-                onPress={() => preview('/', testRun.method as WakeMethod)}
-              />
-              <ValueRow
-                icon={sym('lock.open.fill', 'lock_open')}
-                title="End the test lock"
-                value=""
-                onPress={() => {
-                  haptic.tap();
-                  endTestLock();
-                  setFacts(read());
-                }}
-                last
-              />
-            </Card>
-          ) : (
-            <Card footer="Your bedtime apps sleep right away, for real. Home opens a test morning for the method: win it to wake them. Nothing is recorded and your routine doesn't change.">
-              {LAB_METHODS.map((m, i) => (
-                <ValueRow
-                  key={m.value}
-                  icon={METHOD_ICONS[m.value]}
-                  title={m.title}
-                  value=""
-                  onPress={() => testLock(m.value)}
-                  last={i === LAB_METHODS.length - 1}
-                />
-              ))}
-            </Card>
-          )}
-        </>
+          </Group>
+        ) : (
+          <Group label="Morning unlocks" note="Your bedtime apps sleep right away, for real. Home opens a test morning for the method: win it to wake them. Nothing is recorded and your routine doesn't change.">
+            {LAB_METHODS.map((m) => (
+              <ValueRow key={m.value} iconTint={Nocturne.text} icon={METHOD_ICONS[m.value]} title={m.title} value="" onPress={() => testLock(m.value)} last />
+            ))}
+          </Group>
+        )
       ) : null}
 
       {/* Dev and preview builds only: a real night of minutes from iOS, run with Locturne closed (features/dev/rehearsal). */}
-      {__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1' ? <RehearsalSection headingStyle={styles.heading} icons={METHOD_ICONS} /> : null}
+      {devLabs ? (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.carded}>
+            <RehearsalSection headingStyle={styles.devHeading} icons={METHOD_ICONS} />
+          </View>
+        </>
+      ) : null}
+
+      {/* The rows you rarely need, quieter: grey, no icons, as Brilliant's Log out and Legal. */}
+      <Group>
+        <QuietRow title="Privacy Policy" onPress={() => open(LEGAL_URLS.privacy)} />
+        <QuietRow title="Terms of Use" onPress={() => open(LEGAL_URLS.terms)} />
+      </Group>
 
       <Text style={styles.signOff}>
         Locturne {Constants.expoConfig?.version ?? ''}
@@ -420,57 +456,103 @@ export function YouScreen() {
         {SIGN_OFF}
       </Text>
 
-      <Card style={styles.fire}>
-        <Pressable
-          onPress={() => {
-            haptic.tap();
-            fireLoc();
-          }}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.fireRow, pressed && styles.pressed]}
-        >
-          <Text style={styles.fireText}>Fire Loc</Text>
-        </Pressable>
-      </Card>
+      <Pressable
+        onPress={() => {
+          haptic.tap();
+          fireLoc();
+        }}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.fireRow, pressed && styles.pressed]}
+      >
+        <Text style={styles.fireText}>Fire Loc</Text>
+      </Pressable>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  content: { paddingHorizontal: Gap.gutter },
-  // Only as wide as the word, so a long press elsewhere up top does nothing.
+/**
+ * One group of rows, a hairline above it (but the first): an optional small grey label over it
+ * (dev groups) and an optional grey note under it, lined up with the rows' titles.
+ */
+function Group({ first, label, note, children }: { first?: boolean; label?: string; note?: string; children: ReactNode }) {
+  return (
+    <>
+      {first ? <View style={styles.firstGap} /> : <View style={styles.divider} />}
+      {label ? (
+        <Text style={styles.label} accessibilityRole="header">
+          {label}
+        </Text>
+      ) : null}
+      <View style={styles.group}>{children}</View>
+      {note ? <Text style={styles.note}>{note}</Text> : null}
+    </>
+  );
+}
 
-  planValue: { color: Nocturne.text2, fontSize: 17 },
+/** A row in grey with no icon, for what's rarely needed. */
+function QuietRow({ title, onPress }: { title: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.tap();
+        onPress();
+      }}
+      accessibilityRole="link"
+      style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}
+    >
+      <Text style={styles.quietText}>{title}</Text>
+      <SymbolView name={sym('chevron.right', 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.text3} />
+    </Pressable>
+  );
+}
+
+/** The top bar's close button and its sides, as on the moons page (moon-collection-view.tsx). */
+const CLOSE = 30;
+const SIDE = 72;
+/** Where a row's title starts: its inset, the icon and the gap after it (grouped-list.tsx). */
+const TITLE_AT = Space.l + 22 + 14;
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: SETTINGS_BG },
+  // The rows bring their own inset, so their icons sit on the usual gutter.
+  content: { paddingHorizontal: Gap.gutter - Space.l },
   pressed: { opacity: 0.7 },
 
-  // A short hairline between the profile and the settings, as in CapWords, the same space
-  // either side of it (the heading under it brings its own Space.s).
+  head: { flexDirection: 'row', alignItems: 'center', minHeight: CLOSE, marginHorizontal: Space.l, marginBottom: Gap.block },
+  close: {
+    width: CLOSE,
+    height: CLOSE,
+    borderRadius: CLOSE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Nocturne.frost,
+  },
+  title: { ...DisplayFont, flex: 1, color: Nocturne.text, fontSize: 22, lineHeight: 28, textAlign: 'center' },
+  side: { width: SIDE },
+
+  planValue: { color: Nocturne.text2, fontSize: 17 },
+
+  // Rows with air between them instead of separators.
+  group: { gap: Space.xs },
   divider: {
-    alignSelf: 'center',
-    width: '60%',
     height: StyleSheet.hairlineWidth,
     backgroundColor: Nocturne.edge,
-    marginTop: Space.xl,
-    marginBottom: Space.xl - Space.s,
+    marginHorizontal: Space.l,
+    marginVertical: Space.l,
   },
+  // Under Loc's mornings pill, before the first row.
+  firstGap: { height: Space.xl },
+  // The dev rehearsal keeps its cards (features/dev/rehearsal), on the usual gutter.
+  carded: { marginHorizontal: Space.l },
+  devHeading: { ...Type.caption, color: Nocturne.text3, marginLeft: Space.l, marginBottom: Space.s },
+  label: { ...Type.caption, color: Nocturne.text3, marginLeft: Space.l, marginBottom: Space.s },
+  note: { ...Type.caption, color: Nocturne.text3, marginLeft: TITLE_AT, marginRight: Space.l, marginTop: Space.xs },
 
-  // The last thing on the page, as far from the panel's bottom edge as from its sides.
-  fire: { marginBottom: 0 },
-  fireRow: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  quiet: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: Space.l },
+  quietText: { flex: 1, color: Nocturne.text2, fontSize: 17 },
+
+  // The version and his line, then Fire Loc last, in red with no card around it.
+  signOff: { color: Nocturne.text3, ...Type.caption, textAlign: 'center', marginTop: Gap.section, marginBottom: Space.l },
+  fireRow: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   fireText: { color: '#FF453A', fontSize: 17 },
-  // The version and his line, a section's gap either side (cards keep Space.l under them), then Fire Loc last.
-  signOff: { color: Nocturne.text3, ...Type.caption, textAlign: 'center', marginTop: Gap.section - Space.l, marginBottom: Gap.section },
-
-  // Group headings outside the cards in grey, as in Brink's profile (user reference, 2026-10-14),
-  // lined up with the rows' icons.
-  heading: {
-    ...APP_FONT,
-    color: Nocturne.text2,
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: '500',
-    marginLeft: Space.l,
-    marginTop: Space.s,
-    marginBottom: Space.s,
-  },
 });

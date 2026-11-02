@@ -12,10 +12,11 @@ const PORT = Number(process.env.PORT ?? 5178);
 
 /** Your ladder and no's, kept in a file as well as the browser, so Claude can read them. docs/ is local only. */
 const PICKS = join(REPO, 'docs', 'moon-lab-picks.json');
+const MOONS = join(HERE, 'moons.json');
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
+  '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
 };
 
 // Only the lab itself, the app's assets and the store-shots Loc art are served.
@@ -33,7 +34,14 @@ async function picks(req, res) {
     for await (const chunk of req) body += chunk;
     try {
       await mkdir(join(REPO, 'docs'), { recursive: true });
-      await writeFile(PICKS, `${JSON.stringify(JSON.parse(body), null, 2)}\n`);
+      const picks = JSON.parse(body);
+      await writeFile(PICKS, `${JSON.stringify(picks, null, 2)}\n`);
+      // The ladder lives in moons.json, shared with the moon studio.
+      if (Array.isArray(picks.slots)) {
+        const moons = JSON.parse(await readFile(MOONS, 'utf8'));
+        moons.ladder = picks.slots;
+        await writeFile(MOONS, `${JSON.stringify(moons, null, 2)}\n`);
+      }
       res.end('{}');
     } catch {
       res.statusCode = 400;

@@ -55,3 +55,4 @@ targets/*/generated.entitlements
 
 # Research, plans and business docs stay local (the repo is public)
 docs/
+__pycache__/

@@ -1,8 +1,9 @@
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { File, Paths } from 'expo-file-system';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Platform, Pressable, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppBackground } from '@/components/app-background';
@@ -10,6 +11,7 @@ import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { FOCUS_MS, FOCUS_STEP_MS, focusIn } from '@/components/motion';
 import { MOON_SHOWS_FROM, moonScale, moonSink, moonSinkForCentre, restingMoonDisc } from '@/components/night-sky';
+import { PressScale } from '@/components/press-scale';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
@@ -17,11 +19,12 @@ import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg'
 
 import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type, VoiceSize } from '@/theme';
 
-import { markPresented, openMoons, SECRET_MOON } from '../moons/moon-collection';
+import { markPresented, SECRET_MOONS } from '../moons/moon-collection';
 import { MOONS } from '../moons/moon-data';
-import { RARE_MOON } from '../moons/moon-ladder';
+import { RARE_MOONS } from '../moons/moon-ladder';
 import { payoffMoon } from '../moons/payoff-moon';
-import { setMoon, useMoon } from '../moons/moon-theme';
+import { previewMoon, setMoon, useWornMoon } from '../moons/moon-theme';
+import type { MoonDef } from '../moons/moon-types';
 import { MoonThumb } from '../moons/moon-thumb';
 import { homeEntrance, REPLAY_START_MS } from '../home/entrance';
 import { holdLocLines, markLocSaid, passLocPose } from '../home/loc';
@@ -130,6 +133,13 @@ const SNAP_MS = 450;
 /** The panel's rounded corner, as AppBackground draws it: black outside a quarter circle. */
 const CORNER = `M0,0 L0,${PANEL_RADIUS} L${PANEL_RADIUS},${PANEL_RADIUS} A${PANEL_RADIUS},${PANEL_RADIUS} 0 0 1 0,0 Z`;
 
+/**
+ * A surprise moon tapped open after the moon is up: the moon on show dips out of sight this fast,
+ * then the new one comes up on the rise's curve. Done without Apply does the same back to the worn moon.
+ */
+const DIP_MS = 420;
+const DIP = Easing.in(Easing.cubic);
+
 /** If his webview never yells (it failed to load), the moon rises anyway. */
 const YELL_FALLBACK_MS = 7000;
 
@@ -211,28 +221,59 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   // Kept from the first render: once shown they're marked, and the route's next read would drop them.
   const [newMoons] = useState(facts.newMoons);
   const [tapped, setTapped] = useState(false);
-  const worn = useMoon();
+  const worn = useWornMoon();
   const { moon: newMoon, more: moreMoons, hidden, toWear } = payoffMoon({
     newMoons,
     moons: MOONS,
     worn: worn.id,
     revealed: tapped,
-    surprises: [RARE_MOON, SECRET_MOON],
+    surprises: [...RARE_MOONS, ...SECRET_MOONS.map((s) => s.id)],
   });
   const revealed = !hidden;
   useEffect(() => {
     if (shown && sayKey !== null && newMoons.length) markPresented(newMoons);
   }, [shown, sayKey, newMoons]);
+  // The new moon rises (user, 2026-11-02: "when you unlock a new moon, the new moon should rise"): it's
+  // on show from the start, before he yells, so the moon that comes up is the new one. Shown, not worn:
+  // Apply wears it, and Done without Apply goes back to the worn moon. A surprise rises as the worn moon
+  // and comes up when it's tapped open.
+  const showing = useRef<string | null>(null);
+  const show = (id: string | null, dip: boolean) => {
+    showing.current = id;
+    if (!dip || reduced) return previewMoon(id);
+    moonSink.set(withTiming(MOON_SHOWS_FROM, { duration: DIP_MS, easing: DIP }));
+    setTimeout(() => {
+      previewMoon(id);
+      moonSink.set(withTiming(moonTo.current.sink, { duration: RISE_MS, easing: RISE }));
+    }, DIP_MS);
+  };
+  const firstShown = useRef(false);
+  useEffect(() => {
+    if (firstShown.current) return;
+    firstShown.current = true;
+    if (newMoon && !hidden && newMoon.id !== worn.id) {
+      showing.current = newMoon.id;
+      previewMoon(newMoon.id);
+    }
+  }, [newMoon, hidden, worn.id]);
+  // Whatever happens, nothing stays on show once the payoff is gone.
+  useEffect(() => () => previewMoon(null), []);
   const reveal = () => {
     if (revealed) return;
     haptic.done();
     setTapped(true);
+    if (newMoon && newMoon.id !== worn.id) show(newMoon.id, true);
   };
+  // Applied here: the button stays, as "Applied", so the page doesn't jump.
+  const [applied, setApplied] = useState(false);
   const wear = () => {
     if (!toWear) return;
     haptic.done();
     setMoon(toWear.id);
+    setApplied(true);
   };
+  // Apply under the week (user, 2026-11-02): for a new moon not already worn, held invisible while a surprise is still hidden.
+  const applySlot = !!newMoon && (hidden || applied || worn.id !== newMoon.id);
   // His line once the page is in (user, 2026-10-27: Loc's voice instead of a log line), said once:
   // Home won't say its wake-up line again after it.
   const [line] = useState(() => payoffMoment(mornings, Math.random));
@@ -280,7 +321,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   const weekOutStyle = useAnimatedStyle(() => ({ opacity: weekOut.get() }));
   const flyStyle = useAnimatedStyle(() => ({ transform: [{ translateX: flyX.get() }, { translateY: flyY.get() }] }));
   const navigation = useNavigation();
-  /** Back to Home; `then` runs once it's there (Your moons opens over Home, not over this screen). */
+  /** Back to Home; `then` runs once it's there. */
   const close = (then?: () => void) => {
     if (leaving.current) return;
     leaving.current = true;
@@ -295,7 +336,10 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
       if (router.canGoBack()) router.back();
       else router.replace('/');
     };
+    // Left without Apply: the new moon sinks and the worn one comes up into Home's place.
+    const backToWorn = showing.current !== null && !applied;
     if (reduced) {
+      if (backToWorn) previewMoon(null);
       moonSink.set(HOME_SINK);
       moonScale.set(1);
       drop.set(lift);
@@ -306,7 +350,14 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
     }
     page.set(withTiming(0, { duration: OUT_MS, easing: Easing.out(Easing.cubic) }));
     const settle = { duration: SETTLE_MS, easing: SETTLE };
-    moonSink.set(withDelay(SETTLE_AT_MS, withTiming(HOME_SINK, settle)));
+    if (backToWorn) {
+      const half = SETTLE_MS / 2;
+      moonSink.set(withDelay(SETTLE_AT_MS, withSequence(
+        withTiming(MOON_SHOWS_FROM, { duration: half, easing: DIP }),
+        withTiming(HOME_SINK, { duration: half, easing: Easing.out(Easing.cubic) }),
+      )));
+      setTimeout(() => previewMoon(null), SETTLE_AT_MS + half);
+    } else moonSink.set(withDelay(SETTLE_AT_MS, withTiming(HOME_SINK, settle)));
     moonScale.set(withDelay(SETTLE_AT_MS, withTiming(1, settle)));
     drop.set(withDelay(SETTLE_AT_MS, withTiming(lift, settle)));
     weekRef.current?.measureInWindow((x, y) => {
@@ -446,7 +497,7 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
           </In>
         ) : null}
         </Animated.View>
-        <In shown={shown} step={2} style={[styles.week, short && styles.weekShort]}>
+        <In shown={shown} step={2} style={[styles.week, short && styles.weekShort, short && applySlot && styles.weekShortApply]}>
           {/* An SE has no room for both the new moon and the label. */}
           {short && newMoon ? null : <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>}
           {/* Home's week dots, the mist ones on iPhone (week-strip.ios.tsx; user, 2026-10-28). */}
@@ -454,6 +505,15 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
             <WeekStrip days={days} reduced={reduced} />
           </Animated.View>
         </In>
+        {applySlot ? (
+          <In shown={shown} step={2} style={[styles.apply, short && styles.applyShort]}>
+            <Animated.View style={pageStyle} pointerEvents={hidden ? 'none' : 'auto'}>
+              <View style={hidden && styles.unseen} accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
+                <ApplyPill moon={newMoon} applied={applied} hidden={hidden} onPress={wear} />
+              </View>
+            </Animated.View>
+          </In>
+        ) : null}
       </View>
       </View>
 
@@ -470,20 +530,10 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
         <View style={styles.strip}>
           <Animated.View style={[{ height: strip, paddingBottom: foot }, pageStyle]}>
             <In shown={shown} step={3} style={styles.actions}>
-              {/* A new moon to wear, or later from Moons (user, 2026-11-01); either way, secondary links under the button. */}
-              {toWear ? <PrimaryButton label={`Wear ${toWear.name}`} onPress={wear} /> : <PrimaryButton label="Done" onPress={() => close()} />}
+              {/* Done and Share only; a new moon is applied under the week (user, 2026-11-02: no Your moons here). */}
+              <PrimaryButton label="Done" onPress={() => close()} />
               <View style={styles.links}>
-                {toWear ? <TextButton label="Later" onPress={() => close()} /> : null}
                 <TextButton label="Share" onPress={share} />
-                {toWear ? null : (
-                  <TextButton
-                    label="Your moons"
-                    onPress={() => {
-                      haptic.tap();
-                      close(openMoons);
-                    }}
-                  />
-                )}
               </View>
             </In>
           </Animated.View>
@@ -522,6 +572,30 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
       ) : null}
     </AppBackground>
     </Animated.View>
+  );
+}
+
+const CHECK = { ios: 'checkmark', android: 'check', web: 'check' } as SymbolViewProps['name'];
+
+/**
+ * Apply for the new moon (user, 2026-11-02): a pill like Home's screen-time one, the moon as its icon,
+ * "Apply" in bold and the moon's name in grey ("Apply Dawn Moon"); "Applied" with a check once worn.
+ */
+function ApplyPill({ moon, applied, hidden, onPress }: { moon: MoonDef; applied: boolean; hidden: boolean; onPress: () => void }) {
+  return (
+    <PressScale
+      onPress={onPress}
+      disabled={applied || hidden}
+      accessibilityRole="button"
+      accessibilityLabel={applied ? `Applied ${moon.name}` : `Apply ${moon.name}`}
+      accessibilityState={{ disabled: applied }}
+      style={styles.applyPill}
+    >
+      {applied ? <SymbolView name={CHECK} size={14} weight="bold" tintColor={Nocturne.text} /> : <MoonThumb moon={moon} size={20} round />}
+      <Text style={styles.applyValue}>{applied ? 'Applied' : 'Apply'}</Text>
+      {/* A surprise's name stays hidden until it's tapped open. */}
+      <Text style={styles.applyLabel} numberOfLines={1}>{hidden ? '' : moon.name}</Text>
+    </PressScale>
   );
 }
 
@@ -580,9 +654,29 @@ const styles = StyleSheet.create({
   // Full width between the gutters, as Home's, so the dots land on Home's exactly.
   week: { alignSelf: 'stretch', marginTop: Space.xxxl, gap: Space.m },
   weekShort: { marginTop: Space.xl, gap: Space.s },
+  // An SE with Apply under the week: no room to spare over Loc's line.
+  weekShortApply: { marginTop: Space.m },
   // Bloom's "THIS WEEK" over the dots.
   weekLabel: { ...Type.label, textAlign: 'center' },
   actions: { gap: Space.xs, alignItems: 'stretch' },
+  // The new moon's Apply, a glass pill under the week.
+  apply: { alignSelf: 'center', marginTop: Space.l },
+  applyShort: { marginTop: Space.s },
+  unseen: { opacity: 0 },
+  // Home's screen-time pill (home-top.tsx), a touch taller to tap, with a hairline edge.
+  applyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Nocturne.edge,
+  },
+  applyValue: { ...Type.secondary, fontWeight: '700', color: Nocturne.text },
+  applyLabel: { ...Type.secondary, color: Nocturne.text2 },
   links: { flexDirection: 'row', justifyContent: 'center', gap: Space.xxl },
   // Under the headline, centred: the new moon, its name and a note.
   newMoon: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: Space.m, marginTop: Space.l },

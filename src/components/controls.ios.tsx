@@ -208,9 +208,9 @@ export function NightsRow({ icon, value, onChange, last }: NightsRowProps) {
 }
 
 /** An on/off setting: the system switch, sitting in the row. */
-export function SwitchRow({ icon, title, value, onChange, last }: SwitchRowProps) {
+export function SwitchRow({ icon, title, value, onChange, last, iconTint }: SwitchRowProps) {
   return (
-    <ControlRow icon={icon} title={title} last={last}>
+    <ControlRow icon={icon} title={title} last={last} iconTint={iconTint}>
       <Host {...IN_ROW}>
         <Toggle isOn={value} onIsOnChange={onChange} modifiers={[labelsHidden(), accessibilityLabel(title), CENTRED]} />
       </Host>

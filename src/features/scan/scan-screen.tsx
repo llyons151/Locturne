@@ -226,7 +226,12 @@ export function ScanScreen({ mode, header, start, onClose }: ScanScreenProps) {
       haptic.done();
       // Opened from the code sheet (`/code`): back to it, where the code turns into a tick and
       // the sheet then slides down (`CodeSheet`, which hears the save from `onScanCodeChange`).
-      if (start) return close();
+      // The camera goes at once instead of sliding down, so the tick follows the scan with no
+      // gap (user 2026-11-02: a second between the scan and the check).
+      if (start) {
+        if (!onClose) navigation.setOptions({ animation: 'none' });
+        return close();
+      }
       setStage({ kind: 'saved' });
     } else if (result === 'asleep') setStage({ kind: 'asleep' });
     else {

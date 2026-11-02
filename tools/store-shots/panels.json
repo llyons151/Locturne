@@ -18,7 +18,62 @@
     "bgDeep": "#8EA9E8",
     "text": "#0B1428",
     "text2": "#5E7595",
-    "accent": "#3A5FBF"
+    "accent": "#3A5FBF",
+    "night": "#14214A",
+    "panorama": {
+      "note": "One background drawn across every panel side by side (x is in strip pixels: panel n starts at (n-1)*1320). Discs that sit on a seam carry over when you swipe. Deep tones only: out-of-focus shapes, not light.",
+      "discs": [
+        {
+          "x": 1320,
+          "y": 560,
+          "r": 210,
+          "color": "#7E98DA",
+          "blur": 26
+        },
+        {
+          "x": 2640,
+          "y": 1460,
+          "r": 300,
+          "color": "#6F8AD2",
+          "blur": 60
+        },
+        {
+          "x": 3960,
+          "y": 330,
+          "r": 190,
+          "color": "#2A3C78",
+          "blur": 22
+        },
+        {
+          "x": 5280,
+          "y": 1180,
+          "r": 260,
+          "color": "#2A3C78",
+          "blur": 48
+        },
+        {
+          "x": 6600,
+          "y": 640,
+          "r": 200,
+          "color": "#7E98DA",
+          "blur": 24
+        },
+        {
+          "x": 7920,
+          "y": 1640,
+          "r": 320,
+          "color": "#86A0E2",
+          "blur": 70
+        },
+        {
+          "x": 9240,
+          "y": 460,
+          "r": 230,
+          "color": "#7E98DA",
+          "blur": 34
+        }
+      ]
+    }
   },
   "panels": [
     {
@@ -26,19 +81,26 @@
       "headline": "Your apps sleep until *you're up.*",
       "shot": "01-shield.png",
       "note": "The shield over a blocked app at night. Pick a category (Social) so no third-party icon shows. Real phone only. This is the panel people decide on: plain promise over real UI.",
-      "loc": { "width": 560 },
-      "phoneTop": 860
+      "phoneTop": 520,
+      "frost": 1000
     },
     {
       "id": "steps",
       "headline": "Walk *200 steps.* They wake up.",
       "shot": "02-steps.png",
       "note": "Steps view near the end, around 180 of 200.",
-      "rotate": 5,
-      "x": 90,
       "phoneTop": 640,
       "callouts": [
-        { "text": "104|/ 200|steps walked", "x": 70, "y": 1640, "rotate": -3 }
+        {
+          "crop": [
+            0,
+            2190,
+            1320,
+            540
+          ],
+          "scale": 0.86,
+          "y": 1990
+        }
       ]
     },
     {
@@ -49,7 +111,10 @@
       "scale": 1.18,
       "phoneTop": 620,
       "callouts": [
-        { "text": "7:02|am|Up. Apps awake.", "x": 640, "y": 1500, "rotate": 3 }
+        {
+          "text": "7:02|am|Up. Apps awake.",
+          "y": 2180
+        }
       ]
     },
     {
@@ -58,11 +123,23 @@
       "shot": "04-routine.png",
       "note": "Routine: bedtime 11:30 PM, morning time, wake-up method.",
       "dark": true,
-      "rotate": -5,
-      "x": -70,
       "phoneTop": 640,
       "callouts": [
-        { "text": "11:30|pm|Apps go to sleep", "x": 640, "y": 1560, "rotate": 3 }
+        {
+          "crop": [
+            60,
+            1805,
+            1200,
+            210
+          ],
+          "scale": 1.0,
+          "y": 1880
+        },
+        {
+          "text": "11:30|pm|Apps go to sleep",
+          "x": 560,
+          "y": 2240
+        }
       ]
     },
     {
@@ -73,7 +150,11 @@
       "scale": 1.2,
       "phoneTop": 600,
       "callouts": [
-        { "text": "1|floor|down. That's it.", "x": 80, "y": 1760, "rotate": -2 }
+        {
+          "text": "1|floor|down. That's it.",
+          "x": 90,
+          "y": 2120
+        }
       ]
     },
     {
@@ -81,11 +162,13 @@
       "headline": "Or do *10 push-ups.* The camera counts.",
       "shot": "06-pushups.png",
       "note": "Push-up screen mid-set with the rep count showing.",
-      "rotate": -5,
-      "x": -60,
       "phoneTop": 640,
       "callouts": [
-        { "text": "10|/ 10|push-ups counted", "x": 600, "y": 1640, "rotate": 3 }
+        {
+          "text": "10|/ 10|push-ups counted",
+          "x": 600,
+          "y": 2120
+        }
       ]
     },
     {
@@ -95,7 +178,10 @@
       "note": "Exits sheet with passes left.",
       "sub": "Two a month. The only way out early.",
       "callouts": [
-        { "text": "2|left|passes this month", "x": 620, "y": 1560 }
+        {
+          "text": "2|left|passes this month",
+          "y": 2180
+        }
       ]
     },
     {
@@ -103,7 +189,9 @@
       "headline": "Made by *one student,* not a company.",
       "shot": "08-home.png",
       "note": "Home in the day state, apps awake, Loc's line on top.",
-      "hero": { "width": 1180 },
+      "hero": {
+        "width": 1180
+      },
       "kicker": "An indie app"
     }
   ]

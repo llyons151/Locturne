@@ -35,7 +35,7 @@ export function ScreenTimeChart({ height = 178 }: { height?: number }) {
       </View>
       <Link href="/usage" asChild><Pressable accessibilityLabel="View all screen time usage" style={styles.details}><Text style={styles.rangeText}>Usage ↗</Text></Pressable></Link>
     </View>
-    {Platform.OS === 'web' ? <Preview key={days} days={days} height={height} /> : !isScreenTimeReportAvailable ? <Text style={[styles.message, { minHeight: height }]}>Screen time will appear with the next app build.</Text> : access !== 'approved' ? <Link href={access === 'denied' ? '/(tabs)/profile' : '/(tabs)/apps'} style={styles.message}>Enable Screen Time to see your usage →</Link> : <ScreenTimeReport compact days={days} revision={revision} style={{ height }} />}
+    {Platform.OS === 'web' ? <Preview key={days} days={days} height={height} /> : !isScreenTimeReportAvailable ? <Text style={[styles.message, { minHeight: height }]}>Screen time will appear with the next app build.</Text> : access !== 'approved' ? <Link href={access === 'denied' ? '/settings' : '/(tabs)/apps'} style={styles.message}>Enable Screen Time to see your usage →</Link> : <ScreenTimeReport compact days={days} revision={revision} style={{ height }} />}
   </View>;
 }
 

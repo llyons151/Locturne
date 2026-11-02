@@ -22,7 +22,7 @@ const code = babel.transformSync(readFileSync(new URL('./moon-collection.ts', im
   plugins: ['@babel/plugin-transform-modules-commonjs'],
 }).code;
 
-const LADDER = ['dawn', 'harvest', 'aurora', 'supermoon', 'nebula', 'midnightsun', 'blood', 'deepsea', 'prism', 'eclipse', 'twin-moonlet'];
+const LADDER = ['dawn', 'harvest', 'aurora', 'supermoon', 'nebula', 'midnightsun', 'blood', 'deepsea', 'prism', 'eclipse', 'bluehour', 'strawberry', 'micromoon'];
 
 type Proof = { morningKey: string; kind: string; at: number; morningStart?: number };
 
@@ -32,12 +32,9 @@ function launch({
   proofs = [] as Proof[],
   mornings = proofs.filter((p: Proof) => p.kind !== 'pass' && p.kind !== 'emergency').length,
   first = null as string | null,
-  os = 'ios',
-  steps = ((_from: Date, _to: Date) => 0) as (from: Date, to: Date) => number,
-  stepsFail = false,
+  scanCode = null as null | { kind: string; data: string; type: string; registeredAt: number },
 } = {}) {
   const pushed: string[] = [];
-  const asked: { from: Date; to: Date }[] = [];
   let proofListener: (() => void) | null = null;
   let subscribeFn: ((listener: () => void) => () => void) | null = null;
   const facts = { proofs, mornings, first };
@@ -48,17 +45,8 @@ function launch({
         return get();
       },
     },
-    'react-native': { Platform: { OS: os } },
     'expo-router': { router: { push: (href: string) => pushed.push(href) } },
-    'expo-sensors': {
-      Pedometer: {
-        getStepCountAsync: async (from: Date, to: Date) => {
-          asked.push({ from, to });
-          if (stepsFail) throw new Error('Motion & Fitness is off');
-          return { steps: steps(from, to) };
-        },
-      },
-    },
+    '@/lib/scan-code': { getScanCode: () => scanCode },
     '@/lib/morning-proof': {
       getProofs: () => facts.proofs,
       getMorningsWon: () => facts.mornings,
@@ -67,7 +55,6 @@ function launch({
         proofListener = listener;
         return () => {};
       },
-      proofMorningStart: (p: Proof) => (p.morningStart === undefined ? null : new Date(p.morningStart)),
     },
     '@/lib/screen-time': {
       sharedGet: (key: string) => (disk.has(key) ? structuredClone(disk.get(key)) : undefined),
@@ -82,7 +69,6 @@ function launch({
     m: exports,
     disk,
     pushed,
-    asked,
     facts,
     /** Subscribes as React would, after a `useOwnedMoons()` call. */
     subscribe: (listener: () => void) => subscribeFn!(listener),
@@ -101,8 +87,6 @@ const at = (key: string, h = 7, min = 10) => {
   return new Date(y, mo - 1, d, h, min).getTime();
 };
 const walk = (key: string, extra: Partial<Proof> = {}): Proof => ({ morningKey: key, kind: 'steps', at: at(key), morningStart: at(key, 7, 0), ...extra });
-/** Lets the store's pending step check finish. */
-const settle = () => new Promise((r) => setImmediate(r));
 
 test('a fresh install owns nothing and earns nothing', () => {
   const { m } = launch();
@@ -192,78 +176,69 @@ test('seen and presented are separate: the collection still says New after the p
   assert.equal(app.m.getOwned().dawn.presented, true);
 });
 
-// ---- The secret moon ----
+// ---- The secret moons ----
 
-test('the secret: 400 steps from morning start to 20 minutes after getting up', async () => {
-  const p = walk('2026-11-02');
-  const app = launch({ proofs: [p], first: '2026-11-02', steps: () => 400 });
-  assert.equal(await app.m.checkSecretMoon(p.at + 30 * 60_000), true);
-  assert.ok(app.m.ownsMoon('twin-moonlet'));
-  // Asked from morning start to exactly 20 minutes after the proof.
-  assert.equal(app.asked[0].from.getTime(), p.morningStart);
-  assert.equal(app.asked[0].to.getTime(), p.at + ladder.SECRET_WINDOW_MS);
+const scanProof = (key: string, extra: Partial<Proof> = {}): Proof => walk(key, { kind: 'scan', ...extra });
+const placeProof = (key: string, extra: Partial<Proof> = {}): Proof => walk(key, { kind: 'place', ...extra });
+/** A Coca-Cola 12 oz can, as the camera reads it (UPC-A written as EAN-13). */
+const COKE_CAN = { kind: 'barcode', data: '0049000006346', type: 'ean13', registeredAt: 0 };
+
+test('early: a wake-up before 5:00 earns it, 5:00 on the dot does not', () => {
+  const early = launch({ proofs: [walk('2026-11-02', { at: at('2026-11-02', 4, 59) })], first: '2026-11-02' });
+  assert.deepEqual([...early.m.checkSecretMoons()], ['bluehour']);
+  const five = launch({ proofs: [walk('2026-11-02', { at: at('2026-11-02', 5, 0) })], first: '2026-11-02' });
+  assert.deepEqual([...five.m.checkSecretMoons()], []);
 });
 
-test('the secret: 399 steps is not enough', async () => {
-  const p = walk('2026-11-02');
-  const app = launch({ proofs: [p], first: '2026-11-02', steps: () => 399 });
-  assert.equal(await app.m.checkSecretMoon(p.at + 30 * 60_000), false);
-  assert.ok(!app.m.ownsMoon('twin-moonlet'));
+test('coke: a scan morning on a Coca-Cola barcode earns it; another barcode or a walk does not', () => {
+  const coke = launch({ proofs: [scanProof('2026-11-02')], first: '2026-11-02', scanCode: COKE_CAN });
+  assert.deepEqual([...coke.m.checkSecretMoons()], ['strawberry']);
+  const other = launch({ proofs: [scanProof('2026-11-02')], first: '2026-11-02', scanCode: { ...COKE_CAN, data: '5012345678900' } });
+  assert.deepEqual([...other.m.checkSecretMoons()], []);
+  const walked = launch({ proofs: [walk('2026-11-02')], first: '2026-11-02', scanCode: COKE_CAN });
+  assert.deepEqual([...walked.m.checkSecretMoons()], [], 'a Coke code saved, but the morning was a walk');
 });
 
-test('the secret: checked early, it only counts steps up to now', async () => {
-  const p = walk('2026-11-02');
-  const app = launch({ proofs: [p], first: '2026-11-02', steps: () => 0 });
-  await app.m.checkSecretMoon(p.at + 5 * 60_000);
-  assert.equal(app.asked[0].to.getTime(), p.at + 5 * 60_000);
+test('far: a place morning Home saw start 2 km or more away earns it, only that morning', () => {
+  const app = launch({ proofs: [placeProof('2026-11-02')], first: '2026-11-02' });
+  app.m.noteFarthest('2026-11-02', 800);
+  app.m.noteFarthest('2026-11-02', 2400);
+  app.m.noteFarthest('2026-11-02', 30);
+  assert.deepEqual([...app.m.checkSecretMoons()], ['micromoon']);
+
+  const near = launch({ proofs: [placeProof('2026-11-02')], first: '2026-11-02' });
+  near.m.noteFarthest('2026-11-02', 1999);
+  assert.deepEqual([...near.m.checkSecretMoons()], []);
+
+  const stale = launch({ proofs: [placeProof('2026-11-03')], first: '2026-11-02' });
+  stale.m.noteFarthest('2026-11-02', 5000);
+  assert.deepEqual([...stale.m.checkSecretMoons()], [], "yesterday's trip doesn't count for today");
+
+  const walked = launch({ proofs: [walk('2026-11-02')], first: '2026-11-02' });
+  walked.m.noteFarthest('2026-11-02', 5000);
+  assert.deepEqual([...walked.m.checkSecretMoons()], [], 'only on a place morning');
 });
 
-test('the secret: never asked for on the web, without a proof, without a morning start, or once owned', async () => {
-  const p = walk('2026-11-02');
-  const web = launch({ proofs: [p], os: 'web', steps: () => 999 });
-  assert.equal(await web.m.checkSecretMoon(p.at + 60 * 60_000), false);
-  assert.equal(web.asked.length, 0);
-
-  const none = launch({ steps: () => 999 });
-  assert.equal(await none.m.checkSecretMoon(), false);
-  assert.equal(none.asked.length, 0);
-
-  const old = launch({ proofs: [walk('2026-11-02', { morningStart: undefined })], steps: () => 999 });
-  assert.equal(await old.m.checkSecretMoon(), false, 'a proof saved before its times were kept');
-  assert.equal(old.asked.length, 0);
-
-  const owned = launch({ proofs: [p], first: '2026-11-02', steps: () => 999 });
-  await owned.m.checkSecretMoon(p.at + 60 * 60_000);
-  await owned.m.checkSecretMoon(p.at + 60 * 60_000);
-  assert.equal(owned.asked.length, 1, 'not asked again once owned');
+test('the secrets: a pass never counts, nor nothing at all, and each is earned once', () => {
+  const pass = { morningKey: '2026-11-03', kind: 'pass', at: at('2026-11-03', 4, 0), morningStart: at('2026-11-03', 4, 0) };
+  assert.deepEqual([...launch({ proofs: [pass], mornings: 0 }).m.checkSecretMoons()], []);
+  assert.deepEqual([...launch().m.checkSecretMoons()], []);
+  const app = launch({ proofs: [scanProof('2026-11-02', { at: at('2026-11-02', 4, 30) })], first: '2026-11-02', scanCode: COKE_CAN });
+  assert.deepEqual([...app.m.checkSecretMoons()].sort(), ['bluehour', 'strawberry'], 'one morning can earn two');
+  assert.deepEqual([...app.m.checkSecretMoons()], []);
 });
 
-test('the secret: a pass is not a wake-up to count steps from', async () => {
-  const pass = { morningKey: '2026-11-03', kind: 'pass', at: at('2026-11-03'), morningStart: at('2026-11-03', 7, 0) };
-  const app = launch({ proofs: [pass], mornings: 0, steps: () => 999 });
-  assert.equal(await app.m.checkSecretMoon(pass.at + 60 * 60_000), false);
+test('a secret is earned the moment the wake-up is recorded, dated to its morning', () => {
+  const app = launch({ proofs: [], first: null });
+  app.wake(walk('2026-11-04', { at: at('2026-11-04', 4, 10) }));
+  assert.equal(app.m.getOwned().bluehour.morningKey, '2026-11-04');
+  assert.deepEqual([...app.m.unpresented('2026-11-04')].map((m) => m.id), ['bluehour', 'dawn'], 'shown on the payoff, the secret first');
 });
 
-test('the secret: Motion & Fitness switched off throws, and the callers swallow it', async () => {
-  const p = walk('2026-11-02');
-  const app = launch({ proofs: [p], first: '2026-11-02', stepsFail: true });
-  await assert.rejects(app.m.checkSecretMoon(p.at + 60 * 60_000));
-  // The wake-up listener's check must not become an unhandled rejection.
-  let unhandled = false;
-  const onUnhandled = () => (unhandled = true);
-  process.on('unhandledRejection', onUnhandled);
-  app.wake(walk('2026-11-03'));
-  await settle();
-  await settle();
-  process.off('unhandledRejection', onUnhandled);
-  assert.equal(unhandled, false);
-});
-
-test('the secret, once earned, is dated to the morning that earned it', async () => {
-  const p = walk('2026-11-02');
-  const app = launch({ proofs: [p], first: '2026-11-02', steps: () => 500 });
-  await app.m.checkSecretMoon(p.at + 30 * 60_000);
-  assert.equal(app.m.getOwned()['twin-moonlet'].morningKey, '2026-11-02');
+test('the secret moons are the ladder slots after the Eclipse, by rule', () => {
+  const { m } = launch();
+  assert.deepEqual(m.SECRET_MOONS.map((s: { rule: string; id: string }) => `${s.rule}:${s.id}`), ['early:bluehour', 'coke:strawberry', 'far:micromoon']);
+  assert.ok(m.isSecret('micromoon') && !m.isSecret('eclipse'));
 });
 
 // ---- Opening the collection ----
@@ -278,13 +253,13 @@ test('the collection opens as a page by default, as a sheet once switched', () =
   assert.deepEqual(app.pushed, ['/moon-page', '/moon-sheet', '/moon-page']);
 });
 
-test('earning every moon (dev) gives the whole ladder and the rare one, once', () => {
+test('earning every moon (dev) gives the whole ladder, the secrets and the rare ones, once', () => {
   const app = launch();
   const added = app.m.devEarnAll();
   const owned = app.m.getOwned();
   assert.ok(added > 0);
-  assert.ok(Object.keys(owned).includes('ringed'));
-  assert.ok(Object.keys(owned).includes('eclipse'));
+  for (const id of ladder.RARE_MOONS) assert.ok(Object.keys(owned).includes(id));
+  for (const id of ['eclipse', 'bluehour', 'strawberry', 'micromoon']) assert.ok(Object.keys(owned).includes(id), id);
   assert.equal(app.m.devEarnAll(), 0);
 });
 

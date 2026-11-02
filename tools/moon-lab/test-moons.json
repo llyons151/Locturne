@@ -1,0 +1,2117 @@
+{
+ "sets": [
+  {
+   "key": "quiet",
+   "title": "Quiet",
+   "sub": "one colour, held back"
+  },
+  {
+   "key": "vivid",
+   "title": "Vivid",
+   "sub": "one colour, turned all the way up"
+  },
+  {
+   "key": "pairs",
+   "title": "Pairs",
+   "sub": "a moon against its opposite sky"
+  },
+  {
+   "key": "horizons",
+   "title": "Horizons",
+   "sub": "skies that change colour on the way down"
+  },
+  {
+   "key": "special",
+   "title": "Special",
+   "sub": "colour washes and second moons"
+  }
+ ],
+ "moons": [
+  {
+   "set": "quiet",
+   "name": "Pearl Grey",
+   "note": "Silver on a blue-grey night. The plainest one, on purpose.",
+   "sky": [
+    "#010102",
+    "#131920",
+    "#3F4955",
+    "#596472"
+   ],
+   "moon": [
+    "#838D9B",
+    "#EAF3FE"
+   ],
+   "glow": "#A0ACBC",
+   "id": "test-pearl-grey",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Bone",
+   "note": "Warm ivory on a soft brown dark.",
+   "sky": [
+    "#010101",
+    "#1D170D",
+    "#514635",
+    "#736753"
+   ],
+   "moon": [
+    "#968A77",
+    "#FAF1E2"
+   ],
+   "glow": "#B6A993",
+   "id": "test-bone",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Slate",
+   "note": "Cool blue-grey, like wet stone after rain.",
+   "sky": [
+    "#010102",
+    "#0B1A24",
+    "#334B5C",
+    "#4B677B"
+   ],
+   "moon": [
+    "#7690A3",
+    "#E6F4FE"
+   ],
+   "glow": "#91AFC5",
+   "id": "test-slate",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Sage",
+   "note": "Grey-green, calm and dusty.",
+   "sky": [
+    "#010101",
+    "#101C0E",
+    "#3A4E36",
+    "#5A7055"
+   ],
+   "moon": [
+    "#7E9379",
+    "#E9F7E6"
+   ],
+   "glow": "#9AB395",
+   "id": "test-sage",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Clay",
+   "note": "Terracotta: a muted red-brown, warm all the way down.",
+   "sky": [
+    "#020101",
+    "#261209",
+    "#613E2E",
+    "#865E4C"
+   ],
+   "moon": [
+    "#A98271",
+    "#FFEEE7"
+   ],
+   "glow": "#CC9F8C",
+   "id": "test-clay",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Mist",
+   "note": "Pale powder blue in a hazy sky.",
+   "sky": [
+    "#000102",
+    "#031B26",
+    "#254D60",
+    "#5A879D"
+   ],
+   "moon": [
+    "#6993A7",
+    "#E3F5FF"
+   ],
+   "glow": "#84B3CA",
+   "id": "test-mist",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Mauve",
+   "note": "Dusty pink-purple, faded like an old photograph.",
+   "sky": [
+    "#020101",
+    "#20131F",
+    "#563F54",
+    "#7A5F77"
+   ],
+   "moon": [
+    "#9D829A",
+    "#FDECFB"
+   ],
+   "glow": "#BEA0BA",
+   "id": "test-mauve",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Sand",
+   "note": "Light sand on a dusk the colour of a dune.",
+   "sky": [
+    "#010100",
+    "#1F1705",
+    "#544627",
+    "#837250"
+   ],
+   "moon": [
+    "#9A8A6A",
+    "#FAF1DD"
+   ],
+   "glow": "#BBA984",
+   "id": "test-sand",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Ink",
+   "note": "Deep navy ink and a moon that is nearly white.",
+   "sky": [
+    "#010102",
+    "#0F172E",
+    "#38466D",
+    "#364670"
+   ],
+   "moon": [
+    "#838CA1",
+    "#ECF2FF"
+   ],
+   "glow": "#A1ABC2",
+   "id": "test-ink",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Lilac",
+   "note": "Soft lilac, cool and light.",
+   "sky": [
+    "#010102",
+    "#1B1427",
+    "#4C4161",
+    "#807399"
+   ],
+   "moon": [
+    "#9185A9",
+    "#F4EFFF"
+   ],
+   "glow": "#B0A3CC",
+   "id": "test-lilac",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Celadon",
+   "note": "The pale green-blue of old porcelain glaze.",
+   "sky": [
+    "#010101",
+    "#061D17",
+    "#2B5046",
+    "#4F796D"
+   ],
+   "moon": [
+    "#6F968A",
+    "#E0F8F1"
+   ],
+   "glow": "#8AB6A9",
+   "id": "test-celadon",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Rosewater",
+   "note": "A whisper of pink on a rose-brown night.",
+   "sky": [
+    "#020101",
+    "#251214",
+    "#5E3D41",
+    "#896367"
+   ],
+   "moon": [
+    "#A68185",
+    "#FFEDEE"
+   ],
+   "glow": "#C89EA2",
+   "id": "test-rosewater",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Graphite",
+   "note": "Almost no colour at all: charcoal and soft white.",
+   "sky": [
+    "#010101",
+    "#16191B",
+    "#44484C",
+    "#494E52"
+   ],
+   "moon": [
+    "#888D91",
+    "#EBF3FC"
+   ],
+   "glow": "#A6ABB1",
+   "id": "test-graphite",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Butter",
+   "note": "Pale butter yellow over a warm olive dark.",
+   "sky": [
+    "#010100",
+    "#1E1803",
+    "#514723",
+    "#7F744B"
+   ],
+   "moon": [
+    "#968C66",
+    "#F8F2DC"
+   ],
+   "glow": "#B6AB80",
+   "id": "test-butter",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Fog",
+   "note": "Grey-teal fog off the sea.",
+   "sky": [
+    "#010101",
+    "#071C1E",
+    "#2D4E52",
+    "#4B7075"
+   ],
+   "moon": [
+    "#709498",
+    "#E0F7FA"
+   ],
+   "glow": "#8BB3B8",
+   "id": "test-fog",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Plum",
+   "note": "Deep plum, with a moon the colour of plum skin in the light.",
+   "sky": [
+    "#020102",
+    "#211224",
+    "#563D5C",
+    "#694C6F"
+   ],
+   "moon": [
+    "#9D81A3",
+    "#FBECFE"
+   ],
+   "glow": "#BE9EC5",
+   "id": "test-plum",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Moss",
+   "note": "Forest-floor green, dim and soft.",
+   "sky": [
+    "#010101",
+    "#141B0A",
+    "#404D30",
+    "#556442"
+   ],
+   "moon": [
+    "#839272",
+    "#ECF6E2"
+   ],
+   "glow": "#A1B28E",
+   "id": "test-moss",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Champagne",
+   "note": "Pale gold, like the bubbles in a glass.",
+   "sky": [
+    "#010101",
+    "#1F170A",
+    "#534530",
+    "#88785E"
+   ],
+   "moon": [
+    "#998A72",
+    "#FEF4E3"
+   ],
+   "glow": "#BAA88E",
+   "id": "test-champagne",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Petal",
+   "note": "Very pale blush on a dusky pink night.",
+   "sky": [
+    "#020101",
+    "#221319",
+    "#593F49",
+    "#8A6A76"
+   ],
+   "moon": [
+    "#A1838D",
+    "#FFF1F6"
+   ],
+   "glow": "#C2A0AC",
+   "id": "test-petal",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "quiet",
+   "name": "Midnight",
+   "note": "True midnight blue, with a bright cool moon.",
+   "sky": [
+    "#010103",
+    "#0B1731",
+    "#314672",
+    "#3A5182"
+   ],
+   "moon": [
+    "#7D8CAB",
+    "#ECF2FE"
+   ],
+   "glow": "#9AABCE",
+   "id": "test-midnight",
+   "kind": "test",
+   "tag": "quiet"
+  },
+  {
+   "set": "vivid",
+   "name": "Electric Blue",
+   "note": "A blue so bright it hums.",
+   "sky": [
+    "#000105",
+    "#001441",
+    "#054393",
+    "#387EE2"
+   ],
+   "moon": [
+    "#4C8BE8",
+    "#EAF3FF"
+   ],
+   "glow": "#73ACFF",
+   "id": "test-electric-blue",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Ultraviolet",
+   "note": "Deep violet turned all the way up.",
+   "sky": [
+    "#020104",
+    "#210340",
+    "#562A8C",
+    "#8557C7"
+   ],
+   "moon": [
+    "#9B73DB",
+    "#F4EFFF"
+   ],
+   "glow": "#BB92FE",
+   "id": "test-ultraviolet",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Emerald",
+   "note": "Rich, cut-gem green.",
+   "sky": [
+    "#000200",
+    "#001F0D",
+    "#00572F",
+    "#0E9958"
+   ],
+   "moon": [
+    "#2BA564",
+    "#D4FEE1"
+   ],
+   "glow": "#43C77E",
+   "id": "test-emerald",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Tangerine",
+   "note": "Juicy orange from top to bottom.",
+   "sky": [
+    "#030000",
+    "#2C0F00",
+    "#6F3600",
+    "#D97317"
+   ],
+   "moon": [
+    "#D16E10",
+    "#FEEEE4"
+   ],
+   "glow": "#F9892B",
+   "id": "test-tangerine",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Hot Pink",
+   "note": "Loud, happy pink.",
+   "sky": [
+    "#030001",
+    "#34001D",
+    "#7F0F50",
+    "#D55A97"
+   ],
+   "moon": [
+    "#D05F96",
+    "#FFECF3"
+   ],
+   "glow": "#F879B6",
+   "id": "test-hot-pink",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Cobalt",
+   "note": "Saturated cobalt, darker and deeper than Electric Blue.",
+   "sky": [
+    "#000105",
+    "#000F4A",
+    "#0C3E9E",
+    "#235BC8"
+   ],
+   "moon": [
+    "#5288EF",
+    "#EBF2FF"
+   ],
+   "glow": "#7FAAFA",
+   "id": "test-cobalt",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Lime",
+   "note": "Zesty lime-green on a dark green night.",
+   "sky": [
+    "#010200",
+    "#101D00",
+    "#385108",
+    "#82B037"
+   ],
+   "moon": [
+    "#739C30",
+    "#E7FAD1"
+   ],
+   "glow": "#8EBD46",
+   "id": "test-lime",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Scarlet",
+   "note": "Pure red, bold and glossy.",
+   "sky": [
+    "#040000",
+    "#370001",
+    "#8A050D",
+    "#C23A34"
+   ],
+   "moon": [
+    "#DC5F55",
+    "#FFEDEB"
+   ],
+   "glow": "#FB8276",
+   "id": "test-scarlet",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Turquoise",
+   "note": "Tropical-water turquoise.",
+   "sky": [
+    "#000202",
+    "#001E1D",
+    "#005351",
+    "#0AA19D"
+   ],
+   "moon": [
+    "#13A09D",
+    "#C6FFFC"
+   ],
+   "glow": "#0FC3BF",
+   "id": "test-turquoise",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Saffron",
+   "note": "Golden yellow-orange, like the spice.",
+   "sky": [
+    "#030100",
+    "#251500",
+    "#5F4106",
+    "#CF9103"
+   ],
+   "moon": [
+    "#B88001",
+    "#FFF0D9"
+   ],
+   "glow": "#DC9E23",
+   "id": "test-saffron",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Fuchsia",
+   "note": "Purple-pink, bright as a flower.",
+   "sky": [
+    "#030002",
+    "#2F002B",
+    "#731A6B",
+    "#B754AC"
+   ],
+   "moon": [
+    "#C165B5",
+    "#FEEBFB"
+   ],
+   "glow": "#E77FD9",
+   "id": "test-fuchsia",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Cyan",
+   "note": "Clear, icy cyan.",
+   "sky": [
+    "#000203",
+    "#001D24",
+    "#04515F",
+    "#199CB5"
+   ],
+   "moon": [
+    "#1E9CB5",
+    "#DCF7FF"
+   ],
+   "glow": "#21BEDC",
+   "id": "test-cyan",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Ruby",
+   "note": "Dark jewel red, with a rose-pink moon.",
+   "sky": [
+    "#030001",
+    "#37000D",
+    "#831533",
+    "#A22A46"
+   ],
+   "moon": [
+    "#D46375",
+    "#FFEDEE"
+   ],
+   "glow": "#FC7D90",
+   "id": "test-ruby",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Chartreuse",
+   "note": "The yellow-green between lime and lemon.",
+   "sky": [
+    "#010100",
+    "#181B00",
+    "#474D00",
+    "#A2AF1D"
+   ],
+   "moon": [
+    "#8A9509",
+    "#F0F7CB"
+   ],
+   "glow": "#A8B528",
+   "id": "test-chartreuse",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Sapphire",
+   "note": "Deep jewel blue.",
+   "sky": [
+    "#000104",
+    "#001935",
+    "#034980",
+    "#0671C2"
+   ],
+   "moon": [
+    "#3890E2",
+    "#E9F3FE"
+   ],
+   "glow": "#66B0FA",
+   "id": "test-sapphire",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Coral",
+   "note": "Bright coral, warm and pink-orange.",
+   "sky": [
+    "#030000",
+    "#360200",
+    "#831C00",
+    "#E86F52"
+   ],
+   "moon": [
+    "#D4684D",
+    "#FEEEE9"
+   ],
+   "glow": "#FD8264",
+   "id": "test-coral",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Amethyst",
+   "note": "Rich purple, a touch bluer than Ultraviolet.",
+   "sky": [
+    "#010104",
+    "#1A0A3F",
+    "#49348B",
+    "#7561C5"
+   ],
+   "moon": [
+    "#8C7CD9",
+    "#F1F0FF"
+   ],
+   "glow": "#AA9AFC",
+   "id": "test-amethyst",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Jade",
+   "note": "Bright jade green, between emerald and teal.",
+   "sky": [
+    "#000201",
+    "#001F14",
+    "#0A5540",
+    "#179D78"
+   ],
+   "moon": [
+    "#0BA47D",
+    "#CFFFEB"
+   ],
+   "glow": "#00C899",
+   "id": "test-jade",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Marigold",
+   "note": "Deep yellow-orange, like the flower.",
+   "sky": [
+    "#030100",
+    "#281200",
+    "#673D00",
+    "#DB8A0F"
+   ],
+   "moon": [
+    "#C2790A",
+    "#FEEFDF"
+   ],
+   "glow": "#EC9402",
+   "id": "test-marigold",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "vivid",
+   "name": "Magenta",
+   "note": "Full magenta.",
+   "sky": [
+    "#030002",
+    "#320024",
+    "#7B105F",
+    "#BB4797"
+   ],
+   "moon": [
+    "#CB60A7",
+    "#FEECF6"
+   ],
+   "glow": "#F279C9",
+   "id": "test-magenta",
+   "kind": "test",
+   "tag": "vivid"
+  },
+  {
+   "set": "pairs",
+   "name": "Peach & Teal",
+   "note": "A peach moon on deep teal. Warm on cool.",
+   "sky": [
+    "#000202",
+    "#001D21",
+    "#065259",
+    "#09717A"
+   ],
+   "moon": [
+    "#BE7A43",
+    "#FEEEE3"
+   ],
+   "glow": "#E3975A",
+   "id": "test-peach-teal",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Gold & Navy",
+   "note": "A gold moon on navy. The classic.",
+   "sky": [
+    "#000103",
+    "#06153A",
+    "#284482",
+    "#2A498E"
+   ],
+   "moon": [
+    "#AE8520",
+    "#FEF0D4"
+   ],
+   "glow": "#D1A337",
+   "id": "test-gold-navy",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Mint & Plum",
+   "note": "A mint moon on dark plum.",
+   "sky": [
+    "#020102",
+    "#270B29",
+    "#623265",
+    "#824C85"
+   ],
+   "moon": [
+    "#459F81",
+    "#D7FCEC"
+   ],
+   "glow": "#5DC19E",
+   "id": "test-mint-plum",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Pink & Forest",
+   "note": "A soft pink moon over a deep forest green.",
+   "sky": [
+    "#000201",
+    "#001F0A",
+    "#0C562B",
+    "#106333"
+   ],
+   "moon": [
+    "#BE7287",
+    "#FFECF1"
+   ],
+   "glow": "#E38DA5",
+   "id": "test-pink-forest",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Lemon & Violet",
+   "note": "A lemon moon on violet.",
+   "sky": [
+    "#010103",
+    "#1C0C39",
+    "#4E3681",
+    "#6A50A5"
+   ],
+   "moon": [
+    "#9A8E35",
+    "#F8F4D0"
+   ],
+   "glow": "#BAAD4B",
+   "id": "test-lemon-violet",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Coral & Blue",
+   "note": "A coral moon on clear blue.",
+   "sky": [
+    "#000103",
+    "#001837",
+    "#0D4980",
+    "#2D6BAB"
+   ],
+   "moon": [
+    "#CB6E5C",
+    "#FFEDEA"
+   ],
+   "glow": "#F28975",
+   "id": "test-coral-blue",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Ice & Rust",
+   "note": "An icy blue moon over a rust-red dusk.",
+   "sky": [
+    "#030100",
+    "#300A00",
+    "#723217",
+    "#954C2E"
+   ],
+   "moon": [
+    "#4997B4",
+    "#E2F6FE"
+   ],
+   "glow": "#61B8D8",
+   "id": "test-ice-rust",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Lavender & Olive",
+   "note": "A lavender moon over an olive night.",
+   "sky": [
+    "#010100",
+    "#191A00",
+    "#494C01",
+    "#65681D"
+   ],
+   "moon": [
+    "#937FC1",
+    "#F3EFFF"
+   ],
+   "glow": "#B39CE6",
+   "id": "test-lavender-olive",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Apricot & Indigo",
+   "note": "An apricot moon on deep indigo.",
+   "sky": [
+    "#010104",
+    "#0F113D",
+    "#373E87",
+    "#3F489A"
+   ],
+   "moon": [
+    "#BC7C40",
+    "#FEEFE2"
+   ],
+   "glow": "#E19956",
+   "id": "test-apricot-indigo",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Aqua & Wine",
+   "note": "An aqua moon on a wine-dark sky.",
+   "sky": [
+    "#030101",
+    "#300712",
+    "#722D3D",
+    "#7C2F42"
+   ],
+   "moon": [
+    "#2D9F99",
+    "#D2FCF8"
+   ],
+   "glow": "#45C0BA",
+   "id": "test-aqua-wine",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Rose & Slate",
+   "note": "A rose moon on cool slate.",
+   "sky": [
+    "#010102",
+    "#061A28",
+    "#2A4C62",
+    "#426882"
+   ],
+   "moon": [
+    "#BF7283",
+    "#FEEDF0"
+   ],
+   "glow": "#E58DA0",
+   "id": "test-rose-slate",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Butter & Teal",
+   "note": "A butter-yellow moon on teal.",
+   "sky": [
+    "#000202",
+    "#001E1F",
+    "#055255",
+    "#077174"
+   ],
+   "moon": [
+    "#9E8C3F",
+    "#FAF2D2"
+   ],
+   "glow": "#BFAB56",
+   "id": "test-butter-teal",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Blush & Navy",
+   "note": "A blush-pink moon on navy.",
+   "sky": [
+    "#000103",
+    "#061637",
+    "#29467C",
+    "#2B4B87"
+   ],
+   "moon": [
+    "#BB767C",
+    "#FFEDEE"
+   ],
+   "glow": "#E09298",
+   "id": "test-blush-navy",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Lime & Purple",
+   "note": "A lime moon on purple. Loud, but it works.",
+   "sky": [
+    "#020103",
+    "#210A36",
+    "#57327B",
+    "#754C9F"
+   ],
+   "moon": [
+    "#7A9941",
+    "#E9F9D4"
+   ],
+   "glow": "#96BA58",
+   "id": "test-lime-purple",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Sky & Cocoa",
+   "note": "A sky-blue moon on a cocoa-brown night.",
+   "sky": [
+    "#020100",
+    "#281104",
+    "#643D25",
+    "#84573C"
+   ],
+   "moon": [
+    "#4895C0",
+    "#E5F5FE"
+   ],
+   "glow": "#60B6E5",
+   "id": "test-sky-cocoa",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Orange & Cyan",
+   "note": "An orange moon on cyan. Like a film poster.",
+   "sky": [
+    "#000202",
+    "#001D23",
+    "#005160",
+    "#136F81"
+   ],
+   "moon": [
+    "#CA7237",
+    "#FFEEE4"
+   ],
+   "glow": "#F18E4D",
+   "id": "test-orange-cyan",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Cream & Emerald",
+   "note": "A cream moon on deep emerald.",
+   "sky": [
+    "#000200",
+    "#00200C",
+    "#03562F",
+    "#066337"
+   ],
+   "moon": [
+    "#9A8A6A",
+    "#FAF1DD"
+   ],
+   "glow": "#BBA984",
+   "id": "test-cream-emerald",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Lilac & Gold",
+   "note": "A lilac moon over an old-gold dusk.",
+   "sky": [
+    "#020100",
+    "#241500",
+    "#5F4202",
+    "#86621B"
+   ],
+   "moon": [
+    "#937FC1",
+    "#F3EFFF"
+   ],
+   "glow": "#B39CE6",
+   "id": "test-lilac-gold",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "Red & Teal",
+   "note": "A red moon on near-black teal. Dramatic.",
+   "sky": [
+    "#000102",
+    "#001D1F",
+    "#045256",
+    "#064649"
+   ],
+   "moon": [
+    "#D36761",
+    "#FEEDEB"
+   ],
+   "glow": "#FB817A",
+   "id": "test-red-teal",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "pairs",
+   "name": "White & Ultramarine",
+   "note": "A white moon on ultramarine. Simple and strong.",
+   "sky": [
+    "#000104",
+    "#041046",
+    "#213E96",
+    "#375ABE"
+   ],
+   "moon": [
+    "#888C94",
+    "#F5F9FF"
+   ],
+   "glow": "#A6ABB4",
+   "id": "test-white-ultramarine",
+   "kind": "test",
+   "tag": "pairs"
+  },
+  {
+   "set": "horizons",
+   "name": "First Light",
+   "note": "Indigo up top, rose in the middle, warm gold at the horizon.",
+   "sky": [
+    "#010103",
+    "#131139",
+    "#6D2C5A",
+    "#D38151"
+   ],
+   "moon": [
+    "#C5725D",
+    "#FFEEE2"
+   ],
+   "glow": "#EC8E76",
+   "id": "test-first-light",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Afterglow",
+   "note": "Blue into violet into coral: the minute after the sun goes.",
+   "sky": [
+    "#000103",
+    "#04153A",
+    "#563576",
+    "#D87A6E"
+   ],
+   "moon": [
+    "#C06F8F",
+    "#FEEEE8"
+   ],
+   "glow": "#E68AAF",
+   "id": "test-afterglow",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Golden Hour",
+   "note": "Warm all the way: copper, amber, honey.",
+   "sky": [
+    "#030100",
+    "#350200",
+    "#6E3703",
+    "#C28E20"
+   ],
+   "moon": [
+    "#B77F39",
+    "#FFF1CF"
+   ],
+   "glow": "#DB9D4F",
+   "id": "test-golden-hour",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Blue Hour",
+   "note": "Navy into cornflower into pale sky. A cool, white-blue moon.",
+   "sky": [
+    "#010103",
+    "#08143A",
+    "#054980",
+    "#46B1E3"
+   ],
+   "moon": [
+    "#6194AD",
+    "#DFF6FE"
+   ],
+   "glow": "#7AB4D0",
+   "id": "test-blue-hour",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Polar",
+   "note": "Deep blue, then teal, then a green horizon: a northern night.",
+   "sky": [
+    "#000103",
+    "#001739",
+    "#065353",
+    "#5DAD70"
+   ],
+   "moon": [
+    "#4E9E84",
+    "#D5FBF5"
+   ],
+   "glow": "#67BFA2",
+   "id": "test-polar",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Desert Dusk",
+   "note": "Violet over red rock over an orange horizon.",
+   "sky": [
+    "#010103",
+    "#1A0F37",
+    "#78292E",
+    "#CD8643"
+   ],
+   "moon": [
+    "#BF7946",
+    "#FFEFDC"
+   ],
+   "glow": "#E5955D",
+   "id": "test-desert-dusk",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Lagoon",
+   "note": "Blue into turquoise into seafoam.",
+   "sky": [
+    "#000103",
+    "#001934",
+    "#07515A",
+    "#2EB090"
+   ],
+   "moon": [
+    "#34A091",
+    "#D2FCF8"
+   ],
+   "glow": "#4CC1B0",
+   "id": "test-lagoon",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Flamingo",
+   "note": "Purple into pink into coral, with a pink moon.",
+   "sky": [
+    "#010103",
+    "#1F0C34",
+    "#712A50",
+    "#D87876"
+   ],
+   "moon": [
+    "#C26E89",
+    "#FFEDEC"
+   ],
+   "glow": "#E88AA8",
+   "id": "test-flamingo",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Citrus",
+   "note": "Green into lime into lemon.",
+   "sky": [
+    "#000200",
+    "#001F08",
+    "#474D04",
+    "#B39532"
+   ],
+   "moon": [
+    "#A18B32",
+    "#F9F3CF"
+   ],
+   "glow": "#C3AA48",
+   "id": "test-citrus",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Velvet",
+   "note": "Indigo into violet into deep rose.",
+   "sky": [
+    "#010103",
+    "#0D133A",
+    "#523779",
+    "#B06194"
+   ],
+   "moon": [
+    "#AB75B4",
+    "#FFEBF7"
+   ],
+   "glow": "#CE91D8",
+   "id": "test-velvet",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Sea Glass",
+   "note": "Slate blue into aqua into pale mint.",
+   "sky": [
+    "#000102",
+    "#001B29",
+    "#085351",
+    "#5CAB86"
+   ],
+   "moon": [
+    "#579C87",
+    "#DAFAEF"
+   ],
+   "glow": "#70BCA5",
+   "id": "test-sea-glass",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Embers",
+   "note": "Wine into red into orange, with an amber moon.",
+   "sky": [
+    "#030001",
+    "#36000D",
+    "#7E2415",
+    "#C87521"
+   ],
+   "moon": [
+    "#C37552",
+    "#FFEFDC"
+   ],
+   "glow": "#E99169",
+   "id": "test-embers",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Lavender Dawn",
+   "note": "Lilac into mauve into a soft peach horizon.",
+   "sky": [
+    "#010103",
+    "#161332",
+    "#593868",
+    "#C38B58"
+   ],
+   "moon": [
+    "#9581B4",
+    "#FFEBFC"
+   ],
+   "glow": "#B49FD7",
+   "id": "test-lavender-dawn",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Monsoon",
+   "note": "Storm blue into teal into a wet green horizon.",
+   "sky": [
+    "#000103",
+    "#001B2B",
+    "#095255",
+    "#658E4E"
+   ],
+   "moon": [
+    "#73986B",
+    "#E1F9E5"
+   ],
+   "glow": "#8FB886",
+   "id": "test-monsoon",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Grape Soda",
+   "note": "Purple into magenta into pink. Fizzy.",
+   "sky": [
+    "#010104",
+    "#1A0B3D",
+    "#672971",
+    "#DA6FA2"
+   ],
+   "moon": [
+    "#B273AC",
+    "#FFECF6"
+   ],
+   "glow": "#D58ECF",
+   "id": "test-grape-soda",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Tropic",
+   "note": "Teal into jade into a lime-gold horizon.",
+   "sky": [
+    "#000202",
+    "#001D21",
+    "#09553D",
+    "#AB992C"
+   ],
+   "moon": [
+    "#90923B",
+    "#FBF2CF"
+   ],
+   "glow": "#AFB151",
+   "id": "test-tropic",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Rosé",
+   "note": "Mauve into rose into a peach horizon.",
+   "sky": [
+    "#020102",
+    "#280B25",
+    "#712F3C",
+    "#CA865B"
+   ],
+   "moon": [
+    "#C6706E",
+    "#FFEEE6"
+   ],
+   "glow": "#ED8B88",
+   "id": "test-rose",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Nordic",
+   "note": "Cold blue all the way down to a thin warm band.",
+   "sky": [
+    "#000103",
+    "#001837",
+    "#064E6D",
+    "#D57F57"
+   ],
+   "moon": [
+    "#BE7858",
+    "#FFEFE0"
+   ],
+   "glow": "#E49471",
+   "id": "test-nordic",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Cotton Candy",
+   "note": "Violet into pink, with a baby-blue horizon.",
+   "sky": [
+    "#010103",
+    "#1E0D35",
+    "#6F2B55",
+    "#3EA3D7"
+   ],
+   "moon": [
+    "#B1779B",
+    "#FFECF1"
+   ],
+   "glow": "#D593BC",
+   "id": "test-cotton-candy",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "horizons",
+   "name": "Solstice",
+   "note": "Indigo into crimson into a gold horizon, and a gold moon.",
+   "sky": [
+    "#010104",
+    "#0D123D",
+    "#7B2336",
+    "#C18F1E"
+   ],
+   "moon": [
+    "#AF8433",
+    "#FDF2CF"
+   ],
+   "glow": "#D2A249",
+   "id": "test-solstice",
+   "kind": "test",
+   "tag": "horizons"
+  },
+  {
+   "set": "special",
+   "name": "Opaline",
+   "note": "A pale moon shifting from pink to lilac to aqua, on a lilac night.",
+   "sky": [
+    "#010102",
+    "#15152E",
+    "#4F3E68",
+    "#8F648A"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#B1A1D2",
+   "tint": {
+    "angle": 110,
+    "stops": [
+     "#FEA5C8",
+     "#CEB5FE",
+     "#36DCEC"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-opaline",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Holographic",
+   "note": "Pastel rainbow across a white moon, like foil.",
+   "sky": [
+    "#010103",
+    "#0E1437",
+    "#503974",
+    "#1A8FA6"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#90ACD9",
+   "tint": {
+    "angle": 70,
+    "stops": [
+     "#FCA6CE",
+     "#F0BA59",
+     "#83DC97",
+     "#48D7FE",
+     "#CEB5FE"
+    ],
+    "amount": 0.55
+   },
+   "id": "test-holographic",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Oil Slick",
+   "note": "A dark moon with teal, violet and gold slicked across it.",
+   "sky": [
+    "#010102",
+    "#0F172D",
+    "#44426A",
+    "#3E2E57"
+   ],
+   "moon": [
+    "#262E3F",
+    "#7F8694"
+   ],
+   "glow": "#AAA1E4",
+   "tint": {
+    "angle": 140,
+    "stops": [
+     "#02B6AF",
+     "#A689F1",
+     "#C69613",
+     "#02B6AF"
+    ],
+    "amount": 0.75
+   },
+   "id": "test-oil-slick",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Sunset Moon",
+   "note": "The sunset painted on the moon itself: gold at the top, violet below.",
+   "sky": [
+    "#010103",
+    "#161038",
+    "#672E63",
+    "#BD6254"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#ED8B8B",
+   "tint": {
+    "angle": 180,
+    "stops": [
+     "#F0BA59",
+     "#FDAC9F",
+     "#FCA6CE",
+     "#CEB5FE"
+    ],
+    "amount": 0.65
+   },
+   "id": "test-sunset-moon",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Aurora Moon",
+   "note": "Green into teal into violet across the moon, under a polar sky.",
+   "sky": [
+    "#000103",
+    "#011836",
+    "#015350",
+    "#468C57"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#5AC1A0",
+   "tint": {
+    "angle": 160,
+    "stops": [
+     "#83DC97",
+     "#36DEDE",
+     "#C8B8FD"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-aurora-moon",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Peach Melba",
+   "note": "Peach into raspberry, on a raspberry dusk.",
+   "sky": [
+    "#020102",
+    "#2C0722",
+    "#752B35",
+    "#C17843"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#ED8C84",
+   "tint": {
+    "angle": 135,
+    "stops": [
+     "#FEB170",
+     "#FCAAB6",
+     "#FCA6CE"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-peach-melba",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Tidepool",
+   "note": "Aqua, mint and sand across the moon, on a sea-blue night.",
+   "sky": [
+    "#000102",
+    "#001C28",
+    "#095252",
+    "#309477"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#5ABFB3",
+   "tint": {
+    "angle": 100,
+    "stops": [
+     "#3ADAF2",
+     "#65DFAF",
+     "#EBBD57"
+    ],
+    "amount": 0.55
+   },
+   "id": "test-tidepool",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Mermaid",
+   "note": "Teal into violet across the moon, on deep teal.",
+   "sky": [
+    "#000103",
+    "#001934",
+    "#065259",
+    "#178777"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#39BCDF",
+   "tint": {
+    "angle": 120,
+    "stops": [
+     "#41DFCF",
+     "#6FD2FF",
+     "#CEB5FE"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-mermaid",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Sherbet",
+   "note": "Orange, pink and lemon swirled across the moon.",
+   "sky": [
+    "#020102",
+    "#27092D",
+    "#782A28",
+    "#C38C37"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#EB9070",
+   "tint": {
+    "angle": 60,
+    "stops": [
+     "#FDB07C",
+     "#FDA7C1",
+     "#D8C65A"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-sherbet",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Nebula Moon",
+   "note": "Blue into magenta across the moon, on a violet night.",
+   "sky": [
+    "#010104",
+    "#12103D",
+    "#5A3179",
+    "#A4528F"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#C295E3",
+   "tint": {
+    "angle": 135,
+    "stops": [
+     "#97C9FD",
+     "#CEB5FE",
+     "#FCA4D6"
+    ],
+    "amount": 0.65
+   },
+   "id": "test-nebula-moon",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Fire Opal",
+   "note": "Red into orange into gold across the moon, on an ember sky.",
+   "sky": [
+    "#030001",
+    "#350109",
+    "#7B290B",
+    "#B76B13"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#E99169",
+   "tint": {
+    "angle": 160,
+    "stops": [
+     "#FDACA1",
+     "#FDB07C",
+     "#EBBD57"
+    ],
+    "amount": 0.7
+   },
+   "id": "test-fire-opal",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Glacier",
+   "note": "Blue into cyan into white across the moon, on an icy sky.",
+   "sky": [
+    "#000103",
+    "#001834",
+    "#015066",
+    "#2BA5AB"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#67B9CC",
+   "tint": {
+    "angle": 180,
+    "stops": [
+     "#BADBFE",
+     "#97E6F5",
+     "#96E8EC"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-glacier",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Iris",
+   "note": "Violet into gold across the moon, like the flower.",
+   "sky": [
+    "#010103",
+    "#101436",
+    "#4A3C78",
+    "#AC7132"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#B49DDF",
+   "tint": {
+    "angle": 150,
+    "stops": [
+     "#C8B8FD",
+     "#CEB5FE",
+     "#EBBD57"
+    ],
+    "amount": 0.6
+   },
+   "id": "test-iris",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Midnight Garden",
+   "note": "Violet into green across the moon, over a violet-green night.",
+   "sky": [
+    "#010103",
+    "#0F1535",
+    "#503A72",
+    "#377948"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#72BE96",
+   "tint": {
+    "angle": 120,
+    "stops": [
+     "#CEB5FE",
+     "#6FD2FF",
+     "#83DC97"
+    ],
+    "amount": 0.55
+   },
+   "id": "test-midnight-garden",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Prism Night",
+   "note": "A full rainbow across the moon, on a deep blue sky.",
+   "sky": [
+    "#000104",
+    "#041241",
+    "#1C438D",
+    "#155DAC"
+   ],
+   "moon": [
+    "#8B8B96",
+    "#F0F0FD"
+   ],
+   "glow": "#90ACD9",
+   "tint": {
+    "angle": 90,
+    "stops": [
+     "#FDABAA",
+     "#F7B83D",
+     "#81DD85",
+     "#6FD2FF",
+     "#CEB5FE"
+    ],
+    "amount": 0.7
+   },
+   "id": "test-prism-night",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Paper Lantern",
+   "note": "A warm, glowing amber moon on a soft orange dusk.",
+   "sky": [
+    "#020101",
+    "#2B0E0A",
+    "#673A26",
+    "#A1764D"
+   ],
+   "moon": [
+    "#D9893F",
+    "#FFF4E2"
+   ],
+   "glow": "#E89638",
+   "glowOpacity": 1,
+   "id": "test-paper-lantern",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Two Suns",
+   "note": "A peach moon below and a small aqua one above, on a dusk that holds both.",
+   "sky": [
+    "#010103",
+    "#151139",
+    "#672E63",
+    "#CE7951"
+   ],
+   "moon": [
+    "#C1774C",
+    "#FEEEE5"
+   ],
+   "glow": "#E79363",
+   "twin": {
+    "x": 0.8,
+    "y": 0.64,
+    "size": 0.22,
+    "moon": [
+     "#209FA5",
+     "#CEFCFE"
+    ],
+    "glow": "#24C1C9",
+    "glowOpacity": 0.6
+   },
+   "id": "test-two-suns",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Lovers",
+   "note": "A pink moon and a small violet one, on a pink-to-violet night.",
+   "sky": [
+    "#010103",
+    "#1D0D35",
+    "#6D2C5A",
+    "#D1717A"
+   ],
+   "moon": [
+    "#C26E89",
+    "#FFECF1"
+   ],
+   "glow": "#E88AA8",
+   "twin": {
+    "x": 0.2,
+    "y": 0.66,
+    "size": 0.24,
+    "moon": [
+     "#977CC5",
+     "#F4EFFE"
+    ],
+    "glow": "#B699EB",
+    "glowOpacity": 0.6
+   },
+   "id": "test-lovers",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Tide",
+   "note": "An aqua moon and a little gold one, over the sea.",
+   "sky": [
+    "#000103",
+    "#001B29",
+    "#055256",
+    "#23AA8A"
+   ],
+   "moon": [
+    "#1AA291",
+    "#D0FDF4"
+   ],
+   "glow": "#36C3B0",
+   "twin": {
+    "x": 0.78,
+    "y": 0.68,
+    "size": 0.18,
+    "moon": [
+     "#B38236",
+     "#FEEFDC"
+    ],
+    "glow": "#D79F4C",
+    "glowOpacity": 0.6
+   },
+   "id": "test-tide",
+   "kind": "test",
+   "tag": "special"
+  },
+  {
+   "set": "special",
+   "name": "Lemon & Lime",
+   "note": "A lemon moon and a small lime one, on a green-gold night.",
+   "sky": [
+    "#000200",
+    "#001F08",
+    "#3F4F03",
+    "#A9912B"
+   ],
+   "moon": [
+    "#9C8D34",
+    "#F9F3CF"
+   ],
+   "glow": "#BDAC4A",
+   "twin": {
+    "x": 0.22,
+    "y": 0.67,
+    "size": 0.22,
+    "moon": [
+     "#6E9B55",
+     "#E5FADA"
+    ],
+    "glow": "#89BC6D",
+    "glowOpacity": 0.6
+   },
+   "id": "test-lemon-lime",
+   "kind": "test",
+   "tag": "special"
+  }
+ ]
+}

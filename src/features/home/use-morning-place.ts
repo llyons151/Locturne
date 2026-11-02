@@ -3,9 +3,10 @@ import { AppState, Linking } from 'react-native';
 
 import * as haptic from '@/lib/haptics';
 import { readLock } from '@/lib/lock-controller';
-import { distanceMeters, judgeFix, PLACE_RADIUS_M, sharpFix, submitPlaceFix, type Fix, type MorningPlace, type PlaceCheck } from '@/lib/place';
+import { distanceMeters, getMorningPlace, judgeFix, PLACE_RADIUS_M, sharpFix, submitPlaceFix, type Fix, type MorningPlace, type PlaceCheck } from '@/lib/place';
 
 import { shownPlace } from '../dev/wake-lab/stand-ins';
+import { noteFarthest } from '../moons/moon-collection';
 import { pretendPhase, pretendWoke } from '../dev/wake-lab/wake-preview';
 import { readFix } from '../place/locate';
 import { formatDistance, placeWords, settingsCanFix, type Stage } from '../place/place-stage';
@@ -60,6 +61,15 @@ export function useMorningPlace(enabled: boolean, walk: MorningWalk | null, step
     });
     return () => sub.remove();
   }, [stuck]);
+
+  // How far from the place this morning started, for a secret moon (moon-ladder.ts `far`). Real mornings only.
+  const sharp = you && sharpFix(you) ? you : null;
+  useEffect(() => {
+    const target = getMorningPlace();
+    if (!enabled || !sharp || !target || pretendPhase() !== null) return;
+    const lock = readLock();
+    if (lock.phase === 'morning') noteFarthest(lock.morningKey, distanceMeters(sharp, target));
+  }, [enabled, sharp]);
 
   if (!enabled) return null;
   // The wake preview's pretend morning can stand in a place, and its check-in records nothing.

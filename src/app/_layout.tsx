@@ -63,6 +63,11 @@ export default function RootLayout() {
             name="moon-page"
             options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
           />
+          {/* Settings, from the You button, grows out of the strip the same way (components/strip-page.tsx, user 2026-11-02). */}
+          <Stack.Screen
+            name="settings"
+            options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
+          />
           {/* Short, like a system action sheet: it floats above the tabs at the height of its contents. */}
           <Stack.Screen
             name="sleep"

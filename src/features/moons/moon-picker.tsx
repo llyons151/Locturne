@@ -6,7 +6,7 @@ import * as haptic from '@/lib/haptics';
 import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
 import { LADDER } from './moon-data';
-import { DEFAULT_MOON, LADDER_MOONS, OTHER_MOONS, setMoon, useMoon } from './moon-theme';
+import { DEFAULT_MOON, LADDER_MOONS, OTHER_MOONS, setMoon, useWornMoon } from './moon-theme';
 import { MoonWheel } from './moon-wheel';
 
 /** When each ladder moon unlocks (docs/reports/Moon count and unlock pacing.md). */
@@ -25,7 +25,7 @@ const ROWS = [
  * the card as the wheel turns.
  */
 export function MoonPicker() {
-  const worn = useMoon();
+  const worn = useWornMoon();
   const done = () => {
     haptic.done();
     closeSleepSheet();

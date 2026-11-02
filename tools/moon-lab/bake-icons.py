@@ -1,9 +1,13 @@
 """Bakes the collection's moon icons (user, 2026-11-01): the night icon (a moon behind two clouds,
-assets/moons/icons/night.png) once per moon, its disc filled with that moon's own art and its
-clouds in the moon's lightest colour. Writes assets/moons/icons/<id>.webp and
-src/features/moons/moon-icons.ts. Run `npm run moons:icons` after `npm run moons:bake`.
+assets/moons/icons/night.png) once per moon, its disc that moon's art cut to three flat tones (user,
+2026-11-02: the photo disc looked like a cutout; picked over a shaded take in the moon lab's
+icons.html) and its clouds in the moon's lightest colour. The Eclipse is a flat amber moon with a
+dark disc sliding across it, leaving a crescent (a black disc in a ring read as "just a circle"). Writes assets/moons/icons/<id>.webp and
+src/features/moons/moon-icons.ts. Run `npm run moons:icons` after `npm run moons:bake`;
+`--only id,id` re-bakes just those icons.
 """
 
+import argparse
 import json
 import re
 from pathlib import Path
@@ -29,17 +33,20 @@ ART = (0.18, 0.82)
 
 
 def moons():
-    """Each moon's id, lightest colour, moon image and whether it has the Eclipse's ring, from moon-data.ts."""
+    """Each moon's id, orb colours (dark to light), moon image and whether it's the Eclipse, from moon-data.ts."""
     for line in DATA.read_text().splitlines():
         m = re.search(r'\{ "id": "([^"]+)".*?"orb": (\[[^\]]+\])', line)
         if not m:
             continue
         art = re.search(r"moon: require\('@/assets/moons/([^']+)'\)", line)
         path = (REPO / 'assets' / 'moons' / art.group(1)) if art else DEFAULT_MOON
-        yield m.group(1), json.loads(m.group(2))[3], path, '"kind": "eclipse"' in line
+        yield m.group(1), json.loads(m.group(2)), path, '"kind": "eclipse"' in line
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--only', default='', help='comma-separated moon ids to re-bake; the rest keep their icons')
+    only = {s for s in ap.parse_args().only.split(',') if s}
     icon = np.asarray(Image.open(SOURCE).convert('RGBA').resize((SIZE, SIZE), Image.LANCZOS)).astype(np.float64)
     alpha = icon[..., 3] / 255
     # The moon is the shape joined to the disc's centre: the clouds are cut off from it by the icon's gap.
@@ -49,12 +56,16 @@ def main():
     moon = np.asarray(Image.fromarray(moon, 'L').filter(ImageFilter.MaxFilter(3))).astype(np.float64) / 255
     in_disc = alpha * moon
     clouds = np.clip(alpha - in_disc, 0, 1)
-    # The Eclipse's ring, as a sharp line round the disc's edge (it's near black, and the page is black).
-    shrunk = Image.fromarray((in_disc * 255).astype(np.uint8), 'L').filter(ImageFilter.MinFilter(9))
-    rim = np.clip(in_disc - np.asarray(shrunk).astype(np.float64) / 255, 0, 1)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(np.float64)
+    # The Eclipse's shadow: a disc a little smaller than the moon, down and left of it, so a lit crescent
+    # shows along the top right, above the clouds. Anti-aliased over about a pixel.
+    shadow = np.clip(R * 0.97 - np.hypot(xx - (CX - R * 0.34), yy - (CY + R * 0.2)) + 0.5, 0, 1)
 
     ids = []
-    for id_, light, art_path, ringed in moons():
+    for id_, orb, art_path, ringed in moons():
+        if only and id_ not in only and (ICONS / f'{id_}.webp').exists():
+            ids.append(id_)
+            continue
         art = Image.open(art_path).convert('RGBA')
         w = art.width
         art = art.crop((round(w * ART[0]), round(w * ART[0]), round(w * ART[1]), round(w * ART[1])))
@@ -63,13 +74,29 @@ def main():
         layer = np.zeros((SIZE, SIZE, 4))
         x0, y0 = round(CX - R), round(CY - R)
         layer[y0:y0 + d, x0:x0 + d] = art
-        cloud_rgb = np.array([int(light[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.float64)
-        moon_a = in_disc * layer[..., 3] / 255
+        hexes = [np.array([int(c[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.float64) for c in orb]
+        cloud_rgb = hexes[3]
+        art_rgb = layer[..., :3]
         if ringed:
-            layer[..., :3] = layer[..., :3] * (1 - rim[..., None]) + cloud_rgb * rim[..., None]
-            moon_a = np.maximum(moon_a, rim)
+            # The Eclipse's own art is near black: light the moon in its amber and gold instead.
+            art_rgb = np.clip(art_rgb * 6, 0, 255)
+        # Three flat tones from the art's light and dark, smoothed into soft-edged blobs first.
+        lum = art_rgb @ np.array([0.299, 0.587, 0.114]) / 255
+        lum = np.asarray(Image.fromarray((lum * 255).astype(np.uint8), 'L').filter(ImageFilter.GaussianBlur(3.5))).astype(np.float64) / 255
+        inside = in_disc > 0.5
+        lo, hi = np.percentile(lum[inside], [30, 78])
+        if ringed:
+            mean, dark, lite = hexes[2], hexes[2] * 0.6 + hexes[1] * 0.4, hexes[2] * 0.45 + hexes[3] * 0.55
+        else:
+            mean = art_rgb[inside].mean(axis=0)
+            dark, lite = mean * 0.62 + hexes[1] * 0.38, mean * 0.55 + cloud_rgb * 0.45
+        moon_rgb = np.where(lum[..., None] < lo, dark, np.where(lum[..., None] > hi, lite, mean))
+        if ringed:
+            night = np.array([20, 12, 9], dtype=np.float64)
+            moon_rgb = moon_rgb * (1 - shadow[..., None]) + night * shadow[..., None]
+        moon_a = in_disc * (layer[..., 3] > 12)
         a = moon_a + clouds
-        rgb = (layer[..., :3] * moon_a[..., None] + cloud_rgb * clouds[..., None]) / np.maximum(a, 1e-6)[..., None]
+        rgb = (moon_rgb * moon_a[..., None] + cloud_rgb * clouds[..., None]) / np.maximum(a, 1e-6)[..., None]
         out = np.dstack([rgb, np.clip(a, 0, 1) * 255]).round().clip(0, 255).astype(np.uint8)
         Image.fromarray(out, 'RGBA').resize((OUT, OUT), Image.LANCZOS).save(ICONS / f'{id_}.webp', quality=88, method=6)
         ids.append(id_)

@@ -188,6 +188,12 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
           const focused = state.index === index;
 
           const onPress = () => {
+            // You opens Settings, grown up out of this strip like the moons (user, 2026-11-02).
+            if (route.name === 'profile') {
+              tap();
+              router.push('/settings');
+              return;
+            }
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,

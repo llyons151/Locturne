@@ -90,9 +90,7 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
 
 /* Night panels: the app's own Moonrise colours, so the set has light and dark beats. */
 .panel.dark { --text: #F2F8FC; --text2: #A8BAD3; --accent: #A3BDF5; }
-.panel.dark { background:
-    radial-gradient(110% 60% at 50% 30%, #1E2D5C 0%, rgba(0, 0, 0, 0) 65%),
-    linear-gradient(180deg, #16254F 0%, #050A17 75%); }
+
 
 /* A key number lifted out of the screen as a card (Opal, Hevy, one sec). Neutral shadow only. */
 .callout {
@@ -117,3 +115,23 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
 .hero-loc { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); z-index: 2; }
 .hero-loc img { display: block; width: 100%; }
 .kicker { margin: 0 0 30px; font-size: 40px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+
+/* Panorama: the whole set's background as one strip; each panel shows its slice (left = -index × 1320). */
+.pano { position: absolute; top: 0; height: 2868px; z-index: 0; overflow: hidden; }
+/* Paler at the top behind the headline, deeper toward the bottom, like a sky. */
+.pano-sky { position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0) 55%); }
+/* Out-of-focus discs in deep tones (objects, not light). Ones on a seam continue into the next panel. */
+.disc { position: absolute; border-radius: 50%; }
+.panel.dark .pano-sky { opacity: 0.25; }
+
+/* Frosted band the phone dissolves into (user-requested, Opal reference 2026-11-02). Built in panel.html:
+   eight backdrop blurs (1px → 64px) on overlapping masks, so the blur grows continuously with no visible steps,
+   then a wash of the panel's own colour that turns nearly solid at the bottom. Every mask is an ellipse hung from
+   above, so the band's top edge curves up toward the sides. */
+.frost { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; pointer-events: none; }
+.frost i { position: absolute; inset: 0; }
+
+/* A piece of the real screen, lifted out and enlarged. Neutral shadow only. */
+.callout-crop { position: absolute; z-index: 5; border-radius: 56px; background-color: #000; background-repeat: no-repeat;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.28), 0 6px 16px rgba(0, 0, 0, 0.12); outline: 2px solid rgba(255, 255, 255, 0.10); outline-offset: -2px; }

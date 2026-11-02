@@ -2,7 +2,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { daysBetween, ECLIPSE_DAYS, LADDER_MORNINGS, ladderNeed, RARE_FROM_MORNING, RARE_MOON, RARE_ODDS, rollFor, settleLadder, type LadderFacts } from './moon-ladder.ts';
+import { daysBetween, ECLIPSE_DAYS, LADDER_MORNINGS, ladderNeed, RARE_FROM_MORNING, RARE_MOONS, RARE_ODDS, rollFor, settleLadder, type LadderFacts, type RareState } from './moon-ladder.ts';
+import * as ladder from './moon-ladder.ts';
+
+/** The tests' own two rare moons, so they don't change when the app's list does. */
+const RARES = ['ringed', 'bluemoon'];
+const RARE_MOON = RARES[0];
 
 const LADDER = ['dawn', 'harvest', 'aurora', 'supermoon', 'nebula', 'midnightsun', 'blood', 'deepsea', 'prism', 'eclipse', 'twin-moonlet'];
 
@@ -12,9 +17,10 @@ const facts = (over: Partial<LadderFacts> = {}): LadderFacts => ({
   firstMorning: '2026-11-02',
   latest: '2026-11-02',
   owned: {},
-  rare: { due: false, rolled: null, seed: 1 },
+  rare: { due: [], rolled: null, seed: 1 },
   limited: [],
   now: 0,
+  rareMoons: [RARE_MOON],
   ...over,
 });
 
@@ -56,14 +62,14 @@ test('the rare moon never lands on a ladder morning: it waits for the next', () 
   const ladderDay = settleLadder(facts({ mornings: 3, latest: key, owned: { dawn: { id: 'dawn', morningKey: '2026-11-02', morning: 1, at: 0 } }, rare: { due: false, rolled: null, seed: hit } }));
   assert.ok(ladderDay.owned.harvest);
   assert.equal(ladderDay.owned[RARE_MOON], undefined);
-  assert.equal(ladderDay.rare.due, true);
+  assert.deepEqual(ladderDay.rare.due, [RARE_MOON]);
   // Looked at again the same morning: still waiting, not rolled twice.
   const sameDay = settleLadder(facts({ mornings: 3, latest: key, owned: ladderDay.owned, rare: ladderDay.rare }));
   assert.equal(sameDay.owned[RARE_MOON], undefined);
   // The next morning: there it is.
   const next = settleLadder(facts({ mornings: 4, latest: '2026-11-05', owned: sameDay.owned, rare: sameDay.rare }));
   assert.ok(next.owned[RARE_MOON]);
-  assert.equal(next.rare.due, false);
+  assert.deepEqual(next.rare.due, []);
 });
 
 test('a morning rolls once: a miss stays a miss', () => {
@@ -149,7 +155,7 @@ test('the Eclipse morning is a ladder morning: a rare hit that day waits', () =>
   const out = settleLadder(facts({ mornings: 6, firstMorning: '2026-11-11', latest: key, owned, rare: { due: false, rolled: null, seed } }));
   assert.ok(out.owned.eclipse);
   assert.equal(out.owned[RARE_MOON], undefined);
-  assert.equal(out.rare.due, true);
+  assert.deepEqual(out.rare.due, [RARE_MOON]);
 });
 
 test('a rare hit that waits survives several ladder mornings in a row, then lands', () => {
@@ -227,7 +233,7 @@ test('two years of random mornings, many installs: the rules always hold', () =>
     const habit = 0.3 + rand() * 0.7;
     const start = '2026-11-02';
     let owned = {} as LadderFacts['owned'];
-    let rare = { due: false, rolled: null as string | null, seed: install };
+    let rare: RareState = { due: [], rolled: null, seed: install };
     let mornings = 0;
     let first: string | null = null;
     const earnedOn = new Map<string, string[]>();
@@ -239,7 +245,7 @@ test('two years of random mornings, many installs: the rules always hold', () =>
       // Sometimes the app is opened several times that morning; sometimes not at all (a shield wake-up).
       const looks = rand() < 0.15 ? 0 : 1 + Math.floor(rand() * 3);
       for (let look = 0; look < looks; look++) {
-        const out = settleLadder({ ladder: LADDER, mornings, firstMorning: first, latest: key, owned, rare, limited: [], now: day });
+        const out = settleLadder({ ladder: LADDER, mornings, firstMorning: first, latest: key, owned, rare, limited: [], now: day, rareMoons: [RARE_MOON] });
         for (const id of out.earned) {
           assert.ok(!owned[id], `${id} earned twice`);
           earnedOn.set(key, [...(earnedOn.get(key) ?? []), id]);
@@ -265,4 +271,80 @@ test('two years of random mornings, many installs: the rules always hold', () =>
   }
   // At ~0.65 mornings a day for two years, well over half of installs should have seen it; never all.
   assert.ok(rareInstalls > 150 && rareInstalls < 400, `rare in ${rareInstalls}/400`);
+});
+
+// ——— More than one rare moon (Blue Moon added, user 2026-11-02). ———
+const BLUE = RARES[1];
+/** A seed whose rolls for `key` hit the second rare moon, and the first too or not. */
+function seedForBoth(key: string, first: boolean): number {
+  for (let seed = 0; ; seed++) {
+    const a = rollFor(seed, key) < 1 / RARE_ODDS, b = rollFor(seed, `${key}:${BLUE}`) < 1 / RARE_ODDS;
+    if (b && a === first) return seed;
+  }
+}
+/** The first two rungs owned on earlier mornings, so morning 4 isn't a ladder morning. */
+const earlier = () => ({
+  dawn: { id: 'dawn', morningKey: '2026-11-02', morning: 1, at: 0 },
+  harvest: { id: 'harvest', morningKey: '2026-11-04', morning: 3, at: 0 },
+});
+
+test('each rare moon rolls on its own: the second can come alone', () => {
+  const key = '2026-11-06';
+  const out = settleLadder(facts({ mornings: 4, latest: key, owned: earlier(), rareMoons: RARES, rare: { due: [], rolled: null, seed: seedForBoth(key, false) } }));
+  assert.deepEqual(out.earned, [BLUE]);
+});
+
+test('two rare hits the same morning: one now, the other on the next non-ladder morning', () => {
+  const key = '2026-11-06';
+  const first = settleLadder(facts({ mornings: 4, latest: key, owned: earlier(), rareMoons: RARES, rare: { due: [], rolled: null, seed: seedForBoth(key, true) } }));
+  assert.deepEqual(first.earned, [RARE_MOON]);
+  assert.deepEqual(first.rare.due, [BLUE]);
+  const next = settleLadder(facts({ mornings: 5, latest: '2026-11-07', owned: first.owned, rareMoons: RARES, rare: first.rare }));
+  assert.deepEqual(next.earned, [BLUE]);
+  assert.deepEqual(next.rare.due, []);
+});
+
+test('an older install’s saved `due: true` still gives the first rare moon', () => {
+  const out = settleLadder(facts({ mornings: 4, latest: '2026-11-06', owned: earlier(), rareMoons: RARES, rare: { due: true, rolled: '2026-11-06', seed: 1 } }));
+  assert.deepEqual(out.earned, [RARE_MOON]);
+  assert.deepEqual(out.rare.due, []);
+});
+
+test('with one rare moon owned the others still roll; with all owned, mornings stop rolling', () => {
+  const one = settleLadder(facts({ mornings: 4, latest: '2026-11-06', owned: { ...earlier(), [RARE_MOON]: { id: RARE_MOON, morningKey: '2026-11-05', morning: 3, at: 0 } }, rareMoons: RARES, rare: { due: [], rolled: '2026-11-05', seed: 1 } }));
+  assert.equal(one.rare.rolled, '2026-11-06');
+  const owned = { ...earlier(), ...Object.fromEntries(RARES.map((id) => [id, { id, morningKey: '2026-11-05', morning: 3, at: 0 }])) };
+  const all = settleLadder(facts({ mornings: 4, latest: '2026-11-06', owned, rareMoons: RARES, rare: { due: [], rolled: '2026-11-05', seed: 1 } }));
+  assert.equal(all.rare.rolled, '2026-11-05');
+  assert.deepEqual(all.earned, []);
+});
+
+test('the app’s rare list is used when none is given', () => {
+  assert.ok(RARE_MOONS.length >= 1);
+});
+
+test('Coca-Cola barcodes: US cans and bottles in every form the camera reports, Europe, the UK; nothing else', () => {
+  assert.ok(ladder.isCokeBarcode('049000006346', 'upc_a'), 'a 12 oz can, UPC-A');
+  assert.ok(ladder.isCokeBarcode('0049000006346', 'ean13'), 'the same, as EAN-13 (how iOS reports UPC-A)');
+  assert.ok(ladder.isCokeBarcode('04963406', 'upc_e'), 'the same can, as its short UPC-E');
+  assert.ok(ladder.isCokeBarcode('5449000000996', 'ean13'), 'a European Coke');
+  assert.ok(ladder.isCokeBarcode('5000112637922', 'ean13'), 'a UK Coke');
+  assert.ok(!ladder.isCokeBarcode('012000001291', 'upc_a'), 'a Pepsi');
+  assert.ok(!ladder.isCokeBarcode('5012345678900', 'ean13'));
+  assert.ok(!ladder.isCokeBarcode('locturne:abc123', 'qr'), 'a QR');
+  assert.ok(!ladder.isCokeBarcode('', ''));
+});
+
+test('the secret rules: early before 5, coke only on a scan morning, far only on a place morning from 2 km', () => {
+  const base = { kind: 'steps', hour: 7, scanned: null, farthest: null };
+  assert.deepEqual(ladder.secretsMet(base), []);
+  assert.deepEqual(ladder.secretsMet({ ...base, hour: 4 }), ['early']);
+  assert.deepEqual(ladder.secretsMet({ ...base, hour: 5 }), []);
+  const coke = { data: '0049000006346', type: 'ean13' };
+  assert.deepEqual(ladder.secretsMet({ ...base, kind: 'scan', scanned: coke }), ['coke']);
+  assert.deepEqual(ladder.secretsMet({ ...base, scanned: coke }), []);
+  assert.deepEqual(ladder.secretsMet({ ...base, kind: 'place', farthest: 2000 }), ['far']);
+  assert.deepEqual(ladder.secretsMet({ ...base, kind: 'place', farthest: 1999 }), []);
+  assert.deepEqual(ladder.secretsMet({ ...base, farthest: 9000 }), []);
+  assert.ok(Math.abs(ladder.metresBetween({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 1 }) - 111_195) < 10);
 });

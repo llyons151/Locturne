@@ -75,15 +75,18 @@ export function ControlRow({
   title,
   children,
   last,
+  iconTint = Nocturne.text2,
 }: {
   icon?: Symbol;
   title: string;
   children: ReactNode;
   last?: boolean;
+  /** The icon's colour: grey by default, white on Settings' flat rows. */
+  iconTint?: string;
 }) {
   return (
     <View style={styles.row}>
-      {icon ? <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} /> : null}
+      {icon ? <SymbolView name={icon} size={18} tintColor={iconTint} style={styles.icon} /> : null}
       <View style={[styles.rowBody, !last && styles.separator]}>
         <Text style={styles.title} numberOfLines={2}>
           {title}
@@ -102,6 +105,7 @@ export function ValueRow({
   onPress,
   hint,
   last,
+  iconTint = Nocturne.text2,
 }: {
   /** Left out inside a `Card`, whose header carries the icon. */
   icon?: Symbol;
@@ -111,6 +115,8 @@ export function ValueRow({
   /** VoiceOver's hint, only where it's true (an editor sheet). Most rows open a screen or page. */
   hint?: string;
   last?: boolean;
+  /** The icon's colour: grey by default, white on Settings' flat rows. */
+  iconTint?: string;
 }) {
   return (
     <Pressable
@@ -123,7 +129,7 @@ export function ValueRow({
       accessibilityHint={hint}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      {icon ? <SymbolView name={icon} size={18} tintColor={Nocturne.text2} style={styles.icon} /> : null}
+      {icon ? <SymbolView name={icon} size={18} tintColor={iconTint} style={styles.icon} /> : null}
       <View style={[styles.rowBody, !last && styles.separator]}>
         <Text style={styles.title} numberOfLines={2}>
           {title}

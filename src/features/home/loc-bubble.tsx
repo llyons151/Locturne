@@ -1,25 +1,19 @@
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { PixelRatio, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import Animated, { Easing, FadeIn, FadeOut, Keyframe } from 'react-native-reanimated';
+import Animated, { Easing, FadeOut, Keyframe } from 'react-native-reanimated';
 
 import { Text } from '@/components/text';
 import { DISPLAY_MAX_SCALE } from '@/theme';
 
 /**
- * Bursts up out of his head like one of his burrows: shoots past its spot stretched tall, lands
- * squashed, then settles (bubble lab #4, user 2026-10-29: tools/bubble-lab), and the words come in
- * (`WORDS_IN`). Squashes about its foot (`transformOrigin` in `wrap`). Transform and opacity only:
- * the iOS fast path.
+ * Breathes in: a slow, soft fade as it grows from 94% about its foot (`transformOrigin` in
+ * `wrap`), words and all at once (bubble appear lab #15, user 2026-11-02: tools/bubble-lab/appear.html;
+ * the old Burrow pop was too bouncy). Transform and opacity only: the iOS fast path.
  */
-const BURROW_IN = new Keyframe({
-  0: { opacity: 0, transform: [{ translateY: 40 }, { scaleX: 0.3 }, { scaleY: 0.5 }] },
-  25: { opacity: 1 },
-  45: { transform: [{ translateY: -14 }, { scaleX: 0.92 }, { scaleY: 1.12 }], easing: Easing.out(Easing.cubic) },
-  65: { transform: [{ translateY: 0 }, { scaleX: 1.12 }, { scaleY: 0.84 }], easing: Easing.inOut(Easing.quad) },
-  80: { transform: [{ translateY: 0 }, { scaleX: 0.97 }, { scaleY: 1.04 }], easing: Easing.inOut(Easing.quad) },
-  100: { opacity: 1, transform: [{ translateY: 0 }, { scaleX: 1 }, { scaleY: 1 }], easing: Easing.inOut(Easing.quad) },
-}).duration(900);
-const WORDS_IN = FadeIn.duration(220).delay(200);
+const BREATHE_IN = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.94 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.bezier(0.45, 0, 0.2, 1) },
+}).duration(600);
 
 /** Room under the capsule, between it and his head. */
 const GAP = 8;
@@ -63,21 +57,19 @@ export function LocBubble({
   // Room for one line only: wider, so the words don't have to shrink so far.
   const wider = tight && lines < 2 && wide !== undefined;
   return (
-    <Animated.View entering={BURROW_IN} exiting={FadeOut.duration(150)} style={styles.wrap}>
+    <Animated.View entering={BREATHE_IN} exiting={FadeOut.duration(150)} style={styles.wrap}>
       <Pressable onPress={onDismiss} accessibilityRole="text" accessibilityLabel={`Loc: ${line}`} accessibilityHint="Dismisses">
         <View style={[styles.bubble, !glass && (smoked ? styles.smoke : styles.pane), wider ? { maxWidth: Math.max(MAX_WIDTH, wide) } : null]}>
           {glass ? <GlassView glassEffectStyle="regular" style={styles.glass} /> : null}
-          <Animated.View entering={WORDS_IN}>
-            <Text
-              style={styles.line}
-              maxFontSizeMultiplier={DISPLAY_MAX_SCALE}
-              numberOfLines={tight ? lines : undefined}
-              adjustsFontSizeToFit={tight}
-              minimumFontScale={0.6}
-            >
-              {line}
-            </Text>
-          </Animated.View>
+          <Text
+            style={styles.line}
+            maxFontSizeMultiplier={DISPLAY_MAX_SCALE}
+            numberOfLines={tight ? lines : undefined}
+            adjustsFontSizeToFit={tight}
+            minimumFontScale={0.6}
+          >
+            {line}
+          </Text>
         </View>
       </Pressable>
     </Animated.View>

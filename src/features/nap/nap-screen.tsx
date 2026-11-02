@@ -50,6 +50,8 @@ import { closeNapAdd, openNapAdd } from './nap-add';
 import { NapClock } from './nap-clock';
 import { shownLine, type NapLine } from './nap-line';
 import { closeSleepSheet, SHEET_PADDING } from './sleep-sheet';
+import { DEFAULT_MOON, useMoon } from '../moons/moon-theme';
+import type { MoonDef } from '../moons/moon-types';
 import { useSideways } from './use-sideways';
 
 
@@ -73,9 +75,19 @@ const lengthLabel = (minutes: number) => {
 
 type List = ActiveNap['list'];
 
-/** The hold's fill: the sky's lit blue at the top, shading down to its navy. */
-const HOLD_FILL_TOP = '#4467B8';
-const HOLD_FILL = '#16254F';
+/**
+ * The hold's fill: the sky's lit colour at the top, shading down to its dark, in the worn
+ * moon's colours (user 2026-11-02: a green moon, a green fill). Moonlight keeps the blues it was
+ * tuned with; the rest mix the same way from their orb (its dark-to-mid for the bottom, mid-to-lit
+ * for the top), which lands Moonlight's own orb on about those blues.
+ */
+const MOONLIGHT_FILL = { top: '#4467B8', bottom: '#16254F' };
+const mixHex = (a: string, b: string, t: number) => {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, '0')).join('')}`;
+};
+const holdFill = (moon: MoonDef) =>
+  moon.id === DEFAULT_MOON.id ? MOONLIGHT_FILL : { top: mixHex(moon.orb[1], moon.orb[2], 0.5), bottom: mixHex(moon.orb[0], moon.orb[1], 0.5) };
 
 /** "1 pick", "3 picks". A whole category is one pick: iOS won't say how many apps it holds. */
 const countPicks = (n: number) => (n === 1 ? '1 pick' : `${n} picks`);
@@ -132,6 +144,7 @@ const timeOf = (ms: number) => {
 };
 
 export function NapScreen() {
+  const fill = holdFill(useMoon());
   const [protection, recheckProtection] = useProtection();
 
   const [length, setLength] = useState(30);
@@ -375,9 +388,10 @@ export function NapScreen() {
           duration={1200}
           disabled={starting}
           color={Nocturne.cta}
-          // Glassy night blue, like the sky behind the moon, over the whole pill (user, October 12, 2026).
-          fillTopColor={HOLD_FILL_TOP}
-          fillColor={HOLD_FILL}
+          // Glassy night sky, like the sky behind the moon, over the whole pill (user, October 12, 2026),
+          // in the worn moon's colours.
+          fillTopColor={fill.top}
+          fillColor={fill.bottom}
           textColor={Nocturne.onCta}
           filledTextColor={Nocturne.text}
           onComplete={start}
