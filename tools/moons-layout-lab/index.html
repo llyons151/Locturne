@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moons layout lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap" rel="stylesheet">
+<!--
+  Moons layout lab (user, 2026-11-03; narrowed to Night path, ten ways, the same day): takes on the moon collection: its layout, whether it is
+  its own page or a sheet over Home, and what tapping a moon pops up. Each take runs a scripted demo
+  (?v=N&auto=1) that tools/moons-layout-lab/record.mjs films. Static mockups, not the app.
+  Demo state: 5 mornings won; Moonlight, Deep Sea and Harvest Moon owned; wearing Moonlight.
+-->
+<style>
+  :root {
+    --text: #fff; --text2: #9AA3B5; --edge: rgba(255,255,255,0.10); --tileBg: rgba(255,255,255,0.05);
+    --lock: #2C2C30; --sheet: #1A1A1E; --sans: 'Inter', system-ui, sans-serif;
+    --spring: cubic-bezier(.32,.72,0,1); --out: cubic-bezier(.16,1,.3,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #0b0b0d; color: var(--text); font-family: var(--sans); }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  body.solo { overflow: hidden; }
+  body.solo #phone { position: fixed; inset: 0; width: 390px; height: 844px; border-radius: 0; }
+
+  /* Index page */
+  .index { padding: 28px 16px 60px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .index h1 { font-size: 22px; } .index p { color: var(--text2); font-size: 14px; text-align: center; max-width: 560px; line-height: 1.5; }
+  .picks { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 720px; }
+  .picks button { padding: 7px 11px; border-radius: 999px; background: #1c1c20; font-size: 13px; }
+  .picks button.on { background: #fff; color: #000; }
+  #phone { position: relative; width: 390px; height: 844px; overflow: hidden; background: #000; border-radius: 44px; isolation: isolate; }
+  .vname { font-size: 15px; font-weight: 600; } .vdesc { color: var(--text2); font-size: 13px; max-width: 420px; text-align: center; line-height: 1.45; }
+
+  /* Status bar + home indicator */
+  .status { position: absolute; z-index: 90; top: 0; left: 0; right: 0; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 6px 34px 0 46px; font-size: 16px; font-weight: 600; pointer-events: none; }
+  .status i { display: flex; gap: 6px; align-items: center; }
+  .status i b { display: block; width: 25px; height: 12px; border: 1.5px solid rgba(255,255,255,.5); border-radius: 4px; position: relative; }
+  .status i b::after { content: ''; position: absolute; inset: 1.5px; right: 5px; background: #fff; border-radius: 1.5px; }
+  .homebar { position: absolute; z-index: 90; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: #fff; pointer-events: none; }
+
+  /* Finger */
+  #finger { position: absolute; z-index: 100; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,.32); border: 1.5px solid rgba(255,255,255,.7); opacity: 0; pointer-events: none; transition: opacity .18s, transform .14s; }
+  #finger.on { opacity: 1; } #finger.down { transform: scale(.78); }
+
+  /* Home */
+  #home { position: absolute; inset: 0; transform-origin: 50% 100%; transition: transform .45s var(--spring), filter .45s; }
+  #home .panel { position: absolute; left: 0; right: 0; top: 0; height: 744px; border-radius: 0 0 40px 40px; overflow: hidden; background: #05060A; }
+  #home .sky { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  #home .bigtime { position: absolute; top: 96px; left: 0; right: 0; text-align: center; font-size: 64px; font-weight: 700; letter-spacing: -2px; transition: opacity .3s; }
+  #home .state { position: absolute; top: 172px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.7); font-size: 15px; transition: opacity .3s; }
+  #home .moonwrap { position: absolute; left: 50%; top: 420px; width: 230px; height: 230px; margin-left: -115px; cursor: pointer; }
+  #home .moon { width: 100%; height: 100%; object-fit: contain; display: block; }
+  #home .loc { position: absolute; left: 50%; bottom: 0; width: 112px; margin-left: -56px; transition: transform .35s var(--spring); }
+  #home .strip { position: absolute; left: 0; right: 0; top: 744px; bottom: 0; display: flex; justify-content: center; gap: 22px; padding-top: 16px; }
+  #home .strip i { width: 54px; height: 54px; border-radius: 50%; background: #1c1c1f; transition: opacity .3s; }
+  #home .strip i:first-child { background: #3a3a40; }
+  #home.away .bigtime, #home.away .state, #home.away .strip i { opacity: 0; }
+  #home.away .loc { transform: translateY(80px); }
+  #home.sheeted { transform: scale(.93) translateY(-10px); filter: brightness(.55); }
+  #home.sheeted .panel { border-radius: 40px; }
+
+  /* Containers */
+  .page { position: absolute; inset: 0; z-index: 20; background: #000; overflow: hidden; }
+  .page .scroll, .sheet .scroll { position: absolute; inset: 0; overflow-y: auto; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .sheet { position: absolute; z-index: 20; left: 0; right: 0; bottom: 0; top: 64px; background: #0e0e10; border-radius: 38px 38px 0 0; overflow: hidden; }
+  .sheet .grab { position: absolute; z-index: 5; top: 7px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: rgba(255,255,255,.25); }
+  .head { display: flex; align-items: center; height: 30px; margin: 0 20px 24px; }
+  .head .side { width: 72px; display: flex; } .head .side.end { justify-content: flex-end; }
+  .head h1 { flex: 1; text-align: center; font-size: 22px; font-weight: 700; }
+  .head .count { color: var(--text2); font-size: 14px; }
+  .xbtn { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.12); display: grid; place-items: center; }
+  .xbtn svg { width: 13px; height: 13px; stroke: var(--text2); stroke-width: 2.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Tiles */
+  .tile { position: relative; width: var(--s); height: var(--s); border-radius: 20px; background: var(--tileBg); border: 1px solid var(--edge); display: grid; place-items: center; transition: transform .15s, border-color .2s; flex: none; }
+  .tile.wearing { border: 2px solid #fff; }
+  .ic { position: relative; width: 80%; height: 80%; }
+  .ic img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .night { position: absolute; inset: 0; background: var(--lock); -webkit-mask: url(/assets/moons/icons/night.png) center / contain no-repeat; mask: url(/assets/moons/icons/night.png) center / contain no-repeat; }
+  .q { position: absolute; left: 19.2%; top: 14.6%; width: 63.9%; height: 63.9%; display: grid; place-items: center; color: var(--text2); font-weight: 600; font-size: calc(var(--s) * .23); }
+  .pressed { transform: scale(.94); }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; }
+  .cell .nm { font-size: 14px; color: var(--text); white-space: nowrap; }
+  .cell.lk .nm { color: var(--text2); }
+  .grid { display: flex; flex-wrap: wrap; gap: 20px 16px; padding: 0 20px 60px; }
+
+  /* Shared detail bits */
+  .scrim { position: absolute; inset: 0; z-index: 40; background: rgba(0,0,0,.5); }
+  .btn { display: block; width: 100%; height: 54px; border-radius: 27px; background: #fff; color: #000; font-size: 17px; font-weight: 600; text-align: center; line-height: 54px; }
+  .btn.dim { background: rgba(255,255,255,.12); color: #fff; }
+  .btn.ghost { background: transparent; border: 1px solid var(--edge); color: var(--text2); }
+  .link { display: block; width: 100%; margin-top: 14px; color: var(--text2); font-size: 15px; text-align: center; }
+  .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; margin: 16px auto 0; width: 70%; }
+  .bar b { display: block; height: 100%; border-radius: 3px; background: #fff; }
+  .dbody { text-align: center; }
+  .dbody h2 { font-size: 24px; font-weight: 700; margin-top: 14px; }
+  .dbody .line { color: var(--text2); font-size: 15px; margin-top: 6px; }
+  .dbody .acts { margin-top: 26px; }
+
+  /* A: compact floating sheet */
+  .dsheet { position: absolute; z-index: 41; left: 10px; right: 10px; bottom: 10px; border-radius: 34px; background: var(--sheet); padding: 34px 24px 24px; }
+  .dsheet .tile { margin: 0 auto; }
+  .dsheet .grab { position: absolute; top: 7px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: rgba(255,255,255,.22); }
+  /* B: centered card */
+  .dcard { position: absolute; z-index: 41; left: 28px; right: 28px; top: 50%; border-radius: 30px; background: var(--sheet); padding: 34px 22px 22px; }
+  .dcard .xbtn { position: absolute; right: 14px; top: 14px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ───────── Data ─────────
+const MORN = 5;
+const M = {
+  moonlight: { name: 'Moonlight', c: '#7090D8', bg: ['#05060A', '#1C2A55', '#2C3F78'], sky: '/assets/onboarding/night-sky-moonless.png', moon: '/assets/onboarding/moon-frosted.png' },
+  deepsea: { name: 'Deep Sea', c: '#3AB8A0', bg: ['#020508', '#062A38', '#0E6A70'] },
+  harvest: { name: 'Harvest Moon', c: '#E0913C', bg: ['#050302', '#2A1300', '#542900'] },
+  full: { name: 'Full Moon', c: '#AEB8CC', bg: ['#030407', '#0D1422', '#283550'] },
+  twilight: { name: 'Twilight', c: '#C090D0', bg: ['#03040C', '#141A4A', '#5A3A8A'] },
+  ember: { name: 'Ember', c: '#E05A18', bg: ['#040202', '#2A0604', '#8A1E08'] },
+  noir: { name: 'Noir', c: '#FFFFFF', bg: ['#000', '#0E0E0E', '#3A3A3A'] },
+  blood: { name: 'Blood Moon', c: '#B3342C', bg: ['#050203', '#260002', '#3A0608'] },
+  lagoon: { name: 'Lagoon', c: '#60D0C0', bg: ['#020608', '#06303A', '#0E8A90'] },
+  prism: { name: 'Prism', c: '#C0C8F0', bg: ['#030306', '#12122A', '#2A2A50'] },
+  eclipse: { name: 'Eclipse', c: '#E8A060', bg: ['#060403', '#2A1915', '#6E4636'] },
+  bluehour: { name: 'Blue Hour' }, strawberry: { name: 'Strawberry Moon' }, micromoon: { name: 'Micromoon' },
+};
+const A = (id) => ({ icon: `/assets/moons/icons/${id}.webp`, sky: M[id].sky || `/assets/moons/${id}-sky.webp`, moon: M[id].moon || `/assets/moons/${id}-moon.webp` });
+const LADDER = [['deepsea', 'Morning 1'], ['harvest', 'Morning 3'], ['full', 'Morning 7'], ['twilight', 'Morning 14'], ['ember', 'Morning 30'], ['noir', 'Morning 50'], ['blood', 'Morning 100'], ['lagoon', 'Morning 150'], ['prism', 'Morning 200'], ['eclipse', 'Week 50'], ['bluehour'], ['strawberry'], ['micromoon']];
+const SLOTS = [{ id: 'moonlight', owned: true, label: 'Moonlight', n: 0 }].concat(LADDER.map(([id, at]) => {
+  if (!at) return { id, owned: false, secret: true, label: 'Secret moon' };
+  const n = +at.match(/\d+/)[0], week = at.startsWith('Week'), owned = !week && n <= MORN;
+  return { id, owned, at, n, week, label: owned ? M[id].name : at, left: week ? null : n - MORN };
+}));
+const S = (id) => SLOTS.find((s) => s.id === id);
+const state = { worn: 'moonlight' };
+const lineOf = (s) => s.owned ? (s.n ? `Yours since morning ${s.n}` : 'You start with this') : s.secret ? 'Secret' : s.week ? 'In your 50th week' : `${s.left} more mornings`;
+const pct = (s) => Math.round((MORN / s.n) * 100);
+
+// ───────── Helpers ─────────
+const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const anim = (el, kf, o) => el.animate(kf, { fill: 'forwards', ...o }).finished;
+const X = '<svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
+const DOWN = '<svg viewBox="0 0 14 14"><path d="M2.5 5l4.5 4.5L11.5 5"/></svg>';
+const BACK = '<svg viewBox="0 0 14 14"><path d="M9 2L4 7l5 5"/></svg>';
+function iconHTML(s) { return s.owned ? `<img src="${A(s.id).icon}" alt="">` : `<i class="night"></i>${s.secret ? '<b class="q">?</b>' : ''}`; }
+function tileHTML(s, size, extra = '') { return `<div class="tile ${s.owned ? '' : 'lk'} ${s.owned && s.id === state.worn ? 'wearing' : ''} ${extra}" style="--s:${size}px"><div class="ic">${iconHTML(s)}</div></div>`; }
+function cellHTML(s, size) { return `<div class="cell ${s.owned ? '' : 'lk'}" data-id="${s.id}">${tileHTML(s, size)}<div class="nm">${s.label}</div></div>`; }
+function headHTML(close = 'down', title = 'Moons') { return `<div class="head"><div class="side"><button class="xbtn close">${close === 'down' ? DOWN : X}</button></div><h1>${title}</h1><div class="side end"><span class="count">3 moons</span></div></div>`; }
+function bodyHTML(s, { size = 120, hero } = {}) {
+  const acts = s.owned
+    ? (s.id === state.worn ? '<div class="btn ghost">Wearing</div>' : '<button class="btn wear">Wear</button><button class="link later">Not now</button>')
+    : '<button class="btn dim later">OK</button>';
+  return `<div class="dbody">${hero ?? `<div style="display:flex;justify-content:center">${tileHTML(s, size)}</div>`}<h2>${s.label}</h2><p class="line">${lineOf(s)}</p>${!s.owned && s.left ? `<div class="bar"><b style="width:${pct(s)}%"></b></div>` : ''}<div class="acts">${acts}</div></div>`;
+}
+
+let phone, finger, home;
+async function tap(el, hold = 140) {
+  if (!el) throw new Error('tap target missing');
+  const r = el.getBoundingClientRect(), p = phone.getBoundingClientRect();
+  finger.style.left = r.left - p.left + r.width / 2 + 'px'; finger.style.top = r.top - p.top + r.height / 2 + 'px';
+  finger.classList.add('on'); await wait(260);
+  finger.classList.add('down'); el.classList.add('pressed'); await wait(hold);
+  finger.classList.remove('down'); el.classList.remove('pressed');
+  el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await wait(90); finger.classList.remove('on');
+}
+async function drag(el, dx, dy, ms = 520, onMove) {
+  const r = el.getBoundingClientRect(), p = phone.getBoundingClientRect();
+  const x0 = r.left - p.left + r.width / 2, y0 = r.top - p.top + r.height / 2;
+  finger.style.transition = 'none'; finger.style.left = x0 + 'px'; finger.style.top = y0 + 'px';
+  finger.classList.add('on', 'down'); await wait(160);
+  const t0 = performance.now();
+  await new Promise((done) => {
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / ms), e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      finger.style.left = x0 + dx * e + 'px'; finger.style.top = y0 + dy * e + 'px'; onMove?.(e);
+      t < 1 ? requestAnimationFrame(step) : done();
+    };
+    requestAnimationFrame(step);
+  });
+  finger.classList.remove('down'); await wait(80); finger.classList.remove('on'); finger.style.transition = '';
+}
+async function scrollBy(sc, dy, ms = 650) {
+  const from = sc.scrollTop; await drag(sc, 0, -Math.min(260, Math.abs(dy)) * Math.sign(dy), ms, (e) => { sc.scrollTop = from + dy * e; });
+}
+
+// ───────── Home ─────────
+function buildHome() {
+  home = $(`<div id="home"><div class="panel"><img class="sky" src="${A(state.worn).sky}"><div class="bigtime">6:42</div><div class="state">Your apps are awake</div>
+    <div class="moonwrap"><img class="moon" src="${A(state.worn).moon}"></div><img class="loc" src="/loc/loc-peek.svg"></div><div class="strip"><i></i><i></i><i></i><i></i></div></div>`);
+  phone.append(home);
+}
+const homeMoon = () => home.querySelector('.moonwrap');
+function homeAway(on) { home.classList.toggle('away', on); }
+async function homeSet(id, { rise = true } = {}) {
+  const panel = home.querySelector('.panel'), old = panel.querySelector('.sky');
+  const sky = $(`<img class="sky" src="${A(id).sky}" style="opacity:0">`); old.after(sky);
+  await new Promise((r) => (sky.complete ? r() : (sky.onload = r)));
+  anim(sky, [{ opacity: 0 }, { opacity: 1 }], { duration: 600 }).then(() => old.remove());
+  const moon = home.querySelector('.moon'); moon.src = A(id).moon;
+  if (rise) await anim(moon, [{ transform: 'translateY(330px)' }, { transform: 'translateY(0)' }], { duration: 1500, easing: 'cubic-bezier(.2,.9,.25,1)' });
+}
+
+// ───────── Containers: own page or a sheet over Home ─────────
+// Page: the black strip under the tabs slides up to fill the screen (the app's StripPage).
+async function openPage(inner) {
+  const pg = $('<div class="page"></div>'); pg.append(inner); phone.append(pg);
+  homeAway(true);
+  inner.style.opacity = 0;
+  await anim(pg, [{ clipPath: 'inset(744px 0 0 0 round 40px 40px 0 0)' }, { clipPath: 'inset(0 0 0 0 round 0)' }], { duration: 480, easing: 'cubic-bezier(.3,.8,.2,1)' });
+  anim(inner, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: 'ease-out' });
+  return { el: pg, close: async () => {
+    await anim(pg, [{ transform: 'none' }, { transform: 'translateY(100%)' }], { duration: 420, easing: 'cubic-bezier(.5,0,.75,0)' });
+    pg.remove(); homeAway(false);
+  } };
+}
+// Sheet: a native-style sheet; Home scales back behind it.
+async function openSheet(inner, { top = 64, keepHome = false, radius = 38 } = {}) {
+  const sh = $(`<div class="sheet" style="top:${top}px;border-radius:${radius}px ${radius}px 0 0"><div class="grab"></div></div>`); sh.append(inner); phone.append(sh);
+  if (!keepHome) home.classList.add('sheeted');
+  await anim(sh, [{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 520, easing: 'var(--spring)'.replace('var(--spring)', 'cubic-bezier(.32,.72,0,1)') });
+  return { el: sh, close: async () => {
+    home.classList.remove('sheeted');
+    await anim(sh, [{ transform: 'none' }, { transform: 'translateY(100%)' }], { duration: 380, easing: 'cubic-bezier(.4,0,.8,.4)' });
+    sh.remove();
+  } };
+}
+
+// ───────── Detail styles ─────────
+async function scrimIn(host) { const s = $('<div class="scrim"></div>'); host.append(s); anim(s, [{ opacity: 0 }, { opacity: 1 }], { duration: 260 }); return s; }
+async function scrimOut(s) { await anim(s, [{ opacity: 1 }, { opacity: 0 }], { duration: 220 }); s.remove(); }
+// A: compact floating sheet (Weverse, stoic.)
+async function detailSheet(s, host = phone) {
+  const scrim = await scrimIn(host);
+  const el = $(`<div class="dsheet"><div class="grab"></div>${bodyHTML(s)}</div>`); host.append(el);
+  await anim(el, [{ transform: 'translateY(115%)' }, { transform: 'none' }], { duration: 460, easing: 'cubic-bezier(.32,.72,0,1)' });
+  return { el, wear: el.querySelector('.wear'), dismiss: el.querySelector('.later') || scrim, close: async () => {
+    scrimOut(scrim); await anim(el, [{ transform: 'none' }, { transform: 'translateY(115%)' }], { duration: 300, easing: 'cubic-bezier(.4,0,.8,.4)' }); el.remove();
+  } };
+}
+// B: centred card (Sweatcoin, Strava)
+async function detailCard(s, host = phone) {
+  const scrim = await scrimIn(host);
+  const el = $(`<div class="dcard"><button class="xbtn later">${X}</button>${bodyHTML(s, { size: 132 })}</div>`); host.append(el);
+  el.querySelector('.acts .later')?.remove();
+  if (!s.owned) el.querySelector('.acts').remove();
+  await anim(el, [{ transform: 'translateY(-50%) scale(.86)', opacity: 0 }, { transform: 'translateY(-50%) scale(1)', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(.34,1.4,.64,1)' });
+  return { el, wear: el.querySelector('.wear'), dismiss: el.querySelector('.later'), close: async () => {
+    scrimOut(scrim); await anim(el, [{ transform: 'translateY(-50%) scale(1)', opacity: 1 }, { transform: 'translateY(-50%) scale(.92)', opacity: 0 }], { duration: 220 }); el.remove();
+  } };
+}
+
+// ───────── The generic demo ─────────
+// Home → tap the moon → collection → tap a locked moon → dismiss → tap an owned one → Wear → Home, new moon rises.
+async function demoGeneric(V, ctx) {
+  await wait(250);
+  if (V.peek) await V.peek(ctx);
+  const lockedEl = ctx.find('full'); await tap(lockedEl);
+  let d = await V.detail(S('full'), lockedEl, ctx); await wait(1700);
+  await tap(d.dismiss); await d.close(); await wait(450);
+  const ownedEl = ctx.find('deepsea'); await tap(ownedEl);
+  d = await V.detail(S('deepsea'), ownedEl, ctx); await wait(1300);
+  await tap(d.wear); state.worn = 'deepsea'; await d.close(true);
+}
+async function run(V, auto) {
+  const token = (run.token = {});
+  phone.innerHTML = '<div id="finger"></div><div class="status"><span>6:42</span><i><b></b></i></div><div class="homebar"></div>';
+  finger = phone.querySelector('#finger'); state.worn = 'moonlight';
+  buildHome();
+  await Promise.all([...home.querySelectorAll('img')].map((i) => i.decode().catch(() => {})));
+  if (run.token !== token) return; // a newer run started while this one waited
+  const ctx = { find: (id) => ctx.root.querySelector(`[data-id="${id}"]`) };
+  const open = async () => {
+    ctx.root = V.build(ctx);
+    ctx.box = V.page === false ? await openSheet(ctx.root, V.sheet) : await openPage(ctx.root);
+    ctx.root.querySelector('.close')?.addEventListener('click', () => ctx.box.close());
+  };
+  homeMoon().addEventListener('click', open);
+  if (!auto) return;
+  await wait(700); await tap(homeMoon()); await wait(250);
+  await wait(900);
+  await (V.demo ?? demoGeneric)(V, ctx);
+  if (V.after !== false) { await wait(150); await ctx.box.close(); }
+  if (!V.noRise) await homeSet(state.worn);
+  await wait(1300);
+  window.__done = true;
+}
+</script>
+<script src="variants.js"></script>
+<script>
+// ───────── Boot ─────────
+const q = new URLSearchParams(location.search), app = document.getElementById('app');
+if (q.has('v')) {
+  document.body.classList.add('solo');
+  app.innerHTML = '<div id="phone"></div>'; phone = app.firstChild;
+  const V = VARIANTS[+q.get('v') - 1];
+  Promise.all([document.fonts.ready, ...[...new Set(SLOTS.map((s) => s.id))].filter((id) => M[id].bg || id === 'moonlight').flatMap((id) => [A(id).sky, A(id).moon, A(id).icon]).map((src) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = r; i.src = src; }))])
+    .then(() => { window.__ready = true; return run(V, q.has('auto')); });
+} else {
+  app.innerHTML = `<div class="index"><h1>Moons layout lab</h1><p>Night path, ten ways: the moons as stops on a path, the worn moon's sky tinting the page. Pick one, then Play.</p>
+    <div class="picks"></div><div class="vname"></div><div class="vdesc"></div><button class="picks-play" style="padding:9px 18px;border-radius:999px;background:#fff;color:#000;font-weight:600">Play</button><div id="phone"></div></div>`;
+  phone = document.getElementById('phone');
+  let cur = 0;
+  const picks = app.querySelector('.picks');
+  const show = (i, auto) => { cur = i; picks.querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', j === i));
+    app.querySelector('.vname').textContent = `${i + 1}. ${VARIANTS[i].name} · ${VARIANTS[i].page === false ? 'sheet over Home' : 'own page'}`;
+    app.querySelector('.vdesc').textContent = VARIANTS[i].desc; run(VARIANTS[i], auto); };
+  VARIANTS.forEach((V, i) => { const b = $(`<button>${i + 1}</button>`); b.onclick = () => show(i, false); picks.append(b); });
+  app.querySelector('.picks-play').onclick = () => show(cur, true);
+  show(0, false);
+}
+</script>
+</body>
+</html>
