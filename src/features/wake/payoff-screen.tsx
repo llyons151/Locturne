@@ -1,5 +1,5 @@
 import { router, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { File, Paths } from 'expo-file-system';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Platform, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -132,6 +132,11 @@ const CORNER = `M0,0 L0,${PANEL_RADIUS} L${PANEL_RADIUS},${PANEL_RADIUS} A${PANE
 
 /** Done without Apply: how long the new moon's colours take to blend back into the worn moon's. */
 const BACK_FADE_MS = 900;
+/**
+ * Fading in over Home: how long the worn moon's colours take to run into the new moon's, Home's
+ * sky under it too (user, 2026-11-03: it "glitches from the main to the new one").
+ */
+const IN_FADE_MS = 600;
 
 /** If his webview never yells (it failed to load), the moon rises anyway. */
 const YELL_FALLBACK_MS = 7000;
@@ -147,7 +152,7 @@ const YELL_FALLBACK_MS = 7000;
  * user, 2026-10-15). Done goes back to Home. Opened once per morning by Home (`usePayoff`), and
  * from the wake preview with made-up facts.
  */
-export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
+export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?: boolean }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
@@ -224,12 +229,15 @@ export function PayoffScreen({ facts }: { facts: PayoffFacts }) {
   // The new moon rises (user, 2026-11-02: "when you unlock a new moon, the new moon should rise"): it's
   // on show from the start, before he yells, so the moon that comes up is the new one. Shown, not worn:
   // Apply wears it, and Done without Apply goes back to the worn moon. Rare and secret moons too.
+  // Before the first frame is drawn, so no frame shows the worn moon's colours and then swaps
+  // (user, 2026-11-03). Taking the camera's place (`cut`), it's simply there; fading in over
+  // Home, Home's sky shows through, so the two blend into the new moon's colours together.
   const firstShown = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (firstShown.current) return;
     firstShown.current = true;
-    if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id);
-  }, [newMoon, worn.id]);
+    if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, cut ? 0 : IN_FADE_MS);
+  }, [newMoon, worn.id, cut]);
   // Whatever happens, nothing stays on show once the payoff is gone.
   useEffect(() => () => previewMoon(null), []);
   // Applied here: the button stays, as "Applied", so the page doesn't jump.

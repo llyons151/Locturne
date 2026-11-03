@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Image as RNImage, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -358,7 +358,9 @@ export function NightSky({
   const lookShift = useSharedValue((moon.cx - 0.5) * width);
   const lookGlow = useSharedValue(moon.glowOpacity);
   const lookMs = going?.ms ?? 0;
-  useEffect(() => {
+  // Before the frame is drawn: a moon put on show before the first one (the payoff's new moon)
+  // must not show a frame in the old moon's size and place.
+  useLayoutEffect(() => {
     const to = (v: number) => (lookMs ? withTiming(v, { duration: lookMs, easing: SKY_FADE }) : v);
     lookScale.set(to(moon.scale));
     lookShift.set(to((moon.cx - 0.5) * width));

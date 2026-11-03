@@ -42,7 +42,8 @@ export default function MorningWonRoute() {
   if (cold) return null;
   // Back to the tabs already open: a `<Redirect>` would stack a second Home.
   if (!facts) return <LeaveRoute />;
-  return <PayoffScreen facts={facts} />;
+  // `cut`: taking a camera's place, with no fade in (open-payoff.ts).
+  return <PayoffScreen facts={facts} cut={params.cut === '1'} />;
 }
 
 /** Home's own entrance finishes before the payoff goes over it. */
