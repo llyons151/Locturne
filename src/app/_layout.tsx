@@ -13,6 +13,7 @@ import { holdSplash } from '@/lib/launch-splash';
 import { startPurchases } from '@/lib/purchases-start';
 import { MOONS_BG } from '@/features/moons/moon-collection';
 import { useShieldMoon } from '@/features/moons/shield-moon';
+import { useNapActivity } from '@/features/nap/use-nap-activity';
 import { Nocturne } from '@/theme';
 
 // The launch screen stays until the right first screen has drawn (launch-splash.ts).
@@ -35,6 +36,7 @@ export const unstable_settings = { initialRouteName: '(tabs)' };
 export default function RootLayout() {
   useStandingBlocks();
   useShieldMoon();
+  useNapActivity();
   useScreenViews();
   return (
     <GestureHandlerRootView style={styles.root}>

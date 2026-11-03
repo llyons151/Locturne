@@ -31,7 +31,7 @@ export const SCAN_CODE_WORDS: Record<Source, string> = {
   barcode: 'Something that stays in another room: the coffee, the toothpaste.',
 };
 
-const SOURCES: Source[] = ['qr', 'barcode'];
+const SOURCES: Source[] = ['barcode', 'qr'];
 
 /**
  * `scan-code`'s choice, straight under the headline: pick first, then the line and the code
@@ -43,18 +43,18 @@ export function ScanCodeSwitch({ source, onSource }: { source: Source; onSource:
     <Reveal rise>
       <Split label="Which code">
         <SplitHalf
-          icon={sym('qrcode', 'qr_code')}
-          title="My own code"
-          detail="Print it out"
-          selected={source === 'qr'}
-          onPress={() => onSource('qr')}
-        />
-        <SplitHalf
           icon={sym('barcode', 'barcode')}
           title="A barcode"
           detail="One you own"
           selected={source === 'barcode'}
           onPress={() => onSource('barcode')}
+        />
+        <SplitHalf
+          icon={sym('qrcode', 'qr_code')}
+          title="My own code"
+          detail="Print it out"
+          selected={source === 'qr'}
+          onPress={() => onSource('qr')}
         />
       </Split>
     </Reveal>

@@ -44,7 +44,7 @@ const SAVED_CLOSE_MS = 1900;
  */
 export function CodeSheet({ select = false }: { select?: boolean }) {
   const router = useRouter();
-  const [source, setSource] = useState<Source>(() => getScanCode()?.kind ?? 'qr');
+  const [source, setSource] = useState<Source>(() => getScanCode()?.kind ?? 'barcode');
   // Keep showing the code they already printed rather than a new one each visit.
   const [qr] = useState(() => {
     const code = getScanCode();
@@ -122,23 +122,23 @@ export function CodeSheet({ select = false }: { select?: boolean }) {
       </Text>
       <Split label="Which code">
         <SplitHalf
-          icon={sym('qrcode', 'qr_code')}
-          title="My own code"
-          detail="Print it out"
-          selected={source === 'qr'}
-          onPress={() => setSource('qr')}
-        />
-        <SplitHalf
           icon={sym('barcode', 'barcode')}
           title="A barcode"
           detail="One you own"
           selected={source === 'barcode'}
           onPress={() => setSource('barcode')}
         />
+        <SplitHalf
+          icon={sym('qrcode', 'qr_code')}
+          title="My own code"
+          detail="Print it out"
+          selected={source === 'qr'}
+          onPress={() => setSource('qr')}
+        />
       </Split>
       {/* Both lines in one cell, so the code under them doesn't move when the choice changes. */}
       <View style={styles.words}>
-        {(['qr', 'barcode'] as const).map((kind, i) => (
+        {(['barcode', 'qr'] as const).map((kind, i) => (
           <Text
             key={kind}
             style={[styles.body, styles.layer, i > 0 && styles.over, kind !== source && styles.hidden]}

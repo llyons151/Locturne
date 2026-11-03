@@ -14,6 +14,7 @@
       "appStoreUrl": "https://apps.apple.com/app/id6822555693",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true,
         "NSPhotoLibraryAddUsageDescription": "Locturne saves your morning card to Photos when you choose Save Image."
       },
       "privacyManifests": {
@@ -198,6 +199,15 @@
                   "targetName": "ActivityMonitorExtension",
                   "entitlements": {
                     "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.com.lukelyons.locturne"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.lukelyons.locturne.NapActivity",
+                  "targetName": "NapActivity",
+                  "entitlements": {
                     "com.apple.security.application-groups": [
                       "group.com.lukelyons.locturne"
                     ]

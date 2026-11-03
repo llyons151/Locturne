@@ -438,7 +438,7 @@ export function OnboardingFlow({
     if (scanned && (step === 'tomorrow' || step === 'scan-code') && answers.method && methodInUse(answers.method) === answers.method) next();
   };
   // The code on `scan-code`: the one already printed, or a new one that stays for this visit.
-  const [scanSource, setScanSource] = useState<ScanCode['kind']>(() => getScanCode()?.kind ?? 'qr');
+  const [scanSource, setScanSource] = useState<ScanCode['kind']>(() => getScanCode()?.kind ?? 'barcode');
   const [scanQr] = useState(() => {
     const code = getScanCode();
     return code?.kind === 'qr' ? code.data : draftQrData();
