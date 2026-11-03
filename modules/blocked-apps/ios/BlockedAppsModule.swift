@@ -31,7 +31,7 @@ public class BlockedAppsModule: Module {
     // Idempotent: keeps an activity already counting to `endMs`, ends every other one, and
     // starts one if none is left. No end ends them all. Returns false when iOS won't show one
     // (Live Activities off in Settings, or no Dynamic Island and no Lock Screen support).
-    Function("syncNapActivity") { (startMs: Double?, endMs: Double?, moonFile: String?) -> Bool in
+    Function("syncNapActivity") { (startMs: Double?, endMs: Double?) -> Bool in
       let end = endMs.map { Date(timeIntervalSince1970: $0 / 1000) }
       var kept = false
       for activity in Activity<LocturneNapAttributes>.activities {
@@ -47,7 +47,7 @@ public class BlockedAppsModule: Module {
       let state = LocturneNapAttributes.ContentState(start: min(start, Date()), end: end)
       do {
         _ = try Activity.request(
-          attributes: LocturneNapAttributes(moonFile: moonFile),
+          attributes: LocturneNapAttributes(),
           content: ActivityContent(state: state, staleDate: end),
           pushType: nil
         )

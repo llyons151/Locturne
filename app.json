@@ -207,11 +207,7 @@
                 {
                   "bundleIdentifier": "com.lukelyons.locturne.NapActivity",
                   "targetName": "NapActivity",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.com.lukelyons.locturne"
-                    ]
-                  }
+                  "entitlements": {}
                 },
                 {
                   "bundleIdentifier": "com.lukelyons.locturne.ScreenTimeReport",

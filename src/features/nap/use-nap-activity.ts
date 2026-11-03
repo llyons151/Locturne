@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { onLockChange } from '@/lib/lock-controller';
-import { isScreenTimeAvailable, peekNap, sharedGet, SHIELD_MOON_KEY } from '@/lib/screen-time';
+import { isScreenTimeAvailable, peekNap } from '@/lib/screen-time';
 
 /**
  * Block now's countdown in the Dynamic Island and on the Lock Screen (user, 2026-11-02: "the
@@ -15,7 +15,7 @@ import { isScreenTimeAvailable, peekNap, sharedGet, SHIELD_MOON_KEY } from '@/li
 export function useNapActivity(): void {
   useEffect(() => {
     if (Platform.OS !== 'ios' || !isScreenTimeAvailable()) return;
-    const sync = () => syncNapActivity(peekNap(), sharedGet<string>(SHIELD_MOON_KEY) ?? null);
+    const sync = () => syncNapActivity(peekNap());
     sync();
     return onLockChange(sync);
   }, []);

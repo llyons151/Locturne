@@ -5,6 +5,4 @@ module.exports = () => ({
   type: 'widget',
   bundleIdentifier: '.NapActivity',
   deploymentTarget: '16.4',
-  // Reads the worn moon's icon from the app group.
-  entitlements: { 'com.apple.security.application-groups': ['group.com.lukelyons.locturne'] },
 });

@@ -11,7 +11,4 @@ struct LocturneNapAttributes: ActivityAttributes {
     var start: Date
     var end: Date
   }
-
-  /// The worn moon's icon in the app group (`SHIELD_MOON_KEY`), or nil for the moon symbol.
-  var moonFile: String?
 }
