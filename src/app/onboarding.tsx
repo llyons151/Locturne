@@ -39,10 +39,11 @@ export default function OnboardingScreen() {
   if (resume === 'paywall' && hasRoutine()) return <OnboardingFlow resumeAtPaywall />;
   const flow = (
     <OnboardingFlow
-      initialStep={review ? step : undefined}
+      // Preview builds too, for You → Developer → Screenshot pages; never the App Store build.
+      initialStep={devLabs ? step : undefined}
       exitOffer={review ? exit : undefined}
       newYear={review && newyear === '1'}
-      pain={review ? pain : undefined}
+      pain={devLabs ? pain : undefined}
       showPaywall={devLabs && paywall === '1'}
     />
   );
