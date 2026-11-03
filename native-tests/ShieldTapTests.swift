@@ -156,6 +156,26 @@ func registerShieldTapTests() {
     expect(!deletionBlocked(), "stood down: allowed")
   }
 
+  test("deleting apps: refused during Block now, allowed when it ends with Locturne closed") {
+    pick("block", ["youtube"])
+    at("2026-10-06 13:00")
+    startNap(list: "block", minutes: 15)
+    appShields("block")
+    reapplyLocturneBlocks(triggeredBy: "app")
+    expect(deletionBlocked(), "refused during Block now")
+    at("2026-10-06 13:15"); end(LOCTURNE_NAP_ACTIVITY)
+    expect(!deletionBlocked(), "allowed once it ends")
+  }
+
+  test("deleting apps: a used-up daily limit or the always list never refuses it") {
+    pick("limit-0", ["tiktok"]); pick("always", ["reddit"])
+    set(LOCTURNE_LIMITS_KEY, [["id": "limit-0", "minutes": 30]])
+    armLimit("limit-0")
+    at("2026-10-06 10:00"); threshold("limit-0")
+    expect(shielded().contains("tiktok"), "the limit holds")
+    expect(!deletionBlocked(), "still allowed")
+  }
+
   // MARK: Steps
 
   test("shield tap, steps: at the goal the apps wake with Locturne closed, no notification") {

@@ -170,3 +170,19 @@ test('deleting apps is refused while the night holds, allowed once it wakes, and
     st.setAppRemovalWriter(null);
   }
 });
+
+test('deleting apps is refused during Block now and allowed once it ends; a used-up limit never refuses it', async () => {
+  const writes: boolean[] = [];
+  st.setAppRemovalWriter((deny) => writes.push(deny));
+  try {
+    await st.startNap('block', 30);
+    assert.equal(writes.at(-1), true, 'Block now: refused');
+    assert.equal(st.holdsDeletion(), true);
+    st.endNap();
+    assert.equal(writes.at(-1), false, 'ended: allowed');
+    st.saveLimits([{ id: 'limit-0', minutes: 30 }]);
+    assert.equal(st.holdsDeletion(), false, 'a limit alone never refuses it');
+  } finally {
+    st.setAppRemovalWriter(null);
+  }
+});

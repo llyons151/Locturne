@@ -38,6 +38,17 @@ func registerTests() {
     return schedule
   }
 
+  test("deleting apps: refused while a schedule blocks, allowed after it ends") {
+    pick("sched-0", ["youtube"])
+    set(LOCTURNE_SCHEDULES_KEY, [workSchedule()])
+    at("2026-10-05 08:30"); reapplyLocturneBlocks(triggeredBy: "app")
+    expect(!deletionBlocked(), "allowed before it starts")
+    at("2026-10-05 09:00"); start("sched-0")
+    expect(deletionBlocked(), "refused while it blocks")
+    at("2026-10-05 17:00"); end("sched-0")
+    expect(!deletionBlocked(), "allowed after")
+  }
+
   test("a schedule's start shields its apps on a day it's on, and its end wakes them") {
     pick("sched-0", ["youtube"]); pick("always", ["reddit"])
     set(LOCTURNE_SCHEDULES_KEY, [workSchedule()])

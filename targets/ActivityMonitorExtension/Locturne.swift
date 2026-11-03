@@ -415,14 +415,33 @@ func reapplyLocturneBlocks(triggeredBy: String) {
 /// Locturne's own store for the one setting that isn't a shield, so clearing shields never touches it.
 let LOCTURNE_REMOVAL_STORE = "locturne.removal"
 
-/// Deleting Locturne takes every shield with it, so while the night holds the bedtime apps
-/// (bedtime until the morning's proof) or a rehearsal night runs, iOS won't delete apps. Any
-/// app: iOS has no switch for one. Nothing without a subscription. Set from every callback and
-/// tap, so it lifts with the night however that ends. The app does the same
-/// (`applyAppRemoval` in src/lib/screen-time.ts): keep the two in step.
+/// Deleting Locturne takes every shield with it, so while a lock someone chose holds, iOS won't
+/// delete apps: the night (bedtime until the morning's proof), Block now, an app schedule's
+/// block, and a rehearsal night. Not a used-up daily limit, nor the always list, or deleting
+/// would be off all evening, or forever (user 2026-11-02). Any app: iOS has no switch for one.
+/// Nothing without a subscription. Set from every callback and tap, so it lifts however a lock
+/// ends. The app does the same (`holdsDeletion` in src/lib/screen-time.ts): keep the two in step.
+func locturneDeletionHolds(now: Date = Date()) -> Bool {
+  if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true { return false }
+  if userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true || locturneRehearsalLive() { return true }
+  if let nap = userDefaults?.dictionary(forKey: LOCTURNE_NAP_KEY),
+    let end = nap["end"] as? Double,
+    let list = nap["list"] as? String,
+    now.timeIntervalSince1970 * 1000 < end,
+    getFamilyActivitySelectionById(id: list) != nil
+  {
+    return true
+  }
+  // Two minutes on, as `reapplyLocturneBlocks` judges a schedule's block.
+  let soon = now.addingTimeInterval(120)
+  return locturneSchedules(now: soon).contains { schedule in
+    guard let id = schedule["id"] as? String else { return false }
+    return locturneScheduleBlocking(schedule, at: soon) && getFamilyActivitySelectionById(id: id) != nil
+  }
+}
+
 func syncLocturneAppRemoval() {
-  let deny = userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) != true
-    && (userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true || locturneRehearsalLive())
+  let deny = locturneDeletionHolds()
   if #available(iOS 16.0, *) {
     ManagedSettingsStore(named: ManagedSettingsStore.Name(LOCTURNE_REMOVAL_STORE)).application.denyAppRemoval =
       deny ? true : nil

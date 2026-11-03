@@ -143,13 +143,13 @@ function sendFeedback() {
 }
 
 /**
- * From bedtime until the morning is won, iOS won't delete apps (`applyAppRemoval` in
- * screen-time.ts): for whoever forgot the deal screen's line (user 2026-11-02).
+ * While a chosen lock holds, iOS won't delete apps (`holdsDeletion` in screen-time.ts): for
+ * whoever forgot the deal screen's line (user 2026-11-02).
  */
 function whyNoDeleting() {
   Alert.alert(
     "Why can't I delete apps?",
-    'Locturne holds that from bedtime until you’re up, or the lock would be one long-press from gone. Any app, since iOS can’t hold just one. It comes back the moment your morning’s done.',
+    'While your apps are asleep for the night, a Block now or a schedule, Locturne holds that, or the lock would be one long-press from gone. Any app, since iOS can’t hold just one. It comes back the moment they wake.',
   );
 }
 

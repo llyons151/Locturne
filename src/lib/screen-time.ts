@@ -284,16 +284,26 @@ export function setAppRemovalWriter(write: ((deny: boolean) => void) | null): vo
 }
 
 /**
- * Deleting Locturne takes every shield with it, so while the night holds the bedtime apps
- * (bedtime until the morning's proof) or a rehearsal night runs, iOS won't delete apps. Any app:
- * iOS has no switch for one. Nothing without a subscription. The extensions do the same
- * (`syncLocturneAppRemoval` in Locturne.swift): keep the two in step.
+ * Deleting Locturne takes every shield with it, so while a lock someone chose holds, iOS won't
+ * delete apps: the night (bedtime until the morning's proof), Block now, an app schedule's block,
+ * and a rehearsal night. Not a used-up daily limit, nor the always list, or deleting would be off
+ * all evening, or forever (user 2026-11-02). Nothing without a subscription. The extensions judge
+ * the same (`locturneDeletionHolds` in Locturne.swift): keep the two in step.
  */
+export function holdsDeletion(now = new Date()): boolean {
+  if (isStoodDown()) return false;
+  if (isNightHeld() || rehearsalHeld(getRehearsal())) return true;
+  const nap = readNap();
+  if (nap && now.getTime() < nap.end && selectionSize(nap.list) > 0) return true;
+  const soon = scheduleSoon(now);
+  return getSchedules(soon).some((schedule) => isBlocking(schedule, soon) && selectionSize(schedule.id) > 0);
+}
+
+/** Refuses deleting apps while `holdsDeletion`, and allows it again after. Any app: iOS has no switch for one. */
 export function applyAppRemoval(): void {
   if (!isAvailable()) return;
-  const deny = !isStoodDown() && (isNightHeld() || rehearsalHeld(getRehearsal()));
   try {
-    removalWriter?.(deny);
+    removalWriter?.(holdsDeletion());
   } catch {
     // An older build or no Screen Time access: deleting stays as it was, and the next re-apply tries again.
   }
@@ -1001,6 +1011,7 @@ export async function startNap(list: ActiveNap['list'], minutes: number): Promis
     userDefaultsSet(NAP_KEY, nap);
     shield(list);
     applyWebsiteFilter();
+    applyAppRemoval();
     return nap;
   } finally {
     napStarting = false;

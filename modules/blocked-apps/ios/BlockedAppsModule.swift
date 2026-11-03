@@ -26,7 +26,7 @@ public class BlockedAppsModule: Module {
       ]
     }
 
-    // While the night holds, iOS won't delete apps (src/lib/screen-time.ts `applyAppRemoval`;
+    // While a chosen lock holds, iOS won't delete apps (src/lib/screen-time.ts `holdsDeletion`;
     // the extensions' `syncLocturneAppRemoval` sets the same store). Any app: iOS has no switch for one.
     Function("denyAppRemoval") { (deny: Bool) in
       if #available(iOS 16.0, *) {
