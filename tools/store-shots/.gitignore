@@ -5,3 +5,5 @@ phone3d/textures/
 phone3d/grid/
 phone3d/out/
 phone3d/*.hdr
+phone3d/*.log
+phone3d/grid-soft/

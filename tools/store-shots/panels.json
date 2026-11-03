@@ -100,16 +100,200 @@
     }
   },
   "strip": {
-    "note": "Real 3D phones placed across the whole set laid side by side (x = centre in strip px: panel n starts at (n-1)*1320; y = centre; height in px). A phone on a seam shows in both panels. angle: a name from `phone3d/compose.py list`; roll spins it (degrees, + = counter-clockwise). Panels whose phone comes from here set \"phone\": false.",
-    "phones": [
-      { "angle": "yawm030_pitchp00", "shot": "01-asleep.png", "x": 900, "y": 1560, "height": 2350, "roll": -8 },
-      { "angle": "yawp030_pitchp00", "shot": "02-steps.png", "x": 2090, "y": 1600, "height": 2250, "roll": 6 }
-    ]
+    "note": "Phone looks. layout picks one of layouts: flat = the plain centred phone on every panel; 3d-first-two = the SocialLite pattern (panels 1-2 cross, then each phone in its own panel, angled or straight); 3d-seams = real 3D phones crossing seams 1-2, 4-5, 9-10. Phones are placed across the whole set laid side by side (x = centre in strip px, panel n starts at (n-1)*1320; y = centre; height px; roll degrees, + = counter-clockwise; angle from `phone3d/compose.py list`). A phone with \"panel\": n replaces that panel's flat phone; one on a seam shows in both panels. glass: original or soft (calmer screen sheen when leaning away, darker back views).",
+    "layout": "3d-first-two",
+    "glass": "original",
+    "layouts": {
+      "flat": [],
+      "3d-first-two": [
+        {
+          "panel": 0,
+          "angle": "yawm030_pitchp00",
+          "shot": "01-asleep.png",
+          "x": 900,
+          "y": 1560,
+          "height": 2450,
+          "roll": -8
+        },
+        {
+          "panel": 1,
+          "angle": "yawp030_pitchm15",
+          "shot": "02-steps.png",
+          "x": 1975,
+          "y": 1620,
+          "height": 2350,
+          "roll": 13
+        },
+        {
+          "panel": 2,
+          "angle": "yawp030_pitchp00",
+          "shot": "03-payoff.png",
+          "x": 4676,
+          "y": 1498,
+          "height": 2420,
+          "roll": 0
+        },
+        {
+          "panel": 3,
+          "angle": "yawp000_pitchp00",
+          "shot": "04-routine.png",
+          "x": 3365,
+          "y": 1522,
+          "height": 2160,
+          "roll": 0
+        },
+        {
+          "panel": 4,
+          "angle": "yawp000_pitchp00",
+          "shot": "05-downstairs.png",
+          "x": 5940,
+          "y": 1640,
+          "height": 2250,
+          "roll": 0
+        },
+        {
+          "panel": 5,
+          "angle": "yawp015_pitchp00",
+          "shot": "06-pushups.png",
+          "x": 7260,
+          "y": 1640,
+          "height": 2250,
+          "roll": 0
+        },
+        {
+          "panel": 6,
+          "angle": "yawp000_pitchp00",
+          "shot": "07-passes.png",
+          "x": 8580,
+          "y": 1640,
+          "height": 2250,
+          "roll": 0
+        },
+        {
+          "panel": 7,
+          "angle": "yawp000_pitchp00",
+          "shot": "08-home.png",
+          "x": 9900,
+          "y": 1640,
+          "height": 2250,
+          "roll": 0
+        },
+        {
+          "panel": 8,
+          "angle": "yawm015_pitchp00",
+          "shot": "09-moons.png",
+          "x": 11220,
+          "y": 1640,
+          "height": 2250,
+          "roll": 0
+        },
+        {
+          "panel": 9,
+          "angle": "yawp000_pitchp00",
+          "shot": "10-block-now.png",
+          "x": 12540,
+          "y": 1640,
+          "height": 2250,
+          "roll": 0
+        }
+      ],
+      "3d-seams": [
+        {
+          "panel": 0,
+          "angle": "yawm030_pitchp00",
+          "shot": "01-asleep.png",
+          "x": 900,
+          "y": 1560,
+          "height": 2350,
+          "roll": -8
+        },
+        {
+          "panel": 1,
+          "angle": "yawp030_pitchp00",
+          "shot": "02-steps.png",
+          "x": 2060,
+          "y": 1600,
+          "height": 2250,
+          "roll": 6
+        },
+        {
+          "panel": 2,
+          "angle": "yawp000_pitchm15",
+          "shot": "03-payoff.png",
+          "x": 3300,
+          "y": 1600,
+          "height": 2400,
+          "roll": 0
+        },
+        {
+          "panel": 3,
+          "angle": "yawp045_pitchp00",
+          "shot": "04-routine.png",
+          "x": 4880,
+          "y": 1600,
+          "height": 2300,
+          "roll": 9
+        },
+        {
+          "panel": 4,
+          "angle": "yawm030_pitchp00",
+          "shot": "05-downstairs.png",
+          "x": 6020,
+          "y": 1620,
+          "height": 2250,
+          "roll": -6
+        },
+        {
+          "panel": 5,
+          "angle": "yawm045_pitchp15",
+          "shot": "06-pushups.png",
+          "x": 7200,
+          "y": 1600,
+          "height": 2300,
+          "roll": -9
+        },
+        {
+          "panel": 6,
+          "angle": "yawp015_pitchp00",
+          "shot": "07-passes.png",
+          "x": 8630,
+          "y": 1600,
+          "height": 2250,
+          "roll": 5
+        },
+        {
+          "panel": 7,
+          "angle": "yawp000_pitchp00",
+          "shot": "08-home.png",
+          "x": 9900,
+          "y": 1620,
+          "height": 2450,
+          "roll": 0
+        },
+        {
+          "panel": 8,
+          "angle": "yawp030_pitchm15",
+          "shot": "09-moons.png",
+          "x": 11510,
+          "y": 1600,
+          "height": 2300,
+          "roll": 8
+        },
+        {
+          "panel": 9,
+          "angle": "yawm030_pitchp00",
+          "shot": "10-block-now.png",
+          "x": 12610,
+          "y": 1620,
+          "height": 2250,
+          "roll": -6
+        }
+      ]
+    }
   },
   "panels": [
     {
       "id": "promise",
-      "phone": false,
       "time": "midnight",
       "headline": "Your apps sleep until *you're up.*",
       "shot": "01-asleep.png",
@@ -119,7 +303,6 @@
     },
     {
       "id": "steps",
-      "phone": false,
       "time": "dawn",
       "headline": "Walk *200 steps.* They wake up.",
       "shot": "02-steps.png",
@@ -168,7 +351,7 @@
             1158,
             290
           ],
-          "scale": 1.0,
+          "scale": 1,
           "y": 1880
         },
         {

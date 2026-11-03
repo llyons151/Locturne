@@ -25,6 +25,10 @@ ap.add_argument('--size', type=int, default=3840, help='long side of the image i
 ap.add_argument('--samples', type=int, default=64)
 ap.add_argument('--off', action='store_true', help='screen off (black glass)')
 ap.add_argument('--glare', type=float, default=0.05, help='screen sheen strength head-on (0 = none)')
+ap.add_argument('--sheen-boost', type=float, default=2.0, help='how much stronger the sheen gets at grazing angles')
+ap.add_argument('--back-exposure', type=float, default=0.0, help='exposure (stops) for back views only, e.g. -0.7')
+ap.add_argument('--subset', default='all', choices=['all', 'soft'],
+                help="soft = only the angles the softer set changes (leaning away + back views)")
 a = ap.parse_args(argv)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -35,17 +39,20 @@ meshes = [o for o in scn.objects if o.type == 'MESH']
 # Dynamic Island: the model leaves a see-through hole showing the selfie camera. Lay a solid black pill over it,
 # just under the cover glass (import coordinates: screen faces +Y, top of phone is +Z).
 import bmesh
-ix0, ix1, iz0, iz1, iy = -0.0109, 0.0095, 0.0638, 0.0702, 0.00352  # a hair wider than the hole
+ix0, ix1, iz0, iz1, iy = -0.0116, 0.0102, 0.0637, 0.0703, 0.00352  # a hair wider than the hole
 r_ = (iz1 - iz0) / 2; cx_ = (ix0 + ix1) / 2; cz_ = (iz0 + iz1) / 2; half = (ix1 - ix0) / 2 - r_
 bm = bmesh.new(); verts = []
 for side, (start, end) in ((1, (-90, 90)), (-1, (90, 270))):
     for k in range(25):
         t = math.radians(start + (end - start) * k / 24)
         verts.append(bm.verts.new((cx_ + side * half + r_ * math.cos(t), iy, cz_ + r_ * math.sin(t))))
-bm.faces.new(verts); me = bpy.data.meshes.new('island'); bm.to_mesh(me); bm.free()
+f_ = bm.faces.new(verts)
+# Extrude it down into the hole so its walls are filled too (a flat pill showed a crescent of the hole on turned phones).
+ext = bmesh.ops.extrude_face_region(bm, geom=[f_])
+bmesh.ops.translate(bm, vec=(0, -0.0022, 0), verts=[v for v in ext['geom'] if isinstance(v, bmesh.types.BMVert)])
+bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+me = bpy.data.meshes.new('island'); bm.to_mesh(me); bm.free()
 pill = bpy.data.objects.new('island', me); scn.collection.objects.link(pill)
-for poly in me.polygons:
-    if poly.normal.y < 0: me.flip_normals()
 island = bpy.data.materials.new('Island'); island.use_nodes = True
 ib = island.node_tree.nodes['Principled BSDF']
 ib.inputs['Base Color'].default_value = (0.002, 0.002, 0.003, 1); ib.inputs['Roughness'].default_value = 0.25
@@ -110,7 +117,7 @@ if not a.off:
     box = g.nodes.new('ShaderNodeMapRange'); box.interpolation_type = 'SMOOTHSTEP'
     box.inputs['From Min'].default_value = 0.05; box.inputs['From Max'].default_value = 0.75
     lw = g.nodes.new('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.3
-    fr = g.nodes.new('ShaderNodeMapRange'); fr.inputs['To Min'].default_value = a.glare; fr.inputs['To Max'].default_value = min(1, a.glare * 2)
+    fr = g.nodes.new('ShaderNodeMapRange'); fr.inputs['To Min'].default_value = a.glare; fr.inputs['To Max'].default_value = min(1, a.glare * a.sheen_boost)
     mul = g.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'
     em = g.nodes.new('ShaderNodeEmission'); em.inputs['Color'].default_value = (1, 1, 1, 1)
     add = g.nodes.new('ShaderNodeAddShader'); go = next(x for x in g.nodes if x.type == 'OUTPUT_MATERIAL')
@@ -176,6 +183,7 @@ for kind in ('OPTIX', 'CUDA'):
 
 def render(yaw, pitch, roll, path):
     pose(yaw, pitch, roll)
+    scn.view_settings.exposure = a.back_exposure if abs(((yaw + 180) % 360) - 180) > 90 else 0
     r.filepath = path
     bpy.ops.render.render(write_still=True)
     print('wrote', path)
@@ -224,6 +232,8 @@ if a.grid:
     jobs = [(y, p) for p in pitches for y in yaws]
     jobs.sort(key=lambda j: (abs(j[1]) + abs(j[0]) / 2, -j[0]))  # most useful (near upright, mild turns) first
     jobs += [(y, p) for p in (-15, 0, 15) for y in (150, 165, 180, 195, 210)]  # back views
+    if a.subset == 'soft':
+        jobs = [(y, p) for y, p in jobs if p > 0 or abs(((y + 180) % 360) - 180) > 90]
     for y, p in jobs:
         name = f'yaw{y:+04d}_pitch{p:+03d}'.replace('+', 'p').replace('-', 'm')
         path = os.path.join(a.outdir, name + '.png')

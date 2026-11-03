@@ -1,0 +1,557 @@
+{
+ "doc": "Listing designs for the store-shots tool. Each listing = a whole 10-panel set: bg, type, phones, loc, copy. Rendered by listing.html?listing=<id>&i=<slot>. bg.type: flat | vertical | across (colour per panel, blended across seams) | sky (times per panel with stars) | split; bg.shapes: hills/arc/disc (solid, no blur); bg.texture: grain/grid/dots. type: font, size, weight, emWeight, emFont, emItalic, accent (weight|color|underline|circle|marker), color, accentColor, marker, position top|bottom, top (px). phones.kind: 3d | flat | frameless | none; pattern: a name in patterns or an inline {all|slots}; glass: original|soft; scale; dy; shadow soft|deep|line|none; frame silver|black. copy: a set in copy; panels.<id> overrides one panel (headline, sub, kicker, notes [{text,x,y,rot,arrow,ax,ay,aw,arot}], chip {text,y}). No glows anywhere.",
+ "order": [
+  "promise",
+  "steps",
+  "payoff",
+  "bedtime",
+  "downstairs",
+  "pushups",
+  "passes",
+  "maker",
+  "moons",
+  "block-now"
+ ],
+ "typeDefaults": {
+  "font": "Inter",
+  "size": 118,
+  "weight": 800,
+  "emWeight": 800,
+  "line": 1.06,
+  "track": -0.025,
+  "color": "#0B0D12",
+  "top": 230,
+  "width": 1140
+ },
+ "patterns": {
+  "upright": {
+   "note": "Straight-on phone, centred, whole phone visible.",
+   "all": {
+    "angle": "yawp000_pitchp00",
+    "x": 660,
+    "y": 1680,
+    "height": 2250,
+    "roll": 0
+   }
+  },
+  "upright-bleed": {
+   "note": "Straight-on, big, running off the bottom.",
+   "all": {
+    "angle": "yawp000_pitchp00",
+    "x": 660,
+    "y": 1960,
+    "height": 2780,
+    "roll": 0
+   }
+  },
+  "first-two": {
+   "note": "SocialLite: 1 leans into 2, 2 tilted, 3 big and angled, then straight.",
+   "slots": [
+    {
+     "angle": "yawm030_pitchp00",
+     "x": 900,
+     "y": 1720,
+     "height": 2450,
+     "roll": -8
+    },
+    {
+     "angle": "yawp030_pitchm15",
+     "x": 655,
+     "y": 1960,
+     "height": 2350,
+     "roll": 13
+    },
+    {
+     "angle": "yawp030_pitchp00",
+     "x": 700,
+     "y": 1900,
+     "height": 2800,
+     "roll": 0
+    },
+    {
+     "angle": "yawp000_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    },
+    {
+     "angle": "yawp000_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    },
+    {
+     "angle": "yawp000_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    },
+    {
+     "angle": "yawp000_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    },
+    {
+     "angle": "yawm015_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    },
+    {
+     "angle": "yawp000_pitchp00",
+     "x": 660,
+     "y": 1640,
+     "height": 2250,
+     "roll": 0
+    }
+   ]
+  },
+  "seams": {
+   "note": "Crossing seams 1-2, 4-5, 9-10.",
+   "slots": [
+    {
+     "angle": "yawm030_pitchp00",
+     "x": 900,
+     "y": 1560,
+     "height": 2350,
+     "roll": -8
+    },
+    {
+     "angle": "yawp030_pitchp00",
+     "x": 740,
+     "y": 1600,
+     "height": 2250,
+     "roll": 6
+    },
+    {
+     "angle": "yawp000_pitchm15",
+     "x": 660,
+     "y": 1600,
+     "height": 2400,
+     "roll": 0
+    },
+    {
+     "angle": "yawp045_pitchp00",
+     "x": 920,
+     "y": 1600,
+     "height": 2300,
+     "roll": 9
+    },
+    {
+     "angle": "yawm030_pitchp00",
+     "x": 740,
+     "y": 1620,
+     "height": 2250,
+     "roll": -6
+    },
+    {
+     "angle": "yawm045_pitchp15",
+     "x": 600,
+     "y": 1600,
+     "height": 2300,
+     "roll": -9
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 710,
+     "y": 1600,
+     "height": 2250,
+     "roll": 5
+    },
+    {
+     "angle": "yawp000_pitchp00",
+     "x": 660,
+     "y": 1620,
+     "height": 2450,
+     "roll": 0
+    },
+    {
+     "angle": "yawp030_pitchm15",
+     "x": 950,
+     "y": 1600,
+     "height": 2300,
+     "roll": 8
+    },
+    {
+     "angle": "yawm030_pitchp00",
+     "x": 730,
+     "y": 1620,
+     "height": 2250,
+     "roll": -6
+    }
+   ]
+  },
+  "alternate": {
+   "note": "Turned 15 degrees left, right, left... with a slight lean.",
+   "slots": [
+    {
+     "angle": "yawm015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": -4
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": 4
+    },
+    {
+     "angle": "yawm015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": -4
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": 4
+    },
+    {
+     "angle": "yawm015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": -4
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": 4
+    },
+    {
+     "angle": "yawm015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": -4
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": 4
+    },
+    {
+     "angle": "yawm015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": -4
+    },
+    {
+     "angle": "yawp015_pitchp00",
+     "x": 660,
+     "y": 1700,
+     "height": 2300,
+     "roll": 4
+    }
+   ]
+  },
+  "lean-back": {
+   "note": "Tipped away a little, like lying on a desk, centred.",
+   "all": {
+    "angle": "yawp000_pitchp15",
+    "x": 660,
+    "y": 1720,
+    "height": 2300,
+    "roll": 0
+   }
+  }
+ },
+ "copy": {
+  "default": {
+   "promise": {
+    "headline": "Your apps sleep until *you're up.*"
+   },
+   "steps": {
+    "headline": "Walk *200 steps.* They wake up."
+   },
+   "payoff": {
+    "headline": "*You're up.* So are your apps."
+   },
+   "bedtime": {
+    "headline": "Bedtime at *midnight.* Not a request."
+   },
+   "downstairs": {
+    "headline": "Or go *downstairs.* Same deal."
+   },
+   "pushups": {
+    "headline": "Or do *10 push-ups.* The camera counts."
+   },
+   "passes": {
+    "headline": "Bad day? *Use a pass.*",
+    "sub": "Two a month. The only way out early."
+   },
+   "maker": {
+    "headline": "Made by *one student,* not a company."
+   },
+   "moons": {
+    "headline": "Every morning up earns a *moon.*"
+   },
+   "block-now": {
+    "headline": "Need quiet now? *Block now.*",
+    "sub": "Your bedtime apps sleep for as long as you pick."
+   }
+  },
+  "mechanism": {
+   "promise": {
+    "headline": "Apps stay asleep *till you're up.*"
+   },
+   "steps": {
+    "headline": "*Walk 200 steps.* Apps wake up."
+   },
+   "payoff": {
+    "headline": "*Up and moving?* Apps are back."
+   },
+   "bedtime": {
+    "headline": "Bedtime *locks itself.* Every night."
+   },
+   "downstairs": {
+    "headline": "Or prove it *downstairs.*"
+   },
+   "pushups": {
+    "headline": "Or *10 push-ups.* Camera counts."
+   },
+   "passes": {
+    "headline": "*Two passes* a month. That's it."
+   },
+   "maker": {
+    "headline": "Made by *one student.*"
+   },
+   "moons": {
+    "headline": "Every morning up *earns a moon.*"
+   },
+   "block-now": {
+    "headline": "Need quiet now? *Block now.*"
+   }
+  },
+  "pain": {
+   "promise": {
+    "headline": "Stop scrolling *in bed.*"
+   },
+   "steps": {
+    "headline": "The feed waits *till you're up.*"
+   },
+   "payoff": {
+    "headline": "Start the day *on your feet.*"
+   },
+   "bedtime": {
+    "headline": "No more *one more video.*"
+   },
+   "downstairs": {
+    "headline": "You can't snooze *your way out.*"
+   },
+   "pushups": {
+    "headline": "No feed *before push-ups.*"
+   },
+   "passes": {
+    "headline": "Bad night? *Use a pass.*"
+   },
+   "maker": {
+    "headline": "Made by *one student.*"
+   },
+   "moons": {
+    "headline": "Earn a moon *every morning.*"
+   },
+   "block-now": {
+    "headline": "Quiet, *right now.*"
+   }
+  },
+  "short": {
+   "promise": {
+    "headline": "Apps sleep. *You get up.*"
+   },
+   "steps": {
+    "headline": "*200 steps.* Apps wake."
+   },
+   "payoff": {
+    "headline": "*Up?* Apps back."
+   },
+   "bedtime": {
+    "headline": "Bedtime, *automatic.*"
+   },
+   "downstairs": {
+    "headline": "Or *go downstairs.*"
+   },
+   "pushups": {
+    "headline": "Or *10 push-ups.*"
+   },
+   "passes": {
+    "headline": "*Two passes.* That's it."
+   },
+   "maker": {
+    "headline": "*One student.* No company."
+   },
+   "moons": {
+    "headline": "*A moon* every morning."
+   },
+   "block-now": {
+    "headline": "*Block now.* Any time."
+   }
+  },
+  "numbers": {
+   "promise": {
+    "headline": "Locked at *11 pm.* Open when you're up."
+   },
+   "steps": {
+    "headline": "*200 steps.* Then they wake."
+   },
+   "payoff": {
+    "headline": "Up at *7:04.* Apps awake."
+   },
+   "bedtime": {
+    "headline": "*Every night.* On its own."
+   },
+   "downstairs": {
+    "headline": "*One floor down.* Done."
+   },
+   "pushups": {
+    "headline": "*10 push-ups.* Counted by camera."
+   },
+   "passes": {
+    "headline": "*2 passes* a month. No other exit."
+   },
+   "maker": {
+    "headline": "*1 student.* Not a company."
+   },
+   "moons": {
+    "headline": "*1 moon* for every morning up."
+   },
+   "block-now": {
+    "headline": "*30 minutes* of quiet. Now."
+   }
+  }
+ },
+ "listings": [
+  {
+   "id": "dusk-across",
+   "name": "White",
+   "idea": "The dusk set (pain copy, 3D phones 1 into 2) on plain white with navy type; phones lifted so each one shows whole.",
+   "bg": {
+    "type": "flat",
+    "color": "#ffffff"
+   },
+   "type": {
+    "font": "Inter",
+    "weight": 400,
+    "emWeight": 800,
+    "color": "#0E1633",
+    "size": 138
+   },
+   "phones": {
+    "kind": "3d",
+    "pattern": {
+     "note": "first-two, lifted so the whole phone shows",
+     "slots": [
+      {
+       "angle": "yawm030_pitchp00",
+       "x": 900,
+       "y": 1700,
+       "height": 2280,
+       "roll": -8
+      },
+      {
+       "angle": "yawp030_pitchm15",
+       "x": 655,
+       "y": 1620,
+       "height": 2250,
+       "roll": 13
+      },
+      {
+       "angle": "yawp030_pitchp00",
+       "x": 700,
+       "y": 1640,
+       "height": 2300,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      },
+      {
+       "angle": "yawp015_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      },
+      {
+       "angle": "yawm015_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1600,
+       "height": 2250,
+       "roll": 0
+      }
+     ]
+    },
+    "glass": "soft",
+    "dy": 0,
+    "scale": 0.93,
+    "shadow": "deep",
+    "edits": {
+     "2": {
+      "angle": "yawp030_pitchp00",
+      "x": 700,
+      "y": 1640,
+      "height": 2278,
+      "roll": 0
+     }
+    }
+   },
+   "copy": "pain"
+  }
+ ]
+}

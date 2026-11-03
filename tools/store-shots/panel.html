@@ -15,19 +15,23 @@
     const i = Number(new URLSearchParams(location.search).get('i') ?? 0);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-    // 3D phones across seams: panels.json → strip.phones are placed on the whole set laid side by side
-    // (strip x: panel n starts at (n-1)×1320), so a phone on a seam shows half in each panel and carries over
-    // when you swipe. Each is a real render from phone3d/ (angle name from `phone3d/compose.py list`).
+    // Phone looks (panels.json → strip): strip.layout picks a list of phones from strip.layouts ("flat" = none, so
+    // every panel keeps its plain centred phone; "3d" = real 3D renders from phone3d/). Phones are placed on the whole
+    // set laid side by side (strip x: panel n starts at (n-1)×1320), so one on a seam shows half in each panel and
+    // carries over when you swipe. A phone with "panel": n replaces that panel's flat phone. strip.glass picks the
+    // render set (original / soft). ?layout= and ?glass= override, for side-by-side previews.
     const PANEL_W = 1320;
-    async function stripPhones(strip) {
-      const out = [];
-      for (const ph of strip?.phones ?? []) {
-        const h = ph.height ?? 2300;
-        if (Math.abs(ph.x - (i * PANEL_W + PANEL_W / 2)) > PANEL_W / 2 + h) continue;   // nowhere near this panel
-        const src = `/api/phone?angle=${encodeURIComponent(ph.angle)}&shot=${encodeURIComponent(ph.shot)}&roll=${ph.roll ?? 0}`;
-        out.push(`<img class="phone3d" src="${src}" alt="" style="left:${ph.x - i * PANEL_W}px;top:${ph.y ?? 1434}px;height:${h}px">`);
-      }
-      return out.join('');
+    const q = new URLSearchParams(location.search);
+    function stripPhones(strip) {
+      const list = strip?.layouts?.[q.get('layout') ?? strip.layout] ?? [];
+      const glass = q.get('glass') ?? strip?.glass ?? 'original';
+      const own = list.some((ph) => ph.panel === i);
+      const html = list.map((ph, n) => [ph, n]).filter(([ph]) => Math.abs(ph.x - (i * PANEL_W + PANEL_W / 2)) < PANEL_W / 2 + (ph.height ?? 2300))
+        .map(([ph, n]) => {
+          const src = `/api/phone?angle=${encodeURIComponent(ph.angle)}&shot=${encodeURIComponent(ph.shot)}&roll=${ph.roll ?? 0}&glass=${glass}`;
+          return `<img class="phone3d" data-edit="wb:${n}" src="${src}" alt="" style="left:${ph.x - i * PANEL_W}px;top:${ph.y ?? 1434}px;height:${ph.height ?? 2300}px">`;
+        }).join('');
+      return { own, html };
     }
 
     fetch('/panels.json', { cache: 'no-store' }).then((r) => r.json()).then(async ({ panels, strip }) => {
@@ -37,10 +41,11 @@
       const screen = has
         ? `<img src="${shotUrl}?v=${Date.now()}" alt="">`
         : `<div class="missing"><b>${esc(p.shot || 'no screenshot set')}</b><span>${esc(p.note)}</span></div>`;
-      // "phone": false on a panel drops its flat centred phone (for panels whose phone comes from strip.phones).
-      document.getElementById('panel').innerHTML = (p.phone === false ? '' :
+      const phones = stripPhones(strip);
+      document.getElementById('panel').innerHTML = (phones.own ? '' :
         `<div class="phone"><div class="bezel"><div class="screen"><div class="island"></div>${screen}</div></div></div>`)
-        + await stripPhones(strip);
+        + phones.html;
+      if (q.get('edit')) await new Promise((ok) => { const sc = document.createElement('script'); sc.src = '/edit-hook.js'; sc.onload = ok; document.head.appendChild(sc); });
       document.body.dataset.ready = '1';
     });
   </script>

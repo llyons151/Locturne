@@ -40,3 +40,17 @@ Options: `--size` (long side, default 3840), `--samples` (default 64), `--glare`
   come out exactly as captured (Standard view transform)
 - the Dynamic Island was see-through (selfie camera showed), now a solid black pill
 - studio-window reflections on the screen looked messy, replaced by a soft overhead sheen that follows the angle
+
+## In the store-shots tool
+
+Two switches in the header (saved to `panels.json → strip`, so thumbnails, previews and Export follow them):
+- **Phones**: `flat` (the plain centred phone on every panel) or `3D` (`strip.layouts["3d"]`: a real 3D phone per
+  panel, crossing the seams 1–2, 4–5 and 9–10). Phones sit on the whole set laid side by side (x = centre in strip
+  px, panel n starts at (n-1)×1320; y = centre; height px; roll; angle; shot). A phone with `"panel": n` replaces
+  that panel's flat phone. Add more layouts under `strip.layouts` and they appear in the switch.
+- **Glass**: `original` (`grid/`) or `softer` (`grid-soft/`: re-rendered with `--glare 0.012 --sheen-boost 1.5
+  --back-exposure -0.7 --subset soft`, so phones leaning away keep dark screens and back views are less blown out;
+  the other angles link to `grid/`).
+
+`panel.html?i=0&layout=flat&glass=soft` overrides both for one view. The server composes each phone on request
+(`/api/phone`, cached in /tmp).

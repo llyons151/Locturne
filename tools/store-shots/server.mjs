@@ -1,7 +1,7 @@
 // App Store screenshot workbench: renders the panels in panels.json, shows them in a mock App Store,
 // and exports them as 1320×2868 PNGs. No dependencies; run with `npm run store-shots`.
 import { createServer } from 'node:http';
-import { readFile, writeFile, stat, mkdir, readdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, stat, mkdir, readdir, rm, rename } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { extname, join, normalize } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -48,9 +48,10 @@ function run(cmd, args) {
 
 // Chrome's PNGs carry an alpha channel and App Store Connect rejects transparency,
 // so each capture goes through ffmpeg to plain RGB.
-async function exportAll() {
+// listing: a design from listings.json (rendered by listing.html); none = the plain panel.html workbench.
+async function exportAll(listing) {
   const { panels } = JSON.parse(await readFile(join(HERE, 'panels.json'), 'utf8'));
-  const out = join(HERE, 'export');
+  const out = join(HERE, 'export', listing || 'workbench');
   await rm(out, { recursive: true, force: true });   // a reorder must not leave stale panels behind
   await mkdir(out, { recursive: true });
   const files = [];
@@ -58,8 +59,9 @@ async function exportAll() {
     const raw = join(out, `.raw-${i}.png`);
     const name = `${String(i + 1).padStart(2, '0')}-${panels[i].id}.png`;
     await run(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
-      `--window-size=${W},${H}`, '--virtual-time-budget=4000', `--screenshot=${raw}`,
-      `http://127.0.0.1:${PORT}/panel.html?i=${i}&export=1`]);
+      `--window-size=${W},${H}`, '--virtual-time-budget=20000', `--screenshot=${raw}`,
+      listing ? `http://127.0.0.1:${PORT}/listing.html?listing=${encodeURIComponent(listing)}&i=${i}&export=1`
+        : `http://127.0.0.1:${PORT}/panel.html?i=${i}&export=1`]);
     await run('ffmpeg', ['-v', 'error', '-y', '-i', raw, '-pix_fmt', 'rgb24', join(out, name)]);
     await rm(raw);
     files.push(name);
@@ -69,7 +71,9 @@ async function exportAll() {
 
 // One string that changes whenever anything a panel draws from changes on disk.
 async function version() {
-  const files = [join(HERE, 'panels.json'), join(HERE, 'panel.html'), join(HERE, 'panel.css'), join(HERE, 'phone3d', 'grid', 'grid.json')];  // new 3D angles redraw too
+  const files = [join(HERE, 'panels.json'), join(HERE, 'panel.html'), join(HERE, 'panel.css'),
+    join(HERE, 'listings.json'), join(HERE, 'listing.html'), join(HERE, 'listing.css'), join(HERE, 'phone3d', 'grid', 'grid.json'),
+    join(HERE, 'phone3d', 'grid-soft', 'grid.json')];  // new 3D angles redraw too
   const shots = await readdir(join(HERE, 'shots')).catch(() => []);
   for (const s of shots) files.push(join(HERE, 'shots', s));
   const times = await Promise.all(files.map((f) => stat(f).then((s) => s.mtimeMs).catch(() => 0)));
@@ -119,11 +123,12 @@ async function openBrowser(k) {
 // panel.html sets body[data-ready] once it has drawn; also wait for its images.
 const READY = `document.body.dataset.ready === '1' && [...document.images].every((i) => i.complete)`;
 
-async function renderPanel(k, i, v) {
+async function renderPanel(k, i, v, listing) {
   browsers[k] ??= openBrowser(k);
   const { send } = await browsers[k];
-  await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/panel.html?i=${i}` });
-  for (let t = 0; t < 100; t++) {
+  await send('Page.navigate', { url: listing ? `http://127.0.0.1:${PORT}/listing.html?listing=${encodeURIComponent(listing)}&i=${i}`
+    : `http://127.0.0.1:${PORT}/panel.html?i=${i}` });
+  for (let t = 0; t < 400; t++) {                      // 3D phones can take a few seconds to compose the first time
     const { result } = await send('Runtime.evaluate', { expression: READY });
     if (result.value === true) break;
     await new Promise((ok) => setTimeout(ok, 50));
@@ -132,14 +137,14 @@ async function renderPanel(k, i, v) {
   const { data } = await send('Page.captureScreenshot', { format: 'jpeg', quality: 92, optimizeForSpeed: true });
   const raw = join(THUMBS, `.raw-${k}.jpg`);
   await writeFile(raw, Buffer.from(data, 'base64'));
-  await run('ffmpeg', ['-v', 'error', '-y', '-i', raw, '-vf', `scale=${THUMB_W}:-1:flags=lanczos`, join(THUMBS, `${v}-${i}.png`)]);
+  await run('ffmpeg', ['-v', 'error', '-y', '-i', raw, '-vf', `scale=${THUMB_W}:-1:flags=lanczos`, join(THUMBS, `${v}-${listing || 'base'}-${i}.png`)]);
 }
 
-async function renderAll(v) {
+async function renderAll(v, listing) {
   const { panels } = JSON.parse(await readFile(join(HERE, 'panels.json'), 'utf8'));
   let next = 0;
   await Promise.all(Array.from({ length: WORKERS }, async (_, k) => {
-    while (next < panels.length) await renderPanel(k, next++, v);
+    while (next < panels.length) await renderPanel(k, next++, v, listing);
   }));
 }
 
@@ -150,14 +155,18 @@ const phoneJobs = new Map();
 async function phone(q) {
   const angle = q.get('angle') ?? '', shot = q.get('shot') ?? '', roll = Number(q.get('roll') ?? 0);
   if (!/^yaw[mp]\d{3}_pitch[mp]\d{2}$/.test(angle) || /[/\\]/.test(shot)) throw new Error('bad phone params');
-  const body = join(PHONE3D, 'grid', `${angle}.png`);
+  // glass=soft: the calmer render set (phone3d/grid-soft); falls back to the original set while it fills in.
+  let dir = join(PHONE3D, q.get('glass') === 'soft' ? 'grid-soft' : 'grid');
+  if (!(await stat(join(dir, `${angle}.png`)).then(() => true, () => false))) dir = join(PHONE3D, 'grid');
+  const body = join(dir, `${angle}.png`);
   const shotFile = join(HERE, 'shots', shot);
   const times = await Promise.all([body, shotFile].map((f) => stat(f).then((s) => Math.round(s.mtimeMs))));
-  const file = join(PHONES, `${angle}-${shot.replace(/\W/g, '_')}-${roll}-${times.join('-')}.png`);
+  const file = join(PHONES, `${angle}-${dir.endsWith('soft') ? 'soft-' : ''}${shot.replace(/\W/g, '_')}-${roll}-${times.join('-')}.png`);
   if (await stat(file).then(() => true, () => false)) return file;
   if (!phoneJobs.has(file)) {
     const job = mkdir(PHONES, { recursive: true }).then(() =>
-      run('python3', [join(PHONE3D, 'compose.py'), angle, shotFile, file, '--roll', String(roll)]));
+      run('python3', [join(PHONE3D, 'compose.py'), angle, shotFile, `${file}.part.png`, '--roll', String(roll), '--grid', dir]))
+      .then(() => rename(`${file}.part.png`, file));      // never serve a half-written PNG
     job.finally(() => phoneJobs.delete(file)).catch(() => {});
     phoneJobs.set(file, job);
   }
@@ -167,18 +176,19 @@ async function phone(q) {
 
 const jobs = new Map();
 let chain = Promise.resolve();          // one render pass at a time
-function renderOnce(v) {
-  if (!jobs.has(v)) {
-    const job = (chain = chain.catch(() => {}).then(() => renderAll(v)));
-    job.catch(() => { jobs.delete(v); browsers.fill(null); });
-    jobs.set(v, job);
+function renderOnce(v, listing) {
+  const key = `${v}|${listing}`;
+  if (!jobs.has(key)) {
+    const job = (chain = chain.catch(() => {}).then(() => renderAll(v, listing)));
+    job.catch(() => { jobs.delete(key); browsers.fill(null); });
+    jobs.set(key, job);
   }
-  return jobs.get(v);
+  return jobs.get(key);
 }
 
-async function thumb(i, v) {
-  const file = join(THUMBS, `${v}-${i}.png`);
-  if (!(await stat(file).then(() => true, () => false))) await renderOnce(v);
+async function thumb(i, v, listing) {
+  const file = join(THUMBS, `${v}-${listing || 'base'}-${i}.png`);
+  if (!(await stat(file).then(() => true, () => false))) await renderOnce(v, listing);
   return file;
 }
 
@@ -191,13 +201,20 @@ createServer(async (req, res) => {
       await writeFile(join(HERE, 'panels.json'), text);
       return send(res, 200, 'ok');
     }
+    if (url.pathname === '/api/listings' && req.method === 'PUT') {
+      // The Edit tab saves dragged phones, notes and captions here.
+      const text = await body(req);
+      JSON.parse(text);
+      await writeFile(join(HERE, 'listings.json'), text);
+      return send(res, 200, 'ok');
+    }
     if (url.pathname === '/api/version') {
       // The page polls this, so edits to panels.json or new shots show up without a reload.
       return send(res, 200, await version(), 'text/plain');
     }
     if (url.pathname === '/api/thumb') {
       const i = Number(url.searchParams.get('i'));
-      const file = await thumb(i, url.searchParams.get('v') || await version());
+      const file = await thumb(i, url.searchParams.get('v') || await version(), url.searchParams.get('listing') || '');
       res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=86400' });
       return res.end(await readFile(file));
     }
@@ -216,7 +233,7 @@ createServer(async (req, res) => {
       return send(res, 200, JSON.stringify(grid), TYPES['.json']);
     }
     if (url.pathname === '/api/export' && req.method === 'POST') {
-      const files = await exportAll();
+      const files = await exportAll(url.searchParams.get('listing') || '');
       return send(res, 200, JSON.stringify(files), TYPES['.json']);
     }
     const file = resolve(url.pathname);

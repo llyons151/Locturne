@@ -1,0 +1,106 @@
+/* One listing panel at the real 6.9" export size. Colours, fonts and sizes come from listings.json as CSS vars.
+   No glows anywhere (CLAUDE.md): shadows are neutral and only lift phones. */
+html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; background: #fff; }
+.panel { position: relative; width: 1320px; height: 2868px; overflow: hidden; font-family: var(--font); color: var(--color);
+  -webkit-font-smoothing: antialiased; }
+.strip, .fill { position: absolute; top: 0; height: 2868px; }
+.fill { left: 0; width: 100%; }
+.star { position: absolute; border-radius: 50%; background: #fff; }
+.arc { position: absolute; border-radius: 50%; }
+.grain { position: absolute; inset: 0; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.dark .grain { mix-blend-mode: screen; }
+.grid { position: absolute; inset: 0; background-image: linear-gradient(var(--line) 2px, transparent 2px), linear-gradient(90deg, var(--line) 2px, transparent 2px);
+  background-size: 110px 110px; background-position: 0 -40px; }
+.dots { position: absolute; inset: 0; background-image: radial-gradient(var(--line) 3px, transparent 3.5px); background-size: 60px 60px; }
+
+/* Copy block: centred (the user prefers centred headings). */
+.copy { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; z-index: 5; }
+.kicker { margin: 0 0 34px; font: 700 40px/1 Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--kickerColor); }
+.headline { margin: 0; font-family: var(--font); font-size: var(--size); font-weight: var(--weight); line-height: var(--line);
+  letter-spacing: var(--track); color: var(--color); text-wrap: balance; }
+.upper .headline { text-transform: uppercase; }
+.headline em { font-style: normal; font-family: var(--emFont); font-weight: var(--emWeight); color: var(--accentColor); position: relative; white-space: nowrap; }
+.em-italic .headline em { font-style: italic; }
+.accent-marker .headline em { background: linear-gradient(transparent 58%, var(--marker) 58%, var(--marker) 92%, transparent 92%); padding: 0 .08em; }
+.headline em svg { position: absolute; left: -2%; width: 104%; overflow: visible; fill: none; stroke: var(--swoosh); stroke-linecap: round; stroke-linejoin: round; }
+.headline em.u svg { bottom: -.2em; height: .26em; stroke-width: 9; }
+.headline em.c svg { left: -14%; top: -18%; width: 128%; height: 136%; stroke-width: 7; }
+.sub { margin: 34px auto 0; max-width: 1000px; font: 500 50px/1.3 Inter, sans-serif; color: var(--subColor); text-wrap: balance; }
+
+/* Phones. 3D renders are transparent PNGs; flat ones are drawn. */
+.p3d { position: absolute; transform: translate(-50%, -50%); z-index: 2; }
+.pflat { position: absolute; z-index: 2; box-sizing: border-box; }
+.pflat img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.frameless { border-radius: 92px; overflow: hidden; }
+.framed { padding: 1.3%; border-radius: 15.5% / 7.2%; background: linear-gradient(90deg, #8d8e96, #e9e9ee 2.5%, #c9cad0 6%, #dcdde2 50%, #c9cad0 94%, #e9e9ee 97.5%, #8d8e96); }
+.framed.black { background: linear-gradient(90deg, #1b1b1e, #4a4a50 2.5%, #2a2a2e 6%, #333338 50%, #2a2a2e 94%, #4a4a50 97.5%, #1b1b1e); }
+.framed .bezel { width: 100%; height: 100%; box-sizing: border-box; padding: 2.4%; border-radius: 14.5% / 6.7%; background: #050506; }
+.framed .screen { position: relative; width: 100%; height: 100%; border-radius: 12.6% / 5.8%; overflow: hidden; background: #000; }
+.framed .island { position: absolute; top: 1.4%; left: 50%; width: 29%; height: 3.3%; transform: translateX(-50%); border-radius: 99px; background: #000; z-index: 2; }
+.shadow-soft.p3d { filter: drop-shadow(0 40px 70px rgba(0, 0, 0, .16)); }
+.shadow-soft.pflat { box-shadow: 0 40px 90px rgba(0, 0, 0, .16); }
+.shadow-deep.p3d { filter: drop-shadow(0 50px 80px rgba(0, 0, 0, .38)); }
+.shadow-deep.pflat { box-shadow: 0 50px 110px rgba(0, 0, 0, .4); }
+.shadow-line.pflat { box-shadow: 0 0 0 3px rgba(255, 255, 255, .22); }
+
+.loc { position: absolute; transform: translateX(-50%); z-index: 3; }
+.dark .loc { filter: none; }
+
+/* Hand-written notes with a drawn arrow (SocialLite-style "No Reels"). */
+.note { position: absolute; z-index: 6; font: 700 104px/1 Caveat, cursive; white-space: nowrap; }
+.note .arrow { position: absolute; overflow: visible; fill: none; stroke: currentColor; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+
+.chip { position: absolute; left: 50%; transform: translateX(-50%); z-index: 6; padding: 26px 46px; border-radius: 999px;
+  font: 600 44px/1 Inter, sans-serif; background: var(--color); color: #fff; white-space: nowrap; }
+.dark .chip { color: #0b1020; }
+
+/* Items (listing.html → itemHtml): free-placed text and graphics. */
+.item { position: absolute; transform-origin: 50% 50%; }
+.headline em, .itext em { font-style: normal; font-family: var(--emFont); font-weight: var(--emWeight); color: var(--accentColor); position: relative; white-space: nowrap; }
+.em-italic .itext em { font-style: italic; }
+.itext em svg { position: absolute; left: -2%; width: 104%; overflow: visible; fill: none; stroke: var(--swoosh); stroke-linecap: round; stroke-linejoin: round; bottom: -.2em; height: .26em; stroke-width: 9; }
+.itext { text-align: center; text-wrap: balance; }
+.wordmark { display: flex; align-items: center; gap: .32em; font-weight: 900; letter-spacing: -0.035em; line-height: 1; white-space: nowrap; }
+.wordmark img { width: 1.2em; height: 1.2em; border-radius: 26%; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.inote { position: relative; font-family: Caveat, cursive; font-weight: 700; line-height: 1; white-space: nowrap; }
+.inote .arrow, .inote .uline { position: absolute; overflow: visible; fill: none; stroke: currentColor; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.inote .uline { left: -4%; bottom: -.18em; width: 108%; height: .22em; stroke-width: 5; }
+.doodle { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.doodle svg { width: 100%; overflow: visible; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.doodle span { font: 700 64px/1 Caveat, cursive; white-space: nowrap; }
+.iimg { display: block; }
+.shadow-soft.iimg, .shadow-soft.icrop { filter: drop-shadow(0 40px 70px rgba(0, 0, 0, .18)); }
+.shadow-deep.iimg, .shadow-deep.icrop { filter: drop-shadow(0 50px 80px rgba(0, 0, 0, .4)); }
+.icrop { overflow: hidden; }
+.apps { display: grid; }
+.app { position: relative; border-radius: 23%; box-shadow: 0 18px 40px rgba(0, 0, 0, .16); }
+.app > svg { position: absolute; inset: 16%; width: 68%; height: 68%; fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.app.asleep { filter: saturate(.25) brightness(.78); }
+.app .zz { position: absolute; right: -14%; top: -14%; width: 44%; height: 44%; border-radius: 50%; background: #0d1330; display: grid; place-items: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .25); }
+.app .zz svg { width: 60%; fill: #e9edff; }
+.row { display: flex; align-items: center; gap: 40px; padding: 40px 48px; border-radius: 52px; box-sizing: border-box; font-family: Inter, sans-serif; }
+.row.navy { background: #1a2140; color: #fff; box-shadow: 0 30px 60px rgba(0, 0, 0, .28); }
+.row.white { background: #fff; color: #0b0d12; box-shadow: 0 30px 60px rgba(20, 30, 60, .14); }
+.ricon { flex: none; width: 120px; height: 120px; border-radius: 30px; background: rgba(255, 255, 255, .12); display: grid; place-items: center; }
+.row.white .ricon { background: #eef1f8; }
+.ricon svg { width: 72%; fill: none; stroke: currentColor; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.rtext { flex: 1; display: grid; gap: 8px; text-align: left; }
+.rtext b { font-size: 62px; font-weight: 600; letter-spacing: -0.01em; }
+.rtext small { font-size: 44px; opacity: .62; }
+.rcheck { flex: none; width: 76px; height: 76px; border-radius: 50%; background: currentColor; display: grid; place-items: center; font: 800 44px/1 Inter; }
+.row.navy .rcheck { background: #fff; color: #1a2140; }
+.row.white .rcheck { background: #0b0d12; color: #fff; }
+.rdot { flex: none; width: 66px; height: 66px; border-radius: 50%; border: 5px solid currentColor; opacity: .45; box-sizing: border-box; }
+.moons { display: grid; gap: 50px 44px; }
+.mtile { display: grid; gap: 22px; justify-items: center; font: 600 46px/1 Inter, sans-serif; color: var(--color); }
+.mbox { position: relative; width: 100%; border-radius: 22%; background: #141a33; display: grid; place-items: center; box-shadow: 0 24px 50px rgba(0, 0, 0, .22); }
+.mtile.on .mbox { outline: 8px solid #fff; outline-offset: -8px; }
+.mbox img { width: 76%; }
+.mtile.off img { filter: brightness(0) opacity(.55); }
+.mtile.off span { opacity: .5; }
+.mbox .lock { position: absolute; width: 22%; height: 22%; border-radius: 50%; background: rgba(255, 255, 255, .9); right: 9%; bottom: 9%; }
+.bar { height: 26px; border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 99px; }
+.ichip { padding: .6em 1.05em; border-radius: 999px; font-family: Inter, sans-serif; font-weight: 600; white-space: nowrap; }
