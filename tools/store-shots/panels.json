@@ -104,8 +104,8 @@
       "id": "promise",
       "time": "midnight",
       "headline": "Your apps sleep until *you're up.*",
-      "shot": "01-shield.png",
-      "note": "The shield over a blocked app at night. Pick a category (Social) so no third-party icon shows. Real phone only. This is the panel people decide on: plain promise over real UI.",
+      "shot": "01-asleep.png",
+      "note": "Home asleep: \"Asleep until 8:00 am\". Swap in 01-shield.png once there is a real shield capture.",
       "phoneTop": 520,
       "frost": 1000
     },
@@ -147,23 +147,23 @@
     {
       "id": "bedtime",
       "time": "midnight",
-      "headline": "Bedtime at *11:30.* Not a request.",
+      "headline": "Bedtime at *midnight.* Not a request.",
       "shot": "04-routine.png",
-      "note": "Routine: bedtime 11:30 PM, morning time, wake-up method.",
+      "note": "Routine: bedtime 12 am, wake-up 8 am, every night, Walk picked.",
       "phoneTop": 640,
       "callouts": [
         {
           "crop": [
-            60,
-            1805,
-            1200,
-            210
+            66,
+            1440,
+            1158,
+            290
           ],
           "scale": 1.0,
           "y": 1880
         },
         {
-          "text": "11:30|pm|Apps go to sleep",
+          "text": "12:00|am|Apps go to sleep",
           "x": 560,
           "y": 2240
         }
@@ -221,6 +221,23 @@
         "width": 1180
       },
       "kicker": "An indie app"
+    },
+    {
+      "id": "moons",
+      "time": "sunrise",
+      "headline": "Every morning up earns a *moon.*",
+      "shot": "09-moons.png",
+      "note": "The moon collection with 14 earned.",
+      "phoneTop": 640
+    },
+    {
+      "id": "block-now",
+      "time": "midnight",
+      "headline": "Need quiet now? *Block now.*",
+      "sub": "Your bedtime apps sleep for as long as you pick.",
+      "shot": "10-block-now.png",
+      "note": "The Sleep sheet: 30 min, bedtime apps, hold to tuck him in.",
+      "phoneTop": 640
     }
   ]
 }
