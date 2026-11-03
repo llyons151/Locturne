@@ -276,6 +276,29 @@ export function reapplyStandingBlocks(): void {
   for (const id of heldLists()) shield(id);
 }
 
+/** react-native-device-activity's record of iOS's one blocklist (`CURRENT_BLOCKLIST_KEY` in Shared.swift). */
+const BLOCKLIST_KEY = 'currentBlockedSelection';
+
+/**
+ * Shields exactly the lists a rule holds right now, and wakes everything else. Every other
+ * shield change only adds, or takes one list off, so an app left on the blocklist with no rule
+ * holding it stayed asleep for good (user 2026-11-03: a Block now that ran on into bedtime kept
+ * its apps asleep after the morning's proof, Locturne opened). Only from `syncLock`, and never
+ * with the clock wound back: a clock put back to yesterday reads a used-up limit or a running
+ * schedule as over, and this would wake them.
+ */
+export function rebuildShields(): void {
+  applyWebsiteFilter();
+  applyAppRemoval();
+  if (!isAvailable() || getAccess() !== 'approved') return;
+  const held = heldLists();
+  // Forget the blocklist, then build it up again: each `shield` writes iOS's shields with what's
+  // listed so far, so they never go empty on the way unless nothing is held at all.
+  userDefaultsRemove(BLOCKLIST_KEY);
+  if (held.length === 0) unshield('always');
+  for (const id of held) shield(id);
+}
+
 let removalWriter: ((deny: boolean) => void) | null = null;
 
 /** Set once at app start with the native setter (blocked-apps `denyAppRemoval`). */

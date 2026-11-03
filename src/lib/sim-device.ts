@@ -259,6 +259,8 @@ export function simDevice() {
     userDefaultsSet: (key: string, value: unknown) => set(key, value),
     userDefaultsRemove: (key: string) => {
       delete s.store[key];
+      // The library's record of the blocklist: the next block or unblock writes iOS's shields from it.
+      if (key === 'currentBlockedSelection') s.shielded.clear();
     },
   };
 

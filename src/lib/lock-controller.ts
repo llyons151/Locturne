@@ -41,6 +41,7 @@ import {
   nightLockArmed,
   peekNap,
   reapplyStandingBlocks,
+  rebuildShields,
   rearmNap,
   saveLimits,
   scheduleListSettle,
@@ -281,6 +282,9 @@ export function syncLock(now = new Date()): LockState {
     // App schedules (schedules.ts): a block that ended with no end call from iOS wakes, and each
     // schedule's activity is registered for its times.
     if (!wound) liftIdleSchedules(now);
+    // Then exactly what the rules hold: a shield nothing holds any more (a Block now's apps left
+    // asleep past its end) wakes here, at the latest at the next open.
+    if (!wound) rebuildShields();
     armSchedules(now).catch(() => {
       // iOS refused. The clock holds each block at every open, and the next sync tries again.
     });

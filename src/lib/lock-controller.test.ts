@@ -66,6 +66,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
       if (id === 'night') nightHeld = false;
     },
     reapplyStandingBlocks: () => calls.push('reapply'),
+    rebuildShields: () => calls.push('rebuild'),
     rearmNap: async () => {},
     getArmedNight: () => armed,
     currentNightWindowNames: () => Array.from({ length: live }, (_, i) => `night-${i}`),
@@ -159,7 +160,8 @@ describe('the morning gate', () => {
     nightHeld = true;
     const state = proveMorning('steps', at(7, 30));
     assert.equal(state?.phase, 'day');
-    assert.deepEqual(calls, ['wake:night']); // wakeApps re-applies the standing rules itself
+    // wakeApps re-applies the standing rules itself; then the shields are rebuilt to exactly them.
+    assert.deepEqual(calls, ['wake:night', 'rebuild']);
     assert.equal(nightHeld, false);
   });
 

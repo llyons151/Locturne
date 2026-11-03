@@ -1245,3 +1245,42 @@ test('spring clock change: a window the clocks skip never shields an off night',
     mock.timers.reset();
   }
 });
+
+// User 2026-11-03: a Block now of picked apps that ran on into bedtime stayed asleep after the
+// morning's proof, even with Locturne opened.
+test('a Block now running on into bedtime wakes by the morning', async () => {
+  mock.timers.enable({ apis: ['Date'], now: 0 });
+  try {
+    for (const [napAt, minutes, openAt] of [
+      [22 * 60, 120, null], [22 * 60, 60, 22 * 60 + 40], [22 * 60 + 20, 15, null], [21 * 60 + 45, 240, 23 * 60 + 45],
+      [22 * 60 + 15, 30, 22 * 60 + 45], [20 * 60, 240, 22 * 60 + 30],
+    ] as const) {
+      const day = new Date(2026, 10, 2).getTime();
+      const at = (m: number) => day + m * MIN;
+      const actions: Timed[] = [
+        { at: at(napAt), kind: 'nap', list: 'block', minutes },
+        ...(openAt === null ? [] : [{ at: at(openAt), kind: 'open' as const }]),
+        { at: at(1440 + 7 * 60 + 10), kind: 'proof', method: 'scan' },
+        { at: at(1440 + 9 * 60), kind: 'open' },
+      ];
+      const sc: Scenario = {
+        seed: 1103,
+        start: day + 12 * 60 * MIN,
+        end: day + 2 * DAY,
+        routine: { bedtime: 22 * 60 + 30, morningStart: 7 * 60, activeNights: [0, 1, 2, 3, 4, 5, 6], method: 'scan', stepGoal: 200 },
+        night: ['yt', 'snap'],
+        always: [],
+        block: ['games', 'mail'],
+        buys: true,
+        startsOnRegister: true,
+        dropRate: 0,
+        dst: false,
+        actions,
+      };
+      const failure = await run(sc, sc.actions);
+      assert.equal(failure, null, `${napAt}/${minutes}/${openAt}: ${failure?.message ?? ''}`);
+    }
+  } finally {
+    mock.timers.reset();
+  }
+});
