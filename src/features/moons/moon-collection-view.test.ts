@@ -126,7 +126,7 @@ test('a new user: Moonlight worn, every ladder moon locked and named only by whe
   assert.equal(tiles[11].status, undefined, 'no hint');
   assert.deepEqual(tiles.slice(11).map((t) => [t.name, t.status, t.locked]), SECRETS.map(() => ['Secret moon', undefined, true]), 'all three secrets, none named');
   assert.ok(tiles.slice(1).every((t) => t.locked));
-  assert.ok(texts.includes('0 moons'));
+  assert.ok(texts.includes('1 moon'), 'Moonlight is yours from the start');
   assert.ok(!texts.includes('Rare'), 'no Rare group before owning one');
 });
 
@@ -151,14 +151,14 @@ test('an owned moon is just its name, new or worn: the worn one says so by its e
   assert.equal(by('dawn').wearing, true);
   assert.ok(tiles.every((t) => t.status === undefined), 'one line under every tile');
   assert.equal(by('dawn').label, by('dawn').name);
-  assert.ok(texts.includes('2 moons'));
+  assert.ok(texts.includes('3 moons'));
 });
 
-test('the count is every moon earned, rare and secret too, but never Moonlight', () => {
+test('the count is Moonlight plus every moon earned, rare and secret too', () => {
   const owned = own(['dawn', 'twin-moonlet', RARE]);
   owned[RARE].morning = 40;
   const { texts } = render({ owned, mornings: 1 });
-  assert.ok(texts.includes('3 moons'));
+  assert.ok(texts.includes('4 moons'));
 });
 
 test('the rare moon appears in its own group only once owned', () => {

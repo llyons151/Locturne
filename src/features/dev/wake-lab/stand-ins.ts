@@ -8,10 +8,10 @@ import { getWakePreview, pretendPhase, type WakePreview } from './wake-preview';
 /**
  * FAKE data for the wake preview's pretend morning: a code and a place, used only when none is
  * really set up (a browser never has one) and "Stand-in code and place" is on. Named so the
- * screen says it: "Get to Fake gym."
+ * screen says it: "Get to the gym."
  */
 const STAND_IN_CODE: ScanCode = { kind: 'qr', data: 'LOCTURNE-FAKE-PREVIEW', type: 'qr', registeredAt: 0 };
-const STAND_IN_PLACE: MorningPlace = { name: 'Fake gym', latitude: 51.5246, longitude: -0.0918, savedAt: 0 };
+const STAND_IN_PLACE: MorningPlace = { name: 'the gym', latitude: 51.5246, longitude: -0.0918, savedAt: 0 };
 
 const standing = () => pretendPhase() !== null && getWakePreview().standIns;
 

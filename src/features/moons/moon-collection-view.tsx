@@ -85,8 +85,8 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
     return moon && owned[id] ? [{ moon, owned: true }] : [];
   });
   const slots: Slot[] = [{ moon: DEFAULT_MOON, owned: true }, ...ladder];
-  // Every moon earned, rare and secret too; not Moonlight, which you start with (user, 2026-11-02).
-  const count = MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
+  // Every moon you have: Moonlight, which you start with, then every one earned, rare and secret too (user, 2026-11-02).
+  const count = 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
   const countLabel = count === 1 ? '1 moon' : `${count} moons`;
 
   const tile = Math.floor((width - Gap.gutter * 2 - GAP * (COLUMNS - 1)) / COLUMNS);

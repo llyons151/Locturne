@@ -60,13 +60,13 @@ import { LocProfile } from './loc-profile';
  */
 
 /**
- * Every moon you've earned, after earning any due: the ladder, rare and secret alike, but not
- * Moonlight, which you start with (user, 2026-11-02: "3 moons", no "of 10").
+ * Every moon you have, after earning any due: Moonlight, which you start with, then the ladder,
+ * rare and secret alike (user, 2026-11-02: "3 moons", no "of 10"; a new user has 1).
  */
 function moonCount() {
   settleMoons();
   const owned = getOwned();
-  return MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
+  return 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
 }
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };

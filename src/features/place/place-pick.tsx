@@ -282,7 +282,7 @@ export function PlacePick({ select, header, onClose }: PlacePickProps) {
               <View style={styles.nameField}>
                 <Text style={styles.nameLabel}>Call it</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles.nameInput}
                   value={name}
                   onChangeText={setName}
                   placeholder="The gym"
@@ -607,7 +607,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.l,
     minHeight: 48,
   },
-  nameLabel: { ...Type.secondary, color: C.text2, flexShrink: 0 },
+  // The same size as the name beside it, so the two sit on one line (user, 2026-11-02: the name sat low).
+  nameLabel: { fontSize: 17, color: C.text2, flexShrink: 0 },
+  // No lineHeight: on iOS a single-line TextInput with one draws its text below the centre.
+  nameInput: {
+    fontSize: 17,
+    color: C.text,
+    flex: 1,
+    height: 48,
+    paddingVertical: 0,
+    ...Platform.select({ web: { outlineStyle: 'none' } as unknown as TextStyle }),
+  },
   refused: { paddingHorizontal: Gap.gutter, gap: Space.l },
   refusedTitle: { ...Type.title, fontSize: 22, lineHeight: 27, color: C.text, textAlign: 'center' },
   refusedBody: { ...Type.secondary, color: C.text2, textAlign: 'center' },

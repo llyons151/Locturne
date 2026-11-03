@@ -172,7 +172,7 @@ export function WakePreviewScreen() {
       <Card
         icon={sym('mappin.and.ellipse', 'location_on')}
         title="Get to a place"
-        footer="Fake replaces the GPS read (expo-location). Without a real place, the stand-in is “Fake gym”. On Home: src/features/home/use-morning-place.ts"
+        footer="Fake replaces the GPS read (expo-location). Without a real place, the stand-in is “the gym”. On Home: src/features/home/use-morning-place.ts"
       >
         <MenuRow title="Location" value={p.place} options={PLACE} onChange={(place) => setWakePreview({ place })} />
         <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'place')} last />
