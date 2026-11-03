@@ -9,128 +9,40 @@
   <div class="panel" id="panel"></div>
   <script>
     // Renders panels.json → panels[i] at full size. Used for export and, scaled down, for every preview.
+    // Stripped back to the phone and its screenshot on a plain background (user 2026-11-02: start from
+    // scratch and tweak from there). Headlines, skies, frost, Loc and callouts are still in panels.json, just
+    // not drawn; the old page is in git history (before this change).
     const i = Number(new URLSearchParams(location.search).get('i') ?? 0);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-    // "*you're up.*" → the white half of the two-tone headline.
-    const rich = (s) => esc(s).replace(/\*([^*]+)\*/g, '<b>$1</b>');
 
-    // Wait for Inter first, or a quick export captures the fallback font.
-    Promise.all([document.fonts.load('600 116px Inter'), document.fonts.load('500 48px Inter')])
-      .then(() => fetch('/panels.json', { cache: 'no-store' })).then((r) => r.json()).then(async ({ style, panels }) => {
-        const p = panels[i];
-        const el = document.getElementById('panel');
-        // A panel's time of day (style.times): its sky from top to horizon, and whether it's a dark one.
-        const timeOf = (q) => (q.time ? style.times?.[q.time] : null);
-        const isDark = (q) => (timeOf(q) ? timeOf(q).dark : !!q.dark);
-        const t = timeOf(p);
-        // Night panels keep the dark class's own text colours.
-        const colours = isDark(p) ? {} : { text: style.text, text2: style.text2, accent: style.accent };
-        // A timed sky's own horizon stands in for the lavender's pale tone, so the frost's bottom stays in the sky.
-        for (const [k, v] of Object.entries({ bg: p.bg ?? style.bg, 'bg-light': t ? t.horizon : style.bgLight, 'bg-deep': style.bgDeep, ...colours }))
-          el.style.setProperty(`--${k}`, v);
-        document.body.style.setProperty('--bg', p.bg ?? style.bg);
+    // 3D phones across seams: panels.json → strip.phones are placed on the whole set laid side by side
+    // (strip x: panel n starts at (n-1)×1320), so a phone on a seam shows half in each panel and carries over
+    // when you swipe. Each is a real render from phone3d/ (angle name from `phone3d/compose.py list`).
+    const PANEL_W = 1320;
+    async function stripPhones(strip) {
+      const out = [];
+      for (const ph of strip?.phones ?? []) {
+        const h = ph.height ?? 2300;
+        if (Math.abs(ph.x - (i * PANEL_W + PANEL_W / 2)) > PANEL_W / 2 + h) continue;   // nowhere near this panel
+        const src = `/api/phone?angle=${encodeURIComponent(ph.angle)}&shot=${encodeURIComponent(ph.shot)}&roll=${ph.roll ?? 0}`;
+        out.push(`<img class="phone3d" src="${src}" alt="" style="left:${ph.x - i * PANEL_W}px;top:${ph.y ?? 1434}px;height:${h}px">`);
+      }
+      return out.join('');
+    }
 
-        // The frost below the phone washes into the sky's own bottom colour.
-        el.style.setProperty('--tone', t ? t.horizon : p.dark ? style.night : p.bg ?? style.bg);
-        if (isDark(p)) el.classList.add('dark');
-        if (t) el.classList.add('timed', `time-${p.time}`);
-        const top = p.phoneTop ?? (p.sub ? 690 : 600);
-        const shotUrl = `/shots/${encodeURIComponent(p.shot ?? '')}`;
-        const has = p.shot && (await fetch(shotUrl, { method: 'HEAD', cache: 'no-store' })).ok;
-        const shotSrc = `${shotUrl}?v=${Date.now()}`;
-        const screen = has
-          ? `<img src="${shotSrc}" alt="">`
-          : `<div class="missing"><b>${esc(p.shot || 'no screenshot set')}</b><span>${esc(p.note)}</span></div>`;
-
-        // Panorama: one background drawn across the whole set side by side; this panel shows its own 1320px slice,
-        // so a disc sitting on a seam carries on into the next panel when you swipe.
-        const W = 1320, n = panels.length;
-        const tone = (q) => (timeOf(q) ? timeOf(q).sky : q.dark ? style.night : q.bg ?? style.bg);
-        // One horizontal strip per band of the sky (its top, its middle, its horizon), each blending across the
-        // seams; panels with no time use their one tone in all three, so they look as before.
-        const band = (pick) => panels.flatMap((q, k) => {
-          const c = timeOf(q) ? pick(timeOf(q)) : tone(q);
-          return [`${c} ${k * W + 90}px`, `${c} ${k * W + W - 90}px`];
-        }).join(', ');
-        const stops = band((x) => x.sky);
-        // The discs are the lavender set's; any touching a timed panel would read as a light in the night sky.
-        const timedAt = (x) => { const k = Math.floor(x / W); return [k - 1, k].some((j) => timeOf(panels[j] ?? {})) && (x % W === 0 || timeOf(panels[k] ?? {})); };
-        const discs = (style.panorama?.discs ?? []).filter((c) => !timedAt(c.x)).map((c) => `<i class="disc" style="left:${c.x - c.r}px;top:${c.y - c.r}px;
-          width:${c.r * 2}px;height:${c.r * 2}px;background:${c.color};filter:blur(${c.blur ?? 0}px)"></i>`).join('');
-        // Stars: small sharp dots in the upper sky, many at midnight, a few at dawn, none by sunrise. Seeded, so
-        // every export draws the same sky.
-        let seed = 7;
-        const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-        const stars = panels.flatMap((q, k) => {
-          const count = timeOf(q)?.stars ?? 0;
-          return Array.from({ length: count }, () => {
-            const x = k * W + rand() * W, y = rand() ** 1.4 * 1700, r = 1.5 + rand() * 2.5, o = 0.25 + rand() * 0.6;
-            return `<i class="star" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;width:${(r * 2).toFixed(1)}px;height:${(r * 2).toFixed(1)}px;opacity:${o.toFixed(2)}"></i>`;
-          });
-        }).join('');
-        const pano = `<div class="pano" style="left:${-i * W}px;width:${n * W}px;background:linear-gradient(90deg, ${stops})">
-          <div class="pano-zenith" style="background:linear-gradient(90deg, ${band((x) => x.zenith)})"></div>
-          <div class="pano-horizon" style="background:linear-gradient(90deg, ${band((x) => x.horizon)})"></div>
-          <div class="pano-sky"></div>${stars}${discs}</div>`;
-
-        // Phones are always upright and centred; scale makes one bigger and cropped by the frost.
-        const scale = p.scale ?? 1;
-        const phone = p.hero ? '' : `<div class="phone" style="top:${top}px;transform:translateX(-50%) scale(${scale});transform-origin:50% 0">
-          <div class="bezel"><div class="screen"><div class="island"></div>${screen}</div></div></div>`;
-
-        // Loc's paws land on the phone's top edge: his art is 818×552 with the paws along the bottom.
-        const loc = p.loc && !p.hero ? (() => {
-          const w = p.loc.width ?? 560;
-          return `<div class="loc" style="width:${w}px;top:${top - w * 552 / 818 + 34}px;margin-left:${p.loc.x ?? 0}px">
-            <img src="/loc-peek-eyes.svg" alt=""></div>`;
-        })() : '';
-        const hero = p.hero ? `<div class="hero-loc" style="width:${p.hero.width ?? 1180}px"><img src="/loc-peek-eyes.svg" alt=""></div>` : '';
-
-        // Frosted band the phone sinks into: three blur layers with staggered masks, so the blur ramps up smoothly.
-        // "frost": the band's height in px (0 = none). Masks are ellipses centred at the band's top middle: the
-        // sides are farther from that point, so they frost sooner and the band's top edge curves up at the edges.
-        const frostH = p.frost ?? 1250;
-        const ell = (stops) => `radial-gradient(2200px ${frostH}px at 50% 0%, ${stops})`;
-        const blurs = [1, 2, 4, 8, 14, 24, 40, 64];
-        const stop = (k) => 14 + k * 11;
-        const layers = blurs.map((b, k) => {
-          const m = ell(k === blurs.length - 1
-            ? `transparent ${stop(k)}%, #000 ${stop(k + 1)}%`
-            : `transparent ${stop(k)}%, #000 ${stop(k + 1)}%, #000 ${stop(k + 2)}%, transparent ${stop(k + 3)}%`);
-          return `<i style="backdrop-filter:blur(${b}px);-webkit-mask-image:${m};mask-image:${m}"></i>`;
-        }).join('');
-        // The wash turns fully solid two-thirds down, so the phone is cut off into plain colour (as on Opal's page),
-        // then lightens slightly toward the very bottom like the sky does at the top.
-        const toneA = (pct) => `color-mix(in srgb, var(--tone) ${pct}%, transparent)`;
-        const wash = `<i style="background:${ell(`transparent 28%, ${toneA(28)} 48%, ${toneA(70)} 60%, var(--tone) 72%, color-mix(in srgb, var(--tone) 82%, var(--bg-light)) 100%`)}"></i>`;
-        const frost = p.hero || p.frost === 0 ? '' : `<div class="frost" style="height:${frostH}px">${layers}${wash}</div>`;
-
-        // Callouts float over the frost, sharp. Two kinds:
-        //  text "104|/ 200|steps walked" → big number, small suffix, label;
-        //  crop [x, y, w, h] → that piece of this panel's own screenshot (screenshot px), lifted out and enlarged.
-        // No x means centred.
-        const place = (c) => (c.x == null ? 'left:50%;transform:translateX(-50%)' : `left:${c.x}px`) + `;top:${c.y}px`;
-        const callouts = (p.callouts ?? []).map((c) => {
-          if (c.crop) {
-            if (!has) return '';
-            const [cx, cy, cw, ch] = c.crop, k = c.scale ?? 1, w = Math.round(cw * k), h = Math.round(ch * k);
-            return `<div class="callout-crop" style="${place(c)};width:${w}px;height:${h}px;background-image:url('${shotSrc}');
-              background-size:${W * k}px auto;background-position:${-cx * k}px ${-cy * k}px"></div>`;
-          }
-          const [big, small, label] = c.text.split('|');
-          return `<div class="callout" style="${place(c)}">
-            <span class="big">${esc(big)}${small ? ` <small>${esc(small)}</small>` : ''}</span>${label ? `<span class="label">${esc(label)}</span>` : ''}</div>`;
-        }).join('');
-
-        el.innerHTML = `
-          <div class="copy" style="${p.hero ? 'top:420px' : ''}">
-            ${p.kicker ? `<p class="kicker">${esc(p.kicker)}</p>` : ''}
-            <h1 class="headline">${rich(p.headline)}</h1>
-            ${p.sub ? `<p class="sub">${esc(p.sub)}</p>` : ''}
-          </div>
-          ${pano}${phone}${loc}${hero}${frost}${callouts}`;
-        document.body.dataset.ready = '1';
-      });
+    fetch('/panels.json', { cache: 'no-store' }).then((r) => r.json()).then(async ({ panels, strip }) => {
+      const p = panels[i];
+      const shotUrl = `/shots/${encodeURIComponent(p.shot ?? '')}`;
+      const has = p.shot && (await fetch(shotUrl, { method: 'HEAD', cache: 'no-store' })).ok;
+      const screen = has
+        ? `<img src="${shotUrl}?v=${Date.now()}" alt="">`
+        : `<div class="missing"><b>${esc(p.shot || 'no screenshot set')}</b><span>${esc(p.note)}</span></div>`;
+      // "phone": false on a panel drops its flat centred phone (for panels whose phone comes from strip.phones).
+      document.getElementById('panel').innerHTML = (p.phone === false ? '' :
+        `<div class="phone"><div class="bezel"><div class="screen"><div class="island"></div>${screen}</div></div></div>`)
+        + await stripPhones(strip);
+      document.body.dataset.ready = '1';
+    });
   </script>
 </body>
 </html>

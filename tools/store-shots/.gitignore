@@ -1,2 +1,7 @@
 shots/
 export/
+phone3d/source/
+phone3d/textures/
+phone3d/grid/
+phone3d/out/
+phone3d/*.hdr

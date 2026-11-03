@@ -99,9 +99,17 @@
       }
     }
   },
+  "strip": {
+    "note": "Real 3D phones placed across the whole set laid side by side (x = centre in strip px: panel n starts at (n-1)*1320; y = centre; height in px). A phone on a seam shows in both panels. angle: a name from `phone3d/compose.py list`; roll spins it (degrees, + = counter-clockwise). Panels whose phone comes from here set \"phone\": false.",
+    "phones": [
+      { "angle": "yawm030_pitchp00", "shot": "01-asleep.png", "x": 900, "y": 1560, "height": 2350, "roll": -8 },
+      { "angle": "yawp030_pitchp00", "shot": "02-steps.png", "x": 2090, "y": 1600, "height": 2250, "roll": 6 }
+    ]
+  },
   "panels": [
     {
       "id": "promise",
+      "phone": false,
       "time": "midnight",
       "headline": "Your apps sleep until *you're up.*",
       "shot": "01-asleep.png",
@@ -111,6 +119,7 @@
     },
     {
       "id": "steps",
+      "phone": false,
       "time": "dawn",
       "headline": "Walk *200 steps.* They wake up.",
       "shot": "02-steps.png",

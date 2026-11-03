@@ -69,7 +69,7 @@ async function exportAll() {
 
 // One string that changes whenever anything a panel draws from changes on disk.
 async function version() {
-  const files = [join(HERE, 'panels.json'), join(HERE, 'panel.html'), join(HERE, 'panel.css')];
+  const files = [join(HERE, 'panels.json'), join(HERE, 'panel.html'), join(HERE, 'panel.css'), join(HERE, 'phone3d', 'grid', 'grid.json')];  // new 3D angles redraw too
   const shots = await readdir(join(HERE, 'shots')).catch(() => []);
   for (const s of shots) files.push(join(HERE, 'shots', s));
   const times = await Promise.all(files.map((f) => stat(f).then((s) => s.mtimeMs).catch(() => 0)));
@@ -143,6 +143,28 @@ async function renderAll(v) {
   }));
 }
 
+// 3D phones: phone3d/compose.py puts a screenshot on a pre-rendered angle (~4 s at 4K), cached per input.
+const PHONE3D = join(HERE, 'phone3d');
+const PHONES = join(tmpdir(), 'locturne-store-shots-phones');
+const phoneJobs = new Map();
+async function phone(q) {
+  const angle = q.get('angle') ?? '', shot = q.get('shot') ?? '', roll = Number(q.get('roll') ?? 0);
+  if (!/^yaw[mp]\d{3}_pitch[mp]\d{2}$/.test(angle) || /[/\\]/.test(shot)) throw new Error('bad phone params');
+  const body = join(PHONE3D, 'grid', `${angle}.png`);
+  const shotFile = join(HERE, 'shots', shot);
+  const times = await Promise.all([body, shotFile].map((f) => stat(f).then((s) => Math.round(s.mtimeMs))));
+  const file = join(PHONES, `${angle}-${shot.replace(/\W/g, '_')}-${roll}-${times.join('-')}.png`);
+  if (await stat(file).then(() => true, () => false)) return file;
+  if (!phoneJobs.has(file)) {
+    const job = mkdir(PHONES, { recursive: true }).then(() =>
+      run('python3', [join(PHONE3D, 'compose.py'), angle, shotFile, file, '--roll', String(roll)]));
+    job.finally(() => phoneJobs.delete(file)).catch(() => {});
+    phoneJobs.set(file, job);
+  }
+  await phoneJobs.get(file);
+  return file;
+}
+
 const jobs = new Map();
 let chain = Promise.resolve();          // one render pass at a time
 function renderOnce(v) {
@@ -182,6 +204,16 @@ createServer(async (req, res) => {
     if (url.pathname === '/api/shots') {
       const shots = (await readdir(join(HERE, 'shots')).catch(() => [])).filter((s) => /\.(png|jpe?g|webp)$/i.test(s));
       return send(res, 200, JSON.stringify(shots), TYPES['.json']);
+    }
+    if (url.pathname === '/api/phone') {
+      // A real 3D phone (phone3d/grid) at one angle with a screenshot on it; see phone3d/README.md.
+      const file = await phone(url.searchParams);
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' });
+      return res.end(await readFile(file));
+    }
+    if (url.pathname === '/api/angles') {
+      const grid = JSON.parse(await readFile(join(PHONE3D, 'grid', 'grid.json'), 'utf8').catch(() => '{}'));
+      return send(res, 200, JSON.stringify(grid), TYPES['.json']);
     }
     if (url.pathname === '/api/export' && req.method === 'POST') {
       const files = await exportAll();

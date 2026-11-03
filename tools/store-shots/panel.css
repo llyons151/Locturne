@@ -1,63 +1,30 @@
 /* One App Store panel at its real export size, 1320×2868 (the 6.9" iPhone size).
-   Restrained premium (user's pick, 2026-10-28; Brick / HabitKit / stoic): one deep night colour,
-   a big two-tone headline, a large real screenshot in an upright phone that bleeds off the bottom,
-   and Loc as the one character moment. No glow, no decoration. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap');
+   Back to basics (user 2026-11-02): just the phone with its screenshot, centred on plain white.
+   No sky, no blur, no colour; the rest gets built back up from here. */
 
-html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; background: var(--bg, #070C1A); }
+html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; background: #fff; }
 
 .panel {
   position: relative;
   width: 1320px;
   height: 2868px;
   overflow: hidden;
-  background:
-    radial-gradient(120% 70% at 50% 42%, var(--bg-light) 0%, rgba(255, 255, 255, 0) 62%),
-    radial-gradient(90% 60% at 0% 100%, var(--bg-deep) 0%, rgba(0, 0, 0, 0) 70%),
-    radial-gradient(80% 50% at 100% 0%, var(--bg-deep) 0%, rgba(0, 0, 0, 0) 70%),
-    var(--bg);
-  color: var(--text);
+  background: #fff;
   font-family: 'SF Pro Display', -apple-system, Inter, system-ui, sans-serif;
-  text-align: center;
 }
 
-.copy { position: absolute; top: 200px; left: 90px; right: 90px; z-index: 3; }
-
-/* Two-tone: the sentence in muted blue-grey, the *starred* words in white. */
-.headline {
-  margin: 0;
-  font-size: 116px;
-  line-height: 1.06;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  color: var(--text);
-  text-wrap: balance;
-}
-.headline b { font-weight: inherit; color: var(--accent); }
-
-.sub {
-  margin: 30px 0 0;
-  font-size: 48px;
-  line-height: 1.3;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: var(--text2);
-  text-wrap: balance;
-}
-
-/* An iPhone 17 Pro-like body: a thin satin titanium edge around a black bezel. Neutral shadow only. */
+/* An iPhone 17 Pro-like body: a thin satin titanium edge around a black bezel, centred in the panel. */
 .phone {
   position: absolute;
   left: 50%;
+  top: 50%;
   width: 1040px;
   aspect-ratio: 1320 / 2868;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   box-sizing: border-box;
   padding: 14px;
   border-radius: 170px;
   background: linear-gradient(90deg, #8d8e96 0%, #e9e9ee 2.2%, #c3c4cb 5%, #d9dae0 50%, #c3c4cb 95%, #e9e9ee 97.8%, #8d8e96 100%);
-  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.6) inset, 0 60px 120px rgba(0, 0, 0, 0.22), 0 18px 40px rgba(0, 0, 0, 0.16);
-  z-index: 2;
 }
 .phone .bezel { width: 100%; height: 100%; box-sizing: border-box; padding: 24px; border-radius: 156px; background: #050506; }
 /* Side buttons: action button and volume on the left, power on the right, as on a real iPhone. */
@@ -67,10 +34,6 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
 .phone .screen { position: relative; width: 100%; height: 100%; border-radius: 132px; overflow: hidden; background: #000; }
 .phone .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .phone .island { position: absolute; top: 36px; left: 50%; width: 300px; height: 88px; transform: translateX(-50%); border-radius: 50px; background: #000; z-index: 2; }
-
-/* Loc, the flat black silhouette with the icon's eyes, peeking over the phone with his paws on it. */
-.loc { position: absolute; left: 50%; z-index: 4; transform: translateX(-50%); }
-.loc img { display: block; width: 100%; }
 
 .missing {
   display: flex;
@@ -85,62 +48,10 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
   color: #A8BAD3;
   font-size: 44px;
   line-height: 1.3;
+  text-align: center;
 }
 .missing b { color: #F2F8FC; font-size: 52px; }
 
-/* Night panels: the app's own Moonrise colours, so the set has light and dark beats. */
-.panel.dark { --text: #F2F8FC; --text2: #A8BAD3; --accent: #A3BDF5; }
-
-
-/* A key number lifted out of the screen as a card (Opal, Hevy, one sec). Neutral shadow only. */
-.callout {
-  position: absolute;
-  z-index: 5;
-  min-width: 300px;
-  padding: 40px 54px 44px;
-  border-radius: 64px;
-  background: #FFFFFF;
-  color: #0B1428;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.18), 0 6px 16px rgba(0, 0, 0, 0.08);
-  text-align: left;
-}
-.callout .big { display: block; font-size: 150px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; color: #0B1428; }
-.callout .big small { font-size: 72px; color: #5E7595; font-weight: 600; letter-spacing: -0.02em; }
-.callout .label { display: block; margin-top: 18px; font-size: 46px; font-weight: 600; color: #5E7595; }
-.panel.dark .callout { background: #1A2547; color: #F2F8FC; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45); }
-.panel.dark .callout .big { color: #F2F8FC; }
-.panel.dark .callout .label, .panel.dark .callout .big small { color: #A8BAD3; }
-
-/* Hero panel: no phone, Loc big, rising from the bottom edge as he does on Home. */
-.hero-loc { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); z-index: 2; }
-.hero-loc img { display: block; width: 100%; }
-.kicker { margin: 0 0 30px; font-size: 40px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
-
-/* Panorama: the whole set's background as one strip; each panel shows its slice (left = -index × 1320). */
-.pano { position: absolute; top: 0; height: 2868px; z-index: 0; overflow: hidden; }
-/* Paler at the top behind the headline, deeper toward the bottom, like a sky. */
-.pano-sky { position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0) 55%); }
-/* Out-of-focus discs in deep tones (objects, not light). Ones on a seam continue into the next panel. */
-.disc { position: absolute; border-radius: 50%; }
-.panel.dark .pano-sky { opacity: 0.25; }
-
-/* Time-of-day skies (panels.json style.times, user 2026-11-02): the top band darkens toward the zenith and the
-   bottom band turns to the horizon's colour, both as plain gradients of the sky itself (no light, no glow). */
-.pano-zenith { position: absolute; inset: 0; -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 45%); mask-image: linear-gradient(180deg, #000 0%, transparent 45%); }
-.pano-horizon { position: absolute; inset: 0; -webkit-mask-image: linear-gradient(180deg, transparent 35%, #000 92%); mask-image: linear-gradient(180deg, transparent 35%, #000 92%); }
-.panel.timed .pano-sky { opacity: 0; }
-.star { position: absolute; border-radius: 50%; background: #F2F8FC; }
-/* Sunrise: navy words on the warm sky, the starred ones in the app's blue. */
-.panel.time-sunrise { --text: #0B1428; --text2: #4F5F80; --accent: #3A5FBF; }
-
-/* Frosted band the phone dissolves into (user-requested, Opal reference 2026-11-02). Built in panel.html:
-   eight backdrop blurs (1px → 64px) on overlapping masks, so the blur grows continuously with no visible steps,
-   then a wash of the panel's own colour that turns nearly solid at the bottom. Every mask is an ellipse hung from
-   above, so the band's top edge curves up toward the sides. */
-.frost { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; pointer-events: none; }
-.frost i { position: absolute; inset: 0; }
-
-/* A piece of the real screen, lifted out and enlarged. Neutral shadow only. */
-.callout-crop { position: absolute; z-index: 5; border-radius: 56px; background-color: #000; background-repeat: no-repeat;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.28), 0 6px 16px rgba(0, 0, 0, 0.12); outline: 2px solid rgba(255, 255, 255, 0.10); outline-offset: -2px; }
+/* Real 3D phones from phone3d/ (panels.json → strip.phones): x/y is the phone's centre, height sets its size.
+   Neutral drop shadow for lift only. */
+.phone3d { position: absolute; transform: translate(-50%, -50%); filter: drop-shadow(0 40px 60px rgba(0, 0, 0, 0.18)); }
