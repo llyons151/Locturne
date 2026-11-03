@@ -1,7 +1,7 @@
 /**
  * Firsts: Loc's script for the person's first ever night, first morning and first morning
  * they got up, shown on Home in place of his usual line. And the App Store rating prompt,
- * which asks once, after a morning that worked, never during onboarding.
+ * which asks on milestone mornings that worked, never during onboarding.
  *
  * Each first is remembered by the morning it belongs to (`LockState.morningKey`), so it
  * stays up for that whole night or morning, however often Home opens, and never comes back.
@@ -25,7 +25,7 @@ export type FirstLine = {
 };
 
 const SEEN_KEY = 'locturne.firstRun';
-const REVIEW_KEY = 'locturne.reviewAskedVersion';
+const REVIEW_KEY = 'locturne.reviewAsks';
 
 /** True when a proof came from actually getting up, not a pass or the emergency unlock. */
 export function isWakeProof(proof: Pick<MorningProof, 'kind'> | null): boolean {
@@ -103,24 +103,46 @@ export function markFirstSeen(moment: FirstMoment, morningKey: string): void {
   sharedSet(SEEN_KEY, { ...seen, [moment]: morningKey });
 }
 
+/** One time Apple's rating sheet was asked for: when, and how many mornings were won by then. */
+export type ReviewAsk = { at: string; wins: number };
+
 /**
- * Pure: ask for a rating now? Only after a morning that worked (a real wake-up, not a pass
- * or emergency), and at most once per app version. Apple caps it further on its own.
+ * Mornings won that earn an ask: the 3rd (enough to mean it, still inside the trial), the 30th,
+ * the 100th. Apple shows its sheet at most three times in 365 days, so each ask is spent on a
+ * milestone, never on an app update (docs/reports/App Store review rate.md).
+ */
+export const REVIEW_MILESTONES = [3, 30, 100];
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** The least time between two asks. Past the last milestone, once a year. */
+export const REVIEW_GAP_DAYS = 60;
+const AFTER_MILESTONES_GAP_DAYS = 365;
+
+/**
+ * Pure: ask for a rating now? Only on the day after a morning that worked (a real wake-up,
+ * never a pass or emergency), once enough mornings are won for the next milestone, and at
+ * least 60 days after the last ask. Apple caps it further on its own.
  */
 export function shouldAskForReview(
   proof: Pick<MorningProof, 'kind' | 'morningKey'> | null,
   state: Pick<LockState, 'phase' | 'morningKey'>,
-  askedVersion: string | null,
-  version: string,
+  wins: number,
+  asks: readonly ReviewAsk[],
+  now: Date,
 ): boolean {
-  if (state.phase !== 'day' || !proof || proof.morningKey !== state.morningKey) return false;
-  return isWakeProof(proof) && askedVersion !== version;
+  if (state.phase !== 'day' || !proof || proof.morningKey !== state.morningKey || !isWakeProof(proof)) return false;
+  const milestone = REVIEW_MILESTONES[asks.length];
+  const last = asks.at(-1);
+  // Past the milestones, a new ask needs a year and a morning won since the last one.
+  if (milestone !== undefined ? wins < milestone : !last || wins <= last.wins) return false;
+  if (!last) return true;
+  const gap = milestone !== undefined ? REVIEW_GAP_DAYS : AFTER_MILESTONES_GAP_DAYS;
+  return now.getTime() - new Date(last.at).getTime() >= gap * DAY_MS;
 }
 
-export function getReviewAskedVersion(): string | null {
-  return sharedGet<string>(REVIEW_KEY) ?? null;
+export function getReviewAsks(): ReviewAsk[] {
+  return sharedGet<ReviewAsk[]>(REVIEW_KEY) ?? [];
 }
 
-export function markReviewAsked(version: string): void {
-  sharedSet(REVIEW_KEY, version);
+export function markReviewAsked(at: Date, wins: number): void {
+  sharedSet(REVIEW_KEY, [...getReviewAsks(), { at: at.toISOString(), wins }]);
 }

@@ -16,9 +16,9 @@ test('leaving Home while availability is pending cannot spend or display the rev
     react: { useEffect: (effect: () => () => void) => { cleanup = effect(); } },
     'react-native': { AppState: { currentState: 'active' } },
     'expo-router': { useIsFocused: () => true },
-    'expo-constants': { default: { expoConfig: { version: '1' } }, __esModule: true },
     'expo-store-review': { isAvailableAsync: () => new Promise((resolve) => { answer = resolve; }), requestReview: async () => { requested++; } },
-    '@/lib/first-run': { getReviewAskedVersion: () => null, shouldAskForReview: () => true, markReviewAsked: () => { marked++; } },
+    '@/lib/first-run': { getReviewAsks: () => [], shouldAskForReview: () => true, markReviewAsked: () => { marked++; } },
+    '@/lib/morning-proof': { getMorningsWon: () => 3 },
   };
   const code = babel.transformSync(readFileSync(new URL('./review-prompt.ts', import.meta.url), 'utf8'), {
     filename: 'review-prompt.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],

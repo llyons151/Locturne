@@ -99,23 +99,51 @@ describe('seen flags', () => {
 });
 
 describe('the rating prompt', () => {
-  test('asks after a morning that worked, once per version', () => {
-    assert.equal(fr.shouldAskForReview(walked, day, null, '1.0.0'), true);
-    assert.equal(fr.shouldAskForReview(walked, day, '1.0.0', '1.0.0'), false);
-    assert.equal(fr.shouldAskForReview(walked, day, '1.0.0', '1.1.0'), true);
+  const now = new Date('2026-12-01T09:00:00Z');
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
+
+  test('first on the 3rd morning won, not before', () => {
+    assert.equal(fr.shouldAskForReview(walked, day, 1, [], now), false);
+    assert.equal(fr.shouldAskForReview(walked, day, 2, [], now), false);
+    assert.equal(fr.shouldAskForReview(walked, day, 3, [], now), true);
+    assert.equal(fr.shouldAskForReview(walked, day, 7, [], now), true, 'a late install of this rule still asks');
+  });
+
+  test('then on the 30th, and only 60 days after the last ask', () => {
+    const first = [{ at: daysAgo(70), wins: 3 }];
+    assert.equal(fr.shouldAskForReview(walked, day, 29, first, now), false);
+    assert.equal(fr.shouldAskForReview(walked, day, 30, first, now), true);
+    const recent = [{ at: daysAgo(59), wins: 3 }];
+    assert.equal(fr.shouldAskForReview(walked, day, 45, recent, now), false, '30 won but too soon');
+  });
+
+  test('then the 100th, then once a year with a new morning won', () => {
+    const two = [{ at: daysAgo(200), wins: 3 }, { at: daysAgo(61), wins: 30 }];
+    assert.equal(fr.shouldAskForReview(walked, day, 99, two, now), false);
+    assert.equal(fr.shouldAskForReview(walked, day, 100, two, now), true);
+    const three = [...two, { at: daysAgo(364), wins: 100 }];
+    assert.equal(fr.shouldAskForReview(walked, day, 150, three, now), false, 'under a year');
+    const yearOld = [...two, { at: daysAgo(365), wins: 100 }];
+    assert.equal(fr.shouldAskForReview(walked, day, 150, yearOld, now), true);
+    assert.equal(fr.shouldAskForReview(walked, day, 100, yearOld, now), false, 'no morning won since');
   });
 
   test('never for a pass, an emergency, another morning or outside the day', () => {
-    assert.equal(fr.shouldAskForReview({ ...walked, kind: 'pass' }, day, null, '1.0.0'), false);
-    assert.equal(fr.shouldAskForReview({ ...walked, kind: 'emergency' }, day, null, '1.0.0'), false);
-    assert.equal(fr.shouldAskForReview({ ...walked, morningKey: '2026-10-03' }, day, null, '1.0.0'), false);
-    assert.equal(fr.shouldAskForReview(walked, morning, null, '1.0.0'), false);
-    assert.equal(fr.shouldAskForReview(null, day, null, '1.0.0'), false);
+    assert.equal(fr.shouldAskForReview({ ...walked, kind: 'pass' }, day, 3, [], now), false);
+    assert.equal(fr.shouldAskForReview({ ...walked, kind: 'emergency' }, day, 3, [], now), false);
+    assert.equal(fr.shouldAskForReview({ ...walked, morningKey: '2026-10-03' }, day, 3, [], now), false);
+    assert.equal(fr.shouldAskForReview(walked, morning, 3, [], now), false);
+    assert.equal(fr.shouldAskForReview(walked, { ...day, phase: 'night' as const }, 3, [], now), false);
+    assert.equal(fr.shouldAskForReview(null, day, 3, [], now), false);
   });
 
-  test('remembers the version it asked on', () => {
-    assert.equal(fr.getReviewAskedVersion(), null);
-    fr.markReviewAsked('1.0.0');
-    assert.equal(fr.getReviewAskedVersion(), '1.0.0');
+  test('remembers each ask', () => {
+    assert.deepEqual(fr.getReviewAsks(), []);
+    fr.markReviewAsked(now, 3);
+    fr.markReviewAsked(new Date('2027-02-01T09:00:00Z'), 30);
+    assert.deepEqual(fr.getReviewAsks(), [
+      { at: '2026-12-01T09:00:00.000Z', wins: 3 },
+      { at: '2027-02-01T09:00:00.000Z', wins: 30 },
+    ]);
   });
 });
