@@ -33,10 +33,11 @@ import { methodInUse } from '@/lib/scan-code';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
+import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, getOwned, openMoons, setMoonsAsPage, settleMoons } from '@/features/moons/moon-collection';
-import { LADDER } from '@/features/moons/moon-data';
+import { LADDER, MOONS } from '@/features/moons/moon-data';
 import { LADDER_MORNINGS, RARE_MOONS } from '@/features/moons/moon-ladder';
-import { useMoon } from '@/features/moons/moon-theme';
+import { DEFAULT_MOON, useMoon } from '@/features/moons/moon-theme';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 
@@ -58,14 +59,14 @@ import { LocProfile } from './loc-profile';
  * title, so App Review never sees a "beta" row.
  */
 
-/** The ladder's moons with a count (nine by mornings, then the Eclipse): the secret isn't counted. */
-const COUNTED_MOONS = LADDER.slice(0, LADDER_MORNINGS.length + 1).filter(Boolean).length;
-
-/** Moons of the ladder you own, after earning any due. */
+/**
+ * Every moon you've earned, after earning any due: the ladder, rare and secret alike, but not
+ * Moonlight, which you start with (user, 2026-11-02: "3 moons", no "of 10").
+ */
 function moonCount() {
   settleMoons();
   const owned = getOwned();
-  return LADDER.slice(0, LADDER_MORNINGS.length + 1).filter((id) => id && owned[id]).length;
+  return MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
 }
 
 const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
@@ -255,7 +256,7 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
   const planLine = inTrial && trialEnd ? `Your trial ends on ${trialDate(trialEnd)}.` : plan === null ? 'Nothing sleeps without one.' : undefined;
 
   return (
-    <ScrollView
+    <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
       style={styles.screen}
       contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
@@ -291,7 +292,7 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
       {/* Flat rows on black, a hairline between groups, as in Brilliant's settings (user reference,
           2026-11-02): no cards and no headings. */}
       <Group first>
-        <ValueRow iconTint={Nocturne.text} icon={sym('moon', 'dark_mode')} title="Moons" value={`${moons} of ${COUNTED_MOONS}`} onPress={openMoons} last />
+        <ValueRow iconTint={Nocturne.text} icon={sym('moon', 'dark_mode')} title="Moons" value={moons === 1 ? '1 moon' : `${moons} moons`} onPress={openMoons} last />
       </Group>
 
       <Group note={planLine}>
@@ -332,6 +333,19 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
           reads as it ships (user 2026-11-02). */}
       {devLabs ? (
         <DevSection>
+          {/* Every screen the App Store set needs, made up and opened in one tap (features/dev/screenshots). */}
+          <DevSection title="Screenshot pages" nested>
+            {SHOT_GROUPS.map((group) => (
+              <Group key={group.title} label={group.title}>
+                {group.shots.map((shot) => (
+                  <ValueRow key={shot.label} iconTint={Nocturne.text} icon={sym('camera', 'photo_camera')} title={shot.label} value="" onPress={shot.open} last />
+                ))}
+              </Group>
+            ))}
+            <Group note="Turns the FAKE markings back on and puts Home back to the real state.">
+              <ValueRow iconTint={Nocturne.text} icon={sym('arrow.uturn.backward', 'undo')} title="Back to the real app" value="" onPress={backToRealApp} last />
+            </Group>
+          </DevSection>
           {/* Wear any moon, all unlocked, to test them (features/moons). */}
         <Group label="Moon" note="Wear any moon, unlocked or not. Unlock the next one and play the victory screen for it (the rare one once the ladder's done), earn the next one quietly, earn them all, or start over with none. The switch opens the collection as its own page instead of a sheet.">
           <ValueRow iconTint={Nocturne.text} icon={sym('moon.circle', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} last />
@@ -477,9 +491,10 @@ function Group({ first, label, note, children }: { first?: boolean; label?: stri
 
 /**
  * Every dev and preview tool under one quiet "Developer" row, closed until tapped, so the page
- * can be seen as it ships (user 2026-11-02). Tapping it again folds it all away.
+ * can be seen as it ships (user 2026-11-02). Tapping it again folds it all away. `nested`: a fold
+ * inside it (Screenshot pages), in white so it reads as a heading among the dev groups.
  */
-function DevSection({ children }: { children: ReactNode }) {
+function DevSection({ title = 'Developer', nested, children }: { title?: string; nested?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -493,7 +508,7 @@ function DevSection({ children }: { children: ReactNode }) {
         accessibilityState={{ expanded: open }}
         style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}
       >
-        <Text style={styles.quietText}>Developer</Text>
+        <Text style={[styles.quietText, nested && styles.nestedFold]}>{title}</Text>
         <SymbolView name={sym(open ? 'chevron.down' : 'chevron.right', open ? 'expand_more' : 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.text3} />
       </Pressable>
       {open ? children : null}
@@ -546,6 +561,7 @@ const styles = StyleSheet.create({
 
   // Rows with air between them instead of separators.
   group: { gap: Space.xs },
+  nestedFold: { color: Nocturne.text },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: Nocturne.edge,

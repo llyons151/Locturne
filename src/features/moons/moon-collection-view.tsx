@@ -16,7 +16,7 @@ import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { checkSecretMoons, isSecret, LIMITED, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
 import { LADDER, MOONS } from './moon-data';
-import { LADDER_MORNINGS, ladderNeed, RARE_MOONS } from './moon-ladder';
+import { ladderNeed, RARE_MOONS } from './moon-ladder';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
@@ -29,8 +29,6 @@ const GAP = Space.m;
 const CLOSE = 30;
 /** Each side of the top bar, equal so the title sits in the middle. */
 const SIDE = 72;
-/** The ladder's moons with a count (nine by mornings, the Eclipse): the secret isn't counted. */
-const COUNTED = LADDER.slice(0, LADDER_MORNINGS.length + 1).filter((id): id is string => !!id);
 
 type Slot = {
   moon: MoonDef;
@@ -87,7 +85,9 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
     return moon && owned[id] ? [{ moon, owned: true }] : [];
   });
   const slots: Slot[] = [{ moon: DEFAULT_MOON, owned: true }, ...ladder];
-  const count = COUNTED.filter((id) => owned[id]).length;
+  // Every moon earned, rare and secret too; not Moonlight, which you start with (user, 2026-11-02).
+  const count = MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
+  const countLabel = count === 1 ? '1 moon' : `${count} moons`;
 
   const tile = Math.floor((width - Gap.gutter * 2 - GAP * (COLUMNS - 1)) / COLUMNS);
   const press = (slot: Slot) => {
@@ -99,7 +99,7 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
   };
 
   return (
-    <ScrollView
+    <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
       style={styles.screen}
       contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[styles.content, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
@@ -129,7 +129,7 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
           Moons
         </Text>
         <View style={[styles.side, styles.sideEnd]}>
-          <Text style={styles.count} accessibilityLabel={`${count} of ${COUNTED.length} moons`}>{`${count} of ${COUNTED.length}`}</Text>
+          <Text style={styles.count}>{countLabel}</Text>
         </View>
       </View>
       <Grid slots={slots} tile={tile} worn={worn.id} onPress={press} />

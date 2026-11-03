@@ -55,11 +55,10 @@ export function Shell({ progress, centered = false, onBack, onExit, footer, clip
       {/* At standard text sizes pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
       <Centered.Provider value={centered}>
         {scrolls ? (
-          <ScrollView
+          <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
             testID="onboarding-body"
             style={styles.scroll}
             contentContainerStyle={[styles.body, styles.grow]}
-            showsVerticalScrollIndicator
           >
             {children}
           </ScrollView>

@@ -331,7 +331,7 @@ function Page({
   const insets = useSafeAreaInsets();
   return (
     <>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.s }]}>
+      <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.s }]}>
         <View style={styles.bar}>
           <RoundButton icon={sym('chevron.left', 'arrow_back')} label="Back" onPress={() => router.back()} />
         </View>

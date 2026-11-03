@@ -25,6 +25,7 @@ import { MoonWater } from '@/components/moon-water';
 import { useMoon } from '@/features/moons/moon-theme';
 import { tabPagesShown, tabsShown } from '@/features/moons/moons-cover';
 import { Text } from '@/components/text';
+import { useScreenshotMode } from '@/features/dev/screenshots/screenshot-mode';
 import { exitTestMorning, useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Knockable, useNavKnock } from '@/components/nav-knock';
 import { tap } from '@/lib/haptics';
@@ -172,7 +173,10 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const height = tabStripHeight(insets.bottom);
-  const testing = useWakePreview().phase !== 'real';
+  const preview = useWakePreview().phase !== 'real';
+  const shooting = useScreenshotMode();
+  // Not while screenshots are being taken (Screenshot pages): Back to the real app ends it there.
+  const testing = preview && !shooting;
   // These bounce as Loc burrows under them (components/nav-knock): the tabs, then the moon.
   const knock = useNavKnock(state.routes.length + 1, reduced);
   // The buttons fade with the page for the moons page, leaving the black strip it rises out of.

@@ -432,7 +432,7 @@ function Dropdown({
 
   return (
     <Glass style={styles.dropdown}>
-      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false}>
+      <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {short ? (
           <>
             <Row

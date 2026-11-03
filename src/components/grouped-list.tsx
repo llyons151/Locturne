@@ -262,7 +262,7 @@ export function EditSheet({
             <Text style={[styles.navText, styles.navDone]}>Done</Text>
           </Pressable>
         </View>
-        <ScrollView bounces={false} contentContainerStyle={styles.sheetContent}>
+        <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
           {children}
         </ScrollView>
       </Animated.View>

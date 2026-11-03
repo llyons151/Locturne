@@ -299,7 +299,7 @@ export function RoutineScreen() {
   const bannerNote = pendingLine(from ?? now, saved.bedtime, now);
 
   return (
-    <ScrollView
+    <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
       ref={scroll}
       // Scrolled to the end, the card sits a gutter above the panel's edge, as at its sides.
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: Gap.gutter }]}

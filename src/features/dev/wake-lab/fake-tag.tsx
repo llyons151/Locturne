@@ -2,11 +2,15 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/text';
 
+import { useScreenshotMode } from '../screenshots/screenshot-mode';
+
 /** Dev only: the amber marking on everything the wake preview made up, so a fake is never mistaken for the app. */
 export const FAKE_COLOR = '#f5b942';
 
 /** A small "FAKE · what" tag, for the corner of a fake view. Never ships: only fakes render it. */
 export function FakeTag({ what, style }: { what: string; style?: StyleProp<ViewStyle> }) {
+  // Hidden while screenshots are being taken (Screenshot pages).
+  if (useScreenshotMode()) return null;
   return (
     <View style={[styles.tag, style]} pointerEvents="none">
       <Text style={styles.text}>FAKE · {what}</Text>

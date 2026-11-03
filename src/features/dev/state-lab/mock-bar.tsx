@@ -7,6 +7,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 
+import { useScreenshotMode } from '../screenshots/screenshot-mode';
 import { FAKE_COLOR } from '../wake-lab/fake-tag';
 import { stepAppState } from './app-states';
 
@@ -16,6 +17,8 @@ import { stepAppState } from './app-states';
  * The arrows step through the states in place; the name opens the list.
  */
 export function MockBar({ label, top }: { label: string; top: number }) {
+  // Hidden while screenshots are being taken (Screenshot pages).
+  if (useScreenshotMode()) return null;
   return (
     <View style={[styles.bar, { top }]}>
       <Arrow name="chevron.left" android="chevron_left" label="Previous state" onPress={() => stepAppState(-1)} />

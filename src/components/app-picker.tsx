@@ -280,7 +280,7 @@ export function AppPickerSheet({
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+        <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
           <Text style={styles.groupText}>{header}</Text>
           <View style={styles.search}>
             <SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={16} tintColor={Sys.label2} />

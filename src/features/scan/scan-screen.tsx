@@ -85,18 +85,18 @@ function firstStage(mode: ScanMode | undefined, start?: Start): Stage {
   const code = shownScanCode();
   if (mode === 'morning' || (!mode && phase === 'morning' && code)) {
     // No code: from bed it can't be set up ("your usual way still works"); in the day it can.
-    if (!code) return phase === 'night' || phase === 'morning' ? { kind: 'noCode' } : { kind: 'choose', source: 'qr' };
+    if (!code) return phase === 'night' || phase === 'morning' ? { kind: 'noCode' } : { kind: 'choose', source: 'barcode' };
     // A saved code only wakes a scan morning, never a steps or stairs one (`submitScan`).
     if (!pretendPhase() && phase === 'morning' && routineAt(new Date()).method !== 'scan') return { kind: 'notMethod' };
     return notMorning(phase) ?? { kind: 'morning' };
   }
   if (getScanEditRefusal()) return { kind: 'asleep' };
-  return { kind: 'choose', source: code?.kind ?? 'qr' };
+  return { kind: 'choose', source: code?.kind ?? 'barcode' };
 }
 
 const SOURCES: { value: Source; label: string }[] = [
-  { value: 'qr', label: 'My own code' },
   { value: 'barcode', label: 'A barcode' },
+  { value: 'qr', label: 'My own code' },
 ];
 
 /** Loc's line and the plain sentence under it, per stage. */
@@ -286,10 +286,9 @@ export function ScanScreen({ mode, header, start, onClose }: ScanScreenProps) {
   }
 
   return (
-    <ScrollView
+    <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + (header ? 0 : Space.m), paddingBottom: insets.bottom + Space.l }]}
-      showsVerticalScrollIndicator={false}
     >
       {header ? (
         <View style={styles.inline}>{header(close)}</View>

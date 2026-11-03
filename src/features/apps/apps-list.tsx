@@ -277,7 +277,7 @@ function LiveAppsList() {
 
   return (
     <TileHeight.Provider value={tile.height}>
-      <ScrollView
+      <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
         ref={scroll}
         onLayout={tile.onPage}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop }]}
@@ -572,6 +572,7 @@ function NewLimitButton({ onPress, label = 'New limit' }: { onPress: () => void;
       style={({ pressed }) => [styles.newLimit, pressed && styles.pressed]}
     >
       <Text style={styles.newLimitLabel}>{label}</Text>
+      <SymbolView name={sym('chevron.right', 'chevron_right')} size={11} weight="semibold" tintColor={Nocturne.text2} />
     </Pressable>
   );
 }
@@ -684,7 +685,7 @@ function PreviewAppsList() {
 
   return (
     <TileHeight.Provider value={tile.height}>
-      <ScrollView
+      <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
         ref={scroll}
         onLayout={tile.onPage}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop }]}
@@ -883,17 +884,19 @@ const styles = StyleSheet.create({
   // Moon white on the palette's progress track, like the rest of the app's meters.
   meter: { height: 6, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
   meterFill: { height: 6, borderRadius: 3, backgroundColor: Nocturne.accent ?? Nocturne.cta },
+  // Home's next-morning pill (home-content.tsx `ghost`), user 2026-11-02: see-through white, a chevron.
   newLimit: {
     alignSelf: 'center',
-    minHeight: 48,
-    paddingHorizontal: 24,
     marginTop: Space.s,
-    borderRadius: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Nocturne.surface,
+    gap: 6,
   },
-  newLimitLabel: { color: Nocturne.text, fontSize: 16, fontWeight: '600' },
+  newLimitLabel: { ...Type.secondary, fontWeight: '600', color: Nocturne.text },
   summary: { color: Nocturne.text2, ...Type.body },
 
   pressed: { opacity: 0.7 },
