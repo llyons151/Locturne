@@ -73,7 +73,7 @@ type Start = { source: Source; expect?: string };
  */
 function notMorning(phase: Phase): Stage | null {
   // A pretend morning holds nothing, so there's nothing to ask `heldPhase`.
-  if (pretendPhase()) return phase === 'morning' ? null : { kind: 'awake' };
+  if (pretendPhase()) return phase === 'morning' ? null : phase === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   if (phase === 'night') return heldPhase('night') === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   if (phase === 'morning') return heldPhase('morning') === 'morning' ? null : { kind: 'awake' };
   return { kind: 'awake' };

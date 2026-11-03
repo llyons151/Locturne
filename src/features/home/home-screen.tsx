@@ -58,7 +58,7 @@ import { useMorningWalk, type MorningWalk } from './use-morning-walk';
 import { askWalk, useWalkRequest } from './walk-request';
 import { useHomeMock } from '../dev/state-lab/app-states';
 import { MockBar, MockSwipe } from '../dev/state-lab/mock-bar';
-import { pretendMethod, useWakePreview } from '../dev/wake-lab/wake-preview';
+import { pretendMethod, pretendNightEnd, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { weekDays } from './week';
 
 /** Dev only: fill Sunday through today with won days to preview the mist. */
@@ -155,7 +155,7 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
   const handoff = listChangeLandsAt('night', now);
   const bedtimeAt = lock.phase === 'night' && !pause ? now : sleepsAt;
   const listChanges = !!handoff && !handoff.waitsForOpen && !!bedtimeAt && handoff.at <= bedtimeAt;
-  return {
+  const facts: HomeFacts = {
     lock,
     routine,
     proof,
@@ -179,6 +179,21 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
     apps: listChanges ? null : shownSelection('night').size === 0 ? 0 : bedtimeAppCount('night'),
     websites: listChanges ? null : getSites('night').length,
     sayKey: '',
+  };
+  // You → Rehearse a night (dev and preview builds): its copy of the bedtime apps is really asleep,
+  // so Home shows a held night until its morning start, whatever the real lock's state.
+  const rehearsalEnd = pretendNightEnd();
+  if (!rehearsalEnd) return facts;
+  const morningStart = rehearsalEnd.getHours() * 60 + rehearsalEnd.getMinutes();
+  return {
+    ...facts,
+    routine: { ...routine, morningStart },
+    held: 'night',
+    pause: null,
+    pauseWords: null,
+    bedtimeApps: true,
+    armed: true,
+    stoodDown: false,
   };
 }
 

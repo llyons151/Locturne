@@ -4,7 +4,7 @@ import { methodInUse } from '@/lib/scan-code';
 import { finishRehearsal, getRehearsal, rehearsalHeld, rehearsalMorningIfDue, startRehearsal, type Rehearsal } from '@/lib/screen-time';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
 
-import { getWakePreview, rehearseTheMorning } from '../wake-lab/wake-preview';
+import { getWakePreview, rehearsalWonOnShield, rehearseTheMorning, rehearseTheNight } from '../wake-lab/wake-preview';
 
 /**
  * You → Rehearse a night (dev and preview builds): a whole night in about 17 minutes on the real
@@ -50,9 +50,9 @@ export async function rehearse(method: WakeMethod, now = new Date()): Promise<Re
 }
 
 /**
- * Picks a rehearsal back up whenever Locturne opens: won from the shield while it was closed, it's
- * finished; past its morning start, Home opens its test morning; never started by iOS, it's ended
- * so the report says so.
+ * Picks a rehearsal back up whenever Locturne opens (and every 15 s while it's open): won from the
+ * shield, it's finished and Home shows the payoff; asleep, Home shows its night; past its morning
+ * start, Home opens its test morning; never started by iOS, it's ended so the report says so.
  */
 export function resumeRehearsal(now = new Date()): void {
   const r = getRehearsal();
@@ -60,6 +60,7 @@ export function resumeRehearsal(now = new Date()): void {
   if (r.wonAt !== undefined) {
     finishRehearsal(now);
     syncLock(now);
+    if (r.wonBy === 'shield') rehearsalWonOnShield(r.method as WakeMethod, r.wonAt);
     return;
   }
   if (!rehearsalHeld(r)) {
@@ -69,8 +70,11 @@ export function resumeRehearsal(now = new Date()): void {
     }
     return;
   }
-  if (now.getTime() < r.end) return;
-  rehearsalMorningIfDue(now);
   const preview = getWakePreview();
+  if (now.getTime() < r.end) {
+    if (preview.phase !== 'night' || preview.since !== r.end) rehearseTheNight(r.method as WakeMethod, r.end);
+    return;
+  }
+  rehearsalMorningIfDue(now);
   if (preview.phase !== 'morning' || preview.since !== r.end) rehearseTheMorning(r.method as WakeMethod, r.end);
 }

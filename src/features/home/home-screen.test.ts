@@ -145,7 +145,7 @@ function home({
     './use-morning-pushups': {
       useMorningPushups: (on: boolean, w: unknown) => (on ? { morning: morningOf('pushups', w), camera: null } : null),
     },
-    '../dev/wake-lab/wake-preview': { pretendMethod: () => null, useWakePreview: () => ({ won: null }) },
+    '../dev/wake-lab/wake-preview': { pretendMethod: () => null, pretendNightEnd: () => null, useWakePreview: () => ({ won: null }) },
     '../dev/state-lab/app-states': { useHomeMock: () => null },
     '../dev/state-lab/mock-bar': { MockBar: 'MockBar', MockSwipe: 'MockSwipe' },
     './use-home-state': { useHomeState: () => ({ lock, routine: { method, morningStart: 7 * 60, stepGoal: 200 }, proof }) },

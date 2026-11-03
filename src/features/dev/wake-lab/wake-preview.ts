@@ -22,8 +22,9 @@ export type WakePreview = {
    * `real`: the lock as it is. `morning`: every screen that reads the lock (`useLock`) sees a
    * morning still to prove, so Home offers its button and every morning screen runs; a pass
    * records nothing and moves no shields, and turns this to `woke`. `woke`: that morning done.
+   * `night`: a rehearsal's night (You → Rehearse a night) on Home, asleep until `since`.
    */
-  phase: 'real' | 'morning' | 'woke';
+  phase: 'real' | 'night' | 'morning' | 'woke';
   /** The wake-up Home's pretend morning shows: the routine's, or this one whatever the routine says. */
   method: 'routine' | WakeMethod;
   /** The pedometer (expo-sensors) behind Walk steps. */
@@ -39,7 +40,7 @@ export type WakePreview = {
   /** The pretend morning just won, and with what: Home opens the payoff for it, made up. */
   won: { method: WakeMethod; at: number } | null;
   /**
-   * When the pretend morning began, in ms: a real pedometer counts from here, not from the real
+   * When the pretend morning began (or, at `night`, begins), in ms: a real pedometer counts from here, not from the real
    * morning start, or a test in the afternoon is already 200 steps in (user 2026-10-28).
    */
   since: number;
@@ -81,10 +82,13 @@ const subscribe = (l: () => void) => {
 export const useWakePreview = () => useSyncExternalStore(subscribe, getWakePreview, getWakePreview);
 
 /** The phase a pretend morning shows, or null when it's the real one. */
-export function pretendPhase(): 'morning' | 'day' | null {
+export function pretendPhase(): 'night' | 'morning' | 'day' | null {
   const { phase } = current;
-  return phase === 'real' ? null : phase === 'morning' ? 'morning' : 'day';
+  return phase === 'real' ? null : phase === 'night' || phase === 'morning' ? phase : 'day';
 }
+
+/** When a rehearsal night on Home ends, or null outside one. */
+export const pretendNightEnd = (): Date | null => (current.phase === 'night' ? new Date(current.since) : null);
 
 /**
  * Drops the test morning without doing the wake-up, and a test lock with it (user 2026-10-28:
@@ -122,6 +126,7 @@ export const pretendWoke = (method?: WakeMethod) => {
 export function endRehearsal() {
   finishRehearsal();
   syncLock();
+  if (current.phase === 'night' || current.phase === 'morning') setWakePreview({ phase: 'real', won: null });
 }
 
 /**
@@ -131,6 +136,19 @@ export function endRehearsal() {
  */
 export function rehearseTheMorning(method: WakeMethod, since: number) {
   setWakePreview({ phase: 'morning', method, since, won: null });
+}
+
+/**
+ * A rehearsal's night on Home (user 2026-11-02: the test should look like a real night, so both
+ * the shield's I'm up and Home can be tried): asleep until its morning start, `end`.
+ */
+export function rehearseTheNight(method: WakeMethod, end: number) {
+  setWakePreview({ phase: 'night', method, since: end, won: null });
+}
+
+/** A rehearsal won from the shield: Home leaves its night or morning for the made-up payoff. */
+export function rehearsalWonOnShield(method: WakeMethod, at: number) {
+  if (current.phase === 'night' || current.phase === 'morning') setWakePreview({ phase: 'woke', won: { method, at } });
 }
 
 /**

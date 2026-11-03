@@ -19,8 +19,9 @@ export function useLock(): LockState {
   'use no memo';
   // Read during render; the sync (which touches shields and tells every listener) runs after.
   const [state, setState] = useState<LockState>(() => readLock());
-  // The wake preview's pretend morning (/wake-preview); only a dev build can set it.
-  const pretend = useWakePreview().phase;
+  // The wake preview's pretend morning (/wake-preview), or a rehearsal's night until its morning
+  // start (`since`); only a dev or preview build can set it.
+  const { phase: pretend, since } = useWakePreview();
 
   useEffect(() => {
     const stopLock = onLockChange(setState);
@@ -48,5 +49,7 @@ export function useLock(): LockState {
     return () => clearTimeout(id);
   }, [nextChange]);
 
-  return pretend === 'real' ? state : { ...state, phase: pretend === 'morning' ? 'morning' : 'day' };
+  if (pretend === 'real') return state;
+  if (pretend === 'night') return { ...state, phase: 'night', nextChange: new Date(since) };
+  return { ...state, phase: pretend === 'morning' ? 'morning' : 'day' };
 }
