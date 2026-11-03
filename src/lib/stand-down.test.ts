@@ -152,3 +152,21 @@ test('a limit iOS refuses keeps the record of the picks it still counts', async 
   await st.armLimit({ id: 'limit-0', minutes: 30 });
   assert.equal(fake.state.store['locturne.limitArmedPicks.limit-0'], 'limit-picks');
 });
+
+test('deleting apps is refused while the night holds, allowed once it wakes, and never stood down', () => {
+  const writes: boolean[] = [];
+  st.setAppRemovalWriter((deny) => writes.push(deny));
+  try {
+    st.reapplyStandingBlocks();
+    assert.equal(writes.at(-1), false, 'daytime: allowed');
+    st.sleepApps('night');
+    assert.equal(writes.at(-1), true, 'the night holds: refused');
+    st.wakeApps('night');
+    assert.equal(writes.at(-1), false, 'woken: allowed');
+    st.sleepApps('night');
+    st.standDown();
+    assert.equal(writes.at(-1), false, 'no subscription: allowed');
+  } finally {
+    st.setAppRemovalWriter(null);
+  }
+});

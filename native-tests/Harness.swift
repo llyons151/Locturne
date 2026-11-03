@@ -108,6 +108,7 @@ nonisolated(unsafe) let monitor = DeviceActivityMonitorExtension()
 func resetWorld() {
   userDefaults = MemoryDefaults(suiteName: "locturne-native-tests")
   ManagedSettingsStore().clearAllSettings()
+  ManagedSettingsStore.named = [:]
   DeviceActivityCenter.monitored = []
   DeviceActivityCenter.schedules = [:]
   DeviceActivityCenter.starts = 0
@@ -223,6 +224,11 @@ func appUnshields(_ id: String) {
 }
 
 // MARK: - What iOS does
+
+/// Will iOS refuse to delete apps right now (`syncLocturneAppRemoval`)?
+func deletionBlocked() -> Bool {
+  ManagedSettingsStore(named: ManagedSettingsStore.Name(LOCTURNE_REMOVAL_STORE)).application.denyAppRemoval == true
+}
 
 func start(_ activity: String) { monitor.intervalDidStart(for: DeviceActivityName(activity)) }
 func end(_ activity: String) { monitor.intervalDidEnd(for: DeviceActivityName(activity)) }

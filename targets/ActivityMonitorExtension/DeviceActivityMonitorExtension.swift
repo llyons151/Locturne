@@ -15,6 +15,8 @@ import os
 class DeviceActivityMonitorExtension: DeviceActivityMonitor {
   override func intervalDidStart(for activity: DeviceActivityName) {
     super.intervalDidStart(for: activity)
+    // However this callback leaves the night (held, let go, skipped), deleting apps follows it.
+    defer { syncLocturneAppRemoval() }
     logger.log("intervalDidStart")
 
     // A rehearsal night (dev and preview builds) touches nothing of the real lock's: no list
@@ -162,6 +164,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
   override func intervalDidEnd(for activity: DeviceActivityName) {
     super.intervalDidEnd(for: activity)
+    // However this callback leaves the night (held, let go, skipped), deleting apps follows it.
+    defer { syncLocturneAppRemoval() }
     logger.log("intervalDidEnd")
 
     // A rehearsal night's end: its morning shield, on its copy only.
@@ -306,6 +310,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     _ event: DeviceActivityEvent.Name, activity: DeviceActivityName
   ) {
     super.eventDidReachThreshold(event, activity: activity)
+    // However this callback leaves the night (held, let go, skipped), deleting apps follows it.
+    defer { syncLocturneAppRemoval() }
     logger.log("eventDidReachThreshold: \(event.rawValue, privacy: .public)")
 
     // stopMonitoring doesn't retract callbacks already queued by iOS. A threshold

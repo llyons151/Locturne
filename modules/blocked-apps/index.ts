@@ -2,3 +2,4 @@ export { BlockedAppsView, isBlockedAppsViewAvailable, type BlockedAppsViewProps 
 export type { RemovedPick } from './src/BlockedAppsView.types';
 export { removePick } from './src/remove-pick';
 export { readDeviceClock } from './src/clock';
+export { denyAppRemoval } from './src/app-removal';

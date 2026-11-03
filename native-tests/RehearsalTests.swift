@@ -80,6 +80,16 @@ func registerRehearsalTests() {
     expectEqual(shielded(), ["instagram", "reddit", "tiktok"], "still asleep")
   }
 
+  test("rehearsal: deleting apps is refused while its night holds, and allowed after I'm up") {
+    rehearsalArmed()
+    at("2026-10-05 15:02"); start(LOCTURNE_REHEARSAL_ACTIVITY)
+    expect(deletionBlocked(), "refused during the rehearsal night")
+    at("2026-10-05 15:17"); end(LOCTURNE_REHEARSAL_ACTIVITY)
+    at("2026-10-05 15:25")
+    expectEqual(tap("tiktok", .data(steps: 230)), [.defer])
+    expect(!deletionBlocked(), "allowed once it's won")
+  }
+
   test("rehearsal, steps: I'm up at the goal wakes the copy only, nothing recorded") {
     rehearsalArmed()
     rehearsalNightRuns()

@@ -134,6 +134,28 @@ func registerShieldTapTests() {
     expect(nightHeld() && shielded().contains("tiktok"), "still asleep")
   }
 
+  test("deleting apps: refused from bedtime until I'm up wins, with Locturne closed") {
+    var r = routine(); r["method"] = "steps"
+    pick("night", ["tiktok"]); saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
+    at("2026-10-05 22:00")
+    expect(!deletionBlocked(), "allowed in the evening")
+    at("2026-10-05 23:00"); start("night-0")
+    expect(deletionBlocked(), "refused at bedtime")
+    at("2026-10-06 07:00"); end("night-0")
+    expect(deletionBlocked(), "still refused at morning start, before the walk")
+    at("2026-10-06 07:10")
+    expectEqual(tap("tiktok", .data(steps: 230)), [.defer])
+    expect(!deletionBlocked(), "allowed again once the morning is won")
+  }
+
+  test("deleting apps: a night switched off, or no subscription, never refuses it") {
+    var r = routine(); r["method"] = "steps"
+    pick("night", ["tiktok"]); saveRoutine(r); armNight(); appClosesInTheEvening(method: "steps")
+    set(LOCTURNE_STOOD_DOWN_KEY, true)
+    at("2026-10-05 23:00"); start("night-0")
+    expect(!deletionBlocked(), "stood down: allowed")
+  }
+
   // MARK: Steps
 
   test("shield tap, steps: at the goal the apps wake with Locturne closed, no notification") {

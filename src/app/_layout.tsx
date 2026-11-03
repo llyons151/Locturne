@@ -1,6 +1,6 @@
 import '@/global.css';
 
-import { readDeviceClock } from 'blocked-apps';
+import { denyAppRemoval, readDeviceClock } from 'blocked-apps';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
@@ -11,6 +11,7 @@ import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { setClockReader } from '@/lib/clock-guard';
 import { holdSplash } from '@/lib/launch-splash';
 import { startPurchases } from '@/lib/purchases-start';
+import { setAppRemovalWriter } from '@/lib/screen-time';
 import { MOONS_BG } from '@/features/moons/moon-collection';
 import { useShieldMoon } from '@/features/moons/shield-moon';
 import { Nocturne } from '@/theme';
@@ -23,6 +24,7 @@ startPurchases();
 startAnalytics();
 // Before the first sync: the lock reads the phone's boot clock to catch a wound-back clock.
 setClockReader(readDeviceClock);
+setAppRemovalWriter(denyAppRemoval);
 
 /**
  * The tabs always sit under a deep-linked screen (`locturne://wake` from a Shortcut, say):

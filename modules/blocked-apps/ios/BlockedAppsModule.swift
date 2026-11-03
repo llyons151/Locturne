@@ -26,6 +26,15 @@ public class BlockedAppsModule: Module {
       ]
     }
 
+    // While the night holds, iOS won't delete apps (src/lib/screen-time.ts `applyAppRemoval`;
+    // the extensions' `syncLocturneAppRemoval` sets the same store). Any app: iOS has no switch for one.
+    Function("denyAppRemoval") { (deny: Bool) in
+      if #available(iOS 16.0, *) {
+        ManagedSettingsStore(named: ManagedSettingsStore.Name("locturne.removal")).application.denyAppRemoval =
+          deny ? true : nil
+      }
+    }
+
     // Takes one pick out of a saved selection (a swipe on the Apps tab). The token comes from
     // `onRemove`; the app never sees what it is.
     Function("removePick") { (selectionId: String, kind: String, token: String) -> Bool in

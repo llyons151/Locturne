@@ -366,6 +366,7 @@ func locturneScheduleBlocking(_ schedule: [String: Any], at now: Date) -> Bool {
 func reapplyLocturneBlocks(triggeredBy: String) {
   // First: the filter is set whole, so it also lifts websites nothing holds (or all, stood down).
   reapplyLocturneWebsites(triggeredBy: triggeredBy)
+  syncLocturneAppRemoval()
   if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true { return }
   var held = ["always"]
 
@@ -409,6 +410,23 @@ func reapplyLocturneBlocks(triggeredBy: String) {
   blockSelectedApps(blockSelection: selection, triggeredBy: triggeredBy)
   locturneMorningShieldIfDue()
   locturneRehearsalMorningIfDue()
+}
+
+/// Locturne's own store for the one setting that isn't a shield, so clearing shields never touches it.
+let LOCTURNE_REMOVAL_STORE = "locturne.removal"
+
+/// Deleting Locturne takes every shield with it, so while the night holds the bedtime apps
+/// (bedtime until the morning's proof) or a rehearsal night runs, iOS won't delete apps. Any
+/// app: iOS has no switch for one. Nothing without a subscription. Set from every callback and
+/// tap, so it lifts with the night however that ends. The app does the same
+/// (`applyAppRemoval` in src/lib/screen-time.ts): keep the two in step.
+func syncLocturneAppRemoval() {
+  let deny = userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) != true
+    && (userDefaults?.bool(forKey: LOCTURNE_NIGHT_HELD_KEY) == true || locturneRehearsalLive())
+  if #available(iOS 16.0, *) {
+    ManagedSettingsStore(named: ManagedSettingsStore.Name(LOCTURNE_REMOVAL_STORE)).application.denyAppRemoval =
+      deny ? true : nil
+  }
 }
 
 /// Is the bedtime list showing the morning's shield, whose button runs "I'm up"?

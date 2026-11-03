@@ -250,6 +250,7 @@ export function sleepApps(id: SelectionId): void {
   shield(id);
   if (id === 'night') userDefaultsSet(NIGHT_HELD_KEY, true);
   applyWebsiteFilter();
+  applyAppRemoval();
 }
 
 /** Unshields the list, then re-shields whatever other rules still hold. */
@@ -270,8 +271,32 @@ export function isNightHeld(): boolean {
 export function reapplyStandingBlocks(): void {
   // First: unlike the shields, the filter is set whole, so it also lifts sites nothing holds.
   applyWebsiteFilter();
+  applyAppRemoval();
   if (!isAvailable() || getAccess() !== 'approved') return;
   for (const id of heldLists()) shield(id);
+}
+
+let removalWriter: ((deny: boolean) => void) | null = null;
+
+/** Set once at app start with the native setter (blocked-apps `denyAppRemoval`). */
+export function setAppRemovalWriter(write: ((deny: boolean) => void) | null): void {
+  removalWriter = write;
+}
+
+/**
+ * Deleting Locturne takes every shield with it, so while the night holds the bedtime apps
+ * (bedtime until the morning's proof) or a rehearsal night runs, iOS won't delete apps. Any app:
+ * iOS has no switch for one. Nothing without a subscription. The extensions do the same
+ * (`syncLocturneAppRemoval` in Locturne.swift): keep the two in step.
+ */
+export function applyAppRemoval(): void {
+  if (!isAvailable()) return;
+  const deny = !isStoodDown() && (isNightHeld() || rehearsalHeld(getRehearsal()));
+  try {
+    removalWriter?.(deny);
+  } catch {
+    // An older build or no Screen Time access: deleting stays as it was, and the next re-apply tries again.
+  }
 }
 
 /** The lists whose typed-in websites sleep (websites.ts). */

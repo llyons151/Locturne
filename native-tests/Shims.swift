@@ -86,8 +86,27 @@ final class ManagedSettingsStore {
     set { Self.sharedWebContent = newValue }
   }
   func clearAllSettings() {
+    if let name {
+      Self.named[name.rawValue] = nil
+      return
+    }
     Self.shared = Shield()
     Self.sharedWebContent = WebContentSettings()
+  }
+
+  struct Name: Hashable {
+    let rawValue: String
+    init(_ rawValue: String) { self.rawValue = rawValue }
+  }
+  struct ApplicationSettings { var denyAppRemoval: Bool? }
+  /// A named store's settings that aren't shields (`application`), shared like the real ones.
+  nonisolated(unsafe) static var named: [String: ApplicationSettings] = [:]
+  let name: Name?
+  init() { name = nil }
+  init(named: Name) { name = named }
+  var application: ApplicationSettings {
+    get { Self.named[name?.rawValue ?? ""] ?? ApplicationSettings() }
+    set { Self.named[name?.rawValue ?? ""] = newValue }
   }
 }
 
