@@ -38,6 +38,8 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import type { ReactElement } from 'react';
+import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import * as haptic from '@/lib/haptics';
@@ -177,127 +179,135 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
   const s = useSettings();
   const planName = s.plan ? `${PLAN_LABEL[s.plan]}${s.inTrial ? ' trial' : ''}` : ' ';
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <Host style={{ flex: 1, backgroundColor: SETTINGS_BG }} colorScheme="dark">
-      <NavigationStack>
-        <Toolbar>
-          <Form modifiers={page('Settings')}>
-            {/* Loc as the profile picture and your mornings under him, like CapWords' profile
-                (user reference, 2026-10-14). Long press the mornings for beta diagnostics. */}
-            <Section>
-              <HStack modifiers={[...BARE, listRowInsets({ top: 0, bottom: 8, leading: 0, trailing: 0 })]}>
-                <Spacer />
-                <RNHostView matchContents>
-                  <LocProfile mornings={s.mornings} onLongPress={openDiagnostics} />
-                </RNHostView>
-                <Spacer />
-              </HStack>
-            </Section>
-
-            <Section>
-              <Row icon="moon" title="Moons" value={moonsLabel(s.moons)} onPress={openMoons} />
-              <Row icon="ticket" title="Passes" value={`${s.passesLeft} left`} onPress={openPasses} />
-            </Section>
-
-            <Section header={<Heading>Notifications</Heading>}>
-              <SwitchRow icon="bell" title="Bedtime heads-up" value={s.alerts.bedtime} onChange={s.toggle('bedtime')} />
-              <SwitchRow icon="sunrise" title="Morning nudge" value={s.alerts.morning} onChange={s.toggle('morning')} />
-            </Section>
-
-            <Section header={<Heading>Help</Heading>}>
-              <Row icon="trash.slash" title="Why can't I delete apps?" onPress={whyNoDeleting} />
-              <Row icon="lifepreserver" title="Help & feedback" onPress={helpOrFeedback} />
-              <Row icon="star" title="Rate Locturne" onPress={rate} />
-            </Section>
-
-            {/* Billing is one row (user 2026-11-03): the plan, and the rest one tap in. With no
-                plan, it goes straight to the paywall. */}
-            <Section>
-              {s.plan === null ? (
-                <Row icon="sparkles" title="Subscribe" onPress={subscribe} />
-              ) : (
-                <NavigationLink value={ROUTE_SUBSCRIPTION}>
-                  <HStack spacing={12}>
-                    <Tile icon="sparkles" />
-                    <Title>Subscription</Title>
-                    <Spacer />
-                    <Value>{s.planValue}</Value>
-                  </HStack>
-                </NavigationLink>
-              )}
-            </Section>
-
-            {/* Dev and preview builds only: every test tool, on its own page (app/(dev)/developer.tsx). */}
-            {devLabs ? (
+    // The page lays out off screen, at the start of its slide up (StripPage), where iOS gives the
+    // SwiftUI page no status bar to clear and never recounts once it lands: the title bar sat under
+    // the clock, its Close out of reach (user, 2026-11-03). So SwiftUI ignores the system's safe
+    // area, and the screen's is set here, from React Native's numbers, which are always right.
+    <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: SETTINGS_BG }}>
+      <Host style={{ flex: 1, backgroundColor: SETTINGS_BG }} colorScheme="dark" ignoreSafeArea="all">
+        <NavigationStack>
+          <Toolbar>
+            <Form modifiers={page('Settings')}>
+              {/* Loc as the profile picture and your mornings under him, like CapWords' profile
+                  (user reference, 2026-10-14). Long press the mornings for beta diagnostics. */}
               <Section>
-                <Row icon="hammer" title="Developer" grey onPress={openDeveloper} />
+                <HStack modifiers={[...BARE, listRowInsets({ top: 0, bottom: 8, leading: 0, trailing: 0 })]}>
+                  <Spacer />
+                  <RNHostView matchContents>
+                    <LocProfile mornings={s.mornings} onLongPress={openDiagnostics} />
+                  </RNHostView>
+                  <Spacer />
+                </HStack>
               </Section>
-            ) : null}
 
-            {/* The rows you rarely need, quieter: grey, no icons, no card. Restore stays on the
-                page, where App Review looks for it. */}
-            <Section>
-              <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
-              <BareRow title="Privacy Policy" onPress={() => open(LEGAL_URLS.privacy)} />
-              <BareRow title="Terms of Use" onPress={() => open(LEGAL_URLS.terms)} />
-            </Section>
+              <Section>
+                <Row icon="moon" title="Moons" value={moonsLabel(s.moons)} onPress={openMoons} />
+                <Row icon="ticket" title="Passes" value={`${s.passesLeft} left`} onPress={openPasses} />
+              </Section>
 
-            {/* The version and his line, then Fire Loc last, in red with no card. */}
-            <Section>
-              <VStack spacing={2} modifiers={[...BARE, frame({ maxWidth: 10_000 }), padding({ top: 8 })]}>
-                <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3)]}>{`Locturne ${appVersion()}`}</Text>
-                <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3), multilineTextAlignment('center')]}>{SIGN_OFF}</Text>
-              </VStack>
-              <CenteredButton title="Fire Loc" onPress={fireLoc} />
-            </Section>
-          </Form>
-          <Toolbar.Content>
-            {/* The page slid up out of the strip, so the way out points back down. */}
-            <ToolbarItem placement="topBarLeading">
-              <Button
-                label="Close"
-                systemImage="chevron.down"
-                onPress={() => {
-                  haptic.tap();
-                  onClose();
-                }}
-                modifiers={[foregroundStyle(Nocturne.text2)]}
-              />
-            </ToolbarItem>
-          </Toolbar.Content>
-        </Toolbar>
+              <Section header={<Heading>Notifications</Heading>}>
+                <SwitchRow icon="bell" title="Bedtime heads-up" value={s.alerts.bedtime} onChange={s.toggle('bedtime')} />
+                <SwitchRow icon="sunrise" title="Morning nudge" value={s.alerts.morning} onChange={s.toggle('morning')} />
+              </Section>
 
-        <NavigationDestination value={ROUTE_SUBSCRIPTION}>
-          <Form modifiers={page('Subscription')}>
-            {/* The plan shown, not a row: its name and what's next for it. */}
-            <Section>
-              <VStack spacing={4} modifiers={[frame({ maxWidth: 10_000 }), padding({ vertical: 12 })]}>
-                <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), foregroundStyle(Nocturne.text)]}>{planName}</Text>
-                <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2), multilineTextAlignment('center')]}>
-                  {s.planNote}
-                </Text>
-              </VStack>
-            </Section>
+              <Section header={<Heading>Help</Heading>}>
+                <Row icon="trash.slash" title="Why can't I delete apps?" onPress={whyNoDeleting} />
+                <Row icon="lifepreserver" title="Help & feedback" onPress={helpOrFeedback} />
+                <Row icon="star" title="Rate Locturne" onPress={rate} />
+              </Section>
 
-            <Section>
-              {/* Apple's sheet: switch between Annual and Monthly in the group. */}
-              <Row icon="arrow.left.arrow.right" title="Change plan" onPress={s.manage} />
-              {/* Only someone in a trial has a reminder to switch off. */}
-              {s.inTrial ? <SwitchRow icon="bell" title="Trial reminder" value={s.alerts.trial} onChange={s.toggle('trial')} /> : null}
-            </Section>
+              {/* Billing is one row (user 2026-11-03): the plan, and the rest one tap in. With no
+                  plan, it goes straight to the paywall. */}
+              <Section>
+                {s.plan === null ? (
+                  <Row icon="sparkles" title="Subscribe" onPress={subscribe} />
+                ) : (
+                  <NavigationLink value={ROUTE_SUBSCRIPTION}>
+                    <HStack spacing={12}>
+                      <Tile icon="sparkles" />
+                      <Title>Subscription</Title>
+                      <Spacer />
+                      <Value>{s.planValue}</Value>
+                    </HStack>
+                  </NavigationLink>
+                )}
+              </Section>
 
-            <Section>
-              <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
-            </Section>
+              {/* Dev and preview builds only: every test tool, on its own page (app/(dev)/developer.tsx). */}
+              {devLabs ? (
+                <Section>
+                  <Row icon="hammer" title="Developer" grey onPress={openDeveloper} />
+                </Section>
+              ) : null}
 
-            {/* The cancel flow on its way to Apple's sheet (features/cancel), last and in red. */}
-            <Section>
-              <CenteredButton title="Cancel subscription" onPress={cancelSubscription} />
-            </Section>
-          </Form>
-        </NavigationDestination>
-      </NavigationStack>
-    </Host>
+              {/* The rows you rarely need, quieter: grey, no icons, no card. Restore stays on the
+                  page, where App Review looks for it. */}
+              <Section>
+                <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
+                <BareRow title="Privacy Policy" onPress={() => open(LEGAL_URLS.privacy)} />
+                <BareRow title="Terms of Use" onPress={() => open(LEGAL_URLS.terms)} />
+              </Section>
+
+              {/* The version and his line, then Fire Loc last, in red with no card. */}
+              <Section>
+                <VStack spacing={2} modifiers={[...BARE, frame({ maxWidth: 10_000 }), padding({ top: 8 })]}>
+                  <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3)]}>{`Locturne ${appVersion()}`}</Text>
+                  <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3), multilineTextAlignment('center')]}>{SIGN_OFF}</Text>
+                </VStack>
+                <CenteredButton title="Fire Loc" onPress={fireLoc} />
+              </Section>
+            </Form>
+            <Toolbar.Content>
+              {/* The page slid up out of the strip, so the way out points back down. */}
+              <ToolbarItem placement="topBarLeading">
+                <Button
+                  label="Close"
+                  systemImage="chevron.down"
+                  onPress={() => {
+                    haptic.tap();
+                    onClose();
+                  }}
+                  modifiers={[foregroundStyle(Nocturne.text2)]}
+                />
+              </ToolbarItem>
+            </Toolbar.Content>
+          </Toolbar>
+
+          <NavigationDestination value={ROUTE_SUBSCRIPTION}>
+            <Form modifiers={page('Subscription')}>
+              {/* The plan shown, not a row: its name and what's next for it. */}
+              <Section>
+                <VStack spacing={4} modifiers={[frame({ maxWidth: 10_000 }), padding({ vertical: 12 })]}>
+                  <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), foregroundStyle(Nocturne.text)]}>{planName}</Text>
+                  <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2), multilineTextAlignment('center')]}>
+                    {s.planNote}
+                  </Text>
+                </VStack>
+              </Section>
+
+              <Section>
+                {/* Apple's sheet: switch between Annual and Monthly in the group. */}
+                <Row icon="arrow.left.arrow.right" title="Change plan" onPress={s.manage} />
+                {/* Only someone in a trial has a reminder to switch off. */}
+                {s.inTrial ? <SwitchRow icon="bell" title="Trial reminder" value={s.alerts.trial} onChange={s.toggle('trial')} /> : null}
+              </Section>
+
+              <Section>
+                <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
+              </Section>
+
+              {/* The cancel flow on its way to Apple's sheet (features/cancel), last and in red. */}
+              <Section>
+                <CenteredButton title="Cancel subscription" onPress={cancelSubscription} />
+              </Section>
+            </Form>
+          </NavigationDestination>
+        </NavigationStack>
+      </Host>
+    </View>
   );
 }
 
