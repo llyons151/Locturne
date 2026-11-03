@@ -703,8 +703,8 @@ export function renderStep(ctx: StepContext): StepView {
               // (the schedule-edits rule), which answers "it's a punishment".
               <Body delay={DEAL_AFTER_MS}>
                 {pain === 'night'
-                  ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days.'
-                  : 'Two passes a month for bad days. Tap anything to change it.'}
+                  ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days. No deleting apps till morning.'
+                  : 'Two passes a month for bad days. No deleting apps till morning. Tap anything to change it.'}
               </Body>
             )}
           </View>

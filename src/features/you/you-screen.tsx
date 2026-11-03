@@ -142,6 +142,17 @@ function sendFeedback() {
   );
 }
 
+/**
+ * From bedtime until the morning is won, iOS won't delete apps (`applyAppRemoval` in
+ * screen-time.ts): for whoever forgot the deal screen's line (user 2026-11-02).
+ */
+function whyNoDeleting() {
+  Alert.alert(
+    "Why can't I delete apps?",
+    'Locturne holds that from bedtime until you’re up, or the lock would be one long-press from gone. Any app, since iOS can’t hold just one. It comes back the moment your morning’s done.',
+  );
+}
+
 /** Help or feedback, picked from the system's action sheet (the web preview opens Help). */
 function helpOrFeedback() {
   if (Platform.OS !== 'ios') return open(LEGAL_URLS.support);
@@ -325,6 +336,7 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
       </Group>
 
       <Group>
+        <ValueRow iconTint={Nocturne.text} icon={sym('trash.slash', 'delete_forever')} title="Why can't I delete apps?" value="" onPress={whyNoDeleting} last />
         <ValueRow iconTint={Nocturne.text} icon={sym('lifepreserver', 'support')} title="Help & feedback" value="" onPress={helpOrFeedback} last />
         <ValueRow iconTint={Nocturne.text} icon={sym('star', 'star')} title="Rate Locturne" value="" onPress={rate} last />
       </Group>
