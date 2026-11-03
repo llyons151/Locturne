@@ -1,4 +1,3 @@
-import ActivityKit
 import ExpoModulesCore
 import FamilyControls
 import ManagedSettings
@@ -25,36 +24,6 @@ public class BlockedAppsModule: Module {
         "wall": Date().timeIntervalSince1970 * 1000,
         "monotonic": Double(clock_gettime_nsec_np(CLOCK_MONOTONIC)) / 1_000_000,
       ]
-    }
-
-    // Block now's countdown in the Dynamic Island and on the Lock Screen (targets/NapActivity).
-    // Idempotent: keeps an activity already counting to `endMs`, ends every other one, and
-    // starts one if none is left. No end ends them all. Returns false when iOS won't show one
-    // (Live Activities off in Settings, or no Dynamic Island and no Lock Screen support).
-    Function("syncNapActivity") { (startMs: Double?, endMs: Double?) -> Bool in
-      let end = endMs.map { Date(timeIntervalSince1970: $0 / 1000) }
-      var kept = false
-      for activity in Activity<LocturneNapAttributes>.activities {
-        if let end, !kept, activity.content.state.end == end, activity.activityState == .active {
-          kept = true
-          continue
-        }
-        Task { await activity.end(nil, dismissalPolicy: .immediate) }
-      }
-      guard let end, !kept, end > Date() else { return kept }
-      guard ActivityAuthorizationInfo().areActivitiesEnabled else { return false }
-      let start = startMs.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
-      let state = LocturneNapAttributes.ContentState(start: min(start, Date()), end: end)
-      do {
-        _ = try Activity.request(
-          attributes: LocturneNapAttributes(),
-          content: ActivityContent(state: state, staleDate: end),
-          pushType: nil
-        )
-        return true
-      } catch {
-        return false
-      }
     }
 
     // Takes one pick out of a saved selection (a swipe on the Apps tab). The token comes from
