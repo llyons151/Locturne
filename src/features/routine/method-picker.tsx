@@ -10,10 +10,10 @@ import { Nocturne, Space, Type } from '@/theme';
 import { type MethodPickerProps } from './method-picker-types';
 
 /**
- * How you get up, off iOS (the web preview, Android): the way picked as one row in the Routine
- * card, opening the grid of ways in the Sleep sheet's floating card (/wake-method). iPhone draws
- * both in SwiftUI (method-picker.ios.tsx). The grid saves for itself, and the screen reloads on
- * focus as the sheet closes, so `onPicked` isn't needed here.
+ * How you get up: the way picked as one row in the Routine card, opening the grid of ways in the
+ * Sleep sheet's floating card (/wake-method), the same on iPhone as everywhere (user 2026-11-03).
+ * The grid saves for itself, and the screen reloads on focus as the sheet closes, so `onPicked`
+ * isn't needed here.
  */
 export function MethodPicker({ options, selected, detail, separator }: MethodPickerProps) {
   const current = options.find((o) => o.value === selected) ?? options[0];

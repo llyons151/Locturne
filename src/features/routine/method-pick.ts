@@ -23,3 +23,25 @@ export function pickMethod(value: WakeMethod): { then?: Href } | null {
   if (value === 'scan' && current.method !== 'scan' && !getScanCode() && !getScanEditRefusal()) return { then: '/code' };
   return {};
 }
+
+/**
+ * Where a tap on the way already picked goes (user 2026-11-03): its own settings, the same
+ * screen as the row under the button on the Routine tab. Null for a way with nothing to set
+ * (downstairs), or one that can't be changed tonight; the grid then just closes.
+ */
+export function methodSettings(value: WakeMethod): Href | null {
+  switch (value) {
+    case 'steps':
+      return '/steps';
+    case 'pushups':
+      return '/pushups';
+    case 'squats':
+      return '/squats';
+    case 'scan':
+      return getScanEditRefusal() ? null : '/code';
+    case 'place':
+      return getPlaceEditRefusal() ? null : '/place-pick';
+    default:
+      return null;
+  }
+}

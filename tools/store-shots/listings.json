@@ -765,7 +765,19 @@
     },
     "payoff": {
      "headline": "*You're up.* So are your apps.",
-     "shot": "03-payoff.png"
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "03-payoff.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "h": 2000,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
     },
     "block-now": {
      "headline": "Daytime too. *Block now.*",

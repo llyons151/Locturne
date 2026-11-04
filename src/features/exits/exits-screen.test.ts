@@ -149,6 +149,6 @@ test('held with nothing asleep, the button says so instead of using a pass', () 
   assert.equal(hold.props.label, 'Use a pass');
   hold.props.onComplete();
   hold = nodes(h.render()).find((n) => n.type === 'Hold');
-  assert.equal(hold.props.label, 'Nothing is asleep');
+  assert.equal(hold.props.label, 'You’re already awake');
   assert.equal(hold.props.disabled, true);
 });

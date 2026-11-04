@@ -3,7 +3,7 @@ import { type WakeMethod } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
 
 /**
- * One way to get up. `sf`: the SF Symbol's name, for the SwiftUI views (method-picker.ios.tsx).
+ * One way to get up. `sf`: the SF Symbol's name, for any SwiftUI view that shows it.
  * `detail`: the line under it on the Routine tab's button. In the grid of ways each card is just
  * its icon and name (user 2026-11-03: no line under it, every card the same size); `action`, what
  * you do, is for VoiceOver only, and `recommended` marks the default. Icons stay white: per-way

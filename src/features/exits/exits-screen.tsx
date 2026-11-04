@@ -24,7 +24,7 @@ import { currentProof, readLock, routineAt } from '@/lib/lock-controller';
 import type { Phase } from '@/lib/lock-state';
 import { getPassesLeft, getPassRefusal, passRefillDate, previewPass, redeemPass, type PassRefusal } from '@/lib/passes';
 import { toLockSettings } from '@/lib/routine';
-import { isScreenTimeAvailable, isStoodDown, peekNap, selectionSize } from '@/lib/screen-time';
+import { heldSchedules, isScreenTimeAvailable, isStoodDown, peekNap, selectionSize, type HeldSchedule } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 import { Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -77,15 +77,32 @@ function opener(phase: Phase, left: number): { line: string; body: string } {
   }
 }
 
+/**
+ * A schedule block a pass wakes, in plain words: "Your Work apps wake until 5 PM." Each block
+ * after it sleeps as usual (user 2026-11-03).
+ */
+export function scheduleWords(schedules: HeldSchedule[]): string {
+  return schedules
+    .map((s) => `Your ${s.name.trim() || 'schedule'} apps wake until ${timeOf(s.until)}.`)
+    .join(' ');
+}
+
+/** The day's last sentence: what a pass can still wake, a schedule under way named. */
+function laterPass(schedules: HeldSchedule[]): string {
+  if (schedules.length === 0) return 'A pass can still end a Block now session.';
+  const names = schedules.map((s) => s.name.trim() || 'schedule').join(' and ');
+  return `A pass can still wake your ${names} apps, or end a Block now session.`;
+}
+
 /** His line for a night or morning by the clock with nothing asleep (`unheldBody` says why). */
 const AWAKE_LINE = "I'm awake. Technically.";
 
 /** What the button turns into when a held pass can't be used: short, it's a button's label. */
 const PASS_REFUSALS: Record<PassRefusal, string> = {
-  notMorning: 'Nothing is asleep',
+  notMorning: 'You’re already awake',
   noneLeft: 'No passes left',
   alreadyUsed: 'Already used today',
-  nothingAsleep: 'Nothing is asleep',
+  nothingAsleep: 'You’re already awake',
 };
 
 /** The refused hold's shake: a few quick swings either way, settling. */
@@ -112,6 +129,7 @@ function describe(plan: EmergencyPlan, awake: string): string {
   }
   else if (plan.unlockMorning) parts.push(`Your apps wake this morning. ${awake}`);
   if (plan.endBlockNow) parts.push('Your Block now session ends.');
+  if (plan.schedules.length > 0) parts.push(scheduleWords(plan.schedules));
   parts.push('The always-blocked list stays asleep.');
   return parts.join(' ');
 }
@@ -136,6 +154,8 @@ export function ExitsScreen() {
   const close = closeSleepSheet;
 
   const [endsNap, setEndsNap] = useState(false);
+  // The schedule blocks a morning pass woke, for its words (a night one's are in `plan`).
+  const [woke, setWoke] = useState<HeldSchedule[]>([]);
   const refuse = (why: PassRefusal) => {
     haptic.thud();
     shake.set(withSequence(...SHAKE.map((x) => withTiming(x, { duration: 55 }))));
@@ -154,6 +174,8 @@ export function ExitsScreen() {
     // `plan` and the Block now line keep describing what just happened.
     setPlan(previewPass());
     setEndsNap(peekNap() !== null);
+    const waking = heldSchedules();
+    setWoke(waking);
     const result = redeemPass();
     if (result.refusal) return refuse(result.refusal);
     const use = result.night;
@@ -162,6 +184,7 @@ export function ExitsScreen() {
       phase: use ? use.phase : 'morning',
       paused_night: use?.pauseNight ?? false,
       ended_block_now: use?.endBlockNow ?? false,
+      woke_schedules: waking.length,
     });
     haptic.done();
     setStage({ kind: 'done', night: use !== null, until: readLock().nextChange.getTime() });
@@ -178,7 +201,7 @@ export function ExitsScreen() {
         ? { line: "I'll allow it. This once. Maybe.", body: `${plan ? describe(plan, awake) : ''} ${passesLabel(left)} left this month.` }
         : {
             line: 'Fine. *Fine.*',
-            body: `${awake}${endsNap ? ' Your Block now session ended.' : ''} ${passesLabel(left)} left this month.`,
+            body: `${awake}${endsNap ? ' Your Block now session ended.' : ''}${woke.length > 0 ? ` ${scheduleWords(woke)}` : ''} ${passesLabel(left)} left this month.`,
           };
     }
     // The clock says night or morning, but nothing is asleep to wake: don't say bedtime wins.
@@ -188,7 +211,7 @@ export function ExitsScreen() {
       // an install's first day) nothing is done yet.
       const now = new Date();
       if (!morningDoneToday(now, toLockSettings(routineAt(now)), currentProof(now))) {
-        return { ...opener('day', left), body: `${DAY_OPENER.notYet} A pass can still end a Block now session.` };
+        return { ...opener('day', left), body: `${DAY_OPENER.notYet} ${laterPass(plan?.schedules ?? [])}` };
       }
     }
     if (phase === 'off') {
@@ -197,6 +220,8 @@ export function ExitsScreen() {
       const alwaysSleeps = !isStoodDown() && (!isScreenTimeAvailable() || selectionSize('always') > 0);
       return { ...opener('off', left), body: offBody({ alwaysSleeps, napUntil: nap ? timeOf(nap.end) : null }) };
     }
+    // Daytime: name a schedule under way, as it's what a pass would wake.
+    if (phase === 'day') return { ...opener('day', left), body: `Your morning is done. ${laterPass(plan?.schedules ?? [])}` };
     return opener(phase, left);
   })();
 

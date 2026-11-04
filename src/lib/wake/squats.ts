@@ -1,7 +1,8 @@
 /**
  * Squats (user 2026-11-03, a sixth way to get up): the push-up camera's machine (pushups.ts) with
- * a standing body's rules. The phone leans on its side on the floor a few steps away, side-on, as
- * for push-ups, and the front camera watches; nothing is recorded, saved or sent.
+ * a standing body's rules. The phone stands upright, propped on the floor a few steps away, side-on
+ * to you (a standing body is tall; on its side the camera missed the shoulders, user 2026-11-03),
+ * and the front camera watches; nothing is recorded, saved or sent.
  *
  * A rep is the knee (hip, knee, ankle) bending past `downDeg` and straightening past `upDeg`
  * again, the hips dropping at least `minDrop` of the thigh's length on the way, only while

@@ -144,14 +144,16 @@ export function PushupsView({
         <Body>
           {denied
             ? `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`
-            : `Turn me sideways and lean me against something on the floor, ${exercise === 'squats' ? 'three' : 'two'} steps away and side-on to you, so I can see all of you. Then ${
+            : exercise === 'squats'
+              ? 'Prop me up and squat.'
+              : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
                 done > 0 ? `${Math.max(0, target - done)} more ${noun}; you've done ${done}` : `${target} ${noun}`
               }. I count out loud.`}
         </Body>
       </View>
 
       <View style={styles.flex} />
-      {denied ? null : <SetupSketch />}
+      {denied ? null : <SetupSketch exercise={exercise} />}
       <View style={styles.flex} />
 
       <View style={styles.bottom}>
@@ -189,12 +191,32 @@ export function PushupsView({
   );
 }
 
-/** The setup at a glance: the phone leaning on the floor, you side-on in a plank in front of it. Left out on short screens, where Start comes first. */
-function SetupSketch() {
+/**
+ * The setup at a glance: the phone leaning on the floor, you side-on in front of it, in a plank on
+ * its side for push-ups, standing with it upright for squats. Left out on short screens, where Start comes first.
+ */
+function SetupSketch({ exercise }: { exercise: Exercise }) {
   const { height } = useWindowDimensions();
   if (height < 700) return null;
   const ink = Nocturne.text2;
   const faint = Nocturne.text3;
+  if (exercise === 'squats')
+    return (
+      <View style={styles.sketch} accessible accessibilityLabel="The phone propped upright on the floor, a few steps from you, side-on.">
+        <Svg width={260} height={110} viewBox="0 0 260 110">
+          <Line x1={8} y1={98} x2={252} y2={98} stroke={faint} strokeWidth={1.5} strokeLinecap="round" />
+          {/* The phone standing upright, leaning back a little, camera facing you. */}
+          <Rect x={40} y={50} width={24} height={46} rx={5} stroke={ink} strokeWidth={2.5} fill="none" transform="rotate(-8 52 96)" />
+          <Circle cx={50} cy={57} r={1.8} fill={ink} />
+          {/* You, standing side-on, a few steps away. */}
+          <Circle cx={176} cy={14} r={7.5} stroke={ink} strokeWidth={2.5} fill="none" />
+          <Line x1={176} y1={23} x2={176} y2={60} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
+          <Line x1={176} y1={60} x2={176} y2={97} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
+          <Line x1={176} y1={97} x2={166} y2={97} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
+          <Line x1={176} y1={32} x2={160} y2={50} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
+        </Svg>
+      </View>
+    );
   return (
     <View style={styles.sketch} accessible accessibilityLabel="The phone on its side, leaning on the floor, two steps from you, side-on.">
       <Svg width={260} height={110} viewBox="0 0 260 110">
@@ -232,25 +254,37 @@ function Scrim({ width, height, flip }: { width: number; height: number; flip?: 
   );
 }
 
-const PHONE_LINES: Record<PhoneHint, string> = {
+/** `wide`: on its side for squats, where a standing body doesn't fit across. */
+type ViewHint = PhoneHint | 'wide';
+
+const PHONE_LINES: Record<ViewHint, string> = {
   flat: 'Stand me up. I can only see the ceiling.',
   upsideDown: 'Other way up. Please.',
   tall: 'On my side. I can’t fit all of you in.',
+  wide: 'Stand me up tall. I need all of you in.',
 };
 
 /** Which way the phone stands: the preview's pretend one, or the accelerometer's. Upright until it knows. */
 function useTurn(
   live: boolean,
   finding: boolean,
+  exercise: Exercise,
   preview?: PushupsPreview,
-): { turn: PhoneTurn; hint: PhoneHint | null; upright: boolean } {
+): { turn: PhoneTurn; hint: ViewHint | null; upright: boolean } {
   const sensed = usePhone(live);
   const forced = preview && preview.phone !== 'sensor' ? PREVIEW_PHONES[preview.phone] : null;
   const turn = forced?.turn ?? sensed.turn ?? 'portrait';
   const hint = forced ? (live ? forced.hint : null) : sensed.hint;
-  // Upright counts too: the nudge to turn it only while he's still looking for you. `upright` is the
-  // accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
-  return { turn, hint: hint === 'tall' && !finding ? null : hint, upright: sensed.turn === 'portrait' && sensed.hint !== 'flat' };
+  // `upright` is the accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
+  const upright = sensed.turn === 'portrait' && sensed.hint !== 'flat';
+  // Squats want the phone upright, a standing body is tall (user 2026-11-03): no nudge to turn it on its
+  // side, and a nudge back up if it's on its side while he's still looking for you.
+  if (exercise === 'squats') {
+    if (hint === 'tall') return { turn, hint: null, upright };
+    return { turn, hint: !hint && turn !== 'portrait' && finding ? 'wide' : hint, upright };
+  }
+  // Push-ups: upright counts too: the nudge to turn it only while he's still looking for you.
+  return { turn, hint: hint === 'tall' && !finding ? null : hint, upright };
 }
 
 /**
@@ -371,10 +405,10 @@ export function PushupsCamera({
 
   const status = session?.status ?? 'finding';
   const timedOut = status === 'timedOut';
-  // The phone on its side (the main way) or upright. The app stays portrait; this screen turns its
+  // The phone on its side (the main way for push-ups) or upright (squats). The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', exercise, preview);
   const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;

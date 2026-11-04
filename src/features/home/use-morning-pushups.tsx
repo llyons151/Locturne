@@ -20,10 +20,10 @@ const ICONS = {
   squats: { ios: 'figure.cross.training', android: 'sports_gymnastics' },
 } as const satisfies Record<Exercise, { ios: string; android: string }>;
 
-/** How he asks for the setup: on the floor for push-ups, standing for squats, the phone side-on either way. */
+/** How he asks for the setup: the phone on its side for push-ups, propped upright for squats. */
 const SETUP: Record<Exercise, string> = {
   pushups: 'Lean me on my side on the floor, two steps away and side-on to you.',
-  squats: 'Lean me on my side on the floor, three steps away and side-on to you, so I can see your legs.',
+  squats: 'Prop me up and squat.',
 };
 
 /**
@@ -109,7 +109,8 @@ export function useMorningPushups(
       hero: {
         // Read out for the meter, which stands in for the headline (home-content).
         title: `${done} of ${target} ${noun}`,
-        body: `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
+        // Squats: just the ask; the count is the headline over it (user 2026-11-03: "why is it a full paragraph?").
+        body: exercise === 'squats' ? SETUP.squats : `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
       },
       meter,
       // The phone lies on the floor untouched through the set: auto-lock would stop the camera.

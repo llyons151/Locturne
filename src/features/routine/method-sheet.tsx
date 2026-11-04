@@ -12,13 +12,14 @@ import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
 import { getSetRoutine } from './apply-edit';
 import { methodOptions, type MethodOption } from './method-options';
-import { pickMethod } from './method-pick';
+import { methodSettings, pickMethod } from './method-pick';
 
 /**
- * How you get up, as a grid of cards in the Sleep sheet's floating card: the web preview's and
- * Android's version of the SwiftUI sheet (method-picker.ios.tsx; user 2026-11-03, a button and a
- * swipe-up grid in place of the long list). A tap picks one and saves it at once (method-pick.ts);
- * Done just closes. A way that needs setting up first hands over to its own screen.
+ * How you get up, as a grid of cards in the Sleep sheet's floating card, on every platform: the
+ * same glass, dimming and page zoom-out as the Sleep sheet (user 2026-11-03; a native SwiftUI
+ * sheet was tried first and felt different). A tap picks one and saves it at once
+ * (method-pick.ts); a tap on the one already picked opens its settings. Done just closes. A way
+ * that needs setting up first hands over to its own screen.
  *
  * Every way is the same square, its icon and name and nothing else, three to a row, Walk last
  * (user 2026-11-03, after a mission-picker reference, then Mesh's app-icon grid for three across).
@@ -38,6 +39,13 @@ export function MethodSheet() {
 
   const pick = (value: WakeMethod) => {
     haptic.tap();
+    // The one already picked opens its settings (steps, reps, code, place); with none, the grid closes.
+    if (value === method) {
+      const settings = methodSettings(value);
+      if (settings) router.replace(settings);
+      else closeSleepSheet();
+      return;
+    }
     const result = pickMethod(value);
     if (!result) return;
     if (result.then) {

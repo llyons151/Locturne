@@ -134,12 +134,20 @@ final class HoldButtonView: ExpoView {
     baseLabel.label.text = label
     filledLabel.label.text = label
     accessibilityLabel = label
-    setNeedsLayout()
+    relayoutLabels()
   }
 
   func setSymbol(_ name: String?) {
     baseLabel.setSymbol(name)
     filledLabel.setSymbol(name)
+    relayoutLabels()
+  }
+
+  /// The stacks keep the same frame when only their text changes, so UIKit wouldn't re-measure
+  /// them on its own: a longer label ("Use a pass" → a refusal) stayed cut to the old width.
+  private func relayoutLabels() {
+    baseLabel.setNeedsLayout()
+    filledLabel.setNeedsLayout()
     setNeedsLayout()
   }
 

@@ -553,9 +553,10 @@ function useArmedMoonSim(visit: number, live: boolean) {
     if (!live || !isMoonSimArmed()) return;
     // Back from the background onto another page: Home first, as a real morning lands there.
     router.navigate('/');
-    // Home's own entrance settles first, as with a real payoff.
-    const t = setTimeout(playArmedMoonSim, 1200);
-    return () => clearTimeout(t);
+    // Straight away, as a real morning's payoff opens (`usePayoff`): playing as the app opens
+    // (user 2026-11-03: a 1.2s wait here read as the payoff stalling). A frame, so Home is on top.
+    const t = requestAnimationFrame(playArmedMoonSim);
+    return () => cancelAnimationFrame(t);
   }, [visit, live]);
 }
 
