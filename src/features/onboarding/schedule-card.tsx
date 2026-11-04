@@ -63,6 +63,7 @@ const METHOD_GLYPH: Record<WakeMethod, SymbolViewProps['name']> = {
   scan: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner', web: 'qr_code_scanner' },
   place: { ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' },
   pushups: { ios: 'figure.strengthtraining.functional', android: 'fitness_center', web: 'fitness_center' },
+  squats: { ios: 'figure.cross.training', android: 'sports_gymnastics', web: 'sports_gymnastics' },
 };
 
 /**

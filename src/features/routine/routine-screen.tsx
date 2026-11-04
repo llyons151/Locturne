@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nightsLabel } from '@/components/control-types';
 import { DayStrip } from '@/components/day-strip';
 import { GlassCard } from '@/components/glass-card';
-import { Card, ChoiceRow, sym, ValueRow, type Symbol } from '@/components/grouped-list';
+import { Card, sym, ValueRow } from '@/components/grouped-list';
 import { useTabSelected } from '@/hooks/use-tab-selected';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import * as haptic from '@/lib/haptics';
@@ -30,6 +30,7 @@ import {
   getPendingRoutine,
   getRoutine,
   pushupGoalOf,
+  squatGoalOf,
   toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
@@ -37,7 +38,7 @@ import {
 import { getMorningPlace, getPlaceEditRefusal } from '@/lib/place';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
-import { formatPreset, noOrphan } from '@/lib/text';
+import { noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
   APP_FONT,
@@ -47,6 +48,8 @@ import {
   Type,
 } from '@/theme';
 
+import { methodOptions } from './method-options';
+import { MethodPicker } from './method-picker';
 import { NightDial } from './night-dial';
 import { fromWeekday, nightsToWeekdays, weekdaysToNights } from './nights';
 import { applyRoutineEdit, ASLEEP_NOTE, routineEditRefusal, sleepsAtOnce } from './apply-edit';
@@ -85,6 +88,7 @@ type Routine = {
   method: Method;
   stepGoal: number;
   pushupGoal?: number;
+  squatGoal?: number;
 };
 
 const fromStored = ({ activeNights, ...rest }: StoredRoutine): Routine => ({
@@ -115,46 +119,6 @@ function load(): Loaded {
   return { active, saved: fromStored(pending.routine), from: new Date(pending.from) };
 }
 
-/** Steps first: it's the default, and works in any home (user's ask, 2026-10-10). */
-const methods = (
-  goal: number,
-  place: string | null,
-  reps: number,
-  wake: number,
-): { value: Method; icon: Symbol; title: string; detail: string }[] => [
-  {
-    value: 'steps',
-    icon: sym('figure.walk', 'directions_walk'),
-    // Just "Walk": how many is the Steps row under the card (user 2026-10-28).
-    title: 'Walk',
-    detail: `From ${formatPreset(wake)} · Recommended`,
-  },
-  {
-    value: 'downstairs',
-    icon: sym('figure.stairs', 'stairs'),
-    title: 'Go downstairs',
-    detail: 'One floor',
-  },
-  {
-    value: 'scan',
-    icon: sym('barcode.viewfinder', 'barcode_scanner'),
-    title: 'Scan a code',
-    detail: 'A code in another room',
-  },
-  {
-    value: 'place',
-    icon: sym('mappin.and.ellipse', 'location_on'),
-    title: 'Get to a place',
-    detail: place ?? 'The gym, campus, the café',
-  },
-  {
-    value: 'pushups',
-    icon: sym('figure.strengthtraining.functional', 'fitness_center'),
-    title: `Do ${reps} push-ups`,
-    detail: 'The camera counts them',
-  },
-];
-
 /**
  * Which night VoiceOver calls "tonight", Monday first: the night in progress under the routine
  * tonight runs on, or else the next one. After midnight that's still the evening before's.
@@ -172,6 +136,7 @@ const same = (a: Routine, b: Routine) =>
   a.method === b.method &&
   a.stepGoal === b.stepGoal &&
   pushupGoalOf(a) === pushupGoalOf(b) &&
+  squatGoalOf(a) === squatGoalOf(b) &&
   a.nights.join() === b.nights.join();
 
 export function RoutineScreen() {
@@ -259,38 +224,25 @@ export function RoutineScreen() {
 
   const place = getMorningPlace();
   const reps = pushupGoalOf(saved);
-  const options = methods(saved.stepGoal, place?.name ?? null, reps, saved.morningStart);
+  const options = methodOptions({
+    place: place?.name ?? null,
+    steps: saved.stepGoal,
+    wake: saved.morningStart,
+  });
+  const current = options.find((o) => o.value === saved.method) ?? options[0];
   // A scan with no code, or a place with none picked, wakes with steps until it's set up (as
   // Home's "Tomorrow" says), so the picked row says so rather than looking like it's in force.
   const fallsBack = methodInUse(saved.method) !== saved.method;
   // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
   const offerReps = saved.method === 'pushups';
+  const offerSquats = saved.method === 'squats';
   // Walk picked, or another way not set up yet (it walks for now): how many steps.
   const offerSteps = methodInUse(saved.method) === 'steps';
   // Scan picked: set up a code, or choose a new one, like a place, only while it's allowed (not from bed).
   const offerCodeSetup = saved.method === 'scan' && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
   const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
-  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerSteps;
-  // "Get to a place" with no place yet: straight to the picker, which selects it once one is
-  // saved. Closing it leaves the routine alone, so nobody ends up on a place they don't have.
-  // "Scan a code" is selected at once and stays selected however the code sheet closes (user
-  // 2026-10-28); with no code yet the sheet opens to print one. Until a code is scanned in, its
-  // mornings are 200 steps (`methodInUse`), so nobody is stuck.
-  const pick = (method: Method) => {
-    if (method === 'scan' && saved.method !== 'scan' && !getScanCode() && !getScanEditRefusal()) {
-      set({ method });
-      router.push('/code');
-      return;
-    }
-    if (method === 'place' && saved.method !== 'place' && !place && !getPlaceEditRefusal()) {
-      haptic.tap();
-      router.push({ pathname: '/place-pick', params: { select: '1' } });
-      return;
-    }
-    set({ method });
-  };
-
+  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerSquats || offerSteps;
   const now = new Date();
   // While the apps are asleep the routine is locked (`routineEditRefusal`).
   const asleep = routineEditRefusal(now) !== null;
@@ -302,6 +254,7 @@ export function RoutineScreen() {
     <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
       ref={scroll}
       // Scrolled to the end, the card sits a gutter above the panel's edge, as at its sides.
+      // When it all fits, the spare height goes above "How you get up", not under its card (user 2026-11-03: even padding).
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Gap.pageTop, paddingBottom: Gap.gutter }]}
     >
       {/* The night on a 24-hour dial, as set (a waiting edit included), edited by dragging. */}
@@ -378,24 +331,22 @@ export function RoutineScreen() {
         </GlassCard>
       ) : null}
 
+      <View style={styles.spare} />
       <Text style={styles.section} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
         How you get up
       </Text>
 
-      {/* The heading sits above the card, so the card has none; each method carries its own icon. */}
+      {/* The heading sits above the card. One button shows the way picked and opens the grid of
+          them (method-sheet.tsx; user 2026-11-03, in place of the long list). */}
       <Animated.View style={[styles.methods, fade, asleep && styles.locked]} pointerEvents={asleep ? 'none' : 'auto'}>
       <Card>
-        {options.map((o, i) => (
-          <ChoiceRow
-            key={o.value}
-            icon={o.icon}
-            last={i === options.length - 1 && !setupRow}
-            title={o.title}
-            detail={o.value === saved.method && fallsBack ? `Not set up yet, so ${saved.stepGoal} steps for now` : o.detail}
-            selected={o.value === saved.method}
-            onPress={() => pick(o.value)}
-          />
-        ))}
+        <MethodPicker
+          options={options}
+          selected={saved.method}
+          detail={fallsBack ? `Not set up yet, so ${saved.stepGoal} steps for now` : current.detail}
+          separator={setupRow}
+          onPicked={() => setLoaded(load())}
+        />
         {offerCodeSetup ? (
           <ValueRow
             title={getScanCode() ? 'Change your code' : 'Set up your code'}
@@ -416,6 +367,9 @@ export function RoutineScreen() {
           // A wheel in the floating sheet: any count, not a short menu (user's ask, 2026-10-10).
           <ValueRow title="Push-ups" value={`${reps}`} onPress={() => router.push('/pushups')} last />
         ) : null}
+        {offerSquats ? (
+          <ValueRow title="Squats" value={`${squatGoalOf(saved)}`} onPress={() => router.push('/squats')} last />
+        ) : null}
         {offerSteps && !offerCodeSetup && !offerPlaceSetup ? (
           // The same wheel, in fifties (user 2026-10-28).
           <ValueRow title="Steps" value={`${saved.stepGoal}`} onPress={() => router.push('/steps')} last />
@@ -428,7 +382,8 @@ export function RoutineScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Gap.gutter },
+  content: { paddingHorizontal: Gap.gutter, flexGrow: 1 },
+  spare: { flexGrow: 1 },
   // Cancels the card's own bottom margin, so only the gutter is left under it.
   methods: { marginBottom: -Space.l },
   night: { marginBottom: Space.l, gap: Space.m },

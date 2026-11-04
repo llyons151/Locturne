@@ -677,7 +677,7 @@ func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int)
   if method == "downstairs" && floors >= 1 && steps >= LOCTURNE_FLOOR_STEPS { return "downstairs" }
   // A goal of 0 or less (never saved by the app) mustn't wake on no steps at all.
   // A method this extension doesn't know (a newer app's) still takes a walk, so nobody is stuck.
-  let walks = !["downstairs", "scan", "place", "pushups"].contains(method)
+  let walks = !["downstairs", "scan", "place", "pushups", "squats"].contains(method)
   if walks && steps >= max(stepGoal, 1) { return "steps" }
   return nil
 }

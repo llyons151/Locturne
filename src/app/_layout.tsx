@@ -95,6 +95,24 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
+          {/* The squat count, the same way. */}
+          <Stack.Screen
+            name="squats"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          {/* How you get up, a grid of cards, in the same floating card. */}
+          <Stack.Screen
+            name="wake-method"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           <Stack.Screen
             name="steps"
             options={{

@@ -58,6 +58,7 @@ const VERB: Record<WakeMethod, (goal: number) => string> = {
   scan: () => 'scan your code',
   place: () => 'get to your place',
   pushups: () => 'do your push-ups',
+  squats: () => 'do your squats',
 };
 
 /** The safety valve for each method, said once so the first morning never feels like a trap. */
@@ -67,6 +68,7 @@ const FALLBACK: Record<WakeMethod, (goal: number) => string> = {
   scan: (goal) => `Can’t find the code? Walk ${goal} steps instead.`,
   place: (goal) => `Not going out today? Walk ${goal} steps instead.`,
   pushups: (goal) => `Arms not working today? Walk ${goal} steps instead.`,
+  squats: (goal) => `Legs not working today? Walk ${goal} steps instead.`,
 };
 
 /**

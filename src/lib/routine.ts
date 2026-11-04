@@ -13,9 +13,10 @@ import { EXTENSION_SLACK_MS } from './wake/arming.ts';
 /**
  * The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. `place` is
  * "Leave the house": get to a place picked in the day (place.ts). `pushups`: ten on the floor,
- * counted by the front camera (wake/pushups.ts).
+ * counted by the front camera (wake/pushups.ts). `squats`: the same camera, standing up
+ * (wake/squats.ts; user 2026-11-03, a sixth way for the grid).
  */
-export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups';
+export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups' | 'squats';
 
 export type Routine = {
   bedtime: number;
@@ -26,6 +27,8 @@ export type Routine = {
   stepGoal: number;
   /** Push-ups a morning takes (`PUSHUP_MIN`–`PUSHUP_MAX`). Missing on routines saved before it was kept: 10. */
   pushupGoal?: number;
+  /** Squats a morning takes (`SQUAT_MIN`–`SQUAT_MAX`). Missing until one is picked: 20. */
+  squatGoal?: number;
 };
 
 /**
@@ -37,6 +40,13 @@ export const PUSHUP_MAX = 100;
 export const DEFAULT_PUSHUP_GOAL = 10;
 
 export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;
+
+/** The squat targets, on the same kind of wheel. More than push-ups by default: each is easier. */
+export const SQUAT_MIN = 5;
+export const SQUAT_MAX = 100;
+export const DEFAULT_SQUAT_GOAL = 20;
+
+export const squatGoalOf = (routine: Pick<Routine, 'squatGoal'>) => routine.squatGoal ?? DEFAULT_SQUAT_GOAL;
 
 /** The step targets on the Routine tab's wheel (user 2026-10-28: picked like push-ups), in fifties. */
 export const STEPS_RANGE = { min: 50, max: 2000, by: 50 };

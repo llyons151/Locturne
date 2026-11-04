@@ -11,7 +11,6 @@ import { SwitchRow } from '@/components/controls';
 import { sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import { getMorningsWon } from '@/lib/morning-proof';
 import type { WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
@@ -22,8 +21,7 @@ import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screensho
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, setMoonsAsPage } from '@/features/moons/moon-collection';
-import { LADDER } from '@/features/moons/moon-data';
-import { LADDER_MORNINGS, RARE_MOONS } from '@/features/moons/moon-ladder';
+import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { useMoon } from '@/features/moons/moon-theme';
 
 import { SETTINGS_BG } from './settings-actions';
@@ -33,25 +31,6 @@ import { SETTINGS_BG } from './settings-actions';
  * preview tool that used to fold open at the bottom of Settings, on a page of its own now that
  * Settings is Apple's own list (you-screen.ios.tsx).
  */
-
-/** Home's entrance settles before the payoff goes over it (as morning-won.tsx's cold open). */
-const SIMULATE_OVER_HOME_MS = 1200;
-
-/**
- * Unlock a moon and play the payoff for it, as a morning that earned it would. The next moon on
- * the ladder, really earned; with the ladder done, the rare one. Home first, so Done lands where
- * the real payoff's does.
- */
-function simulateMoonUnlock() {
-  const id = devEarnNext() ?? RARE_MOONS[0];
-  const rung = LADDER.indexOf(id);
-  const mornings = rung >= 0 && rung < LADDER_MORNINGS.length ? LADDER_MORNINGS[rung] : getMorningsWon() + 1;
-  router.navigate('/');
-  setTimeout(
-    () => router.push({ pathname: '/morning-won', params: { demo: '1', newMoon: id, mornings: String(mornings), method: 'steps' } }),
-    SIMULATE_OVER_HOME_MS,
-  );
-}
 
 function preview(href: Href, method?: WakeMethod) {
   fakeTheMorning(method);
@@ -66,6 +45,7 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
   scan: sym('barcode.viewfinder', 'barcode_scanner'),
   place: sym('mappin.and.ellipse', 'location_on'),
   pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
+  squats: sym('figure.cross.training', 'sports_gymnastics'),
 };
 
 /**
@@ -99,6 +79,8 @@ export function DeveloperSettings() {
   const moon = useMoon();
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
+  // Only so the row's "On next open" shows straight away.
+  const [, setArmed] = useState(false);
   const refresh = useCallback(() => setTestRun(getTestLock()), []);
   useFocusEffect(refresh);
   const icon = (ios: Parameters<typeof sym>[0], android: Parameters<typeof sym>[1]) => ({ iconTint: Nocturne.text, icon: sym(ios, android) });
@@ -164,10 +146,12 @@ export function DeveloperSettings() {
         <ValueRow
           {...icon('sunrise', 'wb_twilight')}
           title="Unlock a moon, with the payoff"
-          value=""
+          value={isMoonSimArmed() ? 'On next open' : ''}
           onPress={() => {
             haptic.done();
-            simulateMoonUnlock();
+            armMoonSim();
+            setArmed(true);
+            Alert.alert('Close Locturne', 'Swipe it away (or just leave it), then open it again. The new moon shows up as if you just won the morning.');
           }}
           last
         />

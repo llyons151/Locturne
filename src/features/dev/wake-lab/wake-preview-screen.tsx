@@ -66,6 +66,7 @@ const PAYOFF_METHOD: MenuOption<string>[] = [
   { value: 'steps', label: 'Steps' },
   { value: 'downstairs', label: 'Downstairs' },
   { value: 'pushups', label: 'Push-ups' },
+  { value: 'squats', label: 'Squats' },
   { value: 'scan', label: 'Scan' },
   { value: 'place', label: 'Place' },
 ];

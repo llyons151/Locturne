@@ -13,9 +13,9 @@ import { CountText } from '@/components/count-text';
 import { Track } from '@/components/meter';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import { pushupsLine, spokenRep } from '@/lib/wake/lines';
+import { pushupsLine, spokenRep, squatsLine } from '@/lib/wake/lines';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
-import { PUSHUPS, repProgress, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
+import { repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 import { CTA_HEIGHT, Gap, Nocturne, Space, Type } from '@/theme';
 
@@ -61,7 +61,10 @@ export function PushupsView({
   footer,
   preview,
   morning,
+  exercise = 'pushups',
 }: {
+  /** Push-ups, or squats on the same camera. */
+  exercise?: Exercise;
   /** The step goal, for "walk instead". */
   goal: number;
   /** The real morning's key, so its push-up total is kept across closing the camera. None in the wake lab. */
@@ -96,13 +99,14 @@ export function PushupsView({
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
   const instead = `Walk ${goal} steps instead`;
   // Read each render: closing the camera re-renders this page with the total so far.
-  const done = getRepsDone(morning);
+  const done = getRepsDone(morning, exercise);
+  const noun = EXERCISE_NOUN[exercise];
   // Screen Time or a profile keeps the camera off; Settings can't change that, so only walking is offered.
   const restricted = access === 'restricted' || failed === 'restricted';
 
   if (!available || restricted || failed === 'noCamera' || failed === 'model') {
     const why = !available
-      ? 'This build of the app can’t count push-ups yet. It needs the next update.'
+      ? `This build of the app can’t count ${noun} yet. It needs the next update.`
       : restricted
         ? 'The camera is restricted on this phone, by Screen Time or a profile.'
         : failed === 'model'
@@ -136,12 +140,12 @@ export function PushupsView({
   return (
     <View style={styles.page}>
       <View style={styles.top}>
-        <Voice text={denied ? 'I need the camera for this.' : pushupsLine('idle', 0, target, null)} />
+        <Voice text={denied ? 'I need the camera for this.' : (exercise === 'squats' ? squatsLine : pushupsLine)('idle', 0, target, null)} />
         <Body>
           {denied
-            ? 'Camera access is off for Locturne, so I can’t count push-ups. Turn it on in Settings.'
-            : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
-                done > 0 ? `${Math.max(0, target - done)} more push-ups; you've done ${done}` : `${target} push-ups`
+            ? `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`
+            : `Turn me sideways and lean me against something on the floor, ${exercise === 'squats' ? 'three' : 'two'} steps away and side-on to you, so I can see all of you. Then ${
+                done > 0 ? `${Math.max(0, target - done)} more ${noun}; you've done ${done}` : `${target} ${noun}`
               }. I count out loud.`}
         </Body>
       </View>
@@ -167,6 +171,7 @@ export function PushupsView({
           target={target}
           morning={morning}
           preview={preview}
+          exercise={exercise}
           onMet={() => {
             // Closed either way: if the morning ended meanwhile (bedtime came round), nothing
             // replaces this page, and the camera mustn't stay up on a finished set.
@@ -255,10 +260,11 @@ function useTurn(
 function TuningReadout({ session, pose }: { session: PushupsSession | null; pose: PoseFrame | null }) {
   if (!session) return null;
   const n = (v: number | null, digits = 0) => (v === null ? '–' : v.toFixed(digits));
+  const R = rulesFor(session.exercise);
   const lines = [
-    `${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · miss ${session.miss}` : ''}`,
-    `elbow ${n(session.elbow)}°  (down ≤${PUSHUPS.downDeg}, up ≥${PUSHUPS.upDeg})`,
-    `drop ${n(session.drop, 2)}  (need ${PUSHUPS.minDrop}, or ${PUSHUPS.deepDrop} held)  low frames ${session.lowFrames}`,
+    `${session.exercise} · ${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · miss ${session.miss}` : ''}`,
+    `${session.exercise === 'squats' ? 'knee' : 'elbow'} ${n(session.elbow)}°  (down ≤${R.downDeg}, up ≥${R.upDeg})`,
+    `drop ${n(session.drop, 2)}  (need ${R.minDrop}, or ${R.deepDrop} held)  low frames ${session.lowFrames}`,
   ];
   // What the iPhone handed over: the picture's size, how Vision read it, and how sure it was.
   const info = pose?.info;
@@ -332,11 +338,15 @@ function Corners({ width }: { width: number }) {
   );
 }
 
+/** What the count says it's counting. */
+export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups', squats: 'squats' };
+
 /**
  * The set itself, full screen: the front camera, you traced in white over it, the count big at
  * the top, and Loc, black as on Home, standing on a black ledge at the bottom that fills as the
  * reps come, saying what he thinks of it. Nothing else to read: the phone is on the floor and
  * you're down there, so he says the count out loud too. Walking instead is on Home, not here.
+ * Squats use this same screen (`exercise`): only his lines and the count's name change.
  */
 export function PushupsCamera({
   target,
@@ -345,9 +355,11 @@ export function PushupsCamera({
   onError,
   preview,
   morning,
+  exercise = 'pushups',
 }: {
   target: number;
   morning?: string;
+  exercise?: Exercise;
   preview?: PushupsPreview;
   onMet: () => void;
   onClose: () => void;
@@ -355,7 +367,7 @@ export function PushupsCamera({
 }) {
   const safe = useSafeAreaInsets();
   const screen = useWindowDimensions();
-  const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning);
+  const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning, exercise);
 
   const status = session?.status ?? 'finding';
   const timedOut = status === 'timedOut';
@@ -466,7 +478,8 @@ export function PushupsCamera({
 
   // The phone lying flat, upside down or upright: say that first, it's why he can't see (all of) you.
   // His bubble is the only words on the picture: the setup is on Home, before Start.
-  const line = phone ? PHONE_LINES[phone] : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null);
+  const lineFor = exercise === 'squats' ? squatsLine : pushupsLine;
+  const line = phone ? PHONE_LINES[phone] : lineFor(status, reps, target, session?.miss ?? null, session?.hint ?? null);
   const locH = Math.round((LOC_PT * LOC_VIEW.height) / LOC_VIEW.width);
   // The same object between renders: the camera re-renders this about 30 times a second, and
   // Loc's DOM view would otherwise be handed new props every time. The whole width, as on Home,
@@ -524,7 +537,7 @@ export function PushupsCamera({
           <View
             style={[styles.reading, { top: insets.top + (side ? 0 : short ? Space.l : Space.xxl) }]}
             accessible
-            accessibilityLabel={`${reps} of ${target} push-ups.`}
+            accessibilityLabel={`${reps} of ${target} ${EXERCISE_NOUN[exercise]}.`}
           >
             {/* Rolls each rep, as Home's and the onboarding's counts do. */}
             <View style={!counting && styles.countIdle}>

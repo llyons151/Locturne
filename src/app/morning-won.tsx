@@ -71,7 +71,7 @@ function realFacts(): PayoffFacts | null {
   };
 }
 
-const METHODS: readonly WakeMethod[] = ['downstairs', 'steps', 'scan', 'place', 'pushups'];
+const METHODS: readonly WakeMethod[] = ['downstairs', 'steps', 'scan', 'place', 'pushups', 'squats'];
 const isWakeMethod = (value: unknown): value is WakeMethod => METHODS.includes(value as WakeMethod);
 
 function demoFacts(p: Record<string, string>): PayoffFacts {

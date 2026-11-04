@@ -51,7 +51,7 @@ const { watchSteps } = await import('./wake/step-watch.ts');
 const { stepsOf } = await import('./wake/steps.ts');
 const { watchDownstairs, TICK_MS } = await import('./wake/downstairs-watch.ts');
 const pu = await import('./wake/pushups.ts');
-const { plankPose } = await import('./wake/pose-demo.ts');
+const { plankPose, squatPose } = await import('./wake/pose-demo.ts');
 const payoff = await import('../features/wake/payoff.ts');
 
 type WakeMethod = import('./routine.ts').WakeMethod;
@@ -358,6 +358,43 @@ function poseFrames(shape: number[], reps: number, from: number, frame = (deg: n
     }
   }
   return frames;
+}
+
+/** A standing body side-on for squats (pose-demo.ts), and a full squat and a half one by the knee. */
+const LEGS = { shin: 110, thigh: 110, torso: 125, ankle: { x: 200, y: 700 } };
+const SQUAT = [170, 160, 145, 130, 115, 100, 90, 85, 85, 85, 95, 110, 130, 150, 165, 170];
+const HALF_SQUAT = [170, 160, 150, 142, 138, 138, 142, 150, 160, 170];
+
+function squatFrames(shape: number[], reps: number, from: number) {
+  const frames: { at: number; joints: ReturnType<typeof squatPose> }[] = [];
+  let t = from;
+  for (let r = 0; r < reps; r++) {
+    for (const deg of [...shape, 170, 170, 170, 170]) {
+      frames.push({ at: t, joints: squatPose(deg, LEGS) });
+      t += FRAME_MS;
+    }
+  }
+  return frames;
+}
+
+/** Home's squats: the push-up camera's machine with the squat rules, saved under its own key. */
+function squatsCamera(goal: number) {
+  const morning = lc.readLock().morningKey;
+  const saved = () => pu.repsDoneFor(st.sharedGet('locturne.squatsDone'), morning);
+  let s = pu.startPushups(Date.now(), goal, { reps: saved(), exercise: 'squats' });
+  let proved: ReturnType<typeof lc.proveMorning> | undefined;
+  return {
+    feed(frames: { at: number; joints: ReturnType<typeof squatPose> }[]) {
+      for (const f of frames) {
+        mock.timers.setTime(f.at);
+        s = pu.tick(pu.addPose(s, f), f.at);
+        if (s.reps > saved()) st.sharedSet('locturne.squatsDone', { morning, reps: s.reps });
+        if (s.status === 'met' && proved === undefined) proved = lc.proveMorning('squats');
+      }
+    },
+    session: () => s,
+    proved: () => proved,
+  };
 }
 
 /**
@@ -701,6 +738,62 @@ describe('pushups', () => {
   });
 });
 
+/* ---------- Squats ---------- */
+
+describe('squats', () => {
+  const routine = { ...rt.DEFAULT_ROUTINE, method: 'squats' as const, squatGoal: 20 };
+
+  test('20 clean squats prove; the reps are saved for the morning, apart from push-ups', async () => {
+    await onboard(routine);
+    await sleepThroughNight();
+    const cam = squatsCamera(20);
+    cam.feed(squatFrames(SQUAT, 20, Date.now()));
+    assert.equal(cam.session().reps, 20);
+    assert.ok(cam.proved());
+    assert.equal(pu.repsDoneFor(st.sharedGet('locturne.pushupsDone'), lc.readLock().morningKey), 0, 'push-ups untouched');
+    await assertWoke('squats');
+    assertNextNightLocks();
+  });
+
+  test('19, close the camera, 1 more later: the saved squats carry over and prove', async () => {
+    await onboard(routine);
+    await sleepThroughNight();
+    const first = squatsCamera(20);
+    first.feed(squatFrames(SQUAT, 19, Date.now()));
+    assert.equal(first.proved(), undefined);
+    mock.timers.setTime(Date.now() + 5 * MIN);
+    const second = squatsCamera(20);
+    assert.equal(second.session().reps, 19, 'opens on the 19 done');
+    second.feed(squatFrames(SQUAT, 1, Date.now()));
+    assert.ok(second.proved());
+    await assertWoke('squats');
+  });
+
+  test('half squats (never past 138°) count none, and the apps stay asleep', async () => {
+    await onboard(routine);
+    await sleepThroughNight();
+    const cam = squatsCamera(20);
+    cam.feed(squatFrames(HALF_SQUAT, 30, Date.now()));
+    assert.equal(cam.session().reps, 0);
+    assert.equal(cam.proved(), undefined);
+    assert.ok(NIGHT.every(asleep), 'still asleep');
+  });
+
+  test('knees pumped lying on your back count none', async () => {
+    await onboard(routine);
+    await sleepThroughNight();
+    const cam = squatsCamera(20);
+    // The standing squat turned a quarter onto its back: torso flat.
+    const lying = (deg: number) =>
+      Object.fromEntries(Object.entries(squatPose(deg, LEGS)).map(([k, v]) => [k, { ...v!, x: v!.y, y: 900 - v!.x }])) as ReturnType<typeof squatPose>;
+    let t = Date.now();
+    const frames = [];
+    for (let r = 0; r < 20; r++) for (const deg of [...SQUAT, 170, 170]) frames.push({ at: (t += FRAME_MS), joints: lying(deg) });
+    cam.feed(frames);
+    assert.equal(cam.session().reps, 0);
+  });
+});
+
 /* ---------- Scan ---------- */
 
 describe('scan', () => {
@@ -955,7 +1048,7 @@ describe('every method', () => {
     assert.equal(lc.proveMorning('steps'), null, 'nothing to prove');
   });
 
-  for (const method of ['steps', 'downstairs', 'pushups', 'scan', 'place'] as const) {
+  for (const method of ['steps', 'downstairs', 'pushups', 'squats', 'scan', 'place'] as const) {
     test(`${method}: three nights in a row lock and wake (method ${method}, proved each morning)`, async () => {
       await onboard({ method }, at(5, 18));
       if (method === 'scan') scan.registerScanCode({ kind: 'qr', data: 'LOCTURNE-ABCDEFGHJKMN', type: 'qr' });
@@ -978,6 +1071,8 @@ describe('every method', () => {
           await homeStairs(flight(Date.now(), 3, { seed: night + 1 }), 60_000);
         } else if (method === 'pushups') {
           pushupsCamera(10).feed(poseFrames(REP, 10, Date.now()));
+        } else if (method === 'squats') {
+          squatsCamera(20).feed(squatFrames(SQUAT, 20, Date.now()));
         } else if (method === 'scan') {
           assert.equal(scan.submitScan('LOCTURNE-ABCDEFGHJKMN'), 'unlocked');
         } else {

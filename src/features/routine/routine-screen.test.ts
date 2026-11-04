@@ -1,7 +1,7 @@
 /// <reference types="node" />
 /**
  * The Routine tab, rendered from routine-screen.tsx with its stores faked. Its controls (the
- * dial, the day strip, the method list) can each save before React renders again, with the
+ * dial, the day strip) can each save before React renders again, with the
  * callbacks of the last render: one mustn't undo another.
  */
 import assert from 'node:assert/strict';
@@ -105,6 +105,7 @@ function screen(initial: Stored, now?: Date) {
     '@/lib/routine': {
       getRoutine: () => stored,
       pushupGoalOf: (r: { pushupGoal?: number }) => r.pushupGoal ?? 10,
+      squatGoalOf: (r: { squatGoal?: number }) => r.squatGoal ?? 20,
       getPendingRoutine: () => null,
       hasRoutine: () => true,
       toLockSettings: (r: Stored) => ({ ...r, nightApps: ['night'], alwaysApps: ['always'] }),
@@ -119,6 +120,11 @@ function screen(initial: Stored, now?: Date) {
     '@/lib/place': { getMorningPlace: () => null, getPlaceEditRefusal: () => null },
     '@/lib/text': { noOrphan: (s: string) => s, formatPreset: () => '' },
     '@/theme': { DisplayFont: {}, Gap: {}, italicOverhang: () => ({}), Nocturne: {}, Radius: {}, Space: {}, Type: {}, VoiceSize: { aside: 0 } },
+    './method-options': {
+      methodOptions: () =>
+        ['steps', 'downstairs', 'scan', 'place', 'pushups'].map((value) => ({ value, icon: '', title: value, detail: '' })),
+    },
+    './method-picker': { MethodPicker: 'MethodPicker' },
     './night-dial': { NightDial: 'NightDial' },
     './nights': { fromWeekday, nightsToWeekdays, weekdaysToNights },
     './pending-line': { pendingLine: () => '' },
@@ -148,12 +154,13 @@ function screen(initial: Stored, now?: Date) {
     if (el.type === 'NightDial') found.dial = el.props;
     if (el.type === 'DayStrip') found.days = el.props;
     if (el.type === 'ChoiceRow') methods[el.props.title] = el.props;
+    if (el.type === 'MethodPicker') found.methodButton = el.props;
     el.children?.forEach(walk);
   };
   walk(tree);
   assert.ok(found.dial, 'the night dial renders');
   assert.ok(found.days, 'the day strip renders');
-  return { dial: found.dial, days: found.days, methods, saves, stored: () => stored };
+  return { dial: found.dial, days: found.days, methodButton: found.methodButton, methods, saves, stored: () => stored };
 }
 
 const ROUTINE: Stored = { bedtime: 23 * 60, morningStart: 7 * 60, activeNights: [0, 1, 2, 3, 4, 5, 6], method: 'steps', stepGoal: 200 };
@@ -177,15 +184,11 @@ test('a day tap then a dial edit from the same render keep both', () => {
   assert.equal(s.stored().bedtime, TIMES.bedtime);
 });
 
-test('picking a method after a dial edit keeps the new times', () => {
-  const s = screen(ROUTINE);
-  s.dial.onChange(TIMES);
-  const other = Object.values(s.methods).find((m) => !m.selected && /push-ups/i.test(m.title));
-  assert.ok(other, 'a push-ups row to pick');
-  other.onPress();
-  assert.equal(s.stored().method, 'pushups');
-  assert.equal(s.stored().bedtime, TIMES.bedtime);
-  assert.equal(s.stored().morningStart, TIMES.morningStart);
+test('the method button shows the way picked, among every way', () => {
+  const s = screen({ ...ROUTINE, method: 'pushups' });
+  assert.ok(s.methodButton, 'a button for how you get up');
+  assert.equal(s.methodButton.selected, 'pushups');
+  assert.equal(s.methodButton.options.length, 5);
 });
 
 test('after midnight, "tonight" is still the night in progress', () => {

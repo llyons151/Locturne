@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { addPose, isOver, PUSHUPS, retarget, startPushups, tick, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
+import { addPose, isOver, retarget, startPushups, tick, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone, saveRepsDone } from '@/lib/wake/pushups-done';
 
 const TICK_MS = 1_000;
@@ -15,15 +15,17 @@ const TICK_MS = 1_000;
  * What counts is the morning's total: a missed rep only doesn't add one, and with `morning` (the
  * real morning's key, never the preview's) the reps are saved as they come, so closing the camera,
  * walking off or relaunching carries on from there. `start` is stable, so the screen starts once;
- * a new `goal` meanwhile keeps the reps done (`retarget`, on the next clock tick).
+ * a new `goal` meanwhile keeps the reps done (`retarget`, on the next clock tick). `exercise`:
+ * push-ups, or squats on the same machine (wake/squats.ts).
  */
-export function usePushups(goal: number, timeoutIn?: number, morning?: string) {
+export function usePushups(goal: number, timeoutIn?: number, morning?: string, exercise: Exercise = 'pushups') {
   const [session, setSession] = useState<PushupsSession | null>(null);
   const [pose, setPose] = useState<PoseFrame | null>(null);
   const running = !!session && !isOver(session);
   const goalNow = useRef(goal);
   const timeoutNow = useRef(timeoutIn);
   const morningNow = useRef(morning);
+  const exerciseNow = useRef(exercise);
 
   useEffect(() => {
     goalNow.current = goal;
@@ -34,14 +36,18 @@ export function usePushups(goal: number, timeoutIn?: number, morning?: string) {
   useEffect(() => {
     morningNow.current = morning;
   }, [morning]);
+  useEffect(() => {
+    exerciseNow.current = exercise;
+  }, [exercise]);
 
   const start = useCallback(() => {
     setPose(null);
-    const saved = getRepsDone(morningNow.current);
+    const saved = getRepsDone(morningNow.current, exerciseNow.current);
     setSession((s) =>
       startPushups(Date.now(), goalNow.current, {
-        reps: Math.max(saved, s?.reps ?? 0),
-        timeoutMs: timeoutNow.current ?? PUSHUPS.timeoutMs,
+        reps: Math.max(saved, s?.exercise === exerciseNow.current ? s.reps : 0),
+        timeoutMs: timeoutNow.current,
+        exercise: exerciseNow.current,
       }),
     );
   }, []);
@@ -58,8 +64,8 @@ export function usePushups(goal: number, timeoutIn?: number, morning?: string) {
 
   const reps = session?.reps ?? 0;
   useEffect(() => {
-    if (morning !== undefined && reps > getRepsDone(morning)) saveRepsDone(morning, reps);
-  }, [morning, reps]);
+    if (morning !== undefined && reps > getRepsDone(morning, exercise)) saveRepsDone(morning, reps, exercise);
+  }, [morning, reps, exercise]);
 
   useEffect(() => {
     if (!running) return;

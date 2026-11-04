@@ -5,28 +5,39 @@
 import { useState, type ReactNode } from 'react';
 import { Linking } from 'react-native';
 
+import type { Exercise } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 
 import { isPoseCameraAvailable, type PoseCameraError } from '../../../modules/pose-camera';
 import { useCameraAccess } from '../wake/camera-access';
-import { PushupsCamera } from '../wake/pushups-view';
+import { EXERCISE_NOUN, PushupsCamera } from '../wake/pushups-view';
 import { useProveMorning } from '../wake/use-prove-morning';
 import type { HomeMorning } from './home-content';
 import { WALK_INSTEAD } from './morning';
 
-const ICON = { ios: 'figure.strengthtraining.functional', android: 'fitness_center' };
+const ICONS = {
+  pushups: { ios: 'figure.strengthtraining.functional', android: 'fitness_center' },
+  squats: { ios: 'figure.cross.training', android: 'sports_gymnastics' },
+} as const satisfies Record<Exercise, { ios: string; android: string }>;
+
+/** How he asks for the setup: on the floor for push-ups, standing for squats, the phone side-on either way. */
+const SETUP: Record<Exercise, string> = {
+  pushups: 'Lean me on my side on the floor, two steps away and side-on to you.',
+  squats: 'Lean me on my side on the floor, three steps away and side-on to you, so I can see your legs.',
+};
 
 /**
  * Home's morning when the wake-up is push-ups (docs/HOME_INTERACTIVE.md): the count so far is
  * the hero, with the setup under it, and Start opens the camera straight away, full screen, as
  * the scan does. The set proves the morning when the camera closes, and the apps wake on Home.
  * What pushups-view.tsx does on the wake screen. Null while `enabled` is false. Walking instead
- * is Home's own button, under Start; the camera has none.
+ * is Home's own button, under Start; the camera has none. Squats run the same way (`exercise`).
  */
 export function useMorningPushups(
   enabled: boolean,
   target: number,
   morning: string,
+  exercise: Exercise = 'pushups',
 ): { morning: HomeMorning; camera: ReactNode } | null {
   const camera = useCameraAccess();
   const prove = useProveMorning();
@@ -42,16 +53,18 @@ export function useMorningPushups(
   }
 
   // Read each render: closing the camera re-renders Home with the total so far.
-  const done = Math.min(target, getRepsDone(morning));
+  const done = Math.min(target, getRepsDone(morning, exercise));
+  const noun = EXERCISE_NOUN[exercise];
+  const ICON = ICONS[exercise];
   const left = Math.max(0, target - done);
   const restricted = camera.access === 'restricted' || failed === 'restricted';
   const denied = camera.access === 'denied' || (failed === 'denied' && camera.access !== 'granted');
-  const meter = { value: String(done), caption: `of ${target} push-ups`, progress: target > 0 ? done / target : 1 };
+  const meter = { value: String(done), caption: `of ${target} ${noun}`, progress: target > 0 ? done / target : 1 };
 
   // No camera to count with: walking (counted right here) or the other ways.
   if (!isPoseCameraAvailable || restricted || failed === 'noCamera' || failed === 'model') {
     const why = !isPoseCameraAvailable
-      ? 'This build of the app can’t count push-ups yet.'
+      ? `This build of the app can’t count ${noun} yet.`
       : restricted
         ? 'The camera is restricted on this phone, by Screen Time or a profile.'
         : failed === 'model'
@@ -75,7 +88,7 @@ export function useMorningPushups(
         icon: ICON,
         hero: {
           title: 'I need the camera for this',
-          body: 'Camera access is off for Locturne, so I can’t count push-ups. Turn it on in Settings.',
+          body: `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`,
         },
         action: { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
         alt: WALK_INSTEAD,
@@ -95,17 +108,15 @@ export function useMorningPushups(
       icon: ICON,
       hero: {
         // Read out for the meter, which stands in for the headline (home-content).
-        title: `${done} of ${target} push-ups`,
-        body: `Lean me on my side on the floor, two steps away and side-on to you. ${
-          done > 0 ? `${left} more to go.` : `${target} push-ups.`
-        } I count out loud.`,
+        title: `${done} of ${target} ${noun}`,
+        body: `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
       },
       meter,
       // The phone lies on the floor untouched through the set: auto-lock would stop the camera.
       keepAwake: open,
       // HIG: the button before Apple's prompt says Continue, never "Allow" (App Review 5.1.1(iv)).
       action: {
-        label: camera.access === 'ask' ? 'Continue' : done > 0 ? 'Keep going' : 'Start push-ups',
+        label: camera.access === 'ask' ? 'Continue' : done > 0 ? 'Keep going' : `Start ${noun}`,
         onPress: () => {
           if (camera.access !== 'checking') begin();
         },
@@ -117,9 +128,10 @@ export function useMorningPushups(
       <PushupsCamera
         target={target}
         morning={morning}
+        exercise={exercise}
         onMet={() => {
           setOpen(false);
-          prove('pushups');
+          prove(exercise);
         }}
         onClose={() => setOpen(false)}
         onError={(reason) => {

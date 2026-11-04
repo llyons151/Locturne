@@ -164,3 +164,50 @@ export function scenePose(scene: DemoScene, ms: number, width: number, height: n
 
 /** The empty beat before a scene's body appears. */
 export const SCENE_LEAD_MS = 1_500;
+
+/**
+ * A body squatting side-on, facing left, at one moment (the onboarding's squats demo and the
+ * squat tests): feet fixed on the floor, the knee at `kneeDeg`. The shins tip forward and the
+ * thighs back as the knee bends, the torso leans in, and the arms reach out front for balance.
+ */
+export function squatPose(
+  kneeDeg: number,
+  { shin, thigh, torso, ankle }: { shin: number; thigh: number; torso: number; ankle: Point },
+  c = 0.9,
+): PoseFrame['joints'] {
+  const bend = Math.max(0, 180 - kneeDeg);
+  // Of the knee's bend, the shin takes 40% (forward) and the thigh 60% (back), from upright.
+  const shinTilt = bend * 0.4 * DEG;
+  const thighTilt = bend * 0.6 * DEG;
+  const lean = bend * 0.35 * DEG;
+  const knee = { x: ankle.x - shin * Math.sin(shinTilt), y: ankle.y - shin * Math.cos(shinTilt) };
+  const hip = { x: knee.x + thigh * Math.sin(thighTilt), y: knee.y - thigh * Math.cos(thighTilt) };
+  const shoulder = { x: hip.x - torso * Math.sin(lean), y: hip.y - torso * Math.cos(lean) };
+  // Arms hang at the top, and come up level in front by the bottom.
+  const reach = Math.min(1, bend / 90);
+  const arm = torso * 0.55;
+  const armAngle = (90 - 80 * reach) * DEG;
+  const elbowAt = { x: shoulder.x - arm * Math.sin(Math.PI / 2 - armAngle), y: shoulder.y + arm * Math.cos(Math.PI / 2 - armAngle) };
+  const wrist = { x: elbowAt.x - arm * Math.sin(Math.PI / 2 - armAngle), y: elbowAt.y + arm * Math.cos(Math.PI / 2 - armAngle) };
+  const nose = { x: shoulder.x - torso * 0.18, y: shoulder.y - torso * 0.32 };
+  const at = (p: Point, sure = c): JointPoint => ({ x: p.x, y: p.y, c: sure });
+  const joints: Partial<Record<Joint, JointPoint>> = { nose: at(nose) };
+  for (const side of ['left', 'right'] as const) {
+    const sure = side === 'left' ? c : c * 0.7;
+    joints[`${side}Shoulder`] = at(shoulder, sure);
+    joints[`${side}Elbow`] = at(elbowAt, sure);
+    joints[`${side}Wrist`] = at(wrist, sure);
+    joints[`${side}Hip`] = at(hip, sure);
+    joints[`${side}Knee`] = at(knee, sure);
+    joints[`${side}Ankle`] = at(ankle, sure);
+  }
+  return joints;
+}
+
+/** A pretend body doing squats side-on in a `width` × `height` view, `ms` in: the knee 170° → 80° → 170° every `DEMO_REP_MS`. */
+export function demoSquatPose(ms: number, width: number, height: number): PoseFrame['joints'] {
+  const phase = (ms % DEMO_REP_MS) / DEMO_REP_MS;
+  const knee = 170 - 90 * (0.5 - 0.5 * Math.cos(phase * 2 * Math.PI));
+  const unit = height * 0.15;
+  return squatPose(knee, { shin: unit, thigh: unit, torso: unit * 1.15, ankle: { x: width * 0.5, y: height * 0.8 } });
+}

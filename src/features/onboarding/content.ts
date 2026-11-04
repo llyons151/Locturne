@@ -4,7 +4,16 @@
  * Flow and evidence: docs/ONBOARDING_CONVERSION.md.
  */
 
-import { DEFAULT_PUSHUP_GOAL, getPendingRoutine, getRoutine, hasRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
+import {
+  DEFAULT_PUSHUP_GOAL,
+  DEFAULT_SQUAT_GOAL,
+  getPendingRoutine,
+  getRoutine,
+  hasRoutine,
+  pushupGoalOf,
+  squatGoalOf,
+  type WakeMethod,
+} from '@/lib/routine';
 import { getMorningPlace } from '@/lib/place-spot';
 import { getScanCode } from '@/lib/scan-code';
 
@@ -407,6 +416,16 @@ export const METHOD_COPY: Record<
     offer: '10 push-ups. I’ll count every one, disappointed.',
     morning: { line: 'Open me and do 10 push-ups where I can see you.' },
   },
+  // Not an answer on the method question (four answers a page); picked in Routine, but a rerun can land on it.
+  squats: {
+    echo: '20 squats. I’ll count. Out loud. Slowly.',
+    short: 'Squats',
+    check: 'Awake again after 20 squats',
+    until: 'you’ve done 20 squats',
+    commit: '20 squats to wake them.',
+    offer: '20 squats. I’ll count every one, unimpressed.',
+    morning: { line: 'Open me and do 20 squats where I can see you.' },
+  },
 };
 
 type MethodCopy = (typeof METHOD_COPY)[WakeMethod];
@@ -450,12 +469,16 @@ const WAITING_MORNING = {
 };
 
 /**
- * The step target and push-up count the first morning runs on: the routine tomorrow runs on,
- * a Routine edit waiting for bedtime included (`saveSetup`), or the defaults on a first run.
+ * The step target, push-up and squat counts the first morning runs on: the routine tomorrow runs
+ * on, a Routine edit waiting for bedtime included (`saveSetup`), or the defaults on a first run.
  */
-export function morningGoals(): { steps: number; reps: number } {
+export function morningGoals(): { steps: number; reps: number; squats: number } {
   const next = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : null;
-  return { steps: next?.stepGoal ?? 200, reps: next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL };
+  return {
+    steps: next?.stepGoal ?? 200,
+    reps: next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL,
+    squats: next ? squatGoalOf(next) : DEFAULT_SQUAT_GOAL,
+  };
 }
 
 function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
@@ -474,12 +497,15 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
         : codeWaits
           ? { ...saved, morning: WAITING_MORNING[method as 'scan' | 'place'] }
           : saved;
-  // Written for the default 200 steps and 10 push-ups; a rerun keeps the ones set in Routine.
-  const { steps: goal, reps } = morningGoals();
-  if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL) return copy;
+  // Written for the default 200 steps, 10 push-ups and 20 squats; a rerun keeps the ones set in Routine.
+  const { steps: goal, reps, squats } = morningGoals();
+  if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL && squats === DEFAULT_SQUAT_GOAL) return copy;
   const swap = <T,>(value: T): T => {
     if (typeof value === 'string')
-      return value.replace(/\b200\b/g, String(goal)).replace(/\b10 push-ups\b/g, `${reps} push-ups`) as T;
+      return value
+        .replace(/\b200\b/g, String(goal))
+        .replace(/\b10 push-ups\b/g, `${reps} push-ups`)
+        .replace(/\b20 squats\b/g, `${squats} squats`) as T;
     if (Array.isArray(value)) return value.map(swap) as T;
     if (value && typeof value === 'object')
       return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)])) as T;

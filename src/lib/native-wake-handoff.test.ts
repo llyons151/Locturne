@@ -112,7 +112,7 @@ function callbacks(from: Date, to: Date) {
   return out.sort((a, b) => a.at - b.at || (a.callback === 'end' ? -1 : 1));
 }
 
-type Method = 'steps' | 'downstairs' | 'scan' | 'place' | 'pushups';
+type Method = 'steps' | 'downstairs' | 'scan' | 'place' | 'pushups' | 'squats';
 type Scenario = {
   name: string;
   method: Method;
@@ -137,6 +137,8 @@ const SCENARIOS: Scenario[] = [
   { name: 'place-walked', method: 'place', pedometer: { steps: 260 }, woke: 'steps', opens: false },
   { name: 'pushups-short', method: 'pushups', pedometer: { steps: 10 }, woke: false, opens: true },
   { name: 'pushups-walked', method: 'pushups', pedometer: { steps: 300 }, woke: false, opens: true },
+  { name: 'squats-short', method: 'squats', pedometer: { steps: 10 }, woke: false, opens: true },
+  { name: 'squats-walked', method: 'squats', pedometer: { steps: 300 }, woke: false, opens: true },
 ];
 
 /** The tap: Tuesday 07:25, the night armed Monday afternoon and synced last at 22:00. */

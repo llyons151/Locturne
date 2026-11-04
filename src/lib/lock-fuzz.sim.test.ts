@@ -63,7 +63,7 @@ const NIGHT_POOL = ['tiktok', 'insta', 'yt', 'snap'];
 const ALWAYS = ['reddit'];
 const BLOCK = ['games', 'tiktok'];
 const SCHED_POOL = ['mail', 'yt', 'news'];
-const METHODS: WakeMethod[] = ['steps', 'downstairs', 'scan', 'place', 'pushups'];
+const METHODS: WakeMethod[] = ['steps', 'downstairs', 'scan', 'place', 'pushups', 'squats'];
 
 /** Ordinary nights, shift work, a just-after-midnight bedtime and iOS's 15-minute minimum (the dial snaps to 15). */
 const TIMES: (readonly [number, number])[] = [

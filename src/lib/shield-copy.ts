@@ -63,6 +63,7 @@ const PROOF: Record<WakeMethod, (stepGoal: number) => string> = {
   scan: () => 'Open Locturne and scan your code.',
   place: () => 'Go to your place and check in from Locturne.',
   pushups: () => 'Open Locturne for your push-ups.',
+  squats: () => 'Open Locturne for your squats.',
 };
 
 /**

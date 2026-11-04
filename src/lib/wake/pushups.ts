@@ -21,7 +21,13 @@
  *
  * Pure: times are ms, joints are in any one pixel space with y pointing down (the camera view's
  * points on iOS, the preview's pixels on web). The screen feeds it pose frames and clock ticks.
+ *
+ * Squats (squats.ts, 2026-11-03) run on this same machine with their own rules: the knee in
+ * place of the elbow, the hips in place of the shoulders, the thigh as the yardstick, standing in
+ * place of a plank. A session knows which it is (`exercise`); everything else is shared.
  */
+
+import { readSquatFrame, SQUATS } from './squats.ts';
 
 export const PUSHUPS = {
   /** The default target; the routine's `pushupGoal` sets the real one. */
@@ -103,13 +109,40 @@ export type PushupsStatus =
   | 'met'
   | 'timedOut';
 
-/** Why he can't count right now: nobody in the picture, or somebody who isn't in a plank. */
-export type Hint = 'noBody' | 'notPlank';
+/** Why he can't count right now: nobody in the picture, or somebody who isn't in a plank (push-ups) or standing (squats). */
+export type Hint = 'noBody' | 'notPlank' | 'notStanding';
+
+/** What the camera counts. */
+export type Exercise = 'pushups' | 'squats';
+
+/**
+ * One exercise's rules for the shared machine: the thresholds (as `PUSHUPS`), and how a frame
+ * reads. `angle` is the working joint (elbow, knee), `y` the part that drops (shoulders, hips),
+ * `scale` the yardstick the drop is measured in (torso, thigh).
+ */
+export type RepRules = {
+  minConfidence: number;
+  downDeg: number;
+  upDeg: number;
+  shallowDeg: number;
+  minDrop: number;
+  deepDrop: number;
+  topMemoryMs: number;
+  downFrames: number;
+  minRepMs: number;
+  lostMs: number;
+  regainMs: number;
+  timeoutMs: number;
+  reps: number;
+  read: (joints: PoseFrame['joints']) => { angle: number; y: number; scale: number } | { hint: Hint };
+};
 
 /** Why the last dip didn't count, so Loc can say so. */
 export type Miss = 'shallow' | 'quick';
 
 export type PushupsSession = {
+  /** Push-ups or squats: which rules count (`rulesFor`). */
+  exercise: Exercise;
   startedAt: number;
   /** Reps needed. */
   goal: number;
@@ -125,7 +158,7 @@ export type PushupsSession = {
   deepFrames: number;
   /** The deepest elbow angle since the arms were last straight, or null when not dipping. */
   dip: number | null;
-  /** The elbow angle in the last plank frame, null with no plank in view. Unsmoothed: on the real
+  /** The working joint's angle in the last readable frame (the elbow; the knee for squats), null with none in view. Unsmoothed: on the real
    * clips smoothing (and a median of three) lagged behind quick reps and lost more than it saved. */
   elbow: number | null;
   /** The shoulder's height in the picture at the last top (its highest there), or null before one. */
@@ -143,8 +176,23 @@ export type PushupsSession = {
   status: PushupsStatus;
 };
 
+/** The rules a session counts by. Looked up when used, so the two files can import each other. */
+export function rulesFor(exercise: Exercise): RepRules {
+  return exercise === 'squats' ? SQUAT_RULES() : PUSHUP_RULES;
+}
+
+const PUSHUP_RULES: RepRules = {
+  ...PUSHUPS,
+  read: (joints) => {
+    const r = readFrame(joints);
+    return 'hint' in r ? r : { angle: r.elbow, y: r.shoulderY, scale: r.torso };
+  },
+};
+let squatRules: RepRules | null = null;
+const SQUAT_RULES = (): RepRules => (squatRules ??= { ...SQUATS, read: readSquatFrame });
+
 /** A bad stored goal (NaN) would never be met; fall back to the default. */
-const wholeGoal = (goal: number) => (Number.isFinite(goal) ? Math.max(1, Math.round(goal)) : PUSHUPS.reps);
+const wholeGoal = (goal: number, fallback: number) => (Number.isFinite(goal) ? Math.max(1, Math.round(goal)) : fallback);
 
 /**
  * A new session. `reps` carries a timed-out set's count into "Start again", so a long set
@@ -153,15 +201,17 @@ const wholeGoal = (goal: number) => (Number.isFinite(goal) ? Math.max(1, Math.ro
 export function startPushups(
   now: number,
   goal: number = PUSHUPS.reps,
-  { reps = 0, timeoutMs = PUSHUPS.timeoutMs }: { reps?: number; timeoutMs?: number } = {},
+  { reps = 0, timeoutMs, exercise = 'pushups' }: { reps?: number; timeoutMs?: number; exercise?: Exercise } = {},
 ): PushupsSession {
-  const whole = wholeGoal(goal);
+  const R = rulesFor(exercise);
+  const whole = wholeGoal(goal, R.reps);
   const done = Number.isFinite(reps) ? Math.max(0, Math.floor(reps)) : 0;
   const met = done >= whole;
   return {
+    exercise,
     startedAt: now,
     goal: whole,
-    timeoutMs,
+    timeoutMs: timeoutMs ?? R.timeoutMs,
     now,
     reps: done,
     down: false,
@@ -196,7 +246,7 @@ export function repsDoneFor(saved: RepsDone | null | undefined, morning: string 
  * finished.
  */
 export function retarget(s: PushupsSession, goal: number, now: number): PushupsSession {
-  const whole = wholeGoal(goal);
+  const whole = wholeGoal(goal, rulesFor(s.exercise).reps);
   if (whole === s.goal || s.status === 'met') return s;
   if (s.status === 'timedOut' || s.reps < whole) return { ...s, goal: whole };
   return { ...s, goal: whole, now: Math.max(s.now, now), status: 'met', metAt: Math.max(s.now, now) };
@@ -267,71 +317,72 @@ export function readFrame(joints: PoseFrame['joints']): { elbow: number; shoulde
 export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
   if (isOver(s)) return s;
   const at = frame.at;
+  const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, at) };
-  const read = readFrame(frame.joints);
+  const read = R.read(frame.joints);
 
   if ('hint' in read) {
     // A frame or two can drop out mid-rep; only a while without one loses the plank.
-    if (next.seenAt === null || at - next.seenAt >= PUSHUPS.lostMs) lose(next, read.hint);
+    if (next.seenAt === null || at - next.seenAt >= R.lostMs) lose(next, read.hint, R);
     return next;
   }
 
   next.seenAt = at;
   next.hint = null;
-  const elbow = read.elbow;
+  const elbow = read.angle;
   next.elbow = elbow;
 
   if (next.status === 'finding') {
     // Counting starts at the top of a plank, not halfway down one.
-    if (elbow < PUSHUPS.upDeg) return next;
+    if (elbow < R.upDeg) return next;
     next.status = 'counting';
     // Lost after the bottom of a rep, back at its top soon enough: that rep counts (`lose`).
-    if (s.seenAt !== null && at - s.seenAt <= PUSHUPS.regainMs && bottomSeen(next)) return top(next, at, read.shoulderY);
+    if (s.seenAt !== null && at - s.seenAt <= R.regainMs && bottomSeen(next, R)) return top(next, at, read.y, R);
     next.down = false;
     next.lowFrames = 0;
     next.deepFrames = 0;
     next.dip = null;
-    next.topY = read.shoulderY;
+    next.topY = read.y;
     next.topAt = at;
     next.drop = 0;
     return next;
   }
 
-  if (elbow < PUSHUPS.upDeg) {
+  if (elbow < R.upDeg) {
     next.dip = next.dip === null ? elbow : Math.min(next.dip, elbow);
-    if (elbow <= PUSHUPS.downDeg) {
+    if (elbow <= R.downDeg) {
       next.lowFrames += 1;
-      if (next.lowFrames >= PUSHUPS.downFrames) next.down = true;
+      if (next.lowFrames >= R.downFrames) next.down = true;
     }
     if (next.topY !== null) {
-      const drop = (read.shoulderY - next.topY) / read.torso;
+      const drop = (read.y - next.topY) / read.scale;
       next.drop = Math.max(next.drop, drop);
       // In a row: lone jittery frames in a half dip mustn't add up to a rep. A run long enough
       // is kept to the top.
-      if (elbow <= PUSHUPS.shallowDeg && drop >= PUSHUPS.deepDrop) next.deepFrames += 1;
-      else if (next.deepFrames < PUSHUPS.downFrames) next.deepFrames = 0;
+      if (elbow <= R.shallowDeg && drop >= R.deepDrop) next.deepFrames += 1;
+      else if (next.deepFrames < R.downFrames) next.deepFrames = 0;
     }
     return next;
   }
 
-  return top(next, at, read.shoulderY);
+  return top(next, at, read.y, R);
 }
 
 /** Did the dip under way reach the bottom of a rep? */
-const bottomSeen = (s: PushupsSession) => (s.down && s.drop >= PUSHUPS.minDrop) || s.deepFrames >= PUSHUPS.downFrames;
+const bottomSeen = (s: PushupsSession, R: RepRules) => (s.down && s.drop >= R.minDrop) || s.deepFrames >= R.downFrames;
 
 /**
  * The plank is lost (out of view, out of a plank, or the camera stalled): back to finding. A
  * bottom already seen is kept, so the rep still counts if the top comes back within
  * `regainMs`; anything shallower starts over.
  */
-function lose(next: PushupsSession, hint: Hint): void {
+function lose(next: PushupsSession, hint: Hint, R: RepRules): void {
   next.status = 'finding';
   next.hint = hint;
   next.elbow = null;
   next.topY = null;
   next.topAt = null;
-  if (bottomSeen(next)) return;
+  if (bottomSeen(next, R)) return;
   next.down = false;
   next.lowFrames = 0;
   next.deepFrames = 0;
@@ -340,8 +391,8 @@ function lose(next: PushupsSession, hint: Hint): void {
 }
 
 /** Straight again: the top. A rep if it went all the way down, body and all. */
-function top(next: PushupsSession, at: number, shoulderY: number): PushupsSession {
-  const read = { shoulderY };
+function top(next: PushupsSession, at: number, y: number, R: RepRules): PushupsSession {
+  const read = { shoulderY: y };
   const dip = next.dip;
   const dropped = next.drop;
   const wentDown = next.down;
@@ -351,18 +402,18 @@ function top(next: PushupsSession, at: number, shoulderY: number): PushupsSessio
   next.lowFrames = 0;
   next.deepFrames = 0;
   next.drop = 0;
-  const deep = deepFrames >= PUSHUPS.downFrames;
-  const counts = (wentDown && dropped >= PUSHUPS.minDrop) || deep;
+  const deep = deepFrames >= R.downFrames;
+  const counts = (wentDown && dropped >= R.minDrop) || deep;
   // A dip measures from the highest the shoulders have been since the last rep. Only a rep moves
   // that down to here: a one-frame spike that "straightens" the arm mid-rep mustn't restart the
   // measure from halfway down.
-  const fresh = next.topAt !== null && at - next.topAt <= PUSHUPS.topMemoryMs;
+  const fresh = next.topAt !== null && at - next.topAt <= R.topMemoryMs;
   if (counts || next.topY === null || !fresh || read.shoulderY <= next.topY) {
     next.topY = read.shoulderY;
     next.topAt = at;
   }
   if (counts) {
-    if (next.lastRep !== null && at - next.lastRep < PUSHUPS.minRepMs) {
+    if (next.lastRep !== null && at - next.lastRep < R.minRepMs) {
       next.miss = 'quick';
       return next;
     }
@@ -374,16 +425,17 @@ function top(next: PushupsSession, at: number, shoulderY: number): PushupsSessio
       next.metAt = at;
     }
     // A bend with the shoulders barely moving is the camera's jitter, not a half rep: no comment.
-  } else if (dip !== null && dip <= PUSHUPS.shallowDeg && dropped >= PUSHUPS.minDrop / 2) next.miss = 'shallow';
+  } else if (dip !== null && dip <= R.shallowDeg && dropped >= R.minDrop / 2) next.miss = 'shallow';
   return next;
 }
 
 export function tick(s: PushupsSession, now: number): PushupsSession {
   if (isOver(s)) return s;
+  const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, now) };
-  if (next.status === 'counting' && next.seenAt !== null && next.now - next.seenAt >= PUSHUPS.lostMs) {
+  if (next.status === 'counting' && next.seenAt !== null && next.now - next.seenAt >= R.lostMs) {
     // No frames at all (the camera stalled): the same as losing the plank.
-    lose(next, 'noBody');
+    lose(next, 'noBody', R);
   }
   // Measured from the last plank seen, or the start before one.
   if (next.now - Math.max(next.startedAt, next.seenAt ?? next.startedAt) >= next.timeoutMs) next.status = 'timedOut';
@@ -394,5 +446,7 @@ export function tick(s: PushupsSession, now: number): PushupsSession {
 export const repProgress = (s: PushupsSession) => Math.min(1, s.reps / s.goal);
 
 /** 0–1 of the way down the current rep, for the meter: 0 at the top, 1 at `downDeg`. */
-export const depthOf = (s: PushupsSession) =>
-  s.elbow === null ? 0 : Math.min(1, Math.max(0, (PUSHUPS.upDeg - s.elbow) / (PUSHUPS.upDeg - PUSHUPS.downDeg)));
+export function depthOf(s: PushupsSession): number {
+  const R = rulesFor(s.exercise);
+  return s.elbow === null ? 0 : Math.min(1, Math.max(0, (R.upDeg - s.elbow) / (R.upDeg - R.downDeg)));
+}

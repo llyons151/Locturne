@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';
 import { getMorningPlace, judgeFix } from '@/lib/place';
-import { getRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
+import { getRoutine, pushupGoalOf, squatGoalOf, type WakeMethod } from '@/lib/routine';
 import { getScanCode, matches } from '@/lib/scan';
 import { endTestLock, getTestLock, startTestLock } from '@/lib/screen-time';
 import { Gap, Nocturne, Space, Type } from '@/theme';
@@ -28,6 +28,7 @@ export const LAB_METHODS: { value: WakeMethod; title: string }[] = [
   { value: 'scan', title: 'Scan a code' },
   { value: 'place', title: 'Get to a place' },
   { value: 'pushups', title: 'Push-ups' },
+  { value: 'squats', title: 'Squats' },
 ];
 
 const titleOf = (method: WakeMethod) => LAB_METHODS.find((m) => m.value === method)?.title ?? method;
@@ -99,6 +100,18 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
         key={run}
         goal={routine.stepGoal}
         target={preview.goal || pushupGoalOf(routine)}
+        onMet={onMet}
+        onSteps={toSteps}
+        preview={preview}
+      />
+    );
+  else if (method === 'squats')
+    content = (
+      <PushupsView
+        key={run}
+        exercise="squats"
+        goal={routine.stepGoal}
+        target={preview.goal || squatGoalOf(routine)}
         onMet={onMet}
         onSteps={toSteps}
         preview={preview}
