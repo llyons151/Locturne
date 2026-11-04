@@ -559,7 +559,9 @@
       sel = Math.min(sel, data.panels.length - 1);
       lib = await (await fetch('/listings.json', { cache: 'no-store' })).json();
       if (!angles.length) angles = Object.keys(await (await fetch('/api/angles')).json());
-      $('#listing').innerHTML = `<option value="">Listing: workbench</option>` + lib.listings.map((L, n) =>
+      // The tool opens on the listing in use (listings.json → listings[0]); a remembered one that's gone falls back to it.
+      if (!lib.listings.some((L) => L.id === listing)) listing = lib.listings[0]?.id ?? '';
+      $('#listing').innerHTML = lib.listings.map((L, n) =>
         `<option value="${esc(L.id)}" ${L.id === listing ? 'selected' : ''}>${n + 1}. ${esc(L.name)}</option>`).join('');
       const st = data.strip ?? {};
       $('#layout').innerHTML = Object.keys(st.layouts ?? { flat: [] }).map((k) =>
