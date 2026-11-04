@@ -3,14 +3,14 @@
 // stays out of the React Compiler like the screens that use it.
 
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { removePick, type RemovedPick } from 'blocked-apps';
 
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
-import { editLimit, freeLimitId, isLimitId, keepName, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
+import { editLimit, freeLimitId, isLimitId, keepName, limitLabel, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
 import { restoreBlocks } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
 import { looserEditsStartAt, onLockChange, syncLock } from '@/lib/lock-controller';
@@ -34,11 +34,22 @@ import {
   type StandingList,
 } from '@/lib/screen-time';
 
+import { openLimitSheet } from './limit-sheet';
 import { isPickerSettling, settlePicker } from './picker-settle';
 
 // Limits iOS is still arming. Shared by the Apps tab and a list's page, so an edit on one
 // waits for an arm started on the other.
 const armingLimits = new Set<LimitId>();
+
+/**
+ * A limit being made in the sheet, before its Save: its free slot, and the time and name kept
+ * while Apple's picker is open. Nothing is saved or handed to iOS until Save, so its first time
+ * is chosen freely, even for apps already used past it today (user, 2026-11-03). Its apps go
+ * straight into the slot's own picks: with no limit there, nothing counts or shields them.
+ */
+let making: { id: LimitId; minutes: number; name: string } | null = null;
+/** How the Apps tab draws a limit's picks in the sheet's Apps row (native icons on an iPhone). */
+let makingIcons: ((id: LimitId, size: number) => ReactNode) | null = null;
 
 /**
  * Everything that changes the live lists (the bedtime and always lists, and daily limits): the
@@ -151,14 +162,57 @@ export function useListActions() {
     refresh();
   };
 
-  // A limit's list changed: a new limit starts at 30 minutes; an existing one is re-armed,
-  // because iOS keeps its own copy of the picks.
+  // A limit's list changed: it's re-armed, because iOS keeps its own copy of the picks. New
+  // limits are made by the sheet's Save (`createLimit`), never here.
   const pickedLimit = (id: LimitId) => {
     const current = getLimits();
     const existing = current.find((l) => l.id === id);
     if (existing) return saveAndArm(current, existing);
-    if (selectionSize(id) === 0) return clearSelection(id);
-    const created: DailyLimit = { id, minutes: 30 };
+    clearSelection(id);
+  };
+
+  /** The new limit's sheet, opened again on its return from Apple's picker. */
+  const openNewLimit = () => {
+    const draft = making;
+    if (!draft) return;
+    const picks = selectionSize(draft.id);
+    openLimitSheet({
+      start: draft.minutes,
+      chosen: null,
+      name: { value: draft.name, fallback: `${limitLabel(draft.minutes)} a day`, onRename: () => {} },
+      apps: {
+        summary: picks ? (picks === 1 ? '1 pick' : `${picks} picks`) : 'None yet',
+        onEdit: pickNewLimitApps,
+        icons: picks && makingIcons ? makingIcons(draft.id, picks) : undefined,
+        count: picks,
+      },
+      create: {
+        onDraft: (minutes, name) => {
+          if (making?.id === draft.id) making = { ...draft, minutes, name };
+        },
+        onCreate: (minutes, name) => createLimit(draft.id, minutes, name),
+        onDiscard: () => {
+          if (making?.id !== draft.id) return;
+          making = null;
+          clearSelection(draft.id);
+        },
+      },
+    });
+  };
+
+  const pickNewLimitApps = () => {
+    if (!making || isPickerSettling(making.id)) return;
+    setEditing(making.id);
+  };
+
+  /** The sheet's Save on a new limit: made at the time chosen, and handed to iOS. */
+  const createLimit = (id: LimitId, minutes: number, name: string) => {
+    making = null;
+    const current = getLimits();
+    // Gone meanwhile (no apps, or the slot taken on another screen): nothing to make.
+    if (selectionSize(id) === 0 || current.some((l) => l.id === id)) return refresh();
+    const trimmed = name.trim();
+    const created: DailyLimit = { id, minutes, ...(trimmed ? { name: trimmed } : {}) };
     saveAndArm([...current, created], created);
   };
 
@@ -177,9 +231,18 @@ export function useListActions() {
     setEditing(list);
   };
 
-  const addLimit = () => {
+  // The sheet first, so the time is chosen before anything starts (user, 2026-11-03).
+  const addLimit = async (icons?: (id: LimitId, size: number) => ReactNode) => {
+    haptic.tap();
     const id = freeLimitId(getLimits());
-    if (id) edit(id);
+    if (!id || armingLimits.has(id) || isPickerSettling(id)) return;
+    // Apple's picker needs access, as in `edit`.
+    if (protection !== 'on' && !(await askAccess())) return;
+    // A reused slot opens empty.
+    clearSelection(id);
+    making = { id, minutes: 30, name: '' };
+    makingIcons = icons ?? null;
+    openNewLimit();
   };
 
   /**
@@ -226,10 +289,12 @@ export function useListActions() {
   // Only a revoke in Settings (`off`) adds the row to turn it back on.
   const revoked = protection === 'off';
 
+  // A new limit's apps go straight into its own slot: there's nothing yet to wait for.
+  const makingThis = !!editing && making?.id === editing;
   const picker = editing ? (
     <ScreenTimePicker
       // A draft of the list, so removals can wait for bedtime (`beginListEdit`).
-      list={draftId(editing)}
+      list={makingThis ? editing : draftId(editing)}
       // The library saves the new picks 0.1s after Done (a debounce), so refreshing on
       // close alone reads the old list. It reports once the save lands; refresh then.
       onPicked={refresh}
@@ -237,6 +302,8 @@ export function useListActions() {
         const closed = editing;
         setEditing(null);
         refresh();
+        // Back to the new limit's sheet once the picks have landed, still unsaved.
+        if (makingThis) return settlePicker(closed, openNewLimit);
         // In case the picker unmounts before its report arrives.
         settlePicker(closed, () => pickedList(closed));
       }}

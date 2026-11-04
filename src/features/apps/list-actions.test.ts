@@ -122,7 +122,7 @@ test('reopening a picker while its native save settles cannot replace the draft 
   const timers: (() => void)[] = [];
   const settling = new Set();
   const context = {
-    editing: 'night', protection: 'on', haptic: { tap() {} }, isLimitId: () => false,
+    editing: 'night', protection: 'on', haptic: { tap() {} }, isLimitId: () => false, makingThis: false,
     armingLimits: new Set(), setLimitError() {}, setEditing() {}, refresh() {},
     beginListEdit: () => { draft = [...live]; },
     pickedList: () => { live = [...draft]; },
@@ -142,6 +142,43 @@ test('reopening a picker while its native save settles cannot replace the draft 
   context.edit('night');
   timers.forEach((run) => run());
   assert.deepEqual(live, ['old', 'new']);
+});
+
+test('a new limit is made only by its sheet’s Save, at the time chosen there, never armed at 30 first', () => {
+  const source = readFileSync(new URL('./list-actions.tsx', import.meta.url), 'utf8');
+  const handlers = source.slice(source.indexOf('  const pickedLimit ='), source.indexOf("  /** Opens Apple's picker"));
+  const add = source.slice(source.indexOf('  const addLimit ='), source.indexOf('  /**\n   * A row swiped away'));
+  let picks = 0;
+  let saved: { id: string; minutes: number; name?: string }[] = [];
+  const armed: { id: string; minutes: number; name?: string }[] = [];
+  let sheet: any = null;
+  const context: any = {
+    making: null, protection: 'on', haptic: { tap() {} }, armingLimits: new Set(),
+    isPickerSettling: () => false, freeLimitId: () => 'limit-1', getLimits: () => saved,
+    selectionSize: () => picks, clearSelection: () => { picks = 0; },
+    limitLabel: (m: number) => `${m} min`, openLimitSheet: (req: unknown) => { sheet = req; },
+    setEditing() {}, refresh() {}, askAccess: async () => true,
+    saveAndArm: (next: typeof saved, arm: (typeof saved)[number]) => { saved = next; armed.push(arm); },
+  };
+  const code = babel.transformSync(`${handlers}\n${add}\nglobalThis.addLimit = addLimit;`, {
+    filename: 'handlers.ts', configFile: false, babelrc: false, presets: ['@babel/preset-typescript'],
+  }).code;
+  runInNewContext(code!, context);
+  return (async () => {
+    // Opened, then closed without saving: nothing made.
+    await context.addLimit();
+    assert.equal(sheet.chosen, null);
+    picks = 2;
+    sheet.create.onDiscard();
+    assert.equal(saved.length, 0);
+    assert.equal(picks, 0);
+    // Opened, apps picked, an hour chosen, saved: armed once, at an hour.
+    await context.addLimit();
+    picks = 1;
+    sheet.create.onCreate(60, ' Social ');
+    assert.equal(JSON.stringify(armed), JSON.stringify([{ id: 'limit-1', minutes: 60, name: 'Social' }]));
+    assert.equal(JSON.stringify(saved), JSON.stringify([{ id: 'limit-1', minutes: 60, name: 'Social' }]));
+  })();
 });
 
 test('a bedtime list edit re-plans tonight’s bedtime warning and morning note; a limit edit does not', () => {

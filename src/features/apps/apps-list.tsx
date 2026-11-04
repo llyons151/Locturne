@@ -41,7 +41,7 @@ import {
   getSchedules,
   isScreenTimeAvailable,
   isStoodDown,
-  limitUsedUpToday,
+  limitHolds,
   listChangeLandsAt,
   listChangeStarts,
   selectionSize,
@@ -58,8 +58,8 @@ import { openScheduleSheet } from './schedule-sheet';
 import { nextNightOn } from '@/lib/routine';
 import { MAX_SCHEDULES, type ScheduleId } from '@/lib/schedules';
 import {
+  addPreviewLimit,
   removePreviewLimit,
-  savePreviewLimitApps,
   setPreviewLimitMinutes,
   setPreviewLimitName,
   usePreviewLists,
@@ -271,6 +271,8 @@ function LiveAppsList() {
       empty
     );
   };
+  // The limit sheet's Apps row: as many as the native strip draws (three), then "+N".
+  const rowIcons = (id: SelectionId, size: number) => <RowIcons more={size - SHEET_ICONS}>{icons(id, size, null, SHEET_ICONS)}</RowIcons>;
   const tileIcons = (id: SelectionId, size: number, empty: ReactNode) => (
     <IconStrip>{icons(id, size, empty)}</IconStrip>
   );
@@ -336,7 +338,7 @@ function LiveAppsList() {
           <View style={styles.tiles} onLayout={tile.onTiles}>
             {limits.length === 0 ? <Text style={styles.empty}>{LIMITS_ABOUT}</Text> : null}
             {limits.map((limit) => {
-              const usedUp = limitUsedUpToday(limit.id);
+              const usedUp = limitHolds(limit.id);
               const picks = editedSelection(limit.id);
               // When it lands, never a plain "tonight": an edit from bed after bedtime waits a night.
               const when = limit.pending ? startsLabel(new Date(limit.pending.from), new Date()) : '';
@@ -369,14 +371,14 @@ function LiveAppsList() {
                       apps: {
                         summary: countPicks(picks.size),
                         onEdit: () => openList(limit.id),
-                        icons: icons(picks.id, picks.size, null, 6),
+                        icons: picks.size ? rowIcons(picks.id, picks.size) : undefined,
                       },
                     });
                   }}
                 />
               );
             })}
-            {freeLimitId(limits) ? <NewLimitButton onPress={actions.addLimit} /> : null}
+            {freeLimitId(limits) ? <NewLimitButton onPress={() => actions.addLimit(rowIcons)} /> : null}
           </View>
         )}
         {/* Both tabs: the bedtime lists can fail to save or need access too. */}
@@ -469,12 +471,36 @@ export function limitNote(limit: Pick<DailyLimit, 'pending'>, usedUp: boolean, a
 
 /** A live limit's note, as its page shows it. */
 export const liveLimitNote = (limit: DailyLimit) =>
-  limitNote(limit, limitUsedUpToday(limit.id), listChangeStarts(limit.id));
+  limitNote(limit, limitHolds(limit.id), listChangeStarts(limit.id));
 
 /** The limit tab with no limits yet: what one does, above the New limit button. */
 const LIMITS_ABOUT = 'Give apps a time a day. Once it’s used up, they sleep until midnight.';
 
 /** A tile's first icons. Its detail line already counts the picks, so no "+N" (room for the title). */
+/** The limit sheet's Apps row shows this many picks, then a "+N". */
+const SHEET_ICONS = 3;
+
+/** The picks at the right of the limit sheet's Apps row, and how many more there are. */
+function RowIcons({ children, more }: { children: ReactNode; more: number }) {
+  return (
+    <View style={styles.rowIcons}>
+      {children}
+      {more > 0 ? <Text style={styles.rowMore}>+{more}</Text> : null}
+    </View>
+  );
+}
+
+/** The web preview's version: its stand-in icons by name. */
+function PreviewRowIcons({ names }: { names: string[] }) {
+  return (
+    <RowIcons more={names.length - SHEET_ICONS}>
+      {names.slice(0, SHEET_ICONS).map((name) => (
+        <AppIcon key={name} name={name} />
+      ))}
+    </RowIcons>
+  );
+}
+
 function IconStrip({ children }: { children: ReactNode }) {
   return <View style={styles.strip}>{children}</View>;
 }
@@ -680,8 +706,37 @@ function PreviewAppsList() {
   const [tab, setTab] = useState<Tab>('bedtime');
   useMoonRoom(tab, limits.length, picks.always.length > 0);
   const tile = useTileHeight(tab);
-  // A new limit starts with its apps, as on an iPhone: the picker first, then its tile.
+  // A new limit starts in its sheet, as on an iPhone: the time first, its apps from the sheet's
+  // Apps row, and nothing made until Save. The draft waits here while the picker is open.
   const [adding, setAdding] = useState(false);
+  const making = useRef<{ minutes: number; name: string; apps: string[] } | null>(null);
+  const openNewLimit = () => {
+    const draft = making.current;
+    if (!draft) return;
+    openLimitSheet({
+      start: draft.minutes,
+      chosen: null,
+      name: { value: draft.name, fallback: draft.apps.length ? namedBy(draft.apps) : 'New limit', onRename: () => {} },
+      apps: {
+        summary: draft.apps.length ? countApps(draft.apps.length) : 'None yet',
+        onEdit: () => setAdding(true),
+        icons: draft.apps.length ? <PreviewRowIcons names={draft.apps} /> : undefined,
+        count: draft.apps.length,
+      },
+      create: {
+        onDraft: (minutes, name) => {
+          if (making.current) making.current = { ...making.current, minutes, name };
+        },
+        onCreate: (minutes, name) => {
+          addPreviewLimit(minutes, draft.apps, name);
+          making.current = null;
+        },
+        onDiscard: () => {
+          making.current = null;
+        },
+      },
+    });
+  };
 
   return (
     <TileHeight.Provider value={tile.height}>
@@ -739,7 +794,7 @@ function PreviewAppsList() {
                       apps: {
                         summary: countApps(limit.apps.length),
                         onEdit: () => openList(`limit-${limit.id}`),
-                        icons: limit.apps.slice(0, 6).map((name) => <AppIcon key={name} name={name} />),
+                        icons: limit.apps.length ? <PreviewRowIcons names={limit.apps} /> : undefined,
                       },
                     });
                   }}
@@ -750,7 +805,8 @@ function PreviewAppsList() {
               <NewLimitButton
                 onPress={() => {
                   haptic.tap();
-                  setAdding(true);
+                  making.current = { minutes: 30, name: '', apps: [] };
+                  openNewLimit();
                 }}
               />
             ) : null}
@@ -760,14 +816,18 @@ function PreviewAppsList() {
 
       <AppPickerSheet
         open={adding}
-        apps={[]}
+        apps={making.current?.apps ?? []}
         header={LIMIT_PICKER_HEADER}
         onDone={(apps) => {
           haptic.done();
-          savePreviewLimitApps(null, apps);
+          if (making.current) making.current = { ...making.current, apps };
           setAdding(false);
+          openNewLimit();
         }}
-        onClose={() => setAdding(false)}
+        onClose={() => {
+          setAdding(false);
+          openNewLimit();
+        }}
       />
     </TileHeight.Provider>
   );
@@ -902,6 +962,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   flex: { flex: 1 },
 
+  rowIcons: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
+  rowMore: { ...Type.secondary, color: Nocturne.text2, marginLeft: 2 },
   roundIcon: { width: ICON, height: ICON, borderRadius: ICON / 2, overflow: 'hidden' },
   // A faint edge, so black icons (Netflix, X, Threads) keep their shape on the black card.
   iconRing: {

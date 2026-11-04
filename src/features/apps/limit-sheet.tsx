@@ -17,7 +17,19 @@ type LimitRequest = {
   start: number;
   /** What's saved now, so an unchanged Save saves nothing. */
   chosen: number | null;
-  onChange: (minutes: number) => void;
+  /** Where a new time is saved, for a limit that exists (a new one saves through `create`). */
+  onChange?: (minutes: number) => void;
+  /**
+   * A limit being made (user, 2026-11-03): it doesn't exist until Save, so its first time is
+   * its own, not a loosening that waits for bedtime. `onCreate` makes it and hands it to iOS;
+   * `onDraft` keeps the time and name while Apple's picker is open over the Apps tab;
+   * `onDiscard` forgets the apps picked when the sheet is closed without saving.
+   */
+  create?: {
+    onCreate: (minutes: number, name: string) => void;
+    onDraft: (minutes: number, name: string) => void;
+    onDiscard: () => void;
+  };
   /** Deleting the limit, where the sheet offers it (the list page has its own button). */
   onRemove?: () => void;
   /**
@@ -29,9 +41,9 @@ type LimitRequest = {
   note?: string | null;
   /**
    * The apps row's count ("3 picks"), what it opens once the sheet has gone, and the
-   * apps' own icons drawn under it, as the Apps tab draws them on the limit's tile.
+   * apps' own icons, shown at the row's right in place of the count once there are some.
    */
-  apps?: { summary: string; onEdit: () => void; icons?: ReactNode };
+  apps?: { summary: string; onEdit: () => void; icons?: ReactNode; count?: number };
 };
 
 // The limit being edited. The edit lives with the Apps tab's state, so the route borrows its handlers.
@@ -63,7 +75,7 @@ const NAME_MAX = 24;
  * (user's reference, 2026-10-10) in Locturne's colours: a title with a round close button,
  * the limit's name to type over, one grouped card with the time per day (hour and minute wheels that set
  * any time) over the limit's apps, then Save and a quieter Delete. Opened from a limit's tile
- * on the Apps tab. Only Save saves, since a stricter limit starts at once; the close button
+ * on the Apps tab, or by New limit, where nothing is made until Save (`create`). Only Save saves, since a stricter limit starts at once; the close button
  * and a swipe down keep it as it was.
  */
 export function LimitSheet() {
@@ -73,14 +85,24 @@ export function LimitSheet() {
   const total = Math.min(minutes, LIMIT_MAX);
   // Apple's picker can't open over this sheet, so editing the apps waits until it has gone.
   const afterClose = useRef<(() => void) | null>(null);
+  // A new limit closed any way but Save (or off to its apps) was never made.
+  const kept = useRef(false);
 
   // Opened with nothing to edit (a reload on the web preview): there's nothing to show.
   useEffect(() => {
     if (!req) closeSleepSheet();
   }, [req]);
-  useEffect(() => () => afterClose.current?.(), []);
+  useEffect(
+    () => () => {
+      if (req?.create && !kept.current) req.create.onDiscard();
+      afterClose.current?.();
+    },
+    [req],
+  );
   if (!req) return null;
-  const { apps } = req;
+  const { apps, create } = req;
+  // A new limit needs its apps before it can be saved.
+  const cantSave = total === 0 || (!!create && !apps?.count);
 
   const renamed = !!req.name && name.trim() !== req.name.value.trim();
   const retimed = total !== req.chosen && total > 0;
@@ -88,8 +110,13 @@ export function LimitSheet() {
   const saveName = () => renamed && req.name!.onRename(name);
   const commit = () => {
     haptic.done();
+    if (create) {
+      kept.current = true;
+      create.onCreate(total, name);
+      return closeSleepSheet();
+    }
     saveName();
-    if (retimed) req.onChange(total);
+    if (retimed) req.onChange?.(total);
     closeSleepSheet();
   };
   // A shorter limit starts at once, and one already used up today puts the apps to sleep until
@@ -119,9 +146,16 @@ export function LimitSheet() {
   // first, since a shorter one starts at once and can't be taken back until bedtime.
   const openApps = (onEdit: () => void) => {
     haptic.tap();
+    // A new limit isn't saved yet: its time and name wait here for the sheet's return.
+    if (create) {
+      kept.current = true;
+      create.onDraft(total, name);
+      afterClose.current = onEdit;
+      return closeSleepSheet();
+    }
     const go = (keepTime: boolean) => {
       saveName();
-      if (keepTime) req.onChange(total);
+      if (keepTime) req.onChange?.(total);
       afterClose.current = onEdit;
       closeSleepSheet();
     };
@@ -138,7 +172,7 @@ export function LimitSheet() {
     <View style={styles.sheet}>
       <View style={styles.head}>
         <Text style={styles.title} accessibilityRole="header">
-          Edit limit
+          {create ? 'New limit' : 'Edit limit'}
         </Text>
         <Pressable
           onPress={closeSleepSheet}
@@ -187,12 +221,16 @@ export function LimitSheet() {
             <View style={styles.appsRow}>
               <SymbolView name={sym('square.grid.2x2', 'apps')} size={15} tintColor={Nocturne.text2} />
               <Text style={styles.appsLabel}>Apps</Text>
-              <Text style={styles.appsValue} numberOfLines={1}>
-                {apps.summary}
-              </Text>
+              {/* The picks themselves where there are some, so it's plain what's in the limit. */}
+              {apps.icons ? (
+                <View style={styles.icons}>{apps.icons}</View>
+              ) : (
+                <Text style={styles.appsValue} numberOfLines={1}>
+                  {apps.summary}
+                </Text>
+              )}
               <SymbolView name={sym('chevron.right', 'chevron_right')} size={13} weight="semibold" tintColor={Nocturne.text3} />
             </View>
-            {apps.icons ? <View style={styles.icons}>{apps.icons}</View> : null}
           </Pressable>
         ) : null}
       </View>
@@ -200,10 +238,10 @@ export function LimitSheet() {
       <View style={styles.actions}>
         <Pressable
           onPress={save}
-          disabled={total === 0}
+          disabled={cantSave}
           accessibilityRole="button"
-          accessibilityState={{ disabled: total === 0 }}
-          style={({ pressed }) => [styles.button, total === 0 && styles.disabled, pressed && styles.pressed]}
+          accessibilityState={{ disabled: cantSave }}
+          style={({ pressed }) => [styles.button, cantSave && styles.disabled, pressed && styles.pressed]}
         >
           <Text style={styles.buttonLabel}>Save limit</Text>
         </Pressable>
@@ -281,14 +319,13 @@ const styles = StyleSheet.create({
   sectionAbout: { ...Type.caption, color: Nocturne.text2, marginBottom: Space.xs },
   apps: {
     padding: Space.l,
-    gap: Space.m,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Nocturne.line,
   },
   appsRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
   appsLabel: { ...Type.body, color: Nocturne.text, fontWeight: '500' },
   appsValue: { ...Type.body, flex: 1, color: Nocturne.text2, textAlign: 'right' },
-  icons: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.s },
+  icons: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   actions: { gap: Space.xs, marginTop: Space.s },
   button: {
     minHeight: 56,

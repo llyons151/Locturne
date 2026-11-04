@@ -70,6 +70,14 @@ export function savePreviewLimitApps(id: number | null, apps: string[]) {
   });
 }
 
+/** A new limit, made by its sheet's Save with the time and name chosen there. */
+export function addPreviewLimit(minutes: number, apps: string[], name: string) {
+  if (!apps.length) return;
+  const trimmed = name.trim();
+  const limit: PreviewLimit = { id: nextId++, minutes, used: 0, apps, ...(trimmed ? { name: trimmed } : {}) };
+  set({ ...lists, limits: [...lists.limits, limit] });
+}
+
 export function setPreviewLimitMinutes(id: number, minutes: number) {
   set({ ...lists, limits: lists.limits.map((l) => (l.id === id ? { ...l, minutes } : l)) });
 }
