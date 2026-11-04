@@ -50,7 +50,13 @@ function run(cmd, args) {
 // so each capture goes through ffmpeg to plain RGB.
 // listing: a design from listings.json (rendered by listing.html); none = the plain panel.html workbench.
 async function exportAll(listing) {
-  const { panels } = JSON.parse(await readFile(join(HERE, 'panels.json'), 'utf8'));
+  let { panels } = JSON.parse(await readFile(join(HERE, 'panels.json'), 'utf8'));
+  // A listing exports its own order (its count and its panel ids), as listing.html draws it.
+  if (listing) {
+    const lib = JSON.parse(await readFile(join(HERE, 'listings.json'), 'utf8'));
+    const L = lib.listings.find((x) => x.id === listing);
+    if (L) panels = (L.order ?? lib.order ?? panels.map((p) => p.id)).map((id) => ({ id }));
+  }
   const out = join(HERE, 'export', listing || 'workbench');
   await rm(out, { recursive: true, force: true });   // a reorder must not leave stale panels behind
   await mkdir(out, { recursive: true });
