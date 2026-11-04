@@ -40,7 +40,7 @@ import {
   userDefaultsSet,
 } from 'react-native-device-activity';
 
-import { keepName, MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
+import { keepName, limitLabel, MAX_LIMITS, settleLimits, type DailyLimit, type LimitId } from './daily-limits.ts';
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 import {
@@ -319,7 +319,7 @@ export function holdsDeletion(now = new Date()): boolean {
   const nap = readNap();
   if (nap && now.getTime() < nap.end && selectionSize(nap.list) > 0) return true;
   const soon = scheduleSoon(now);
-  return getSchedules(soon).some((schedule) => isBlocking(schedule, soon) && selectionSize(schedule.id) > 0);
+  return getSchedules(soon).some((schedule) => scheduleHolds(schedule, soon) && selectionSize(schedule.id) > 0);
 }
 
 /** Refuses deleting apps while `holdsDeletion`, and allows it again after. Any app: iOS has no switch for one. */
@@ -370,13 +370,13 @@ function heldLists(): SelectionId[] {
   if (isNightHeld()) held.push('night');
   const nap = readNap();
   if (nap && Date.now() < nap.end) held.push(nap.list);
-  for (const limit of getLimits()) if (limitUsedUpToday(limit.id)) held.push(limit.id);
+  for (const limit of getLimits()) if (limitHolds(limit.id)) held.push(limit.id);
   if (getTestLock()) held.push(TEST_LOCK);
   if (rehearsalHeld(getRehearsal())) held.push(REHEARSAL);
   // Two minutes on, as the extension judges (`reapplyLocturneBlocks`): iOS can deliver a block's
   // start or end a little early, and an open right after mustn't undo what it did.
   const soon = scheduleSoon();
-  for (const schedule of getSchedules(soon)) if (isBlocking(schedule, soon)) held.push(schedule.id);
+  for (const schedule of getSchedules(soon)) if (scheduleHolds(schedule, soon)) held.push(schedule.id);
   return [...new Set(held)].filter((id) => selectionSize(id) > 0);
 }
 
@@ -1656,6 +1656,47 @@ export function limitUsedUpToday(id: LimitId, now = new Date()): boolean {
 }
 
 /**
+ * Daily limits a pass woke (passes.ts, user 2026-11-03: a pass wakes used-up limits too): each
+ * limit's id and when the pass ends, its midnight, in ms. The next day counts afresh. The monitor
+ * extension reads the same record (`locturneLimitPassed` in Locturne.swift): keep the two in step.
+ */
+export const LIMIT_PASSES_KEY = 'locturne.limitPasses';
+
+function limitPasses(): Record<string, number> {
+  return sharedGet<Record<string, number>>(LIMIT_PASSES_KEY) ?? {};
+}
+
+/** Is the limit holding its apps now: used up today, and not woken by a pass. */
+export function limitHolds(id: LimitId, now = new Date()): boolean {
+  if (!limitUsedUpToday(id, now)) return false;
+  const woken = limitPasses()[id];
+  return !(typeof woken === 'number' && now.getTime() < woken);
+}
+
+/** A used-up limit a pass would wake, until its midnight. */
+export type HeldLimit = { id: LimitId; name: string; until: number };
+
+/** The used-up limits holding apps now. */
+export function heldLimits(now = new Date()): HeldLimit[] {
+  if (isStoodDown()) return [];
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+  return getLimits()
+    .filter((l) => limitHolds(l.id, now) && selectionSize(l.id) > 0)
+    .map((l) => ({ id: l.id, name: l.name?.trim() || limitLabel(l.minutes), until: midnight }));
+}
+
+/** Wakes these used-up limits until midnight (a pass), and forgets passes whose day is over. */
+export function wakeLimits(woken: HeldLimit[], now = new Date()): void {
+  if (woken.length === 0) return;
+  const kept = Object.fromEntries(Object.entries(limitPasses()).filter(([, until]) => until > now.getTime()));
+  for (const l of woken) kept[l.id] = l.until;
+  sharedSet(LIMIT_PASSES_KEY, kept);
+  if (!isAvailable()) return;
+  for (const l of woken) unshield(l.id);
+  reapplyStandingBlocks();
+}
+
+/**
  * Hands one limit to iOS: a daily window from midnight to 23:59 whose event fires once the
  * list's apps have been used for `minutes` that day, and shields them, even with the app
  * closed. The window's start each midnight unshields them again. Usage from earlier today
@@ -1950,7 +1991,7 @@ export function liftIdleSchedules(now = new Date()): void {
   // With the extension's two minutes' slack (`heldLists`), so an early start isn't lifted.
   const soon = scheduleSoon(now);
   const schedules = getSchedules(soon);
-  const idle = schedules.filter((s) => !isBlocking(s, soon) && hasSelection(s.id));
+  const idle = schedules.filter((s) => !scheduleHolds(s, soon) && hasSelection(s.id));
   // A deleted schedule (at once, or its waiting delete landed): nothing else would ever wake its
   // apps, and a new schedule in its slot would start with its picks and waiting removals.
   const gone = SCHEDULE_IDS.filter((id) => !schedules.some((s) => s.id === id) && (hasSelection(id) || hasSelection(draftId(id))));
@@ -1970,6 +2011,46 @@ export function liftIdleSchedules(now = new Date()): void {
 /** Two minutes on: how the monitor extension judges a schedule's block, as iOS can call a little early. */
 function scheduleSoon(now = new Date()): Date {
   return new Date(now.getTime() + 120_000);
+}
+
+/**
+ * Schedule blocks a pass woke (passes.ts, user 2026-11-03: a pass wakes whatever is asleep, a
+ * schedule's block too): each schedule's id and when the block it woke ends, in ms. The block
+ * after it sleeps as usual. The monitor extension reads the same record
+ * (`locturneScheduleBlocking` in Locturne.swift): keep the two in step.
+ */
+export const SCHEDULE_PASSES_KEY = 'locturne.schedulePasses';
+
+function schedulePasses(): Record<string, number> {
+  return sharedGet<Record<string, number>>(SCHEDULE_PASSES_KEY) ?? {};
+}
+
+/** Is the schedule holding its apps at `at`: blocking, and that block not woken by a pass. */
+export function scheduleHolds(schedule: Schedule, at: Date): boolean {
+  if (!isBlocking(schedule, at)) return false;
+  const woken = schedulePasses()[schedule.id];
+  return !(typeof woken === 'number' && at.getTime() < woken);
+}
+
+/** A schedule block a pass would wake: blocking now, with apps, and not woken already. */
+export type HeldSchedule = { id: ScheduleId; name: string; until: number };
+
+/** The schedule blocks holding apps now, as `heldLists` judges them (two minutes on). */
+export function heldSchedules(now = new Date()): HeldSchedule[] {
+  if (isStoodDown()) return [];
+  const soon = scheduleSoon(now);
+  return getSchedules(soon)
+    .filter((s) => scheduleHolds(s, soon) && selectionSize(s.id) > 0)
+    .map((s) => ({ id: s.id, name: s.name, until: blockEnds(s, soon)!.getTime() }));
+}
+
+/** Wakes these schedule blocks until each ends (a pass), and forgets passes whose block is over. */
+export function wakeSchedules(woken: HeldSchedule[], now = new Date()): void {
+  if (woken.length === 0) return;
+  const kept = Object.fromEntries(Object.entries(schedulePasses()).filter(([, until]) => until > now.getTime()));
+  for (const s of woken) kept[s.id] = s.until;
+  sharedSet(SCHEDULE_PASSES_KEY, kept);
+  liftIdleSchedules(now);
 }
 
 /** When a schedule's block under way ends, or null outside one. */

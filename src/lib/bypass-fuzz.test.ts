@@ -25,7 +25,8 @@
  *   bedtime;
  * - a scan code can't be registered while that holds;
  * - the always apps, and the apps of a limit used up, stay asleep until R0's next bedtime (the
- *   limit until midnight at most), unless a lapse stood everything down;
+ *   limit until midnight at most), unless a lapse stood everything down, or a pass or emergency
+ *   woke that limit (user 2026-11-03: a pass wakes used-up limits until midnight);
  * - after restoring R0, its next night that's on holds, with the app closed or opened from
  *   bed, through its morning start until a proof (none is made), and so does the always list.
  *
@@ -481,11 +482,24 @@ async function run(seed: number): Promise<string | null> {
     checker();
   };
 
-  /** Used limits: once a limit's minutes are used today, its apps then stay asleep. */
+  /** Limits a pass or emergency woke, until their midnight: their apps may be awake. */
+  const passWoken = new Map<string, number>();
+  /** A pass or emergency woke these limits: forget their apps, then re-mark what other used-up limits still hold. */
+  const wokeLimits = (ids: string[], at: number) => {
+    if (ids.length === 0) return;
+    const midnight = new Date(at).setHours(24, 0, 0, 0);
+    for (const id of ids) {
+      passWoken.set(id, midnight);
+      for (const app of appsOf(id)) usedUp.delete(app);
+    }
+    markUsedUp(at);
+  };
+  /** Used limits: once a limit's minutes are used today, its apps then stay asleep (unless a pass woke it). */
   const markUsedUp = (at: number) => {
     const today = ls.dateKey(new Date(at));
     const midnight = new Date(at).setHours(24, 0, 0, 0);
     for (const limit of st.getLimits()) {
+      if ((passWoken.get(limit.id) ?? 0) > at) continue;
       const used = device.state.usage.get(`${today}|${limit.id}`) ?? 0;
       const minutes = strictest.get(limit.id);
       if (minutes === undefined || used < minutes) continue;
@@ -498,6 +512,7 @@ async function run(seed: number): Promise<string | null> {
     await flush();
     drain();
     if (use) emergencyAt = Date.now();
+    if (use) wokeLimits(use.limits.map((l) => l.id), Date.now());
     await open();
     log.push(`${hm(Date.now())} emergency until ${use?.resumesAt ? hm(use.resumesAt) : null}`);
   }
@@ -653,6 +668,7 @@ async function run(seed: number): Promise<string | null> {
         const use = em.emergencyUnlock(now);
         await flush();
         drain();
+        if (use) wokeLimits(use.limits.map((l) => l.id), at);
         note = use ? `pause ${use.pauseNight} until ${use.resumesAt ? hm(use.resumesAt) : null}` : 'none';
         if (use && (use.pauseNight || use.unlockMorning) && emergencyAt === null) emergencyAt = at;
         // Windows armed for an earlier bedtime can make "tonight" the night into M2: pausing it is by design.
@@ -660,11 +676,13 @@ async function run(seed: number): Promise<string | null> {
         break;
       }
       case 'pass': {
+        const waking = st.heldLimits(now).map((l) => l.id);
         const result = ps.spendPass(now);
         await flush();
         drain();
         note = String(result);
         if (result === null) {
+          wokeLimits(waking, at);
           if (at < M1) failed = `pass accepted at ${hm(at)} before R0's morning ${hm(M1)} (phase ${before})`;
           else unlockedAt ??= at;
         }

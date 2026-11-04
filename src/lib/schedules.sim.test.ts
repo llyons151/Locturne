@@ -38,6 +38,7 @@ const rt = await import('./routine.ts');
 const st = await import('./screen-time.ts');
 const sc = await import('./schedules.ts');
 const { armTonight } = await import('./arm.ts');
+const ps = await import('./passes.ts');
 
 type Draft = Omit<import('./schedules.ts').Schedule, 'pending'>;
 
@@ -139,6 +140,51 @@ test('opening Locturne puts up a block whose start was missed, and lifts one who
   await open();
   assert.ok(!asleep('youtube'));
   assert.ok(asleep('reddit'));
+});
+
+test('a pass wakes a schedule block under way until it ends, and the next block sleeps as usual', async () => {
+  await setup(at(5, 8));
+  pick('sched-0', ['youtube']);
+  await save('sched-0', WORK);
+  runTo(at(5, 10));
+  await open();
+  assert.ok(asleep('youtube'));
+  assert.deepEqual(
+    st.heldSchedules().map((s) => [s.id, s.until]),
+    [['sched-0', at(5, 17)]],
+  );
+  assert.equal(ps.redeemPass().refusal, null);
+  drain();
+  assert.ok(!asleep('youtube'), 'awake after the pass');
+  assert.ok(asleep('reddit'), 'the always list stays asleep');
+  assert.ok(!st.holdsDeletion(), 'deleting apps is allowed again');
+  assert.deepEqual(st.heldSchedules(), [], 'nothing left for a second pass to wake');
+  // The extension and later opens keep it awake for the rest of this block.
+  device.fire('sched-0', 'intervalDidStart');
+  drain();
+  runTo(at(5, 16));
+  await open();
+  assert.ok(!asleep('youtube'), 'still awake later in the block');
+  // Tomorrow's block sleeps as usual, with Locturne closed.
+  runTo(at(6, 9, 1));
+  assert.ok(asleep('youtube'), "Tuesday's block sleeps");
+  await open();
+  assert.ok(asleep('youtube'));
+});
+
+test('with nothing else asleep, a schedule block alone is something for a pass to wake', async () => {
+  await setup(at(5, 8));
+  // No night held this morning: a pass only has the schedule to wake.
+  mock.timers.setTime(at(5, 12));
+  await open();
+  pick('sched-0', ['youtube']);
+  await save('sched-0', WORK);
+  assert.equal(lc.readLock().phase, 'day', 'no night was armed before this morning');
+  assert.equal(ps.getPassRefusal(), null);
+  assert.equal(ps.previewPass()?.schedules.length, 1);
+  assert.equal(ps.redeemPass().refusal, null);
+  drain();
+  assert.ok(!asleep('youtube'));
 });
 
 test('a looser edit inside a block waits for its end; a stricter one is in force at once', async () => {

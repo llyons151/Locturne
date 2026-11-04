@@ -58,7 +58,7 @@ function screenHarness(awakeLine = 'Apps awake until 10:00 PM.', emergency: any 
     },
     '@/lib/scan': { getScanCode: () => true },
     '@/lib/text': { formatPreset: (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` },
-    '@/lib/screen-time': { peekNap: () => null, isStoodDown: () => false, isScreenTimeAvailable: () => true, selectionSize: () => 0, ...screenTime },
+    '@/lib/screen-time': { heldSchedules: () => [], heldLimits: () => [], peekNap: () => null, isStoodDown: () => false, isScreenTimeAvailable: () => true, selectionSize: () => 0, ...screenTime },
     '@/lib/haptics': { done() {}, thud() {} }, '@/lib/analytics': { track() {} },
     '@/theme': { Type: {}, Space: {}, Gap: {}, Nocturne: {} },
     './voice': { Voice: 'Voice' }, './confirm': { Confirm: 'Confirm' }, './unheld-words': unheldWords,
@@ -103,7 +103,7 @@ test('exit menu follows morning and a completed pass stops claiming awake at bed
 });
 
 test('at night a pass pauses the night and says what it wakes', () => {
-  const plan = { pauseNight: true, unlockMorning: true, endBlockNow: false, resumesAt: new Date(2026, 9, 6, 22).getTime() };
+  const plan = { pauseNight: true, unlockMorning: true, endBlockNow: false, schedules: [], limits: [], resumesAt: new Date(2026, 9, 6, 22).getTime() };
   const h = screenHarness(undefined, plan);
   nodes(h.render()).find((n) => n.type === 'Hold').props.onComplete();
   const tree = h.render();
@@ -112,7 +112,7 @@ test('at night a pass pauses the night and says what it wakes', () => {
 });
 
 test('a morning pass before a night off never promises a bedtime', () => {
-  const plan = { pauseNight: false, unlockMorning: true, endBlockNow: false, resumesAt: null };
+  const plan = { pauseNight: false, unlockMorning: true, endBlockNow: false, schedules: [], limits: [], resumesAt: null };
   const h = screenHarness('Apps awake. Tonight is off.', plan);
   h.change('morning', new Date(2026, 9, 10, 7, 30));
   nodes(h.render()).find((n) => n.type === 'Hold').props.onComplete();

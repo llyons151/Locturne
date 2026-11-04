@@ -49,6 +49,8 @@ const NIGHT_HELD_KEY = 'locturne.nightHeld';
 const LIMITS_KEY = 'locturne.limits';
 const LIMIT_REACHED_PREFIX = 'locturne.limitReached.';
 const SCHEDULES_KEY = 'locturne.schedules';
+const SCHEDULE_PASSES_KEY = 'locturne.schedulePasses';
+const LIMIT_PASSES_KEY = 'locturne.limitPasses';
 const LIMIT_REACHED_AT_PREFIX = 'locturne.limitReachedAt.';
 const PENDING_LISTS_KEY = 'locturne.pendingLists';
 const HEARTBEAT_KEY = 'locturne.heartbeat';
@@ -301,6 +303,12 @@ export function simDevice() {
     return get<string>(`${LIMIT_REACHED_PREFIX}${id}`) === dayKey(new Date(t));
   }
 
+  /** `locturneLimitPassed`: a pass woke this used-up limit until its midnight. */
+  function limitPassed(id: string, t = now()): boolean {
+    const until = get<Record<string, number>>(LIMIT_PASSES_KEY)?.[id];
+    return typeof until === 'number' && t < until;
+  }
+
   /** `locturneLimitThresholdIsStale`: N minutes can't be used in under N minutes of today. */
   function limitThresholdIsStale(id: string, t = now()): boolean {
     const minutes = limitMinutes(id);
@@ -316,12 +324,18 @@ export function simDevice() {
     const nap = get<{ end: number; list: string }>(NAP_KEY);
     if (nap && typeof nap.end === 'number' && typeof nap.list === 'string' && now() < nap.end) held.push(nap.list);
     for (const limit of get<{ id?: unknown }[]>(LIMITS_KEY) ?? []) {
-      if (typeof limit.id === 'string' && limitUsedUpToday(limit.id)) held.push(limit.id);
+      if (typeof limit.id === 'string' && limitUsedUpToday(limit.id) && !limitPassed(limit.id)) held.push(limit.id);
     }
     // App schedules, two minutes on (iOS can be early at either end of a block).
     const soon = new Date(now() + 120_000);
-    for (const schedule of schedules(soon)) if (isBlocking(schedule, soon)) held.push(schedule.id);
+    for (const schedule of schedules(soon)) if (blocking(schedule, soon)) held.push(schedule.id);
     for (const id of held) block(id);
+  }
+
+  /** `locturneScheduleBlocking`: blocking, and that block not woken by a pass. */
+  function blocking(schedule: AppSchedule, at: Date): boolean {
+    const woken = get<Record<string, number>>(SCHEDULE_PASSES_KEY)?.[schedule.id];
+    return isBlocking(schedule, at) && !(typeof woken === 'number' && at.getTime() < woken);
   }
 
   /** `locturneSchedules`: the app schedules, with an edit due by `at` put in force and saved. */
@@ -693,7 +707,7 @@ export function simDevice() {
       settleLists();
       const soon = new Date(now() + 120_000);
       const schedule = schedules(soon).find((x) => x.id === activity);
-      if (!(schedule && isBlocking(schedule, soon))) unblock(activity);
+      if (!(schedule && blocking(schedule, soon))) unblock(activity);
     }
     execActions(activity, 'intervalDidEnd');
     showMorningShield(activity);
@@ -732,7 +746,8 @@ export function simDevice() {
       set(`${LIMIT_REACHED_PREFIX}${activity}`, dayKey(new Date(now())));
       set(`${LIMIT_REACHED_AT_PREFIX}${activity}`, Math.round(now()));
     }
-    if (!stale) execActions(activity, 'eventDidReachThreshold', 'used-up');
+    // A pass woke this limit for the rest of today: a repeated threshold doesn't put it back.
+    if (!stale && !(activity.startsWith(LIMIT_PREFIX) && limitPassed(activity))) execActions(activity, 'eventDidReachThreshold', 'used-up');
     reapply();
     recordHeartbeat(activity, 'eventDidReachThreshold');
   }

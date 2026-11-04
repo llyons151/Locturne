@@ -7,7 +7,8 @@
  *   opening the app (see `pauseNightUntil` in screen-time.ts). Decided 2026-10-03: it pauses
  *   only tonight, never later nights.
  * - **Morning:** this morning counts as unlocked, as if the wake-up method were done.
- * - **Any time:** a running Block now session ends.
+ * - **Any time:** a running Block now session ends, and an app schedule's block under way
+ *   wakes until it ends (user 2026-11-03); its next block sleeps as usual.
  *
  * The delay and the "go back to sleep" button in front of it (NIGHT_PHONE_SCIENCE.md,
  * Principle 10) live in the exits screen. Every use is logged for diagnostics.
@@ -21,6 +22,8 @@ import { nextNightOn, nightAt } from './routine.ts';
 import {
   endNap,
   getNap,
+  heldLimits,
+  heldSchedules,
   isScreenTimeAvailable,
   listChangeLandsAt,
   nightLockArmed,
@@ -29,6 +32,10 @@ import {
   nightPickCountAfterChange,
   sharedGet,
   sharedSet,
+  wakeLimits,
+  wakeSchedules,
+  type HeldLimit,
+  type HeldSchedule,
 } from './screen-time.ts';
 
 /** Seconds the exits screen waits before the unlock button works. */
@@ -41,22 +48,34 @@ export type EmergencyPlan = {
   unlockMorning: boolean;
   /** End a running Block now session. */
   endBlockNow: boolean;
+  /** App schedule blocks to wake until each ends. */
+  schedules: HeldSchedule[];
+  /** Used-up daily limits to wake until midnight (user 2026-11-03). */
+  limits: HeldLimit[];
   /** When the night lock is back: the next bedtime, in ms. Null when the night isn't paused. */
   resumesAt: number | null;
 };
 
 /**
  * Pure: what an emergency unlock lifts right now, or null when nothing it can lift is asleep
- * (daytime with no Block now running; the always list and limits are never its business).
+ * (daytime with no Block now, schedule block or used-up limit; the always list is never its business).
  */
-export function planEmergency(phase: Phase, blockNowRunning: boolean, nextBedtime: Date): EmergencyPlan | null {
+export function planEmergency(
+  phase: Phase,
+  blockNowRunning: boolean,
+  nextBedtime: Date,
+  schedules: HeldSchedule[] = [],
+  limits: HeldLimit[] = [],
+): EmergencyPlan | null {
   const pauseNight = phase === 'night';
   const unlockMorning = phase === 'night' || phase === 'morning';
-  if (!unlockMorning && !blockNowRunning) return null;
+  if (!unlockMorning && !blockNowRunning && schedules.length === 0 && limits.length === 0) return null;
   return {
     pauseNight,
     unlockMorning,
     endBlockNow: blockNowRunning,
+    schedules,
+    limits,
     resumesAt: pauseNight ? nextBedtime.getTime() : null,
   };
 }
@@ -137,12 +156,12 @@ export function bedtimeAppsAhead(now = new Date()): boolean {
 
 /** What an emergency unlock would lift right now, for the exits screen's wording. */
 export function previewEmergency(now = new Date()): EmergencyPlan | null {
-  return planEmergency(heldPhase(readLock(now).phase, now), getNap() !== null, nextBedtime(now));
+  return planEmergency(heldPhase(readLock(now).phase, now), getNap() !== null, nextBedtime(now), heldSchedules(now), heldLimits(now));
 }
 
 /**
- * Lifts whatever `previewEmergency` says and logs it. The always-blocked list and used-up
- * limits stay shielded (`reapplyStandingBlocks` runs after every unshield). Returns the use,
+ * Lifts whatever `previewEmergency` says and logs it. The always-blocked list stays shielded
+ * (`reapplyStandingBlocks` runs after every unshield); used-up limits wake until midnight. Returns the use,
  * or null when there was nothing to lift.
  */
 export function emergencyUnlock(now = new Date()): EmergencyUse | null {
@@ -150,6 +169,8 @@ export function emergencyUnlock(now = new Date()): EmergencyUse | null {
   const plan = previewEmergency(now);
   if (!plan) return null;
   if (plan.endBlockNow) endNap();
+  wakeSchedules(plan.schedules, now);
+  wakeLimits(plan.limits, now);
   if (plan.pauseNight && plan.resumesAt !== null) pauseNightUntil(new Date(plan.resumesAt), now);
   if (plan.unlockMorning) {
     const proof: MorningProof = { morningKey: state.morningKey, kind: 'emergency', at: now.getTime() };

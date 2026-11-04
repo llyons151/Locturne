@@ -100,22 +100,30 @@ test('plan: night pauses tonight and unlocks the morning; morning unlocks; day l
     pauseNight: true,
     unlockMorning: true,
     endBlockNow: false,
+    schedules: [],
+    limits: [],
     resumesAt: BEDTIME.getTime(),
   });
   assert.deepEqual(planEmergency('morning', true, BEDTIME), {
     pauseNight: false,
     unlockMorning: true,
     endBlockNow: true,
+    schedules: [],
+    limits: [],
     resumesAt: null,
   });
   assert.deepEqual(planEmergency('day', true, BEDTIME), {
     pauseNight: false,
     unlockMorning: false,
     endBlockNow: true,
+    schedules: [],
+    limits: [],
     resumesAt: null,
   });
   assert.equal(planEmergency('day', false, BEDTIME), null);
   assert.equal(planEmergency('off', false, BEDTIME), null);
+  const work = { id: 'sched-0' as const, name: 'Work', until: BEDTIME.getTime() };
+  assert.deepEqual(planEmergency('day', false, BEDTIME, [work])?.schedules, [work], 'a schedule block alone is something to wake');
 });
 
 test('pausedUntil: only the latest night pause, and only until it ends', () => {
@@ -282,7 +290,7 @@ test('an unheld night with Block now running: ends it, nothing else', async () =
   try {
     await st.startNap('block', 30);
     const plan = previewEmergency(at(10, 6, 23, 35));
-    assert.deepEqual(plan, { pauseNight: false, unlockMorning: false, endBlockNow: true, resumesAt: null });
+    assert.deepEqual(plan, { pauseNight: false, unlockMorning: false, endBlockNow: true, schedules: [], limits: [], resumesAt: null });
   } finally {
     Date.now = realNow;
   }

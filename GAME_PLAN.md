@@ -147,7 +147,9 @@ gives them four plain controls on top of the night and morning loop:
    all-day list only shows while it still has apps; a schedule's All day switch replaces it.
    - A stricter edit applies at once.
    - A looser edit made while the schedule is blocking waits until that block ends.
-   - A pass doesn't end a schedule.
+   - A pass wakes a schedule's block under way until that block ends; the next
+     block sleeps as usual (changed November 3: a pass that left Work asleep read
+     as broken).
 
 Precedence, strongest first: always-blocked, then bedtime or morning lock, then
 Block now, then a schedule that's on, then a reached daily limit. The morning proof never lifts Block now or a
@@ -170,7 +172,7 @@ Guardrails:
 - **Passes:** two a month (decided October 14), the only way out early. In the
   morning one unlocks the morning without walking; at night it wakes the bedtime
   apps for the rest of the night and the morning after; any time, it ends a Block
-  now session. Same short wait and "Go back to sleep" button as before. Never lifts
+  now session and wakes an app schedule's block under way until it ends. Same short wait and "Go back to sleep" button as before. Never lifts
   the always-blocked list.
 - **No unlimited emergency unlock** (removed October 14). In the persona study
   (docs/onboarding-sim/SUMMARY.md) a free way out read as the loophole that made
@@ -299,7 +301,7 @@ most of Step 2 and Step 4's screens, all on one lock controller (`syncLock`):
 - The method-agnostic morning gate.
 - Steps (history plus live, a cadence cap) and downstairs (barometer).
 - Scan your code.
-- Passes (2 a month, decided October 14): mornings, the rest of a night, or a Block now.
+- Passes (2 a month, decided October 14): mornings, the rest of a night, a Block now, or a schedule's block.
 - Off nights skipped by the monitor extension.
 - Heartbeat log, nightly self-check, honest status and the diagnostics screen.
 - Local notifications.

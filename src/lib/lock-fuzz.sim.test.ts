@@ -150,9 +150,11 @@ async function run(seed: number, debug = false): Promise<{ log: Log; stats: Reco
   const schedules: { id: 'sched-0' | 'sched-1'; apps: string[]; def: Def | null; pending: { def: Def | null; from: number } | null }[] = [];
   /** The schedule in force at `at`, by the harness's record. */
   const defAt = (o: (typeof schedules)[number], at: number) => (o.pending && at >= o.pending.from ? o.pending.def : o.def);
+  /** Schedule blocks a pass woke: each schedule's id and when that block ends (user 2026-11-03). */
+  const woken = new Map<string, number>();
   const blockingAt = (o: (typeof schedules)[number], at: number) => {
     const d = defAt(o, at);
-    return !!d && sc.isBlocking(d, new Date(at));
+    return !!d && sc.isBlocking(d, new Date(at)) && !(at < (woken.get(o.id) ?? 0));
   };
   /** Near a waiting edit's landing, or a block's edge, the two-minute slack makes either answer right. */
   const schedSettled = (o: (typeof schedules)[number], at: number) => !o.pending || Math.abs(at - o.pending.from) > 3 * MIN;
@@ -478,6 +480,12 @@ async function run(seed: number, debug = false): Promise<{ log: Log; stats: Reco
         if (lockedNow || before.phase === 'night' || before.phase === 'morning') passed.add(before.morningKey);
         if (before.phase === 'night') unsure.add(before.morningKey);
         nap = null;
+        // Any schedule block under way (two minutes on, as the app judges) wakes until it ends.
+        const soon = Date.now() + 2 * MIN;
+        for (const o of schedules) {
+          const d = defAt(o, soon);
+          if (d && o.apps.length && blockingAt(o, soon)) woken.set(o.id, sc.blockEnds(d, new Date(soon))!.getTime());
+        }
       } else if (certain && lockedNow && result.refusal !== 'noneLeft') {
         fail('pass-refused', `${before.phase}: ${result.refusal}`);
       }

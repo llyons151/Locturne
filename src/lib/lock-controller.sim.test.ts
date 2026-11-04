@@ -261,6 +261,8 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     routines: [] as { routine: Routine; from: number }[],
     proofs: [] as Proof[],
     passes: [] as string[],
+    /** Used-up limits a pass or emergency woke, until their midnight (user 2026-11-03). */
+    limitPasses: {} as Record<string, number>,
     pausedKey: null as string | null,
     /** A morning a renewal found after the last paid one, whose night nothing held. */
     freeMorning: null as string | null,
@@ -642,8 +644,10 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
     const today = dayKey(new Date(at));
     for (const id of ['limit-0', 'limit-1', 'limit-2'] as LimitId[]) {
       const m = device.state.monitored.get(id);
-      const reached = usedUpToday(id, at, today);
-      required[id] = on && !spec.travelled && !!m && m.deliveredOn === today && (reached || !spec.flown);
+      // A pass or emergency woke it until midnight: it holds nothing until then.
+      const woken = (spec.limitPasses[id] ?? 0) > at;
+      const reached = usedUpToday(id, at, today) && !woken;
+      required[id] = on && !woken && !spec.travelled && !!m && m.deliveredOn === today && (reached || !spec.flown);
       allowed[id] = required[id] || (on && reached);
     }
     return { allowed, required, state };
@@ -866,6 +870,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         // After a lapse, a morning other than the one under way then holds nothing (`pastLastPaid`).
         const lapsed = !!spec.lapse && !inUnderWay(t);
         const expect = before.phase === 'morning' && !lapsed && left > 0 && !spec.passes.includes(before.morningKey);
+        const waking = st.heldLimits(new Date(t));
         const refusal = ps.spendPass();
         await flush();
         if (expect !== (refusal === null)) fail('pass', `phase ${before.phase}, ${left} left, refusal ${refusal}`);
@@ -873,6 +878,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
           spec.passes.push(before.morningKey);
           spec.proofs.push({ key: before.morningKey, kind: 'pass', at: t, ...timesAt(t) });
           spec.nap = null;
+          for (const l of waking) spec.limitPasses[l.id] = l.until;
           count('pass');
         }
         break;
@@ -883,7 +889,9 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         const held = spec.armedSince !== null && !spec.stoodDown && !pausedAbs(t);
         // After a lapse, a night or morning other than the one under way then holds nothing.
         const lapsed = !!spec.lapse && (before.phase === 'night' || before.phase === 'morning') && !inUnderWay(t);
-        const plan = em.planEmergency(lapsed || (before.phase === 'night' && !held) ? 'day' : before.phase, napRunning(t), new Date(t));
+        // Used-up limits are the extension's marks: what's held is read from the phone, not modelled here.
+        const limits = st.heldLimits(new Date(t));
+        const plan = em.planEmergency(lapsed || (before.phase === 'night' && !held) ? 'day' : before.phase, napRunning(t), new Date(t), [], limits);
         const use = em.previewEmergency() ? em.emergencyUnlock() : null;
         await flush();
         if (!!plan !== !!use || (plan && use && plan.pauseNight !== use.pauseNight)) {
@@ -904,6 +912,7 @@ async function run(sc: Scenario, actions: Timed[] = sc.actions): Promise<SimFail
         }
         if (plan?.unlockMorning) spec.proofs.push({ key: before.morningKey, kind: 'emergency', at: t, ...timesAt(t) });
         if (plan?.endBlockNow) spec.nap = null;
+        if (plan) for (const l of plan.limits) spec.limitPasses[l.id] = l.until;
         if (plan) count('emergency');
         break;
       }

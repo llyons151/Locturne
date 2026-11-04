@@ -1,6 +1,6 @@
 import { syncLock } from '@/lib/lock-controller';
 import { asSet, editSchedule, freeScheduleId, isBlocking, nextBlock, scheduleRemovalsAt, type Schedule, type ScheduleId } from '@/lib/schedules';
-import { getSchedules, isStoodDown, saveSchedules, setScheduleShieldText, type ShieldText } from '@/lib/screen-time';
+import { getSchedules, isStoodDown, saveSchedules, scheduleHolds, setScheduleShieldText, type ShieldText } from '@/lib/screen-time';
 import { formatPreset } from '@/lib/text';
 
 /** A schedule as the sheet edits it: everything but its id and any waiting edit. */
@@ -51,6 +51,11 @@ export function scheduleStatus(s: Schedule, now = new Date()): { asleep: boolean
   if (isStoodDown()) return null;
   if (isBlocking(s, now)) {
     const ends = scheduleRemovalsAt(s, now);
+    // A pass woke this block (passes.ts): awake until the next one.
+    if (!scheduleHolds(s, now)) {
+      const again = nextBlock(s, ends);
+      return { asleep: false, text: again ? `Awake after a pass. Asleep ${whenLabel(again, now)}.` : 'Awake after a pass.' };
+    }
     return { asleep: true, text: `Asleep now. Awake ${whenLabel(ends, now)}.` };
   }
   const next = nextBlock(s, now);

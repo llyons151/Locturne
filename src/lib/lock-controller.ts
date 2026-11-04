@@ -35,7 +35,7 @@ import {
   isScreenTimeAvailable,
   isStoodDown,
   judgeListAwakeWith,
-  limitUsedUpToday,
+  limitHolds,
   listChangeStarts,
   moveNightPause,
   nightLockArmed,
@@ -72,7 +72,7 @@ function readDaytime(now: Date): DaytimeFacts {
   const today = dateKey(now);
   return {
     blockNow: nap ? { apps: [nap.list], end: new Date(nap.end) } : null,
-    limits: getLimits().map((limit) => ({ apps: [limit.id], reachedOn: limitUsedUpToday(limit.id, now) ? today : null })),
+    limits: getLimits().map((limit) => ({ apps: [limit.id], reachedOn: limitHolds(limit.id, now) ? today : null })),
   };
 }
 
@@ -926,7 +926,7 @@ function applyShieldText(state: LockState, now: Date): void {
   // governs now (a waiting edit inside its early first night: `routineAt`).
   const saved = routineAt(now);
   const routine = { ...saved, method: methodInUse(saved.method) };
-  const limitReached = getLimits().some((limit) => limitUsedUpToday(limit.id));
+  const limitReached = getLimits().some((limit) => limitHolds(limit.id));
   // The app-wide fallback is what the always list, limits and Block now show, so it follows
   // what's really asleep: a night or morning with no night lock, paused by an emergency unlock,
   // with nothing on the bedtime list (the live picks: removals made from bed wait for bedtime),

@@ -3,7 +3,9 @@
  * travel, a baby asleep in the room or a real emergency. In the morning one wakes this
  * morning's apps without the wake-up method (`spendPass`). At night it wakes the bedtime apps
  * for the rest of tonight and the morning after; at any time it ends a Block now session
- * (`redeemPass`, through the night pause in emergency.ts). It never lifts the always-blocked list.
+ * (`redeemPass`, through the night pause in emergency.ts), wakes an app schedule's block
+ * under way until it ends, and wakes used-up daily limits until midnight (user 2026-11-03). It
+ * never lifts the always-blocked list.
  * Decided 2026-10-14: no unlimited emergency unlock, because a free way out is the loophole
  * that made other blockers fail for the people who need one.
  *
@@ -14,7 +16,7 @@
  *
  * The accounting here is pure; `spendPass` at the bottom applies it.
  */
-import { endNap, getNap, sharedGet, sharedSet } from './screen-time.ts';
+import { endNap, getNap, heldLimits, heldSchedules, sharedGet, sharedSet, wakeLimits, wakeSchedules } from './screen-time.ts';
 import { judgedAt, pastLastPaid, readLock, syncLock } from './lock-controller.ts';
 import type { LockState } from './lock-state.ts';
 import { recordProof } from './morning-proof.ts';
@@ -135,7 +137,8 @@ export function redeemPass(now = new Date()): { refusal: PassRefusal } | { refus
 
 /**
  * Spends a pass on this morning: records it as the morning's proof and wakes the apps. A
- * running Block now session ends too (GAME_PLAN: only a pass can end one early). Returns the
+ * running Block now session ends too (GAME_PLAN: only a pass can end one early), a schedule
+ * block under way wakes until it ends, and used-up limits wake until midnight. Returns the
  * refusal instead when it can't be used.
  */
 export function spendPass(now = new Date()): PassRefusal | null {
@@ -146,6 +149,8 @@ export function spendPass(now = new Date()): PassRefusal | null {
   sharedSet(KEY, withSpent(ledger, state.morningKey, now.getTime()));
   recordProof({ morningKey: state.morningKey, kind: 'pass', at: now.getTime() }, judgedAt(now));
   if (getNap()) endNap();
+  wakeSchedules(heldSchedules(now), now);
+  wakeLimits(heldLimits(now), now);
   syncLock(now);
   return null;
 }

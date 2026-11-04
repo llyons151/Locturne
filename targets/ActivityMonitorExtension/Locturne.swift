@@ -44,6 +44,19 @@ func locturneLimitUsedUpToday(_ id: String, now: Date = Date()) -> Bool {
   }
   return userDefaults?.string(forKey: "\(LOCTURNE_LIMIT_REACHED_PREFIX)\(id)") == locturneDayKey(now)
 }
+
+/// Daily limits a pass woke: each limit's id and when its pass ends, its midnight, in ms
+/// (`LIMIT_PASSES_KEY` in src/lib/screen-time.ts).
+let LOCTURNE_LIMIT_PASSES_KEY = "locturne.limitPasses"
+
+/// Did a pass wake this used-up limit for the rest of today? Same rule as `limitHolds` in
+/// src/lib/screen-time.ts: a woken limit doesn't hold its apps until its pass ends.
+func locturneLimitPassed(_ id: String, now: Date = Date()) -> Bool {
+  guard let until = (userDefaults?.dictionary(forKey: LOCTURNE_LIMIT_PASSES_KEY)?[id] as? NSNumber)?.doubleValue else {
+    return false
+  }
+  return now.timeIntervalSince1970 * 1000 < until
+}
 let LOCTURNE_PENDING_LISTS_KEY = "locturne.pendingLists"
 let LOCTURNE_HEARTBEAT_KEY = "locturne.heartbeat"
 let LOCTURNE_ROUTINE_KEY = "locturne.routine"
@@ -294,7 +307,7 @@ func restoreLocturneFallbackShield(triggeredBy: String) {
   let limitUsedUp =
     (userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]])?.contains(where: { limit in
       guard let id = limit["id"] as? String else { return false }
-      return locturneLimitUsedUpToday(id)
+      return locturneLimitUsedUpToday(id) && !locturneLimitPassed(id)
     }) ?? false
   // The bedtime list's own config too: an app on it that's also asleep for another rule
   // reads that first, and it still holds the last words the app or a window put there. Safe:
@@ -336,12 +349,22 @@ func locturneSchedules(now: Date) -> [[String: Any]] {
   return settled
 }
 
+/// Schedule blocks a pass woke: each schedule's id and when the block it woke ends, in ms
+/// (`SCHEDULE_PASSES_KEY` in src/lib/screen-time.ts).
+let LOCTURNE_SCHEDULE_PASSES_KEY = "locturne.schedulePasses"
+
 /// Is an app schedule blocking at `now`? A block starts at `start` (minutes on the wall clock)
 /// on each of `days` (0 is Sunday) and runs to `end`, past midnight if need be; all day runs
 /// midnight to midnight. A block past midnight belongs to the day it started. The same rule as
-/// `blockAt` in src/lib/schedules.ts.
+/// `scheduleHolds` in src/lib/screen-time.ts: a block a pass woke doesn't block until it ends.
 func locturneScheduleBlocking(_ schedule: [String: Any], at now: Date) -> Bool {
   guard let days = schedule["days"] as? [NSNumber] else { return false }
+  if let id = schedule["id"] as? String,
+    let woken = (userDefaults?.dictionary(forKey: LOCTURNE_SCHEDULE_PASSES_KEY)?[id] as? NSNumber)?.doubleValue,
+    now.timeIntervalSince1970 * 1000 < woken
+  {
+    return false
+  }
   let allDay = (schedule["allDay"] as? Bool) == true
   let start = allDay ? 0 : ((schedule["start"] as? NSNumber)?.intValue ?? 0)
   let end = allDay ? 0 : ((schedule["end"] as? NSNumber)?.intValue ?? 0)
@@ -385,7 +408,8 @@ func reapplyLocturneBlocks(triggeredBy: String) {
   if let limits = userDefaults?.array(forKey: LOCTURNE_LIMITS_KEY) as? [[String: Any]] {
     for limit in limits {
       if let id = limit["id"] as? String,
-        locturneLimitUsedUpToday(id)
+        locturneLimitUsedUpToday(id),
+        !locturneLimitPassed(id)
       {
         held.append(id)
       }

@@ -239,6 +239,8 @@ async function run(seed: number, zone: string): Promise<string | null> {
   let scheduled: Planned[] = [];
   const delivered: { kind: string; key: string; at: number }[] = [];
   let claims: Claim[] = [];
+  /** A pass or emergency woke the used-up limit until this midnight. */
+  let limitWokenUntil = 0;
   const checkedNights = new Set<string>();
 
   const eraAt = (t: number) => {
@@ -556,7 +558,8 @@ async function run(seed: number, zone: string): Promise<string | null> {
       const sinceMidnight = t - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
       const used = device.state.usage.get(`${dayKey(d)}|limit-0`) ?? 0;
       if (sinceMidnight > SLACK && sinceMidnight < DAY - SLACK) {
-        if (used >= bounds[1] && bounds[1] < Infinity && !asleep('yt')) fail(`limit app awake at ${hm(t)} after ${used} min (limit ${bounds[1]})`);
+        // A pass or emergency wakes a used-up limit until midnight (user 2026-11-03).
+        if (used >= bounds[1] && bounds[1] < Infinity && !asleep('yt') && t >= limitWokenUntil - SLACK) fail(`limit app awake at ${hm(t)} after ${used} min (limit ${bounds[1]})`);
         if (used < bounds[0] && asleep('yt')) fail(`limit app asleep at ${hm(t)} after ${used} min (limit ${bounds[0]})`);
       }
     }
@@ -792,8 +795,10 @@ async function run(seed: number, zone: string): Promise<string | null> {
     const e = expectNight(t);
     const valid = e.state === 'asleep' && !!e.found && t >= e.found.night.E;
     let accepted: boolean;
+    const wakesLimit = kind === 'pass' && st.heldLimits(new Date()).some((l) => l.id === 'limit-0');
     if (kind === 'pass') accepted = ps.spendPass(new Date()) === null;
     else accepted = lc.proveMorning(kind, new Date()) !== null;
+    if (accepted && wakesLimit) limitWokenUntil = new Date(t).setHours(24, 0, 0, 0);
     await flush();
     drain();
     reschedule();
@@ -812,6 +817,7 @@ async function run(seed: number, zone: string): Promise<string | null> {
     await open('');
     const e = expectNight(t);
     const use = em.emergencyUnlock(new Date());
+    if (use?.limits.some((l) => l.id === 'limit-0')) limitWokenUntil = new Date(t).setHours(24, 0, 0, 0);
     await flush();
     drain();
     reschedule();

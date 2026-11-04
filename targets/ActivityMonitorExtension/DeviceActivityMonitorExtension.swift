@@ -340,7 +340,10 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       // if less specific) until the app or a restore writes the limit's.
     }
 
-    if !stale {
+    // A pass woke this limit for the rest of today: a threshold iOS delivers again (a re-arm
+    // counts earlier use) must not put it back to sleep before midnight.
+    let passed = isLimit && locturneLimitPassed(activity.rawValue)
+    if !stale && !passed {
       self.executeActionsForEvent(
         activityName: activity.rawValue,
         callbackName: "eventDidReachThreshold",

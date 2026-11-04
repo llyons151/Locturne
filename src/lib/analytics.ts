@@ -65,7 +65,7 @@ export type Events = {
     morning_number: number;
   };
   /** `phase`: 'morning' for a morning pass, else the lock's phase when a night or Block now pass ran. */
-  pass_used: { passes_left: number; phase: string; paused_night: boolean; ended_block_now: boolean };
+  pass_used: { passes_left: number; phase: string; paused_night: boolean; ended_block_now: boolean; woke_schedules: number; woke_limits: number };
   night_checked: { verdict: NightVerdictEvent; late_by_minutes: number | null };
   notifications_permission: { granted: boolean };
   notification_opened: { kind: string };
