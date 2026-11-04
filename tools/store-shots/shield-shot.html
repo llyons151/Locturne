@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- Behind it: a Reels-style feed, no logos (user 2026-11-03).
+     The night shield, drawn from the app's real settings (src/lib/screen-time.ts shieldConfig,
+     src/lib/shield-copy.ts 'night'): iOS's dark thin material over the app you opened, the worn
+     moon as the icon, Loc's line, a white pill. A stand-in for the store listing until a real
+     capture from the phone replaces it (user 2026-11-03). Render at 430×932 @3x. -->
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=430"><style>
+  html, body { margin: 0; width: 430px; height: 932px; overflow: hidden; background: #000; font-family: -apple-system, 'SF Pro', Inter, sans-serif; }
+  /* The app underneath: a feed's photos and rows, which the material blurs away. */
+  /* The app underneath: a Reels-style video, which the material blurs away. */
+  .reel { position: absolute; inset: 0; filter: blur(14px); color: #fff; }
+  .scene { position: absolute; inset: 0; background:
+      linear-gradient(180deg, #0c1230 0%, #16224a 38%, #22346a 55%, #2e4a86 72%, #4a68a6 86%, #121a34 100%); }  /* blue only, to match the listing (user 2026-11-03) */
+  .scene::after { content: ''; position: absolute; left: 30%; top: 30%; width: 120px; height: 300px; border-radius: 60px 60px 20px 20px; background: #0b0d18; }
+  .actions { position: absolute; right: 18px; bottom: 170px; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 600 13px/1 sans-serif; }
+  .actions b { font-size: 30px; margin-top: 14px; }
+  .who { position: absolute; left: 18px; bottom: 120px; display: flex; align-items: center; gap: 10px; font: 600 16px/1 sans-serif; }
+  .who i { width: 34px; height: 34px; border-radius: 50%; background: #6a8ac0; }
+  .who em { font-style: normal; border: 1.5px solid #fff; border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  .cap { position: absolute; left: 18px; right: 90px; bottom: 88px; font: 15px/1.3 sans-serif; }
+  .prog { position: absolute; left: 0; right: 0; bottom: 60px; height: 3px; background: rgba(255,255,255,.3); }
+  .prog i { display: block; width: 40%; height: 100%; background: #fff; }
+  .material { position: absolute; inset: 0; background: rgba(22, 22, 26, 0.66); }
+  .status { position: absolute; top: 18px; left: 34px; right: 30px; display: flex; justify-content: space-between; color: #fff; font: 600 17px/1 -apple-system, Inter, sans-serif; }
+  .shield { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 0 34px; color: #fff; text-align: center; }
+  .icon { margin-top: 258px; width: 104px; height: 104px; }
+  .title { margin-top: 22px; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { margin-top: 10px; font-size: 18px; line-height: 1.3; color: rgb(161, 161, 166); max-width: 300px; text-wrap: balance; }
+  .btn { position: absolute; left: 28px; right: 28px; bottom: 74px; height: 56px; border-radius: 28px; background: #fff; color: rgb(11, 11, 12);
+    display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; }
+  .bar { position: absolute; bottom: 9px; left: 50%; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: #fff; opacity: .85; }
+</style></head><body>
+  <!-- A Reels-style video frame (no logos): a dusk street, the right-hand action column, the caption. -->
+  <div class="reel">
+    <div class="scene"></div>
+    <div class="actions"><b>♥</b><span>48K</span><b>💬</b><span>812</span><b>➤</b><span>3.1K</span><b>⋯</b></div>
+    <div class="who"><i></i><span>night.city.walks</span><em>Follow</em></div>
+    <div class="cap">3am and still scrolling this… #citylights</div>
+    <div class="prog"><i></i></div>
+  </div>
+  <div class="material"></div>
+  <div class="status"><span>11:42</span><span>5G ▮</span></div>
+  <div class="shield">
+    <img class="icon" src="/assets/moons/icons/moonlight.webp" alt="">
+    <div class="title">Shh. I’m sleeping. So are they.</div>
+    <div class="sub">They wake up after 7 am, once you’re out of bed.</div>
+    <div class="btn">Fine</div>
+  </div>
+  <div class="bar"></div>
+</body></html>

@@ -447,17 +447,58 @@
  "listings": [
   {
    "id": "dusk-across",
-   "name": "White",
-   "idea": "The dusk set (pain copy, 3D phones 1 into 2) on plain white with navy type; phones lifted so each one shows whole.",
+   "name": "Night mist",
+   "idea": "The dusk set (pain copy, 3D phones 1 into 2) on a night sky: off-black at the top fading to a muted navy low down, shifting a little panel to panel (Opal-style depth, dark), off-white type.",
+   "dark": true,
    "bg": {
-    "type": "flat",
-    "color": "#ffffff"
+    "type": "sky",
+    "times": [
+     {
+      "top": "#0B0C10",
+      "mid": "#111632",
+      "low": "#2E3F72"
+     },
+     {
+      "top": "#0D0F18",
+      "mid": "#1A2246",
+      "low": "#22305A"
+     },
+     {
+      "top": "#08090C",
+      "mid": "#0C1022",
+      "low": "#364A80"
+     },
+     {
+      "top": "#0E1120",
+      "mid": "#18204A",
+      "low": "#1E2A50"
+     },
+     {
+      "top": "#0A0B0F",
+      "mid": "#141B3C",
+      "low": "#3A4E84"
+     }
+    ],
+    "mist": {
+     "count": 9,
+     "top": 450,
+     "blur": 130,
+     "opacity": 0.75,
+     "colors": [
+      "#05060A",
+      "#0B0E1C",
+      "#1A2346",
+      "#2B3B6C",
+      "#3A4E84",
+      "#4A5F98"
+     ]
+    }
    },
    "type": {
     "font": "Inter",
-    "weight": 400,
+    "weight": 500,
     "emWeight": 800,
-    "color": "#0E1633",
+    "color": "#EDEBE6",
     "size": 138
    },
    "phones": {
@@ -468,71 +509,71 @@
       {
        "angle": "yawm030_pitchp00",
        "x": 900,
-       "y": 1700,
-       "height": 2280,
+       "y": 1703,
+       "height": 2315,
        "roll": -8
       },
       {
        "angle": "yawp030_pitchm15",
        "x": 655,
-       "y": 1620,
-       "height": 2250,
+       "y": 1705,
+       "height": 2311,
        "roll": 13
       },
       {
        "angle": "yawp030_pitchp00",
        "x": 700,
-       "y": 1640,
-       "height": 2300,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       },
       {
        "angle": "yawp000_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       },
       {
        "angle": "yawp000_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       },
       {
        "angle": "yawp015_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1661,
+       "height": 2405,
        "roll": 0
       },
       {
        "angle": "yawp000_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       },
       {
        "angle": "yawp000_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       },
       {
        "angle": "yawm015_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       },
       {
        "angle": "yawp000_pitchp00",
        "x": 660,
-       "y": 1600,
-       "height": 2250,
+       "y": 1780,
+       "height": 2150,
        "roll": 0
       }
      ]
@@ -545,13 +586,454 @@
      "2": {
       "angle": "yawp030_pitchp00",
       "x": 700,
-      "y": 1640,
-      "height": 2278,
+      "y": 1705,
+      "height": 2311,
       "roll": 0
      }
     }
    },
-   "copy": "pain"
+   "copy": "pain",
+   "order": [
+    "promise",
+    "steps",
+    "payoff",
+    "bedtime",
+    "moons",
+    "block-now",
+    "shield"
+   ],
+   "panels": {
+    "bedtime": {
+     "headline": "Choose how you *wake up.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "12-wake-methods.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1705,
+       "h": 2150,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
+    },
+    "moons": {
+     "headline": "Collect *rare moons.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "11-moon-deepsea.png",
+       "angle": "yawp030_pitchp00",
+       "x": 290,
+       "y": 1560,
+       "h": 1500,
+       "z": 4,
+       "rot": -12,
+       "shadow": "deep"
+      },
+      {
+       "type": "phone",
+       "shot": "11-moon-strawberry.png",
+       "angle": "yawm030_pitchp00",
+       "x": 1030,
+       "y": 1560,
+       "h": 1500,
+       "z": 4,
+       "rot": 12,
+       "shadow": "deep"
+      },
+      {
+       "type": "phone",
+       "shot": "11-moon-harvest.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1880,
+       "h": 1800,
+       "z": 6,
+       "rot": 0,
+       "shadow": "deep"
+      }
+     ]
+    },
+    "shield": {
+     "headline": "Your apps *are asleep.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "13-shield-night.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1705,
+       "h": 2150,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
+    },
+    "block-now": {
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "10-block-now.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1705,
+       "h": 2150,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "night-to-morning",
+   "name": "Night to morning",
+   "idea": "Night mist's blue, brightness carries the story: 1 darkest night, 2 lighter, 3 brightest blue (the Blue Hour moon's), then dark again at the lock. Mechanism first, Loc-voiced 4-8, cleaned shots, equal phones. Review: docs/reports/Store listing review 2026-11-03.md.",
+   "dark": true,
+   "bg": {
+    "type": "sky",
+    "times": [
+     {
+      "top": "#07080C",
+      "mid": "#0C1024",
+      "low": "#1C2850",
+      "mist": [
+       "#04050A",
+       "#0A0D1C",
+       "#141C3A",
+       "#1E2A52",
+       "#2A3A6A"
+      ]
+     },
+     {
+      "top": "#0B0D16",
+      "mid": "#152048",
+      "low": "#34508E",
+      "mist": [
+       "#0A0E1E",
+       "#1A2550",
+       "#2B3F78",
+       "#3C5694",
+       "#4A68A6"
+      ]
+     },
+     {
+      "top": "#10162C",
+      "mid": "#244078",
+      "low": "#6A90C8",
+      "mist": [
+       "#16224A",
+       "#2C4A86",
+       "#4468A8",
+       "#5E86C0",
+       "#7DA2D4"
+      ]
+     },
+     {
+      "top": "#07080C",
+      "mid": "#0C1024",
+      "low": "#1C2850",
+      "mist": [
+       "#04050A",
+       "#0A0D1C",
+       "#141C3A",
+       "#1E2A52",
+       "#2A3A6A"
+      ]
+     },
+     {
+      "top": "#0A0B10",
+      "mid": "#121A3C",
+      "low": "#2E4478",
+      "mist": [
+       "#080A14",
+       "#121A38",
+       "#22325E",
+       "#324A80",
+       "#40598E"
+      ]
+     },
+     {
+      "top": "#0B0D16",
+      "mid": "#152048",
+      "low": "#34508E",
+      "mist": [
+       "#0A0E1E",
+       "#1A2550",
+       "#2B3F78",
+       "#3C5694",
+       "#4A68A6"
+      ]
+     },
+     {
+      "top": "#0A0B10",
+      "mid": "#121A3C",
+      "low": "#2E4478",
+      "mist": [
+       "#080A14",
+       "#121A38",
+       "#22325E",
+       "#324A80",
+       "#40598E"
+      ]
+     },
+     {
+      "top": "#0B0D16",
+      "mid": "#152048",
+      "low": "#34508E",
+      "mist": [
+       "#0A0E1E",
+       "#1A2550",
+       "#2B3F78",
+       "#3C5694",
+       "#4A68A6"
+      ]
+     }
+    ],
+    "mist": {
+     "count": 9,
+     "top": 450,
+     "blur": 130,
+     "opacity": 0.75,
+     "colors": [
+      "#05060A",
+      "#0B0E1C",
+      "#1A2346",
+      "#2B3B6C",
+      "#3A4E84",
+      "#4A5F98"
+     ]
+    }
+   },
+   "type": {
+    "font": "Inter",
+    "weight": 500,
+    "emWeight": 800,
+    "color": "#EDEBE6",
+    "size": 138
+   },
+   "phones": {
+    "kind": "3d",
+    "pattern": {
+     "note": "first-two, lifted so the whole phone shows",
+     "slots": [
+      {
+       "angle": "yawm030_pitchp00",
+       "x": 900,
+       "y": 1745,
+       "height": 2000,
+       "roll": -8
+      },
+      {
+       "angle": "yawp030_pitchm15",
+       "x": 655,
+       "y": 1745,
+       "height": 2000,
+       "roll": 13
+      },
+      {
+       "angle": "yawp030_pitchp00",
+       "x": 700,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawp015_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawm015_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      },
+      {
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "height": 2000,
+       "roll": 0
+      }
+     ]
+    },
+    "glass": "soft",
+    "dy": 0,
+    "scale": 1,
+    "shadow": "deep",
+    "edits": {
+     "2": {
+      "angle": "yawp030_pitchp00",
+      "x": 660,
+      "y": 1745,
+      "height": 2000,
+      "roll": 0
+     },
+     "6": {
+      "angle": "yawm030_pitchp00",
+      "x": 660,
+      "y": 1745,
+      "height": 2000,
+      "roll": 0
+     }
+    }
+   },
+   "copy": "pain",
+   "order": [
+    "promise",
+    "steps",
+    "payoff",
+    "shield",
+    "bedtime",
+    "moons",
+    "block-now",
+    "limits"
+   ],
+   "panels": {
+    "bedtime": {
+     "headline": "Hate push-ups? *Walk instead.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "12-wake-methods-clean.png",
+       "angle": "yawp030_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "h": 2000,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
+    },
+    "moons": {
+     "headline": "Keep getting up. *Unlock moons.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "11-moon-noir.png",
+       "angle": "yawp030_pitchp00",
+       "x": 290,
+       "y": 1560,
+       "h": 1500,
+       "z": 4,
+       "rot": -12,
+       "shadow": "deep",
+       "spill": true
+      },
+      {
+       "type": "phone",
+       "shot": "11-moon-newmoon.png",
+       "angle": "yawm030_pitchp00",
+       "x": 1030,
+       "y": 1560,
+       "h": 1500,
+       "z": 4,
+       "rot": 12,
+       "shadow": "deep",
+       "spill": true
+      },
+      {
+       "type": "phone",
+       "shot": "11-moon-bluehour.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "h": 2000,
+       "z": 6,
+       "rot": 0,
+       "shadow": "deep"
+      }
+     ]
+    },
+    "shield": {
+     "headline": "2 a.m. you *doesn't get a vote.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "13-shield-night.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "h": 2000,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
+    },
+    "promise": {
+     "headline": "Your apps sleep *until you're up.*",
+     "shot": "01-asleep-clean.png"
+    },
+    "steps": {
+     "headline": "Walk *200 steps.* Then they wake up.",
+     "shot": "02-steps-clean.png"
+    },
+    "payoff": {
+     "headline": "*You're up.* So are your apps.",
+     "shot": "03-payoff.png"
+    },
+    "block-now": {
+     "headline": "Daytime too. *Block now.*",
+     "shot": "10-block-now-clean.png"
+    },
+    "limits": {
+     "headline": "Set your limits. *Then it sleeps.*",
+     "phones": false,
+     "items": [
+      {
+       "type": "phone",
+       "shot": "14-limits.png",
+       "angle": "yawp000_pitchp00",
+       "x": 660,
+       "y": 1745,
+       "h": 2000,
+       "z": 4,
+       "shadow": "deep"
+      }
+     ]
+    }
+   }
   }
  ]
 }

@@ -79,6 +79,20 @@
         if (s.type === 'arc') shapes += `<i class="arc" style="width:${s.r * 2}px;height:${s.r * 2}px;left:${W / 2 - s.r}px;top:${s.y}px;background:${s.color}"></i>`;
         if (s.type === 'disc') shapes += `<i class="arc" style="width:${s.r * 2}px;height:${s.r * 2}px;left:${(s.x ?? W / 2) - s.r}px;top:${s.y - s.r}px;background:${s.color}"></i>`;
       }
+      // Mist: big soft smears of the sky's own shades across the whole strip, Opal-style (user-asked blur, 2026-11-03).
+      // Seeded, so every panel draws the same strip and the smears carry across the seams.
+      if (b.mist) {
+        const m = b.mist;
+        // A sky time may carry its own mist shades (a warm sunrise panel): a smear takes the palette of the panel it sits in.
+        const palette = (x) => (b.times?.[Math.max(0, Math.min(n - 1, Math.floor(x / W))) % (b.times?.length || 1)]?.mist) ?? m.colors;
+        const smears = Array.from({ length: (m.count ?? 6) * n }, () => {
+          const w = 700 + rand() * 1700, h = 200 + rand() * 700, x = rand() * n * W - w / 2;
+          const y = (m.top ?? 700) + rand() * (H - (m.top ?? 700)) - h / 2, rot = -10 + rand() * 20;
+          const cols = palette(x + w / 2), c = cols[(rand() * cols.length) | 0], o = (m.opacity ?? 0.5) * (0.5 + rand() * 0.5);
+          return `<i class="smear" style="left:${x | 0}px;top:${y | 0}px;width:${w | 0}px;height:${h | 0}px;background:${c};opacity:${o.toFixed(2)};transform:rotate(${rot.toFixed(1)}deg);filter:blur(${m.blur ?? 110}px)"></i>`;
+        }).join('');
+        base += strip(smears);
+      }
       let tex = '';
       if (b.texture === 'grain') tex = `<div class="grain" style="opacity:${b.grain ?? 0.08}"></div>`;
       if (b.texture === 'grid') tex = `<div class="grid" style="--line:${b.line ?? 'rgba(0,0,0,.06)'}"></div>`;
@@ -90,7 +104,9 @@
     function phonesFor(L, pattern, panels, k) {
       const list = pattern.slots ? (pattern.slots[k] ?? pattern.slots[pattern.slots.length - 1]) : pattern.all;
       // listings.json → phones.edits[slot] holds what was dragged in the Edit tab; it replaces the pattern's slot.
-      return [].concat(list ?? []).map((ph) => ({ ...ph, ...(L.phones.edits?.[k] ?? {}), slot: k, shot: panels[k]?.shot }));
+      // listings[id].panels.<id>.shot swaps the capture for this listing only (e.g. a cleaned copy).
+      const shot = L.panels?.[panels[k]?.id]?.shot ?? panels[k]?.shot;
+      return [].concat(list ?? []).map((ph) => ({ ...ph, ...(L.phones.edits?.[k] ?? {}), slot: k, shot }));
     }
 
     function phoneHtml(L, ph, x0) {
@@ -182,7 +198,7 @@
           }).join('');
           return `<div class="apps" style="grid-template-columns:repeat(${cols}, ${sz}px);gap:${gap}px">${tiles}</div>`;
         }
-        case 'row': return `<div class="row ${it.style ?? 'navy'}" style="width:${it.w ?? 1000}px">
+        case 'row': return `<div class="row ${it.style ?? 'navy'} ${it.ring ? 'ring' : ''}" style="width:${it.w ?? 1000}px;${it.ring && it.ring !== true ? `--ring:${it.ring}` : ''}">
           <span class="ricon"><svg viewBox="0 0 100 100">${GLYPH[it.icon] ?? ''}</svg></span>
           <span class="rtext"><b>${esc(it.title)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.check ? '<span class="rcheck">✓</span>' : '<span class="rdot"></span>'}</div>`;
         case 'moons': {
@@ -250,7 +266,14 @@
       const loc = (L.loc && (L.loc.on ?? []).includes(p.id)) ? `<img class="loc" data-edit="loc:${p.id}" src="/loc-peek-eyes.svg" alt="" style="left:${copy.loc?.x ?? L.loc.x ?? 660}px;top:${copy.loc?.y ?? L.loc.y ?? 520}px;width:${L.loc.width ?? 520}px">` : '';
       const notes = (copy.notes ?? []).map((nn, k) => note(nn, t, `note:${p.id}:${k}`)).join('');
       const chip = copy.chip ? `<div class="chip" style="top:${copy.chip.y ?? 2560}px">${esc(copy.chip.text)}</div>` : '';
-      const items = (copy.items ?? []).map((it, k) => itemHtml(it, `item:${p.id}:${k}`, t)).join('');
+      let items = (copy.items ?? []).map((it, k) => itemHtml(it, `item:${p.id}:${k}`, t)).join('');
+      // `spill: true` items cross the seams: a neighbour's are drawn here too, shifted a panel over.
+      for (const k of [i - 1, i + 1]) {
+        if (k < 0 || k >= n) continue;
+        for (const it of L.panels?.[panels[k].id]?.items ?? [])
+          // Drawn under the neighbour's own phone (z 1), so it reads as tucked behind it.
+          if (it.spill) items += itemHtml({ ...it, x: (it.x ?? 660) + (k - i) * W, z: it.spillZ ?? 1 }, `spill:${panels[k].id}`, t);
+      }
       el.innerHTML = background(L, n) + phones + loc + copyHtml + notes + chip + items;
       if (q.get('edit')) await new Promise((ok) => { const sc = document.createElement('script'); sc.src = '/edit-hook.js'; sc.onload = ok; document.head.appendChild(sc); });
       await document.fonts.ready;

@@ -7,6 +7,7 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
 .fill { left: 0; width: 100%; }
 .star { position: absolute; border-radius: 50%; background: #fff; }
 .arc { position: absolute; border-radius: 50%; }
+.smear { position: absolute; border-radius: 50%; }
 .grain { position: absolute; inset: 0; mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E"); }
 .dark .grain { mix-blend-mode: screen; }
@@ -82,6 +83,8 @@ html, body { margin: 0; width: 1320px; height: 2868px; overflow: hidden; backgro
 .app .zz svg { width: 60%; fill: #e9edff; }
 .row { display: flex; align-items: center; gap: 40px; padding: 40px 48px; border-radius: 52px; box-sizing: border-box; font-family: Inter, sans-serif; }
 .row.navy { background: #1a2140; color: #fff; box-shadow: 0 30px 60px rgba(0, 0, 0, .28); }
+/* Opal-style ring: a thin outline spaced off the card (user-asked 2026-11-03). Colour comes from the item. */
+.row.ring { outline: 4px solid var(--ring, rgba(174, 187, 224, .55)); outline-offset: 12px; }
 .row.white { background: #fff; color: #0b0d12; box-shadow: 0 30px 60px rgba(20, 30, 60, .14); }
 .ricon { flex: none; width: 120px; height: 120px; border-radius: 30px; background: rgba(255, 255, 255, .12); display: grid; place-items: center; }
 .row.white .ricon { background: #eef1f8; }
