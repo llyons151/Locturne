@@ -37,6 +37,8 @@ import { draftQrData, getScanCode, notePrinted, type ScanCode } from '@/lib/scan
 import {
   getOffers,
   isEntitled,
+  canSkipPaywall,
+  skipPaywall,
   EXIT_OFFER_LIVE,
   isExitArm,
   isPurchasing,
@@ -463,7 +465,19 @@ export function OnboardingFlow({
   };
   // Leaving the paywall lands on one honest "Fair." screen, once (unless the test arm has
   // no offer). A second exit really exits.
-  const leave = PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
+  // Free testing (preview and dev builds): the paywall's X goes into the app subscribed, with
+  // nothing bought (`skipPaywall`, user 2026-11-05), so the whole paywall can be seen and passed.
+  const skipForTesting = async () => {
+    if (busy || isPurchasing()) return;
+    setBusy(true);
+    await skipPaywall().catch(() => {});
+    setBusy(false);
+    setTrialEnds(null);
+    finishLatest.get('complete')!('entitled');
+  };
+  const leave = onMoneyStep && canSkipPaywall()
+    ? skipForTesting
+    : PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
   // A first run must reach the saved setup: the app's tabs only ever show a finished one.
   // A rerun (See plans, Redo setup) already has one, so it can always be left. Dev builds
   // can always leave too, to get between onboarding and the tabs while working on either.

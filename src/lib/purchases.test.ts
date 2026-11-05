@@ -24,6 +24,8 @@ import {
   setPurchasesProvider,
   trialEndsAt,
   currentTrialEnd,
+  canSkipPaywall,
+  skipPaywall,
 } from './purchases.ts';
 
 test('the stub offers the decided plans, with trials only on annual', async () => {
@@ -117,6 +119,20 @@ test('the module-level functions use the provider that was set', async () => {
   assert.equal(await isEntitled(), true);
   assert.deepEqual(await restore(), { entitled: true });
   assert.ok(await currentTrialEnd());
+});
+
+test('free testing: the paywall shows, and only its skip counts as subscribed, with no trial', async () => {
+  setPurchasesProvider(createDevPurchases({ skippable: true }));
+  assert.equal(canSkipPaywall(), true);
+  assert.equal(await isEntitled(), false);
+  await skipPaywall();
+  assert.equal(await isEntitled(), true);
+  assert.equal(await currentTrialEnd(), null);
+  // Any other store has no skip.
+  setPurchasesProvider(createDevPurchases());
+  assert.equal(canSkipPaywall(), false);
+  setPurchasesProvider(createClosedPurchases());
+  assert.equal(canSkipPaywall(), false);
 });
 
 test('a second purchase while one is in flight starts nothing', async () => {

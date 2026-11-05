@@ -184,6 +184,11 @@ export interface PurchasesProvider {
    * Returns the unsubscribe.
    */
   onEntitled(listener: () => void): () => void;
+  /**
+   * Free testing only (`EXPO_PUBLIC_FREE_TESTING`, purchases-start.ts): subscribed, with nothing
+   * bought, so the paywall's X can take a tester into the app. Absent everywhere else.
+   */
+  skipForTesting?(): Promise<void>;
 }
 
 /* Pure helpers, shared by every provider and the paywall. */
@@ -303,10 +308,15 @@ export type DevPurchasesOptions = {
   outcome?: PurchaseResult['status'];
   now?: () => Date;
   /**
-   * Start subscribed, with nothing bought: free testing (`EXPO_PUBLIC_FREE_TESTING`, see
-   * purchases-start.ts). Onboarding then skips the paywall and everything paid works.
+   * Start subscribed, with nothing bought. For tests.
    */
   entitled?: boolean;
+  /**
+   * Free testing (`EXPO_PUBLIC_FREE_TESTING`, see purchases-start.ts): the paywall shows like a
+   * new user's, and its X (`skipForTesting`) counts as subscribed without buying (user 2026-11-05:
+   * "I want to be able to see the whole thing").
+   */
+  skippable?: boolean;
 };
 
 /** The stub, plus the attributes it was given (for tests). */
@@ -326,6 +336,7 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
     outcome = 'purchased',
     now = () => new Date(),
     entitled: alwaysEntitled = false,
+    skippable = false,
   } = options;
   const wait = () => new Promise<void>((resolve) => setTimeout(resolve, latencyMs));
   const usd = (price: number) => formatPrice(price, 'USD', 'en-US');
@@ -412,6 +423,13 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
       // Nothing is ever approved later here.
       return () => {};
     },
+    ...(skippable
+      ? {
+          async skipForTesting() {
+            store.set(DEV_KEY, { target: 'annual', at: now().getTime(), trialEndsAt: null } satisfies DevEntitlement);
+          },
+        }
+      : {}),
   };
 }
 
@@ -511,3 +529,6 @@ export const claimSaveOffer = async (): Promise<PurchaseResult> => {
 };
 export const setAttributes =(attributes: Record<string, string>) => provider.setAttributes(attributes);
 export const onEntitled = (listener: () => void) => provider.onEntitled(listener);
+/** Free testing: the paywall's X goes into the app subscribed (`skipForTesting`). */
+export const canSkipPaywall = () => typeof provider.skipForTesting === 'function';
+export const skipPaywall = () => provider.skipForTesting?.() ?? Promise.resolve();

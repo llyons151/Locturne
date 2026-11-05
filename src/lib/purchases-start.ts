@@ -11,10 +11,10 @@
  * network (`useAppStart`).
  *
  * Free testing: with `EXPO_PUBLIC_FREE_TESTING=1` (eas.json's development and preview
- * profiles, and .env for `expo start`) the stub starts already subscribed, whatever the key,
- * so onboarding skips the paywall and nothing asks to be paid for. app.config.js refuses a
- * production build with it set. To test the paywall and sandbox purchases on a phone, build
- * the `purchases` profile: the preview build with free testing off.
+ * profiles, and .env for `expo start`) the stub runs whatever the key: nothing is charged, the
+ * paywall shows like a new user's, and its X takes you into the app subscribed (`skippable`,
+ * user 2026-11-05). app.config.js refuses a production build with it set. To test sandbox
+ * purchases on a phone, build the `purchases` profile: the preview build with free testing off.
  */
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
@@ -36,7 +36,7 @@ export function startPurchases(): void {
   // builds). A leftover free-testing flag must not bypass the real store in an
   // ordinary release; only development and explicitly enabled previews use it.
   if (process.env.EXPO_PUBLIC_FREE_TESTING === '1' && (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1')) {
-    setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: appGroup, entitled: true }));
+    setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: appGroup, skippable: true }));
     return;
   }
   if (!apiKey && Platform.OS === 'ios' && !expoGo && !__DEV__ && process.env.EXPO_PUBLIC_DEV_LABS !== '1') {
