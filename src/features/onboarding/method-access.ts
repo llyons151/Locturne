@@ -11,7 +11,7 @@ import type { WakeMethod } from '../../lib/routine.ts';
 export type MethodAccess = 'camera' | 'location';
 
 export function methodAccessFor(method: WakeMethod): MethodAccess | null {
-  if (method === 'scan' || method === 'pushups' || method === 'squats') return 'camera';
+  if (method === 'scan' || method === 'pushups') return 'camera';
   if (method === 'place') return 'location';
   return null;
 }

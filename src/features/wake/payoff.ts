@@ -12,7 +12,7 @@ export const PAYOFF_METHOD: Record<WakeMethod, string> = {
   scan: 'Code scanned',
   place: 'Out the door',
   pushups: 'Push-ups done',
-  squats: 'Squats done',
+  downtime: 'Stepped away',
 };
 
 /** The mornings that get their own word in the kicker. */

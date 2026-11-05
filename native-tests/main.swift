@@ -2,6 +2,7 @@ import Foundation
 
 registerTests()
 registerShieldTapTests()
+registerDowntimeTests()
 registerRehearsalTests()
 registerRobustnessTests()
 registerKnownCrashTests()

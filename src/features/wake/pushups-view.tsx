@@ -13,7 +13,7 @@ import { CountText } from '@/components/count-text';
 import { Track } from '@/components/meter';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import { pushupsLine, spokenRep, squatsLine } from '@/lib/wake/lines';
+import { pushupsLine, spokenRep } from '@/lib/wake/lines';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
 import { repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
@@ -63,7 +63,7 @@ export function PushupsView({
   morning,
   exercise = 'pushups',
 }: {
-  /** Push-ups, or squats on the same camera. */
+  /** What the camera counts: push-ups (the machine's only exercise). */
   exercise?: Exercise;
   /** The step goal, for "walk instead". */
   goal: number;
@@ -140,20 +140,18 @@ export function PushupsView({
   return (
     <View style={styles.page}>
       <View style={styles.top}>
-        <Voice text={denied ? 'I need the camera for this.' : (exercise === 'squats' ? squatsLine : pushupsLine)('idle', 0, target, null)} />
+        <Voice text={denied ? 'I need the camera for this.' : pushupsLine('idle', 0, target, null)} />
         <Body>
           {denied
             ? `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`
-            : exercise === 'squats'
-              ? 'Prop me up and squat.'
-              : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
+            : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
                 done > 0 ? `${Math.max(0, target - done)} more ${noun}; you've done ${done}` : `${target} ${noun}`
               }. I count out loud.`}
         </Body>
       </View>
 
       <View style={styles.flex} />
-      {denied ? null : <SetupSketch exercise={exercise} />}
+      {denied ? null : <SetupSketch />}
       <View style={styles.flex} />
 
       <View style={styles.bottom}>
@@ -192,31 +190,14 @@ export function PushupsView({
 }
 
 /**
- * The setup at a glance: the phone leaning on the floor, you side-on in front of it, in a plank on
- * its side for push-ups, standing with it upright for squats. Left out on short screens, where Start comes first.
+ * The setup at a glance: the phone on its side leaning on the floor, you side-on in front of it,
+ * in a plank. Left out on short screens, where Start comes first.
  */
-function SetupSketch({ exercise }: { exercise: Exercise }) {
+function SetupSketch() {
   const { height } = useWindowDimensions();
   if (height < 700) return null;
   const ink = Nocturne.text2;
   const faint = Nocturne.text3;
-  if (exercise === 'squats')
-    return (
-      <View style={styles.sketch} accessible accessibilityLabel="The phone propped upright on the floor, a few steps from you, side-on.">
-        <Svg width={260} height={110} viewBox="0 0 260 110">
-          <Line x1={8} y1={98} x2={252} y2={98} stroke={faint} strokeWidth={1.5} strokeLinecap="round" />
-          {/* The phone standing upright, leaning back a little, camera facing you. */}
-          <Rect x={40} y={50} width={24} height={46} rx={5} stroke={ink} strokeWidth={2.5} fill="none" transform="rotate(-8 52 96)" />
-          <Circle cx={50} cy={57} r={1.8} fill={ink} />
-          {/* You, standing side-on, a few steps away. */}
-          <Circle cx={176} cy={14} r={7.5} stroke={ink} strokeWidth={2.5} fill="none" />
-          <Line x1={176} y1={23} x2={176} y2={60} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
-          <Line x1={176} y1={60} x2={176} y2={97} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
-          <Line x1={176} y1={97} x2={166} y2={97} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
-          <Line x1={176} y1={32} x2={160} y2={50} stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
-        </Svg>
-      </View>
-    );
   return (
     <View style={styles.sketch} accessible accessibilityLabel="The phone on its side, leaning on the floor, two steps from you, side-on.">
       <Svg width={260} height={110} viewBox="0 0 260 110">
@@ -254,21 +235,18 @@ function Scrim({ width, height, flip }: { width: number; height: number; flip?: 
   );
 }
 
-/** `wide`: on its side for squats, where a standing body doesn't fit across. */
-type ViewHint = PhoneHint | 'wide';
+type ViewHint = PhoneHint;
 
 const PHONE_LINES: Record<ViewHint, string> = {
   flat: 'Stand me up. I can only see the ceiling.',
   upsideDown: 'Other way up. Please.',
   tall: 'On my side. I can’t fit all of you in.',
-  wide: 'Stand me up tall. I need all of you in.',
 };
 
 /** Which way the phone stands: the preview's pretend one, or the accelerometer's. Upright until it knows. */
 function useTurn(
   live: boolean,
   finding: boolean,
-  exercise: Exercise,
   preview?: PushupsPreview,
 ): { turn: PhoneTurn; hint: ViewHint | null; upright: boolean } {
   const sensed = usePhone(live);
@@ -277,12 +255,6 @@ function useTurn(
   const hint = forced ? (live ? forced.hint : null) : sensed.hint;
   // `upright` is the accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
   const upright = sensed.turn === 'portrait' && sensed.hint !== 'flat';
-  // Squats want the phone upright, a standing body is tall (user 2026-11-03): no nudge to turn it on its
-  // side, and a nudge back up if it's on its side while he's still looking for you.
-  if (exercise === 'squats') {
-    if (hint === 'tall') return { turn, hint: null, upright };
-    return { turn, hint: !hint && turn !== 'portrait' && finding ? 'wide' : hint, upright };
-  }
   // Push-ups: upright counts too: the nudge to turn it only while he's still looking for you.
   return { turn, hint: hint === 'tall' && !finding ? null : hint, upright };
 }
@@ -297,7 +269,7 @@ function TuningReadout({ session, pose }: { session: PushupsSession | null; pose
   const R = rulesFor(session.exercise);
   const lines = [
     `${session.exercise} · ${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · miss ${session.miss}` : ''}`,
-    `${session.exercise === 'squats' ? 'knee' : 'elbow'} ${n(session.elbow)}°  (down ≤${R.downDeg}, up ≥${R.upDeg})`,
+    `elbow ${n(session.elbow)}°  (down ≤${R.downDeg}, up ≥${R.upDeg})`,
     `drop ${n(session.drop, 2)}  (need ${R.minDrop}, or ${R.deepDrop} held)  low frames ${session.lowFrames}`,
   ];
   // What the iPhone handed over: the picture's size, how Vision read it, and how sure it was.
@@ -373,14 +345,13 @@ function Corners({ width }: { width: number }) {
 }
 
 /** What the count says it's counting. */
-export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups', squats: 'squats' };
+export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups' };
 
 /**
  * The set itself, full screen: the front camera, you traced in white over it, the count big at
  * the top, and Loc, black as on Home, standing on a black ledge at the bottom that fills as the
  * reps come, saying what he thinks of it. Nothing else to read: the phone is on the floor and
  * you're down there, so he says the count out loud too. Walking instead is on Home, not here.
- * Squats use this same screen (`exercise`): only his lines and the count's name change.
  */
 export function PushupsCamera({
   target,
@@ -405,10 +376,10 @@ export function PushupsCamera({
 
   const status = session?.status ?? 'finding';
   const timedOut = status === 'timedOut';
-  // The phone on its side (the main way for push-ups) or upright (squats). The app stays portrait; this screen turns its
+  // The phone on its side (the main way for push-ups) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', exercise, preview);
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
   const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
@@ -512,8 +483,7 @@ export function PushupsCamera({
 
   // The phone lying flat, upside down or upright: say that first, it's why he can't see (all of) you.
   // His bubble is the only words on the picture: the setup is on Home, before Start.
-  const lineFor = exercise === 'squats' ? squatsLine : pushupsLine;
-  const line = phone ? PHONE_LINES[phone] : lineFor(status, reps, target, session?.miss ?? null, session?.hint ?? null);
+  const line = phone ? PHONE_LINES[phone] : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null);
   const locH = Math.round((LOC_PT * LOC_VIEW.height) / LOC_VIEW.width);
   // The same object between renders: the camera re-renders this about 30 times a second, and
   // Loc's DOM view would otherwise be handed new props every time. The whole width, as on Home,

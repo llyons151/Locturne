@@ -44,6 +44,9 @@ export type DueEvent = { at: number; activity: string; callback: Callback };
 const NIGHT_PREFIX = 'night-';
 const LIMIT_PREFIX = 'limit-';
 const NAP_ACTIVITY = 'locturne-nap';
+/** Step away's timer (wake/downtime.ts) and the one-off window that ends it. */
+const DOWNTIME_ACTIVITY = 'locturne-downtime';
+const DOWNTIME_KEY = 'locturne.downtime';
 const NAP_KEY = 'locturne.nap';
 const NIGHT_HELD_KEY = 'locturne.nightHeld';
 const LIMITS_KEY = 'locturne.limits';
@@ -632,6 +635,8 @@ export function simDevice() {
   // `persistToUserDefaults` and `notifyAppWithName` are the library's and aren't modelled either.
 
   function intervalDidStart(activity: string) {
+    // Step away's window starting changes nothing: only its end does.
+    if (activity === DOWNTIME_ACTIVITY) { recordHeartbeat(activity, 'intervalDidStart'); return; }
     if (obsoleteNightCallback(activity)) { s.lastWindow = 'ignore'; return; }
     // First, so a bedtime window shields the edited list, not the old one.
     settleLists();
@@ -696,6 +701,12 @@ export function simDevice() {
   }
 
   function intervalDidEnd(activity: string) {
+    if (activity === DOWNTIME_ACTIVITY) {
+      downtimeEnded();
+      reapply();
+      recordHeartbeat(activity, 'intervalDidEnd');
+      return;
+    }
     if (obsoleteNightCallback(activity)) return;
     // A delayed prior end must not finish a replacement nap under the same name.
     const nap = get<{ end: number }>(NAP_KEY);
@@ -714,6 +725,44 @@ export function simDevice() {
     // (A nap's end: `restoreLocturneFallbackShield`, words only.)
     reapply();
     recordHeartbeat(activity, 'intervalDidEnd');
+  }
+
+  /**
+   * `locturneDowntimeEnded`: Step away's timer ran out with Locturne closed. The held morning
+   * (`locturneHeldMorning`: held, not stood down, past the morning start by the armed times) of a
+   * Step away routine, whose saved timer is its own and is over (two minutes early allowed, as
+   * iOS can end a window early), is proven (`locturneRecordProof`) and the bedtime list wakes
+   * (`locturneWakeMorning`). Inside the night (a timer past bedtime) nothing happens.
+   */
+  function downtimeEnded() {
+    if (get<boolean>(NIGHT_HELD_KEY) !== true || get(STOOD_DOWN_KEY) === true) return;
+    const times = nightTimes();
+    const t = now();
+    if (!times || inside(minuteOf(new Date(t)), times)) return;
+    const d = new Date(t);
+    let start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(times.morningStart / 60), times.morningStart % 60);
+    if (start.getTime() > t) start = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1, start.getHours(), start.getMinutes());
+    const key = dayKey(start);
+    const routine = routineInForce() as (Times & { method?: string }) | undefined;
+    if (routine?.method !== 'downtime') return;
+    const timer = get<{ morningKey?: string; reachedAt?: number; endsAt?: number }>(DOWNTIME_KEY);
+    if (!timer || timer.morningKey !== key || typeof timer.reachedAt !== 'number' || typeof timer.endsAt !== 'number') return;
+    if (timer.reachedAt < start.getTime() - 60_000 || t + 120_000 < timer.endsAt) return;
+    type Proof = { morningKey?: string; kind?: string; at?: number };
+    const proofs = get<Proof[]>('locturne.morningProofs') ?? [];
+    const proven = proofs.some((p) => p.morningKey === key && (p.at ?? 0) >= start.getTime() - 86_400_000);
+    if (!proven) {
+      const judged = timesOf(routine) ?? times;
+      const wins = new Set(proofs.filter((p) => p.kind !== 'pass' && p.kind !== 'emergency').map((p) => p.morningKey));
+      if (!wins.has(key)) {
+        if (get('locturne.firstMorning') === undefined) set('locturne.firstMorning', [...wins, key].sort()[0]);
+        set('locturne.morningsWon', (get<number>('locturne.morningsWon') ?? 0) + 1);
+      }
+      const saved = { morningKey: key, kind: 'downtime', at: Math.round(t), bedtime: judged.bedtime, morningStart: judged.morningStart };
+      set('locturne.morningProofs', [saved, ...proofs].slice(0, 30));
+    }
+    set(NIGHT_HELD_KEY, false);
+    unblock('night');
   }
 
   /**

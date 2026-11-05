@@ -309,7 +309,10 @@ enum PedometerScript {
   nonisolated(unsafe) static var delay: Double = 0.3
   /// Every query's range, in order.
   nonisolated(unsafe) static var queries: [(from: Date, to: Date)] = []
-  static func reset() { available = true; answer = .data(steps: 0); delay = 0.3; queries = [] }
+  /// Steps by range, for a walk with a shape in time (Step away's search for when the steps were
+  /// reached). Set, it answers every `.data` query's steps; floors still come from `answer`.
+  nonisolated(unsafe) static var history: ((Date, Date) -> Int)?
+  static func reset() { available = true; answer = .data(steps: 0); delay = 0.3; queries = []; history = nil }
 }
 
 final class CMPedometerData {
@@ -332,8 +335,9 @@ final class CMPedometer {
     case .never: return
     case .error: HarnessMainQueue.schedule(after: PedometerScript.delay) { handler(nil, PedometerError()) }
     case let .data(steps, ascended, descended):
+      let counted = PedometerScript.history.map { $0(start, end) } ?? steps
       HarnessMainQueue.schedule(after: PedometerScript.delay) {
-        handler(CMPedometerData(steps: steps, ascended: ascended, descended: descended), nil)
+        handler(CMPedometerData(steps: counted, ascended: ascended, descended: descended), nil)
       }
     }
   }

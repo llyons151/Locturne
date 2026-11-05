@@ -23,8 +23,8 @@ import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
 import { DOWNSTAIRS } from '@/lib/wake/downstairs';
-import { downstairsLine, PHASE_LINES, pushupsLine, squatsLine, stepsLine } from '@/lib/wake/lines';
-import { DEMO_REP_MS, demoPose, demoSquatPose } from '@/lib/wake/pose-demo';
+import { downstairsLine, downtimeLine, PHASE_LINES, pushupsLine, stepsLine } from '@/lib/wake/lines';
+import { DEMO_REP_MS, demoPose } from '@/lib/wake/pose-demo';
 import { PUSHUPS, type Joint } from '@/lib/wake/pushups';
 import { DisplayFont, Nocturne, NUMBER_FONT } from '@/theme';
 
@@ -112,6 +112,12 @@ type MethodDemo = {
 
 /** Steps: the first 190 in a rush, the last ten one at a time. This is the moment people film. */
 const STEPS_FAST_MS = 2400;
+/** Step away's demo: 50 steps in a second and a half, then its hour gone in two and a half. */
+const AWAY_STEPS = 50;
+const AWAY_MINUTES = 60;
+const AWAY_WALK_MS = 1500;
+const AWAY_TIMER_MS = 2500;
+const awayStepsAt = (t: number) => Math.min(AWAY_STEPS, Math.round(AWAY_STEPS * easeInOut(Math.min(1, Math.max(0, t) / AWAY_WALK_MS))));
 const LAST_STEP_MS = 110;
 const stepsAt = (t: number) =>
   t < STEPS_FAST_MS
@@ -162,8 +168,12 @@ function methodDemo(method: WakeMethod, reps: number): MethodDemo {
       return { ms: 2600, start: 'Scan my code', beat: (t) => [t < SCAN_FIND_MS ? 0 : 1, 'tick'] };
     case 'pushups':
       return { ms: reps * repMs(reps), start: 'Start push-ups', beat: (t) => [Math.floor(t / repMs(reps)), 'thud'] };
-    case 'squats':
-      return { ms: reps * repMs(reps), start: 'Start squats', beat: (t) => [Math.floor(t / repMs(reps)), 'thud'] };
+    case 'downtime':
+      // The few steps, fast, then the hour run down in a couple of seconds.
+      return {
+        ms: AWAY_WALK_MS + AWAY_TIMER_MS,
+        beat: (t) => (t < AWAY_WALK_MS ? [Math.floor(awayStepsAt(t) / 10), 'tick'] : [5 + Math.floor((t - AWAY_WALK_MS) / 250), 'tick']),
+      };
   }
 }
 
@@ -200,7 +210,7 @@ export function TomorrowDemo({
   /** The night branch: open on the reach at bedtime and the night shield first. */
   night?: NightPrelude;
   method: WakeMethod;
-  /** Push-ups (or squats) the morning takes, for those demos (`morningGoals`). */
+  /** Push-ups the morning takes, for that demo (`morningGoals`). */
   reps?: number;
   /** Called once the sleep screen has lifted: the onboarding's button waits for it. */
   onPayoff?: () => void;
@@ -769,16 +779,35 @@ function MethodApp({
           </AppPage>
         );
       return <ScanCamera k={k} found={going ? easeInOut(Math.min(1, t / SCAN_FIND_MS)) : 0} done={done} />;
-    case 'pushups':
-    case 'squats': {
-      const squats = method === 'squats';
-      const lineFor = squats ? squatsLine : pushupsLine;
+    case 'downtime': {
+      const walking = !going || t < AWAY_WALK_MS;
+      const steps = going ? awayStepsAt(t) : 0;
+      if (walking)
+        return (
+          <AppPage
+            k={k}
+            line={downtimeLine('walking', { steps, goal: AWAY_STEPS })}
+            meter={{ value: String(steps), unit: ` / ${AWAY_STEPS} steps`, progress: steps / AWAY_STEPS }}
+          />
+        );
+      const run = Math.min(1, (t - AWAY_WALK_MS) / AWAY_TIMER_MS);
+      const left = Math.ceil(AWAY_MINUTES * (1 - run));
+      return (
+        <AppPage
+          k={k}
+          line={done ? downtimeLine('over') : downtimeLine('running', { minutesLeft: left })}
+          meter={{ value: `${left}m`, unit: done ? ' · Awake' : ' until they wake', progress: run }}
+        />
+      );
+    }
+    case 'pushups': {
+      const lineFor = pushupsLine;
       if (!started)
         return (
           <AppPage
             k={k}
             line={lineFor('idle', 0, reps, null).replace(/\*/g, '')}
-            meter={{ value: '0', unit: ` / ${reps} ${squats ? 'squats' : 'push-ups'}`, progress: 0 }}
+            meter={{ value: '0', unit: ` / ${reps} push-ups`, progress: 0 }}
             button={demo.start}
             press={start}
           />
@@ -792,7 +821,6 @@ function MethodApp({
           poseMs={going && !done ? (t / each) * DEMO_REP_MS : 0}
           count={count}
           goal={reps}
-          squats={squats}
           line={done ? PHASE_LINES.day : lineFor('counting', count, reps, null).replace(/\*/g, '')}
         />
       );
@@ -950,26 +978,24 @@ function ScanCamera({ k, found, done }: { k: number; found: number; done: boolea
   );
 }
 
-/** The push-ups (or squats) camera: you traced in white over a dark room, the count big at the top. */
+/** The push-ups camera: you traced in white over a dark room, the count big at the top. */
 function PushupsCamera({
   k,
   poseMs,
   count,
   goal,
   line,
-  squats = false,
 }: {
   k: number;
   poseMs: number;
   count: number;
   goal: number;
   line: string;
-  squats?: boolean;
 }) {
   const pt = (n: number) => n * k;
   const w = SCREEN_PT.width;
   const h = SCREEN_PT.height;
-  const joints = (squats ? demoSquatPose : demoPose)(poseMs, w, h);
+  const joints = demoPose(poseMs, w, h);
   const p = (j: Joint) => joints[j];
   const floor = Math.max(p('leftWrist')?.y ?? 0, p('leftAnkle')?.y ?? 0) + 6;
   const nose = p('nose');

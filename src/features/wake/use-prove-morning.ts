@@ -9,8 +9,8 @@ import { askForNotifications, shouldAskForNotifications } from '@/lib/notificati
 import { pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { awakeStatus } from './awake-status';
 
-/** The methods proved through this hook (Home's walk, stairs, push-ups and squats). */
-export type WakeMethodShown = 'downstairs' | 'steps' | 'pushups' | 'squats';
+/** The methods proved through this hook (Home's walk, stairs, push-ups, and Step away's pretend timer). */
+export type WakeMethodShown = 'downstairs' | 'steps' | 'pushups' | 'downtime';
 
 /**
  * A wake-up method met: record the proof (`proveMorning`, which syncs the shields), the success

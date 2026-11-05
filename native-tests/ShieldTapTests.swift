@@ -50,9 +50,10 @@ func appClosesInTheEvening(method: String) {
 
 /// Monday 23:00 to Tuesday 07:00 with Locturne closed: tiktok and instagram on the bedtime
 /// list, reddit always asleep. The routine's method is `method`.
-func closedNight(method: String, stepGoal: Int = 200) {
+func closedNight(method: String, stepGoal: Int = 200, extra: [String: Any] = [:]) {
   pick("night", ["tiktok", "instagram"]); pick("always", ["reddit"])
   var r = routine(); r["method"] = method; r["stepGoal"] = stepGoal
+  for (key, value) in extra { r[key] = value }
   saveRoutine(r); armNight(); appClosesInTheEvening(method: method)
   appShields("always")
   at("2026-10-05 23:00"); start("night-0")

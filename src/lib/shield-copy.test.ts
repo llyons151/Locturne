@@ -127,7 +127,7 @@ describe('the words', () => {
       assert.doesNotMatch(subtitle, /Open Locturne/, `${method}: ${subtitle}`);
       assert.match(button, /^I’m up/);
     }
-    for (const method of ['scan', 'pushups', 'squats'] as const) {
+    for (const method of ['scan', 'pushups'] as const) {
       const { subtitle } = shieldCopy('morning', { ...DEFAULT_ROUTINE, method });
       assert.match(subtitle, /^Open Locturne/, `${method}: ${subtitle}`);
       // Walking only wakes a steps morning from the shield (user 2026-10-28); instead is chosen in Locturne.

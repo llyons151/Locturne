@@ -29,8 +29,9 @@ import { nightsAround, wallClock } from '@/lib/lock-state';
 import {
   getPendingRoutine,
   getRoutine,
+  downtimeMinutesOf,
+  downtimeStepsOf,
   pushupGoalOf,
-  squatGoalOf,
   toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
@@ -38,6 +39,7 @@ import {
 import { getMorningPlace, getPlaceEditRefusal } from '@/lib/place';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
+import { minutesLabel } from '@/lib/wake/downtime';
 import { noOrphan } from '@/lib/text';
 import {
   DISPLAY_MAX_SCALE,
@@ -88,7 +90,8 @@ type Routine = {
   method: Method;
   stepGoal: number;
   pushupGoal?: number;
-  squatGoal?: number;
+  downtimeSteps?: number;
+  downtimeMinutes?: number;
 };
 
 const fromStored = ({ activeNights, ...rest }: StoredRoutine): Routine => ({
@@ -136,7 +139,8 @@ const same = (a: Routine, b: Routine) =>
   a.method === b.method &&
   a.stepGoal === b.stepGoal &&
   pushupGoalOf(a) === pushupGoalOf(b) &&
-  squatGoalOf(a) === squatGoalOf(b) &&
+  downtimeStepsOf(a) === downtimeStepsOf(b) &&
+  downtimeMinutesOf(a) === downtimeMinutesOf(b) &&
   a.nights.join() === b.nights.join();
 
 export function RoutineScreen() {
@@ -228,6 +232,7 @@ export function RoutineScreen() {
     place: place?.name ?? null,
     steps: saved.stepGoal,
     wake: saved.morningStart,
+    downtime: { steps: downtimeStepsOf(saved), minutes: downtimeMinutesOf(saved) },
   });
   const current = options.find((o) => o.value === saved.method) ?? options[0];
   // A scan with no code, or a place with none picked, wakes with steps until it's set up (as
@@ -235,14 +240,15 @@ export function RoutineScreen() {
   const fallsBack = methodInUse(saved.method) !== saved.method;
   // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
   const offerReps = saved.method === 'pushups';
-  const offerSquats = saved.method === 'squats';
+  // Step away picked: its timer and its steps, each a row of its own.
+  const offerDowntime = saved.method === 'downtime';
   // Walk picked, or another way not set up yet (it walks for now): how many steps.
   const offerSteps = methodInUse(saved.method) === 'steps';
   // Scan picked: set up a code, or choose a new one, like a place, only while it's allowed (not from bed).
   const offerCodeSetup = saved.method === 'scan' && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
   const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
-  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerSquats || offerSteps;
+  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerDowntime || offerSteps;
   const now = new Date();
   // While the apps are asleep the routine is locked (`routineEditRefusal`).
   const asleep = routineEditRefusal(now) !== null;
@@ -367,8 +373,11 @@ export function RoutineScreen() {
           // A wheel in the floating sheet: any count, not a short menu (user's ask, 2026-10-10).
           <ValueRow title="Push-ups" value={`${reps}`} onPress={() => router.push('/pushups')} last />
         ) : null}
-        {offerSquats ? (
-          <ValueRow title="Squats" value={`${squatGoalOf(saved)}`} onPress={() => router.push('/squats')} last />
+        {offerDowntime ? (
+          <>
+            <ValueRow title="Apps asleep for" value={minutesLabel(downtimeMinutesOf(saved))} onPress={() => router.push('/downtime')} />
+            <ValueRow title="Steps first" value={`${downtimeStepsOf(saved)}`} onPress={() => router.push('/downtime?part=steps')} last />
+          </>
         ) : null}
         {offerSteps && !offerCodeSetup && !offerPlaceSetup ? (
           // The same wheel, in fifties (user 2026-10-28).

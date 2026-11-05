@@ -36,14 +36,17 @@ func locturneMorningCheck(config: [String: Any], completion: @escaping (ShieldAc
   }
 
   var answered = false
+  /// The first reading, kept so a timeout during Step away's search still judges with it.
+  var reading: (steps: Int, floors: Int)? = nil
   let pedometer = CMPedometer()
-  let finish = { (steps: Int?, floors: Int) in
+  let finish = { (steps: Int?, floors: Int, reachedAt: Date?) in
     DispatchQueue.main.async {
       if answered { return }
       answered = true
-      let woke = locturneJudgeMorning(steps: steps, floors: floors)
+      let woke = locturneJudgeMorning(steps: steps, floors: floors, reachedAt: reachedAt)
       // Not when there's nothing left to prove (another tap or the app just won the morning).
-      if !woke && locturneHeldMorning() != nil && (steps == nil || !["steps", "downstairs"].contains(morning.method)) {
+      // Step away's steps and timer are both judged here, so it only opens Locturne with no steps.
+      if !woke && locturneHeldMorning() != nil && (steps == nil || !["steps", "downstairs", "downtime"].contains(morning.method)) {
         for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {
           if let payload = action["payload"] as? [String: Any] { sendNotification(contents: payload, placeholders: [:]) }
         }
@@ -55,15 +58,37 @@ func locturneMorningCheck(config: [String: Any], completion: @escaping (ShieldAc
   }
 
   guard CMPedometer.isStepCountingAvailable() else {
-    finish(nil, 0)
+    finish(nil, 0, nil)
     return
   }
-  pedometer.queryPedometerData(from: morning.start, to: Date()) { data, error in
+  let asked = Date()
+  pedometer.queryPedometerData(from: morning.start, to: asked) { data, error in
     if let error { logger.log("morning check: pedometer \(error.localizedDescription, privacy: .public)") }
     let floors = (data?.floorsDescended?.intValue ?? 0) + (data?.floorsAscended?.intValue ?? 0)
-    finish(data?.numberOfSteps.intValue, floors)
+    let steps = data?.numberOfSteps.intValue
+    DispatchQueue.main.async {
+      // Step away's steps just reached, with no timer yet: find when they were reached, so the
+      // timer runs from then, not from this tap (wake/downtime.ts).
+      guard let steps, morning.method == "downtime", locturneDowntime(morning) == nil, steps >= max(morning.downtimeSteps, 1)
+      else {
+        finish(steps, floors, nil)
+        return
+      }
+      reading = (steps, floors)
+      locturneFindThreshold(
+        from: morning.start, to: asked, goal: morning.downtimeSteps,
+        query: { from, to, answer in
+          pedometer.queryPedometerData(from: from, to: to) { data, _ in
+            let found = data?.numberOfSteps.intValue
+            DispatchQueue.main.async { answer(found) }
+          }
+        },
+        done: { reached in finish(steps, floors, reached) }
+      )
+    }
   }
-  DispatchQueue.main.asyncAfter(deadline: .now() + LOCTURNE_MOTION_TIMEOUT) { finish(nil, 0) }
+  // No answer in time: judge what was read (Step away's timer from now, the safe side), or nothing.
+  DispatchQueue.main.asyncAfter(deadline: .now() + LOCTURNE_MOTION_TIMEOUT) { finish(reading?.steps, reading?.floors ?? 0, nil) }
 }
 
 /// "I'm up" on a rehearsal's morning shield (Locturne.swift's rehearsal section): the same reading
@@ -82,7 +107,9 @@ func locturneRehearsalCheck(config: [String: Any], completion: @escaping (Shield
     completion(.defer)
     return
   }
-  let method = locturneMethodInUse(rehearsal["method"] as? String ?? "steps")
+  // A rehearsal is the lock's mechanics, not its timer: Step away's rehearsal morning is a walk.
+  let saved = locturneMethodInUse(rehearsal["method"] as? String ?? "steps")
+  let method = saved == "downtime" ? "steps" : saved
   let stepGoal = (rehearsal["stepGoal"] as? NSNumber)?.intValue ?? 200
 
   var answered = false

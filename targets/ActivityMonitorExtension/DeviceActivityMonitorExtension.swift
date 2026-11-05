@@ -32,6 +32,13 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       return
     }
 
+    // Step away's window starting changes nothing (it starts as it's registered): only its end does.
+    if activity.rawValue == LOCTURNE_DOWNTIME_ACTIVITY {
+      persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidStart")
+      recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidStart")
+      return
+    }
+
     if locturneObsoleteNightCallback(activity.rawValue) { return }
 
     // First, so a bedtime window shields the edited list, not the old one.
@@ -173,6 +180,17 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       locturneRehearsalMorning(by: "iOS")
       persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidEnd")
       reapplyLocturneBlocks(triggeredBy: "locturne_rehearsal_intervalDidEnd")
+      recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidEnd")
+      notifyAppWithName(name: "intervalDidEnd")
+      return
+    }
+
+    // Step away's timer is over (src/lib/wake/downtime.ts): its morning is proven and the
+    // bedtime apps wake, with Locturne closed. Bedtime wins: inside the night nothing wakes.
+    if activity.rawValue == LOCTURNE_DOWNTIME_ACTIVITY {
+      locturneDowntimeEnded()
+      persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidEnd")
+      reapplyLocturneBlocks(triggeredBy: "locturne_downtime_intervalDidEnd")
       recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidEnd")
       notifyAppWithName(name: "intervalDidEnd")
       return

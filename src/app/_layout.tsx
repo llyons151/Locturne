@@ -95,9 +95,9 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
-          {/* The squat count, the same way. */}
+          {/* Step away's timer and steps, the same way. */}
           <Stack.Screen
-            name="squats"
+            name="downtime"
             options={{
               presentation: 'transparentModal',
               animation: 'none',

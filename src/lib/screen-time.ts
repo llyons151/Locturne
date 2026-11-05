@@ -44,6 +44,7 @@ import { keepName, limitLabel, MAX_LIMITS, settleLimits, type DailyLimit, type L
 import { dateKey, wallClock } from './lock-state.ts';
 import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.ts';
 import {
+  blockAt,
   blockEnds,
   isBlocking,
   MAX_SCHEDULES,
@@ -54,6 +55,7 @@ import {
   type ScheduleId,
 } from './schedules.ts';
 import { formatPreset } from './text.ts';
+import { downtimeDue, type DowntimeRecord } from './wake/downtime.ts';
 
 /**
  * The lists from GAME_PLAN: apps that sleep at night, apps that always sleep, the apps a
@@ -1128,6 +1130,79 @@ function readNap(): ActiveNap | null {
   return sharedGet<ActiveNap>(NAP_KEY) ?? null;
 }
 
+/**
+ * Step away's timer (wake/downtime.ts), saved in the App Group so the extensions read it with
+ * Locturne closed: the ShieldAction's I'm up starts one too (`locturneJudgeDowntime`), and the
+ * monitor extension wakes the bedtime apps when its one-off window ends.
+ */
+const DOWNTIME_KEY = 'locturne.downtime';
+export const DOWNTIME_ACTIVITY = 'locturne-downtime';
+
+export function getDowntime(): DowntimeRecord | null {
+  return sharedGet<DowntimeRecord>(DOWNTIME_KEY) ?? null;
+}
+
+/** Saves this morning's timer. One a morning: the first saved stays (reopening never resets it). */
+export function saveDowntime(record: DowntimeRecord): DowntimeRecord {
+  const saved = getDowntime();
+  if (saved && saved.morningKey === record.morningKey && saved.reachedAt >= record.start) return saved;
+  sharedSet(DOWNTIME_KEY, record);
+  return record;
+}
+
+/**
+ * The window iOS gets for the timer's end: calendar parts pinned to this zone (as a nap's), an
+ * end the wall clock names once (the autumn repeated hour, as `settleInterval`), and a start at
+ * least iOS's shortest interval before it on the wall clock, in the past when the end is close
+ * (iOS starts a window whose start has passed at once, as `rearmNap` relies on).
+ */
+export function downtimeInterval(endsAt: number, now: number) {
+  // Calendar parts have no milliseconds: on the second after, or no moment would match them.
+  const end = unambiguous(Math.ceil(endsAt / 1000) * 1000);
+  let start = Math.min(now, end - SHORTEST_INTERVAL_MS);
+  while (wallStamp(end) - wallStamp(start) < SHORTEST_INTERVAL_MS) start -= SHORTEST_INTERVAL_MS;
+  return { start, end, intervalStart: napClockOf(start), intervalEnd: napClockOf(end) };
+}
+
+/**
+ * Hands the timer's end to iOS: a one-off window ending at `endsAt`, whose `intervalDidEnd`
+ * wakes the bedtime apps in the monitor extension (`locturneDowntimeEnded`) with Locturne
+ * closed. Returns false when there's nothing to arm or iOS refused (no room: the next open or
+ * I'm up after the end still wakes them, as the timer is saved).
+ */
+export async function armDowntimeEnd(record: DowntimeRecord, now = new Date()): Promise<boolean> {
+  if (!isAvailable() || isStoodDown() || getAccess() !== 'approved') return false;
+  if (downtimeDue(record, now.getTime())) return false;
+  const { intervalStart, intervalEnd, end } = downtimeInterval(record.endsAt, now.getTime());
+  if (hasActivity(DOWNTIME_ACTIVITY) && sharedGet<number>(DOWNTIME_ARMED_KEY) === end) return true;
+  try {
+    makeRoomFor(DOWNTIME_ACTIVITY);
+    await startMonitoring(DOWNTIME_ACTIVITY, { intervalStart, intervalEnd, repeats: false }, []);
+    sharedSet(DOWNTIME_ARMED_KEY, end);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** When the armed window ends (ms), so a sync doesn't register the same end again. */
+const DOWNTIME_ARMED_KEY = 'locturne.downtimeArmedEnd';
+
+/** Stops the timer's window, if iOS has one. The saved timer stays (it's this morning's history). */
+export function stopDowntimeEnd(): void {
+  if (!isAvailable()) return;
+  if (hasActivity(DOWNTIME_ACTIVITY)) {
+    stopMonitoring([DOWNTIME_ACTIVITY]);
+    cleanUpAfterActivity(DOWNTIME_ACTIVITY);
+  }
+  sharedRemove(DOWNTIME_ARMED_KEY);
+}
+
+/** Is the timer's end armed with iOS? */
+export function downtimeEndArmed(): boolean {
+  return isAvailable() && hasActivity(DOWNTIME_ACTIVITY);
+}
+
 /** The running nap, or null, without tidying anything up: safe to call while rendering. */
 export function peekNap(now = new Date()): ActiveNap | null {
   const nap = isAvailable() ? readNap() : null;
@@ -1774,6 +1849,12 @@ export function removeLimit(id: LimitId): void {
   cleanUpAfterActivity(id);
   forgetUsedUp(id);
   sharedRemove(`${LIMIT_ARMED_PICKS_PREFIX}${id}`);
+  // Its pass goes with it: a new limit made in this slot today mustn't read as pass-woken.
+  const passes = limitPasses();
+  if (id in passes) {
+    delete passes[id];
+    sharedSet(LIMIT_PASSES_KEY, passes);
+  }
   unshield(id);
   clearSelection(id);
   clearSelection(draftId(id));
@@ -2035,13 +2116,17 @@ export function scheduleHolds(schedule: Schedule, at: Date): boolean {
 /** A schedule block a pass would wake: blocking now, with apps, and not woken already. */
 export type HeldSchedule = { id: ScheduleId; name: string; until: number };
 
-/** The schedule blocks holding apps now, as `heldLists` judges them (two minutes on). */
+/**
+ * The schedule blocks holding apps now, for a pass. Judged at `now`, not two minutes on like
+ * `heldLists`: a block that hasn't started isn't the pass's to wake. `until` is this one block's
+ * end, not `blockEnds`'s run of back-to-back blocks: an all-day Mon–Fri schedule's pass on Monday
+ * lasted to Saturday. iOS starts each day's block afresh, so Tuesday sleeps as usual.
+ */
 export function heldSchedules(now = new Date()): HeldSchedule[] {
   if (isStoodDown()) return [];
-  const soon = scheduleSoon(now);
-  return getSchedules(soon)
-    .filter((s) => scheduleHolds(s, soon) && selectionSize(s.id) > 0)
-    .map((s) => ({ id: s.id, name: s.name, until: blockEnds(s, soon)!.getTime() }));
+  return getSchedules(now)
+    .filter((s) => scheduleHolds(s, now) && selectionSize(s.id) > 0)
+    .map((s) => ({ id: s.id, name: s.name, until: blockAt(s, now)!.end.getTime() }));
 }
 
 /** Wakes these schedule blocks until each ends (a pass), and forgets passes whose block is over. */

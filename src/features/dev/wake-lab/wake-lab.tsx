@@ -1,6 +1,6 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -9,9 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';
 import { getMorningPlace, judgeFix } from '@/lib/place';
-import { getRoutine, pushupGoalOf, squatGoalOf, type WakeMethod } from '@/lib/routine';
+import { downtimeMinutesOf, downtimeStepsOf, getRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
 import { getScanCode, matches } from '@/lib/scan';
 import { endTestLock, getTestLock, startTestLock } from '@/lib/screen-time';
+import { downtimeLine } from '@/lib/wake/lines';
+import { minutesLabel, minutesLeft } from '@/lib/wake/downtime';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { readFix } from '../../place/locate';
@@ -28,7 +30,7 @@ export const LAB_METHODS: { value: WakeMethod; title: string }[] = [
   { value: 'scan', title: 'Scan a code' },
   { value: 'place', title: 'Get to a place' },
   { value: 'pushups', title: 'Push-ups' },
-  { value: 'squats', title: 'Squats' },
+  { value: 'downtime', title: 'Step away' },
 ];
 
 const titleOf = (method: WakeMethod) => LAB_METHODS.find((m) => m.value === method)?.title ?? method;
@@ -105,18 +107,8 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
         preview={preview}
       />
     );
-  else if (method === 'squats')
-    content = (
-      <PushupsView
-        key={run}
-        exercise="squats"
-        goal={routine.stepGoal}
-        target={preview.goal || squatGoalOf(routine)}
-        onMet={onMet}
-        onSteps={toSteps}
-        preview={preview}
-      />
-    );
+  else if (method === 'downtime')
+    content = <DowntimeTest key={run} goal={downtimeStepsOf(routine)} minutes={downtimeMinutesOf(routine)} since={startedAt} onMet={onMet} />;
   else if (method === 'scan') content = <ScanTest key={run} onMet={onMet} />;
   else if (method === 'place') content = <PlaceTest key={run} onMet={onMet} />;
   else content = <StepsView key={run} goal={routine.stepGoal} morningStart={startedAt} onMet={onMet} />;
@@ -144,6 +136,41 @@ function StayAwake() {
   // Web's wake lock throws if it never activated (denied, or unmounted first): not worth a red screen.
   useKeepAwake(undefined, { suppressDeactivateWarnings: true });
   return null;
+}
+
+/**
+ * Step away: the routine's steps counted from when the test opened, then its timer. The lab's
+ * timer can be cut to a minute, so the whole thing can be watched to the end; nothing is saved
+ * and no window is handed to iOS (the real one: Test the lock, or a real morning).
+ */
+function DowntimeTest({ goal, minutes, since, onMet }: { goal: number; minutes: number; since: Date; onMet: () => void }) {
+  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const [short, setShort] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (endsAt === null) return;
+    const t = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(t);
+  }, [endsAt]);
+  useEffect(() => {
+    if (endsAt !== null && now >= endsAt) onMet();
+  }, [endsAt, now, onMet]);
+  if (endsAt === null)
+    return (
+      <View style={styles.page}>
+        <StepsView goal={goal} morningStart={since} onMet={() => setEndsAt(Date.now() + (short ? 1 : minutes) * 60_000)} />
+        <TextButton label={short ? `Timer: 1 min (lab). Use ${minutesLabel(minutes)}` : `Timer: ${minutesLabel(minutes)}. Use 1 min`} onPress={() => setShort((v) => !v)} />
+      </View>
+    );
+  const left = minutesLeft(endsAt - now);
+  return (
+    <View style={styles.page}>
+      <View style={styles.top}>
+        <Voice text={downtimeLine('running', { minutesLeft: left })} />
+        <Body>{`Steps in. Apps would wake in ${minutesLabel(left)} (${Math.max(0, Math.ceil((endsAt - now) / 1000))} s).`}</Body>
+      </View>
+    </View>
+  );
 }
 
 /** The scanner against the registered code, by the same `matches` the morning uses. */

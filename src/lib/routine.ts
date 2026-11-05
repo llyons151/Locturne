@@ -13,10 +13,16 @@ import { EXTENSION_SLACK_MS } from './wake/arming.ts';
 /**
  * The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. `place` is
  * "Leave the house": get to a place picked in the day (place.ts). `pushups`: ten on the floor,
- * counted by the front camera (wake/pushups.ts). `squats`: the same camera, standing up
- * (wake/squats.ts; user 2026-11-03, a sixth way for the grid).
+ * counted by the front camera (wake/pushups.ts). `downtime`, "Step away": a few steps to show
+ * you're up, then a stretch of time with the apps still asleep (wake/downtime.ts; 2026-11-05,
+ * in place of squats, which went the same day).
  */
-export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups' | 'squats';
+export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime';
+
+/** Every method, for checking a saved one (`normalizeRoutine`). */
+export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'downstairs', 'scan', 'place', 'pushups', 'downtime'];
+
+export const isWakeMethod = (value: unknown): value is WakeMethod => WAKE_METHODS.includes(value as WakeMethod);
 
 export type Routine = {
   bedtime: number;
@@ -27,8 +33,10 @@ export type Routine = {
   stepGoal: number;
   /** Push-ups a morning takes (`PUSHUP_MIN`–`PUSHUP_MAX`). Missing on routines saved before it was kept: 10. */
   pushupGoal?: number;
-  /** Squats a morning takes (`SQUAT_MIN`–`SQUAT_MAX`). Missing until one is picked: 20. */
-  squatGoal?: number;
+  /** Step away: the steps that show you're up (`DOWNTIME_STEPS_RANGE`). Missing until one is picked: 50. */
+  downtimeSteps?: number;
+  /** Step away: minutes the apps stay asleep after those steps (`DOWNTIME_MINUTES_RANGE`). Missing: 60. */
+  downtimeMinutes?: number;
 };
 
 /**
@@ -41,12 +49,42 @@ export const DEFAULT_PUSHUP_GOAL = 10;
 
 export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;
 
-/** The squat targets, on the same kind of wheel. More than push-ups by default: each is easier. */
-export const SQUAT_MIN = 5;
-export const SQUAT_MAX = 100;
-export const DEFAULT_SQUAT_GOAL = 20;
+// Step away's numbers live with its rules (wake/downtime.ts, which has no imports), so the
+// pure modules (shield-copy.ts) can read them; re-exported here with the routine's other counts.
+export {
+  DEFAULT_DOWNTIME_MINUTES,
+  DEFAULT_DOWNTIME_STEPS,
+  DOWNTIME_MINUTES_RANGE,
+  DOWNTIME_STEPS_RANGE,
+  downtimeMinutesOf,
+  downtimeStepsOf,
+} from './wake/downtime.ts';
 
-export const squatGoalOf = (routine: Pick<Routine, 'squatGoal'>) => routine.squatGoal ?? DEFAULT_SQUAT_GOAL;
+/**
+ * Pure: a saved routine as this build can run it. Squats went on 2026-11-05: a routine saved
+ * with them (or with any method this build doesn't know) walks, the default, so nobody is left
+ * with a morning no screen can prove. Their count goes too. Returns the same object when
+ * nothing needed changing.
+ */
+export function normalizeRoutine<R extends Routine>(routine: R): R {
+  const legacy = routine as R & { squatGoal?: number };
+  if (isWakeMethod(routine.method) && legacy.squatGoal === undefined) return routine;
+  const next = { ...legacy, method: isWakeMethod(routine.method) ? routine.method : 'steps' };
+  delete next.squatGoal;
+  return next;
+}
+
+/** Pure: `normalizeRoutine` over everything a stored routine keeps. Same object if nothing changed. */
+export function normalizeStored(stored: StoredRoutine): StoredRoutine {
+  const active = normalizeRoutine(stored.active);
+  const pending = stored.pending ? normalizeRoutine(stored.pending.routine) : undefined;
+  const prior = stored.prior ? normalizeRoutine(stored.prior) : undefined;
+  if (active === stored.active && pending === stored.pending?.routine && prior === stored.prior) return stored;
+  const next: StoredRoutine = { ...stored, active };
+  if (stored.pending && pending) next.pending = { ...stored.pending, routine: pending };
+  if (prior) next.prior = prior;
+  return next;
+}
 
 /** The step targets on the Routine tab's wheel (user 2026-10-28: picked like push-ups), in fifties. */
 export const STEPS_RANGE = { min: 50, max: 2000, by: 50 };
@@ -182,8 +220,12 @@ export function applyEdit(
 }
 
 function read(now: Date): StoredRoutine | undefined {
-  const stored = sharedGet<StoredRoutine>(KEY);
-  if (!stored) return undefined;
+  const saved = sharedGet<StoredRoutine>(KEY);
+  if (!saved) return undefined;
+  // A method this build no longer has (squats) walks instead, saved so the extensions read it
+  // too. Not an edit: it keeps `since`, so no night is judged as run under a new routine.
+  const stored = normalizeStored(saved);
+  if (stored !== saved) sharedSet(KEY, stored);
   const settled = settleRoutine(stored, now);
   // Saved only once the clock really reached the edit's bedtime: a read at a later time (the
   // emergency wording naming the night the pause ends) must not apply a waiting edit early, or

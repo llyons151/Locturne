@@ -106,7 +106,7 @@ function home({
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { pushupGoalOf: () => 20, squatGoalOf: () => 20, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
+    '@/lib/routine': { pushupGoalOf: () => 20, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m },
     '@/lib/screen-time': {
       sharedGet: () => undefined,
@@ -142,6 +142,10 @@ function home({
     './morning': { scanMorning: () => morningOf('scan', true), WALK_INSTEAD },
     './use-morning-stairs': { useMorningStairs: (on: boolean, w: unknown) => (on ? morningOf('stairs', w) : null) },
     './use-morning-place': { useMorningPlace: (on: boolean, w: unknown) => (on ? morningOf('place', w) : null) },
+    './use-morning-downtime': {
+      // Step away has no walk instead: its hook gets no walk, and its morning offers none.
+      useMorningDowntime: (on: boolean) => (on ? { ...morningOf('downtime', null), alt: undefined } : null),
+    },
     './use-morning-pushups': {
       useMorningPushups: (on: boolean, w: unknown) => (on ? { morning: morningOf('pushups', w), camera: null } : null),
     },
@@ -412,6 +416,13 @@ describe('Home during the other methods’ mornings', () => {
     assert.equal(hero.body, 'walk counted');
     assert.equal(action.label, 'pushups action');
     assert.equal(alt?.label, 'Walk 200 steps instead');
+  });
+
+  test('Step away is Home’s morning too, with no walk instead: 200 steps would skip its timer', () => {
+    const { hero, action, alt } = home({ now, phase: 'morning', method: 'downtime' });
+    assert.equal(hero.title, 'downtime hero');
+    assert.equal(action.label, 'downtime action');
+    assert.equal(alt, undefined, 'no Walk 200 steps instead');
   });
 
   test('the walk’s own meter is the walk icon, and nothing else leaks in by day', () => {

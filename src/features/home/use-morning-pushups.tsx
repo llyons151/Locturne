@@ -17,13 +17,11 @@ import { WALK_INSTEAD } from './morning';
 
 const ICONS = {
   pushups: { ios: 'figure.strengthtraining.functional', android: 'fitness_center' },
-  squats: { ios: 'figure.cross.training', android: 'sports_gymnastics' },
 } as const satisfies Record<Exercise, { ios: string; android: string }>;
 
-/** How he asks for the setup: the phone on its side for push-ups, propped upright for squats. */
+/** How he asks for the setup: the phone on its side, on the floor. */
 const SETUP: Record<Exercise, string> = {
   pushups: 'Lean me on my side on the floor, two steps away and side-on to you.',
-  squats: 'Prop me up and squat.',
 };
 
 /**
@@ -31,7 +29,7 @@ const SETUP: Record<Exercise, string> = {
  * the hero, with the setup under it, and Start opens the camera straight away, full screen, as
  * the scan does. The set proves the morning when the camera closes, and the apps wake on Home.
  * What pushups-view.tsx does on the wake screen. Null while `enabled` is false. Walking instead
- * is Home's own button, under Start; the camera has none. Squats run the same way (`exercise`).
+ * is Home's own button, under Start; the camera has none.
  */
 export function useMorningPushups(
   enabled: boolean,
@@ -109,8 +107,7 @@ export function useMorningPushups(
       hero: {
         // Read out for the meter, which stands in for the headline (home-content).
         title: `${done} of ${target} ${noun}`,
-        // Squats: just the ask; the count is the headline over it (user 2026-11-03: "why is it a full paragraph?").
-        body: exercise === 'squats' ? SETUP.squats : `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
+        body: `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
       },
       meter,
       // The phone lies on the floor untouched through the set: auto-lock would stop the camera.

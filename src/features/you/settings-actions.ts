@@ -21,7 +21,7 @@ import { getNotificationPrefs, getTrialEnd, setNotificationPrefs, type Notificat
 import { onLockChange } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import { getPassesLeft } from '@/lib/passes';
-import { currentPlan, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
+import { currentPlan, currentTrialEnd, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 
 import { getOwned, settleMoons } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
@@ -46,7 +46,6 @@ export const devLabs = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
  * rare and secret alike (user, 2026-11-02: "3 moons", no "of 10"; a new user has 1).
  */
 function moonCount() {
-  settleMoons();
   const owned = getOwned();
   return 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
 }
@@ -128,20 +127,28 @@ export function useSettings() {
     setNotificationPrefs(next).catch(() => {});
   };
 
+  // Read-only: it runs as useState's initialiser, so during render (moons settle in `refresh`).
   const read = () => ({
-    // Only someone in a trial has a reminder to switch off.
-    inTrial: (getTrialEnd()?.getTime() ?? 0) > Date.now(),
-    trialEnd: getTrialEnd(),
     passesLeft: getPassesLeft(),
     mornings: getMorningsWon(),
     moons: moonCount(),
   });
   const [facts, setFacts] = useState(read);
 
+  // The store's trial end, not the reminder's saved date: that one is gone when "Remind me" was
+  // off or renewal was turned off mid-trial. The saved date stands in until the store answers.
+  const [trialEnd, setTrialEnd] = useState<Date | null>(getTrialEnd);
+  const inTrial = (trialEnd?.getTime() ?? 0) > Date.now();
+
   // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
   const [plan, setPlan] = useState<PlanId | null | undefined>(undefined);
-  const askPlan = () => currentPlan().then(setPlan, () => {});
+  const askPlan = () => {
+    currentPlan().then(setPlan, () => {});
+    currentTrialEnd().then(setTrialEnd, () => {});
+  };
   const refresh = useCallback(() => {
+    // A moon earned while away (a morning won in the background) counts here.
+    settleMoons();
     setFacts(read());
     askPlan();
   }, []);
@@ -182,11 +189,10 @@ export function useSettings() {
     }
   };
 
-  const { inTrial, trialEnd } = facts;
   /** "Annual", "Annual trial", "None", or blank while the store is asked. */
   const planValue = plan === null ? 'None' : plan ? `${PLAN_LABEL[plan]}${inTrial ? ' trial' : ''}` : '';
   /** Under the plan on the Subscription page. */
   const planNote = inTrial && trialEnd ? `Your trial ends on ${trialDate(trialEnd)}.` : 'Billed by the App Store.';
 
-  return { ...facts, alerts, toggle, plan, planValue, planNote, manage, restoring, restorePurchases };
+  return { ...facts, inTrial, trialEnd, alerts, toggle, plan, planValue, planNote, manage, restoring, restorePurchases };
 }

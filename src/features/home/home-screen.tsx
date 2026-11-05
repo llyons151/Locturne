@@ -18,7 +18,7 @@ import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, squatGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
+import { getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import {
   bedtimeAppCount,
@@ -52,6 +52,7 @@ import { MoonTap } from '../moons/moon-tap';
 import { isMoonSimArmed, playArmedMoonSim } from '../moons/moon-sim';
 import { useCatchingUp } from './catch-up';
 import { scanMorning, WALK_INSTEAD } from './morning';
+import { useMorningDowntime } from './use-morning-downtime';
 import { useMorningPlace } from './use-morning-place';
 import { useMorningPushups } from './use-morning-pushups';
 import { useMorningStairs } from './use-morning-stairs';
@@ -77,7 +78,7 @@ const MOCK_WEEK = __DEV__;
  * The evening button names tomorrow's wake-up, the part of the night that's still to come, in
  * Routine's words (steps and push-ups carry their counts where it's built).
  */
-const METHOD_NAME = { downstairs: 'Go downstairs', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', squats: 'Squats' } as const;
+const METHOD_NAME = { downstairs: 'Go downstairs', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away' } as const;
 
 /** `pauseWording`'s answer: the paused night's words. */
 type PauseWords = ReturnType<typeof pauseWording>;
@@ -239,11 +240,14 @@ export function HomeScreen() {
   const [walkingFor, setWalkingFor] = useState<string | null>(null);
   // That morning's walk asked for from elsewhere (`/wake?method=steps`).
   const walkAsked = useWalkRequest();
-  const walkChosen = method === 'steps' || walkingFor === lock.morningKey || walkAsked === lock.morningKey;
-  const walked = useMorningWalk(morningHere, routine, walkChosen);
+  // Step away is a walk already, with its timer after: walking 200 instead would skip the timer, so
+  // it has no "walk instead" (passes and the emergency unlock are its ways out, as for any morning).
+  const walkable = method !== 'downtime';
+  const walkChosen = method === 'steps' || (walkable && (walkingFor === lock.morningKey || walkAsked === lock.morningKey));
+  const walked = useMorningWalk(morningHere && walkable, routine, walkChosen);
   const canWalk = walked?.kind === 'counting';
-  const walkingInstead = morningHere && method !== 'steps' && canWalk && (walkingFor === lock.morningKey || walkAsked === lock.morningKey);
-  const walkInstead = canWalk && method !== 'steps' ? { label: `Walk ${walked.goal} steps instead`, onPress: () => setWalkingFor(lock.morningKey) } : undefined;
+  const walkingInstead = morningHere && walkable && method !== 'steps' && canWalk && (walkingFor === lock.morningKey || walkAsked === lock.morningKey);
+  const walkInstead = canWalk && walkable && method !== 'steps' ? { label: `Walk ${walked.goal} steps instead`, onPress: () => setWalkingFor(lock.morningKey) } : undefined;
   const walk = method === 'steps' || walkingInstead ? walked : null;
   // A mis-tap on "walk instead" isn't for the whole morning: the routine's own way is a tap away.
   const backToOwn =
@@ -260,9 +264,9 @@ export function HomeScreen() {
   const stairs = useMorningStairs(own && method === 'downstairs', walked);
   const place = useMorningPlace(own && method === 'place', walked, routine.stepGoal);
   const pushups = useMorningPushups(own && method === 'pushups', pushupGoalOf(routine), lock.morningKey);
-  // The same camera, standing (wake/squats.ts).
-  const squats = useMorningPushups(own && method === 'squats', squatGoalOf(routine), lock.morningKey, 'squats');
-  const morningHero = stairs ?? place ?? pushups?.morning ?? squats?.morning ?? (own && method === 'scan' ? scanMorning() : null);
+  // A few steps, then the countdown to when the apps wake (wake/downtime.ts).
+  const downtime = useMorningDowntime(own && method === 'downtime', routine);
+  const morningHero = stairs ?? place ?? pushups?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : null);
   // The method's "walk instead" placeholder, made real; never the passes (they stay in You).
   const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));
   const here = morningHero && { ...morningHero, action: made(morningHero.action) ?? null, alt: made(morningHero.alt) };
@@ -343,9 +347,7 @@ export function HomeScreen() {
         ? `${routine.stepGoal} steps`
         : method === 'pushups'
           ? `${pushupGoalOf(routine)} push-ups`
-          : method === 'squats'
-            ? `${squatGoalOf(routine)} squats`
-            : METHOD_NAME[method];
+          : METHOD_NAME[method];
     // A day sleeper's "morning" is in the afternoon: "Later today", as onboarding says it (wake-day.ts).
     const thisOne = routine.morningStart >= 12 * 60 ? 'Later today' : 'This morning';
     if (today && phase === 'night' && minutes !== null && minutes <= 60) return `${thisOne}: ${name}`;
@@ -420,7 +422,7 @@ export function HomeScreen() {
     : look === 'night'
       ? { title: hero.title, body: 'Phone down. They wake once you’re up and moving.' }
       : look === 'done' && wonAt
-        ? { title: `Up at ${clockAt(new Date(wonAt.at))}`, body: `${DONE_WORDS[wonAt.kind as WakeMethod]}. Your apps are awake.` }
+        ? { title: `Up at ${clockAt(new Date(wonAt.at))}`, body: `${DONE_WORDS[wonAt.kind as WakeMethod] ?? 'Up'}. Your apps are awake.` }
         : hero;
 
   // Loc sleeps when the apps do (a held night, or Block now), is groggy through the locked
@@ -483,7 +485,6 @@ export function HomeScreen() {
       {/* Only while Home is the tab showing: a morning left running under Routine or You can sleep. */}
       {focused && here?.keepAwake ? <StayAwake /> : null}
       {pushups?.camera}
-      {squats?.camera}
       {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>
   );
@@ -497,7 +498,8 @@ const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
   scan: 'Scan my code instead',
   place: 'Check in instead',
   pushups: 'Do push-ups instead',
-  squats: 'Do squats instead',
+  // Never shown: Step away has no walk instead (above).
+  downtime: 'Step away instead',
 };
 
 /** How long after the wake-up Home keeps showing it (`done`), in milliseconds. */
@@ -510,7 +512,7 @@ const DONE_WORDS: Record<WakeMethod, string> = {
   scan: 'Code scanned',
   place: 'Out the door',
   pushups: 'Push-ups done',
-  squats: 'Squats done',
+  downtime: 'Stepped away',
 };
 
 const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };

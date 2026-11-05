@@ -5,15 +5,18 @@
  */
 
 import {
+  DEFAULT_DOWNTIME_MINUTES,
+  DEFAULT_DOWNTIME_STEPS,
   DEFAULT_PUSHUP_GOAL,
-  DEFAULT_SQUAT_GOAL,
+  downtimeMinutesOf,
+  downtimeStepsOf,
   getPendingRoutine,
   getRoutine,
   hasRoutine,
   pushupGoalOf,
-  squatGoalOf,
   type WakeMethod,
 } from '@/lib/routine';
+import { minutesLabel } from '@/lib/wake/downtime';
 import { getMorningPlace } from '@/lib/place-spot';
 import { getScanCode } from '@/lib/scan-code';
 
@@ -348,6 +351,7 @@ export function methodChoices(steps = 200, reps: number = DEFAULT_PUSHUP_GOAL): 
     { label: 'Scan a code in another room', value: 'scan' },
     { label: 'Get to a place, like the gym', value: 'place' },
     { label: `${reps} push-ups on the floor`, value: 'pushups' },
+    { label: 'A few steps, then an hour off your phone', value: 'downtime' },
   ];
 }
 
@@ -416,15 +420,15 @@ export const METHOD_COPY: Record<
     offer: '10 push-ups. I’ll count every one, disappointed.',
     morning: { line: 'Open me and do 10 push-ups where I can see you.' },
   },
-  // Not an answer on the method question (four answers a page); picked in Routine, but a rerun can land on it.
-  squats: {
-    echo: '20 squats. I’ll count. Out loud. Slowly.',
-    short: 'Squats',
-    check: 'Awake again after 20 squats',
-    until: 'you’ve done 20 squats',
-    commit: '20 squats to wake them.',
-    offer: '20 squats. I’ll count every one, unimpressed.',
-    morning: { line: 'Open me and do 20 squats where I can see you.' },
+  // Step away (wake/downtime.ts): written for the defaults, 50 steps and 1 h (`methodCopyFor` swaps in others).
+  downtime: {
+    echo: 'An hour of nothing. I was born for this.',
+    short: 'Step away',
+    check: 'Awake again 1 h after your first 50 steps',
+    until: 'you’re up and 1 h has passed',
+    commit: '50 steps, then 1 h phone-free.',
+    offer: '50 steps, then an hour of quiet. I’ll nap through it.',
+    morning: { line: 'Walk 50 steps. Your apps wake 1 h after.' },
   },
 };
 
@@ -469,15 +473,17 @@ const WAITING_MORNING = {
 };
 
 /**
- * The step target, push-up and squat counts the first morning runs on: the routine tomorrow runs
- * on, a Routine edit waiting for bedtime included (`saveSetup`), or the defaults on a first run.
+ * The step target, push-up count and Step away's steps and timer the first morning runs on: the
+ * routine tomorrow runs on, a Routine edit waiting for bedtime included (`saveSetup`), or the
+ * defaults on a first run.
  */
-export function morningGoals(): { steps: number; reps: number; squats: number } {
+export function morningGoals(): { steps: number; reps: number; downtimeSteps: number; downtimeMinutes: number } {
   const next = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : null;
   return {
     steps: next?.stepGoal ?? 200,
     reps: next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL,
-    squats: next ? squatGoalOf(next) : DEFAULT_SQUAT_GOAL,
+    downtimeSteps: next ? downtimeStepsOf(next) : DEFAULT_DOWNTIME_STEPS,
+    downtimeMinutes: next ? downtimeMinutesOf(next) : DEFAULT_DOWNTIME_MINUTES,
   };
 }
 
@@ -497,15 +503,24 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
         : codeWaits
           ? { ...saved, morning: WAITING_MORNING[method as 'scan' | 'place'] }
           : saved;
-  // Written for the default 200 steps, 10 push-ups and 20 squats; a rerun keeps the ones set in Routine.
-  const { steps: goal, reps, squats } = morningGoals();
-  if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL && squats === DEFAULT_SQUAT_GOAL) return copy;
+  // Written for the default 200 steps, 10 push-ups and Step away's 50 steps and 1 h; a rerun keeps
+  // the ones set in Routine. Step away's numbers are only in its own copy.
+  const { steps: goal, reps, downtimeSteps, downtimeMinutes } = morningGoals();
+  const away = method === 'downtime';
+  if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL && (!away || (downtimeSteps === DEFAULT_DOWNTIME_STEPS && downtimeMinutes === DEFAULT_DOWNTIME_MINUTES)))
+    return copy;
   const swap = <T,>(value: T): T => {
-    if (typeof value === 'string')
+    if (typeof value === 'string') {
+      if (away)
+        return value
+          .replace(/\b50 steps\b/g, `${downtimeSteps} steps`)
+          .replace(/\b1 h\b/g, minutesLabel(downtimeMinutes))
+          .replace(/\ban hour\b/g, minutesLabel(downtimeMinutes))
+          .replace(/^An hour\b/, minutesLabel(downtimeMinutes)) as T;
       return value
         .replace(/\b200\b/g, String(goal))
-        .replace(/\b10 push-ups\b/g, `${reps} push-ups`)
-        .replace(/\b20 squats\b/g, `${squats} squats`) as T;
+        .replace(/\b10 push-ups\b/g, `${reps} push-ups`) as T;
+    }
     if (Array.isArray(value)) return value.map(swap) as T;
     if (value && typeof value === 'object')
       return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)])) as T;

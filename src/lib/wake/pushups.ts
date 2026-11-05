@@ -22,12 +22,10 @@
  * Pure: times are ms, joints are in any one pixel space with y pointing down (the camera view's
  * points on iOS, the preview's pixels on web). The screen feeds it pose frames and clock ticks.
  *
- * Squats (squats.ts, 2026-11-03) run on this same machine with their own rules: the knee in
- * place of the elbow, the hips in place of the shoulders, the thigh as the yardstick, standing in
- * place of a plank. A session knows which it is (`exercise`); everything else is shared.
+ * The machine is written against `RepRules` (a working joint, a part that drops, a yardstick),
+ * so another counted exercise could share it. Squats did, from 2026-11-03 until they were taken
+ * out on 2026-11-05; push-ups are the only one now (`exercise`).
  */
-
-import { readSquatFrame, SQUATS } from './squats.ts';
 
 export const PUSHUPS = {
   /** The default target; the routine's `pushupGoal` sets the real one. */
@@ -109,11 +107,11 @@ export type PushupsStatus =
   | 'met'
   | 'timedOut';
 
-/** Why he can't count right now: nobody in the picture, or somebody who isn't in a plank (push-ups) or standing (squats). */
-export type Hint = 'noBody' | 'notPlank' | 'notStanding';
+/** Why he can't count right now: nobody in the picture, or somebody who isn't in a plank. */
+export type Hint = 'noBody' | 'notPlank';
 
 /** What the camera counts. */
-export type Exercise = 'pushups' | 'squats';
+export type Exercise = 'pushups';
 
 /**
  * One exercise's rules for the shared machine: the thresholds (as `PUSHUPS`), and how a frame
@@ -141,7 +139,7 @@ export type RepRules = {
 export type Miss = 'shallow' | 'quick';
 
 export type PushupsSession = {
-  /** Push-ups or squats: which rules count (`rulesFor`). */
+  /** Which rules count (`rulesFor`). */
   exercise: Exercise;
   startedAt: number;
   /** Reps needed. */
@@ -158,7 +156,7 @@ export type PushupsSession = {
   deepFrames: number;
   /** The deepest elbow angle since the arms were last straight, or null when not dipping. */
   dip: number | null;
-  /** The working joint's angle in the last readable frame (the elbow; the knee for squats), null with none in view. Unsmoothed: on the real
+  /** The working joint's angle in the last readable frame (the elbow), null with none in view. Unsmoothed: on the real
    * clips smoothing (and a median of three) lagged behind quick reps and lost more than it saved. */
   elbow: number | null;
   /** The shoulder's height in the picture at the last top (its highest there), or null before one. */
@@ -176,9 +174,9 @@ export type PushupsSession = {
   status: PushupsStatus;
 };
 
-/** The rules a session counts by. Looked up when used, so the two files can import each other. */
-export function rulesFor(exercise: Exercise): RepRules {
-  return exercise === 'squats' ? SQUAT_RULES() : PUSHUP_RULES;
+/** The rules a session counts by. */
+export function rulesFor(_exercise: Exercise): RepRules {
+  return PUSHUP_RULES;
 }
 
 const PUSHUP_RULES: RepRules = {
@@ -188,8 +186,6 @@ const PUSHUP_RULES: RepRules = {
     return 'hint' in r ? r : { angle: r.elbow, y: r.shoulderY, scale: r.torso };
   },
 };
-let squatRules: RepRules | null = null;
-const SQUAT_RULES = (): RepRules => (squatRules ??= { ...SQUATS, read: readSquatFrame });
 
 /** A bad stored goal (NaN) would never be met; fall back to the default. */
 const wholeGoal = (goal: number, fallback: number) => (Number.isFinite(goal) ? Math.max(1, Math.round(goal)) : fallback);

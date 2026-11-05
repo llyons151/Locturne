@@ -1,6 +1,9 @@
 import { sym, type Symbol } from '@/components/grouped-list';
-import { type WakeMethod } from '@/lib/routine';
+import { DEFAULT_DOWNTIME_MINUTES, DEFAULT_DOWNTIME_STEPS, type WakeMethod } from '@/lib/routine';
 import { formatPreset } from '@/lib/text';
+import { minutesLabel } from '@/lib/wake/downtime';
+
+const DEFAULT_DOWNTIME = { steps: DEFAULT_DOWNTIME_STEPS, minutes: DEFAULT_DOWNTIME_MINUTES };
 
 /**
  * One way to get up. `sf`: the SF Symbol's name, for any SwiftUI view that shows it.
@@ -26,13 +29,15 @@ export type MethodFacts = {
   steps: number;
   /** Morning start, in minutes past midnight. */
   wake: number;
+  /** Step away's steps and timer. Missing: the defaults. */
+  downtime?: { steps: number; minutes: number };
 };
 
 /**
  * The ways to get up, for the Routine tab's button and the wake-method sheet (method-sheet.tsx).
  * Steps first: it's the default, and works in any home (user's ask, 2026-10-10).
  */
-export const methodOptions = ({ place, steps, wake }: MethodFacts): MethodOption[] => [
+export const methodOptions = ({ place, steps, wake, downtime = DEFAULT_DOWNTIME }: MethodFacts): MethodOption[] => [
   {
     value: 'steps',
     sf: 'figure.walk',
@@ -82,13 +87,13 @@ export const methodOptions = ({ place, steps, wake }: MethodFacts): MethodOption
     recommended: false,
   },
   {
-    // The same camera, standing (wake/squats.ts; user 2026-11-03, the grid's sixth).
-    value: 'squats',
-    sf: 'figure.cross.training',
-    icon: sym('figure.cross.training', 'sports_gymnastics'),
-    title: 'Do squats',
-    detail: 'The camera counts them',
-    action: 'The camera counts them',
+    // A few steps, then time away (wake/downtime.ts; 2026-11-05, the grid's sixth in place of squats).
+    value: 'downtime',
+    sf: 'hourglass',
+    icon: sym('hourglass', 'hourglass_empty'),
+    title: 'Step away',
+    detail: `${downtime.steps} steps, then ${minutesLabel(downtime.minutes)} off`,
+    action: `Walk ${downtime.steps} steps, then ${minutesLabel(downtime.minutes)} with your apps asleep`,
     recommended: false,
   },
 ];

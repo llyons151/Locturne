@@ -105,7 +105,8 @@ function screen(initial: Stored, now?: Date) {
     '@/lib/routine': {
       getRoutine: () => stored,
       pushupGoalOf: (r: { pushupGoal?: number }) => r.pushupGoal ?? 10,
-      squatGoalOf: (r: { squatGoal?: number }) => r.squatGoal ?? 20,
+      downtimeStepsOf: (r: { downtimeSteps?: number }) => r.downtimeSteps ?? 50,
+      downtimeMinutesOf: (r: { downtimeMinutes?: number }) => r.downtimeMinutes ?? 60,
       getPendingRoutine: () => null,
       hasRoutine: () => true,
       toLockSettings: (r: Stored) => ({ ...r, nightApps: ['night'], alwaysApps: ['always'] }),

@@ -13,6 +13,7 @@
  */
 import type { LockState, Phase } from './lock-state.ts';
 import type { Routine, WakeMethod } from './routine.ts';
+import { downtimeStepsOf } from './wake/downtime.ts';
 
 export type ShieldText = { title: string; subtitle: string; button: string };
 
@@ -55,16 +56,29 @@ export function shieldRule(facts: ShieldFacts): ShieldRule {
  * chip's history, so the shield's I'm up button checks them with Locturne closed
  * (`locturneMorningCheck`): walk or take the stairs first, then tap it. The camera and the
  * place check-in live in the app, so those open Locturne. Walking only wakes a steps morning
- * from here; walking instead of another method is chosen in Locturne (user 2026-10-28).
+ * from here; walking instead of another method is chosen in Locturne (user 2026-10-28). Step
+ * away's few steps start its timer from the shield too, and the timer's end wakes them by itself.
  */
-const PROOF: Record<WakeMethod, (stepGoal: number) => string> = {
+type ProofRoutine = Pick<Routine, 'stepGoal' | 'downtimeSteps'>;
+const PROOF: Record<WakeMethod, (routine: ProofRoutine) => string> = {
   downstairs: () => 'Go down a floor, then tap I’m up.',
-  steps: (goal) => `Walk ${goal} steps, then tap I’m up.`,
+  steps: (r) => `Walk ${r.stepGoal} steps, then tap I’m up.`,
   scan: () => 'Open Locturne and scan your code.',
   place: () => 'Go to your place and check in from Locturne.',
   pushups: () => 'Open Locturne for your push-ups.',
-  squats: () => 'Open Locturne for your squats.',
+  downtime: (r) => `Walk ${downtimeStepsOf(r)} steps, then tap I’m up. The timer starts from your steps.`,
 };
+
+/**
+ * Step away's timer, once it's running (wake/downtime.ts): when they wake, or that it runs into
+ * bedtime and they don't today. Null before it starts.
+ */
+export type ShieldTimer = { wakesAt: Date; bedtimeFirst: boolean } | null;
+
+function timerLine(timer: NonNullable<ShieldTimer>): string {
+  if (timer.bedtimeFirst) return 'Your timer runs past bedtime, so they sleep through to tomorrow.';
+  return `Timer’s running. They wake at ${clockLabel(timer.wakesAt.getHours() * 60 + timer.wakesAt.getMinutes())}.`;
+}
 
 /**
  * Pure: the words for one rule. `routine` supplies the wake-up time and method; `until` is
@@ -72,8 +86,9 @@ const PROOF: Record<WakeMethod, (stepGoal: number) => string> = {
  */
 export function shieldCopy(
   rule: ShieldRule,
-  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal'>,
+  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal' | 'downtimeSteps'>,
   until: Date | null = null,
+  timer: ShieldTimer = null,
 ): ShieldText {
   const wake = clockLabel(routine.morningStart);
   switch (rule) {
@@ -91,8 +106,9 @@ export function shieldCopy(
       };
     case 'morning':
       return {
-        title: 'No.',
-        subtitle: PROOF[routine.method](routine.stepGoal),
+        // Step away's timer running: they're up, so not "No.", and nothing to tap.
+        title: timer ? 'Not yet.' : 'No.',
+        subtitle: timer ? timerLine(timer) : (PROOF[routine.method] ?? PROOF.steps)(routine),
         button: 'I’m up',
       };
     case 'blockNow':
@@ -124,9 +140,10 @@ export function shieldCopy(
 /** Pure: the words for a lock state. */
 export function shieldTextFor(
   state: Pick<LockState, 'phase' | 'blockNowUntil'>,
-  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal'>,
+  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal' | 'downtimeSteps'>,
   now: Date,
   limitReached: boolean,
+  timer: ShieldTimer = null,
 ): ShieldText {
   const rule = shieldRule({
     phase: state.phase,
@@ -134,7 +151,7 @@ export function shieldTextFor(
     blockNowUntil: state.blockNowUntil,
     limitReached,
   });
-  return shieldCopy(rule, routine, state.blockNowUntil);
+  return shieldCopy(rule, routine, state.blockNowUntil, timer);
 }
 
 /**

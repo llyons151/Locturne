@@ -45,7 +45,7 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
   scan: sym('barcode.viewfinder', 'barcode_scanner'),
   place: sym('mappin.and.ellipse', 'location_on'),
   pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
-  squats: sym('figure.cross.training', 'sports_gymnastics'),
+  downtime: sym('hourglass', 'hourglass_empty'),
 };
 
 /**

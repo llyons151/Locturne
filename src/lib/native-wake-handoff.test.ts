@@ -78,7 +78,7 @@ mock.module('react-native-device-activity', { namedExports: exports });
 
 const st = await import('./screen-time.ts');
 const { armTonight } = await import('./arm.ts');
-const { currentProof, readLock, syncLock } = await import('./lock-controller.ts');
+const { currentProof, readDowntime, readLock, syncLock } = await import('./lock-controller.ts');
 const { saveRoutine, DEFAULT_ROUTINE } = await import('./routine.ts');
 const { heldPhase } = await import('./emergency.ts');
 const { getFirstMorning, getMorningsWon } = await import('./morning-proof.ts');
@@ -112,13 +112,17 @@ function callbacks(from: Date, to: Date) {
   return out.sort((a, b) => a.at - b.at || (a.callback === 'end' ? -1 : 1));
 }
 
-type Method = 'steps' | 'downstairs' | 'scan' | 'place' | 'pushups' | 'squats';
+type Method = 'steps' | 'downstairs' | 'scan' | 'place' | 'pushups' | 'downtime';
 type Scenario = {
   name: string;
   method: Method;
   pedometer: { steps: number; ascended?: number; descended?: number };
   /** What the tap should do with Locturne closed. */
-  woke: false | 'steps' | 'downstairs';
+  woke: false | 'steps' | 'downstairs' | 'downtime';
+  /** Step away: the tap started its timer, still running a minute later. */
+  timer?: boolean;
+  /** Step away's timer, in minutes. */
+  minutes?: number;
   /** Whether it sends the notification that opens Locturne. */
   opens: boolean;
 };
@@ -137,8 +141,12 @@ const SCENARIOS: Scenario[] = [
   { name: 'place-walked', method: 'place', pedometer: { steps: 260 }, woke: 'steps', opens: false },
   { name: 'pushups-short', method: 'pushups', pedometer: { steps: 10 }, woke: false, opens: true },
   { name: 'pushups-walked', method: 'pushups', pedometer: { steps: 300 }, woke: false, opens: true },
-  { name: 'squats-short', method: 'squats', pedometer: { steps: 10 }, woke: false, opens: true },
-  { name: 'squats-walked', method: 'squats', pedometer: { steps: 300 }, woke: false, opens: true },
+  // Step away: its steps start the timer from the shield, back-dated to when they were reached (the
+  // scripted history has them all by 07:01), and it never opens Locturne. 200 steps don't skip it.
+  { name: 'downtime-short', method: 'downtime', pedometer: { steps: 30 }, woke: false, opens: false },
+  { name: 'downtime-walked', method: 'downtime', pedometer: { steps: 300 }, woke: false, opens: false, timer: true },
+  // A 15-minute timer from 07:01 is over by the 07:25 tap: the same tap wakes them.
+  { name: 'downtime-over', method: 'downtime', pedometer: { steps: 80 }, woke: 'downtime', opens: false, minutes: 15 },
 ];
 
 /** The tap: Tuesday 07:25, the night armed Monday afternoon and synced last at 22:00. */
@@ -149,7 +157,7 @@ async function closedNightFor(s: Scenario) {
   clock(at(10, 5, 15));
   fake.ids().night = 'tiktok,instagram';
   fake.ids().always = 'reddit';
-  saveRoutine({ ...DEFAULT_ROUTINE, method: s.method }, at(10, 5, 15));
+  saveRoutine({ ...DEFAULT_ROUTINE, method: s.method, ...(s.minutes ? { downtimeMinutes: s.minutes } : {}) }, at(10, 5, 15));
   const result = await armTonight();
   assert.equal(result.status, 'armed');
   const evening = at(10, 5, 22);
@@ -221,6 +229,14 @@ if (results && existsSync(results)) {
         assert.ok(lock.blocked.includes('night'), 'still locked by the app’s rules');
         assert.ok(st.isNightHeld(), 'the hold is still there');
       }
+      // The timer the shield started is the app's too: this morning's, from when the steps were reached.
+      const { record, phase } = readDowntime(now);
+      if (s.timer) {
+        assert.equal(phase.kind, 'running', 'the app sees the shield’s timer running');
+        assert.equal(record?.morningKey, '2026-10-06');
+        assert.ok(record && record.reachedAt <= +at(10, 6, 7, 2), 'timed from the steps, not from the tap');
+        assert.equal(record?.endsAt, (record?.reachedAt ?? 0) + 60 * 60_000);
+      } else if (s.method !== 'downtime') assert.equal(record, null, 'no timer on other mornings');
     });
   }
 }

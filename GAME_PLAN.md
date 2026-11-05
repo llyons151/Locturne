@@ -1,7 +1,8 @@
 # Locturne: game plan
 
 Updated October 1, 2026 (wake-up methods, daytime controls, build status and the
-launch timeline); v1 wake-up methods widened to five on October 9, 2026. This is the source of truth for product direction. It
+launch timeline); v1 wake-up methods widened to five on October 9, 2026, and set at six on
+November 5, 2026 (squats out, Step away in). This is the source of truth for product direction. It
 replaces the September 21 plan, which is archived at
 [docs/archive/GAME_PLAN_2026-09-21.md](docs/archive/GAME_PLAN_2026-09-21.md). The
 reasoning behind it is in [docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md),
@@ -65,7 +66,7 @@ Rules carried over from the previous plan:
   either (decided 2026-10-01). The always-blocked list still applies.
 - The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
 
-## Wake-up methods (decided 2026-10-01, five for v1 since 2026-10-09)
+## Wake-up methods (decided 2026-10-01; six for v1 since 2026-11-05)
 
 The promise stays "your apps don't wake up until you get up". The methods are only
 different ways to prove it, each with its own lines from Loc. Details in
@@ -79,12 +80,18 @@ different ways to prove it, each with its own lines from Loc. Details in
 | **Scan your code** | A per-user QR or a registered product barcode kept in another room | Alternative; the leading candidate for the accessible option |
 | **Leave the house** | An in-app "I'm out" check reads location once: at least ~150 m from the saved home spot, or at a saved place (gym, campus, café). When-In-Use permission only, no background geofence. Optional light check: the camera's exposure value (brightness only, never the picture) confirms daylight; before sunrise it's location only. | Alternative; the "get outside / see the sky" morning |
 | **Push-ups** | Phone leaning on the floor two steps away, side-on; the front camera counts the reps (Apple Vision body pose, on the phone, nothing recorded). Loc peeks over the bottom strip, reacting, and says the count out loud. | Alternative; the effort option and a strong video ("my alarm watches me do push-ups") |
+| **Step away** (`downtime`) | A few steps on `CMPedometer` since the morning start (default 50), then a timer the person picks (15 min to 2 h, default 1 h) with the apps still asleep. The timer runs from when the steps were really reached, found in the pedometer history, not from when the app was opened. | Alternative (2026-11-05); "an hour without your phone from the time you actually get out of bed" |
+
+Squats (camera, standing; added 2026-11-03) were **removed on 2026-11-05**. A routine saved
+with squats reads as Walk it off, the default, and is saved back so the extensions read it too
+(`normalizeRoutine` in `src/lib/routine.ts`); the native extensions walk a `squats` routine too.
 
 - **Onboarding asks one question,** not a menu, right after `wake`: "Are there
   stairs between your bed and your coffee?" Yes picks downstairs; no picks steps;
   a small link shows the rest.
 - **Every morning offers "walk 200 steps instead".** It proves the same thing, so
-  it isn't loosening, and it covers a dead barometer or travel.
+  it isn't loosening, and it covers a dead barometer or travel. Except Step away
+  (2026-11-05): it's already a walk, and walking instead would skip its timer.
 - **If the barometer is missing or reads flat,** say so and offer steps. Never
   leave someone stuck.
 - Changing the method follows the next-bedtime rule.
@@ -109,6 +116,24 @@ different ways to prove it, each with its own lines from Loc. Details in
   yet", never a yes. Rules in `src/lib/place.ts`, screen at `/place`. Not built yet:
   the "~150 m from home" mode and the daylight check. Needs a new dev build
   (expo-location).
+- **Step away, as built (2026-11-05; name, no steps fallback and the onboarding answer confirmed by the user the same day):** rules in `src/lib/wake/downtime.ts`, Home's morning in
+  `use-morning-downtime.ts`, settings at `/downtime` (the timer) and `/downtime?part=steps`.
+  - The steps count as Walk it off's: from the morning start, steps before opening the app
+    included, a fresh count each morning, reopening never resets. They only start the timer:
+    no "walk 200 steps instead" on a Step away morning (it would skip the timer). Passes and
+    the emergency unlock still work.
+  - The timer starts from the minute the steps were reached: a binary search over
+    `CMPedometer` interval queries (`findThresholdTime`, mirrored in Swift as
+    `locturneFindThreshold`). If the history can't place it (it reads fewer steps than the live
+    count, after a restart, or a query fails or times out), the earliest reliable moment is the
+    check itself (later, never earlier). Saved once per morning in the App Group
+    (`locturne.downtime`).
+  - Either Home or the shield's I'm up can start it. Its end is a one-off DeviceActivity window
+    (`locturne-downtime`, like Block now's), so the monitor extension wakes the apps with
+    Locturne closed; the next open or I'm up after the end wakes them too if iOS drops it.
+  - Bedtime wins: a timer that ends at or after the next bedtime wakes nothing, and the night
+    holds as usual. Settings follow the routine-edit rules; a night that's off has no morning.
+  - Not yet tried on a device (pedometer timestamps, the window firing on time).
 - **Background unlock** (built 2026-10-15, not yet tried on a device): the morning
   shield's button is "I'm up". It reads steps and floors since the morning start from
   the motion chip's history and wakes the apps with Locturne closed: the step goal for

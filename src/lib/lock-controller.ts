@@ -16,12 +16,30 @@ import { judgeClock, readClock, type ClockSeen } from './clock-guard.ts';
 import { armedInTime, currentMorning, dateKey, getLockState, nightInto, nightsAround, settingsTakeEffectAt, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { looserEditsStart } from './daily-limits.ts';
 import { getProof, proofMorningStart, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
-import { armedForEdit, bringEditForward, getPendingRoutine, getRoutine, getRoutineChange, holdsEarly, nightRanUnder, runsAs, toLockSettings, type Routine } from './routine.ts';
+import {
+  armedForEdit,
+  bringEditForward,
+  downtimeMinutesOf,
+  downtimeStepsOf,
+  getPendingRoutine,
+  getRoutine,
+  getRoutineChange,
+  holdsEarly,
+  nightRanUnder,
+  runsAs,
+  toLockSettings,
+  type Routine,
+} from './routine.ts';
 import { methodInUse } from './scan-code.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
 import {
+  armDowntimeEnd,
   armedSince,
   armSchedules,
+  downtimeEndArmed,
+  getDowntime,
+  saveDowntime,
+  stopDowntimeEnd,
   liftIdleSchedules,
   currentNightWindowNames,
   armNight,
@@ -61,7 +79,8 @@ import {
   wakeApps,
   type StandingList,
 } from './screen-time.ts';
-import { shieldCopy, shieldTap, shieldTextFor } from './shield-copy.ts';
+import { shieldCopy, shieldTap, shieldTextFor, type ShieldTimer } from './shield-copy.ts';
+import { downtimeDue, downtimeFor, downtimePhase, findThresholdTime, planDowntime, type DowntimeRecord } from './wake/downtime.ts';
 import { planArming, type ArmPlan } from './wake/arming.ts';
 import { planNightWindows } from './night-plan.ts';
 import { delaySiteChanges, settleSites } from './websites.ts';
@@ -262,6 +281,9 @@ export function syncLock(now = new Date()): LockState {
   // Removed websites whose bedtime has come wake with the shields re-applied below.
   if (isScreenTimeAvailable()) settleSites(now);
   if (isScreenTimeAvailable()) noteEmptyMorning(now);
+  // Step away's timer ended (with the app closed, or while it was open): the morning is proven
+  // now, before the state is read, so the apps wake below like any other proof.
+  proveDowntimeIfDue(now);
   const state = readLock(now);
   if (isScreenTimeAvailable()) {
     // Not a night or morning after the last one a lapsed subscription covers: the extension
@@ -292,6 +314,8 @@ export function syncLock(now = new Date()): LockState {
     rearmNap(now).catch(() => {
       // iOS refused. The next sync tries again.
     });
+    // And a running Step away timer: iOS ends it with the app closed (`armDowntimeEnd`).
+    keepDowntimeEnd(state, now);
 
     if (getArmedNight() && planFor(now).action !== 'keep') {
       armRoutine(now).catch(() => {
@@ -501,6 +525,87 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
 }
 
 /**
+ * Step away (wake/downtime.ts): this morning's timer, when the morning under way asks for it and
+ * the routine governing now is a Step away one. Null before the steps are reached, or on any
+ * other morning.
+ */
+export function currentDowntime(now = new Date()): DowntimeRecord | null {
+  const { routine } = judgedAt(now);
+  if (methodInUse(routine.method) !== 'downtime') return null;
+  return downtimeFor(getDowntime(), currentMorning(now, toLockSettings(routine)));
+}
+
+/** The timer's state for Home and the shield, judged against the next bedtime (bedtime wins). */
+export function readDowntime(now = new Date()) {
+  const record = currentDowntime(now);
+  return { record, phase: downtimePhase(record, now.getTime(), record ? nextBedtime(now) : null) };
+}
+
+/**
+ * Step away's steps are in (Home's live count reached them): starts this morning's timer from
+ * when they were really reached, found in the pedometer's history (`findThresholdTime`), saves
+ * it, and syncs, which hands its end to iOS or, if it's already over (they walked an hour ago
+ * and only opened Locturne now), wakes the apps at once. A timer already saved (an earlier open,
+ * or the shield's I'm up) stays as it is. Null when it isn't a Step away morning under way.
+ */
+export async function startDowntime(
+  stepsBetween: (from: number, to: number) => Promise<number | null>,
+  now = new Date(),
+): Promise<DowntimeRecord | null> {
+  const { routine } = judgedAt(now);
+  if (methodInUse(routine.method) !== 'downtime') return null;
+  const state = readLock(now);
+  if (state.phase !== 'morning') return null;
+  const morning = currentMorning(now, toLockSettings(routine));
+  const saved = downtimeFor(getDowntime(), morning);
+  if (saved) return saved;
+  const goal = downtimeStepsOf(routine);
+  const reachedAt = await findThresholdTime(morning.start.getTime(), now.getTime(), goal, stepsBetween);
+  // The shield's I'm up may have saved one while the history was read: the first stays.
+  const raced = downtimeFor(getDowntime(), morning);
+  if (raced) return raced;
+  const record = saveDowntime(planDowntime(morning, reachedAt, now.getTime(), { steps: goal, minutes: downtimeMinutesOf(routine) }));
+  syncLock(new Date(Math.max(Date.now(), now.getTime())));
+  return record;
+}
+
+/**
+ * Proves a Step away morning whose timer has ended, as the monitor extension does at the end
+ * of its window: only inside the morning (bedtime wins: a timer that runs into the night never
+ * wakes them), and only once.
+ */
+function proveDowntimeIfDue(now: Date): void {
+  const record = currentDowntime(now);
+  if (!record || !downtimeDue(record, now.getTime())) return;
+  const state = readLock(now);
+  if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return;
+  recordProof({ morningKey: state.morningKey, kind: 'downtime', at: now.getTime() }, judgedAt(now));
+}
+
+/**
+ * Keeps iOS ending a running timer (`armDowntimeEnd`): registered if iOS dropped it or it was
+ * started where nothing could register it, and stopped once nothing needs it (proven, over, or
+ * running into bedtime, when its end would wake nothing).
+ */
+function keepDowntimeEnd(state: LockState, now: Date): void {
+  const { record, phase } = state.phase === 'morning' ? readDowntime(now) : { record: null, phase: null };
+  if (record && phase?.kind === 'running') {
+    armDowntimeEnd(record, now).catch(() => {
+      // iOS refused. The next open, or I'm up after the end, wakes them anyway.
+    });
+  } else if (downtimeEndArmed()) stopDowntimeEnd();
+}
+
+/** The shield's words for a running timer (`shieldCopy`), or null. */
+function shieldTimer(state: LockState, now: Date): ShieldTimer {
+  if (state.phase !== 'morning') return null;
+  const { phase } = readDowntime(now);
+  if (phase.kind === 'running') return { wakesAt: new Date(phase.endsAt), bedtimeFirst: false };
+  if (phase.kind === 'bedtime') return { wakesAt: new Date(phase.endsAt), bedtimeFirst: true };
+  return null;
+}
+
+/**
  * Records a proof for the morning `now` belongs to and wakes the apps. Returns the new
  * state, or null when nothing was recorded: it isn't the morning yet (bedtime wins), the
  * morning is already unlocked, the night was off, or it's after the last paid morning.
@@ -510,6 +615,9 @@ export function proveMorning(kind: ProofKind, now = new Date()): LockState | nul
   // A morning after the last one a lapsed subscription covers holds nothing: the extension
   // skipped its night, so there's nothing to prove (and no unlock to report).
   if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return null;
+  // Step away's steps only start its timer: a walk is no proof of its morning (as on the shield,
+  // `locturneMotionProof`). Its own proof comes when the timer ends (`proveDowntimeIfDue`).
+  if (kind === 'steps' && methodInUse(judgedAt(now).routine.method) === 'downtime') return null;
   if (!recordProof({ morningKey: state.morningKey, kind, at: now.getTime() }, judgedAt(now))) return null;
   return syncLock(now);
 }
@@ -938,7 +1046,8 @@ function applyShieldText(state: LockState, now: Date): void {
     locked &&
     (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now) || emptyNight)));
   const held = unheld ? { ...state, phase: 'day' as const } : state;
-  setShieldText(shieldTextFor(held, routine, now, limitReached), shieldTap(held.phase));
+  const timer = shieldTimer(held, now);
+  setShieldText(shieldTextFor(held, routine, now, limitReached, timer), shieldTap(held.phase));
   // The words for the next window and the next morning start: a waiting edit's, unless it's
   // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
   // coming morning still run on the routine in force). From morning start on, the night words
@@ -951,7 +1060,7 @@ function applyShieldText(state: LockState, now: Date): void {
   const thisMorning =
     state.phase === 'night' || (state.phase === 'morning' && now.getTime() < morningStart + MORNING_COPY_SLACK_MS);
   setNightShieldText(shieldCopy('night', next, null));
-  setMorningShieldText(shieldCopy('morning', thisMorning ? routine : next, null), shieldTap('morning'));
+  setMorningShieldText(shieldCopy('morning', thisMorning ? routine : next, null, thisMorning ? timer : null), shieldTap('morning'));
   setAlwaysShieldText(shieldCopy('always', routine, null));
   setLimitShieldText(shieldCopy('limit', routine, null));
 }

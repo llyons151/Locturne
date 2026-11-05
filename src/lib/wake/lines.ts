@@ -82,43 +82,26 @@ export function pushupsLine(
   }
 }
 
-/** Squats, the same way (wake/squats.ts): standing, not on the floor. */
-const DURING_SQUATS = [
-  'One. Gerald is watching. Allegedly.',
-  'Sit. Stand. Very bear of you.',
-  'Each one wakes an app.',
-  'I squat to fish. You squat for apps.',
-  'Bears sit like this. Probably.',
-  'Knees out. I read that somewhere.',
-  'Good behaviour. I’m counting.',
-  'The grizzly does these. I assume.',
-  'I did these in the zoo. For snacks.',
-  'Up like you’re getting out early.',
-] as const;
-
-export function squatsLine(
-  status: PushupsStatus | 'idle',
-  reps: number,
-  goal: number,
-  miss: Miss | null,
-  hint: Hint | null = null,
+/**
+ * Step away (wake/downtime.ts): a few steps, then the timer with the apps still asleep. He's
+ * delighted about the second part, in his way: it's more lying around.
+ */
+export function downtimeLine(
+  phase: 'walking' | 'running' | 'over' | 'bedtime',
+  { steps = 0, goal = 0, minutesLeft = 0 }: { steps?: number; goal?: number; minutesLeft?: number } = {},
 ): string {
-  switch (status) {
-    case 'idle':
-      return 'Squats. Then your apps.';
-    case 'finding':
-      if (hint === 'notStanding') return "Stand up. I don't count lying down.";
-      return reps > 0 ? 'Where did you go. Come back.' : "I can't see your legs. Back up.";
-    case 'counting':
-      if (miss === 'shallow') return 'That was a curtsy. Lower.';
-      if (miss === 'quick') return 'Slower. Bears squat slow.';
-      if (reps === 0) return 'Stand tall. Now sit back.';
-      if (goal - reps <= 2) return 'Almost. I’m *furious* about it.';
-      return DURING_SQUATS[(reps - 1) % DURING_SQUATS.length];
-    case 'met':
-      return "I'm up. Don't talk to me yet.";
-    case 'timedOut':
-      return reps > 0 ? `Ten quiet minutes. ${Math.max(0, goal - reps)} left. Keep going.` : 'Ten minutes and no squats. Start again.';
+  switch (phase) {
+    case 'walking':
+      if (steps <= 0) return 'A few steps. Then we both lie low.';
+      return goal - steps <= 10 ? 'Nearly. Then nothing. My favourite part.' : 'Keep walking. The quiet bit is next.';
+    case 'running':
+      if (minutesLeft <= 1) return 'One minute. Don’t rush me.';
+      if (minutesLeft <= 10) return 'Almost. I was enjoying this.';
+      return 'Phone down. I’m timing it. Barely.';
+    case 'over':
+      return 'Time’s up. They’re awake. So am I, sadly.';
+    case 'bedtime':
+      return 'That runs past bedtime. Bedtime wins.';
   }
 }
 

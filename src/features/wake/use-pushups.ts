@@ -16,7 +16,7 @@ const TICK_MS = 1_000;
  * real morning's key, never the preview's) the reps are saved as they come, so closing the camera,
  * walking off or relaunching carries on from there. `start` is stable, so the screen starts once;
  * a new `goal` meanwhile keeps the reps done (`retarget`, on the next clock tick). `exercise`:
- * push-ups, or squats on the same machine (wake/squats.ts).
+ * what the machine counts (push-ups).
  */
 export function usePushups(goal: number, timeoutIn?: number, morning?: string, exercise: Exercise = 'pushups') {
   const [session, setSession] = useState<PushupsSession | null>(null);

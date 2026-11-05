@@ -35,8 +35,8 @@ export function methodSettings(value: WakeMethod): Href | null {
       return '/steps';
     case 'pushups':
       return '/pushups';
-    case 'squats':
-      return '/squats';
+    case 'downtime':
+      return '/downtime';
     case 'scan':
       return getScanEditRefusal() ? null : '/code';
     case 'place':

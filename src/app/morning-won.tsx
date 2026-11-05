@@ -13,7 +13,7 @@ import { currentProof, routineAt } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
 import { weekDays } from '@/features/home/week';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
-import { getRoutineChange, nightWasOn, type WakeMethod } from '@/lib/routine';
+import { getRoutineChange, isWakeMethod, nightWasOn } from '@/lib/routine';
 
 /**
  * The morning payoff, after a wake-up wakes the apps (features/wake/payoff-screen.tsx). Home
@@ -71,8 +71,6 @@ function realFacts(): PayoffFacts | null {
   };
 }
 
-const METHODS: readonly WakeMethod[] = ['downstairs', 'steps', 'scan', 'place', 'pushups', 'squats'];
-const isWakeMethod = (value: unknown): value is WakeMethod => METHODS.includes(value as WakeMethod);
 
 function demoFacts(p: Record<string, string>): PayoffFacts {
   const today = new Date();

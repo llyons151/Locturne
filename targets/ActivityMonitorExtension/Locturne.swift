@@ -6,6 +6,7 @@
 //  Shared.swift: edit one, copy it to the other (native-tests/run.sh checks they match).
 //
 
+import DeviceActivity
 import FamilyControls
 import Foundation
 import ManagedSettings
@@ -667,6 +668,9 @@ struct LocturneMorning {
   /// The routine's times the proof is judged under (`recordProof` saves them).
   let bedtime: Int
   let morningStart: Int
+  /// Step away (`downtime`): the steps that start its timer, and the timer's minutes.
+  var downtimeSteps: Int = LOCTURNE_DOWNTIME_STEPS
+  var downtimeMinutes: Int = LOCTURNE_DOWNTIME_MINUTES
 }
 
 /// The morning the night lock still holds, or nil: no hold (proven, paused, never locked),
@@ -690,8 +694,17 @@ func locturneHeldMorning(now: Date = Date()) -> LocturneMorning? {
     method: locturneMethodInUse(routine["method"] as? String ?? "steps"),
     stepGoal: (routine["stepGoal"] as? NSNumber)?.intValue ?? 200,
     bedtime: judged.bedtime,
-    morningStart: judged.morningStart
+    morningStart: judged.morningStart,
+    downtimeSteps: locturneOnWheel(routine["downtimeSteps"], min: 10, max: 500, fallback: LOCTURNE_DOWNTIME_STEPS),
+    downtimeMinutes: locturneOnWheel(routine["downtimeMinutes"], min: 15, max: 120, fallback: LOCTURNE_DOWNTIME_MINUTES)
   )
+}
+
+/// A saved count on its wheel, as `downtimeStepsOf` in src/lib/wake/downtime.ts: the nearest on
+/// it, or the default when it isn't a number.
+func locturneOnWheel(_ value: Any?, min: Int, max: Int, fallback: Int) -> Int {
+  guard let number = (value as? NSNumber)?.doubleValue, number.isFinite else { return fallback }
+  return Swift.min(max, Swift.max(min, Int(number.rounded())))
 }
 
 /// Pure: the proof the motion history gives, or nil. Steps prove only a steps morning (user
@@ -701,7 +714,8 @@ func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int)
   if method == "downstairs" && floors >= 1 && steps >= LOCTURNE_FLOOR_STEPS { return "downstairs" }
   // A goal of 0 or less (never saved by the app) mustn't wake on no steps at all.
   // A method this extension doesn't know (a newer app's) still takes a walk, so nobody is stuck.
-  let walks = !["downstairs", "scan", "place", "pushups", "squats"].contains(method)
+  // Step away (`downtime`) is steps and then its timer: walking further never skips the timer.
+  let walks = !["downstairs", "scan", "place", "pushups", "downtime"].contains(method)
   if walks && steps >= max(stepGoal, 1) { return "steps" }
   return nil
 }
@@ -711,6 +725,9 @@ func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int)
 func locturneMethodInUse(_ method: String) -> String {
   if method == "scan" && userDefaults?.object(forKey: "locturne.scanCode") == nil { return "steps" }
   if method == "place" && userDefaults?.object(forKey: "locturne.morningPlace") == nil { return "steps" }
+  // Squats went on 2026-11-05 (`normalizeRoutine` in src/lib/routine.ts): a routine saved with
+  // them, not yet opened in the new app, walks.
+  if method == "squats" { return "steps" }
   return method
 }
 
@@ -734,10 +751,15 @@ func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> Stri
 /// window up to 5 minutes early, so "I'm up" shows a little before it, but steps only count
 /// from then. In the app's clock style (`clockLabel` in src/lib/shield-copy.ts): "7 am".
 func locturneEarlyTapLine(morningStart: Int) -> String {
-  let m = ((morningStart % 1440) + 1440) % 1440
+  "Up early. Steps count from \(locturneClockLabel(morningStart)). Tap I’m up after that."
+}
+
+/// "7 am", "8:15 am": `clockLabel` in src/lib/shield-copy.ts.
+func locturneClockLabel(_ minutes: Int) -> String {
+  let m = ((minutes % 1440) + 1440) % 1440
   let hour = m / 60 % 12 == 0 ? 12 : m / 60 % 12
   let clock = m % 60 == 0 ? "\(hour)" : "\(hour):\(String(format: "%02d", m % 60))"
-  return "Up early. Steps count from \(clock) \(m < 720 ? "am" : "pm"). Tap I’m up after that."
+  return "\(clock) \(m < 720 ? "am" : "pm")"
 }
 
 private func locturneProofs() -> [[String: Any]] {
@@ -841,9 +863,11 @@ func locturneShowMorningProgress(_ subtitle: String) {
 
 /// What the motion history said, and what the check did, at `now`. Nil steps: no history.
 /// Returns whether the apps woke. The ShieldAction extension calls it with the pedometer's answer.
+/// `reachedAt`: for Step away, when the pedometer history says its steps were reached
+/// (`locturneFindThreshold`); nil uses `now`, the earliest moment known for sure.
 @available(iOS 15.0, *)
 @discardableResult
-func locturneJudgeMorning(steps: Int?, floors: Int, now: Date = Date()) -> Bool {
+func locturneJudgeMorning(steps: Int?, floors: Int, now: Date = Date(), reachedAt: Date? = nil) -> Bool {
   guard let morning = locturneHeldMorning(now: now) else {
     locturneLogMorningCheck(["verdict": "notHeld"], now: now)
     return false
@@ -854,6 +878,9 @@ func locturneJudgeMorning(steps: Int?, floors: Int, now: Date = Date()) -> Bool 
     locturneLogMorningCheck(["verdict": "alreadyProven"], now: now)
     return true
   }
+  if morning.method == "downtime" {
+    return locturneJudgeDowntime(morning, steps: steps, reachedAt: reachedAt, now: now, by: "imUp")
+  }
   if let steps, let kind = locturneMotionProof(method: morning.method, stepGoal: morning.stepGoal, steps: steps, floors: floors) {
     locturneRecordProof(morning, kind: kind, now: now)
     locturneWakeMorning(triggeredBy: "locturne_imUp")
@@ -863,6 +890,180 @@ func locturneJudgeMorning(steps: Int?, floors: Int, now: Date = Date()) -> Bool 
   locturneShowMorningProgress(locturneMorningProgress(method: morning.method, stepGoal: morning.stepGoal, steps: steps))
   locturneLogMorningCheck(["verdict": steps == nil ? "noHistory" : "short", "steps": steps ?? -1, "floors": floors], now: now)
   return false
+}
+
+// MARK: - Step away (`downtime`, src/lib/wake/downtime.ts)
+
+// A few steps from the morning start, then a timer, with the bedtime apps still asleep. The
+// timer runs from when the steps were reached, found in the pedometer's history, and is saved
+// in the App Group (`locturne.downtime`, the app's `DowntimeRecord`), so whichever starts it (the
+// app, or I'm up here) the other sees it. Its end is a one-off window (`locturne-downtime`):
+// the monitor extension wakes the apps there with Locturne closed (`locturneDowntimeEnded`).
+
+let LOCTURNE_DOWNTIME_KEY = "locturne.downtime"
+let LOCTURNE_DOWNTIME_ACTIVITY = "locturne-downtime"
+let LOCTURNE_DOWNTIME_ARMED_KEY = "locturne.downtimeArmedEnd"
+/// As `DEFAULT_DOWNTIME_STEPS` and `DEFAULT_DOWNTIME_MINUTES`.
+let LOCTURNE_DOWNTIME_STEPS = 50
+let LOCTURNE_DOWNTIME_MINUTES = 60
+/// iOS can end the window a little early (`DOWNTIME_SLACK_MS`).
+let LOCTURNE_DOWNTIME_SLACK: TimeInterval = 120
+
+struct LocturneDowntime {
+  let reachedAt: Date
+  let endsAt: Date
+}
+
+/// This morning's saved timer, or nil: its key and a start at or after this morning's start
+/// (`downtimeFor`; a minute's give for the app's own reading of the start).
+func locturneDowntime(_ morning: LocturneMorning) -> LocturneDowntime? {
+  guard let record = userDefaults?.dictionary(forKey: LOCTURNE_DOWNTIME_KEY),
+    record["morningKey"] as? String == morning.key,
+    let reached = (record["reachedAt"] as? NSNumber)?.doubleValue,
+    let ends = (record["endsAt"] as? NSNumber)?.doubleValue,
+    reached.isFinite, ends.isFinite, ends >= reached,
+    reached >= (morning.start.timeIntervalSince1970 - 60) * 1000
+  else { return nil }
+  return LocturneDowntime(reachedAt: Date(timeIntervalSince1970: reached / 1000), endsAt: Date(timeIntervalSince1970: ends / 1000))
+}
+
+/// The next bedtime after this morning's start, by the routine's bedtime: a timer ending then or
+/// later wakes nothing (bedtime wins).
+func locturneBedtimeAfter(_ morning: LocturneMorning) -> Date? {
+  let calendar = Calendar.current
+  guard var bed = calendar.date(bySettingHour: morning.bedtime / 60, minute: morning.bedtime % 60, second: 0, of: morning.start)
+  else { return nil }
+  if bed <= morning.start, let next = calendar.date(byAdding: .day, value: 1, to: bed) { bed = next }
+  return bed
+}
+
+/// Saves this morning's timer from `reachedAt` (clamped into the morning, as `planDowntime`) and
+/// hands its end to iOS. A timer already saved for this morning stays.
+@discardableResult
+func locturneStartDowntime(_ morning: LocturneMorning, reachedAt: Date, now: Date = Date()) -> LocturneDowntime {
+  if let saved = locturneDowntime(morning) { return saved }
+  let reached = min(now, max(morning.start, reachedAt))
+  let ends = reached.addingTimeInterval(Double(morning.downtimeMinutes) * 60)
+  let stamp = { (date: Date) in (date.timeIntervalSince1970 * 1000).rounded() }
+  userDefaults?.set([
+    "morningKey": morning.key,
+    "start": stamp(morning.start),
+    "reachedAt": stamp(reached),
+    "endsAt": stamp(ends),
+    "minutes": morning.downtimeMinutes,
+    "steps": morning.downtimeSteps,
+  ] as [String: Any], forKey: LOCTURNE_DOWNTIME_KEY)
+  locturneArmDowntimeEnd(ends, now: now)
+  return LocturneDowntime(reachedAt: reached, endsAt: ends)
+}
+
+/// The timer's end as a one-off window (`armDowntimeEnd` in src/lib/screen-time.ts): at least
+/// 15 minutes long, so its start is in the past when the end is close, which iOS starts at once.
+/// Refused (no room, too short) it's left: the next open or I'm up after the end wakes them.
+func locturneArmDowntimeEnd(_ ends: Date, now: Date = Date()) {
+  guard ends > now else { return }
+  let calendar = Calendar.current
+  let start = min(now, ends.addingTimeInterval(-15 * 60))
+  let parts: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
+  var from = calendar.dateComponents(parts, from: start)
+  var to = calendar.dateComponents(parts, from: ends)
+  from.calendar = calendar; from.timeZone = calendar.timeZone
+  to.calendar = calendar; to.timeZone = calendar.timeZone
+  let name = DeviceActivityName(LOCTURNE_DOWNTIME_ACTIVITY)
+  // The list settle gives up its slot first, as for a nap (`makeRoomFor`).
+  if !center.activities.contains(name), center.activities.count >= 20,
+    center.activities.contains(DeviceActivityName("locturne-settle"))
+  {
+    center.stopMonitoring([DeviceActivityName("locturne-settle")])
+    userDefaults?.removeObject(forKey: "locturne.settleAt")
+  }
+  do {
+    try center.startMonitoring(name, during: DeviceActivitySchedule(intervalStart: from, intervalEnd: to, repeats: false), events: [:])
+    userDefaults?.set((ends.timeIntervalSince1970 * 1000).rounded(), forKey: LOCTURNE_DOWNTIME_ARMED_KEY)
+  } catch {
+    logger.log("downtime: iOS refused the end \(error.localizedDescription, privacy: .public)")
+  }
+}
+
+/// Pure: the shield's line for a Step away morning not won yet.
+func locturneDowntimeLine(_ morning: LocturneMorning, steps: Int?, timer: LocturneDowntime?) -> String {
+  if let timer {
+    if let bed = locturneBedtimeAfter(morning), timer.endsAt >= bed {
+      return "Your timer runs past bedtime, so they sleep through to tomorrow."
+    }
+    return "Timer’s running. They wake at \(locturneClockLabel(locturneMinute(timer.endsAt)))."
+  }
+  guard let steps else { return "I can’t read your steps from here. Open Locturne and I’ll check." }
+  let left = max(0, morning.downtimeSteps - steps)
+  return "\(steps) of \(morning.downtimeSteps) steps. \(left) more, then tap I’m up to start your timer."
+}
+
+/// Step away on I'm up (`by` "imUp") or at the window's end ("timer"): starts the timer once its
+/// steps are in, wakes the bedtime apps once it's over, and otherwise says how it's going.
+@available(iOS 15.0, *)
+@discardableResult
+func locturneJudgeDowntime(_ morning: LocturneMorning, steps: Int?, reachedAt: Date?, now: Date, by: String) -> Bool {
+  var timer = locturneDowntime(morning)
+  if timer == nil, let steps, steps >= max(morning.downtimeSteps, 1) {
+    timer = locturneStartDowntime(morning, reachedAt: reachedAt ?? now, now: now)
+  }
+  if let timer, now.addingTimeInterval(LOCTURNE_DOWNTIME_SLACK) >= timer.endsAt {
+    locturneRecordProof(morning, kind: "downtime", now: now)
+    locturneWakeMorning(triggeredBy: "locturne_downtime_\(by)")
+    userDefaults?.removeObject(forKey: LOCTURNE_DOWNTIME_ARMED_KEY)
+    locturneLogMorningCheck(["verdict": "downtime", "by": by, "steps": steps ?? -1, "floors": 0], now: now)
+    return true
+  }
+  locturneShowMorningProgress(locturneDowntimeLine(morning, steps: steps, timer: timer))
+  let verdict = timer != nil ? "timerRunning" : steps == nil ? "noHistory" : "short"
+  locturneLogMorningCheck(["verdict": verdict, "by": by, "steps": steps ?? -1, "floors": 0], now: now)
+  return false
+}
+
+/// The timer's window ended (the monitor extension's `intervalDidEnd`): a held Step away morning
+/// whose saved timer is over wakes, with Locturne closed. Inside the night (a timer past bedtime)
+/// there's no held morning, so nothing wakes.
+@available(iOS 15.0, *)
+@discardableResult
+func locturneDowntimeEnded(now: Date = Date()) -> Bool {
+  guard let morning = locturneHeldMorning(now: now), morning.method == "downtime" else { return false }
+  if locturneMorningProven(morning) {
+    locturneWakeMorning(triggeredBy: "locturne_downtime_timer")
+    return true
+  }
+  guard locturneDowntime(morning) != nil else { return false }
+  return locturneJudgeDowntime(morning, steps: nil, reachedAt: nil, now: now, by: "timer")
+}
+
+/// Finds the first moment, to `resolution`, at which the steps from `from` reached `goal`, given
+/// they had by `to`: a binary search over pedometer queries, as `findThresholdTime` in
+/// src/lib/wake/downtime.ts. Never earlier than the truth; a failed query answers with the last
+/// moment confirmed. `query` answers each range (nil: it failed).
+func locturneFindThreshold(
+  from: Date, to: Date, goal: Int, resolution: TimeInterval = 60, maxQueries: Int = 16,
+  query: @escaping (Date, Date, @escaping (Int?) -> Void) -> Void,
+  done: @escaping (Date) -> Void
+) {
+  var lo = from
+  var hi = to
+  var asked = 0
+  func next() {
+    if hi.timeIntervalSince(lo) <= resolution || asked >= maxQueries {
+      done(hi)
+      return
+    }
+    asked += 1
+    let mid = lo.addingTimeInterval((hi.timeIntervalSince(lo) / 2).rounded(.down))
+    query(from, mid) { steps in
+      guard let steps else {
+        done(hi)
+        return
+      }
+      if steps >= goal { hi = mid } else { lo = mid }
+      next()
+    }
+  }
+  next()
 }
 
 private func locturneLogMorningCheck(_ entry: [String: Any], now: Date) {

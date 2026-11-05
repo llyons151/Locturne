@@ -29,7 +29,7 @@ function route({ params = {} as Record<string, string>, proof = { morningKey: '2
     '@/lib/lock-state': { dateKey: (d: Date) => d.toISOString().slice(0, 10) },
     '@/features/home/week': { weekDays: () => [] },
     '@/lib/morning-proof': { getMorningsWon: () => 3, getProofs: () => (proof ? [proof] : []) },
-    '@/lib/routine': { getRoutineChange: () => null, nightWasOn: () => true },
+    '@/lib/routine': { getRoutineChange: () => null, isWakeMethod: (m: unknown) => ['steps', 'downstairs', 'scan', 'place', 'pushups', 'downtime'].includes(m as string), nightWasOn: () => true },
     '@/features/moons/moon-collection': {
       settleMoons: () => {
         order.push('settle');
