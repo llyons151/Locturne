@@ -36,6 +36,21 @@ export function openScheduleSheet(next: ScheduleRequest) {
   router.push('/schedule');
 }
 
+/**
+ * Asks before deleting a schedule; mid-block, the delete waits for the block's end (`editSchedule`).
+ * The sheet's Delete and a tile's swipe both ask this; the web preview has no alert to ask with.
+ */
+export function confirmRemoveSchedule(id: ScheduleId, remove: () => void) {
+  if (Platform.OS === 'web') return remove();
+  const saved = scheduleAsSet(id);
+  const blocking = saved !== null && blockAt(saved, new Date()) !== null;
+  const why = blocking ? 'It keeps its apps asleep until this block is over, then it’s gone.' : 'Its apps stay awake at these times again.';
+  Alert.alert('Delete this schedule?', why, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: remove },
+  ]);
+}
+
 /** iOS won't watch a block shorter than this (DeviceActivity's floor). */
 const SHORTEST = 15;
 const NAME_MAX = 24;
@@ -117,17 +132,7 @@ export function ScheduleSheet() {
     latest.current.deleted = true;
     closeSleepSheet();
   };
-  const askRemove = () => {
-    if (Platform.OS === 'web') return remove();
-    // Mid-block, a delete waits for the block's end (`editSchedule`).
-    const saved = scheduleAsSet(req.id);
-    const blocking = saved !== null && blockAt(saved, new Date()) !== null;
-    const why = blocking ? 'It keeps its apps asleep until this block is over, then it’s gone.' : 'Its apps stay awake at these times again.';
-    Alert.alert('Delete this schedule?', why, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: remove },
-    ]);
-  };
+  const askRemove = () => confirmRemoveSchedule(req.id, remove);
   const openApps = () => {
     haptic.tap();
     latest.current.kept = true;
