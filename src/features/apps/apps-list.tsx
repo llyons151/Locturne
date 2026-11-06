@@ -576,7 +576,9 @@ function ListTile({
           {status ? (
             <View style={styles.status}>
               <SymbolView name={status.icon} size={14} tintColor={Nocturne.text2} />
-              <Text style={styles.statusText}>{status.text}</Text>
+              <Text style={styles.statusText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {status.text}
+              </Text>
             </View>
           ) : null}
           {used != null ? (

@@ -65,10 +65,11 @@ export function scheduleStatus(s: Schedule, now = new Date()): { asleep: boolean
 /** A waiting edit, spelled out: it lands when the block under way ends. */
 export function schedulePendingNote(s: Schedule, now = new Date()): string | null {
   if (!s.pending) return null;
-  const when = whenLabel(new Date(s.pending.from), now);
-  return s.pending.schedule === null
-    ? `Deleted. It ends ${when}, when this block is over.`
-    : `Your changes start ${when}, when this block is over.`;
+  // One short line on the tile, never wrapping (user 2026-11-05): an all-day block ends at midnight.
+  const from = new Date(s.pending.from);
+  const midnight = from.getHours() === 0 && from.getMinutes() === 0 && from.getTime() - now.getTime() <= 86_400_000;
+  const when = midnight ? 'at midnight' : whenLabel(from, now);
+  return s.pending.schedule === null ? `Deleted. Ends ${when}.` : `Changes start ${when}.`;
 }
 
 /** The words on a schedule's apps while it blocks them. */
