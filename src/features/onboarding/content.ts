@@ -351,7 +351,7 @@ export function methodChoices(steps = 200, reps: number = DEFAULT_PUSHUP_GOAL): 
     { label: 'Scan a code in another room', value: 'scan' },
     { label: 'Get to a place, like the gym', value: 'place' },
     { label: `${reps} push-ups on the floor`, value: 'pushups' },
-    { label: 'A few steps, then an hour off your phone', value: 'downtime' },
+    { label: 'Step away for an hour', value: 'downtime' },
   ];
 }
 
