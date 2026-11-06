@@ -14,6 +14,11 @@ import UIKit
 
  Drawn with Core Animation on a display link (up to 120 Hz) so the fill tracks the finger with no
  bridge in between. VoiceOver users double-tap: holding isn't something they can be asked for.
+
+ On iOS 26 the pill is Apple's Liquid Glass (`UIGlassEffect`, interactive), tinted with the button's
+ colour, and the fill and labels ride inside it, so the press, the light on the glass and the bounce
+ are the system's own (user 2026-11-05: "the glassy Swift liquid animation"). Older iOS keeps the
+ painted pill and its own press.
  */
 public class HoldButtonModule: Module {
   public func definition() -> ModuleDefinition {
@@ -61,6 +66,10 @@ final class HoldButtonView: ExpoView {
 
   /** Everything that moves: scaled as one so the press reads as the whole button. */
   private let content = UIView()
+  /** iOS 26: the Liquid Glass pill, with `content` inside it. Installed once on screen (`mountGlass`). */
+  private let glassView = UIVisualEffectView(effect: nil)
+  private var glassMounted = false
+  private var glassWait: CADisplayLink?
   /** The light, always the whole pill; `reveal` decides how much of it shows. */
   private let fill = UIView()
   /** The fill's glassy shading, top to bottom. */
@@ -99,7 +108,12 @@ final class HoldButtonView: ExpoView {
     content.isUserInteractionEnabled = false
     content.layer.cornerCurve = .continuous
     content.layer.masksToBounds = true
-    addSubview(content)
+    if Self.glassAvailable {
+      addSubview(glassView)
+      glassView.contentView.addSubview(content)
+    } else {
+      addSubview(content)
+    }
 
     fill.layer.masksToBounds = true
     fill.layer.addSublayer(fillShade)
@@ -126,6 +140,98 @@ final class HoldButtonView: ExpoView {
 
   deinit {
     link?.invalidate()
+    glassWait?.invalidate()
+  }
+
+  // MARK: Glass
+
+  /** UIGlassEffect, checked at runtime: early iOS 26 betas crashed creating it (expo-glass-effect). */
+  private static let glassAvailable: Bool = {
+    #if compiler(>=6.2)
+    if #available(iOS 26.0, *) {
+      guard let type = NSClassFromString("UIGlassEffect") as? NSObject.Type else { return false }
+      return type.responds(to: Selector(("effectWithStyle:")))
+    }
+    #endif
+    return false
+  }()
+
+  /** UIKit quietly skips glass on a view that's off screen or nearly see-through (a sheet sliding in), and never retries. */
+  private var glassRenderable: Bool {
+    guard window != nil else { return false }
+    var opacity: CGFloat = 1
+    var view: UIView? = self
+    while let current = view {
+      if current.isHidden { return false }
+      opacity *= current.alpha
+      view = current.superview
+    }
+    return opacity > 0.02
+  }
+
+  /** Puts the glass in, from layout (UIKit draws it wrong made anywhere else), once it can render. */
+  private func mountGlass() {
+    guard Self.glassAvailable, !glassMounted else { return }
+    guard glassRenderable else {
+      if glassWait == nil {
+        let wait = CADisplayLink(target: WeakTarget(self), selector: #selector(WeakTarget.glassTick))
+        wait.add(to: .main, forMode: .common)
+        glassWait = wait
+      }
+      return
+    }
+    glassWait?.invalidate()
+    glassWait = nil
+    #if compiler(>=6.2)
+    if #available(iOS 26.0, *) {
+      glassMounted = true
+      let effect = UIGlassEffect(style: .regular)
+      // The button's colour as the glass's tint, a little see-through so it still reads as glass.
+      effect.tintColor = baseColor.withAlphaComponent(0.82)
+      effect.isInteractive = true
+      // Cleared first, or a re-applied effect doesn't render (expo-glass-effect).
+      glassView.effect = UIVisualEffect()
+      glassView.effect = effect
+      shapeGlass()
+      content.backgroundColor = .clear
+    }
+    #endif
+  }
+
+  fileprivate func glassTick() {
+    if glassRenderable { setNeedsLayout() }
+  }
+
+  private func shapeGlass() {
+    #if compiler(>=6.2)
+    if #available(iOS 26.0, *), glassMounted {
+      let r = UICornerRadius(floatLiteral: bounds.height / 2)
+      glassView.cornerConfiguration = .corners(topLeftRadius: r, topRightRadius: r, bottomLeftRadius: r, bottomRightRadius: r)
+    }
+    #endif
+    // The glass reacts to touches landing on it and passes them on up to this view, which runs the
+    // hold. Any recognizer it adds must never cancel or hold back those touches.
+    var views: [UIView] = [glassView]
+    while let view = views.popLast() {
+      view.gestureRecognizers?.forEach {
+        $0.cancelsTouchesInView = false
+        $0.delaysTouchesBegan = false
+        $0.delaysTouchesEnded = false
+      }
+      views.append(contentsOf: view.subviews.filter { $0 !== content })
+    }
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil {
+      // Put in again when it's back: UIKit drops glass made for another window.
+      glassMounted = false
+      glassWait?.invalidate()
+      glassWait = nil
+    } else {
+      setNeedsLayout()
+    }
   }
 
   // MARK: Props
@@ -170,7 +276,12 @@ final class HoldButtonView: ExpoView {
   }
 
   private func applyColors() {
-    content.backgroundColor = baseColor
+    // On glass, the colour is the glass's tint: made again with the new one.
+    content.backgroundColor = glassMounted ? .clear : baseColor
+    if glassMounted {
+      glassMounted = false
+      setNeedsLayout()
+    }
     fill.backgroundColor = fillColor
     let top = fillTopColor ?? fillColor
     fillShade.colors = [top.cgColor, fillColor.cgColor]
@@ -189,6 +300,9 @@ final class HoldButtonView: ExpoView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    glassView.frame = bounds
+    mountGlass()
+    if glassMounted { shapeGlass() }
     content.bounds = CGRect(origin: .zero, size: bounds.size)
     content.center = CGPoint(x: bounds.midX, y: bounds.midY)
     content.layer.cornerRadius = bounds.height / 2
@@ -305,7 +419,8 @@ final class HoldButtonView: ExpoView {
   }
 
   private func press(_ down: Bool) {
-    guard !UIAccessibility.isReduceMotionEnabled else { return }
+    // On glass the press is the system's own (it swells and lights under the finger).
+    guard !UIAccessibility.isReduceMotionEnabled, !glassMounted else { return }
     let animator = UIViewPropertyAnimator(duration: down ? 0.35 : 0.5, dampingRatio: down ? 1 : 0.7) {
       self.content.transform = down ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
     }
@@ -408,6 +523,7 @@ private final class WeakTarget: NSObject {
   weak var view: HoldButtonView?
   init(_ view: HoldButtonView) { self.view = view }
   @objc func step() { view?.step() }
+  @objc func glassTick() { view?.glassTick() }
 }
 
 /** An SF Symbol and a label, centred. */
