@@ -135,6 +135,7 @@ function home({
     './use-loc-mind': { useLocMind: () => ({ proud: false, wary: 0, moment: null }) },
     './use-moon-sink': { useMoonSink() {} },
     '../moons/moon-tap': { MoonTap: 'MoonTap' },
+    '../moons/moon-collection': { moonTapped: () => true },
     './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
     './walk-request': { askWalk() {}, useWalkRequest: () => null },

@@ -77,7 +77,7 @@ export function RaisedMoonTap() {
 
 function open() {
   haptic.tap();
-  openMoons();
+  openMoons('moon');
 }
 
 const styles = StyleSheet.create({

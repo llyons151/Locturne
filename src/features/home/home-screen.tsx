@@ -49,6 +49,7 @@ import { useVisit } from './use-visit';
 import { useHomeState } from './use-home-state';
 import { useMoonSink } from './use-moon-sink';
 import { MoonTap } from '../moons/moon-tap';
+import { moonTapped } from '../moons/moon-collection';
 import { isMoonSimArmed, playArmedMoonSim } from '../moons/moon-sim';
 import { useCatchingUp } from './catch-up';
 import { scanMorning, WALK_INSTEAD } from './morning';
@@ -456,7 +457,10 @@ export function HomeScreen() {
         ? { kind: 'wakeDone', key: `${facts.sayKey}woke:${proof.morningKey}` }
         : phase === 'day' && armed && bedtimeApps && !offTonight && !napping && minutes !== null && minutes > 0 && minutes <= 60
           ? { kind: 'bedtimeSoon', key: `${facts.sayKey}soon:${lock.morningKey}` }
-          : null;
+          // Until you've tapped the moon once, he points it out, once a day: it opens your moons.
+          : phase === 'day' && !moonTapped()
+            ? { kind: 'moonHint', key: `${facts.sayKey}moonHint:${dateKey(now)}` }
+            : null;
 
   // How much of the resting moon pokes above the panel's edge (night-sky.tsx): keep clear of it.
   const moonArc = width * 0.9 * 0.36;

@@ -116,7 +116,8 @@ export type MomentKind =
   | 'welcomeBack'
   | 'smallHours'
   | 'exitAfter'
-  | 'wakeProud';
+  | 'wakeProud'
+  | 'moonHint';
 
 /**
  * A won morning is a day off his sentence (Gerald's advice: good behaviour gets you out early).
@@ -148,13 +149,24 @@ const MOMENTS: Record<MomentKind, Pool> = {
   smallHours: ['It’s 3 a.m. My monitor would beep. Why doesn’t yours.', 'These are hibernation hours. Leave.'],
   exitAfter: ['We don’t talk about this morning. Gerald’s orders.', 'I saw that. I’m not mad. It’s going in my letter.'],
   wakeProud: ['Again. At this rate I’m out by spring.', 'You keep getting up. Unsettling. Thank you.', 'Are YOU getting out early'],
+  // Until you've tapped the moon once (Home): it opens your moons, where you change it.
+  // Plain and informative (user, 2026-11-05): no jokes here.
+  moonHint: ['Tap the moon to change it.', 'Tap the moon to pick a new one.'],
 };
 
 /** Five or more pokes in a short while. */
 const STREAK: Pool = ['Gerald. Gerald, wake up. They won’t stop.', 'I’m documenting this for my appeal', 'I’ve been through a trial. This is worse.'];
 
-/** Back from the ultra zoomies, round the whole screen (loc-ultra.ts): the furthest he's been allowed in years. */
-const ULTRA: Pool = ['Furthest I’ve been since the trial', 'My monitor went off. Worth it.', 'Three laps. One per fence.'];
+/**
+ * Back from the ultra zoomies, round the whole screen (loc-ultra.ts), tucked down terrified (user,
+ * 2026-11-05): he's under house arrest, and he just left the house. The ankle monitor saw everything.
+ */
+const ULTRA: Pool = [
+  'I left the house. I LEFT THE HOUSE.',
+  'My monitor beeped. They’re coming.',
+  'Nobody saw that. Tell Gerald nothing.',
+  'That was over the fence. That’s a felony.',
+];
 
 /** His birthday: the day the mascot became a raccoon (September 23, 2026). He'd call it a bear's birthday. */
 const BIRTHDAY: Pool = [

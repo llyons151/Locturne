@@ -15,6 +15,8 @@ import { RARE_MOONS, SECRET_FROM, SECRET_RULES, secretsMet, settleLadder, type O
 const OWNED_KEY = 'locturne.moons.owned';
 const RARE_KEY = 'locturne.moons.rare';
 const AS_PAGE_KEY = 'locturne.moons.asPage';
+/** Set once the moon itself has been tapped: Loc stops telling you to tap it. */
+const MOON_TAPPED_KEY = 'locturne.moons.tapped';
 /** The farthest Home's live location has seen you from your place, this place morning. */
 const FARTHEST_KEY = 'locturne.moons.farthest';
 
@@ -210,7 +212,13 @@ export function setMoonsAsPage(on: boolean) {
   sharedSet(AS_PAGE_KEY, on);
 }
 
-/** Opens the collection, as a sheet or a page. */
-export function openMoons() {
+/** Whether you've ever opened the collection by tapping the moon (Loc's hint stops then). */
+export function moonTapped(): boolean {
+  return sharedGet<boolean>(MOON_TAPPED_KEY) === true;
+}
+
+/** Opens the collection, as a sheet or a page. `from: 'moon'`: the moon itself was tapped. */
+export function openMoons(from?: unknown) {
+  if (from === 'moon' && !moonTapped()) sharedSet(MOON_TAPPED_KEY, true);
   router.push((getMoonsAsPage() ? '/moon-page' : '/moon-sheet') as Href);
 }

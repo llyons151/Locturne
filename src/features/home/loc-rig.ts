@@ -474,61 +474,47 @@ const burrowBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => ({ ms: p
   [pop + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); r.say('angry'); }],
 ], lump });
 
-/** Pairs of [ms, value]: his eyes rolling round in circles, wide to start and settling, `turns` times. */
-const rolling = (from: number, to: number, turns: number, rx: number, ry: number): { gx: Key[]; gy: Key[] } => {
-  const gx: Key[] = [], gy: Key[] = [];
-  for (let t = from; t <= to; t += 50) {
-    const p = (t - from) / (to - from), a = p * turns * Math.PI * 2, k = 1 - 0.55 * p;
-    gx.push([t, Math.round(Math.sin(a) * rx * k * 10) / 10, 'lin']);
-    gy.push([t, Math.round(-Math.cos(a) * ry * k * 10) / 10, 'lin']);
-  }
-  return { gx, gy };
-};
-
 // After the ultra zoomies (loc-ultra.ts) he bursts out like any burrow, but he's been round the
-// whole screen: he comes up dazed. One eye wide with a huge pupil, the other half shut on a
-// pinpoint, the eyes rolling round in circles, the head wobbling and the ears flopping, slumped.
-// Then he shakes it off like a wet dog, a blink, and snaps into the glare.
+// whole screen and it scared him: he peeks up, then tucks himself down behind the edge, terrified
+// (user, November 5, 2026: "the scared one where he kind of tucks himself and looks terrified",
+// in place of the dazed, eye-rolling face). It's the studio's "Shrinking away" (rated good): eyes
+// huge, pupils trembling, brows up, ears pinned flat, sunk low. He shivers there, then settles.
 const ultraBit = (pop: number, lump: NonNullable<Bit['lump']>): Bit => {
-  const P = pop, end = P + 3800;
-  const roll = rolling(P + 300, P + 1800, 2.25, 24, 9);
+  const P = pop, end = P + 3200;
+  const TUCK = 150;
   const base = burrowBit(pop, lump);
+  // A shiver: the head trembling side to side while he hides.
+  const shiver: Key[] = [[0, 'S'], [P + 420, 'S']];
+  for (let t = P + 480, i = 0; t <= P + 2300; t += 70, i++) shiver.push([t, (i % 2 ? -1 : 1) * (2.2 - (t - P - 480) / 1400), 'io']);
+  shiver.push([P + 2400, 0, 'io'], [end, 'T', 'io']);
+  const hold = (v: number, settle = end): Key[] => [[P + 200, 'S'], [P + 300, v, 'back'], [P + 2500, v], [settle, 'T', 'io']];
   return { ...base, ms: end, tracks: {
     ...base.tracks,
-    y: [[0, 'S'], [P + 260, 'S'], [P + 340, -10, 'out'], [P + 560, 16, 'io'], [P + 1880, 16], [P + 2040, -12, 'out'], [P + 3200, -10], [end, 'T', 'io']],
-    tilt: [[0, 'S'], [P + 300, 'S'], [P + 520, 15, 'io'], [P + 820, -13, 'io'], [P + 1120, 11, 'io'], [P + 1400, -8, 'io'], [P + 1660, 4, 'io'],
-      [P + 1880, 0, 'io'], [P + 1940, 11, 'out'], [P + 2000, -11, 'io'], [P + 2060, 9, 'io'], [P + 2120, -7, 'io'], [P + 2180, 4, 'io'],
-      [P + 2260, 0, 'io'], [end, 'T', 'io']],
-    earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [P, 16], [P + 120, -34, 'out'], [P + 440, 20, 'io'], [P + 780, -6, 'io'],
-      [P + 1120, 24, 'io'], [P + 1480, 0, 'io'], [P + 1880, 14, 'io'], [P + 1960, -32, 'out'], [P + 3200, -30], [end, 'T', 'io']],
-    earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [P, -16], [P + 120, 34, 'out'], [P + 560, 4, 'io'], [P + 900, 26, 'io'],
-      [P + 1260, -2, 'io'], [P + 1600, 20, 'io'], [P + 1880, -10, 'io'], [P + 1960, 32, 'out'], [P + 3200, 30], [end, 'T', 'io']],
-    open: [[0, 'S'], [P + 200, 'S'], [P + 280, 1.15, 'out'], [P + 1880, 1.1], [P + 1940, 0, 'in'], [P + 2120, 0], [P + 2260, 0.5, 'out'], [P + 3200, 0.5], [end, 'T', 'io']],
-    openR: [[0, 'S'], [P + 200, 'S'], [P + 280, 0.5, 'out'], [P + 1880, 0.55], [P + 1940, 0, 'in'], [P + 2140, 0], [P + 2260, 0.58, 'out'], [P + 3200, 0.58], [end, 'T', 'io']],
-    squint: [[0, 'S'], [P + 200, 'S'], [P + 280, 0.1, 'out'], [P + 2120, 0.1], [P + 2260, 0.36, 'out'], [P + 3200, 0.36], [end, 'T', 'io']],
-    slope: [[0, 'S'], [P + 200, 'S'], [P + 280, -4, 'out'], [P + 2120, -4], [P + 2260, 28, 'out'], [P + 3200, 28], [end, 'T', 'io']],
-    swell: [[0, 'S'], [P + 200, 'S'], [P + 280, 1.7, 'out'], [P + 1880, 1.6], [P + 2260, 0.6, 'out'], [P + 3200, 0.6], [end, 'T', 'io']],
-    swellR: [[0, 1], [P + 200, 1], [P + 280, 0.35, 'out'], [P + 1880, 0.4], [P + 2260, 1, 'out'], [end, 1]],
-    eyeR: [[0, 1], [P + 200, 1], [P + 280, 0.85, 'out'], [P + 1880, 0.85], [P + 2260, 1, 'out'], [end, 1]],
-    pupilJit: [[0, 'S'], [P + 280, 'S'], [P + 320, 0.2, 'out'], [P + 2120, 0.2], [P + 2280, 0.7, 'out'], [P + 3200, 0.7], [P + 3600, 'T', 'io']],
-    gx: [[0, 0], [P + 280, 0], ...roll.gx, [P + 1900, 0, 'io'], [end, 0]],
-    gy: [[0, 0], [P + 280, 0], ...roll.gy, [P + 1900, 0, 'io'], [end, 0]],
+    // Up for a peek, then down: tucked low, a little extra cower mid-way.
+    sink: [[0, 'S'], [150, -6, 'out'], [460, HIDDEN.sink, 'in3'], [P, HIDDEN.sink], [P + 130, -40, 'out'], [P + 380, TUCK, 'back'],
+      [P + 1300, TUCK], [P + 1420, TUCK + 25, 'out'], [P + 1600, TUCK, 'io'], [P + 2500, TUCK], [end, 0, 'io']],
+    y: [[0, 'S'], [P + 260, 'S'], [P + 380, 10, 'out'], [P + 2500, 10], [end, 'T', 'io']],
+    tilt: shiver,
+    stretch: [[0, 0], [150, -0.08, 'out'], [300, 0.12, 'in'], [460, 0, 'out'], [P, 0], [P + 90, 0.14, 'out'], [P + 260, -0.12, 'io'], [P + 420, 0, 'io']],
+    earL: [[0, 'S'], [150, -18, 'out'], [460, 16, 'in'], [P, 16], [P + 120, -20, 'out'], [P + 300, -42, 'out'], [P + 2500, -42], [end, 'T', 'io']],
+    earR: [[0, 'S'], [150, 18, 'out'], [460, -16, 'in'], [P, -16], [P + 120, 20, 'out'], [P + 300, 42, 'out'], [P + 2500, 42], [end, 'T', 'io']],
+    open: hold(1.2),
+    openR: hold(1.2),
+    slope: hold(-10),
+    swell: hold(0.55),
+    squint: hold(0),
+    pupilJit: [[0, 'S'], [P + 280, 'S'], [P + 320, 0.45, 'out'], [P + 2500, 0.45], [end, 'T', 'io']],
+    gx: [[0, 0], [end, 0]],
+    gy: [[0, 0], [end, 0]],
   }, events: [
     [0, (r) => { r.squeezing = true; r.say('hide'); }],
     [460, (r) => { r.squeezing = false; }],
     [pop, (r) => { r.squeezing = true; }],
-    // Out, the eyes spring open tall: boing.
-    [P + 200, (r) => { r.squeezing = false; r.pop(0.8); }],
-    [P + 260, (r) => { r.kick(-0.06); r.flick('L', -20); r.flick('R', 20); }],
+    // Out, and the eyes fly open wide: he's seen what he did.
+    [P + 200, (r) => { r.squeezing = false; r.pop(0.6); }],
+    [P + 260, (r) => { r.kick(0.05); r.flick('L', -16); r.flick('R', 16); }],
     [P + 520, (r) => r.say('ultra')],
-    [P + 820, (r) => r.pop(0.25)],
-    [P + 1400, (r) => r.pop(0.2)],
-    // Shaking it off.
-    [P + 1940, (r) => { r.flick('L', -18); r.flick('R', 18); r.pop(0.35); }],
-    [P + 2060, (r) => { r.flick('L', 14); r.flick('R', -14); r.kick(0.04); }],
-    [P + 2180, (r) => { r.flick('L', -10); r.flick('R', 10); }],
-    // Into the glare.
-    [P + 2260, (r) => { r.pop(-0.45); r.kick(-0.05); }],
+    [P + 1420, (r) => r.pop(0.2)],
   ] };
 };
 
