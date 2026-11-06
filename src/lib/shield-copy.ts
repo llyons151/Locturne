@@ -15,7 +15,17 @@ import type { LockState, Phase } from './lock-state.ts';
 import type { Routine, WakeMethod } from './routine.ts';
 import { downtimeStepsOf } from './wake/downtime.ts';
 
-export type ShieldText = { title: string; subtitle: string; button: string };
+/**
+ * `ring`: the block's start and end as minutes of the day. The shield extension draws the moon
+ * ring and "Asleep for 6h 12m more." from it each time the shield appears (LocturneShieldRing.swift).
+ */
+export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number } };
+
+/** The onboarding demos have no bedtime: no ring. */
+type ShieldRoutine = Pick<Routine, 'morningStart' | 'method' | 'stepGoal' | 'downtimeSteps'> & Partial<Pick<Routine, 'bedtime'>>;
+const nightRing = (r: ShieldRoutine) => (r.bedtime === undefined ? {} : { ring: { from: r.bedtime, until: r.morningStart } });
+
+const minuteOf = (date: Date) => date.getHours() * 60 + date.getMinutes();
 
 /** Which rule's words the shield shows. */
 export type ShieldRule = 'night' | 'lateNight' | 'morning' | 'blockNow' | 'limit' | 'always';
@@ -86,9 +96,10 @@ function timerLine(timer: NonNullable<ShieldTimer>): string {
  */
 export function shieldCopy(
   rule: ShieldRule,
-  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal' | 'downtimeSteps'>,
+  routine: ShieldRoutine,
   until: Date | null = null,
   timer: ShieldTimer = null,
+  since: Date | null = null,
 ): ShieldText {
   const wake = clockLabel(routine.morningStart);
   switch (rule) {
@@ -97,12 +108,14 @@ export function shieldCopy(
         title: 'Shh. I’m sleeping. So are they.',
         subtitle: `They wake up after ${wake}, once you’re out of bed.`,
         button: 'Fine',
+        ...nightRing(routine),
       };
     case 'lateNight':
       return {
         title: 'Why are we awake.',
         subtitle: `Your apps are asleep until you’re up after ${wake}.`,
         button: 'Back to bed',
+        ...nightRing(routine),
       };
     case 'morning':
       return {
@@ -118,12 +131,17 @@ export function shieldCopy(
           ? `Napping until ${clockLabel(until.getHours() * 60 + until.getMinutes())}.`
           : 'Napping. They wake when the nap ends.',
         button: 'Fine',
+        // Minutes of the day can't tell a nap of a day or more from a short one.
+        ...(until && since && until.getTime() - since.getTime() < 1440 * 60_000
+          ? { ring: { from: minuteOf(since), until: minuteOf(until) } }
+          : {}),
       };
     case 'limit':
       return {
         title: 'That’s today’s lot.',
         subtitle: 'Your daily limit is used up. It wakes at midnight.',
         button: 'Fine',
+        ring: { from: 0, until: 1440 },
       };
     case 'always':
       // Also read when the night apps fall asleep at bedtime with the app closed, until the
@@ -140,10 +158,11 @@ export function shieldCopy(
 /** Pure: the words for a lock state. */
 export function shieldTextFor(
   state: Pick<LockState, 'phase' | 'blockNowUntil'>,
-  routine: Pick<Routine, 'morningStart' | 'method' | 'stepGoal' | 'downtimeSteps'>,
+  routine: ShieldRoutine,
   now: Date,
   limitReached: boolean,
   timer: ShieldTimer = null,
+  napStart: Date | null = null,
 ): ShieldText {
   const rule = shieldRule({
     phase: state.phase,
@@ -151,7 +170,7 @@ export function shieldTextFor(
     blockNowUntil: state.blockNowUntil,
     limitReached,
   });
-  return shieldCopy(rule, routine, state.blockNowUntil, timer);
+  return shieldCopy(rule, routine, state.blockNowUntil, timer, napStart);
 }
 
 /**

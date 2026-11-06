@@ -49,6 +49,7 @@ copy "$root/targets/ShieldAction/LocturneMorningCheck.swift"
 copy "$root/targets/ShieldAction/ShieldActionExtension.swift"
 sed -i '/^class ShieldActionExtension: ShieldActionDelegate/,$d' "$build/ShieldActionExtension.swift"
 copy "$root/targets/ShieldConfiguration/ShieldConfigurationExtension.swift"
+copy "$root/targets/ShieldConfiguration/LocturneShieldRing.swift"
 
 # All the copies of Shared.swift and Locturne.swift must be the same file: the tests run one of them.
 for shared in Shared.swift Locturne.swift; do
@@ -59,8 +60,8 @@ done
 
 swiftc -swift-version 5 -suppress-warnings -o "$build/native-tests" \
   "$here/Shims.swift" "$build/Shared.swift" "$build/Locturne.swift" "$build/DeviceActivityMonitorExtension.swift" \
-  "$build/ShieldActionExtension.swift" "$build/LocturneMorningCheck.swift" "$build/ShieldConfigurationExtension.swift" \
-  "$here/Harness.swift" "$here/Tests.swift" "$here/ShieldTapTests.swift" "$here/DowntimeTests.swift" "$here/RehearsalTests.swift" "$here/RobustnessTests.swift" "$here/Fixtures.swift" "$here/WakeFixtures.swift" "$here/main.swift"
+  "$build/ShieldActionExtension.swift" "$build/LocturneMorningCheck.swift" "$build/ShieldConfigurationExtension.swift" "$build/LocturneShieldRing.swift" \
+  "$here/Harness.swift" "$here/Tests.swift" "$here/ShieldTapTests.swift" "$here/ShieldRingTests.swift" "$here/DowntimeTests.swift" "$here/RehearsalTests.swift" "$here/RobustnessTests.swift" "$here/Fixtures.swift" "$here/WakeFixtures.swift" "$here/main.swift"
 
 # The handoff fixtures: the real app code's App Group writes, in this time zone. The wake
 # fixtures go under fixtures/wake: a night per wake-up method and a tap on its shield.

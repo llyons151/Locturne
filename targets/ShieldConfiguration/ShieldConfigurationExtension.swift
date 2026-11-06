@@ -86,7 +86,12 @@ func buildShield(placeholders: [String: String?], config: [String: Any]?)
     let title = config["title"] as? String
     let titleColor = getColor(color: config["titleColor"] as? [String: Double])
 
-    let subtitle = config["subtitle"] as? String
+    // The moon ring: time left ahead of the subtitle, and the ring drawn around the icon
+    // (LocturneShieldRing.swift), only while the block is under way.
+    let ring = locturneRingProgress(config: config)
+    let subtitle = (config["subtitle"] as? String).map { words in
+      ring.map { "\(locturneTimeLeftLine(minutes: $0.left)) \(words)" } ?? words
+    }
     let subtitleColor = getColor(color: config["subtitleColor"] as? [String: Double])
 
     let primaryButtonLabel = config["primaryButtonLabel"] as? String
@@ -104,7 +109,7 @@ func buildShield(placeholders: [String: String?], config: [String: Any]?)
       backgroundBlurStyle: config["backgroundBlurStyle"] != nil
         ? (config["backgroundBlurStyle"] as? Int).flatMap(UIBlurEffect.Style.init) : nil,
       backgroundColor: backgroundColor,
-      icon: resolveIcon(dict: config),
+      icon: ring.flatMap { locturneRingIcon(moon: resolveIcon(dict: config), done: $0.done) } ?? resolveIcon(dict: config),
       title: buildLabel(text: title, with: titleColor, placeholders: placeholders),
       subtitle: buildLabel(text: subtitle, with: subtitleColor, placeholders: placeholders),
       primaryButtonLabel: buildLabel(

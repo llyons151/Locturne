@@ -583,7 +583,7 @@ export function isAnyShieldUp(): boolean {
 }
 
 /** The block screen's words: his line is the title, plus one button. */
-export type ShieldText = { title: string; subtitle: string; button: string };
+export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number } };
 
 /** What tapping the shield's button sends: a notification that opens Locturne, or nothing. */
 export type ShieldTap = { title: string; body: string; identifier?: string; userInfo?: Record<string, unknown> } | null;
@@ -612,16 +612,19 @@ export const LIMIT_SHIELD = 'locturne-limit';
 /** The worn moon's icon in the app group's folder, once copied there (features/moons/shield-moon.ts). */
 export const SHIELD_MOON_KEY = 'locturne.shieldMoon';
 
-function shieldConfig({ title, subtitle, button }: ShieldText) {
+function shieldConfig({ title, subtitle, button, ring }: ShieldText) {
   const moonIcon = sharedGet<string>(SHIELD_MOON_KEY);
   return {
     title,
     subtitle,
     primaryButtonLabel: button,
-    // iOS's dark frosted material over the app you tried to open (user, 2026-11-02, shield lab
-    // take 6), with white text and a white pill.
-    // UIBlurEffectStyle.systemThinMaterialDark, as a number: the tests fake the library.
-    backgroundBlurStyle: 17 as const,
+    // The moon ring (user, 2026-11-05, shield looks take 7): the extension draws a ring round
+    // the moon and puts the time left ahead of the subtitle while the block is under way.
+    ...(ring ? { ringFromMinutes: ring.from, ringUntilMinutes: ring.until } : {}),
+    // iOS's lightest dark frost over the app you tried to open, so it shows through, with
+    // white text and a see-through white pill (user, 2026-11-05).
+    // UIBlurEffectStyle.systemUltraThinMaterialDark, as a number: the tests fake the library.
+    backgroundBlurStyle: 16 as const,
     // The worn moon's icon; the extension falls back to the symbol if the file can't be read.
     // The tint is for the symbol only (ShieldConfigurationExtension.swift's `resolveIcon`).
     iconSystemName: 'moon.zzz.fill',
@@ -629,8 +632,8 @@ function shieldConfig({ title, subtitle, button }: ShieldText) {
     iconTint: { red: 255, green: 255, blue: 255 },
     titleColor: { red: 255, green: 255, blue: 255 },
     subtitleColor: { red: 161, green: 161, blue: 166 },
-    primaryButtonLabelColor: { red: 11, green: 11, blue: 12 },
-    primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255 },
+    primaryButtonLabelColor: { red: 255, green: 255, blue: 255 },
+    primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255, alpha: 0.2 },
   };
 }
 

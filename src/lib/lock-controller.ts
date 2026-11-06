@@ -1047,7 +1047,8 @@ function applyShieldText(state: LockState, now: Date): void {
     (pastLastPaid(state.morningKey) || (state.phase === 'night' && (!nightLockArmed() || nightPaused(now) || emptyNight)));
   const held = unheld ? { ...state, phase: 'day' as const } : state;
   const timer = shieldTimer(held, now);
-  setShieldText(shieldTextFor(held, routine, now, limitReached, timer), shieldTap(held.phase));
+  const nap = peekNap(now);
+  setShieldText(shieldTextFor(held, routine, now, limitReached, timer, nap ? new Date(nap.start) : null), shieldTap(held.phase));
   // The words for the next window and the next morning start: a waiting edit's, unless it's
   // night (an edit made in bed waits for the next bedtime, and tonight's later windows and this
   // coming morning still run on the routine in force). From morning start on, the night words
