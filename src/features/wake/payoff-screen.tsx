@@ -1,5 +1,5 @@
 import { router, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { File, Paths } from 'expo-file-system';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Platform, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -10,7 +10,7 @@ import { AppBackground } from '@/components/app-background';
 import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { FOCUS_MS, FOCUS_STEP_MS, focusIn } from '@/components/motion';
-import { MOON_SHOWS_FROM, moonScale, moonSink, moonSinkForCentre, restingMoonDisc } from '@/components/night-sky';
+import { moonScale, moonSink, moonSinkForCentre, restingMoonDisc } from '@/components/night-sky';
 import { PressScale } from '@/components/press-scale';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
@@ -26,7 +26,8 @@ import { previewMoon, setMoon, useWornMoon } from '../moons/moon-theme';
 import type { MoonDef } from '../moons/moon-types';
 import { MoonThumb } from '../moons/moon-thumb';
 import { homeEntrance, REPLAY_START_MS } from '../home/entrance';
-import { holdLocLines, markLocSaid, passLocPose } from '../home/loc';
+import { payoffTuning } from './payoff-tuning';
+import { askHomeLocPose, holdLocLines, markLocSaid, passLocPose } from '../home/loc';
 import { LocBubble } from '../home/loc-bubble';
 import { locSpecial } from '../home/loc-lines';
 import { LOC_VIEW } from '../home/loc-rig';
@@ -65,8 +66,8 @@ const LOC_SHARE = 0.27;
 /** Where Home rests its moon (`useMoonSink` on the Home tab). */
 const HOME_SINK = 0;
 
-/** One step of the entrance: each piece comes into focus a beat after the one before (onboarding's `focus`). */
-const STEP_MS = 150;
+// The entrance's timings (the rise, the page coming into focus a step at a time, Loc's line, the new
+// moon's colours) are in payoff-tuning.ts, where the browser lab can change them and replay.
 
 /** Under this tall (an iPhone SE) the page's gaps tighten. */
 const SHORT_SCREEN = 720;
@@ -103,11 +104,6 @@ const DISSOLVE_MS = 220;
  */
 const PASS_LEAD_MS = 160;
 
-/** The moon's rise behind him once he yells, all the way to the top: quick off the edge, a long settle. */
-const RISE_MS = 2200;
-const RISE = Easing.bezier(0.16, 1, 0.3, 1);
-/** The page comes into focus this far into the rise, as the moon nears the top. */
-const PAGE_AT_MS = 1100;
 /**
  * The risen moon, small, with the time inside (Bloom's day ring, user 2026-10-28): its diameter
  * as a share of the screen's width, at most this many points, and the room over it.
@@ -116,8 +112,6 @@ const MOON_SHARE = 0.46;
 const MOON_MAX = 190;
 const MOON_GAP = Space.xl;
 
-/** Loc's line comes up this long after the page starts coming into focus, and stays till Done (user, 2026-10-28: the band over him sat empty once it went). */
-const LINE_AT_MS = 1600;
 /** Home's week is its entrance's step 1 (entrance.ts): left in place for ours to land on. */
 const HOME_WEEK_STEP = 1;
 /** Room over Loc's head for his speech bubble, between him and the week. */
@@ -132,11 +126,6 @@ const CORNER = `M0,0 L0,${PANEL_RADIUS} L${PANEL_RADIUS},${PANEL_RADIUS} A${PANE
 
 /** Done without Apply: how long the new moon's colours take to blend back into the worn moon's. */
 const BACK_FADE_MS = 900;
-/**
- * Fading in over Home: how long the worn moon's colours take to run into the new moon's, Home's
- * sky under it too (user, 2026-11-03: it "glitches from the main to the new one").
- */
-const IN_FADE_MS = 600;
 
 /** If his webview never yells (it failed to load), the moon rises anyway. */
 const YELL_FALLBACK_MS = 7000;
@@ -152,7 +141,7 @@ const YELL_FALLBACK_MS = 7000;
  * user, 2026-10-15). Done goes back to Home. Opened once per morning by Home (`usePayoff`), and
  * from the wake preview with made-up facts.
  */
-export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?: boolean }) {
+export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: PayoffFacts; cut?: boolean; fadeIn?: boolean }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
@@ -188,7 +177,24 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
   const drag = useSharedValue(0);
   const yelled = useRef(false);
   // Tap him and he yells again (user, 2026-10-27: he shouldn't just sit there once it's over).
-  const [yells, setYells] = useState(1);
+  // 0 until the strip has started up (the entrance below): then his first yell sends the moon up.
+  // With reduced motion, straight away.
+  const [yells, setYells] = useState(reduced ? 1 : 0);
+  // Opening over Home, he carries on from Home's Loc's pose (`askHomeLocPose`), standing where Home's
+  // stands until it comes, so the fade between them never shows a change of pose (user 2026-11-05).
+  // Not when he's out of sight there (another tab), nor for `cut`, with no Home showing.
+  const [carried, setCarried] = useState<{ nonce: number; pose: string } | null>(null);
+  useEffect(() => {
+    if (cut) return;
+    askHomeLocPose((pose) => {
+      try {
+        if ((JSON.parse(pose) as { hidden?: boolean }).hidden) return;
+      } catch {
+        return;
+      }
+      setCarried({ nonce: 1, pose });
+    });
+  }, [cut]);
   // Bumped on the way back: his pose goes to Home's Loc (`passLocPose`).
   const [passes, setPasses] = useState(0);
   const leaving = useRef(false);
@@ -211,10 +217,13 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
     if (yelled.current) return;
     yelled.current = true;
     const to = moonTo.current;
-    moonSink.set(reduced ? to.sink : withTiming(to.sink, { duration: RISE_MS, easing: RISE }));
-    moonScale.set(reduced ? to.scale : withTiming(to.scale, { duration: RISE_MS, easing: RISE }));
-    drag.set(reduced ? 1 : withTiming(1, { duration: RISE_MS, easing: RISE }));
-    setTimeout(() => setShown(true), reduced ? 0 : PAGE_AT_MS);
+    // The moon's rise behind him, all the way to the top: quick off the edge, a long settle. The
+    // page comes into focus partway in, as the moon nears the top.
+    const rise = { duration: payoffTuning.riseMs, easing: Easing.bezier(...payoffTuning.rise) };
+    moonSink.set(reduced ? to.sink : withTiming(to.sink, rise));
+    moonScale.set(reduced ? to.scale : withTiming(to.scale, rise));
+    drag.set(reduced ? 1 : withTiming(1, rise));
+    setTimeout(() => setShown(true), reduced ? 0 : payoffTuning.pageAtMs);
     setTimeout(() => setSnaps(1), SNAP_MS);
   }, [reduced, drag]);
   // A moon this morning brought (user, 2026-11-01): shown here, worn with a tap or left for later.
@@ -226,18 +235,16 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
   useEffect(() => {
     if (shown && sayKey !== null && newMoons.length) markPresented(newMoons);
   }, [shown, sayKey, newMoons]);
-  // The new moon rises (user, 2026-11-02: "when you unlock a new moon, the new moon should rise"): it's
-  // on show from the start, before he yells, so the moon that comes up is the new one. Shown, not worn:
-  // Apply wears it, and Done without Apply goes back to the worn moon. Rare and secret moons too.
-  // Before the first frame is drawn, so no frame shows the worn moon's colours and then swaps
-  // (user, 2026-11-03). Taking the camera's place (`cut`), it's simply there; fading in over
-  // Home, Home's sky shows through, so the two blend into the new moon's colours together.
+  // The new moon rises (user, 2026-11-02: "when you unlock a new moon, the new moon should rise"): its
+  // colours run in as the strip starts up (the entrance below), before he yells, so the moon that comes
+  // up is the new one. Shown, not worn: Apply wears it, and Done without Apply goes back to the worn
+  // moon. Rare and secret moons too. Home's sky is the same one, so both blend together.
   const firstShown = useRef(false);
-  useLayoutEffect(() => {
+  const showNewMoon = () => {
     if (firstShown.current) return;
     firstShown.current = true;
-    if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, cut ? 0 : IN_FADE_MS);
-  }, [newMoon, worn.id, cut]);
+    if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, reduced ? 0 : payoffTuning.moonFadeMs);
+  };
   // Whatever happens, nothing stays on show once the payoff is gone.
   useEffect(() => () => previewMoon(null), []);
   // Applied here: the button stays, as "Applied", so the page doesn't jump.
@@ -257,17 +264,14 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
     const up = setTimeout(() => {
       setSaid(locSpecial(line));
       if (sayKey !== null) markLocSaid(`${sayKey}woke:${today}`);
-    }, reduced ? 0 : LINE_AT_MS);
+    // Stays till Done (user, 2026-10-28: the band over him sat empty once it went).
+    }, reduced ? 0 : payoffTuning.lineAtMs);
     return () => clearTimeout(up);
   }, [shown, reduced, line, sayKey, today]);
-  // Home's moon is the same one: back to where Home rests it (`HOME_SINK`) on the way back. Never a value
-  // read here: this opens as Home is focused, mid its sink animation, and on iOS a read right
-  // after that `.set()` can be stale (the old tab's sunk moon).
+  // Home's moon is the same one: it rises from where Home rests it, and goes back there (`HOME_SINK`)
+  // on the way back. Never a value read here: on iOS a read right after a `.set()` can be stale.
   useEffect(() => {
-    moonSink.set(MOON_SHOWS_FROM);
-    const fallback = setTimeout(onYell, YELL_FALLBACK_MS);
     return () => {
-      clearTimeout(fallback);
       moonSink.set(HOME_SINK);
       moonScale.set(1);
       // Never leave Home's pieces hidden, however this screen goes.
@@ -283,10 +287,38 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
   // strip's edge and Loc drop to Home's strip.
   const page = useSharedValue(1);
   const pageStyle = useAnimatedStyle(() => ({ opacity: page.get() }));
-  const drop = useSharedValue(0);
+  // Opens dropped to Home's strip, so it's Home's sky, strip and Loc with nothing on them: fading in
+  // over Home reads as Home's pieces fading out, as a tab switch does (user 2026-11-05).
+  const drop = useSharedValue(reduced ? 0 : lift);
   const dropStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drop.get() }] }));
-  const screen = useSharedValue(1);
+  // Done and Share fade in as the strip rises under them, and out as it drops.
+  const actionsStyle = useAnimatedStyle(() => ({ opacity: lift > 0 ? 1 - drop.get() / lift : 1 }));
+  // `fadeIn`: the browser lab, where the stack's own fade over Home doesn't play, fades in here instead.
+  const screen = useSharedValue(fadeIn && !reduced ? 0 : 1);
   const screenStyle = useAnimatedStyle(() => ({ opacity: screen.get() }));
+  // The entrance, one thing after another (user 2026-11-05: "all fluid in motion, not just cutting"):
+  // this screen fades in over Home (the stack's fade; none for `cut`), then the strip rises with Done
+  // fading in, and as it starts the sky turns to the new moon's colours; then he yells and the moon
+  // comes up (`onYell`). Read once, as it opens.
+  useEffect(() => {
+    const t = payoffTuning;
+    if (reduced) {
+      showNewMoon();
+      return;
+    }
+    if (fadeIn) screen.set(withTiming(1, { duration: t.screenFadeMs, easing: Easing.inOut(Easing.quad) }));
+    const bandAt = (cut ? 0 : t.screenFadeMs) + t.bandDelayMs;
+    drop.set(withDelay(bandAt, withTiming(0, { duration: t.bandMs, easing: Easing.bezier(...t.band) })));
+    const timers = [
+      setTimeout(showNewMoon, bandAt),
+      setTimeout(() => setYells(1), bandAt + t.yellAtMs),
+      // If his webview never yells (it failed to load), the moon rises anyway.
+      setTimeout(onYell, bandAt + t.yellAtMs + YELL_FALLBACK_MS),
+    ];
+    return () => timers.forEach(clearTimeout);
+    // Once, as it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // On Done the week doesn't fade: it flies up onto Home's (week-spot.ts), on the moon's curve.
   const weekRef = useRef<View>(null);
   const flyX = useSharedValue(0);
@@ -459,13 +491,13 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
         </View>
         <View style={styles.strip}>
           <Animated.View style={[{ height: strip, paddingBottom: foot }, pageStyle]}>
-            <In shown={shown} step={3} style={styles.actions}>
+            <Animated.View style={[styles.actions, actionsStyle]}>
               {/* Done and Share only; a new moon is applied under the week (user, 2026-11-02: no Your moons here). */}
               <PrimaryButton label="Done" onPress={() => close()} />
               <View style={styles.links}>
                 <TextButton label="Share" onPress={share} />
               </View>
-            </In>
+            </Animated.View>
           </Animated.View>
         </View>
       </Animated.View>
@@ -480,6 +512,8 @@ export function PayoffScreen({ facts, cut = false }: { facts: PayoffFacts; cut?:
           mood="smug"
           share={LOC_SHARE}
           present
+          standing={!cut}
+          take={carried}
           yellNonce={yells}
           onYell={onYell}
           onTap={onTap}
@@ -545,7 +579,7 @@ function In({
     <Animated.View
       {...rest}
       pointerEvents={shown ? 'auto' : 'none'}
-      style={[style, { opacity: shown ? 1 : 0 }, enter && focusIn(step * STEP_MS)]}
+      style={[style, { opacity: shown ? 1 : 0 }, enter && focusIn(step * payoffTuning.stepMs)]}
     >
       {children}
     </Animated.View>

@@ -122,8 +122,21 @@ export function LimitSheet() {
   // A shorter limit starts at once, and one already used up today puts the apps to sleep until
   // midnight with no way back before bedtime, so it asks first, as the apps row does.
   const save = () => {
+    if (Platform.OS === 'web') return commit();
+    // A new limit starts at once too. The app can't read today's use (only Apple's report can), so
+    // it asks every time, in case these apps are already past it (user 2026-11-05).
+    if (create) {
+      return Alert.alert(
+        'Add this limit?',
+        `If these apps have already had ${limitLabel(total)} today, they go to sleep right away and stay asleep until midnight.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add Limit', isPreferred: true, onPress: commit },
+        ],
+      );
+    }
     const shorter = retimed && req.chosen !== null && total < req.chosen;
-    if (!shorter || Platform.OS === 'web') return commit();
+    if (!shorter) return commit();
     Alert.alert(
       'Start the shorter limit now?',
       `If these apps have had ${limitLabel(total)} today, they sleep until midnight. A longer limit waits until bedtime.`,

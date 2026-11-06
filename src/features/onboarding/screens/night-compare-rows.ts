@@ -34,6 +34,13 @@ export function compareRows({ bedtime, wake, nightMinutes, morningMinutes, metho
   return rows;
 }
 
+/** Each half's glyph, the same pair the schedule card uses for its two times. */
+export function compareIcon(label: string) {
+  return label === 'Phone down'
+    ? ({ ios: 'moon.fill', android: 'bedtime', web: 'bedtime' } as const)
+    : ({ ios: 'sunrise.fill', android: 'wb_twilight', web: 'wb_twilight' } as const);
+}
+
 /** What VoiceOver reads for the tiles, as one element. */
 export function compareLabel(rows: CompareRow[]): string {
   return rows.map((row) => `${row.label}: ${row.withMe} with me, usually ${row.usual}`).join('. ');

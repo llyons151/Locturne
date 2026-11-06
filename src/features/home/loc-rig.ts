@@ -1987,7 +1987,7 @@ export class LocRig {
   /** No random blinks, glances or habits: only what's asked for plays. */
   quiet = false;
 
-  /** Jump straight to `mood`, up on the edge or out of sight, with nothing playing. */
+  /** Jump straight to `mood`, up on the edge or out of sight, with nothing playing (the studio; the payoff's `standing` start). */
   place(present: boolean, mood: LocMood) {
     this.mood = mood;
     this.hidden = !present;

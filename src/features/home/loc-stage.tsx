@@ -55,10 +55,16 @@ export default function LocStage({
   pick,
   sharp = false,
   edge,
+  standing = false,
 }: {
   mood: LocMood;
   share: number;
   present: boolean;
+  /**
+   * Already up on the edge when he first shows, with no arrival: the payoff opening over Home,
+   * where Home's Loc is standing in the same spot (user 2026-11-05: no vanishing and popping up).
+   */
+  standing?: boolean;
   /** How wary of you he is, 0..1 (lib/loc-mind.ts). */
   wary?: number;
   /** His body's colour, `#RRGGBB`; black (in front of the moon) when left out. */
@@ -219,9 +225,16 @@ export default function LocStage({
     quickRef.current = quick;
   }, [quick]);
 
+  const standingRef = useRef(standing);
   useEffect(() => {
     const rig = rigRef.current;
     if (!rig) return;
+    if (present && standingRef.current) {
+      standingRef.current = false;
+      rig.place(true, moodRef.current);
+      wakeRef.current();
+      return;
+    }
     if (!present) {
       rig.setPresent(false, quickRef.current);
       wakeRef.current();

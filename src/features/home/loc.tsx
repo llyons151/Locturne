@@ -125,6 +125,29 @@ const subscribeCarry = (listener: () => void) => {
 const carriedPose = () => carried;
 
 /**
+ * The other way: Home's Loc hands his pose to the payoff's as it opens over Home, so the fade
+ * between them shows one raccoon, not a switch of pose (user 2026-11-05). `reply` gets it once.
+ */
+let poseAsk = 0;
+let poseReply: ((pose: string) => void) | null = null;
+const askListeners = new Set<() => void>();
+export function askHomeLocPose(reply: (pose: string) => void) {
+  poseReply = reply;
+  poseAsk += 1;
+  askListeners.forEach((l) => l());
+}
+const subscribeAsk = (listener: () => void) => {
+  askListeners.add(listener);
+  return () => void askListeners.delete(listener);
+};
+const askedPose = () => poseAsk;
+const replyPose = (pose: string) => {
+  const reply = poseReply;
+  poseReply = null;
+  reply?.(pose);
+};
+
+/**
  * Home's say over Loc: his mood, that he's out while Home is the picked tab, and what he has
  * to say something about (`moment`). Draws nothing.
  */
@@ -155,6 +178,7 @@ export function Loc() {
   const moons = useSyncExternalStore(locAway.subscribe, locAway.get);
   const present = onHome && !moons.away;
   const take = useSyncExternalStore(subscribeCarry, carriedPose);
+  const asked = useSyncExternalStore(subscribeAsk, askedPose);
   // The knock lab's Burrow button and live tuning (dev only; at rest it never changes).
   const lab = useKnockLab();
   // The canvas runs the panel's full width, so the blanket lump can travel along the edge; he
@@ -345,6 +369,8 @@ export function Loc() {
           zoomNonce={lab.zoomNonce}
           ultraNonce={lab.ultraNonce}
           take={take}
+          passNonce={asked}
+          onPass={replyPose}
           rim={rim}
           knock={lab.tune}
           dom={{

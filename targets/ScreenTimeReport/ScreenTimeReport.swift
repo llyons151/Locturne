@@ -324,29 +324,23 @@ struct TodayPill: View {
   var body: some View {
     HStack(spacing: 6) {
       Image(systemName: "hourglass").font(.system(size: 14, weight: .semibold)).foregroundStyle(text)
-      if configuration.reported.isEmpty {
-        Text("No data yet").font(.system(size: 15)).foregroundStyle(text2)
-          .transition(.opacity)
-      } else {
-        // Only the digits that changed roll over, the way the system clock does.
-        Text(duration(configuration.total)).font(.system(size: 16, weight: .heavy)).foregroundStyle(text)
-          .monospacedDigit()
-          .rollingDigits(configuration.total)
-        Text("screen time").font(.system(size: 15)).foregroundStyle(text2)
-          .transition(.opacity)
-      }
+      // Nothing logged today yet reads "0m screen time", same pill as any other total (user 2026-11-05).
+      // Only the digits that changed roll over, the way the system clock does.
+      Text(duration(configuration.total)).font(.system(size: 16, weight: .heavy)).foregroundStyle(text)
+        .monospacedDigit()
+        .rollingDigits(configuration.total)
+      Text("screen time").font(.system(size: 15)).foregroundStyle(text2)
     }
     // One line always: "10h 30m screen time" wrapped "screen time" onto two lines in the
     // 200-point frame. Too long for the frame, the whole pill's type shrinks a little instead.
     .lineLimit(1)
     .minimumScaleFactor(0.7)
     .animation(pillAnimation, value: configuration.total)
-    .animation(pillAnimation, value: configuration.reported.isEmpty)
     .padding(.horizontal, 14)
     .frame(height: 36)
     .background(Capsule().fill(.white.opacity(0.08)))
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(configuration.reported.isEmpty ? "No screen time data yet" : "\(duration(configuration.total)) of screen time today")
+    .accessibilityLabel("\(duration(configuration.total)) of screen time today")
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
     .preferredColorScheme(.dark)
   }

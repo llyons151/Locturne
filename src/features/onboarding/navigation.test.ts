@@ -55,8 +55,8 @@ describe('forward', () => {
     assert.equal(currentStep(navigate(nav, next)), 'armed');
   });
 
-  test('the demo goes straight to Screen Time', () => {
-    assert.equal(nextStep('tomorrow'), 'screen-time');
+  test('the demo goes straight to the apps (Screen Time is asked from there)', () => {
+    assert.equal(nextStep('tomorrow'), 'apps');
   });
 
   test('the side step rejoins the main path', () => {
@@ -206,7 +206,7 @@ test('starting again after purchase drops any edit in progress', () => {
 });
 
 test('a permission callback cannot advance a different visit at the same stack depth', () => {
-  const original = reach('screen-time');
+  const original = reach('apps');
   const callback: NavAction = { type: 'next', at: original.history.length, visit: original.visit };
   const moved = run(original, back, { type: 'edit', to: 'method' });
   assert.equal(moved.history.length, original.history.length);
@@ -297,5 +297,5 @@ test('restored on hello: the quiz is skipped, the setup isn’t', () => {
   const skip = [...quiz];
   const path = ['bedtime'];
   while (path.at(-1) !== 'commit') path.push(nextStep(path.at(-1) as never, skip));
-  assert.deepEqual(path, ['bedtime', 'wake', 'method', 'tomorrow', 'screen-time', 'apps', 'commit']);
+  assert.deepEqual(path, ['bedtime', 'wake', 'method', 'tomorrow', 'apps', 'commit']);
 });

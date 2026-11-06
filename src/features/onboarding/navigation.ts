@@ -45,7 +45,7 @@ export const STEPS = [
   // See it: the demo shows tomorrow morning. The 20-step walk after it was cut (2026-10-26).
   // Its Set it up opens the code setup or the place map first, for a scan or place morning.
   'tomorrow',
-  'screen-time',
+  // Screen Time access is asked from this page's button, not a page of its own (user 2026-11-05).
   'apps',
   // The summary and the deal in one: the editable schedule, then hold to agree.
   'commit',

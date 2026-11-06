@@ -426,7 +426,7 @@ export function OnboardingFlow({
     else router.replace('/');
   };
   // After `tomorrow`, a scan code or a place gets its page (user, 2026-10-26). A code is a
-  // real onboarding page (`scan-code`): the sky, centred, the page motion and Set up later.
+  // real onboarding page (`scan-code`): the sky, centred, the page motion and Skip for now.
   // Its button opens the camera over the flow. A place opens the map picker, drawn inside the
   // flow under its own back and chapter bar. Saved moves on; back without one stays put.
   const [settingUp, setSettingUp] = useState<'place' | 'scan' | null>(null);
@@ -502,11 +502,15 @@ export function OnboardingFlow({
     advanceOnce(next);
   };
 
-  /* Screen Time access: Apple's prompt, then Face ID or the passcode. */
+  /* Screen Time access, asked from the apps page's button (no page of its own, user 2026-11-05):
+     Apple's prompt, then Face ID or the passcode, then whatever the button was doing. */
   const [screenTime, setScreenTime] = useState<'idle' | 'asking' | 'refused'>('idle');
-  const askScreenTime = async () => {
+  /** What the button was doing when access was asked, so Try again carries on with it. */
+  const afterAccess = useRef<() => void>(() => {});
+  const askScreenTime = async (then: () => void) => {
+    afterAccess.current = then;
     if (!screenTimeHere) {
-      simulate('iOS asks for Screen Time access here. The web preview has no Screen Time.', next);
+      simulate('iOS asks for Screen Time access here. The web preview has no Screen Time.', then);
       return;
     }
     if (getAccess() !== 'approved') {
@@ -523,12 +527,17 @@ export function OnboardingFlow({
         setScreenTime('refused');
         return;
       }
+      track('screen_time_access', { result: 'granted' });
     }
-    track('screen_time_access', { result: 'granted' });
+    setScreenTime('idle');
+    then();
+  };
+  const retryScreenTime = () => askScreenTime(afterAccess.current);
+  /** On without access or apps: `armed` asks for both after the purchase. */
+  const setUpLater = () => {
     setScreenTime('idle');
     next();
   };
-  const setUpLater = () => dispatch({ type: 'next', skip: ['apps'], at: history.length, visit: nav.visit });
 
   /* Apple's picker for the night list (the preview's stand-in off iOS). */
   const [picks, setPicks] = useState(() => (screenTimeHere ? selectionSize('night') : 0));
@@ -542,6 +551,11 @@ export function OnboardingFlow({
     if (isPickerSettling('night')) return;
     if (!screenTimeHere) {
       setPreviewPickerOpen(true);
+      return;
+    }
+    // Apple's picker needs access first, so on a fresh install Add apps is where iOS asks.
+    if (getAccess() !== 'approved') {
+      askScreenTime(() => setPickerList(openNightPicker()));
       return;
     }
     setPickerList(openNightPicker());
@@ -953,6 +967,7 @@ export function OnboardingFlow({
     },
     screenTime,
     askScreenTime,
+    retryScreenTime,
     setUpLater,
     live: screenTimeHere ? { selectionId: 'night', count: picks, revision: pickRevision } : null,
     openPicker,

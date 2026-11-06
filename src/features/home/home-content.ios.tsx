@@ -128,7 +128,10 @@ export function HomeContent(props: HomeContentProps) {
   };
 
   const days = weekDays(today, won, free);
-  const showUsage = isScreenTimeReportAvailable && getAccess() === 'approved' && look !== 'night';
+  // The pill is off at night only. Without the report (no access yet), Home draws a stand-in rather than
+  // leaving the corner empty (user 2026-11-05).
+  const usagePill = look !== 'night';
+  const showUsage = usagePill && isScreenTimeReportAvailable && getAccess() === 'approved';
   // Ready to fade the pill in again if Screen Time goes off and comes back.
   if (!showUsage && usageIn) setUsageIn(false);
 
@@ -175,6 +178,20 @@ export function HomeContent(props: HomeContentProps) {
                     <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
                   </RNHostView>
                 </ZStack>
+              ) : usagePill ? (
+                <HStack
+                  spacing={6}
+                  modifiers={[
+                    padding({ horizontal: 14 }),
+                    frame({ minHeight: 36 }),
+                    background(PILL, shapes.capsule()),
+                    accessibilityElement('ignore'),
+                    accessibilityLabel('No screen time yet'),
+                  ]}
+                >
+                  <Image systemName="hourglass" size={14} color={Nocturne.text} />
+                  <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>No screen time yet</Text>
+                </HStack>
               ) : null}
             </HStack>
     

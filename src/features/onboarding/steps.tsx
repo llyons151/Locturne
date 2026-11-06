@@ -123,10 +123,13 @@ export type StepContext = {
   printScanCode: () => void;
   openScanner: () => void;
 
-  /** Screen Time access on this step: asked, and if refused, said plainly. */
+  /** Screen Time access, asked from the apps page's button: asked, and if refused, said plainly. */
   screenTime: 'idle' | 'asking' | 'refused';
-  askScreenTime: () => void;
-  /** Skips access and the app list for now: `armed` asks for both after the purchase. */
+  /** Asks for access if it isn't granted yet, then runs `then`. */
+  askScreenTime: (then: () => void) => void;
+  /** Try again after a refusal: asks once more, then carries on with what the button was doing. */
+  retryScreenTime: () => void;
+  /** Moves on without access or apps: `armed` asks for both after the purchase. */
   setUpLater: () => void;
   /** On an iPhone, the real night list, drawn natively; null in the web preview. */
   live: LivePicks | null;
@@ -408,7 +411,7 @@ export function renderStep(ctx: StepContext): StepView {
           />
         ),
         // The wheel already holds a time, so later just keeps it; Routine changes it any time.
-        secondary: editing || (pain === 'morning' && badNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing || (pain === 'morning' && badNight) ? undefined : <TextButton label="Skip for now" onPress={next} />,
       };
 
     case 'wake':
@@ -429,7 +432,7 @@ export function renderStep(ctx: StepContext): StepView {
           <PrimaryButton label={editing ? 'Save' : (REPLY_BUTTON.wake ?? 'Continue')} disabled={bedtimeAsked && badNight} onPress={next} />
         ),
         // The wheel already holds a time, so later just keeps it; Routine changes it any time.
-        secondary: editing || (bedtimeAsked && badNight) ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing || (bedtimeAsked && badNight) ? undefined : <TextButton label="Skip for now" onPress={next} />,
       };
 
     case 'method': {
@@ -460,7 +463,7 @@ export function renderStep(ctx: StepContext): StepView {
         // Not sure yet: the default carries them through, and nothing here is final.
         secondary: editing ? undefined : (
           <TextButton
-            label={answers.method ? 'Set up later' : `Skip for now. ${goals.steps} steps it is.`}
+            label={answers.method ? 'Skip for now' : `Skip for now. ${goals.steps} steps it is.`}
             onPress={() => {
               // Already picked one: later keeps it. Only an empty page falls back to steps.
               if (!answers.method) set('method', 'steps');
@@ -551,7 +554,7 @@ export function renderStep(ctx: StepContext): StepView {
         // A plain button, tappable from the start (user, 2026-10-26: not a progress bar).
         footer: <PrimaryButton label="Set it up" onPress={setUp ? ctx.setUpMethod : next} />,
         // Not now: 200 steps wakes them until the code or place is set in Routine.
-        secondary: setUp && !editing ? <TextButton label="Set up later" onPress={next} /> : undefined,
+        secondary: setUp && !editing ? <TextButton label="Skip for now" onPress={next} /> : undefined,
       };
     }
 
@@ -577,11 +580,11 @@ export function renderStep(ctx: StepContext): StepView {
           ) : (
             <PrimaryButton label={qr ? 'It’s up. Scan it' : 'Scan a barcode'} onPress={ctx.openScanner} />
           ),
-        secondary: <TextButton label="Set up later" onPress={next} />,
+        secondary: <TextButton label="Skip for now" onPress={next} />,
       };
     }
 
-    case 'screen-time':
+    case 'apps': {
       if (ctx.screenTime === 'refused') {
         // Clear when it matters (VOICE.md): the problem and the fix, then one small aside.
         return {
@@ -597,35 +600,15 @@ export function renderStep(ctx: StepContext): StepView {
               <Voice text="I’ll wait. I’m good at lying down." size={VoiceSize.aside} delay={600} />
             </View>
           ),
-          footer: <PrimaryButton label="Try again" onPress={ctx.askScreenTime} />,
+          footer: <PrimaryButton label="Try again" onPress={ctx.retryScreenTime} />,
           // Never a dead end: if iOS won't ask again, the rest of setup still goes on (no X before `commit`).
-          secondary: editing ? undefined : <TextButton label="Set up later" onPress={ctx.setUpLater} />,
+          secondary: editing ? undefined : <TextButton label="Skip for now" onPress={ctx.setUpLater} />,
         };
       }
-      return {
-        body: (
-          <View style={page.top}>
-            <Voice text="I need Screen Time access." size={VoiceSize.headline} header />
-            <View style={page.gapHeadline} />
-            {/* Words, not a picture: HIG forbids an image of the system alert or a cue toward its
-                Allow button (App Review 5.1.1(iv)). Warning about Face ID still cuts surprise drop-off. */}
-            <Body>
-              It’s how I put apps to sleep. Apple will ask next, then want your Face ID or passcode. What you use stays
-              on your phone. I never see it.
-            </Body>
-            <View style={page.gapAside} />
-            <Voice text="Apple’s paperwork. Not mine." size={VoiceSize.aside} delay={600} />
-          </View>
-        ),
-        // iOS asks for Face ID or the passcode after Apple's Continue.
-        footer: <PrimaryButton label="Fine. Ask Apple." disabled={ctx.screenTime === 'asking'} onPress={ctx.askScreenTime} />,
-        secondary: editing ? undefined : <TextButton label="Set up later" onPress={ctx.setUpLater} />,
-      };
-
-    case 'apps': {
       const picked = pickCount > 0;
+      // The button asks for Screen Time access first (no page of its own since 2026-11-05).
       // Native rows can't fly into the moon, so on an iPhone the page simply moves on.
-      const sleep = live ? next : putToSleep;
+      const sleep = () => ctx.askScreenTime(live ? next : putToSleep);
       return {
         body: (
           <View style={page.top}>
@@ -662,12 +645,13 @@ export function renderStep(ctx: StepContext): StepView {
             // preview's falling-asleep animation keeps its own label.
             label={!picked ? 'Add apps' : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
             // Editing from the summary just saves; the first time, they watch them fall asleep.
-            onPress={!picked ? openPicker : editing ? next : sleep}
+            disabled={ctx.screenTime === 'asking'}
+            onPress={!picked ? openPicker : editing ? () => ctx.askScreenTime(next) : sleep}
           />
         ),
-        // Same way out as Screen Time's, always under the button so every page keeps its shape:
+        // Always under the button so every page keeps its shape:
         // on without the falling-asleep bit, and the list (if any) stays; changed later in the Apps tab.
-        secondary: editing ? undefined : <TextButton label="Set up later" onPress={next} />,
+        secondary: editing ? undefined : <TextButton label="Skip for now" onPress={next} />,
       };
     }
 
@@ -695,13 +679,11 @@ export function renderStep(ctx: StepContext): StepView {
               <Body delay={DEAL_AFTER_MS}>
                 {compact ? 'I start the second you’re in.' : `It’s already past ${bed}. I start the second you’re in.`}
               </Body>
-            ) : compact ? null : (
+            ) : compact || pain !== 'night' ? null : (
               // Night: the rested self sets the rule, and can change it anytime they're awake
               // (the schedule-edits rule), which answers "it's a punishment".
               <Body delay={DEAL_AFTER_MS}>
-                {pain === 'night'
-                  ? 'Your rule. Change it anytime you’re awake. Two passes a month for bad days. No deleting apps till morning.'
-                  : 'Two passes a month for bad days. No deleting apps till morning. Tap anything to change it.'}
+                Your rule. Change it anytime you’re awake. Two passes a month for bad days. No deleting apps till morning.
               </Body>
             )}
           </View>

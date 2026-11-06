@@ -24,6 +24,7 @@ export function GlassCard({
   style,
   dark,
   rim: rimColor,
+  rimWidth,
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -35,6 +36,8 @@ export function GlassCard({
   dark?: boolean;
   /** One colour for the whole rim instead of the lit top edge: a card that needs fixing. */
   rim?: string;
+  /** A thicker rim, for a chosen card (the paywall's plan). Drawn over the content, so no layout shift. */
+  rimWidth?: number;
 }) {
   const sheenTop = dark ? 0.07 : 0.16;
   const sheen = (
@@ -53,7 +56,7 @@ export function GlassCard({
   const rim = (
     <View
       pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.rim, dark && styles.rimDark, rimColor ? { borderColor: rimColor } : null]}
+      style={[StyleSheet.absoluteFill, styles.rim, dark && styles.rimDark, rimColor ? { borderColor: rimColor } : null, rimWidth ? { borderWidth: rimWidth } : null]}
     />
   );
 

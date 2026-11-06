@@ -38,7 +38,7 @@ const CHAPTER_NAMES: Record<Pain, string[]> = {
 
 /**
  * The screens whose words or order change by branch (ONBOARDING_BRANCHES §5), for Compare.
- * The rest (found, founder, method, voice, walk, screen-time, armed…) are the same in all four.
+ * The rest (found, founder, method, voice, walk, apps, armed…) are the same in all four.
  */
 const BRANCHED: StepId[] = [
   'wake',

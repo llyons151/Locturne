@@ -14,6 +14,7 @@ import { startPurchases } from '@/lib/purchases-start';
 import { setAppRemovalWriter } from '@/lib/screen-time';
 import { MOONS_BG } from '@/features/moons/moon-collection';
 import { useShieldMoon } from '@/features/moons/shield-moon';
+import { payoffTuning } from '@/features/wake/payoff-tuning';
 import { Nocturne } from '@/theme';
 
 // The launch screen stays until the right first screen has drawn (launch-splash.ts).
@@ -164,6 +165,7 @@ export default function RootLayout() {
             options={({ route }) => ({
               presentation: 'transparentModal',
               animation: (route.params as { cut?: string } | undefined)?.cut ? 'none' : 'fade',
+              animationDuration: payoffTuning.screenFadeMs,
               contentStyle: { backgroundColor: 'transparent' },
             })}
           />
