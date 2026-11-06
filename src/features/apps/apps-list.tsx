@@ -26,7 +26,6 @@ import {
   type SystemName,
 } from '@/components/app-icons';
 import { AddTile, AppPickerSheet } from '@/components/app-picker';
-import { SwipeDelete, SwipePressable } from '@/components/swipe-delete';
 import { GlassCard } from '@/components/glass-card';
 import { appsMoonRoom } from '@/components/night-sky';
 import { RaisedMoonTap } from '@/features/moons/moon-tap';
@@ -53,9 +52,9 @@ import { APP_FONT, DISPLAY_MAX_SCALE, Gap, Nocturne, Space, Type } from '@/theme
 import { APPS, type AppEntry } from './catalog';
 import { useListActions } from './list-actions';
 import { clock, pauseNote, removalNote, startsLabel } from './pending-note';
-import { confirmRemoveLimit, openLimitSheet } from './limit-sheet';
-import { newScheduleId, saveSchedule, scheduleStatus, scheduleSummary, schedulePendingNote } from './schedule-actions';
-import { confirmRemoveSchedule, openScheduleSheet } from './schedule-sheet';
+import { openLimitSheet } from './limit-sheet';
+import { newScheduleId, scheduleStatus, scheduleSummary, schedulePendingNote } from './schedule-actions';
+import { openScheduleSheet } from './schedule-sheet';
 import { nextNightOn } from '@/lib/routine';
 import { MAX_SCHEDULES, type ScheduleId } from '@/lib/schedules';
 import {
@@ -321,7 +320,9 @@ function LiveAppsList() {
                   title={group.label}
                   detail={size ? `${countPicks(size)} · ${group.when}` : 'No apps yet'}
                   status={listStatus(group.key, size)}
-                  onPress={() => openList(group.key)}
+                  // Sleep at bedtime opens Apple's picker straight away, as a schedule's Apps row
+                  // does; the all-day leftovers keep their page (it says when removals land).
+                  onPress={() => (group.key === 'night' ? actions.edit('night') : openList(group.key))}
                 />
               );
             })}
@@ -377,8 +378,6 @@ function LiveAppsList() {
                       },
                     });
                   }}
-                  // Already ending: a second Delete would change nothing.
-                  onDelete={limit.pending?.minutes === null ? undefined : () => confirmRemoveLimit(() => actions.setMinutes(limit.id, null))}
                 />
               );
             })}
@@ -538,7 +537,6 @@ function ListTile({
   status,
   used,
   onPress,
-  onDelete,
 }: {
   icons: ReactNode;
   title: string;
@@ -547,60 +545,52 @@ function ListTile({
   /** How much of today's time is gone, 0 to 1. Null when iOS doesn't say. */
   used?: number | null;
   onPress: () => void;
-  /** Swiping it left shows Delete (`SwipeDelete`), which calls this; none: it doesn't swipe. */
-  onDelete?: () => void;
 }) {
   const height = use(TileHeight);
   return (
-    // The card stays put and only what's on it slides, clipped by its own corners, with Delete
-    // coming up in the room it leaves (user, 2026-11-05: the whole card sliding got cut off).
-    <GlassCard dark style={height !== null && { minHeight: height }}>
-      <SwipeDelete onDelete={onDelete} fill={height !== null}>
-        <SwipePressable
-          onPress={onPress}
-          accessibilityActions={onDelete ? [{ name: 'delete', label: 'Delete' }] : undefined}
-          onAccessibilityAction={(e) => e.nativeEvent.actionName === 'delete' && onDelete?.()}
-          accessibilityRole="button"
-          accessibilityLabel={[title, detail, status?.text].filter(Boolean).join(', ')}
-          accessibilityHint="Shows all its apps"
-          style={({ pressed }) => [height !== null && styles.flex, pressed && styles.pressed]}
-        >
-          <View style={[styles.tile, height !== null && styles.flex]}>
-            {/* The title beside its apps, so four schedules or limits fit one screen (user, 2026-10-14). */}
-            <View style={styles.tileTop}>
-              <Text style={styles.tileTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-                {title}
-              </Text>
-              {icons}
-              <SymbolView
-                name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-                size={15}
-                weight="semibold"
-                tintColor={Nocturne.text3}
-              />
-            </View>
-            {/* The title stays at the top and the rest settles at the bottom. */}
-            {height !== null ? <View style={styles.flex} /> : null}
-            <Text style={styles.tileDetail} numberOfLines={1}>
-              {detail}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={[title, detail, status?.text].filter(Boolean).join(', ')}
+      accessibilityHint="Shows all its apps"
+      style={({ pressed }) => [height !== null && { minHeight: height }, pressed && styles.pressed]}
+    >
+      <GlassCard dark style={height !== null && styles.flex}>
+        <View style={[styles.tile, height !== null && styles.flex]}>
+          {/* The title beside its apps, so four schedules or limits fit one screen (user, 2026-10-14). */}
+          <View style={styles.tileTop}>
+            <Text style={styles.tileTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {title}
             </Text>
-            {status ? (
-              <View style={styles.status}>
-                <SymbolView name={status.icon} size={14} tintColor={Nocturne.text2} />
-                <Text style={styles.statusText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                  {status.text}
-                </Text>
-              </View>
-            ) : null}
-            {used != null ? (
-              <View style={styles.meter}>
-                <View style={[styles.meterFill, { width: `${Math.round(Math.min(1, Math.max(0, used)) * 100)}%` }]} />
-              </View>
-            ) : null}
+            {icons}
+            <SymbolView
+              name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+              size={15}
+              weight="semibold"
+              tintColor={Nocturne.text3}
+            />
           </View>
-        </SwipePressable>
-      </SwipeDelete>
-    </GlassCard>
+          {/* The title stays at the top and the rest settles at the bottom. */}
+          {height !== null ? <View style={styles.flex} /> : null}
+          <Text style={styles.tileDetail} numberOfLines={1}>
+            {detail}
+          </Text>
+          {status ? (
+            <View style={styles.status}>
+              <SymbolView name={status.icon} size={14} tintColor={Nocturne.text2} />
+              <Text style={styles.statusText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {status.text}
+              </Text>
+            </View>
+          ) : null}
+          {used != null ? (
+            <View style={styles.meter}>
+              <View style={[styles.meterFill, { width: `${Math.round(Math.min(1, Math.max(0, used)) * 100)}%` }]} />
+            </View>
+          ) : null}
+        </View>
+      </GlassCard>
+    </Pressable>
   );
 }
 
@@ -672,12 +662,6 @@ function ScheduleTiles({
                   onApps: editApps ? () => editApps(schedule.id) : undefined,
                 });
             }}
-            // Already being deleted: nothing to swipe away.
-            onDelete={
-              schedule.pending?.schedule === null
-                ? undefined
-                : () => confirmRemoveSchedule(schedule.id, () => saveSchedule(schedule.id, null))
-            }
           />
         );
       })}
@@ -815,7 +799,6 @@ function PreviewAppsList() {
                   title={limit.name ?? namedBy(limit.apps)}
                   detail={`${limitLabel(limit.minutes)} a day · ${usedUp ? 'asleep until midnight' : `${limitLabel(limit.minutes - limit.used)} left`}`}
                   used={limit.used / limit.minutes}
-                  onDelete={() => confirmRemoveLimit(() => removePreviewLimit(limit.id))}
                   onPress={() => {
                     haptic.tap();
                     openLimitSheet({
