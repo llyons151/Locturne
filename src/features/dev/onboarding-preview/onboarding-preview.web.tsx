@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { chaptersFor } from '@/features/onboarding/content';
 import { PAINS, stepsFor, type Pain, type StepId } from '@/features/onboarding/navigation';
@@ -65,7 +65,7 @@ function groupOf(step: StepId, pain: Pain): string {
 }
 
 type Settings = {
-  view: 'wall' | 'single' | 'compare';
+  view: 'line' | 'wall' | 'single' | 'compare';
   pain: Pain;
   device: DeviceId;
   zoom: number;
@@ -82,7 +82,7 @@ function load(): Settings {
   const query = new URLSearchParams(window.location.search);
   const linked: Partial<Settings> = {};
   const view = query.get('view');
-  if (view === 'single' || view === 'wall' || view === 'compare') linked.view = view;
+  if (view === 'line' || view === 'single' || view === 'wall' || view === 'compare') linked.view = view;
   const pain = PAINS.find((p) => p === query.get('pain'));
   if (pain) linked.pain = pain;
   if (query.get('step')) linked.step = query.get('step') as StepId;
@@ -108,7 +108,8 @@ function urlFor(step: StepId, s: Settings, pain: Pain = s.pain): string {
 
 /**
  * Dev tool, /onboarding-preview (web only): every onboarding screen, real, in phone frames.
- * Wall shows one branch's whole flow at once; Single is one phone you can tap through, with
+ * Line puts one branch's every screen in a single sideways row, and a click opens one full
+ * screen (← → between them, Esc closes; user 2026-11-05). Wall shows the same flow by chapter; Single is one phone you can tap through, with
  * the step list beside it (← → to move); Compare puts the four branches side by side on every
  * screen that differs. Each frame is the real `/onboarding?step=…&pain=…`, so editing any
  * onboarding file hot-reloads every frame. Answers are the flow's PREVIEW_ANSWERS.
@@ -128,6 +129,32 @@ export function OnboardingPreview() {
   }, [s]);
 
   const flow = useMemo(() => stepsOf(s.pain), [s.pain]);
+  // Line's full-screen phone, or null.
+  const [full, setFull] = useState<StepId | null>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => {
+      const i = flow.indexOf(full);
+      if (e.key === 'Escape') setFull(null);
+      if (e.key === 'ArrowRight') setFull(flow[Math.min(flow.length - 1, i + 1)]);
+      if (e.key === 'ArrowLeft') setFull(flow[Math.max(0, i - 1)]);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [full, flow]);
+  // A mouse wheel scrolls the line sideways; a trackpad's sideways swipe already does.
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [s.view]);
   useEffect(() => {
     if (s.view !== 'single') return;
     const onKey = (e: KeyboardEvent) => {
@@ -160,6 +187,7 @@ export function OnboardingPreview() {
         <Segment
           value={s.view}
           options={[
+            ['line', 'Line'],
             ['wall', 'Wall'],
             ['single', 'Single'],
             ['compare', 'Compare'],
@@ -226,7 +254,55 @@ export function OnboardingPreview() {
         </button>
       </header>
 
-      {s.view === 'compare' ? (
+      {s.view === 'line' ? (
+        <main style={css.lineMain}>
+          <p style={css.dim}>Every screen in order. Swipe or scroll sideways; click a screen to open it full screen.</p>
+          <div ref={strip} style={css.line}>
+            {flow.map((step, i) => (
+              <figure key={step} style={{ ...css.card, scrollSnapAlign: 'start' }}>
+                <figcaption style={css.caption}>
+                  <span>
+                    <span style={css.dim}>{i + 1}.</span> {step}
+                  </span>
+                  <span style={css.dim}>{groupOf(step, s.pain)}</span>
+                </figcaption>
+                <div style={{ position: 'relative' }}>
+                  <Phone key={`${s.pain}-${step}-${generation}`} src={urlFor(step, s)} device={device} zoom={s.zoom} lazy />
+                  {/* Over the frame, so a click opens it rather than tapping the screen inside. */}
+                  <button style={css.cover} aria-label={`Open ${step} full screen`} onClick={() => setFull(step)} />
+                </div>
+              </figure>
+            ))}
+          </div>
+          {full ? (
+            <div style={css.full} onClick={() => setFull(null)}>
+              <div style={css.fullHead} onClick={(e) => e.stopPropagation()}>
+                <button style={css.button} onClick={() => setFull(flow[Math.max(0, flow.indexOf(full) - 1)])}>
+                  ← Prev
+                </button>
+                <span>
+                  <span style={css.dim}>{flow.indexOf(full) + 1}.</span> {full}{' '}
+                  <span style={css.dim}>· {groupOf(full, s.pain)} · tap through it, Esc closes</span>
+                </span>
+                <button style={css.button} onClick={() => setFull(flow[Math.min(flow.length - 1, flow.indexOf(full) + 1)])}>
+                  Next →
+                </button>
+                <button style={css.button} onClick={() => setFull(null)}>
+                  Close ✕
+                </button>
+              </div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Phone
+                  key={`full-${s.pain}-${full}-${generation}`}
+                  src={urlFor(full, s)}
+                  device={device}
+                  zoom={Math.min(1, (window.innerHeight - 90) / (device.height + 24))}
+                />
+              </div>
+            </div>
+          ) : null}
+        </main>
+      ) : s.view === 'compare' ? (
         <main style={css.wall}>
           <p style={css.dim}>
             Every screen whose words or order change by branch, one column per branch. A dash means that branch doesn&apos;t
@@ -450,6 +526,21 @@ const css: Record<string, CSSProperties> = {
   segmentItem: { background: 'none', border: 0, color: '#a0a1a8', padding: '4px 12px', borderRadius: 5, cursor: 'pointer' },
   segmentOn: { background: '#3a3b42', color: '#fff' },
   wall: { padding: '8px 16px 48px' },
+  lineMain: { padding: '8px 0 32px 16px' },
+  line: { display: 'flex', flexWrap: 'nowrap', gap: 20, overflowX: 'auto', scrollSnapType: 'x proximity', padding: '4px 16px 16px 0' },
+  cover: { position: 'absolute', inset: 0, background: 'transparent', border: 0, cursor: 'zoom-in', padding: 0 },
+  full: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 10,
+    background: 'rgba(8,8,10,0.94)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 14,
+  },
+  fullHead: { display: 'flex', alignItems: 'center', gap: 14 },
   // Four columns, never wrapped: scroll sideways on a narrow window instead.
   compareRow: { display: 'flex', flexWrap: 'nowrap', gap: 20, width: 'max-content' },
   compareHead: { marginTop: 8 },
