@@ -5,6 +5,7 @@ import {
   font,
   foregroundStyle,
   frame,
+  glassEffect,
   kerning,
   lineLimit,
   minimumScaleFactor,
@@ -14,27 +15,42 @@ import {
   textCase,
 } from '@expo/ui/swift-ui/modifiers';
 
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
+
 import { Nocturne, Space } from '@/theme';
 
 import { AVERAGE_COMPARE, averageCompareLabel } from './average-compare-rows';
 
 const RADIUS = 16;
+/** Before iOS 26: the bubble's frosted pane (loc-bubble.tsx). */
+const FROST = 'rgba(255,255,255,0.10)';
+const FROST_EDGE = 'rgba(255,255,255,0.30)';
 
 /**
  * The average-week box in SwiftUI, like night-compare.ios.tsx's tiles: two columns, without
  * Locturne dim and with it white, a hairline between, the caption under both. One VoiceOver element.
+ * Clear Liquid Glass on iOS 26, like the night tiles (user 2026-11-05).
  */
 export function AverageCompare() {
+  const glass = isLiquidGlassAvailable();
   return (
     <Host matchContents={{ vertical: true }} colorScheme="dark" style={{ alignSelf: 'stretch' }}>
-      <ZStack modifiers={[accessibilityElement('ignore'), accessibilityLabel(averageCompareLabel)]}>
-        <RoundedRectangle
-          cornerRadius={RADIUS}
-          modifiers={[
-            foregroundStyle(Nocturne.surface),
-            strokeBorder({ content: Nocturne.edge, style: { lineWidth: 1 }, shape: 'roundedRectangle', cornerRadius: RADIUS }),
-          ]}
-        />
+      <ZStack
+        modifiers={[
+          accessibilityElement('ignore'),
+          accessibilityLabel(averageCompareLabel),
+          ...(glass ? [glassEffect({ glass: { variant: 'regular' }, shape: 'roundedRectangle', cornerRadius: RADIUS })] : []),
+        ]}
+      >
+        {glass ? null : (
+          <RoundedRectangle
+            cornerRadius={RADIUS}
+            modifiers={[
+              foregroundStyle(FROST),
+              strokeBorder({ content: FROST_EDGE, style: { lineWidth: 1 }, shape: 'roundedRectangle', cornerRadius: RADIUS }),
+            ]}
+          />
+        )}
         <VStack spacing={Space.m} modifiers={[padding({ vertical: Space.l, horizontal: Space.s })]}>
           <HStack spacing={0}>
             {AVERAGE_COMPARE.columns.flatMap((column, i) => [
