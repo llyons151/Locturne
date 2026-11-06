@@ -450,6 +450,8 @@ export type Rehearsal = {
   morningBy?: 'iOS' | 'late' | 'app';
   wonAt?: number;
   wonBy?: 'shield' | 'app';
+  /** A quick one: the night from the moment it was handed over, the morning about 2 minutes on. */
+  quick?: boolean;
   /** What the shield's pedometer read at the winning or last tap (-1: nothing). */
   steps?: number;
   floors?: number;
@@ -477,6 +479,11 @@ export function rehearsalHeld(r: Rehearsal | null): r is Rehearsal & { heldAt: n
  * Hands iOS a night from the next whole minute after a minute from now, `minutes` long (iOS
  * refuses under 15), for `method`. The shields' words are the real ones for that method, with
  * the rehearsal's morning start. Throws what's in the way, in words for an alert.
+ *
+ * `quick`: the night starts now and the morning at the first whole minute 2 minutes on (user
+ * 2026-11-05: 17 minutes a test was too slow). iOS still gets a 15-minute window, started in the
+ * past as `downtimeWindow` does, so it runs the start straight away and the end on time. It
+ * skips one thing a full one tests: iOS starting a night due later with Locturne closed.
  */
 export async function startRehearsal(opts: {
   method: string;
@@ -485,17 +492,20 @@ export async function startRehearsal(opts: {
   morning: (morningStart: Date) => ShieldText;
   tap: ShieldTap;
   minutes?: number;
+  quick?: boolean;
   now?: Date;
 }): Promise<Rehearsal> {
-  const { minutes = NAP_SHORTEST, now = new Date() } = opts;
+  const { minutes = NAP_SHORTEST, quick = false, now = new Date() } = opts;
   if (!isAvailable()) throw new Error('A rehearsal needs Screen Time, so run it on the phone.');
   if (getAccess() !== 'approved') throw new Error('Allow Screen Time first.');
   if (selectionSize('night') === 0) throw new Error('Pick some bedtime apps in Apps first. The rehearsal puts those to sleep.');
   if (isStoodDown()) throw new Error('Nothing locks without a subscription, so a rehearsal wouldn’t either.');
   if (rehearsalHeld(getRehearsal())) throw new Error('A rehearsal is already under way.');
-  const start = Math.ceil((now.getTime() + 60_000) / 60_000) * 60_000;
-  const end = start + minutes * 60_000;
-  if (new Date(start).getTimezoneOffset() !== new Date(end).getTimezoneOffset()) {
+  const start = quick ? now.getTime() : Math.ceil((now.getTime() + 60_000) / 60_000) * 60_000;
+  const end = quick ? Math.ceil((now.getTime() + 2 * 60_000) / 60_000) * 60_000 : start + minutes * 60_000;
+  // What iOS gets: never under 15 minutes, so a quick one's started in the past.
+  const windowStart = Math.min(start, end - NAP_SHORTEST * 60_000);
+  if (new Date(windowStart).getTimezoneOffset() !== new Date(end).getTimezoneOffset()) {
     throw new Error('The clocks change during that night. Try again after.');
   }
   // Whatever an earlier one left.
@@ -514,7 +524,7 @@ export async function startRehearsal(opts: {
     },
     REHEARSAL_MORNING_SHIELD,
   );
-  const rehearsal: Rehearsal = { method: opts.method, stepGoal: opts.stepGoal, armedAt: now.getTime(), start, end };
+  const rehearsal: Rehearsal = { method: opts.method, stepGoal: opts.stepGoal, armedAt: now.getTime(), start, end, ...(quick && { quick }) };
   // Before iOS has it: the extension reads it at the window's start.
   sharedSet(REHEARSAL_KEY, rehearsal);
   try {
@@ -526,7 +536,7 @@ export async function startRehearsal(opts: {
     });
     await startMonitoring(
       REHEARSAL_ACTIVITY,
-      { intervalStart: napClockOf(start), intervalEnd: napClockOf(end), repeats: false },
+      { intervalStart: napClockOf(windowStart), intervalEnd: napClockOf(end), repeats: false },
       [],
     );
   } catch (error) {

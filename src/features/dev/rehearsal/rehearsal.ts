@@ -20,8 +20,8 @@ const NEVER_STARTED_AFTER = 2 * 60_000;
 
 const minuteOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
 
-/** Hands iOS a rehearsal for `method`. Throws what's in the way, in words for an alert. */
-export async function rehearse(method: WakeMethod, now = new Date()): Promise<Rehearsal> {
+/** Hands iOS a rehearsal for `method`, `quick` or a full 15 minutes. Throws what's in the way, in words for an alert. */
+export async function rehearse(method: WakeMethod, quick = false, now = new Date()): Promise<Rehearsal> {
   if (methodInUse(method) !== method) {
     throw new Error(
       method === 'scan'
@@ -45,6 +45,7 @@ export async function rehearse(method: WakeMethod, now = new Date()): Promise<Re
     night: (end) => shieldCopy('night', wakeAt(end)),
     morning: (end) => shieldCopy('morning', wakeAt(end)),
     tap: shieldTap('morning'),
+    quick,
     now,
   });
 }

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState, StyleSheet } from 'react-native';
 import { Text } from '@/components/text';
 
+import { SwitchRow } from '@/components/controls';
 import { Card, ControlRow, sym, ValueRow, type Symbol } from '@/components/grouped-list';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
@@ -18,7 +19,7 @@ import { rehearse, resumeRehearsal } from './rehearsal';
 
 /**
  * You → Rehearse a night (dev and preview builds): one row per wake-up method, each a whole night
- * in about 17 minutes on the real native path (rehearsal.ts). While one runs, where it's at; after,
+ * in about 17 minutes on the real native path (rehearsal.ts), or about 3 with Quick on. While one runs, where it's at; after,
  * what iOS and the extensions really did and when, against when they were due.
  */
 
@@ -58,7 +59,7 @@ function Report({ r }: { r: Rehearsal }) {
       ? `Ended unwon ${clock(r.endedAt ?? r.end)}`
       : `${time(r.wonAt)}, ${r.wonBy === 'shield' ? `from the shield${(r.steps ?? -1) >= 0 ? `, ${r.steps} steps` : ''}` : 'in Locturne'}`;
   return (
-    <Card title={`Last rehearsal: ${titleOf(r.method)}`} footer={r.lastCheck ? `Last shield tap: ${r.lastCheck}.` : undefined}>
+    <Card title={`Last rehearsal: ${titleOf(r.method)}${r.quick ? ' (quick)' : ''}`} footer={r.lastCheck ? `Last shield tap: ${r.lastCheck}.` : undefined}>
       <ControlRow icon={sym('moon.fill', 'bedtime')} title="Night">
         <Text style={styles.value}>{r.heldAt === undefined ? 'Never started' : against(r.heldAt, r.start)}</Text>
       </ControlRow>
@@ -77,6 +78,8 @@ function Report({ r }: { r: Rehearsal }) {
 export function RehearsalSection({ headingStyle, icons }: { headingStyle: object; icons: Record<WakeMethod, Symbol> }) {
   const read = () => ({ current: getRehearsal(), last: getLastRehearsal(), now: Date.now() });
   const [{ current, last, now }, setFacts] = useState(read);
+  // On by default: most tests only need the morning. Off for the full night (restart, phone off).
+  const [quick, setQuick] = useState(true);
   const refresh = useCallback(() => setFacts(read()), []);
   useFocusEffect(refresh);
   useEffect(() => {
@@ -90,13 +93,15 @@ export function RehearsalSection({ headingStyle, icons }: { headingStyle: object
   }, [refresh]);
 
   const start = (method: WakeMethod) => {
-    rehearse(method).then(
+    rehearse(method, quick).then(
       (r) => {
         haptic.done();
         refresh();
         Alert.alert(
           'Swipe Locturne away',
-          `Bedtime is ${clock(r.start)} and the morning ${clock(r.end)}. Close Locturne from the app switcher now, so iOS runs the night with it closed. Restart the phone in between to test that too.`,
+          r.quick
+            ? `The night starts now and the morning is ${clock(r.end)}. Close Locturne from the app switcher now, so iOS runs the morning with it closed.`
+            : `Bedtime is ${clock(r.start)} and the morning ${clock(r.end)}. Close Locturne from the app switcher now, so iOS runs the night with it closed. Restart the phone in between to test that too.`,
         );
       },
       (error: unknown) => Alert.alert('Can’t rehearse', error instanceof Error ? error.message : String(error)),
@@ -138,7 +143,14 @@ export function RehearsalSection({ headingStyle, icons }: { headingStyle: object
           />
         </Card>
       ) : (
-        <Card footer="A real 15-minute night from iOS, starting in a minute or two, on a copy of your bedtime apps. Swipe Locturne away, then wake them with the method: on Home, or from I’m up on a shield. Nothing is recorded and your routine doesn't change.">
+        <Card
+          footer={
+            quick
+              ? 'A real night from iOS on a copy of your bedtime apps: it starts now and the morning comes about 2 minutes later. Swipe Locturne away, then wake them with the method: on Home, or from I’m up on a shield. Turn Quick off for a full 15-minute night, to restart the phone or turn it off in between. Nothing is recorded and your routine doesn’t change.'
+              : 'A real 15-minute night from iOS, starting in a minute or two, on a copy of your bedtime apps. Swipe Locturne away, then wake them with the method: on Home, or from I’m up on a shield. Nothing is recorded and your routine doesn’t change.'
+          }
+        >
+          <SwitchRow icon={sym('hare.fill', 'speed')} title="Quick (about 3 min)" value={quick} onChange={setQuick} />
           {LAB_METHODS.map((m, i) => (
             <ValueRow
               key={m.value}

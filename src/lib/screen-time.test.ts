@@ -369,6 +369,32 @@ test('a nap window is pinned to the zone it started in, so a flight cannot move 
   st.endNap();
 });
 
+test('a quick rehearsal: night now, morning about 2 min on, iOS still gets a 15-minute window', async () => {
+  status = 2;
+  saved = { always: 't', night: 't' };
+  const now = new Date(2026, 10, 5, 15, 2, 30);
+  const time = (c: { hour: number; minute: number }) => c.hour * 60 + c.minute;
+  for (const quick of [true, false]) {
+    calls.length = 0;
+    const night = () => ({ title: 'n', subtitle: '', button: 'b' });
+    const r = await st.startRehearsal({ method: 'steps', stepGoal: 200, night, morning: night, tap: null, quick, now });
+    const [, , schedule] = calls.find(([n, name]) => n === 'startMonitoring' && name === 'locturne-rehearsal')!;
+    const { intervalStart, intervalEnd } = schedule as Record<'intervalStart' | 'intervalEnd', { hour: number; minute: number }>;
+    assert.equal(time(intervalEnd) - time(intervalStart), 15);
+    assert.equal(time(intervalEnd), new Date(r.end).getHours() * 60 + new Date(r.end).getMinutes());
+    if (quick) {
+      assert.equal(r.start, now.getTime());
+      assert.equal(r.end, new Date(2026, 10, 5, 15, 5).getTime());
+      assert.equal(r.quick, true);
+    } else {
+      assert.equal(r.start, new Date(2026, 10, 5, 15, 4).getTime());
+      assert.equal(r.end - r.start, 15 * 60_000);
+      assert.equal(r.quick, undefined);
+    }
+    st.finishRehearsal();
+  }
+});
+
 test('armLimit: a daily window that shields once the minutes are used, and wakes at midnight', async () => {
   saved = { 'limit-0': 'opaque' };
   await st.armLimit({ id: 'limit-0', minutes: 90 });
