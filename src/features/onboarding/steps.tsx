@@ -50,7 +50,6 @@ import {
   triedChoices,
   type Answers,
   type ExitOffer,
-  type Pain,
   type StepId,
 } from './content';
 import type { MotionAccess } from './motion';
@@ -72,7 +71,7 @@ import { RevealScreen } from './screens/reveal-screen';
 import { SCAN_CODE_HEADLINE, ScanCodeShown, ScanCodeSwitch, ScanCodeWords } from './screens/scan-code';
 import { RollingCount } from './rolling-count';
 import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
-import { Body, Eyebrow, HoldButton, Options, page, PreviewNote, Ready, Reply, Title, Voice } from './ui';
+import { Body, Eyebrow, HoldButton, Options, page, Ready, Reply, Title, Voice } from './ui';
 import { wakeDayFor } from './wake-day';
 import { WelcomeDemo, WelcomeWords } from './welcome-demo';
 
@@ -192,15 +191,13 @@ export type StepView = {
 
 /** What each step shows. One case per step, in the order of STEPS in content.ts. */
 export function renderStep(ctx: StepContext): StepView {
-  const { step, answers, numbers, set, next, edit, exit, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
+  const { step, answers, numbers, set, next, edit, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
   const schedule = scheduleCopy(ctx.scheduledNight, new Date());
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
   // The first locked morning's day: this morning, later today or tomorrow (`wakeDayFor`).
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
   const wakeDay = wakeDayFor({ bedtime: answers.bedtime, wake: answers.wake, now: nowMinutes, lateNight });
-  // Installed in the small hours with morning under an hour away: no "Go to sleep".
-  const morningSoon = wakeDay === 'This morning' && answers.wake - nowMinutes < 60;
   // A scan code can't be set while the apps sleep, so finishing at night or in an unproved
   // morning, it waits for the day after the first morning (`getScanEditRefusal`).
   const method = methodCopy(answers.method ?? 'steps', { codeWaits: lateNight || getScanEditRefusal() !== null, wake: answers.wake });
@@ -803,7 +800,9 @@ export function renderStep(ctx: StepContext): StepView {
 
     case 'armed': {
       const { arm } = ctx;
-      if (arm.status === 'working') {
+      // Tonight set: no page of its own any more (user 2026-11-05). This stays under iOS's
+      // prompts while they're up (onboarding-flow.tsx `askAfterPurchase`), then Home.
+      if (arm.status === 'working' || arm.status === 'armed' || arm.status === 'preview') {
         return {
           body: (
             <View style={page.top}>
@@ -839,8 +838,8 @@ export function renderStep(ctx: StepContext): StepView {
           footer: <PrimaryButton label="Open Routine" disabled={ctx.notifications === null || ctx.asking} onPress={ctx.openRoutine} />,
         };
       }
-      if (arm.status === 'failed') {
-        // Never imply protection that isn't there (GAME_PLAN, "Reliability"). Plain first.
+      {
+        // Failed: never imply protection that isn't there (GAME_PLAN, "Reliability"). Plain first.
         const fail = ARM_FAILURES[arm.reason];
         return {
           body: (
@@ -856,67 +855,6 @@ export function renderStep(ctx: StepContext): StepView {
           secondary: arm.reason === 'no-access' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
         };
       }
-      const startsNow = arm.status === 'armed' ? arm.now : lateNight;
-      const { notifications, motion, trialEnds } = ctx;
-      // The last screen (merged with the first-morning plan, 2026-10-26): tonight, the morning,
-      // then what each iOS prompt is for before it shows (decided 2026-10-03), and only the ones
-      // iOS will really show. One Continue opens them, per Apple's pre-permission guidance.
-      const asksNotifications = notifications === 'undetermined';
-      const reminds = answers.remindTrial && trialEnds !== null;
-      const way = answers.method ?? 'steps';
-      const asks = [
-        asksNotifications && { name: 'notifications', for: reminds ? ['bedtime', 'morning', 'your trial reminder'] : ['bedtime', 'morning'] },
-        motion === null && { name: 'motion', for: [way === 'downstairs' ? 'stairs' : 'steps'] },
-        ctx.methodAsks ? METHOD_ACCESS[way] : undefined,
-      ].filter((ask): ask is Ask => !!ask);
-      // What a "Don't Allow" breaks, said here instead of at 7am. Once iOS has answered these
-      // replace the asks, and the page stays up so they're read (`morningWarnings`).
-      const warnings = morningWarnings({ notifications, motion, remindTrial: answers.remindTrial, trialEnds, method: way });
-      // The label is when the first one is: "Tomorrow 7:00 AM".
-      const wakeWhen = schedule.wakeWhen && schedule.wakeAt ? `${schedule.wakeWhen}, ${schedule.wakeAt}` : (method.morning.when ?? 'Morning');
-      const started = ctx.scheduledNight !== null && ctx.scheduledNight.start <= new Date();
-      return {
-        body: (
-          <View style={page.top}>
-            <Voice
-              text={startsNow ? 'Armed. Starting now. Put it down.' : schedule.armed}
-              size={VoiceSize.headline}
-              header
-            />
-            {/* One beat: the morning. Setup and what iOS turned down sit under it, quieter. */}
-            <View style={styles.plan}>
-              <PlanRow when={wakeWhen} what={method.morning.line} />
-              {method.morning.note ? <Body style={styles.planNote}>{method.morning.note}</Body> : null}
-              {warnings.map((row) => (
-                <Body key={row.when} style={styles.planNote}>{row.what}</Body>
-              ))}
-            </View>
-            {asks.length > 0 ? null : (
-              <Voice text={started ? 'That’s it. Go to sleep.' : lastWord(answers, pain, bed)} size={VoiceSize.aside} delay={600} />
-            )}
-            {arm.status === 'preview' ? (
-              <>
-                <View style={page.gapBlock} />
-                <PreviewNote>No Screen Time here, so nothing was handed to iOS. On an iPhone this only shows once iOS confirms tonight.</PreviewNote>
-              </>
-            ) : null}
-          </View>
-        ),
-        // Waits for iOS's answers so far, so the copy above is right before anything is asked.
-        footer:
-          asks.length > 0 ? (
-            <PrimaryButton label="Continue" disabled={notifications === null || ctx.asking} onPress={ctx.askPermissions} />
-          ) : (
-            <PrimaryButton label={lateNight && !morningSoon ? 'Good night' : 'Done'} onPress={exit} />
-          ),
-        // What iOS asks next sits under Continue, like a secondary line (user, 2026-10-26).
-        secondary:
-          asks.length > 0 ? (
-            <Body style={styles.planNote}>{asksLine(asks)}</Body>
-          ) : motion === 'denied' ? (
-            <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} />
-          ) : undefined,
-      };
     }
   }
 }
@@ -1015,21 +953,6 @@ function PlanRow({ when, what }: { when: string; what: string }) {
 }
 
 /**
- * His last word on `armed` when iOS has nothing left to ask: the time they confessed to, from their end of the night.
- * Night echoes the phone going down; overall whichever end they gave; the rest the feet.
- */
-function lastWord(answers: Answers, pain: Pain, bed: string): string {
-  const feet = answers.morningMinutes !== undefined && answers.morningMinutes > 3;
-  const late = answers.nightMinutes !== undefined && answers.nightMinutes > 5;
-  const nightEcho = `You said phone down around ${formatWhen(answers.bedtime + (answers.nightMinutes ?? 0))}. Tonight it’s ${bed}.`;
-  const feetEcho = `You said feet down around ${formatWhen(answers.wake + (answers.morningMinutes ?? 0))}. We’ll see.`;
-  if (pain === 'night' && late) return nightEcho;
-  if (feet) return feetEcho;
-  if (pain === 'overall' && late) return nightEcho;
-  return 'I’ll be asleep. Don’t wake me.';
-}
-
-/**
  * The night branch's opening to the demo: the reach a little after getting into bed (or when
  * the phone usually goes down, if that's sooner), the night shield, then tomorrow morning.
  */
@@ -1077,26 +1000,6 @@ function ScheduleWarning({ minutes, short, long }: { minutes: number; short?: bo
   if (short) return <Body style={styles.warning}>That’s {amount} in bed. Locturne needs at least {MIN_NIGHT / 60} hours.</Body>;
   if (long) return <Body style={styles.warning}>That’s {amount} in bed. Locturne allows up to {MAX_NIGHT / 60} hours.</Body>;
   return <Body style={styles.warning}>That’s {amount} in bed. Check AM and PM.</Body>;
-}
-
-/** One iOS prompt on `armed`: what iOS calls it, and what it's for. */
-type Ask = { name: string; for: string[] };
-
-/** The wake-up way's own prompt on `armed`, after Motion (method-access.ts). */
-const METHOD_ACCESS: Partial<Record<WakeMethod, Ask>> = {
-  place: { name: 'location', for: ['checking in'] },
-  scan: { name: 'the camera', for: ['your code'] },
-  pushups: { name: 'the camera', for: ['push-ups'] },
-};
-
-/** "iOS asks about notifications and motion next. Just for bedtime, morning, and steps." */
-function asksLine(asks: Ask[]): string {
-  return `iOS asks about ${listed(asks.map((ask) => ask.name))} next. Just for ${listed(asks.flatMap((ask) => ask.for))}.`;
-}
-
-function listed(items: string[]): string {
-  if (items.length < 3) return items.join(' and ');
-  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
 /** "Fri, Oct 10": the trial's last day, the way the reminder would have said it. */

@@ -743,11 +743,15 @@ export function OnboardingFlow({
   // The web preview has neither prompt, so it starts as unasked and plays both stand-ins.
   const [notifications, setNotifications] = useState<NotificationPermission | null>(screenTimeHere ? null : 'undetermined');
   // What iOS has already answered, so `armed` only mentions the prompts that will really show.
+  // Set once all three reads are back, so the asks after purchase only show what iOS will really ask.
+  const [permissionsRead, setPermissionsRead] = useState(!screenTimeHere);
   const checkPermissions = useEffectEvent(() => {
     if (!screenTimeHere) return;
-    getNotificationPermission().then(setNotifications, () => setNotifications('denied'));
-    if (motion === null) checkMotion().then((m) => m && setMotion(m), () => {});
-    methodAccessPending(method).then(setMethodAsks, () => setMethodAsks(false));
+    Promise.allSettled([
+      getNotificationPermission().then(setNotifications, () => setNotifications('denied')),
+      motion === null ? checkMotion().then((m) => m && setMotion(m), () => {}) : null,
+      methodAccessPending(method).then(setMethodAsks, () => setMethodAsks(false)),
+    ]).then(() => setPermissionsRead(true));
   });
   useEffect(() => {
     if (step === 'armed') checkPermissions();
@@ -808,6 +812,18 @@ export function OnboardingFlow({
       setAsking(false);
     }
   };
+  // Tonight set: no page after purchase (user 2026-11-05: "We don't need a page"). iOS's
+  // prompts come straight up, the paywall's "We'll remind you" line their reason, then Home.
+  // Every night off or a failed arm still stops on `armed`: there's something to do there.
+  const autoAsked = useRef(false);
+  const askAfterPurchase = useEffectEvent(() => {
+    if (autoAsked.current || !permissionsRead || (arm.status !== 'armed' && arm.status !== 'preview')) return;
+    autoAsked.current = true;
+    ask(() => exit(), true);
+  });
+  useEffect(() => {
+    if (step === 'armed') askAfterPurchase();
+  }, [step, arm, permissionsRead]);
   // The last page: done once iOS has answered, unless an answer left something to read there.
   const askPermissions = () =>
     ask((got) => {
