@@ -57,17 +57,17 @@ function history(steps: number[]) {
 const walk = (from: number, n: number) => Array.from({ length: n }, (_, i) => from + i * 1000);
 
 describe('the numbers', () => {
-  test('defaults: 50 steps and an hour', () => {
-    assert.equal(DEFAULT_DOWNTIME_STEPS, 50);
+  test('defaults: 30 steps (fixed) and an hour', () => {
+    assert.equal(DEFAULT_DOWNTIME_STEPS, 30);
     assert.equal(DEFAULT_DOWNTIME_MINUTES, 60);
-    assert.equal(downtimeStepsOf({}), 50);
+    assert.equal(downtimeStepsOf({}), 30);
     assert.equal(downtimeMinutesOf({}), 60);
   });
 
-  test('a saved number off the wheel reads as the nearest on it, never 0 or NaN', () => {
-    assert.equal(downtimeStepsOf({ downtimeSteps: 0 }), 10);
-    assert.equal(downtimeStepsOf({ downtimeSteps: 9000 }), 500);
-    assert.equal(downtimeStepsOf({ downtimeSteps: Number.NaN }), 50);
+  test('the steps are fixed: a count saved while it was a setting is ignored; minutes stay on their wheel', () => {
+    assert.equal(downtimeStepsOf({ downtimeSteps: 0 }), 30);
+    assert.equal(downtimeStepsOf({ downtimeSteps: 200 }), 30);
+    assert.equal(downtimeStepsOf({ downtimeSteps: Number.NaN }), 30);
     assert.equal(downtimeMinutesOf({ downtimeMinutes: 1 }), 15);
     assert.equal(downtimeMinutesOf({ downtimeMinutes: 600 }), 120);
     assert.equal(downtimeMinutesOf({ downtimeMinutes: 90 }), 90);

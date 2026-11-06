@@ -33,7 +33,7 @@ export type Routine = {
   stepGoal: number;
   /** Push-ups a morning takes (`PUSHUP_MIN`–`PUSHUP_MAX`). Missing on routines saved before it was kept: 10. */
   pushupGoal?: number;
-  /** Step away: the steps that show you're up (`DOWNTIME_STEPS_RANGE`). Missing until one is picked: 50. */
+  /** Step away's steps: no longer read, fixed at `DOWNTIME_STEPS` (30) since 2026-11-05. Kept so old saves parse. */
   downtimeSteps?: number;
   /** Step away: minutes the apps stay asleep after those steps (`DOWNTIME_MINUTES_RANGE`). Missing: 60. */
   downtimeMinutes?: number;
@@ -55,7 +55,7 @@ export {
   DEFAULT_DOWNTIME_MINUTES,
   DEFAULT_DOWNTIME_STEPS,
   DOWNTIME_MINUTES_RANGE,
-  DOWNTIME_STEPS_RANGE,
+  DOWNTIME_STEPS,
   downtimeMinutesOf,
   downtimeStepsOf,
 } from './wake/downtime.ts';

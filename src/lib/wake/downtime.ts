@@ -22,12 +22,15 @@
  */
 
 /**
- * The routine's two numbers: a small walk first, counted from the morning start like Walk it
- * off, then the timer. The steps on a wheel in tens, the timer in quarter hours (user 2026-11-05:
- * "an hour without your phone in the morning from the time you actually get out of bed").
+ * The routine's two numbers: a short walk first, counted from the morning start like Walk it
+ * off, then the timer in quarter hours (user 2026-11-05: "an hour without your phone in the
+ * morning from the time you actually get out of bed"). The steps are fixed, not a setting
+ * (user 2026-11-05): 30 is a trip out of the bedroom and back, past what shaking the phone in
+ * bed or the pedometer's slow start can reach, and over in seconds so the timer is the point.
  */
-export const DOWNTIME_STEPS_RANGE = { min: 10, max: 500, by: 10 };
-export const DEFAULT_DOWNTIME_STEPS = 50;
+export const DOWNTIME_STEPS = 30;
+/** The fixed count, under its old name (onboarding and the method options read it). */
+export const DEFAULT_DOWNTIME_STEPS = DOWNTIME_STEPS;
 export const DOWNTIME_MINUTES_RANGE = { min: 15, max: 120, by: 15 };
 export const DEFAULT_DOWNTIME_MINUTES = 60;
 
@@ -35,8 +38,8 @@ export const DEFAULT_DOWNTIME_MINUTES = 60;
 const onWheel = (value: number | undefined, range: { min: number; max: number }, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? Math.min(range.max, Math.max(range.min, Math.round(value))) : fallback;
 
-export const downtimeStepsOf = (routine: { downtimeSteps?: number }) =>
-  onWheel(routine.downtimeSteps, DOWNTIME_STEPS_RANGE, DEFAULT_DOWNTIME_STEPS);
+/** Always `DOWNTIME_STEPS`: a count saved while it was a setting is ignored. */
+export const downtimeStepsOf = (_routine: { downtimeSteps?: number }) => DOWNTIME_STEPS;
 
 export const downtimeMinutesOf = (routine: { downtimeMinutes?: number }) =>
   onWheel(routine.downtimeMinutes, DOWNTIME_MINUTES_RANGE, DEFAULT_DOWNTIME_MINUTES);

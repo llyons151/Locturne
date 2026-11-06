@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import * as haptic from '@/lib/haptics';
-import { DOWNTIME_MINUTES_RANGE, DOWNTIME_STEPS_RANGE, downtimeMinutesOf, downtimeStepsOf } from '@/lib/routine';
+import { DOWNTIME_MINUTES_RANGE, downtimeMinutesOf } from '@/lib/routine';
 import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
 import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from './apply-edit';
@@ -24,14 +24,6 @@ const PARTS = {
     of: downtimeMinutesOf,
     key: 'downtimeMinutes',
     range: DOWNTIME_MINUTES_RANGE,
-  },
-  steps: {
-    title: 'Steps first',
-    body: 'Steps that show you’re out of bed. Then the timer starts.',
-    label: 'Steps',
-    of: downtimeStepsOf,
-    key: 'downtimeSteps',
-    range: DOWNTIME_STEPS_RANGE,
   },
 } as const;
 

@@ -695,7 +695,8 @@ func locturneHeldMorning(now: Date = Date()) -> LocturneMorning? {
     stepGoal: (routine["stepGoal"] as? NSNumber)?.intValue ?? 200,
     bedtime: judged.bedtime,
     morningStart: judged.morningStart,
-    downtimeSteps: locturneOnWheel(routine["downtimeSteps"], min: 10, max: 500, fallback: LOCTURNE_DOWNTIME_STEPS),
+    // Fixed, not a setting (user 2026-11-05): a count saved while it was one is ignored.
+    downtimeSteps: LOCTURNE_DOWNTIME_STEPS,
     downtimeMinutes: locturneOnWheel(routine["downtimeMinutes"], min: 15, max: 120, fallback: LOCTURNE_DOWNTIME_MINUTES)
   )
 }
@@ -903,8 +904,8 @@ func locturneJudgeMorning(steps: Int?, floors: Int, now: Date = Date(), reachedA
 let LOCTURNE_DOWNTIME_KEY = "locturne.downtime"
 let LOCTURNE_DOWNTIME_ACTIVITY = "locturne-downtime"
 let LOCTURNE_DOWNTIME_ARMED_KEY = "locturne.downtimeArmedEnd"
-/// As `DEFAULT_DOWNTIME_STEPS` and `DEFAULT_DOWNTIME_MINUTES`.
-let LOCTURNE_DOWNTIME_STEPS = 50
+/// As `DOWNTIME_STEPS` and `DEFAULT_DOWNTIME_MINUTES`.
+let LOCTURNE_DOWNTIME_STEPS = 30
 let LOCTURNE_DOWNTIME_MINUTES = 60
 /// iOS can end the window a little early (`DOWNTIME_SLACK_MS`).
 let LOCTURNE_DOWNTIME_SLACK: TimeInterval = 120

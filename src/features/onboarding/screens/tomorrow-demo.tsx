@@ -112,8 +112,8 @@ type MethodDemo = {
 
 /** Steps: the first 190 in a rush, the last ten one at a time. This is the moment people film. */
 const STEPS_FAST_MS = 2400;
-/** Step away's demo: 50 steps in a second and a half, then its hour gone in two and a half. */
-const AWAY_STEPS = 50;
+/** Step away's demo: 30 steps in a second and a half, then its hour gone in two and a half. */
+const AWAY_STEPS = 30;
 const AWAY_MINUTES = 60;
 const AWAY_WALK_MS = 1500;
 const AWAY_TIMER_MS = 2500;

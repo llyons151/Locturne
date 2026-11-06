@@ -420,15 +420,15 @@ export const METHOD_COPY: Record<
     offer: '10 push-ups. I’ll count every one, disappointed.',
     morning: { line: 'Open me and do 10 push-ups where I can see you.' },
   },
-  // Step away (wake/downtime.ts): written for the defaults, 50 steps and 1 h (`methodCopyFor` swaps in others).
+  // Step away (wake/downtime.ts): written for the defaults, 30 steps and 1 h (`methodCopyFor` swaps in others).
   downtime: {
     echo: 'An hour of nothing. I was born for this.',
     short: 'Step away',
-    check: 'Awake again 1 h after your first 50 steps',
+    check: 'Awake again 1 h after your first 30 steps',
     until: 'you’re up and 1 h has passed',
-    commit: '50 steps, then 1 h phone-free.',
-    offer: '50 steps, then an hour of quiet. I’ll nap through it.',
-    morning: { line: 'Walk 50 steps. Your apps wake 1 h after.' },
+    commit: '30 steps, then 1 h phone-free.',
+    offer: '30 steps, then an hour of quiet. I’ll nap through it.',
+    morning: { line: 'Walk 30 steps. Your apps wake 1 h after.' },
   },
 };
 
@@ -503,7 +503,7 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
         : codeWaits
           ? { ...saved, morning: WAITING_MORNING[method as 'scan' | 'place'] }
           : saved;
-  // Written for the default 200 steps, 10 push-ups and Step away's 50 steps and 1 h; a rerun keeps
+  // Written for the default 200 steps, 10 push-ups and Step away's 30 steps and 1 h; a rerun keeps
   // the ones set in Routine. Step away's numbers are only in its own copy.
   const { steps: goal, reps, downtimeSteps, downtimeMinutes } = morningGoals();
   const away = method === 'downtime';
@@ -513,7 +513,7 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
     if (typeof value === 'string') {
       if (away)
         return value
-          .replace(/\b50 steps\b/g, `${downtimeSteps} steps`)
+          .replace(/\b30 steps\b/g, `${downtimeSteps} steps`)
           .replace(/\b1 h\b/g, minutesLabel(downtimeMinutes))
           .replace(/\ban hour\b/g, minutesLabel(downtimeMinutes))
           .replace(/^An hour\b/, minutesLabel(downtimeMinutes)) as T;

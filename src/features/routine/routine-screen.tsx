@@ -375,8 +375,8 @@ export function RoutineScreen() {
         ) : null}
         {offerDowntime ? (
           <>
-            <ValueRow title="Apps asleep for" value={minutesLabel(downtimeMinutesOf(saved))} onPress={() => router.push('/downtime')} />
-            <ValueRow title="Steps first" value={`${downtimeStepsOf(saved)}`} onPress={() => router.push('/downtime?part=steps')} last />
+            {/* The steps first are fixed (wake/downtime.ts), so only the timer is a setting. */}
+            <ValueRow title="Apps asleep for" value={minutesLabel(downtimeMinutesOf(saved))} onPress={() => router.push('/downtime')} last />
           </>
         ) : null}
         {offerSteps && !offerCodeSetup && !offerPlaceSetup ? (

@@ -15,10 +15,10 @@ func registerDowntimeTests() {
   test("step away: short of its steps, the shield says how many, starts nothing and opens nothing") {
     closedNight(method: "downtime")
     at("2026-10-06 07:25")
-    expectEqual(tap("tiktok", .data(steps: 30), after: 0.05), [.defer])
+    expectEqual(tap("tiktok", .data(steps: 12), after: 0.05), [.defer])
     expectStillAsleep()
     expect(downtimeRecord() == nil, "no timer")
-    expectEqual(drawn("tiktok").subtitle, "30 of 50 steps. 20 more, then tap I’m up to start your timer.")
+    expectEqual(drawn("tiktok").subtitle, "12 of 30 steps. 18 more, then tap I’m up to start your timer.")
     expect(sentTaps().isEmpty, "never sends the open-Locturne notification")
   }
 

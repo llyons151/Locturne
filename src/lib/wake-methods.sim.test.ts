@@ -709,7 +709,7 @@ describe('downtime (Step away)', () => {
   const query = (p: ReturnType<typeof fakePedometer>) => async (from: number, to: number) =>
     (await p.sensor.getStepCountAsync(new Date(from), new Date(to))).steps;
 
-  test('50 steps at 7:10 with the app closed, opened at 7:30: the timer runs from 7:10, and at 8:10 the phone wakes them by itself', async () => {
+  test('30 steps at 7:10 with the app closed, opened at 7:30: the timer runs from 7:10, and at 8:10 the phone wakes them by itself', async () => {
     await onboard(routine);
     await sleepThroughNight();
     const p = fakePedometer();
@@ -719,7 +719,7 @@ describe('downtime (Step away)', () => {
     const record = await lc.startDowntime(query(p));
     drain();
     assert.ok(record, 'the timer starts');
-    assert.ok(record.reachedAt >= at(6, 7, 10, 27) && record.reachedAt <= at(6, 7, 11, 27), `from when the 50th step was taken, not the open: ${new Date(record.reachedAt).toTimeString()} start ${new Date(record.start).toTimeString()}`);
+    assert.ok(record.reachedAt >= at(6, 7, 10, 0) && record.reachedAt <= at(6, 7, 11, 30), `from when the 30th step was taken, not the open: ${new Date(record.reachedAt).toTimeString()} start ${new Date(record.start).toTimeString()}`);
     assert.equal(record.endsAt, record.reachedAt + 60 * MIN);
     assert.ok(NIGHT.every(asleep), 'still asleep while it runs');
     assert.equal(lc.readDowntime().phase.kind, 'running');
