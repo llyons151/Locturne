@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 import type { WakeMethod } from '@/lib/routine';
 import { syncLock } from '@/lib/lock-controller';
-import { endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, winRehearsal } from '@/lib/screen-time';
+import { endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, sharedGet, sharedSet, winRehearsal } from '@/lib/screen-time';
 
 import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
 
@@ -112,15 +112,24 @@ export const pretendMethod = (): WakeMethod | null =>
  * method that won it, Home then opens the payoff (/morning-won) with made-up facts.
  */
 /**
- * A pretend Step away timer, kept here by its morning's `since` rather than in Home's state, so a
+ * A pretend Step away timer, kept by its morning's `since` rather than in Home's state, so a
  * remount (the payoff closing, a tab switch) or a rehearsal re-opening its morning can't start a
  * fresh one-minute timer each time (user 2026-11-05: "it just resets and keeps saying 1 minute").
+ * Saved in the App Group, not memory: a rehearsal has Locturne swiped away, and each relaunch
+ * found the steps done and no timer, so it started another minute from then (user 2026-11-06).
  */
 type PretendTimer = { since: number; reachedAt: number; endsAt: number };
-let pretendTimer: PretendTimer | null = null;
-export const getPretendTimer = (since: number): PretendTimer | null => (pretendTimer?.since === since ? pretendTimer : null);
+const PRETEND_TIMER_KEY = 'locturne.pretendTimer';
+export function getPretendTimer(since: number): PretendTimer | null {
+  const saved = sharedGet<PretendTimer>(PRETEND_TIMER_KEY);
+  return saved?.since === since ? saved : null;
+}
 export function startPretendTimer(since: number, now: number, minutes: number): PretendTimer {
-  return getPretendTimer(since) ?? (pretendTimer = { since, reachedAt: now, endsAt: now + minutes * 60_000 });
+  const running = getPretendTimer(since);
+  if (running) return running;
+  const timer = { since, reachedAt: now, endsAt: now + minutes * 60_000 };
+  sharedSet(PRETEND_TIMER_KEY, timer);
+  return timer;
 }
 
 /** The `since` of the pretend morning last won: the same morning is never re-opened (`rehearseTheMorning`). */
