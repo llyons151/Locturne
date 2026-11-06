@@ -1,6 +1,5 @@
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import { File, Paths } from 'expo-file-system';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Platform, Share, StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
@@ -35,8 +34,8 @@ import LocStage from '../home/loc-stage';
 import { weekDays } from '../home/week';
 import { homeWeekSpot } from '../home/week-spot';
 import { WeekStrip } from '../home/week-strip';
-import { APPS_AWAKE, clockParts, payoffBrag, payoffKicker, payoffMoment, shareText } from './payoff';
-import ShareCard, { type CardFacts } from './share-card';
+import { clockParts, payoffKicker, payoffMoment, shareText } from './payoff';
+import { ShareCard, type CardFacts } from './share-card';
 
 /** Everything the payoff shows. The route reads it from the stores, or the wake preview makes it up. */
 export type PayoffFacts = {
@@ -146,7 +145,7 @@ export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: Pa
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const short = height < SHORT_SCREEN;
-  const { mornings, today, won, free, upAt, start, earliest, sayKey } = facts;
+  const { mornings, today, won, free, upAt, sayKey } = facts;
   // The sky is laid out over Home's tab strip, so the moon and the panel are Home's exactly; the
   // payoff's own strip is taller (Done, Share under it), drawn over the sky's foot as a black band
   // with the panel's corners, and drops to Home's on the way back (`drop`).
@@ -279,10 +278,7 @@ export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: Pa
     };
   }, [onYell, handBack]);
   const days = weekDays(today, won, free);
-  const week = days.filter((d) => d.done).length;
   const up = clockParts(upAt);
-  // Only a fact that flatters today (user, 2026-10-28); otherwise the apps stand alone.
-  const brag = payoffBrag(upAt, start, earliest, week);
   // The page, faded out as a whole on the way back; the sky, the strip and Loc stay. Then the
   // strip's edge and Loc drop to Home's strip.
   const page = useSharedValue(1);
@@ -389,35 +385,31 @@ export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: Pa
   // Share sends the card: the screen as a picture (share-card.tsx), with the line as its caption.
   const [cards, setCards] = useState(0);
   const card: CardFacts = {
+    // The moon this payoff rose: the new one, or the one worn.
+    moon: newMoon ?? worn,
     value: up.value,
     unit: up.unit,
     kicker: payoffKicker(mornings),
-    reward: APPS_AWAKE.replace('\n', ' '),
-    brag,
-    days: days.map((d) => ({ letter: d.letter, done: d.done, today: d.today })),
+    days,
   };
   const share = () => {
     haptic.tap();
     setCards((n) => n + 1);
   };
   const onCard = useCallback(
-    async (png: string) => {
+    async (uri: string) => {
       const message = shareText(mornings, upAt);
-      const base64 = png.slice(png.indexOf(',') + 1);
       if (Platform.OS === 'web') {
         // The browser preview: save the picture, so it can be looked at.
         const a = document.createElement('a');
-        a.href = png;
+        a.href = uri;
         a.download = `locturne-${today}.png`;
         a.click();
         return;
       }
       try {
-        const file = new File(Paths.cache, `locturne-${today}.png`);
-        if (file.exists) file.delete();
-        file.create();
-        file.write(base64, { encoding: 'base64' });
-        await Share.share({ url: file.uri, message });
+        // iOS's own snapshot, already a file: straight into the share sheet.
+        await Share.share({ url: uri.startsWith('file:') ? uri : `file://${uri}`, message });
       } catch {
         // No picture to send: the line on its own still goes.
         Share.share({ message }).catch(() => {});
@@ -530,9 +522,7 @@ export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: Pa
         </View>
       ) : null}
       {cards > 0 ? (
-        <View style={styles.offstage} pointerEvents="none">
-          <ShareCard facts={card} loc={locShot} nonce={cards} onCard={onCard} dom={{ style: { width: 1, height: 1 } }} />
-        </View>
+        <ShareCard facts={card} loc={locShot} nonce={cards} onCard={onCard} />
       ) : null}
     </AppBackground>
     </Animated.View>
@@ -603,8 +593,6 @@ const styles = StyleSheet.create({
   timeValueShort: { fontSize: 48, lineHeight: 54 },
   timeUnit: { ...DisplayFont, fontSize: 24, color: 'rgba(255,255,255,0.86)' },
   speech: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
-  // The share card's webview: painted, never seen.
-  offstage: { position: 'absolute', left: 0, top: 0, width: 1, height: 1, opacity: 0 },
   below: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center', justifyContent: 'center' },
   // Full width between the gutters, as Home's, so the dots land on Home's exactly.
   week: { alignSelf: 'stretch', marginTop: Space.xxxl, gap: Space.m },

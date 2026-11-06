@@ -1,55 +1,58 @@
-'use dom';
+import { Image } from 'expo-image';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
+import { captureRef } from 'react-native-view-shot';
 
-import { useEffect, useRef } from 'react';
+import { PANEL_RADIUS } from '@/components/app-tabs';
+import { MOON_PADS, MoonFace, MoonHalo, SkyPicture } from '@/components/night-sky';
+import { Text } from '@/components/text';
+import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
-import { MOON_FROSTED, MOON_GLOW } from './moonrise-art';
-import { NIGHT_SKY } from './share-card-art';
+import type { MoonDef } from '../moons/moon-types';
+import { LOC_VIEW } from '../home/loc-rig';
+import type { WeekDay } from '../home/week';
+import { WeekStrip } from '../home/week-strip';
 
-/** What the card says: the payoff's own words and numbers, already formatted. */
+/** What the card shows: the payoff's own pieces, already worked out there. */
 export type CardFacts = {
+  /** The moon the payoff rose: this morning's new one, or the one worn. */
+  moon: MoonDef;
   /** "7:06" and "am". */
   value: string;
   unit: string;
   /** "Morning 12", or a milestone's name. */
   kicker: string;
-  /** The payoff's headline (one line here), and the brag under it when today earned one. */
-  reward: string;
-  brag: string | null;
-  days: { letter: string; done: boolean; today: boolean }[];
+  days: WeekDay[];
 };
 
-// A phone story, 9:16, at 1080 wide. Sized like the payoff itself: its points times S (a 390 pt
-// wide phone drawn 1080 wide), so it reads as the screen, not a blown-up copy of it.
-const W = 1080;
-const H = 1920;
-const S = W / 390;
-/** The black strip under the panel, with the name in it, and the panel's corners (44 pt). */
-const STRIP = 230;
-const PANEL_R = Math.round(44 * S);
-/** The moon's disc and its top. Its frosted image is 1.5 times the disc, its glow 2 (night-sky.tsx). */
-const MOON = 860;
-const MOON_TOP = 90;
-const FROST_PAD = 1.5;
-const GLOW_PAD = 2;
-/** Loc's width on the card, as a share of it (0.27 on screen: a little bigger here, he's the star). */
+/**
+ * A phone story, 9:16, laid out in points the size of a phone and captured at 1080 x 1920, so it
+ * reads as the payoff's screen rather than a blown-up copy of it.
+ */
+const CARD_W = 360;
+const CARD_H = 640;
+const OUT = { width: 1080, height: 1920 };
+/** The black strip under the panel, with the name in it. */
+const STRIP = 84;
+/** The risen moon, as the payoff's (`MOON_SHARE`, payoff-screen.tsx), and the room over it. */
+const MOON = Math.round(CARD_W * 0.46);
+const MOON_TOP = 44;
+/** Loc's width as a share of the card: the payoff's (0.27), a touch bigger here, he's the star. */
 const LOC_SHARE = 0.3;
-/** His share of his own canvas's width (payoff-screen.tsx LOC_SHARE). */
-const LOC_IN_CANVAS = 0.27;
-
-/** The app's own face: its display font on the web build, the system's (SF) on iPhone, as the app's text. */
-function appFont() {
-  const display = getComputedStyle(document.documentElement).getPropertyValue('--font-display').trim();
-  return `${display ? `${display}, ` : ''}-apple-system, system-ui, sans-serif`;
-}
+/** Room for the pictures to decode before the snapshot. */
+const SETTLE_MS = 450;
+/** The longest the snapshot waits on Loc's picture. */
+const LOC_WAIT_MS = 1500;
 
 /**
- * The morning payoff's share card (user, 2026-10-27): the screen as a picture to post. The
- * moon at the top with the time in it, the week, and Loc mid-yell on the panel's edge (a
- * snapshot of his own canvas), over the black strip with the name. Drawn on a canvas in a
- * webview, so no native screenshot module is needed; bumping `nonce` paints it and hands the PNG
- * back through `onCard`.
+ * The morning payoff's share card (user 2026-11-05: "isn't updated to the way the payoff looks…
+ * it's all JavaScript rendering"): the payoff's own screen as a picture to post, drawn with the same
+ * native views (the baked sky, `MoonFace` with its drag, the time, Home's week dots, Loc at the top of
+ * his yell on the panel's edge) and captured by iOS (react-native-view-shot). Laid out off screen
+ * while `nonce` asks for one; hands the PNG's file (a data URL on the web) to `onCard`.
  */
-export default function ShareCard({
+export function ShareCard({
   facts,
   loc,
   nonce,
@@ -59,180 +62,127 @@ export default function ShareCard({
   /** Loc's canvas as a PNG data URL (LocStage `onSnap`), or null to leave him out. */
   loc: string | null;
   nonce: number;
-  /** The card as a PNG data URL. A native action on iOS. */
-  onCard: (png: string) => Promise<void> | void;
-  dom?: import('expo/dom').DOMProps;
+  onCard: (uri: string) => Promise<void> | void;
 }) {
-  // What to paint, kept current after each render (not written during it).
-  const latest = useRef({ facts, loc });
+  const card = useRef<View>(null);
+  // The drag all the way out, as the payoff has it once the moon is up.
+  const drag = useSharedValue(1);
+  const [locReady, setLocReady] = useState(!loc);
+  const latest = useRef(onCard);
   useEffect(() => {
-    latest.current = { facts, loc };
+    latest.current = onCard;
   });
 
+  // His picture can be slow to say it's loaded (or never, on the web off screen): not waited on for long.
   useEffect(() => {
-    if (!nonce) return;
+    if (!nonce || locReady) return;
+    const t = setTimeout(() => setLocReady(true), LOC_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [nonce, locReady]);
+
+  useEffect(() => {
+    if (!nonce || !locReady) return;
     let live = true;
-    paint(latest.current.facts, latest.current.loc)
-      .then((png) => live && onCard(png))
-      .catch(() => {});
+    const t = setTimeout(() => {
+      captureRef(card, { format: 'png', ...OUT, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' })
+        .then((uri) => live && latest.current(uri))
+        .catch((error) => {
+          if (__DEV__) console.warn('share card', error);
+        });
+    }, SETTLE_MS);
     return () => {
       live = false;
+      clearTimeout(t);
     };
-    // Painted once per bump, with whatever the facts are then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nonce]);
+  }, [nonce, locReady]);
 
-  return <div style={{ width: 1, height: 1 }} />;
+  const { moon } = facts;
+  const frost = MOON * MOON_PADS.frost * moon.scale;
+  const halo = MOON * MOON_PADS.glow * moon.scale;
+  const cx = CARD_W / 2 + (moon.cx - 0.5) * CARD_W;
+  const cy = MOON_TOP + MOON / 2;
+  const panel = CARD_H - STRIP;
+  // His canvas runs the payoff's full width with him LOC_SHARE of it (loc-stage), standing on its foot.
+  const locW = CARD_W * (LOC_SHARE / 0.27);
+  const locH = (locW * 0.27 * LOC_VIEW.height) / LOC_VIEW.width;
+
+  return (
+    <View style={styles.offstage} pointerEvents="none">
+      <View ref={card} collapsable={false} style={styles.card}>
+        <View style={[styles.panel, { height: panel }]}>
+          <SkyPicture moon={moon} />
+          <View style={[styles.layer, { left: cx - halo / 2, top: cy - halo / 2 }]}>
+            <MoonHalo moon={moon} size={halo} />
+          </View>
+          <View style={[styles.layer, { left: cx - frost / 2, top: cy - frost / 2, width: frost, height: frost }]}>
+            <MoonFace moon={moon} box={frost} drag={drag} still />
+          </View>
+          {/* Between the moon and Loc, as on the payoff: the time in the headline's place, then this week. */}
+          <View style={[styles.below, { top: MOON_TOP + MOON + Space.l, bottom: locH * 0.8 }]}>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeValue} maxFontSizeMultiplier={1}>
+                {facts.value}
+              </Text>
+              <Text style={styles.timeUnit} maxFontSizeMultiplier={1}>
+                {facts.unit}
+              </Text>
+            </View>
+            <Text style={styles.kicker} maxFontSizeMultiplier={1}>
+              {facts.kicker}
+            </Text>
+            <View style={styles.week}>
+              <Text style={styles.weekLabel} maxFontSizeMultiplier={1}>
+                This week
+              </Text>
+              <WeekStrip days={facts.days} reduced />
+            </View>
+          </View>
+          {loc ? (
+            <Image
+              source={{ uri: loc }}
+              style={[styles.loc, { width: locW, height: locH, left: (CARD_W - locW) / 2, top: panel - locH + 1 }]}
+              contentFit="contain"
+              priority="high"
+              onLoad={() => setLocReady(true)}
+              onError={() => setLocReady(true)}
+            />
+          ) : null}
+        </View>
+        <View style={styles.strip}>
+          <Text style={styles.name} maxFontSizeMultiplier={1}>
+            Locturne
+          </Text>
+          <Text style={styles.url} maxFontSizeMultiplier={1}>
+            locturne.com
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 }
 
-const load = (src: string) =>
-  new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-
-async function paint(facts: CardFacts, loc: string | null): Promise<string> {
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d')!;
-  const font = appFont();
-  const [sky, glow, moon, locImg] = await Promise.all([
-    load(NIGHT_SKY),
-    load(MOON_GLOW),
-    load(MOON_FROSTED),
-    loc ? load(loc).catch(() => null) : null,
-    document.fonts?.load(`700 100px ${font}`).catch(() => null),
-  ]);
-  const panelBottom = H - STRIP;
-  const type = (weight: number, size: number) => `${weight} ${Math.round(size * S)}px ${font}`;
-
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, W, H);
-
-  // The panel: the app's own night sky (flipped, as it shows it), cover-fit to the panel's width
-  // and its foot, ending in the panel's rounded corners over the strip.
-  ctx.save();
-  ctx.beginPath();
-  ctx.roundRect(0, -PANEL_R, W, panelBottom + PANEL_R, PANEL_R);
-  ctx.clip();
-  const skyScale = Math.max(W / sky.width, panelBottom / sky.height);
-  const skyW = sky.width * skyScale, skyH = sky.height * skyScale;
-  ctx.drawImage(sky, W - skyW, panelBottom - skyH, skyW, skyH);
-
-  // The moon, risen to the top in its light, the time inside it.
-  const cx = W / 2, cy = MOON_TOP + MOON / 2;
-  ctx.drawImage(glow, cx - (MOON * GLOW_PAD) / 2, cy - (MOON * GLOW_PAD) / 2, MOON * GLOW_PAD, MOON * GLOW_PAD);
-  ctx.drawImage(moon, cx - (MOON * FROST_PAD) / 2, cy - (MOON * FROST_PAD) / 2, MOON * FROST_PAD, MOON * FROST_PAD);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.font = type(400, 15);
-  ctx.fillText('Up at', cx, cy - 100);
-  // The time and its am, set together on one baseline, centred as a pair.
-  ctx.font = type(700, 64);
-  const tracking = -1.5 * S;
-  const valueW = spacedWidth(ctx, facts.value, tracking);
-  ctx.font = type(500, 22);
-  const unitW = ctx.measureText(facts.unit).width;
-  const gap = 6 * S, left = cx - (valueW + gap + unitW) / 2;
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = type(700, 64);
-  spaced(ctx, facts.value, left, cy + 62, tracking, 'left');
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.font = type(500, 22);
-  // `spaced` hands back centred text.
-  ctx.textAlign = 'left';
-  ctx.fillText(facts.unit, left + valueW + gap, cy + 62);
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.font = type(600, 12);
-  spaced(ctx, facts.kicker.toUpperCase(), cx, cy + 128, 1.6 * S, 'center');
-
-  // The reward, as on the screen: one line, the brag small under it. The app icons stay on the
-  // phone (iOS draws them, and only on the screen).
-  const statsY = MOON_TOP + MOON + 125;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = type(600, 17);
-  ctx.fillText(facts.reward, W / 2, statsY);
-  if (facts.brag) {
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = type(400, 13);
-    ctx.fillText(facts.brag, W / 2, statsY + 22 * S);
-  }
-
-  // The week: letters, then a circle each, the mornings got up filled with a check.
-  const dayY = statsY + 62 * S, step = 46 * S, r = 17 * S;
-  facts.days.forEach((day, i) => {
-    const x = W / 2 + (i - 3) * step;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = day.today ? '#FFFFFF' : 'rgba(255,255,255,0.55)';
-    ctx.font = type(day.today ? 600 : 400, 13);
-    ctx.fillText(day.letter, x, dayY);
-    const y = dayY + 30 * S;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    if (day.done) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-      // The check, in the sky's navy.
-      const k = r / 17;
-      ctx.strokeStyle = '#101A33';
-      ctx.lineWidth = 2.2 * k;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x - 5.5 * k, y + 0.5 * k);
-      ctx.lineTo(x - 1.5 * k, y + 4.5 * k);
-      ctx.lineTo(x + 6 * k, y - 4 * k);
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 1.2 * S;
-      ctx.stroke();
-    }
-  });
-
-  // Loc on the panel's edge, as he was at the top of his yell: his canvas is transparent round
-  // him and he stands on its bottom edge, so it's scaled about its bottom middle. It's drawn
-  // sharper than the screen (LocStage SNAP_SCALE), so here it only ever shrinks.
-  if (locImg) {
-    const scale = (W * LOC_SHARE) / (locImg.width * LOC_IN_CANVAS);
-    const w = locImg.width * scale, h = locImg.height * scale;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(locImg, (W - w) / 2, panelBottom - h + 2, w, h);
-  }
-  ctx.restore();
-
-  // The strip: the name, and where to get it.
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = type(700, 17);
-  spaced(ctx, 'Locturne', W / 2, panelBottom + 100, 0.2 * S, 'center');
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = type(400, 11);
-  ctx.fillText('locturne.com', W / 2, panelBottom + 145);
-
-  return canvas.toDataURL('image/png');
-}
-
-/** How wide `spaced` draws `text`: letter by letter, so measured the same way. */
-function spacedWidth(ctx: CanvasRenderingContext2D, text: string, spacing: number) {
-  return [...text].reduce((sum, c) => sum + ctx.measureText(c).width, 0) + spacing * (text.length - 1);
-}
-
-/** Text with letter spacing, a letter at a time (canvas letterSpacing isn't everywhere), from `x` as `align`. */
-function spaced(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, spacing: number, align: 'left' | 'center') {
-  const widths = [...text].map((c) => ctx.measureText(c).width);
-  const total = spacedWidth(ctx, text, spacing);
-  let at = align === 'center' ? x - total / 2 : x;
-  ctx.textAlign = 'left';
-  [...text].forEach((c, i) => {
-    ctx.fillText(c, at, y);
-    at += widths[i] + spacing;
-  });
-  ctx.textAlign = 'center';
-}
+const styles = StyleSheet.create({
+  // Laid out past the screen's right edge: drawn for the snapshot, never seen.
+  offstage: { position: 'absolute', top: 0, left: 10_000, width: CARD_W, height: CARD_H },
+  card: { width: CARD_W, height: CARD_H, backgroundColor: '#000000' },
+  panel: {
+    width: CARD_W,
+    overflow: 'hidden',
+    backgroundColor: Nocturne.bg,
+    borderBottomLeftRadius: PANEL_RADIUS,
+    borderBottomRightRadius: PANEL_RADIUS,
+  },
+  layer: { position: 'absolute' },
+  below: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center', justifyContent: 'center' },
+  // The payoff's time and kicker (payoff-screen.tsx styles), at the card's size.
+  timeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  timeValue: { ...NUMBER_FONT, fontSize: 60, lineHeight: 66, letterSpacing: -1.5, color: Nocturne.text, fontVariant: ['tabular-nums'] },
+  timeUnit: { ...DisplayFont, fontSize: 22, color: 'rgba(255,255,255,0.86)' },
+  kicker: { ...Type.label, fontSize: 12, lineHeight: 17, color: 'rgba(255,255,255,0.86)', textAlign: 'center', marginTop: Space.xs },
+  week: { alignSelf: 'stretch', marginTop: Space.xxl, gap: Space.m },
+  weekLabel: { ...Type.label, textAlign: 'center' },
+  loc: { position: 'absolute' },
+  strip: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  name: { ...DisplayFont, fontSize: 17, color: Nocturne.text, letterSpacing: 0.2 },
+  url: { ...Type.secondary, fontSize: 11, color: 'rgba(255,255,255,0.45)' },
+});

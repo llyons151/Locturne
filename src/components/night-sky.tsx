@@ -467,13 +467,7 @@ export function NightSky({
       <Animated.View style={[StyleSheet.absoluteFill, skyStyle]}>
         {/* The same sky drawn live in Metal where the build has it (modules/moon-sky), over the baked
             image, which shows on the web, on older builds, and until the live one has loaded. */}
-        <Image
-          source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
-          style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
-          contentFit="cover"
-          contentPosition="top right"
-          accessible={false}
-        />
+        <SkyPicture moon={moon} />
         {isMoonSkyViewAvailable ? (
           <MoonSkyView style={StyleSheet.absoluteFill} colors={moon.skyColors} texture={SKY_LUMA} paused={reduced} />
         ) : null}
@@ -493,25 +487,7 @@ export function NightSky({
           </Animated.View>
         ) : null}
         <Animated.View style={[styles.moon, { width: frostBase, height: frostBase }, moonStyle]}>
-          {drag && MOON_DRAG[moon.id] ? <MoonDrag source={MOON_DRAG[moon.id]} box={frostBase} drag={drag} /> : null}
-          {moon.twin && !moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
-          {/* A Saturn ring sits behind the moon's frosted edge, so it reads as part of the moon (user, 2026-11-02). */}
-          {moon.ringLine?.kind === 'saturn' ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
-          <Image
-            source={moon.moon ?? require('@/assets/onboarding/moon-frosted.png')}
-            style={StyleSheet.absoluteFill}
-            contentFit="contain"
-            accessible={false}
-          />
-          {moon.ringLine?.kind === 'eclipse' && isMoonRingViewAvailable ? (
-            <MoonRingView style={ringBox(frostBase)} />
-          ) : (
-            <>
-              {moon.ring ? <MoonPart source={moon.ring} box={frostBase} x={0} y={0} size={1.6} /> : null}
-              {moon.ringLine?.kind === 'eclipse' ? <MoonRing line={moon.ringLine} box={frostBase} /> : null}
-            </>
-          )}
-          {moon.twin && moon.twinAt?.front ? <TwinMoon moon={moon} box={frostBase} /> : null}
+          <MoonFace moon={moon} box={frostBase} drag={drag} />
         </Animated.View>
       </View>
     </>
@@ -537,6 +513,63 @@ export function NightSky({
         <QuizWash width={width} height={height} />
       </Animated.View>
     </View>
+  );
+}
+
+/**
+ * The moon itself, in its `box` (FROST_PAD times its disc): its drag under it (`drag`, the payoff's),
+ * a twin, a ring. The sky's moon layer and the payoff's share card draw the same one (share-card.tsx).
+ * `still`: a picture of it (the card), so the twin is already risen and the eclipse ring is the
+ * drawn one, not the live native view, which a snapshot can't see.
+ */
+export function MoonFace({ moon, box, drag, still = false }: { moon: MoonDef; box: number; drag?: SharedValue<number>; still?: boolean }) {
+  const twin = moon.twin ? (still ? <StillTwin moon={moon} box={box} /> : <TwinMoon moon={moon} box={box} />) : null;
+  return (
+    <>
+      {drag && MOON_DRAG[moon.id] ? <MoonDrag source={MOON_DRAG[moon.id]} box={box} drag={drag} /> : null}
+      {!moon.twinAt?.front ? twin : null}
+      {/* A Saturn ring sits behind the moon's frosted edge, so it reads as part of the moon (user, 2026-11-02). */}
+      {moon.ringLine?.kind === 'saturn' ? <MoonRing line={moon.ringLine} box={box} /> : null}
+      <Image source={moon.moon ?? require('@/assets/onboarding/moon-frosted.png')} style={StyleSheet.absoluteFill} contentFit="contain" accessible={false} />
+      {moon.ringLine?.kind === 'eclipse' && isMoonRingViewAvailable && !still ? (
+        <MoonRingView style={ringBox(box)} />
+      ) : (
+        <>
+          {moon.ring ? <MoonPart source={moon.ring} box={box} x={0} y={0} size={1.6} /> : null}
+          {moon.ringLine?.kind === 'eclipse' ? <MoonRing line={moon.ringLine} box={box} /> : null}
+        </>
+      )}
+      {moon.twinAt?.front ? twin : null}
+    </>
+  );
+}
+
+/** The moon's halo, as the sky draws it: `GLOW_PAD` times the disc, in the moon's own colour. */
+export function MoonHalo({ moon, size }: { moon: MoonDef; size: number }) {
+  return (
+    <Image
+      source={require('@/assets/onboarding/moon-glow.png')}
+      style={{ width: size, height: size, opacity: moon.glowOpacity }}
+      contentFit="contain"
+      tintColor={moon.sky ? moon.glow : undefined}
+      accessible={false}
+    />
+  );
+}
+
+/** Pads round a disc: the moon's frosted picture and its halo. */
+export const MOON_PADS = { frost: FROST_PAD, glow: GLOW_PAD };
+
+/** The baked sky behind a moon, as the sky draws it under the live Metal one. */
+export function SkyPicture({ moon }: { moon: MoonDef }) {
+  return (
+    <Image
+      source={moon.sky ?? require('@/assets/onboarding/night-sky-moonless.png')}
+      style={[StyleSheet.absoluteFill, MOON_REST === 'bottom' && styles.flipped]}
+      contentFit="cover"
+      contentPosition="top right"
+      accessible={false}
+    />
   );
 }
 
@@ -692,6 +725,21 @@ function TwinMoon({ moon, box }: { moon: MoonDef; box: number }) {
       ) : null}
       <MoonPart source={moon.twin!} box={box} x={at.x} y={at.y} size={at.size * FROST_PAD} />
     </Animated.View>
+  );
+}
+
+/** A twin moon already risen, for a picture (`MoonFace` `still`). */
+function StillTwin({ moon, box }: { moon: MoonDef; box: number }) {
+  const at = moon.twinAt!;
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {at.glowOpacity > 0 ? (
+        <View style={[StyleSheet.absoluteFill, { opacity: at.glowOpacity }]}>
+          <MoonPart source={require('@/assets/onboarding/moon-glow.png')} box={box} x={at.x} y={at.y} size={at.size * GLOW_PAD} tint={at.glow} />
+        </View>
+      ) : null}
+      <MoonPart source={moon.twin!} box={box} x={at.x} y={at.y} size={at.size * FROST_PAD} />
+    </View>
   );
 }
 

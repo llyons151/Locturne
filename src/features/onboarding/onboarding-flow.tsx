@@ -802,7 +802,7 @@ export function OnboardingFlow({
     try {
       const access = await requestMotion();
       setMotion(access);
-      track('motion_access', { result: access, step: 'method' });
+      track('motion_access', { result: access });
     } catch {
       // Unanswered: asked again after purchase.
     } finally {
