@@ -61,7 +61,7 @@ function launch({
       sharedGet: (key: string) => (disk.has(key) ? structuredClone(disk.get(key)) : undefined),
       sharedSet: (key: string, value: unknown) => (value == null ? disk.delete(key) : disk.set(key, structuredClone(value))),
     },
-    './moon-data': { LADDER, MOONS: [] },
+    './moon-data': { LADDER, MOONS: [...LADDER, ...ladder.RARE_MOONS].map((id) => ({ id })) },
     './moon-ladder': ladder,
   };
   const exports: Record<string, any> = {};
@@ -312,4 +312,15 @@ test('subscribers hear about each change, and stop hearing once unsubscribed', (
   unsubscribe();
   app.m.devEarnNext();
   assert.equal(heard, 2, 'unsubscribed');
+});
+
+test('a saved moon the app no longer has (a re-bake) is dropped on load, so the payoff never shows it', () => {
+  const app = launch({ proofs: [walk('2026-11-04')], first: '2026-11-04' });
+  app.disk.set('locturne.moons.owned', {
+    gone: { id: 'gone', morningKey: '2026-11-04', morning: 1, at: 1 },
+    harvest: { id: 'harvest', morningKey: '2026-11-04', morning: 1, at: 1 },
+  });
+  const again = launch({ disk: app.disk, proofs: [walk('2026-11-04')], first: '2026-11-04' });
+  assert.deepEqual([...Object.keys(again.m.getOwned())], ['harvest']);
+  assert.deepEqual([...again.m.unpresented('2026-11-04').map((m: { id: string }) => m.id)], ['harvest']);
 });

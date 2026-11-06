@@ -423,7 +423,7 @@ describe('push-up lines', () => {
 
   test('the spoken count', () => {
     assert.equal(spokenRep(3, 10), '3');
-    assert.equal(spokenRep(10, 10), "10. Fine. I'm up.");
+    assert.equal(spokenRep(10, 10), '10');
   });
 
   test('every state has a short line', () => {

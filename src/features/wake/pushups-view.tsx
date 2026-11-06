@@ -407,8 +407,8 @@ export function PushupsCamera({
     metNow.current = met;
   }, [met]);
 
-  // Start as the camera opens; the session ends with the screen. A finished set's last line
-  // ("10. Fine. I'm up.") is left to finish rather than cut off.
+  // Start as the camera opens; the session ends with the screen. A finished set's last count
+  // is left to finish rather than cut off.
   useEffect(() => {
     start();
     return () => {

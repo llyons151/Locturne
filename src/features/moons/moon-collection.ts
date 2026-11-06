@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
-import { LADDER } from './moon-data';
+import { LADDER, MOONS } from './moon-data';
 import { RARE_MOONS, SECRET_FROM, SECRET_RULES, secretsMet, settleLadder, type OwnedMoon, type RareState, type SecretRule } from './moon-ladder';
 
 /**
@@ -39,8 +39,21 @@ const listeners = new Set<() => void>();
 let snapshot: Record<string, OwnedMoon> | undefined;
 
 export function getOwned(): Record<string, OwnedMoon> {
-  snapshot ??= sharedGet<Record<string, OwnedMoon>>(OWNED_KEY) ?? {};
+  snapshot ??= known(sharedGet<Record<string, OwnedMoon>>(OWNED_KEY) ?? {});
   return snapshot;
+}
+
+/**
+ * Drops saved moons the app no longer has (an id renamed or cut in a re-bake): one would sort
+ * first in `unpresented` and blank the payoff's moon. Left on disk until the next save.
+ */
+function known(owned: Record<string, OwnedMoon>): Record<string, OwnedMoon> {
+  const ids = new Set(MOONS.map((m) => m.id));
+  const stale = Object.keys(owned).filter((id) => !ids.has(id));
+  if (!stale.length) return owned;
+  const next = { ...owned };
+  for (const id of stale) delete next[id];
+  return next;
 }
 
 function saveOwned(owned: Record<string, OwnedMoon>) {

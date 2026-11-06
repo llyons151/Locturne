@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 
 import { resumeRehearsal } from '@/features/dev/rehearsal/rehearsal';
 import { setPaywallOpen, wasClosedAtPaywall } from '@/features/onboarding/setup';
+import { openDuePayoff } from '@/features/wake/open-payoff';
 import { track } from '@/lib/analytics';
 import { armTonight } from '@/lib/arm';
 import { revealApp } from '@/lib/launch-splash';
@@ -128,8 +129,10 @@ export function useAppStart(): void {
       armIfPaid();
       return;
     }
-    // Opening on the tabs: they're drawn.
-    revealApp();
+    // Opening on the tabs: they're drawn. After a wake-up done away from Home (the shield's
+    // "I'm up"), the payoff opens under the launch screen instead, with no fade, and lifts it
+    // once drawn (morning-won.tsx): the app starts on it, never Home then a cut (user 2026-11-05).
+    if (devLab || segments[0] === '(dev)' || !openDuePayoff()) revealApp();
     // Closed at the paywall last time: back to it with their setup, unless they've paid since
     // (a purchase that finished as the app died). Offline, the paywall says the store isn't answering.
     if (wasClosedAtPaywall() && pathname !== '/onboarding' && !devLab && segments[0] !== '(dev)') {
@@ -159,7 +162,12 @@ export function useAppStart(): void {
   }, []);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && armIfPaid());
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      // Back to the front after the shield's "I'm up": straight onto the payoff, no fade over Home.
+      openDuePayoff();
+      armIfPaid();
+    });
     return () => sub.remove();
   }, []);
 

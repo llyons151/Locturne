@@ -105,8 +105,8 @@ export function downtimeLine(
   }
 }
 
-/** What he says out loud for a rep: the count, and something at the end. */
-export const spokenRep = (reps: number, goal: number) => (reps >= goal ? `${reps}. Fine. I'm up.` : String(reps));
+/** What he says out loud for a rep: just the count, the last one too (no "Fine. I'm up.", user 2026-11-05). */
+export const spokenRep = (reps: number, _goal: number) => String(reps);
 
 /** Not the morning: nothing to prove yet, or nothing left to prove. */
 export const PHASE_LINES = {

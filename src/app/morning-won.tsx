@@ -3,12 +3,16 @@
 // React, so the React Compiler stays out of here.
 
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { LeaveRoute } from '@/components/leave-route';
 import { settleMoons, unpresented } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
+import { markPayoffShown } from '@/features/wake/open-payoff';
+import { PayoffLab } from '@/features/wake/payoff-lab';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
+import { revealApp } from '@/lib/launch-splash';
 import { currentProof, routineAt } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
 import { weekDays } from '@/features/home/week';
@@ -38,12 +42,32 @@ export default function MorningWonRoute() {
     // Once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const facts = cold ? null : params.demo && labs ? demoFacts(params) : realFacts();
+  const demo = !!params.demo && labs;
+  const facts = cold ? null : demo ? demoFacts(params) : realFacts();
+  // A real morning's payoff counts as shown once it's up, not when Home asked for it (open-payoff.ts).
+  const shownKey = !demo && facts ? facts.today : null;
+  useEffect(() => {
+    if (shownKey) markPayoffShown(shownKey);
+  }, [shownKey]);
+  // Opened at launch under the launch screen (`openDuePayoff`): lift it now the payoff is drawn.
+  // A no-op once the app is showing (revealApp runs once).
+  useLayoutEffect(() => {
+    if (!cold) revealApp();
+  }, [cold]);
   if (cold) return null;
   // Back to the tabs already open: a `<Redirect>` would stack a second Home.
   if (!facts) return <LeaveRoute />;
   // `cut`: taking a camera's place, with no fade in (open-payoff.ts).
-  return <PayoffScreen facts={facts} cut={params.cut === '1'} />;
+  // `lab=1` (browser, made-up facts): the entrance's timings on sliders, with a Replay (payoff-lab.web.tsx).
+  const lab = demo && params.lab === '1' && Platform.OS === 'web';
+  const cut = params.cut === '1';
+  if (!lab) return <PayoffScreen facts={facts} cut={cut} />;
+  return (
+    <>
+      <PayoffScreen facts={facts} cut={cut} fadeIn={!cut} />
+      <PayoffLab params={params} />
+    </>
+  );
 }
 
 /** Home's own entrance finishes before the payoff goes over it. */

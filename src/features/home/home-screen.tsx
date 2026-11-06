@@ -40,7 +40,7 @@ import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent, type HomeAction, type HomeMeter } from './home-content';
 import type { HomeLook } from './home-look';
 import { LocCue } from './loc';
-import { openPayoff, openPretendPayoff } from '../wake/open-payoff';
+import { openPayoff, openPretendPayoff, PAYOFF_FOR } from '../wake/open-payoff';
 import type { LocMoment } from './loc-lines';
 import { bigClock, duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -271,7 +271,8 @@ export function HomeScreen() {
   const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));
   const here = morningHero && { ...morningHero, action: made(morningHero.action) ?? null, alt: made(morningHero.alt) };
   const target = phase === 'day' ? sleepsAt : lock.nextChange;
-  const minutes = target ? Math.round((target.getTime() - now.getTime()) / 60_000) : null;
+  // Rounded up, like a timer: the last minute reads "1m" until the moment itself, never "0m" (user 2026-11-05).
+  const minutes = target ? Math.ceil((target.getTime() - now.getTime()) / 60_000) : null;
   // Tonight switched off: `sleepsAt` is a later night's bedtime, so say tonight is off and
   // name that night's weekday rather than count down as if it were tonight's. A pause still
   // pending by day (the day after a night-time emergency) doesn't change that; only the paused
@@ -517,9 +518,6 @@ const DONE_WORDS: Record<WakeMethod, string> = {
 
 const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };
 
-/** A wake-up older than this, found on opening the app, gets Home's done look but no payoff. */
-const PAYOFF_FOR = 15 * 60_000;
-/** The morning key whose payoff was last shown: each morning's opens once. */
 /**
  * Opens the morning payoff (/morning-won) once per morning, as soon as Home is on top after a
  * real wake-up (not a pass): straight away for a walk or the stairs on Home. A scan's camera

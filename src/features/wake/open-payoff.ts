@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 
-import { readLock, routineAt } from '@/lib/lock-controller';
+import { currentProof, readLock, routineAt } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import type { WakeMethod } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
@@ -21,14 +21,48 @@ let pretendShown = 0;
  */
 type How = 'push' | 'replace';
 
-/** Opens the payoff for the real morning keyed `key`, once. False if it was already shown. */
-export function openPayoff(key: string, how: How = 'push'): boolean {
-  if (sharedGet<string>(PAYOFF_KEY) === key) return false;
+/** The morning key whose payoff was opened this launch, before it's on screen: Home re-focusing doesn't open a second. */
+let opening: string | null = null;
+
+/**
+ * Opens the payoff for the real morning keyed `key`, once. False if it was already shown.
+ * `cut`: no fade in. Always for `replace` (a camera already covers Home); also when the app is
+ * just opening or coming back to the front (`openDuePayoff`), so it starts on the payoff.
+ */
+export function openPayoff(key: string, how: How = 'push', cut = how === 'replace'): boolean {
+  if (opening === key || sharedGet<string>(PAYOFF_KEY) === key) return false;
+  // Saved only once it's on screen (`markPayoffShown`): an app killed in between gets it next launch.
+  opening = key;
+  router[how]({ pathname: '/morning-won', params: cut ? { cut: '1' } : {} });
+  return true;
+}
+
+/** A wake-up older than this, found on opening the app, gets Home's done look but no payoff. */
+export const PAYOFF_FOR = 15 * 60_000;
+
+/** The real morning won in the last `PAYOFF_FOR` (not a pass) whose payoff hasn't shown, or null. */
+export function duePayoffKey(now = new Date()): string | null {
+  const proof = currentProof(now);
+  if (!proof || proof.kind === 'pass' || proof.kind === 'emergency' || now.getTime() - proof.at > PAYOFF_FOR) return null;
+  return opening === proof.morningKey || sharedGet<string>(PAYOFF_KEY) === proof.morningKey ? null : proof.morningKey;
+}
+
+/**
+ * At launch, or back to the front, after a wake-up done away from Home (the shield's "I'm up",
+ * or the app killed mid-walk): straight onto the payoff with no fade, so Home never shows first
+ * and then cuts to it (user 2026-11-05). True if it opened.
+ */
+export function openDuePayoff(): boolean {
+  const key = duePayoffKey();
+  return !!key && openPayoff(key, 'push', true);
+}
+
+/** The payoff for the real morning keyed `key` is on screen (morning-won.tsx): it never opens again. */
+export function markPayoffShown(key: string) {
+  if (sharedGet<string>(PAYOFF_KEY) === key) return;
   sharedSet(PAYOFF_KEY, key);
   // Loc's wake-up line on Home counts as said: the payoff is the moment.
   markLocSaid(`woke:${key}`);
-  router[how]({ pathname: '/morning-won', params: how === 'replace' ? { cut: '1' } : {} });
-  return true;
 }
 
 /** The payoff for the real morning under way, as the camera closes on its win. */
