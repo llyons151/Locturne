@@ -127,6 +127,8 @@ export type StepContext = {
   screenTime: 'idle' | 'asking' | 'refused';
   /** Asks for access if it isn't granted yet, then runs `then`. */
   askScreenTime: (then: () => void) => void;
+  /** iOS's Motion & Fitness prompt if it hasn't been answered, then `then` (the method page). */
+  askMotion: (then: () => void) => void;
   /** Try again after a refusal: asks once more, then carries on with what the button was doing. */
   retryScreenTime: () => void;
   /** Moves on without access or apps: `armed` asks for both after the purchase. */
@@ -457,7 +459,7 @@ export function renderStep(ctx: StepContext): StepView {
           <PrimaryButton
             label={editing ? 'Save' : answers.method ? (REPLY_BUTTON.method ?? 'Continue') : 'Next'}
             disabled={!answers.method}
-            onPress={next}
+            onPress={editing ? next : () => ctx.askMotion(next)}
           />
         ),
         // Not sure yet: the default carries them through, and nothing here is final.
@@ -467,7 +469,7 @@ export function renderStep(ctx: StepContext): StepView {
             onPress={() => {
               // Already picked one: later keeps it. Only an empty page falls back to steps.
               if (!answers.method) set('method', 'steps');
-              next();
+              ctx.askMotion(next);
             }}
           />
         ),

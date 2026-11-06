@@ -66,7 +66,7 @@ const fromStrip = (days: number[]) => days.map((d) => (d + 1) % 7).sort((a, b) =
  * quieter Delete. It saves however it closes, Done, the close button or a swipe (user,
  * 2026-10-14: "it should just always automatically save"), except a new one closed before Done,
  * which is never made (an empty schedule took a slot); a looser edit made while it's
- * blocking waits for the block's end (`editSchedule`). A new schedule's apps' page opens after.
+ * blocking waits for the block's end (`editSchedule`). A new schedule's apps open in Apple's picker after.
  */
 export function ScheduleSheet() {
   const [req] = useState(() => request);
@@ -108,7 +108,8 @@ export function ScheduleSheet() {
   const done = () => {
     haptic.done();
     latest.current.kept = true;
-    if (req.isNew) afterClose.current = () => router.push({ pathname: '/list', params: { id: req.id } });
+    // A new one has no apps yet: Apple's picker next, straight away (the page only where there's no picker, the web).
+    if (req.isNew) afterClose.current = req.onApps ?? (() => router.push({ pathname: '/list', params: { id: req.id } }));
     closeSleepSheet();
   };
   const remove = () => {

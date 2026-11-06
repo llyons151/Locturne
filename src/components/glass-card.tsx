@@ -52,11 +52,13 @@ export function GlassCard({
       <Rect width="100%" height="100%" fill={dark ? 'url(#glass-sheen-dark)' : 'url(#glass-sheen)'} />
     </Svg>
   );
-  // The rim goes over the content (pressed rows) so it never gets covered.
+  // The rim goes over the content (pressed rows) so it never gets covered. A `rim` colour sets
+  // every side: iOS lets the lit top and left edges win over a bare `borderColor` (the paywall's
+  // chosen plan looked cut off, user 2026-11-05).
   const rim = (
     <View
       pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.rim, dark && styles.rimDark, rimColor ? { borderColor: rimColor } : null, rimWidth ? { borderWidth: rimWidth } : null]}
+      style={[StyleSheet.absoluteFill, styles.rim, dark && styles.rimDark, rimColor ? { borderColor: rimColor, borderTopColor: rimColor, borderLeftColor: rimColor, borderRightColor: rimColor, borderBottomColor: rimColor } : null, rimWidth ? { borderWidth: rimWidth } : null]}
     />
   );
 

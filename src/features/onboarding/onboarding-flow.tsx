@@ -790,6 +790,26 @@ export function OnboardingFlow({
   }, []);
   // A second tap while iOS's prompts are up would `next` twice.
   const [asking, setAsking] = useState(false);
+  /**
+   * Motion & Fitness, asked as they pick how they'll show they're up (user 2026-11-05: not after
+   * the paywall): every method counts steps, Walk it off's or its walk-instead. Already answered,
+   * it just goes on; the asks after purchase then skip it (`motion` is set).
+   */
+  const askMotion = async (then: () => void) => {
+    if (asking) return;
+    if (!screenTimeHere || motion !== null) return then();
+    setAsking(true);
+    try {
+      const access = await requestMotion();
+      setMotion(access);
+      track('motion_access', { result: access, step: 'method' });
+    } catch {
+      // Unanswered: asked again after purchase.
+    } finally {
+      setAsking(false);
+    }
+    then();
+  };
   /** iOS's prompts, then `then` with their answers. With every night off there are no mornings, so no Motion. */
   const ask = async (then: (got: { notifications: NotificationPermission | null; motion: MotionAccess | null }) => void, withMotion: boolean) => {
     if (asking) return;
@@ -967,6 +987,7 @@ export function OnboardingFlow({
     },
     screenTime,
     askScreenTime,
+    askMotion,
     retryScreenTime,
     setUpLater,
     live: screenTimeHere ? { selectionId: 'night', count: picks, revision: pickRevision } : null,

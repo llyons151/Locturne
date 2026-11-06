@@ -103,7 +103,8 @@ export function plansStep(ctx: StepContext): StepView {
             the billed price at least as clear as "free", so "free" stays on the button with the
             price right under it. A light user has no hours to sell. */}
         <Voice
-          text={numbers.lightUser ? 'Right. The boring bit.' : plansHeadline(weeklyAmount(lead.minutes))}
+          // No number of their own to lead with: the outcome instead (user 2026-11-05: "The boring bit" won't convert).
+          text={numbers.lightUser ? 'Your apps sleep. So do you.' : plansHeadline(weeklyAmount(lead.minutes))}
           // Their number in the reveal's blue, so it reads as the same number they saw there.
           accent={numbers.lightUser ? undefined : String(weeklyParts(lead.minutes).count)}
           size={compact ? 26 : 30}

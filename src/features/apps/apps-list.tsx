@@ -668,7 +668,8 @@ function ScheduleTiles({
           label="New schedule"
           onPress={() => {
             haptic.tap();
-            openScheduleSheet({ id: free, isNew: true });
+            // Its Apps row (and Save) go straight to Apple's picker, never a page (user 2026-11-05).
+            openScheduleSheet({ id: free, isNew: true, onApps: editApps ? () => editApps(free) : undefined });
           }}
         />
       ) : null}

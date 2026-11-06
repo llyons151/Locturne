@@ -3,7 +3,7 @@ import { Pedometer } from 'expo-sensors';
 export type MotionAccess = 'granted' | 'denied' | 'unavailable';
 
 /**
- * Motion & Fitness, asked after purchase (TODO §4). Steps and the barometer behind
+ * Motion & Fitness, asked on the method page (user 2026-11-05), or after purchase if it wasn't answered there. Steps and the barometer behind
  * "go downstairs" both sit behind this one iOS permission. `unavailable` off iOS and on
  * devices without a step counter.
  */
