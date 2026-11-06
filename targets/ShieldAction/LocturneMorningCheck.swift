@@ -107,10 +107,12 @@ func locturneRehearsalCheck(config: [String: Any], completion: @escaping (Shield
     completion(.defer)
     return
   }
-  // A rehearsal is the lock's mechanics, not its timer: Step away's rehearsal morning is a walk.
+  // A rehearsal is the lock's mechanics, not its timer: Step away's rehearsal morning is its own
+  // few steps, judged as a walk, and they wake the copy with no timer after (its morning words
+  // in `rehearse` say so). Not the routine's 200: the shield said 30 (user 2026-11-06).
   let saved = locturneMethodInUse(rehearsal["method"] as? String ?? "steps")
   let method = saved == "downtime" ? "steps" : saved
-  let stepGoal = (rehearsal["stepGoal"] as? NSNumber)?.intValue ?? 200
+  let stepGoal = saved == "downtime" ? LOCTURNE_DOWNTIME_STEPS : (rehearsal["stepGoal"] as? NSNumber)?.intValue ?? 200
 
   var answered = false
   let pedometer = CMPedometer()

@@ -129,6 +129,21 @@ func registerRehearsalTests() {
     expectEqual(rehearsalNote("lastCheck") as? String, "downstairs")
   }
 
+  test("rehearsal, Step away: its 30 steps wake the copy, not the routine's 200, and no timer") {
+    rehearsalArmed(method: "downtime")
+    rehearsalNightRuns()
+    at("2026-10-05 15:20")
+    tap("tiktok", .data(steps: 0))
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"])
+    expectEqual(drawn("tiktok").subtitle, "0 of 30 steps. 30 more, then tap I’m up.")
+    expect(sentTaps().isEmpty, "steps are judged here, no open-Locturne notification")
+    tap("tiktok", .data(steps: 34))
+    expectEqual(shielded(), ["reddit"], "woken at 30, with no timer after")
+    expectEqual(rehearsalNote("wonBy") as? String, "shield")
+    expect(get(LOCTURNE_DOWNTIME_KEY) == nil, "no Step away timer started")
+    expectRealLockUntouched()
+  }
+
   test("rehearsal, push-ups: I'm up opens Locturne, nothing wakes") {
     rehearsalArmed(method: "pushups")
     rehearsalNightRuns()

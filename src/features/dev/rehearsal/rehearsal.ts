@@ -3,6 +3,7 @@ import { getRoutine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import { finishRehearsal, getRehearsal, rehearsalHeld, rehearsalMorningIfDue, startRehearsal, type Rehearsal } from '@/lib/screen-time';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
+import { DOWNTIME_STEPS } from '@/lib/wake/downtime';
 
 import { getWakePreview, rehearsalWonOnShield, rehearseTheMorning, rehearseTheNight } from '../wake-lab/wake-preview';
 
@@ -39,11 +40,17 @@ export async function rehearse(method: WakeMethod, quick = false, now = new Date
   }
   const routine = getRoutine();
   const wakeAt = (d: Date) => ({ ...routine, method, morningStart: minuteOf(d) });
+  // Step away's rehearsal morning is its steps with no timer after (`locturneRehearsalCheck`), so
+  // its shield can't promise one (user 2026-11-06: 30 steps, then 200 after a tap).
+  const morning = (end: Date) => {
+    const words = shieldCopy('morning', wakeAt(end));
+    return method === 'downtime' ? { ...words, subtitle: `Walk ${DOWNTIME_STEPS} steps, then tap I’m up. No timer in a rehearsal.` } : words;
+  };
   return startRehearsal({
     method,
-    stepGoal: routine.stepGoal,
+    stepGoal: method === 'downtime' ? DOWNTIME_STEPS : routine.stepGoal,
     night: (end) => shieldCopy('night', wakeAt(end)),
-    morning: (end) => shieldCopy('morning', wakeAt(end)),
+    morning,
     tap: shieldTap('morning'),
     quick,
     now,
