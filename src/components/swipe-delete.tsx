@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { createContext, use, useCallback, useMemo, useRef, type ReactNode } from 'react';
-import { Pressable, StyleSheet, type GestureResponderEvent, type PressableProps } from 'react-native';
+import { Pressable, StyleSheet, View, type GestureResponderEvent, type PressableProps } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
@@ -22,7 +22,16 @@ let open: SwipeableMethods | null = null;
  * which asks first (the same alert as the sheet's own Delete). Without `onDelete` the row
  * doesn't swipe.
  */
-export function SwipeDelete({ children, onDelete }: { children: ReactNode; onDelete?: () => void }) {
+export function SwipeDelete({
+  children,
+  onDelete,
+  fill,
+}: {
+  children: ReactNode;
+  onDelete?: () => void;
+  /** Stretch to the parent's height (a card with a set height). */
+  fill?: boolean;
+}) {
   const self = useRef<SwipeableMethods | null>(null);
   // Moving (dragged, or settling after): letting go mustn't also count as a tap on the row.
   const moving = useRef(false);
@@ -34,7 +43,7 @@ export function SwipeDelete({ children, onDelete }: { children: ReactNode; onDel
     fn();
   }, []);
   const guard = useMemo(() => ({ press }), [press]);
-  if (!onDelete) return <>{children}</>;
+  if (!onDelete) return fill ? <View style={styles.fill}>{children}</View> : <>{children}</>;
   const start = () => {
     moving.current = true;
   };
@@ -45,6 +54,8 @@ export function SwipeDelete({ children, onDelete }: { children: ReactNode; onDel
       friction={1.6}
       rightThreshold={ACTION / 2}
       overshootRight={false}
+      containerStyle={fill ? styles.fill : undefined}
+      childrenContainerStyle={fill ? styles.fill : undefined}
       onSwipeableOpenStartDrag={start}
       onSwipeableCloseStartDrag={start}
       onSwipeableWillOpen={() => {
@@ -109,4 +120,5 @@ const styles = StyleSheet.create({
   button: { width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: RED },
   label: { color: Nocturne.text2, fontSize: 13, fontWeight: '500' },
   pressed: { opacity: 0.7 },
+  fill: { flex: 1 },
 });

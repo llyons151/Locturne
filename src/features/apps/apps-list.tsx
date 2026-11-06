@@ -552,17 +552,19 @@ function ListTile({
 }) {
   const height = use(TileHeight);
   return (
-    <SwipeDelete onDelete={onDelete}>
-      <SwipePressable
-        onPress={onPress}
-        accessibilityActions={onDelete ? [{ name: 'delete', label: 'Delete' }] : undefined}
-        onAccessibilityAction={(e) => e.nativeEvent.actionName === 'delete' && onDelete?.()}
-        accessibilityRole="button"
-        accessibilityLabel={[title, detail, status?.text].filter(Boolean).join(', ')}
-        accessibilityHint="Shows all its apps"
-        style={({ pressed }) => [height !== null && { minHeight: height }, pressed && styles.pressed]}
-      >
-        <GlassCard dark style={height !== null && styles.flex}>
+    // The card stays put and only what's on it slides, clipped by its own corners, with Delete
+    // coming up in the room it leaves (user, 2026-11-05: the whole card sliding got cut off).
+    <GlassCard dark style={height !== null && { minHeight: height }}>
+      <SwipeDelete onDelete={onDelete} fill={height !== null}>
+        <SwipePressable
+          onPress={onPress}
+          accessibilityActions={onDelete ? [{ name: 'delete', label: 'Delete' }] : undefined}
+          onAccessibilityAction={(e) => e.nativeEvent.actionName === 'delete' && onDelete?.()}
+          accessibilityRole="button"
+          accessibilityLabel={[title, detail, status?.text].filter(Boolean).join(', ')}
+          accessibilityHint="Shows all its apps"
+          style={({ pressed }) => [height !== null && styles.flex, pressed && styles.pressed]}
+        >
           <View style={[styles.tile, height !== null && styles.flex]}>
             {/* The title beside its apps, so four schedules or limits fit one screen (user, 2026-10-14). */}
             <View style={styles.tileTop}>
@@ -596,9 +598,9 @@ function ListTile({
               </View>
             ) : null}
           </View>
-        </GlassCard>
-      </SwipePressable>
-    </SwipeDelete>
+        </SwipePressable>
+      </SwipeDelete>
+    </GlassCard>
   );
 }
 
