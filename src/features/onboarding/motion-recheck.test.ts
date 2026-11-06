@@ -16,6 +16,7 @@ function harness(motion: string | null, settingsAnswer: string | null) {
     motion,
     screenTimeHere: true,
     step: 'armed',
+    leaving: false,
     setMotion: (next: string) => { context.motion = next; },
     setNotifications() {},
     getNotificationPermission: async () => 'granted',

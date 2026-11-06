@@ -12,9 +12,13 @@ const DEVICES = {
 } as const;
 type DeviceId = keyof typeof DEVICES;
 
-/** Every step of a branch in flow order, with the paywall's exit page (`declined`) beside the plans. */
+/**
+ * Every step of a branch in flow order, with the paywall's exit page (`declined`) beside the plans.
+ * Not `armed`: after a purchase iOS's prompts come up over the paywall, then Home, and `armed`
+ * only shows when arming fails, which the preview can't (2026-11-05).
+ */
 function stepsOf(pain: Pain): StepId[] {
-  return stepsFor(pain).flatMap((step): StepId[] => (step === 'plans' ? [step, 'declined'] : [step]));
+  return stepsFor(pain).flatMap((step): StepId[] => (step === 'plans' ? [step, 'declined'] : step === 'armed' ? [] : [step]));
 }
 
 const PAIN_LABEL: Record<Pain, string> = {

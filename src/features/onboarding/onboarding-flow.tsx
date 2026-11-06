@@ -566,10 +566,16 @@ export function OnboardingFlow({
 
   /* After purchase: arm tonight, then Motion & Fitness. */
   const [arm, setArm] = useState<ArmResult | { status: 'working' }>({ status: screenTimeHere ? 'working' : 'preview' });
+  /** Bought and tonight set: iOS's prompts, then Home, with no page of its own (user 2026-11-05). */
+  const [leaving, setLeaving] = useState(false);
   const runArm = async () => {
     setArm({ status: 'working' });
     const result = await armTonight();
     setArm(result);
+    // Set, so there's nothing to show: iOS's prompts come up over this page, then Home
+    // (`askAfterPurchase`). Only a failure or every night off has a page (`armed`).
+    if (result.status === 'armed' || result.status === 'preview') setLeaving(true);
+    else if (step !== 'armed') dispatch({ type: 'reset', to: 'armed' });
     // `saveSetup` planned before the night was armed, so it found no bedtime to warn about.
     if (result.status === 'armed') rescheduleNotifications().catch(() => {});
     track('night_armed', {
@@ -620,8 +626,9 @@ export function OnboardingFlow({
     currentTrialEnd()
       .then((end) => end && setTrialEnds(end))
       .catch(() => {});
-    dispatch({ type: 'reset', to: 'armed' });
-    runArm();
+    // Stays on this page while tonight is set; only a failure moves to `armed` (`runArm`).
+    setBusy(true);
+    runArm().finally(() => setBusy(false));
   };
   // When the trial bought just now ends, for `armed` to name the date.
   const [trialEnds, setTrialEnds] = useState<Date | null>(null);
@@ -754,8 +761,8 @@ export function OnboardingFlow({
     ]).then(() => setPermissionsRead(true));
   });
   useEffect(() => {
-    if (step === 'armed') checkPermissions();
-  }, [step]);
+    if (step === 'armed' || leaving) checkPermissions();
+  }, [step, leaving]);
   // Turned on from `armed`'s Open Settings: say so once they're back, as the wake
   // screens do. Only a yes counts, so a failed read can't hide the "it's off" row.
   const recheckMotion = useEffectEvent(() => {
@@ -813,17 +820,17 @@ export function OnboardingFlow({
     }
   };
   // Tonight set: no page after purchase (user 2026-11-05: "We don't need a page"). iOS's
-  // prompts come straight up, the paywall's "We'll remind you" line their reason, then Home.
-  // Every night off or a failed arm still stops on `armed`: there's something to do there.
+  // prompts come straight up over the paywall, its "We'll remind you" line their reason, then
+  // Home. Every night off or a failed arm still stops on `armed`: there's something to do there.
   const autoAsked = useRef(false);
   const askAfterPurchase = useEffectEvent(() => {
-    if (autoAsked.current || !permissionsRead || (arm.status !== 'armed' && arm.status !== 'preview')) return;
+    if (autoAsked.current || !permissionsRead) return;
     autoAsked.current = true;
     ask(() => exit(), true);
   });
   useEffect(() => {
-    if (step === 'armed') askAfterPurchase();
-  }, [step, arm, permissionsRead]);
+    if (leaving) askAfterPurchase();
+  }, [leaving, permissionsRead]);
   // The last page: done once iOS has answered, unless an answer left something to read there.
   const askPermissions = () =>
     ask((got) => {
