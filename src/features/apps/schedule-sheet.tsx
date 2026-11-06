@@ -20,6 +20,11 @@ type ScheduleRequest = {
   isNew: boolean;
   /** What the apps row says ("3 picks"), for one that exists. */
   apps?: string;
+  /**
+   * Opens Apple's picker on the schedule's apps, run once the sheet has gone (the picker can't
+   * open over it), like a new limit's apps row. Without it the row opens the schedule's page.
+   */
+  onApps?: () => void;
 };
 
 // The schedule being edited. The route borrows it, as the limit sheet does.
@@ -125,8 +130,9 @@ export function ScheduleSheet() {
   const openApps = () => {
     haptic.tap();
     latest.current.kept = true;
-    // Apple's picker can't open over this sheet: the apps' page opens once it has gone.
-    afterClose.current = () => router.push({ pathname: '/list', params: { id: req.id } });
+    // Apple's picker can't open over this sheet, so it opens once the sheet has gone: straight
+    // to the picker (user 2026-11-05: the page in between was a second tap for nothing).
+    afterClose.current = req.onApps ?? (() => router.push({ pathname: '/list', params: { id: req.id } }));
     closeSleepSheet();
   };
 

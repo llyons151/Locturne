@@ -26,6 +26,13 @@ import {
 
 export type { SiteList };
 
+/**
+ * Off for 1.0 (user 2026-11-05: "keep it as apps for now"): the lists' Websites sections are
+ * hidden, so nobody can add one. Everything below still runs, so sites already saved keep
+ * their rules; turn this back on to bring the sections back.
+ */
+export const WEBSITES_IN_APP = false;
+
 /** iOS's web filter takes at most 50 domains at once, across every list. */
 export const MAX_SITES = 50;
 

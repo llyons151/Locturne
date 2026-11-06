@@ -18,6 +18,7 @@ import * as haptic from '@/lib/haptics';
 import { isBlocking, isScheduleId } from '@/lib/schedules';
 import { editedSelection, getSchedules, isScreenTimeAvailable, listChangeStarts } from '@/lib/screen-time';
 import { WebsitesCard } from '@/features/websites/websites-card';
+import { WEBSITES_IN_APP } from '@/lib/websites';
 import { DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import {
@@ -124,7 +125,7 @@ function LiveListPage({ id }: { id: string }) {
         />
       ) : null}
       <Section label={`Apps · ${picks.size}`}>{rows}</Section>
-      {group ? (
+      {group && WEBSITES_IN_APP ? (
         <Section label="Websites">
           <WebsitesCard list={group.key} />
         </Section>
@@ -286,7 +287,7 @@ function PreviewListPage({ id }: { id: string }) {
           ))}
         </ListCard>
       </Section>
-      {group ? <PreviewWebsites list={group.key === 'bedtime' ? 'night' : 'always'} /> : null}
+      {group && WEBSITES_IN_APP ? <PreviewWebsites list={group.key === 'bedtime' ? 'night' : 'always'} /> : null}
       {limit ? (
         <RemoveButton
           onPress={() => {

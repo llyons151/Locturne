@@ -326,6 +326,7 @@ function LiveAppsList() {
             })}
             <ScheduleTiles
               revision={revision}
+              editApps={(id) => actions.edit(id)}
               icons={(id) => {
                 const picks = editedSelection(id);
                 return { size: picks.size, node: tileIcons(picks.id, picks.size, <ListSymbol list="schedule" />) };
@@ -605,10 +606,19 @@ function NewLimitButton({ onPress, label = 'New limit' }: { onPress: () => void;
 
 /**
  * Each app schedule as a tile under the bedtime and all-day lists, then New schedule while
- * there's room (`MAX_SCHEDULES`). A tile opens its sheet, whose Apps row opens its page, as a
- * daily limit's does. `icons` draws a schedule's picks (none in the web preview).
+ * there's room (`MAX_SCHEDULES`). A tile opens its sheet, whose Apps row opens Apple's picker
+ * once the sheet has gone (`editApps`). `icons` draws a schedule's picks (none in the web preview).
  */
-function ScheduleTiles({ revision, icons }: { revision: number; icons: (id: ScheduleId) => { size: number; node: ReactNode } }) {
+function ScheduleTiles({
+  revision,
+  icons,
+  editApps,
+}: {
+  revision: number;
+  icons: (id: ScheduleId) => { size: number; node: ReactNode };
+  /** Apple's picker on a schedule's apps, for its sheet's Apps row. None in the web preview. */
+  editApps?: (id: ScheduleId) => void;
+}) {
   void revision;
   // A schedule is saved as its sheet goes (`saveSchedule`), which syncs the lock: redraw then.
   const [, redraw] = useState(0);
@@ -640,7 +650,13 @@ function ScheduleTiles({ revision, icons }: { revision: number; icons: (id: Sche
               // Being deleted: there's nothing to edit, and the sheet saves as it closes, which would
               // put a blank schedule back in its place. Its page says when it ends.
               if (schedule.pending?.schedule === null) router.push({ pathname: '/list', params: { id: schedule.id } });
-              else openScheduleSheet({ id: schedule.id, isNew: false, apps: size ? countPicks(size) : 'None yet' });
+              else
+                openScheduleSheet({
+                  id: schedule.id,
+                  isNew: false,
+                  apps: size ? countPicks(size) : 'None yet',
+                  onApps: editApps ? () => editApps(schedule.id) : undefined,
+                });
             }}
           />
         );
