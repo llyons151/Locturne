@@ -111,7 +111,23 @@ export const pretendMethod = (): WakeMethod | null =>
  * A pretend morning won: nothing is recorded, the preview just moves on to "done". With the
  * method that won it, Home then opens the payoff (/morning-won) with made-up facts.
  */
+/**
+ * A pretend Step away timer, kept here by its morning's `since` rather than in Home's state, so a
+ * remount (the payoff closing, a tab switch) or a rehearsal re-opening its morning can't start a
+ * fresh one-minute timer each time (user 2026-11-05: "it just resets and keeps saying 1 minute").
+ */
+type PretendTimer = { since: number; reachedAt: number; endsAt: number };
+let pretendTimer: PretendTimer | null = null;
+export const getPretendTimer = (since: number): PretendTimer | null => (pretendTimer?.since === since ? pretendTimer : null);
+export function startPretendTimer(since: number, now: number, minutes: number): PretendTimer {
+  return getPretendTimer(since) ?? (pretendTimer = { since, reachedAt: now, endsAt: now + minutes * 60_000 });
+}
+
+/** The `since` of the pretend morning last won: the same morning is never re-opened (`rehearseTheMorning`). */
+let wonSince: number | null = null;
+
 export const pretendWoke = (method?: WakeMethod) => {
+  if (current.phase === 'morning') wonSince = current.since;
   // You → Test the lock: the bedtime apps really sleep until the test morning on Home is won.
   if (method && getTestLock()) endTestLock();
   // You → Rehearse a night: won in Locturne rather than from the shield.
@@ -135,6 +151,8 @@ export function endRehearsal() {
  * (`pretendWoke`).
  */
 export function rehearseTheMorning(method: WakeMethod, since: number) {
+  // Already won on Home: not opened again (the 15 s resume could beat the rehearsal's finish).
+  if (wonSince === since) return;
   setWakePreview({ phase: 'morning', method, since, won: null });
 }
 

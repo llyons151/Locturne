@@ -11,10 +11,10 @@ import { readDowntime, startDowntime, syncLock } from '@/lib/lock-controller';
 import { currentMorning } from '@/lib/lock-state';
 import { downtimeMinutesOf, downtimeStepsOf, toLockSettings, type Routine } from '@/lib/routine';
 import { clockLabel } from '@/lib/shield-copy';
-import { downtimePhase, minutesLabel, minutesLeft, planDowntime, type DowntimeRecord } from '@/lib/wake/downtime';
+import { downtimePhase, minutesLabel, minutesLeft, type DowntimeRecord } from '@/lib/wake/downtime';
 import { downtimeLine } from '@/lib/wake/lines';
 
-import { pretendSince, useWakePreview } from '../dev/wake-lab/wake-preview';
+import { getPretendTimer, pretendSince, startPretendTimer, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { announceWoke, useProveMorning } from '../wake/use-prove-morning';
 import type { HomeMorning } from './home-content';
 import { duration } from './night-meter';
@@ -51,7 +51,11 @@ export function useMorningDowntime(enabled: boolean, routine: Routine): HomeMorn
   const morning = currentMorning(now, toLockSettings(routine));
   const since = pretendSince();
   const startMs = (since ?? morning.start).getTime();
-  const [pretend, setPretend] = useState<DowntimeRecord | null>(null);
+  // A pretend morning's timer lives in the wake preview, by its `since` (survives remounts).
+  const pretendRun = pretending && since ? getPretendTimer(since.getTime()) : null;
+  const pretend: DowntimeRecord | null = pretendRun
+    ? { morningKey: morning.key, start: startMs, reachedAt: pretendRun.reachedAt, endsAt: pretendRun.endsAt, minutes: PRETEND_MINUTES, steps: goal }
+    : null;
   const saved = readDowntime(now);
   const record = pretending ? pretend : saved.record;
   const phase = pretending ? downtimePhase(pretend, now.getTime(), null) : saved.phase;
@@ -63,9 +67,12 @@ export function useMorningDowntime(enabled: boolean, routine: Routine): HomeMorn
   const reached = counting && status === 'counting' && steps >= goal;
 
   // A pretend morning's timer starts right here, in render (as useStepCount resets its count):
-  // nothing is saved, and an effect would draw one frame of "Starting your timer" first.
-  if (pretending && reached && !pretend) {
-    setPretend(planDowntime({ key: morning.key, start: new Date(startMs) }, now.getTime(), now.getTime(), { steps: goal, minutes: PRETEND_MINUTES }));
+  // nothing is saved, and an effect would draw one frame of "Starting your timer" first. Once
+  // per pretend morning: a re-render or remount reads the same one back.
+  const [, redraw] = useState(0);
+  if (pretending && reached && !pretend && since) {
+    startPretendTimer(since.getTime(), now.getTime(), PRETEND_MINUTES);
+    redraw((n) => n + 1);
   }
 
   // The steps are in: start the timer once (from when they were really reached, in the history).
