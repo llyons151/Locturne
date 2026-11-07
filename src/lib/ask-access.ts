@@ -5,6 +5,7 @@ import { rescheduleNotifications } from './notifications.ts';
 import {
   currentNightWindowNames,
   getArmedNight,
+  getProtection,
   isStoodDown,
   reapplyStandingBlocks,
   rearmNap,
@@ -39,7 +40,14 @@ export async function restoreBlocks(): Promise<void> {
 export async function askAccessAgain(): Promise<boolean> {
   try {
     if ((await requestAccess()) === 'approved') {
-      await restoreBlocks();
+      // Right after Allow, iOS can drop the first shield or window it's handed, which left the
+      // screen asking for access a second time (user 2026-11-07). Tried again until protection
+      // reads on, for about two seconds.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await restoreBlocks();
+        if (getProtection() === 'on') break;
+        await new Promise((done) => setTimeout(done, 400));
+      }
       return true;
     }
   } catch {

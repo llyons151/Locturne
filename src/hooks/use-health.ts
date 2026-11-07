@@ -26,6 +26,24 @@ export function readHealth(now = new Date()): Health {
 }
 
 /**
+ * While Apple's Screen Time prompt is being answered and the blocks put back (`holdHealthWhile`),
+ * the status isn't re-read: access reads approved before the shields are up again, and the
+ * screen flashed "access looks off" for a moment (user 2026-11-07). Read once it's over.
+ */
+let held = 0;
+const releases = new Set<() => void>();
+
+export async function holdHealthWhile<T>(work: Promise<T>): Promise<T> {
+  held += 1;
+  try {
+    return await work;
+  } finally {
+    held -= 1;
+    if (held === 0) releases.forEach((recheck) => recheck());
+  }
+}
+
+/**
  * Locturne's honest status (`rollUpHealth`): whether protection is really on and whether
  * last night's block started, with his words for it. Kept fresh like `useProtection`: on
  * every visit to the screen, when the app returns to the foreground, and when iOS reports
@@ -37,7 +55,15 @@ export function readHealth(now = new Date()): Health {
  */
 export function useHealth(): [Health, () => void] {
   const [health, setHealth] = useState<Health>(() => readHealth());
-  const recheck = useCallback(() => setHealth(readHealth()), []);
+  const recheck = useCallback(() => {
+    if (held === 0) setHealth(readHealth());
+  }, []);
+  useEffect(() => {
+    releases.add(recheck);
+    return () => {
+      releases.delete(recheck);
+    };
+  }, [recheck]);
 
   useFocusEffect(recheck);
   useEffect(() => {

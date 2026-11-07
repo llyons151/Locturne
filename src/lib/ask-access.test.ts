@@ -16,6 +16,8 @@ const s = {
   stoodDown: false,
   reapplied: 0,
   armCalls: 0,
+  /** How many protection reads still say off after a restore (iOS dropping the first one). */
+  offFor: 0,
   alerts: [] as { title: string; buttons: { text: string }[] }[],
 };
 
@@ -36,6 +38,7 @@ mock.module('./screen-time.ts', {
     currentNightWindowNames: () => Array.from({ length: s.running }, (_, i) => `night-${i}`),
     isStoodDown: () => s.stoodDown,
     rearmNap: async () => {},
+    getProtection: () => (s.offFor-- > 0 ? 'off' : 'on'),
   },
 });
 mock.module('./arm.ts', { namedExports: { armTonight: async () => { s.armCalls += 1; return { status: 'armed', now: false }; } } });
@@ -44,12 +47,26 @@ mock.module('./notifications.ts', { namedExports: { rescheduleNotifications: asy
 const { askAccessAgain } = await import('./ask-access.ts');
 
 beforeEach(() => {
-  Object.assign(s, { answer: 'approved', armed: null, running: 0, stoodDown: false, reapplied: 0, armCalls: 0, alerts: [] });
+  Object.assign(s, { answer: 'approved', armed: null, running: 0, stoodDown: false, reapplied: 0, armCalls: 0, offFor: 0, alerts: [] });
 });
 
 test('approved: the shields go back up and the action can carry on, with no alert', async () => {
   assert.equal(await askAccessAgain(), true);
   assert.equal(s.reapplied, 1);
+  assert.equal(s.alerts.length, 0);
+});
+
+test('approved, but iOS drops the first restore: tried again until protection is on (user 2026-11-07)', async () => {
+  s.offFor = 2;
+  assert.equal(await askAccessAgain(), true);
+  assert.equal(s.reapplied, 3);
+  assert.equal(s.alerts.length, 0);
+});
+
+test('approved, but protection never reads on: gives up after five tries, no alert', async () => {
+  s.offFor = 99;
+  assert.equal(await askAccessAgain(), true);
+  assert.equal(s.reapplied, 5);
   assert.equal(s.alerts.length, 0);
 });
 

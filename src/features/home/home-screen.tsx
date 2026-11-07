@@ -9,7 +9,7 @@ import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
-import { useHealth } from '@/hooks/use-health';
+import { holdHealthWhile, useHealth } from '@/hooks/use-health';
 import { askAccessAgain } from '@/lib/ask-access';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
 import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-controller';
@@ -336,7 +336,8 @@ export function HomeScreen() {
   const tomorrowLocked =
     !paused && !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
   // Asks right here (askAccessAgain), which offers Settings only if it's refused again.
-  const turnAccessOn = () => askAccessAgain().then(recheckHealth);
+  // The screen holds still until access is on and the blocks are back, then reads once (`holdHealthWhile`).
+  const turnAccessOn = () => holdHealthWhile(askAccessAgain()).then(recheckHealth);
   // A walk with Motion & Fitness off: Settings, with the other ways under it.
   const walkSettings = walk?.kind === 'denied' ? { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) } : null;
   // The locked morning's method and time. "Tomorrow" until midnight; past it, the morning is

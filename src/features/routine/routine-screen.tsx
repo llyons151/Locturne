@@ -54,7 +54,7 @@ import { methodOptions } from './method-options';
 import { MethodPicker } from './method-picker';
 import { NightDial } from './night-dial';
 import { fromWeekday, nightsToWeekdays, weekdaysToNights } from './nights';
-import { applyRoutineEdit, ASLEEP_NOTE, routineEditRefusal, sleepsAtOnce } from './apply-edit';
+import { applyRoutineEdit, ASLEEP_HINT, routineEditRefusal, sleepsAtOnce } from './apply-edit';
 import { pendingLine } from './pending-line';
 import { ShadowLoc } from './shadow-loc';
 
@@ -300,20 +300,12 @@ export function RoutineScreen() {
           />
         </View>
       </Card>
-      {asleep ? (
-        <GlassCard dark style={styles.pendingCard}>
-          <View style={styles.pending}>
-            <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={17} tintColor={Nocturne.text} style={styles.pendingIcon} />
-            <Text style={styles.pendingText}>{noOrphan(ASLEEP_NOTE)}</Text>
-          </View>
-        </GlassCard>
-      ) : null}
-      {/* The dial's how-to, always (user 2026-10-28: it went after the first change, and the dial isn't obvious). */}
-      {asleep ? null : (
-        <Text style={styles.hint}>
-          {noOrphan('Drag the moon or sun. Tap a day to skip it.')}
-        </Text>
-      )}
+      {/* The dial's how-to, always (user 2026-10-28: it went after the first change, and the dial isn't obvious).
+          While the apps are asleep the same line says why it's locked, so nothing below moves (user
+          2026-11-07: the asleep card threw the page's spacing off). */}
+      <Text style={styles.hint} accessibilityLiveRegion="polite">
+        {noOrphan(asleep ? ASLEEP_HINT : 'Drag the moon or sun. Tap a day to skip it.')}
+      </Text>
 
       {from ? (
         <GlassCard dark style={styles.pendingCard}>

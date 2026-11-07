@@ -86,6 +86,7 @@ function screen(initial: Stored, now?: Date) {
       routineEditRefusal: () => null,
       sleepsAtOnce: () => null,
       ASLEEP_NOTE: '',
+      ASLEEP_HINT: '',
       applyRoutineEdit(r: Stored) {
         stored = r;
         saves.push(r);

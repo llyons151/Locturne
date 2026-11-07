@@ -27,6 +27,8 @@ export function routineEditRefusal(now = new Date()): 'asleep' | null {
 
 /** The words for a change refused from bed, wherever one is tried. */
 export const ASLEEP_NOTE = 'Your apps are asleep. You can change your routine once you’re up.';
+/** The Routine tab's one-line version, in the dial hint's place (as long as it, so the page doesn't move). */
+export const ASLEEP_HINT = 'Your apps are asleep. Edit once you’re up.';
 
 /** For edits made outside the Routine tab (the You tab's step target, the push-ups sheet): says why nothing changed. */
 export function refuseWhileAsleep(now = new Date()): boolean {
