@@ -9,6 +9,7 @@ import { useSmoothSteps } from '@/hooks/use-smooth-steps';
 import { useStepCount } from '@/hooks/use-step-count';
 import { readDowntime, startDowntime, syncLock } from '@/lib/lock-controller';
 import { currentMorning } from '@/lib/lock-state';
+import { noStepCounter } from '@/lib/step-counter';
 import { downtimeMinutesOf, downtimeStepsOf, toLockSettings, type Routine } from '@/lib/routine';
 import { clockLabel } from '@/lib/shield-copy';
 import { downtimePhase, minutesLabel, minutesLeft, type DowntimeRecord } from '@/lib/wake/downtime';
@@ -60,11 +61,13 @@ export function useMorningDowntime(enabled: boolean, routine: Routine): HomeMorn
   const record = pretending ? pretend : saved.record;
   const phase = pretending ? downtimePhase(pretend, now.getTime(), null) : saved.phase;
 
+  // No step counter (an iPad, step-counter.ts): nothing to count, the timer runs from the morning start.
+  const noSteps = !pretending && noStepCounter();
   // Counting until the timer starts; then the count has done its job.
-  const counting = enabled && !record;
+  const counting = enabled && !record && !noSteps;
   const { status, steps } = useStepCount(counting, new Date(startMs), goal);
   const shown = useSmoothSteps(counting && status === 'counting' ? Math.min(steps, goal) : null);
-  const reached = counting && status === 'counting' && steps >= goal;
+  const reached = (counting && status === 'counting' && steps >= goal) || (enabled && !record && noSteps);
 
   // A pretend morning's timer starts right here, in render (as useStepCount resets its count):
   // nothing is saved, and an effect would draw one frame of "Starting your timer" first. Once
@@ -104,6 +107,8 @@ export function useMorningDowntime(enabled: boolean, routine: Routine): HomeMorn
   if (!enabled) return null;
 
   if (!record) {
+    if (noSteps)
+      return { icon: ICON, hero: { title: 'Starting your timer', body: 'Your apps wake when it ends.' }, action: null };
     if (status === 'denied')
       return {
         icon: ICON,

@@ -17,13 +17,11 @@ import { TimeList } from '@/components/time-wheel';
 import type { ArmFailure, ArmResult } from '@/lib/arm';
 import { LEGAL_URLS } from '@/lib/links';
 import { type NotificationPermission } from '@/lib/notifications';
-import { reminderDay, type Offers, type PurchaseTarget } from '@/lib/purchases';
+import { type Offers, type PurchaseTarget } from '@/lib/purchases';
 import { getScanEditRefusal, type ScanCode } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
 import { MAX_NIGHT, MIN_NIGHT, nightTooLong, nightTooShort, type WakeMethod } from '@/lib/routine';
 import type { Night } from '@/lib/lock-state';
-import { scheduleCopy } from './schedule-copy';
-import { noOrphan } from '@/lib/text';
 import { DisplayFont, Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import {
@@ -54,16 +52,15 @@ import {
 } from './content';
 import type { MotionAccess } from './motion';
 import {
-  dateFromToday,
   formatClock,
   formatHoursFromMinutes,
   formatWhen,
-  LEAD_WHERE,
   leadFor,
   weeklyAmount,
   weeklyParts,
   type Estimate,
 } from './estimate';
+import { OfferCompare } from './offer-compare';
 import { DEAL_CARD_BUILD_MS, ScheduleCard } from './schedule-card';
 import { declinedStep, plansStep, storeStep } from './screens/paywall';
 import { BuildChapter } from './screens/build-chapter';
@@ -146,6 +143,7 @@ export type StepContext = {
   retryArm: () => void;
   /** Asks for notifications if iOS still would, then leaves for the Routine tab (`arm` came back `nights-off`). */
   openRoutine: () => void;
+  enterApp: () => void;
   /** Motion & Fitness: answered on `armed`. Null while iOS would still ask. */
   motion: MotionAccess | null;
   /** iOS will still ask for the wake-up way's camera or location on `armed`. */
@@ -197,7 +195,6 @@ export type StepView = {
 /** What each step shows. One case per step, in the order of STEPS in content.ts. */
 export function renderStep(ctx: StepContext): StepView {
   const { step, answers, numbers, set, next, edit, lateNight, compact, editing, openPicker, putToSleep, onIconRef, live, offers } = ctx;
-  const schedule = scheduleCopy(ctx.scheduledNight, new Date());
   const bed = formatWhen(answers.bedtime);
   const wake = formatClock(answers.wake);
   // The first locked morning's day: this morning, later today or tomorrow (`wakeDayFor`).
@@ -587,26 +584,6 @@ export function renderStep(ctx: StepContext): StepView {
     }
 
     case 'apps': {
-      if (ctx.screenTime === 'refused') {
-        // Clear when it matters (VOICE.md): the problem and the fix, then one small aside.
-        return {
-          body: (
-            <View style={page.top}>
-              <Voice text="No access, no sleeping apps." size={VoiceSize.headline} header />
-              <View style={page.gapHeadline} />
-              <Body>
-                Without Screen Time access I can’t put anything to sleep. Try again whenever you’re ready, or turn it on
-                in <SettingsLink />. If a parent manages Screen Time on this iPhone, they have to approve it.
-              </Body>
-              <View style={page.gapAside} />
-              <Voice text="I’ll wait. I’m good at lying down." size={VoiceSize.aside} delay={600} />
-            </View>
-          ),
-          footer: <PrimaryButton label="Try again" onPress={ctx.retryScreenTime} />,
-          // Never a dead end: if iOS won't ask again, the rest of setup still goes on (no X before `commit`).
-          secondary: editing ? undefined : <TextButton label="Skip for now" onPress={ctx.setUpLater} />,
-        };
-      }
       const picked = pickCount > 0;
       // The button asks for Screen Time access first (no page of its own since 2026-11-05).
       // Native rows can't fly into the moon, so on an iPhone the page simply moves on.
@@ -616,9 +593,13 @@ export function renderStep(ctx: StepContext): StepView {
           <View style={page.top}>
             <Title>{pain === 'overall' ? 'Which apps eat the most time?' : 'Which apps keep you up?'}</Title>
             <Body style={styles.sub}>
-              {pain === 'overall'
-                ? 'They sleep at bedtime and wake once you’re up. Daytime limits are in the Apps tab later.'
-                : 'They sleep at bedtime and wake once you’re up.'}
+              {/* Don't Allow keeps them here, no page of its own: Add apps asks again (user 2026-11-07).
+                  Only until apps are added: picking any means access is on, so the usual line comes back. */}
+              {ctx.screenTime === 'refused' && !picked
+                ? 'Enable Screen Time access to add apps.'
+                : pain === 'overall'
+                  ? 'They sleep at bedtime and wake once you’re up. Daytime limits are in the Apps tab later.'
+                  : 'They sleep at bedtime and wake once you’re up.'}
             </Body>
             <View style={styles.appsCard}>
               <AppsCard
@@ -705,66 +686,13 @@ export function renderStep(ctx: StepContext): StepView {
         feelingOffer(answers, phoneDown) ??
         (numbers.lightUser && !numbers.skipped ? LIGHT_OFFER_HEADLINE : (OFFER_HEADLINES[answers.timeBack ?? 'else'] ?? OFFER_HEADLINES.else));
       const trialDays = offers.annual.trialDays;
+      // The reference's compare table over the sky, the moon risen under it as a horizon
+      // (offer-compare.tsx, user 2026-11-07). The trial timeline it replaced is on `plans`' price.
       return {
         body: (
           <View style={page.top}>
-            <Voice text={headline} size={VoiceSize.headline} header />
-            <View style={page.gapHeadline} />
-            <Body>{noOrphan(pain === 'night' ? `Phone down at ${bed}. You keep the evening. ${method.offer}` : method.offer)}</Body>
-            {/* Short phones keep the timeline whole and drop this line: the paywall headline says it next. */}
-            {numbers.lightUser || compact ? null : (
-              <>
-                <View style={page.gapAside} />
-                <Body>{`Week one: about ${weeklyAmount(lead.minutes)} back.`}</Body>
-              </>
-            )}
-            {trialDays ? (
-              // The trial timeline (Blinkist pattern): the most replicated paywall win in
-              // docs/sub-club/themes/02-paywall-design-and-copy.md. Morning-first (TODO §4): the
-              // first wake-up is a stop of its own, on every phone. The reminder day matches the
-              // paywall's toggle. Filled stops are what the free week does; hollow ones are the deal.
-              <View style={[styles.trail, compact && styles.trailCompact]}>
-                {ctx.scheduledNight ? (
-                  <>
-                    {/* Past bedtime already, arming shields at once (`commit` said so too). */}
-                    {/* Their end of the night reads brighter: weight only, no colour. */}
-                    <TrailStop
-                      title={schedule.when === 'Now' ? 'Now' : `${schedule.when}, ${schedule.bedAt}`}
-                      body={schedule.when === 'Now' ? 'Your apps sleep as soon as you’re in. $0 today.' : 'Your apps go to sleep. $0 today.'}
-                      filled
-                      strong={pain === 'night'}
-                    />
-                    <TrailStop
-                      title={`${schedule.wakeWhen}, ${schedule.wakeAt}`}
-                      body={`They stay asleep until ${method.until}.`}
-                      filled
-                      strong={pain === 'morning'}
-                    />
-                  </>
-                ) : (
-                  <TrailStop title="Today" body={`${schedule.sleep} $0 today.`} filled />
-                )}
-                <TrailStop
-                  title={`Day ${reminderDay(trialDays)} · ${dateFromToday(reminderDay(trialDays))}`}
-                  body="I remind you. Grudgingly."
-                />
-                <TrailStop
-                  title={`Day ${trialDays} · ${dateFromToday(trialDays)}`}
-                  body={`${offers.annual.priceString} for the year, unless you cancel before then.`}
-                  last
-                />
-              </View>
-            ) : (
-              <View style={styles.plan}>
-                {!numbers.lightUser ? (
-                  <PlanRow when="Now" what={`About ${weeklyAmount(lead.minutes)} a week ${LEAD_WHERE[lead.scope]}.`} />
-                ) : null}
-                <PlanRow when="Schedule" what={schedule.sleep} />
-              </View>
-            )}
-            <Reveal>
-              <Text style={styles.reassure}>{noOrphan('Only the apps you pick. Two passes a month for bad days.')}</Text>
-            </Reveal>
+            <Voice text={headline} size={VoiceSize.headline} header center />
+            <OfferCompare method={answers.method ?? 'steps'} compact={compact} delay={250} />
           </View>
         ),
         footer: (
@@ -822,6 +750,23 @@ export function renderStep(ctx: StepContext): StepView {
           footer: <PrimaryButton label="Open Routine" disabled={ctx.notifications === null || ctx.asking} onPress={ctx.openRoutine} />,
         };
       }
+      if (arm.reason === 'no-apps') {
+        // Paid with no apps picked: not a failure, and never a wall in front of the app
+        // (user 2026-11-07). Pick them now, or later from Home's Bedtime apps card.
+        return {
+          body: (
+            <View style={page.top}>
+              <Voice text="No apps yet." size={VoiceSize.headline} header />
+              <View style={page.gapHeadline} />
+              <Body>Pick the apps that should sleep at bedtime, now or whenever you like from the Apps tab.</Body>
+              <View style={page.gapAside} />
+              <Body>You’re subscribed. Nothing sleeps at bedtime until you pick some.</Body>
+            </View>
+          ),
+          footer: <PrimaryButton label="Pick apps" disabled={ctx.asking} onPress={openPicker} />,
+          secondary: <TextButton label="Add them later" onPress={ctx.enterApp} />,
+        };
+      }
       {
         // Failed: never imply protection that isn't there (GAME_PLAN, "Reliability"). Plain first.
         const fail = ARM_FAILURES[arm.reason];
@@ -835,7 +780,7 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>You’re subscribed either way. Nothing is asleep until this works.</Body>
             </View>
           ),
-          footer: <PrimaryButton label={fail.button} onPress={arm.reason === 'no-apps' ? openPicker : ctx.retryArm} />,
+          footer: <PrimaryButton label={fail.button} onPress={ctx.retryArm} />,
           secondary: arm.reason === 'no-access' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
         };
       }
@@ -926,16 +871,6 @@ function MoonQuestionHead({ title, sub, risen }: { title: string; sub?: string; 
   );
 }
 
-/** One beat of the plan, centred like the rest of onboarding: the label over its line. */
-function PlanRow({ when, what }: { when: string; what: string }) {
-  return (
-    <Reveal style={styles.planRow}>
-      <Text style={styles.planWhen}>{when}</Text>
-      <Text style={styles.planWhat}>{noOrphan(what)}</Text>
-    </Reveal>
-  );
-}
-
 /**
  * The night branch's opening to the demo: the reach a little after getting into bed (or when
  * the phone usually goes down, if that's sooner), the night shield, then tomorrow morning.
@@ -944,35 +879,6 @@ function nightPrelude(bedtime: number, phoneDown: number, wake: number): NightPr
   const at = Math.min(bedtime + 22, Math.max(bedtime + 5, phoneDown));
   const clock = formatClock(at);
   return { when: `Tonight, ${clock}`, clock: clock.replace(/\s?[AP]M$/i, ''), wake };
-}
-
-/** One stop on the trial timeline: a dot on the rail, the day in white, what happens under it. */
-function TrailStop({
-  title,
-  body,
-  filled,
-  last,
-  strong,
-}: {
-  title: string;
-  body: string;
-  filled?: boolean;
-  last?: boolean;
-  /** Their end of the night: the line under it reads in full white. */
-  strong?: boolean;
-}) {
-  return (
-    <Reveal style={styles.stop}>
-      <View style={styles.rail}>
-        <View style={[styles.dot, filled && styles.dotFilled]} />
-        {last ? null : <View style={styles.railLine} />}
-      </View>
-      <View style={[styles.stopText, !last && styles.stopGap]}>
-        <Text style={styles.stopTitle}>{title}</Text>
-        <Text style={[styles.stopBody, strong && styles.stopBodyStrong]}>{body}</Text>
-      </View>
-    </Reveal>
-  );
 }
 
 /** Shown when bedtime to wake is implausibly long or short, which is usually AM/PM mixed up. */
@@ -1041,15 +947,6 @@ const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
 };
 
 /** A link in the opener's fine print. */
-/** "Settings" inside a line, opening Locturne's page there. */
-function SettingsLink() {
-  return (
-    <Text accessibilityRole="link" style={styles.fineLink} onPress={() => Linking.openSettings().catch(() => {})}>
-      Settings
-    </Text>
-  );
-}
-
 function FineLink({ label, url }: { label: string; url: string }) {
   return (
     <Text accessibilityRole="link" style={styles.fineLink} onPress={() => Linking.openURL(url).catch(() => {})}>
@@ -1080,26 +977,6 @@ const styles = StyleSheet.create({
   warning: { marginTop: Gap.block, textAlign: 'center', color: Nocturne.text },
   appsCard: { marginTop: Gap.block },
   methodOptions: { marginTop: Gap.block, marginBottom: Space.l },
-  plan: { marginVertical: Gap.block, gap: Space.m },
-  planRow: { alignItems: 'center', gap: 2 },
-  planWhen: { ...Type.rowKey, fontVariant: ['tabular-nums'], textAlign: 'center' },
-  planWhat: { color: Nocturne.text, ...Type.body, textAlign: 'center' },
-  planNote: { color: Nocturne.text2, ...Type.secondary, textAlign: 'center' },
-  reassure: { color: Nocturne.text2, ...Type.secondary, textAlign: 'center' },
-  // A timeline reads down its rail, so its rows start at the rail; the block itself sits centred.
-  trail: { marginVertical: Gap.block, alignSelf: 'center' },
-  trailCompact: { marginVertical: Space.l },
-  stop: { flexDirection: 'row', gap: Space.m },
-  // The dot sits on the title's first line; the line runs down to the next stop's dot.
-  rail: { width: 12, alignItems: 'center', paddingTop: 6 },
-  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: Nocturne.text2 },
-  dotFilled: { backgroundColor: Nocturne.text, borderColor: Nocturne.text },
-  railLine: { flex: 1, width: 2, marginVertical: 4, borderRadius: 1, backgroundColor: Nocturne.edge },
-  stopText: { flex: 1 },
-  stopGap: { paddingBottom: Space.m },
-  stopTitle: { color: Nocturne.text, ...Type.body, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  stopBody: { color: Nocturne.text2, ...Type.secondary, marginTop: 2 },
-  stopBodyStrong: { color: Nocturne.text },
   founder: { marginTop: Gap.headline, gap: Space.l },
   founderSign: { ...Type.body, color: Nocturne.text, fontStyle: 'italic', textAlign: 'center' },
   shiftRow: { marginTop: Space.l, flexDirection: 'row', justifyContent: 'center', marginBottom: Space.m },

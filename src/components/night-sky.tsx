@@ -313,6 +313,7 @@ export function NightSky({
   moonless = false,
   drift = false,
   riseMs = QUIZ_RISE_MS,
+  arcAt,
   drag,
 }: {
   opening?: boolean;
@@ -321,6 +322,12 @@ export function NightSky({
   /** Hide the moon and its glow, leaving the sky: a screen drawing its own (the payoff's moonrise). */
   moonless?: boolean;
   quiz?: boolean;
+  /**
+   * Where the risen moon's curve sits, as a share of the screen's height, instead of the quiz's
+   * place near the top: the offer page's moon is a low horizon under its table (user 2026-11-07).
+   * Moves there with the rise, so going between the two never jumps.
+   */
+  arcAt?: number;
   /**
    * How far above the screen's bottom the sky ends (the tabs' panel stops above the tab
    * strip): the resting moon rises out of that edge instead, so its light stays in view.
@@ -408,6 +415,22 @@ export function NightSky({
   const from = heroMoon(width, height);
   const to = MOON_REST === 'bottom' ? risingMoon(width, height - floor) : bakedMoon(width, height);
   const up = quizMoon(width, height, insets.top);
+  // The risen moon's top, animated so a change of `arcAt` glides instead of jumping.
+  const upTopFor = (at: number | undefined) => (at === undefined ? up.top : height * at - 12);
+  const upTop = useSharedValue(upTopFor(arcAt));
+  useEffect(() => {
+    const target = upTopFor(arcAt);
+    upTop.value = reduced ? target : withTiming(target, { duration: riseMs, easing: Easing.bezier(0.65, 0, 0.35, 1) });
+    // Same as the rise: the duration is read when the place changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arcAt, height, insets.top, reduced, upTop]);
+  // The offer's horizon keeps the night sky: the quiz's frosted wash would hide the moon's curve.
+  const washOn = useSharedValue(arcAt === undefined ? 1 : 0);
+  useEffect(() => {
+    const target = arcAt === undefined ? 1 : 0;
+    washOn.value = reduced ? target : withTiming(target, { duration: riseMs });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arcAt, reduced, washOn]);
   const high = homeMoon(width, height, insets.top);
 
   /** The moon's disc right now: opener → resting place, then on to the quiz or home screen. */
@@ -418,7 +441,7 @@ export function NightSky({
     const top = interpolate(p, [0, 1], [from.top, to.top]);
     const qSize = interpolate(q, [0, 1], [size, up.size]);
     const qLeft = interpolate(q, [0, 1], [left, up.left]);
-    const qTop = interpolate(q, [0, 1], [top, up.top]);
+    const qTop = interpolate(q, [0, 1], [top, upTop.value]);
     return {
       size: interpolate(h, [0, 1], [qSize, high.size]),
       left: interpolate(h, [0, 1], [qLeft, high.left]),
@@ -458,7 +481,7 @@ export function NightSky({
   }));
 
   const washStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(risen.value, [WASH_FROM, 1], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(risen.value, [WASH_FROM, 1], [0, 1], Extrapolation.CLAMP) * washOn.value,
   }));
 
   /** The sky, the halo and the moon, drawn in `moon`. */

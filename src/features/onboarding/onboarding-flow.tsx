@@ -78,6 +78,7 @@ import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './scr
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { morningWarnings, renderStep } from './steps';
 import { OpenerScene } from './opener-scene';
+import { OFFER_ARC_AT } from './offer-compare';
 import { WELCOME_EXIT_MS } from './welcome-demo';
 import { FooterEnter, Shell, StepEnter, TopBar, useSwap, type Progress } from './ui';
 
@@ -147,6 +148,22 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   apps: ['TikTok', 'Instagram', 'YouTube'],
 };
 
+/**
+ * The onboarding preview's edge cases (features/dev/onboarding-preview, Tree view): answers laid
+ * over PREVIEW_ANSWERS (`null` clears one, e.g. skipped minutes), the store failing, Screen Time
+ * refused. Review builds only (app/onboarding.tsx).
+ */
+export type PreviewEdge = {
+  answers?: { [K in keyof Answers]?: Answers[K] | null };
+  offersFail?: boolean;
+  screenTimeRefused?: boolean;
+};
+
+function withoutNulls(answers: PreviewEdge['answers']): Partial<Answers> {
+  if (!answers) return {};
+  return Object.fromEntries(Object.entries(answers).map(([k, v]) => [k, v ?? undefined])) as Partial<Answers>;
+}
+
 /** Head start so a chapter's bar never opens empty (endowed progress). */
 const PROGRESS_START = 0.12;
 /** The first chapter opens well under way: its first page shows 40% (user, 2026-10-26). */
@@ -184,6 +201,7 @@ export function OnboardingFlow({
   newYear: previewNewYear = false,
   pain: previewPain,
   showPaywall = false,
+  preview,
 }: {
   initialStep?: string;
   exitOffer?: string;
@@ -195,6 +213,8 @@ export function OnboardingFlow({
   resumeAtPaywall?: boolean;
   /** Review only (You → Redo onboarding): show the paywall even when already subscribed. */
   showPaywall?: boolean;
+  /** Review only: the onboarding preview's edge cases (its Tree view). */
+  preview?: PreviewEdge;
 }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -219,6 +239,7 @@ export function OnboardingFlow({
       ...initialAnswers,
       ...(jump !== 'hello' ? PREVIEW_ANSWERS : {}),
       ...(pain && jump !== 'hello' && jump !== 'pain' ? { pain } : {}),
+      ...withoutNulls(preview?.answers),
     });
   });
   const { history, answers, returnTo } = nav;
@@ -266,7 +287,8 @@ export function OnboardingFlow({
   const [offers, setOffers] = useState<Offers | null>(null);
   const [offersFailed, setOffersFailed] = useState(false);
   const fetchOffers = useCallback(() => {
-    getOffers().then(
+    // The preview's "store didn't answer" case.
+    (preview?.offersFail ? Promise.reject(new Error('preview')) : getOffers()).then(
       (loaded) => {
         setOffers(loaded);
         setOffersFailed(false);
@@ -276,7 +298,7 @@ export function OnboardingFlow({
         track('offers_failed', {});
       },
     );
-  }, []);
+  }, [preview?.offersFail]);
   useEffect(fetchOffers, [fetchOffers]);
   const retryOffers = () => {
     setOffersFailed(false);
@@ -504,7 +526,7 @@ export function OnboardingFlow({
 
   /* Screen Time access, asked from the apps page's button (no page of its own, user 2026-11-05):
      Apple's prompt, then Face ID or the passcode, then whatever the button was doing. */
-  const [screenTime, setScreenTime] = useState<'idle' | 'asking' | 'refused'>('idle');
+  const [screenTime, setScreenTime] = useState<'idle' | 'asking' | 'refused'>(preview?.screenTimeRefused ? 'refused' : 'idle');
   /** What the button was doing when access was asked, so Try again carries on with it. */
   const afterAccess = useRef<() => void>(() => {});
   const askScreenTime = async (then: () => void) => {
@@ -872,6 +894,8 @@ export function OnboardingFlow({
     }, true);
   // The trial reminder needs notifications, and with every night off no later moment asks.
   const openRoutine = () => ask(leaveForRoutine, false);
+  /** `armed` with no apps picked yet: into the app, where Home's Bedtime apps card asks for them (user 2026-11-07). */
+  const enterApp = () => ask(() => exit(), false);
 
   // While the moon moves (to or from the opener, or into and out of the quiz), the page
   // waits so text enters once it lands.
@@ -880,7 +904,9 @@ export function OnboardingFlow({
   const quiz = moonQuizFor(answers.pain).includes(step);
   // The opener's big moon gave way to the welcome demo (docs/WELCOME_SCREEN.md, 2026-11-02): the
   // moon rests at the bottom there as on every other page, so nothing flies on the way out.
-  const moonPlace = quiz ? 'quiz' : 'rest';
+  // The offer: the moon rises to a low horizon under its compare table (user 2026-11-07).
+  const offerMoon = step === 'offer' && offers !== null;
+  const moonPlace = quiz ? 'quiz' : offerMoon ? 'offer' : 'rest';
   const [lastMoonPlace, setLastMoonPlace] = useState(moonPlace);
   const riseMs = step === 'reveal' ? REVEAL_SKY_MS : QUIZ_RISE_MS;
   const [moonMoving, setMoonMoving] = useState(0);
@@ -997,6 +1023,7 @@ export function OnboardingFlow({
     arm,
     retryArm,
     openRoutine,
+    enterApp,
     motion,
     methodAsks,
     notifications,
@@ -1069,7 +1096,7 @@ export function OnboardingFlow({
           <LocStage mood="awake" share={0.5} present={false} dom={WARM_LOC_DOM} />
         </View>
       ) : null}
-      <NightSky quiz={quiz} drift={opening} riseMs={riseMs} />
+      <NightSky quiz={quiz || offerMoon} arcAt={offerMoon ? OFFER_ARC_AT : undefined} drift={opening} riseMs={riseMs} />
       <OpenerScene shown={opening && !moonMoving} />
       <RevealDark shown={dark} />
       {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} after={buildPage.held} /> : null}

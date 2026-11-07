@@ -19,7 +19,7 @@ import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proo
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
 import { getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
-import { methodInUse } from '@/lib/scan-code';
+import { morningMethod } from '@/lib/scan-code';
 import {
   bedtimeAppCount,
   isScreenTimeAvailable,
@@ -167,7 +167,7 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
     pause,
     pauseWords: pause ? pauseWording(pause, now) : null,
     // The wake preview (dev) can put any method's morning on Home.
-    method: pretendMethod() ?? methodInUse(routine.method),
+    method: pretendMethod() ?? morningMethod(routine.method),
     won,
     free,
     mornings: MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon(),

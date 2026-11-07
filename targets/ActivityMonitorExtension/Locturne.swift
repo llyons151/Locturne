@@ -731,6 +731,11 @@ func locturneMethodInUse(_ method: String) -> String {
   // Squats went on 2026-11-05 (`normalizeRoutine` in src/lib/routine.ts): a routine saved with
   // them, not yet opened in the new app, walks.
   if method == "squats" { return "steps" }
+  // No step counter (an iPad; `noStepCounter` in src/lib/step-counter.ts): a walk or downstairs
+  // morning is Step away, its timer from the morning start.
+  if (method == "steps" || method == "downstairs") && userDefaults?.bool(forKey: "locturne.noStepCounter") == true {
+    return "downtime"
+  }
   return method
 }
 
@@ -1009,6 +1014,10 @@ func locturneJudgeDowntime(_ morning: LocturneMorning, steps: Int?, reachedAt: D
   var timer = locturneDowntime(morning)
   if timer == nil, let steps, steps >= max(morning.downtimeSteps, 1) {
     timer = locturneStartDowntime(morning, reachedAt: reachedAt ?? now, now: now)
+  }
+  // No step counter: no steps to wait for, the timer runs from the morning start (`startDowntime`).
+  if timer == nil, userDefaults?.bool(forKey: "locturne.noStepCounter") == true {
+    timer = locturneStartDowntime(morning, reachedAt: morning.start, now: now)
   }
   if let timer, now.addingTimeInterval(LOCTURNE_DOWNTIME_SLACK) >= timer.endsAt {
     locturneRecordProof(morning, kind: "downtime", now: now)

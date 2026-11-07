@@ -107,7 +107,7 @@ function home({
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
     '@/lib/routine': { pushupGoalOf: () => 20, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
-    '@/lib/scan-code': { methodInUse: (m: string) => m },
+    '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m },
     '@/lib/screen-time': {
       sharedGet: () => undefined,
       sharedSet() {},

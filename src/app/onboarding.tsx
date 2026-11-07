@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-import { OnboardingFlow } from '@/features/onboarding/onboarding-flow';
+import { OnboardingFlow, type PreviewEdge } from '@/features/onboarding/onboarding-flow';
 import { revealApp } from '@/lib/launch-splash';
 import { hasRoutine } from '@/lib/routine';
 
@@ -15,7 +15,8 @@ export default function OnboardingScreen() {
   // Review tools only: in the App Store build a `locturne://onboarding?step=declined&exit=…`
   // link would open the one-time exit offer for anyone, as often as they liked.
   // `?paywall=1` (You → Redo onboarding): the paywall shows even on a subscribed phone.
-  const { step, exit, resume, newyear, insets, pain, paywall } = useLocalSearchParams<{
+  // `?answers=<json>`, `?offers=fail`, `?screentime=refused`: the onboarding preview's edge cases.
+  const { step, exit, resume, newyear, insets, pain, paywall, answers, offers, screentime } = useLocalSearchParams<{
     step?: string;
     pain?: string;
     exit?: string;
@@ -23,6 +24,9 @@ export default function OnboardingScreen() {
     newyear?: string;
     insets?: string;
     paywall?: string;
+    answers?: string;
+    offers?: string;
+    screentime?: string;
   }>();
   // A first launch opens here under the launch screen (`useAppStart`): lift it once this page has
   // drawn, a beat after mounting, as the modal is put up without its slide.
@@ -45,6 +49,7 @@ export default function OnboardingScreen() {
       newYear={review && newyear === '1'}
       pain={devLabs ? pain : undefined}
       showPaywall={devLabs && paywall === '1'}
+      preview={review ? previewEdge(answers, offers, screentime) : undefined}
     />
   );
   // `?insets=59,34` (top,bottom): an iPhone's safe areas inside the onboarding preview's
@@ -52,4 +57,15 @@ export default function OnboardingScreen() {
   const [top, bottom] = review && insets ? insets.split(',').map(Number) : [];
   if (!Number.isFinite(top) || !Number.isFinite(bottom)) return flow;
   return <SafeAreaInsetsContext.Provider value={{ top, bottom, left: 0, right: 0 }}>{flow}</SafeAreaInsetsContext.Provider>;
+}
+
+function previewEdge(answers?: string, offers?: string, screentime?: string): PreviewEdge | undefined {
+  if (!answers && !offers && !screentime) return undefined;
+  let parsed: PreviewEdge['answers'];
+  try {
+    parsed = answers ? (JSON.parse(answers) as PreviewEdge['answers']) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+  return { answers: parsed, offersFail: offers === 'fail', screenTimeRefused: screentime === 'refused' };
 }

@@ -1,6 +1,7 @@
 import type { WakeMethod } from './routine.ts';
 import { getMorningPlace } from './place-spot.ts';
 import { sharedGet } from './screen-time.ts';
+import { noStepCounter } from './step-counter.ts';
 
 /**
  * The saved scan code, apart from scan.ts so the lock controller can read it (scan.ts
@@ -47,4 +48,15 @@ export function methodInUse(method: WakeMethod): WakeMethod {
   if (method === 'scan' && !getScanCode()) return 'steps';
   if (method === 'place' && !getMorningPlace()) return 'steps';
   return method;
+}
+
+/**
+ * The method a morning really runs on: `methodInUse`, and on a device with no step counter
+ * (step-counter.ts) a walk or downstairs morning is Step away, its timer from the morning
+ * start. Setup screens keep `methodInUse` (their "not set up yet" notes are about scan and place).
+ */
+export function morningMethod(method: WakeMethod): WakeMethod {
+  const used = methodInUse(method);
+  if ((used === 'steps' || used === 'downstairs') && noStepCounter()) return 'downtime';
+  return used;
 }

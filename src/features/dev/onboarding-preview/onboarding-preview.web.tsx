@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { chaptersFor } from '@/features/onboarding/content';
 import { PAINS, stepsFor, type Pain, type StepId } from '@/features/onboarding/navigation';
 import { EXIT_ARMS, type ExitArm } from '@/lib/purchases';
+import { WAKE_METHODS, type WakeMethod } from '@/lib/routine';
 
 /** iPhone screens in points, with their safe areas (status bar or island, home indicator). */
 const DEVICES = {
@@ -69,16 +70,18 @@ function groupOf(step: StepId, pain: Pain): string {
 }
 
 type Settings = {
-  view: 'line' | 'wall' | 'single' | 'compare';
+  view: 'tree' | 'line' | 'wall' | 'single' | 'compare';
   pain: Pain;
   device: DeviceId;
   zoom: number;
   exit: ExitArm;
   newYear: boolean;
   step: StepId;
+  /** The wake method every frame after `method` shows (the preview's own answer is Downstairs). */
+  method: WakeMethod;
 };
 
-const DEFAULTS: Settings = { view: 'wall', pain: 'all', device: '16', zoom: 0.5, exit: 'longer-trial', newYear: false, step: 'hello' };
+const DEFAULTS: Settings = { view: 'tree', pain: 'all', device: '16', zoom: 0.5, exit: 'longer-trial', newYear: false, step: 'hello', method: 'steps' };
 const KEY = 'locturne.onboardingPreview';
 
 /** Saved settings, then `?view=single&pain=night&step=reveal&device=se` on top, for links. */
@@ -86,7 +89,7 @@ function load(): Settings {
   const query = new URLSearchParams(window.location.search);
   const linked: Partial<Settings> = {};
   const view = query.get('view');
-  if (view === 'line' || view === 'single' || view === 'wall' || view === 'compare') linked.view = view;
+  if (view === 'tree' || view === 'line' || view === 'single' || view === 'wall' || view === 'compare') linked.view = view;
   const pain = PAINS.find((p) => p === query.get('pain'));
   if (pain) linked.pain = pain;
   if (query.get('step')) linked.step = query.get('step') as StepId;
@@ -96,6 +99,7 @@ function load(): Settings {
     const merged = { ...DEFAULTS, ...saved, ...linked };
     if (!(merged.device in DEVICES)) merged.device = DEFAULTS.device;
     if (!PAINS.includes(merged.pain)) merged.pain = DEFAULTS.pain;
+    if (!WAKE_METHODS.includes(merged.method)) merged.method = DEFAULTS.method;
     if (!stepsOf(merged.pain).includes(merged.step)) merged.step = 'hello';
     return merged;
   } catch {
@@ -103,11 +107,115 @@ function load(): Settings {
   }
 }
 
-function urlFor(step: StepId, s: Settings, pain: Pain = s.pain): string {
+function urlFor(step: StepId, s: Settings, pain: Pain = s.pain, edge: Edge = {}): string {
   const d = DEVICES[s.device];
-  const params = new URLSearchParams({ step, pain, exit: s.exit, insets: `${d.top},${d.bottom}` });
+  const params = new URLSearchParams({ step, pain, exit: edge.exit ?? s.exit, insets: `${d.top},${d.bottom}` });
   if (s.newYear) params.set('newyear', '1');
+  // The picked method on every frame; a method lane's own answer wins.
+  params.set('answers', JSON.stringify({ method: s.method, ...edge.answers }));
+  if (edge.offers) params.set('offers', edge.offers);
+  if (edge.screentime) params.set('screentime', edge.screentime);
   return `/onboarding?${params}`;
+}
+
+/* ---------- Tree: the flow as a tree that splits at each decision and rejoins (user 2026-11-07) ---------- */
+
+/** A frame's state beyond its step: answers over the preview's, the store failing, Screen Time refused. */
+type Edge = {
+  answers?: Record<string, unknown>;
+  offers?: 'fail';
+  screentime?: 'refused';
+  exit?: ExitArm;
+};
+type TreeNode = { step: StepId; label?: string; pain?: Pain; edge?: Edge };
+type Stage =
+  | { kind: 'node'; node: TreeNode; variants?: TreeNode[] }
+  | { kind: 'split'; title: string; lanes: { label: string; nodes: TreeNode[]; end?: string }[] }
+  | { kind: 'end'; text: string };
+
+const METHOD_LABEL: Record<WakeMethod, string> = {
+  steps: '200 steps',
+  downstairs: 'Downstairs',
+  scan: 'Scan a code',
+  place: 'Go to a place',
+  pushups: 'Push-ups',
+  downtime: 'Downtime',
+};
+
+/** Bedtime an hour ago, waking in six: onboarding inside their own night. */
+function lateNightTimes() {
+  const d = new Date();
+  const now = d.getHours() * 60 + d.getMinutes();
+  return { bedtime: (now + 1440 - 60) % 1440, wake: (now + 360) % 1440 };
+}
+
+/** The tree for one branch's shared screens (`pain`): the Branch picker still picks their words. */
+function treeOf(pain: Pain): Stage[] {
+  const late: Edge = { answers: lateNightTimes() };
+  const light: Edge = { answers: { nightMinutes: 5, morningMinutes: 0, nightsPerWeek: 2, scrollDays: [5, 6] } };
+  const skipped: Edge = { answers: { nightMinutes: null, morningMinutes: null } };
+  const shared = (step: StepId, variants?: TreeNode[]): Stage => ({ kind: 'node', node: { step }, variants });
+  const methodLane = (method: WakeMethod) => {
+    const edge: Edge = { answers: { method } };
+    const nodes: TreeNode[] = [{ step: 'tomorrow', edge }];
+    if (method === 'scan') nodes.push({ step: 'scan-code', edge });
+    return {
+      label: METHOD_LABEL[method],
+      nodes,
+      end: method === 'place' ? 'Set it up opens the place map (a sheet, not a page)' : undefined,
+    };
+  };
+  return [
+    shared('hello'),
+    shared('pain'),
+    {
+      kind: 'split',
+      title: 'Their answer on pain',
+      lanes: PAINS.map((p) => ({
+        label: PAIN_LABEL[p],
+        nodes: stepsFor(p)
+          .slice(2, stepsFor(p).indexOf('time-back'))
+          .map((step) => ({ step, pain: p })),
+      })),
+    },
+    shared('time-back'),
+    shared('tried'),
+    shared('found'),
+    shared('age'),
+    shared('reveal', [
+      { step: 'reveal', label: 'Light user (under an hour a week)', edge: light },
+      { step: 'reveal', label: 'Skipped both minutes questions', edge: skipped },
+    ]),
+    shared('build'),
+    shared('method'),
+    { kind: 'split', title: 'The wake method they pick', lanes: WAKE_METHODS.map(methodLane) },
+    shared('apps', [
+      { step: 'apps', label: 'Screen Time refused', edge: { screentime: 'refused' } },
+      { step: 'apps', label: 'Nothing picked yet', edge: { answers: { apps: [] } } },
+    ]),
+    shared('commit', [{ step: 'commit', label: 'Already past bedtime', edge: late }]),
+    shared('founder'),
+    shared('offer', [
+      { step: 'offer', label: 'Already past bedtime', edge: late },
+      { step: 'offer', label: 'Light user', edge: light },
+      { step: 'offer', label: 'Store didn’t answer', edge: { offers: 'fail' } },
+    ]),
+    shared('plans', [{ step: 'plans', label: 'Store didn’t answer', edge: { offers: 'fail' } }]),
+    {
+      kind: 'split',
+      title: 'On the plans page',
+      lanes: [
+        { label: 'Buys', nodes: [], end: 'iOS prompts over the paywall, then Home' },
+        ...EXIT_ARMS.filter((arm) => arm !== 'none').map((arm) => ({
+          label: `Closes it · exit arm ${arm}`,
+          nodes: [{ step: 'declined' as StepId, edge: { exit: arm } }],
+          end: 'back to plans (a second close exits)',
+        })),
+        { label: 'Closes it · exit arm none', nodes: [], end: 'No exit page: onboarding ends' },
+      ],
+    },
+    { kind: 'end', text: 'Home' },
+  ];
 }
 
 /**
@@ -191,6 +299,7 @@ export function OnboardingPreview() {
         <Segment
           value={s.view}
           options={[
+            ['tree', 'Tree'],
             ['line', 'Line'],
             ['wall', 'Wall'],
             ['single', 'Single'],
@@ -217,6 +326,16 @@ export function OnboardingPreview() {
             </select>
           </label>
         )}
+        <label style={css.field}>
+          Method
+          <select style={css.select} value={s.method} onChange={(e) => set({ method: e.target.value as WakeMethod })}>
+            {WAKE_METHODS.map((method) => (
+              <option key={method} value={method}>
+                {METHOD_LABEL[method]}
+              </option>
+            ))}
+          </select>
+        </label>
         <label style={css.field}>
           Device
           <select style={css.select} value={s.device} onChange={(e) => set({ device: e.target.value as DeviceId })}>
@@ -258,7 +377,53 @@ export function OnboardingPreview() {
         </button>
       </header>
 
-      {s.view === 'line' ? (
+      {s.view === 'tree' ? (
+        <main style={css.treeMain}>
+          <p style={css.dim}>
+            Every page, left to right. It splits where an answer changes the path, rejoins where the paths meet again,
+            and edge cases hang under their page. Shared pages use the Branch picker&apos;s words, and pages after the method split use the Method picker&apos;s. Scroll sideways with
+            Shift + wheel or a trackpad.
+          </p>
+          <div style={css.tree}>
+            {treeOf(s.pain).map((stage, i) => (
+              <div key={i} style={css.treeStage}>
+                {i > 0 ? <div style={{ ...css.wire, marginTop: wireTop(device, s.zoom) }} /> : null}
+                {stage.kind === 'node' ? (
+                  <div style={css.treeColumn}>
+                    <TreeFrame node={stage.node} s={s} device={device} generation={generation} />
+                    {stage.variants?.length ? (
+                      <div style={css.variants}>
+                        <div style={css.variantHead}>Edge cases</div>
+                        {stage.variants.map((node) => (
+                          <TreeFrame key={node.label} node={node} s={s} device={device} generation={generation} />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : stage.kind === 'split' ? (
+                  <div style={css.split}>
+                    <div style={css.splitTitle}>Splits on: {stage.title}</div>
+                    {stage.lanes.map((lane) => (
+                      <div key={lane.label} style={css.lane}>
+                        <div style={css.laneLabel}>{lane.label}</div>
+                        <div style={css.laneRow}>
+                          {lane.nodes.map((node, j) => (
+                            <TreeFrame key={`${node.step}-${j}`} node={node} s={s} device={device} generation={generation} />
+                          ))}
+                          {lane.end ? <div style={css.laneEnd}>{lane.end}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                    <div style={css.splitTitle}>Rejoins</div>
+                  </div>
+                ) : (
+                  <div style={{ ...css.endCard, marginTop: wireTop(device, s.zoom) - 16 }}>{stage.text}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </main>
+      ) : s.view === 'line' ? (
         <main style={css.lineMain}>
           <p style={css.dim}>Every screen in order. Swipe or scroll sideways; click a screen to open it full screen.</p>
           <div ref={strip} style={css.line}>
@@ -418,6 +583,38 @@ export function OnboardingPreview() {
   );
 }
 
+/** Where the wires between stages sit: level with the middle of the first frame. */
+const wireTop = (device: (typeof DEVICES)[DeviceId], zoom: number) => 22 + ((device.height + 24) * zoom) / 2;
+
+function TreeFrame({
+  node,
+  s,
+  device,
+  generation,
+}: {
+  node: TreeNode;
+  s: Settings;
+  device: (typeof DEVICES)[DeviceId];
+  generation: number;
+}) {
+  const pain = node.pain ?? s.pain;
+  const src = urlFor(node.step, s, pain, node.edge);
+  return (
+    <figure style={css.card}>
+      <figcaption style={{ ...css.caption, width: (device.width + 24) * s.zoom }}>
+        <span style={css.treeName}>
+          {node.step}
+          {node.label ? <span style={css.dim}> · {node.label}</span> : null}
+        </span>
+        <a style={css.link} href={src} target="_blank" rel="noreferrer">
+          ↗
+        </a>
+      </figcaption>
+      <Phone key={`${src}-${generation}`} src={src} device={device} zoom={s.zoom} lazy />
+    </figure>
+  );
+}
+
 function Phone({
   src,
   device,
@@ -530,6 +727,35 @@ const css: Record<string, CSSProperties> = {
   segmentItem: { background: 'none', border: 0, color: '#a0a1a8', padding: '4px 12px', borderRadius: 5, cursor: 'pointer' },
   segmentOn: { background: '#3a3b42', color: '#fff' },
   wall: { padding: '8px 16px 48px' },
+  treeMain: { padding: '8px 16px 48px', width: 'max-content', minWidth: '100%', boxSizing: 'border-box' },
+  tree: { display: 'flex', alignItems: 'flex-start' },
+  treeStage: { display: 'flex', alignItems: 'flex-start' },
+  treeColumn: { display: 'flex', flexDirection: 'column', gap: 18 },
+  wire: { width: 28, height: 2, background: '#4a4b52', flex: 'none' },
+  variants: { display: 'flex', flexDirection: 'column', gap: 14, paddingLeft: 10, borderLeft: '2px dashed #4a4b52' },
+  variantHead: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#8a8b92' },
+  split: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+    padding: '0 14px',
+    borderLeft: '2px solid #4a4b52',
+    borderRight: '2px solid #4a4b52',
+    borderRadius: 10,
+  },
+  splitTitle: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#8a8b92', paddingTop: 4 },
+  lane: { display: 'flex', flexDirection: 'column', gap: 6 },
+  laneLabel: { fontWeight: 600, color: '#c9cad0' },
+  laneRow: { display: 'flex', gap: 14, alignItems: 'center' },
+  laneEnd: {
+    color: '#8a8b92',
+    border: '1px solid #33343a',
+    borderRadius: 8,
+    padding: '8px 10px',
+    maxWidth: 220,
+  },
+  endCard: { border: '1px solid #4a4b52', borderRadius: 8, padding: '6px 14px', fontWeight: 600 },
+  treeName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   lineMain: { padding: '8px 0 32px 16px' },
   line: { display: 'flex', flexWrap: 'nowrap', gap: 20, overflowX: 'auto', scrollSnapType: 'x proximity', padding: '4px 16px 16px 0' },
   cover: { position: 'absolute', inset: 0, background: 'transparent', border: 0, cursor: 'zoom-in', padding: 0 },

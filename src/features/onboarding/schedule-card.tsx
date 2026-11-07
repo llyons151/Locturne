@@ -187,7 +187,9 @@ export function ScheduleCard({
         </Animated.View>
         <Animated.View style={play(fade(landAt + 240, 400))}>
           <Text style={styles.appsCaption}>
-            {liveCount !== undefined
+            {count === 0
+              ? 'No apps yet. Add them anytime.'
+              : liveCount !== undefined
               ? `${countPicks(count)} asleep at bedtime.`
               : count === 1
                 ? '1 app sleeps.'

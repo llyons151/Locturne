@@ -3,7 +3,8 @@ import '@/global.css';
 import { denyAppRemoval, readDeviceClock } from 'blocked-apps';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet } from 'react-native';
+import { Pedometer } from 'expo-sensors';
+import { Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
@@ -12,6 +13,7 @@ import { setClockReader } from '@/lib/clock-guard';
 import { holdSplash } from '@/lib/launch-splash';
 import { startPurchases } from '@/lib/purchases-start';
 import { setAppRemovalWriter } from '@/lib/screen-time';
+import { checkStepCounter } from '@/lib/step-counter';
 import { MOONS_BG } from '@/features/moons/moon-collection';
 import { useShieldMoon } from '@/features/moons/shield-moon';
 import { payoffTuning } from '@/features/wake/payoff-tuning';
@@ -26,6 +28,8 @@ startAnalytics();
 // Before the first sync: the lock reads the phone's boot clock to catch a wound-back clock.
 setClockReader(readDeviceClock);
 setAppRemovalWriter(denyAppRemoval);
+// A device with no step counter (an iPad) gets Step away's timer for a walk (step-counter.ts).
+checkStepCounter({ isIOS: Platform.OS === 'ios', isAvailable: () => Pedometer.isAvailableAsync() });
 
 /**
  * The tabs always sit under a deep-linked screen (`locturne://wake` from a Shortcut, say):

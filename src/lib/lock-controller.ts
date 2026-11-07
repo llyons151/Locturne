@@ -30,7 +30,8 @@ import {
   toLockSettings,
   type Routine,
 } from './routine.ts';
-import { methodInUse } from './scan-code.ts';
+import { morningMethod } from './scan-code.ts';
+import { noStepCounter } from './step-counter.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
 import {
   armDowntimeEnd,
@@ -531,7 +532,7 @@ export function settleSubscription(paid: boolean, now = new Date()): void {
  */
 export function currentDowntime(now = new Date()): DowntimeRecord | null {
   const { routine } = judgedAt(now);
-  if (methodInUse(routine.method) !== 'downtime') return null;
+  if (morningMethod(routine.method) !== 'downtime') return null;
   return downtimeFor(getDowntime(), currentMorning(now, toLockSettings(routine)));
 }
 
@@ -553,14 +554,17 @@ export async function startDowntime(
   now = new Date(),
 ): Promise<DowntimeRecord | null> {
   const { routine } = judgedAt(now);
-  if (methodInUse(routine.method) !== 'downtime') return null;
+  if (morningMethod(routine.method) !== 'downtime') return null;
   const state = readLock(now);
   if (state.phase !== 'morning') return null;
   const morning = currentMorning(now, toLockSettings(routine));
   const saved = downtimeFor(getDowntime(), morning);
   if (saved) return saved;
   const goal = downtimeStepsOf(routine);
-  const reachedAt = await findThresholdTime(morning.start.getTime(), now.getTime(), goal, stepsBetween);
+  // No step counter (step-counter.ts): no steps to wait for, the timer runs from the morning start.
+  const reachedAt = noStepCounter()
+    ? morning.start.getTime()
+    : await findThresholdTime(morning.start.getTime(), now.getTime(), goal, stepsBetween);
   // The shield's I'm up may have saved one while the history was read: the first stays.
   const raced = downtimeFor(getDowntime(), morning);
   if (raced) return raced;
@@ -617,7 +621,7 @@ export function proveMorning(kind: ProofKind, now = new Date()): LockState | nul
   if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return null;
   // Step away's steps only start its timer: a walk is no proof of its morning (as on the shield,
   // `locturneMotionProof`). Its own proof comes when the timer ends (`proveDowntimeIfDue`).
-  if (kind === 'steps' && methodInUse(judgedAt(now).routine.method) === 'downtime') return null;
+  if (kind === 'steps' && morningMethod(judgedAt(now).routine.method) === 'downtime') return null;
   if (!recordProof({ morningKey: state.morningKey, kind, at: now.getTime() }, judgedAt(now))) return null;
   return syncLock(now);
 }
@@ -1033,7 +1037,7 @@ function applyShieldText(state: LockState, now: Date): void {
   // The shield names the method the wake screen will really ask for, under the routine that
   // governs now (a waiting edit inside its early first night: `routineAt`).
   const saved = routineAt(now);
-  const routine = { ...saved, method: methodInUse(saved.method) };
+  const routine = { ...saved, method: morningMethod(saved.method) };
   const limitReached = getLimits().some((limit) => limitHolds(limit.id));
   // The app-wide fallback is what the always list, limits and Block now show, so it follows
   // what's really asleep: a night or morning with no night lock, paused by an emergency unlock,
@@ -1056,7 +1060,7 @@ function applyShieldText(state: LockState, now: Date): void {
   // (accepted up to 30 minutes late) can still copy them. After that, a morning nobody proves
   // runs until bedtime, and the next copy is tomorrow's: the waiting edit's words.
   const pending = getPendingRoutine(now)?.routine;
-  const next = pending && state.phase !== 'night' ? { ...pending, method: methodInUse(pending.method) } : routine;
+  const next = pending && state.phase !== 'night' ? { ...pending, method: morningMethod(pending.method) } : routine;
   const morningStart = currentMorning(now, toLockSettings(saved)).start.getTime();
   const thisMorning =
     state.phase === 'night' || (state.phase === 'morning' && now.getTime() < morningStart + MORNING_COPY_SLACK_MS);

@@ -53,6 +53,8 @@ const { watchDownstairs, TICK_MS } = await import('./wake/downstairs-watch.ts');
 const pu = await import('./wake/pushups.ts');
 const { plankPose } = await import('./wake/pose-demo.ts');
 const payoff = await import('../features/wake/payoff.ts');
+const counter = await import('./step-counter.ts');
+const sc2 = await import('./scan-code.ts');
 
 type WakeMethod = import('./routine.ts').WakeMethod;
 type Routine = import('./routine.ts').Routine;
@@ -800,6 +802,47 @@ describe('downtime (Step away)', () => {
     await open();
     assert.ok(NIGHT.every((a) => !asleep(a)), 'awake');
     assert.ok(ALWAYS.every(asleep), 'the always list stays asleep');
+  });
+});
+
+/* ---------- No step counter (an iPad running the iPhone app) ---------- */
+
+describe('no step counter (user 2026-11-07)', () => {
+  const noHistory = async () => null;
+
+  test('a Walk morning is Step away with no steps: its timer runs from the morning start and wakes them with the app closed', async () => {
+    await onboard({ ...rt.DEFAULT_ROUTINE, method: 'steps' });
+    await counter.checkStepCounter({ isIOS: true, isAvailable: async () => false });
+    try {
+      await sleepThroughNight();
+      runTo(at(6, 7, 20));
+      await open();
+      assert.equal(lc.proveMorning('steps'), null, 'there are no steps to prove it with');
+      const record = await lc.startDowntime(noHistory);
+      drain();
+      assert.ok(record, 'the timer starts without a step');
+      assert.equal(record.reachedAt, at(6, 7, 0), 'from the morning start');
+      assert.ok(NIGHT.every(asleep), 'still asleep while it runs');
+      runTo(record.endsAt + 1_000);
+      assert.ok(NIGHT.every((a) => !asleep(a)), 'the end wakes them with the app closed');
+      await assertWoke('downtime');
+    } finally {
+      st.sharedRemove(counter.NO_STEP_COUNTER_KEY);
+    }
+  });
+
+  test('only the hardware check sets it: a failed check keeps the walk, and a counter found clears it', async () => {
+    await counter.checkStepCounter({ isIOS: true, isAvailable: async () => { throw new Error('busy'); } });
+    assert.equal(sc2.morningMethod('steps'), 'steps', 'an error never skips the walk');
+    await counter.checkStepCounter({ isIOS: false, isAvailable: async () => false });
+    assert.equal(sc2.morningMethod('steps'), 'steps', 'off iOS nothing is decided');
+    await counter.checkStepCounter({ isIOS: true, isAvailable: async () => false });
+    assert.equal(sc2.morningMethod('steps'), 'downtime');
+    assert.equal(sc2.morningMethod('downstairs'), 'downtime', 'downstairs needs steps too');
+    assert.equal(sc2.morningMethod('pushups'), 'pushups', 'the camera ones stay');
+    assert.equal(sc2.methodInUse('steps'), 'steps', 'setup screens are untouched');
+    await counter.checkStepCounter({ isIOS: true, isAvailable: async () => true });
+    assert.equal(sc2.morningMethod('steps'), 'steps');
   });
 });
 
