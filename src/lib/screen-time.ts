@@ -390,6 +390,7 @@ function heldLists(): SelectionId[] {
  * the extensions don't know it, so its shield shows the bedtime list's words.
  */
 export const TEST_LOCK = 'test-lock';
+/** As `LOCTURNE_TEST_LOCK_KEY` in Locturne.swift: a night window's start ends it (bedtime takes over). */
 const TEST_LOCK_KEY = 'locturne.testLock';
 
 /** A test lock under way: the method it waits for and when it started (steps count from then). */
@@ -473,6 +474,19 @@ export function getLastRehearsal(): Rehearsal | null {
 /** Is its copy asleep: started by iOS, not yet won or ended. As `locturneRehearsalLive` in Shared.swift. */
 export function rehearsalHeld(r: Rehearsal | null): r is Rehearsal & { heldAt: number } {
   return !!r && r.heldAt !== undefined && r.wonAt === undefined && r.endedAt === undefined;
+}
+
+/**
+ * How long after its morning start a rehearsal not won is given up: the copy wakes, so a
+ * forgotten one can't keep the bedtime apps asleep into the evening (user 2026-11-07: a 6 pm
+ * rehearsal never won kept every app asleep at 11:26 pm). As `LOCTURNE_REHEARSAL_GIVE_UP` in
+ * Locturne.swift.
+ */
+export const REHEARSAL_GIVE_UP_MS = 2 * 60 * 60_000;
+
+/** A rehearsal still asleep this long after its morning start (`REHEARSAL_GIVE_UP_MS`). */
+export function rehearsalOverdue(r: Rehearsal | null, now = new Date()): boolean {
+  return rehearsalHeld(r) && now.getTime() >= r.end + REHEARSAL_GIVE_UP_MS;
 }
 
 /**

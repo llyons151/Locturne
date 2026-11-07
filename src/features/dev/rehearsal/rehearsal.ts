@@ -1,11 +1,19 @@
 import { readLock, syncLock } from '@/lib/lock-controller';
 import { getRoutine, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
-import { finishRehearsal, getRehearsal, rehearsalHeld, rehearsalMorningIfDue, startRehearsal, type Rehearsal } from '@/lib/screen-time';
+import {
+  finishRehearsal,
+  getRehearsal,
+  rehearsalHeld,
+  rehearsalMorningIfDue,
+  rehearsalOverdue,
+  startRehearsal,
+  type Rehearsal,
+} from '@/lib/screen-time';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
 import { DOWNTIME_STEPS } from '@/lib/wake/downtime';
 
-import { getWakePreview, rehearsalWonOnShield, rehearseTheMorning, rehearseTheNight } from '../wake-lab/wake-preview';
+import { endRehearsal, getWakePreview, rehearsalWonOnShield, rehearseTheMorning, rehearseTheNight } from '../wake-lab/wake-preview';
 
 /**
  * You → Rehearse a night (dev and preview builds): a whole night in about 17 minutes on the real
@@ -76,6 +84,12 @@ export function resumeRehearsal(now = new Date()): void {
       finishRehearsal(now);
       syncLock(now);
     }
+    return;
+  }
+  // Forgotten: given up, so the copy wakes (`REHEARSAL_GIVE_UP_MS`). The extension does the same
+  // on its next callback if Locturne stays closed.
+  if (rehearsalOverdue(r, now)) {
+    endRehearsal();
     return;
   }
   const preview = getWakePreview();

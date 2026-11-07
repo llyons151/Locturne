@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import type { WakeMethod } from '@/lib/routine';
-import { syncLock } from '@/lib/lock-controller';
+import { nextBedtime, syncLock } from '@/lib/lock-controller';
 import { endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, sharedGet, sharedSet, winRehearsal } from '@/lib/screen-time';
 
 import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
@@ -171,6 +171,24 @@ export function rehearseTheMorning(method: WakeMethod, since: number) {
  */
 export function rehearseTheNight(method: WakeMethod, end: number) {
   setWakePreview({ phase: 'night', method, since: end, won: null });
+}
+
+/**
+ * A test lock (You → Developer → Morning unlocks) on every open and every 15 s, as
+ * `resumeRehearsal`. The preview lives in memory, so after a relaunch Home showed an ordinary day
+ * while the copy of the bedtime apps stayed asleep (user 2026-11-07): its test morning comes back
+ * on Home. A test lock still on at the first bedtime after it started is ended, so a forgotten one
+ * can't run into a real night; the monitor extension ends it at a night window's start too.
+ */
+export function resumeTestLock(now = new Date()) {
+  const lock = getTestLock();
+  if (!lock) return;
+  if (nextBedtime(new Date(lock.since)).getTime() <= now.getTime()) {
+    endTestLock();
+    if (current.phase === 'morning') setWakePreview({ phase: 'real', won: null });
+    return;
+  }
+  if (current.phase === 'real') setWakePreview({ phase: 'morning', method: lock.method as WakeMethod, since: lock.since, won: null });
 }
 
 /** A rehearsal won from the shield: Home leaves its night or morning for the made-up payoff. */

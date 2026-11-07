@@ -183,4 +183,32 @@ func registerRehearsalTests() {
     expectEqual(tap("tiktok", .data(steps: 900)), [.close], "the day's words only close")
     expectEqual(shielded(), ["reddit"])
   }
+
+  test("rehearsal: forgotten, it's given up two hours after its morning and the copy wakes (user 2026-11-07)") {
+    rehearsalArmed()
+    rehearsalNightRuns()
+    at("2026-10-05 17:16"); reapplyLocturneBlocks(triggeredBy: "test")
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"], "still its morning")
+    at("2026-10-05 17:17"); reapplyLocturneBlocks(triggeredBy: "test")
+    expectEqual(shielded(), ["reddit"], "only what a real rule holds stays asleep")
+    expectEqual(rehearsalNote("endedBy") as? String, "givenUp")
+    expect(!locturneRehearsalLive(), "no longer live, so nothing re-shields the copy")
+    expect(!deletionBlocked(), "deleting apps is allowed again")
+    expectRealLockUntouched()
+  }
+
+  test("test lock: a night window's start ends one left on, and bedtime holds the apps instead (user 2026-11-07)") {
+    pick("night", ["tiktok", "instagram"]); pick("always", ["reddit"])
+    saveRoutine(routine()); armNight(); appClosesInTheEvening(method: "steps")
+    appShields("always")
+    at("2026-10-05 15:00")
+    pick(LOCTURNE_TEST_LOCK_LIST, ["tiktok", "instagram"])
+    set(LOCTURNE_TEST_LOCK_KEY, ["method": "steps", "since": ms(local("2026-10-05 15:00"))])
+    appShields(LOCTURNE_TEST_LOCK_LIST)
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"])
+    at("2026-10-05 23:00"); start("night-0")
+    expect(get(LOCTURNE_TEST_LOCK_KEY) == nil, "the test lock's record is gone, so the app won't put it back")
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"], "the night holds the same apps")
+    expect(nightHeld(), "the real night holds")
+  }
 }

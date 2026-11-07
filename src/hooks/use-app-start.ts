@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { resumeRehearsal } from '@/features/dev/rehearsal/rehearsal';
+import { resumeTestLock } from '@/features/dev/wake-lab/wake-preview';
 import { setPaywallOpen, wasClosedAtPaywall } from '@/features/onboarding/setup';
 import { openDuePayoff } from '@/features/wake/open-payoff';
 import { track } from '@/lib/analytics';
@@ -148,13 +149,17 @@ export function useAppStart(): void {
 
   useEffect(() => onEntitled(armIfPaid), []);
 
-  // You → Rehearse a night (dev and preview builds): its morning or its result on every open, and
-  // its morning on time if Locturne was left open through the night.
+  // You → Rehearse a night and Test the lock (dev and preview builds): a rehearsal's morning or
+  // result, and a test lock's morning on Home, on every open; each given up once forgotten.
   useEffect(() => {
     if (!__DEV__ && process.env.EXPO_PUBLIC_DEV_LABS !== '1') return;
-    resumeRehearsal();
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && resumeRehearsal());
-    const tick = setInterval(() => resumeRehearsal(), 15_000);
+    const resume = () => {
+      resumeRehearsal();
+      resumeTestLock();
+    };
+    resume();
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && resume());
+    const tick = setInterval(resume, 15_000);
     return () => {
       sub.remove();
       clearInterval(tick);

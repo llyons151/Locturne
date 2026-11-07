@@ -66,6 +66,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
 
     if activity.rawValue.hasPrefix(LOCTURNE_NIGHT_PREFIX) {
+      // Bedtime ends a test lock left on (dev and preview builds), whatever the night does next.
+      locturneEndTestLock()
       // No subscription: nothing locks (`standDown` in src/lib/screen-time.ts stops the windows;
       // this covers a callback iOS was already making), and nothing is held for `standUp`.
       if userDefaults?.bool(forKey: LOCTURNE_STOOD_DOWN_KEY) == true {

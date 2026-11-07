@@ -388,6 +388,8 @@ func locturneScheduleBlocking(_ schedule: [String: Any], at now: Date) -> Bool {
 /// Nothing at all without a subscription (`standDown` in src/lib/screen-time.ts).
 @available(iOS 15.0, *)
 func reapplyLocturneBlocks(triggeredBy: String) {
+  // First, so deleting apps and the held lists below already see a forgotten rehearsal let go.
+  locturneGiveUpOverdueRehearsal()
   // First: the filter is set whole, so it also lifts websites nothing holds (or all, stood down).
   reapplyLocturneWebsites(triggeredBy: triggeredBy)
   syncLocturneAppRemoval()
@@ -1088,6 +1090,13 @@ let LOCTURNE_REHEARSAL_LIST = "rehearsal"
 let LOCTURNE_REHEARSAL_MORNING_SHIELD = "locturne-rehearsal-morning"
 /// The button type the app puts on the rehearsal's morning shield.
 let LOCTURNE_REHEARSAL_CHECK = "locturneRehearsalCheck"
+/// How long after its morning start a rehearsal not won is given up (`REHEARSAL_GIVE_UP_MS` in
+/// src/lib/screen-time.ts): a forgotten one can't keep the bedtime apps asleep into the evening.
+let LOCTURNE_REHEARSAL_GIVE_UP: TimeInterval = 2 * 60 * 60
+
+/// You → Test the lock's record (`TEST_LOCK_KEY` in src/lib/screen-time.ts) and its copy of the picks.
+let LOCTURNE_TEST_LOCK_KEY = "locturne.testLock"
+let LOCTURNE_TEST_LOCK_LIST = "test-lock"
 
 func locturneRehearsal() -> [String: Any]? { userDefaults?.dictionary(forKey: LOCTURNE_REHEARSAL_KEY) }
 
@@ -1141,6 +1150,31 @@ func locturneRehearsalMorning(by: String, now: Date = Date()) -> Bool {
 func locturneRehearsalMorningIfDue(now: Date = Date()) {
   guard let end = locturneRehearsalTime("end"), now >= end else { return }
   locturneRehearsalMorning(by: "late", now: now)
+}
+
+/// A rehearsal still asleep `LOCTURNE_REHEARSAL_GIVE_UP` after its morning start: noted as ended,
+/// so `locturneRehearsalLive` lets it go, and its copy wakes. The app finishes it on the next open.
+@available(iOS 15.0, *)
+func locturneGiveUpOverdueRehearsal(now: Date = Date()) {
+  guard locturneRehearsalLive(), let end = locturneRehearsalTime("end"),
+    now >= end.addingTimeInterval(LOCTURNE_REHEARSAL_GIVE_UP)
+  else { return }
+  locturneNoteRehearsal(["endedAt": locturneStamp(now), "endedBy": "givenUp"])
+  if let picked = getFamilyActivitySelectionById(id: LOCTURNE_REHEARSAL_LIST) {
+    unblockSelection(removeSelection: picked, triggeredBy: "locturne_rehearsalGivenUp")
+  }
+  restoreLocturneFallbackShield(triggeredBy: "locturne_rehearsalGivenUp")
+}
+
+/// Bedtime takes over from a test lock still on (a night window's start): its record goes and its
+/// copy wakes, so it can't outlast the night. What the night holds is shielded again right after.
+@available(iOS 15.0, *)
+func locturneEndTestLock() {
+  guard userDefaults?.object(forKey: LOCTURNE_TEST_LOCK_KEY) != nil else { return }
+  userDefaults?.removeObject(forKey: LOCTURNE_TEST_LOCK_KEY)
+  if let picked = getFamilyActivitySelectionById(id: LOCTURNE_TEST_LOCK_LIST) {
+    unblockSelection(removeSelection: picked, triggeredBy: "locturne_testLockAtBedtime")
+  }
 }
 
 /// Won from the shield: the copy wakes, the day's words come back, every real rule's apps stay asleep.

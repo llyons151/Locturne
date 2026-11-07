@@ -10,9 +10,13 @@ import {
   armedWindowNames,
   getAccess,
   getArmedNight,
+  getRehearsal,
+  getTestLock,
   isAnyShieldUp,
   isNightHeld,
   isScreenTimeAvailable,
+  REHEARSAL_GIVE_UP_MS,
+  type Rehearsal,
 } from '@/lib/screen-time';
 
 /** One grouped-list section: a title and label/value rows. */
@@ -39,6 +43,16 @@ function describeRoutine(r: Routine): [string, string][] {
     ['Wake-up', r.method],
     ['Step goal', String(r.stepGoal)],
   ];
+}
+
+/** Where a rehearsal is, in words. */
+function describeRehearsal(r: Rehearsal | null, now: Date): string {
+  if (!r) return 'none';
+  if (r.wonAt !== undefined) return `won ${when(r.wonAt)}, not finished yet`;
+  if (r.endedAt !== undefined) return `ended ${when(r.endedAt)}, not finished yet`;
+  if (r.heldAt === undefined) return now.getTime() < r.start ? `starts ${when(r.start)}` : `iOS never started it (due ${when(r.start)})`;
+  if (now.getTime() < r.end) return `${r.method} night, apps asleep until ${when(r.end)}`;
+  return `${r.method} morning since ${when(r.end)}, not won: apps asleep (given up ${when(r.end + REHEARSAL_GIVE_UP_MS)})`;
 }
 
 /**
@@ -81,6 +95,25 @@ export async function readDiagnostics(now = new Date()): Promise<DiagnosticsSect
           ]
         : [['Armed', 'no']],
     },
+    // Dev and preview builds' tests that put a copy of the bedtime apps to sleep without the
+    // night lock (user 2026-11-07: a forgotten one kept every app asleep and the report never said).
+    ...(__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1'
+      ? [
+          {
+            title: 'Dev tests',
+            rows: [
+              [
+                'Test lock',
+                (() => {
+                  const lock = safe(getTestLock, null);
+                  return lock ? `on since ${when(lock.since)} (${lock.method}): apps asleep` : 'off';
+                })(),
+              ],
+              ['Rehearsal', describeRehearsal(safe(getRehearsal, null), now)],
+            ] as [string, string][],
+          },
+        ]
+      : []),
     {
       title: 'Self-check',
       rows: health.nights.length
