@@ -9,5 +9,5 @@ const {
 module.exports = (config) => ({
   ...createConfig('shield-configuration')(config),
   bundleIdentifier: '.ShieldConfiguration',
-  deploymentTarget: '16.4',
+  deploymentTarget: '17.4',
 });

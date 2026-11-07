@@ -9,7 +9,7 @@ const {
 module.exports = (config) => ({
   ...createConfig('shield-action')(config),
   bundleIdentifier: '.ShieldAction',
-  deploymentTarget: '16.4',
+  deploymentTarget: '17.4',
   // The "I'm up" check reads the step and floor history (LocturneMorningCheck.swift).
   frameworks: ['CoreMotion'],
 });

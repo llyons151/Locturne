@@ -9,5 +9,5 @@ const {
 module.exports = (config) => ({
   ...createConfig('device-activity-monitor')(config),
   bundleIdentifier: '.DeviceActivityMonitor',
-  deploymentTarget: '16.4',
+  deploymentTarget: '17.4',
 });

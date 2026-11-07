@@ -5,7 +5,7 @@ KNOWN_EXTENSION_POINT_IDENTIFIERS['com.apple.deviceactivityui.report-extension']
 module.exports = {
   type: 'device-activity-report',
   bundleIdentifier: '.ScreenTimeReport',
-  deploymentTarget: '16.4',
+  deploymentTarget: '17.4',
   frameworks: ['SwiftUI', 'Charts', 'DeviceActivity'],
   entitlements: { 'com.apple.developer.family-controls': true },
 };
