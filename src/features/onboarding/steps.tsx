@@ -9,7 +9,8 @@ import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppsCard, type LivePicks } from '@/components/app-picker';
-import { PrimaryButton, TextButton } from '@/components/buttons';
+import { ASKING_APPLE, PrimaryButton, TextButton } from '@/components/buttons';
+import { SearchingOrb } from '@/components/thinking-orb';
 import { DayRow } from '@/components/day-picker';
 import { Reveal } from '@/components/motion';
 import { quizContentTop } from '@/components/night-sky';
@@ -458,6 +459,8 @@ export function renderStep(ctx: StepContext): StepView {
           <PrimaryButton
             label={editing ? 'Save' : answers.method ? (REPLY_BUTTON.method ?? 'Continue') : 'Next'}
             disabled={!answers.method}
+            // Motion & Fitness is asked on the way out (`askMotion`).
+            busy={ctx.asking ? ASKING_APPLE : undefined}
             onPress={editing ? next : () => ctx.askMotion(next)}
           />
         ),
@@ -630,7 +633,8 @@ export function renderStep(ctx: StepContext): StepView {
             // preview's falling-asleep animation keeps its own label.
             label={!picked ? 'Add apps' : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
             // Editing from the summary just saves; the first time, they watch them fall asleep.
-            disabled={ctx.screenTime === 'asking'}
+            // Apple's Screen Time sheet takes a second to come up: the orb says the tap was taken.
+            busy={ctx.screenTime === 'asking' ? ASKING_APPLE : undefined}
             onPress={!picked ? openPicker : editing ? () => ctx.askScreenTime(next) : sleep}
           />
         ),
@@ -723,6 +727,13 @@ export function renderStep(ctx: StepContext): StepView {
               <Voice text="Setting tonight." size={VoiceSize.headline} header />
               <View style={page.gapHeadline} />
               <Body>Handing your schedule to iOS. A second.</Body>
+              {/* iOS's prompts come up over this page with no button under them: the orb shows the wait here. */}
+              {ctx.asking ? (
+                <View style={styles.askingRow} accessibilityLabel={ASKING_APPLE}>
+                  <SearchingOrb />
+                  <Body style={styles.askingText}>{ASKING_APPLE}</Body>
+                </View>
+              ) : null}
             </View>
           ),
         };
@@ -749,7 +760,7 @@ export function renderStep(ctx: StepContext): StepView {
               ) : null}
             </View>
           ),
-          footer: <PrimaryButton label="Open Routine" disabled={ctx.notifications === null || ctx.asking} onPress={ctx.openRoutine} />,
+          footer: <PrimaryButton label="Open Routine" disabled={ctx.notifications === null} busy={ctx.asking ? ASKING_APPLE : undefined} onPress={ctx.openRoutine} />,
         };
       }
       if (arm.reason === 'no-apps') {
@@ -765,7 +776,7 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>You’re subscribed. Nothing sleeps at bedtime until you pick some.</Body>
             </View>
           ),
-          footer: <PrimaryButton label="Pick apps" disabled={ctx.asking} onPress={openPicker} />,
+          footer: <PrimaryButton label="Pick apps" busy={ctx.asking || ctx.screenTime === 'asking' ? ASKING_APPLE : undefined} onPress={openPicker} />,
           secondary: <TextButton label="Add them later" onPress={ctx.enterApp} />,
         };
       }
@@ -782,7 +793,7 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>You’re subscribed either way. Nothing is asleep until this works.</Body>
             </View>
           ),
-          footer: <PrimaryButton label={fail.button} onPress={ctx.retryArm} />,
+          footer: <PrimaryButton label={fail.button} busy={ctx.screenTime === 'asking' ? ASKING_APPLE : undefined} onPress={ctx.retryArm} />,
           secondary: arm.reason === 'no-access' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
         };
       }
@@ -958,6 +969,8 @@ function FineLink({ label, url }: { label: string; url: string }) {
 }
 
 const styles = StyleSheet.create({
+  askingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.s, marginTop: Space.xl },
+  askingText: { opacity: 0.7 },
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
   opener: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: Space.xxl },

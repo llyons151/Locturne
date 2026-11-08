@@ -621,10 +621,15 @@ export function OnboardingFlow({
   };
   const retryArm = async () => {
     if (arm.status === 'failed' && arm.reason === 'no-access') {
+      if (screenTime === 'asking') return;
+      // The button shows the orb while Apple's sheet comes up.
+      setScreenTime('asking');
       try {
         await requestAccess();
       } catch {
         // Still refused: armTonight says so again.
+      } finally {
+        setScreenTime('idle');
       }
     }
     runArm();
@@ -903,8 +908,9 @@ export function OnboardingFlow({
   const quiz = moonQuizFor(answers.pain).includes(step);
   // The opener's big moon gave way to the welcome demo (docs/WELCOME_SCREEN.md, 2026-11-02): the
   // moon rests at the bottom there as on every other page, so nothing flies on the way out.
-  // The offer: the moon rises to a low horizon under its compare table (user 2026-11-07).
-  const offerMoon = step === 'offer' && offers !== null;
+  // The offer: the moon rises to a low horizon under its compare table (user 2026-11-07), and stays there
+  // through the paywall after it, so nothing moves between the two (user 2026-11-08).
+  const offerMoon = (step === 'offer' || step === 'plans') && offers !== null;
   const moonPlace = quiz ? 'quiz' : offerMoon ? 'offer' : 'rest';
   const [lastMoonPlace, setLastMoonPlace] = useState(moonPlace);
   const riseMs = step === 'reveal' ? REVEAL_SKY_MS : QUIZ_RISE_MS;
@@ -1036,7 +1042,10 @@ export function OnboardingFlow({
   });
 
   // Pages leave instead of cutting (docs/DUOLINGO_MOTION.md): the page and its button on the way out stay a moment.
-  const pageKey = `${step}-${history.length}`;
+  // A money page waiting on the App Store's prices is its own page: when they come, it fades out and the
+  // paywall comes in with its entrance, instead of snapping from the waiting line to the plans (user 2026-11-08).
+  const waitingForPrices = (step === 'plans' || step === 'declined') && !offers;
+  const pageKey = `${step}-${history.length}${waitingForPrices ? '-prices' : ''}`;
   // `build` runs its own way out: Loc leaves, then the ground and its button slide down (user 2026-10-26).
   const isBuild = (key: string) => key.startsWith('build-');
   // The reveal's dots drop off the screen before `build` comes up (a light user's text-only reveal just fades).

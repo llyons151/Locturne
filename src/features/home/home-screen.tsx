@@ -9,6 +9,7 @@ import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarInset } from '@/components/app-tabs';
+import { ASKING_APPLE } from '@/components/buttons';
 import { holdHealthWhile, useHealth } from '@/hooks/use-health';
 import { askAccessAgain } from '@/lib/ask-access';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
@@ -238,6 +239,8 @@ export function HomeScreen() {
   // "Walk 200 steps instead" turns this morning's Home into the walk (user, 2026-10-15). Kept
   // per morning, so tomorrow starts on the routine's own method again.
   const [walkingFor, setWalkingFor] = useState<string | null>(null);
+  /** Waiting on Apple's Screen Time sheet from Home's button (`turnAccessOn`). */
+  const [askingAccess, setAskingAccess] = useState(false);
   // That morning's walk asked for from elsewhere (`/wake?method=steps`).
   const walkAsked = useWalkRequest();
   // Step away is a walk already, with its timer after: walking 200 instead would skip the timer, so
@@ -337,7 +340,14 @@ export function HomeScreen() {
     !paused && !stoodDown && armed && (phase === 'night' || (phase === 'day' && !attention && !!sleepsAt && !offTonight));
   // Asks right here (askAccessAgain), which offers Settings only if it's refused again.
   // The screen holds still until access is on and the blocks are back, then reads once (`holdHealthWhile`).
-  const turnAccessOn = () => holdHealthWhile(askAccessAgain()).then(recheckHealth);
+  // Apple's sheet takes about a second to come up, so the button shows the orb from the tap.
+  const turnAccessOn = () => {
+    if (askingAccess) return;
+    setAskingAccess(true);
+    holdHealthWhile(askAccessAgain())
+      .then(recheckHealth)
+      .finally(() => setAskingAccess(false));
+  };
   // A walk with Motion & Fitness off: Settings, with the other ways under it.
   const walkSettings = walk?.kind === 'denied' ? { label: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) } : null;
   // The locked morning's method and time. "Tomorrow" until midnight; past it, the morning is
@@ -360,8 +370,8 @@ export function HomeScreen() {
   };
   const action = unprotected
     ? health.protection === 'notSetUp'
-      ? { label: 'Turn on Screen Time', onPress: turnAccessOn }
-      : { label: 'Turn Screen Time back on', onPress: turnAccessOn }
+      ? { label: 'Turn on Screen Time', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
+      : { label: 'Turn Screen Time back on', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : trial

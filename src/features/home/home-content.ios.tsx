@@ -318,18 +318,43 @@ export function HomeContent(props: HomeContentProps) {
           ) : null}
           {!action ? null : weight === 'primary' ? (
             // The screen's one white button, as wide as the column (buttons.tsx's PrimaryButton).
-            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}>
-              <Text
-                modifiers={[
-                  font({ size: 17, weight: 'semibold' }),
-                  foregroundStyle(Nocturne.onCta),
-                  lineLimit(1),
-                  frame({ maxWidth: 10_000, minHeight: CTA_HEIGHT }),
-                  background(Nocturne.cta, shapes.capsule()),
-                ]}
-              >
-                {action.label}
-              </Text>
+            <Button
+              onPress={action.busy ? () => {} : action.onPress}
+              modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}
+            >
+              {action.busy ? (
+                // Apple's sheet takes a second: the orb and faded words say the tap was taken (buttons.tsx's `busy`).
+                <HStack
+                  spacing={Space.s}
+                  modifiers={[
+                    frame({ maxWidth: 10_000, minHeight: CTA_HEIGHT }),
+                    background(Nocturne.cta, shapes.capsule()),
+                    accessibilityElement('ignore'),
+                    accessibilityLabel(action.busy),
+                  ]}
+                >
+                  <ZStack modifiers={[frame({ width: 20, height: 20 })]}>
+                    <RNHostView matchContents>
+                      <SearchingOrb color={Nocturne.onCta} onLight />
+                    </RNHostView>
+                  </ZStack>
+                  <Text modifiers={[font({ size: 17, weight: 'semibold' }), foregroundStyle(Nocturne.onCta), opacity(0.55), lineLimit(1)]}>
+                    {action.busy}
+                  </Text>
+                </HStack>
+              ) : (
+                <Text
+                  modifiers={[
+                    font({ size: 17, weight: 'semibold' }),
+                    foregroundStyle(Nocturne.onCta),
+                    lineLimit(1),
+                    frame({ maxWidth: 10_000, minHeight: CTA_HEIGHT }),
+                    background(Nocturne.cta, shapes.capsule()),
+                  ]}
+                >
+                  {action.label}
+                </Text>
+              )}
             </Button>
           ) : weight === 'link' ? (
             <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}>

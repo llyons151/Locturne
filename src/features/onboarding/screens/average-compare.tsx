@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { GlassCard } from '@/components/glass-card';
 import { Text } from '@/components/text';
 
 import { Nocturne, Space, Type } from '@/theme';
@@ -7,11 +8,13 @@ import { AVERAGE_COMPARE, averageCompareLabel } from './average-compare-rows';
 
 /**
  * The average week on the phone in bed, without Locturne and with it, in one box on the paywall
- * where `NightCompare` sits for everyone else. Same tile look. On iPhone it's SwiftUI
+ * where `NightCompare` sits for everyone else. Same smoked card. On iPhone it's SwiftUI
  * (average-compare.ios.tsx); this is the web and Android version.
  */
 export function AverageCompare() {
   return (
+    // The smoked card the iPhone version, the night box and the plan cards sit in (user 2026-11-08: "just a gray box").
+    <GlassCard dark>
     <View style={styles.box} accessible accessibilityLabel={averageCompareLabel}>
       <View style={styles.columns}>
         {AVERAGE_COMPARE.columns.map((column, i) => (
@@ -23,6 +26,7 @@ export function AverageCompare() {
       </View>
       <Text style={styles.caption}>{AVERAGE_COMPARE.caption}</Text>
     </View>
+    </GlassCard>
   );
 }
 
@@ -31,10 +35,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Space.l,
     paddingHorizontal: Space.s,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Nocturne.edge,
-    backgroundColor: Nocturne.surface,
   },
   columns: { flexDirection: 'row', alignSelf: 'stretch' },
   column: { flex: 1, alignItems: 'center' },

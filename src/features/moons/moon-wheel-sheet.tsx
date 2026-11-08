@@ -4,7 +4,7 @@
 import { isMoonOrbViewAvailable, MoonOrbView } from 'moon-orb';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from 'react-native';
 import Animated, {
   interpolate,
   scrollTo,
@@ -37,6 +37,10 @@ const ORB = 64;
 const ROW = 84;
 /** The ring round the middle orb. */
 const RING = 84;
+/** The browser's scroll snap, for the web preview: every orb's middle is a stop. */
+const WEB_SNAP = Platform.OS === 'web' ? ({ scrollSnapType: 'x mandatory' } as unknown as ViewStyle) : undefined;
+const WEB_SNAP_ITEM = Platform.OS === 'web' ? ({ scrollSnapAlign: 'center' } as unknown as ViewStyle) : undefined;
+
 /** A locked moon's orb: grey water, so its colours stay the surprise (as the Moons page's grey icons). */
 const LOCKED: string[] = ['#060608', '#17171C', '#2C2C33', '#5A5A64'];
 
@@ -103,6 +107,20 @@ export function MoonWheel() {
     });
   };
 
+  // Wherever a scroll ends off-centre (a slow drag let go, or a browser that didn't snap), it settles on the nearest orb.
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const landed = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const at = e.nativeEvent.contentOffset.x;
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => {
+      const i = Math.min(slots.length - 1, Math.max(0, Math.round(at / ITEM)));
+      if (Math.abs(at - i * ITEM) > 0.5) go(i);
+    }, 90);
+  };
+  useEffect(() => () => {
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+  }, []);
+
   const go = (i: number) => {
     scheduleOnUI(() => {
       'worklet';
@@ -136,10 +154,17 @@ export function MoonWheel() {
           ref={list}
           horizontal
           showsHorizontalScrollIndicator={false}
-          snapToInterval={ITEM}
+          // One exact stop per orb (user 2026-11-08: "isn't snapping into place"), and the browser's own snap on web,
+          // where React Native Web ignores these.
+          snapToOffsets={slots.map((_, i) => i * ITEM)}
+          snapToEnd={false}
+          snapToStart={false}
           decelerationRate="fast"
           disableIntervalMomentum
           onScroll={onScroll}
+          onScrollEndDrag={landed}
+          onMomentumScrollEnd={landed}
+          style={WEB_SNAP}
           scrollEventThrottle={16}
           contentContainerStyle={{ paddingHorizontal: side }}
         >
@@ -211,7 +236,7 @@ function Stop({
       accessibilityRole="button"
       accessibilityLabel={slot.owned ? label : `${label}, locked`}
       accessibilityState={{ selected }}
-      style={styles.stop}
+      style={[styles.stop, WEB_SNAP_ITEM]}
     >
       <View style={styles.orbRow}>
         <Animated.View style={orb}>

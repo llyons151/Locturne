@@ -29,6 +29,7 @@ import { AddTile, AppPickerSheet } from '@/components/app-picker';
 import { GlassCard } from '@/components/glass-card';
 import { appsMoonRoom } from '@/components/night-sky';
 import { RaisedMoonTap } from '@/features/moons/moon-tap';
+import { SearchingOrb } from '@/components/thinking-orb';
 import { sym } from '@/components/grouped-list';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { freeLimitId, limitLabel, MAX_LIMITS, type DailyLimit } from '@/lib/daily-limits';
@@ -898,27 +899,30 @@ export function AppRow({
  * A list's action row: a white + tile, its label and a chevron. `divided` draws the separator
  * above the rows that follow.
  */
-export function EditRow({ label, onPress, divided }: { label: string; onPress: () => void; divided?: boolean }) {
+export function EditRow({ label, onPress, divided, busy }: { label: string; onPress: () => void; divided?: boolean; busy?: string }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={!!busy}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={busy ?? label}
+      accessibilityState={{ busy: !!busy }}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <View style={styles.roundIcon}>
-        <AddTile size={ICON} />
-      </View>
+      {/* Waiting on Apple's sheet (`busy`): the orb takes the plus's place and the words fade (buttons.tsx's ASKING_APPLE). */}
+      <View style={[styles.roundIcon, busy && styles.busyIcon]}>{busy ? <SearchingOrb /> : <AddTile size={ICON} />}</View>
       <View style={[styles.rowBody, divided && styles.separator]}>
-        <Text style={[styles.rowLabel, styles.editLabel]} numberOfLines={1}>
-          {label}
+        <Text style={[styles.rowLabel, styles.editLabel, busy && styles.busyLabel]} numberOfLines={1}>
+          {busy ?? label}
         </Text>
-        <SymbolView
-          name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-          size={14}
-          weight="semibold"
-          tintColor={Nocturne.text3}
-        />
+        {busy ? null : (
+          <SymbolView
+            name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+            size={14}
+            weight="semibold"
+            tintColor={Nocturne.text3}
+          />
+        )}
       </View>
     </Pressable>
   );
@@ -986,6 +990,8 @@ const styles = StyleSheet.create({
   rowIcons: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
   rowMore: { ...Type.secondary, color: Nocturne.text2, marginLeft: 2 },
   roundIcon: { width: ICON, height: ICON, borderRadius: ICON / 2, overflow: 'hidden' },
+  busyIcon: { alignItems: 'center', justifyContent: 'center' },
+  busyLabel: { color: Nocturne.text2 },
   // A faint edge, so black icons (Netflix, X, Threads) keep their shape on the black card.
   iconRing: {
     ...StyleSheet.absoluteFill,

@@ -9,10 +9,21 @@ import { globeFrame, orbTime, type OrbSize } from './globe';
 
 /**
  * A dotted globe with a scan sweeping it (thinking-orbs' "searching"), for a short wait on a
- * location read. Decorative: whatever it sits beside says what's happening. Every orb runs off
+ * location read, or on a button waiting for Apple's permission sheet (`PrimaryButton`'s `busy`). Decorative: whatever it sits beside says what's happening. Every orb runs off
  * one clock, so two on screen stay in step. Reduce Motion gets one still frame.
  */
-export function SearchingOrb({ size = 20, color = Nocturne.text, style }: { size?: OrbSize; color?: string; style?: StyleProp<ViewStyle> }) {
+export function SearchingOrb({
+  size = 20,
+  color = Nocturne.text,
+  onLight,
+  style,
+}: {
+  size?: OrbSize;
+  color?: string;
+  /** Dark dots on a white pill: the dim dots read as nothing there, so every dot gets more ink. */
+  onLight?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
   const reduced = useReducedMotion();
   const [t, setT] = useState(() => (reduced ? 0.6 : orbTime(size, performance.now() / 1000)));
 
@@ -36,7 +47,7 @@ export function SearchingOrb({ size = 20, color = Nocturne.text, style }: { size
     >
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {globeFrame(size, reduced ? 0.6 : t).map((layer, i) =>
-          layer.d ? <Path key={i} d={layer.d} fill={color} fillOpacity={layer.opacity} /> : null,
+          layer.d ? <Path key={i} d={layer.d} fill={color} fillOpacity={onLight ? Math.min(1, 0.3 + layer.opacity) : layer.opacity} /> : null,
         )}
       </Svg>
     </View>

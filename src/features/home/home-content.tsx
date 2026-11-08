@@ -47,7 +47,13 @@ export type HomeContentProps = {
 };
 
 /** `opens`: it leads somewhere (a chevron), rather than doing the thing it names. */
-export type HomeAction = { label: string; onPress: () => void; opens?: boolean };
+export type HomeAction = {
+  label: string;
+  onPress: () => void;
+  opens?: boolean;
+  /** Waiting on what the tap started (Apple's Screen Time sheet): the orb and these words, faded, in the label's place. */
+  busy?: string;
+};
 /**
  * `progress` 0–1 draws the track; without it, just the number (a distance has no track).
  * `kicker` is the small capitals label over the number ("BEDTIME IN"), `unit` the small "am"
@@ -141,10 +147,26 @@ export function HomeContent(props: HomeContentProps) {
         {action ? (
         <Animated.View style={[enter(5), weight === 'primary' && styles.primaryWrap]}>
           {weight === 'primary' ? (
-            <Pressable onPress={action.onPress} accessibilityRole="button" style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-              <Text style={styles.primaryLabel} numberOfLines={1}>
-                {action.label}
-              </Text>
+            <Pressable
+              onPress={action.onPress}
+              disabled={!!action.busy}
+              accessibilityRole="button"
+              accessibilityLabel={action.busy}
+              accessibilityState={{ busy: !!action.busy }}
+              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            >
+              {action.busy ? (
+                <View style={styles.busy}>
+                  <SearchingOrb color={Nocturne.onCta} onLight />
+                  <Text style={[styles.primaryLabel, styles.busyLabel]} numberOfLines={1}>
+                    {action.busy}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.primaryLabel} numberOfLines={1}>
+                  {action.label}
+                </Text>
+              )}
             </Pressable>
           ) : weight === 'link' ? (
             <Pressable onPress={action.onPress} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
@@ -213,5 +235,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryLabel: { fontSize: 17, fontWeight: '600', color: Nocturne.onCta },
+  busy: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
+  busyLabel: { opacity: 0.55 },
   altLabel: { ...Type.secondary, color: Nocturne.text2 },
 });

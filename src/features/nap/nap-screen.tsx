@@ -205,8 +205,10 @@ export function NapScreen() {
   const choose = (next: List) => {
     setList(next);
     setNotice(null);
-    // The first time, go straight to Apple's picker.
-    if (next === 'block' && isScreenTimeAvailable() && picks === 0) pickApps();
+    // Switching to Pick apps always opens Apple's picker, even with picks saved from last
+    // time: the half only shows a count, so this is where you see (and change) what they are
+    // (user, 2026-11-08).
+    if (next === 'block' && isScreenTimeAvailable()) pickApps();
   };
   const refreshPicks = () => setPicks(isScreenTimeAvailable() ? selectionSize('block') : 0);
 

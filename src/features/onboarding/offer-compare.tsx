@@ -6,9 +6,10 @@
  */
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { sym } from '@/components/grouped-list';
-import { Reveal } from '@/components/motion';
+import { focusIn, Reveal, useEntranceDelay } from '@/components/motion';
 import { Text } from '@/components/text';
 import type { WakeMethod } from '@/lib/routine';
 
@@ -46,17 +47,22 @@ const ROW_STAGGER_MS = 70;
 
 export function OfferCompare({ method, compact, delay = 0 }: { method: WakeMethod; compact: boolean; delay?: number }) {
   const rows = rowsFor(method, compact);
+  const reduced = useReducedMotion();
+  // The heading row's turn in the page's entrance, shared with Locturne's strip so the two come in as one
+  // (user 2026-11-08: the strip was there before any of the words).
+  const headAt = useEntranceDelay(delay);
+  const enter = reduced ? null : focusIn(headAt);
   return (
     <View style={styles.table}>
       {/* Locturne's column, a frosted strip from its heading to the last row. */}
-      <View style={styles.oursColumn} />
-      <Reveal delay={delay}>
+      <Animated.View style={[styles.oursColumn, enter]} />
+      <Animated.View style={enter}>
         <View style={styles.row}>
           <View style={styles.labelCell} />
           <Text style={[styles.head, styles.apple]}>Screen Time</Text>
           <Text style={[styles.head, styles.headOurs]}>Locturne</Text>
         </View>
-      </Reveal>
+      </Animated.View>
       {rows.map((row, i) => (
         <Reveal key={row.label} delay={delay + ROW_STAGGER_MS * (i + 1)}>
           <View style={[styles.row, compact && styles.rowCompact]}>

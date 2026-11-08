@@ -4,7 +4,8 @@ import { useIsFocused } from 'expo-router';
 import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 
-import { PrimaryButton } from '@/components/buttons';
+import { ASKING_APPLE, PrimaryButton } from '@/components/buttons';
+import { SearchingOrb } from '@/components/thinking-orb';
 import { useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 import { Nocturne, Radius, Space, Type } from '@/theme';
 
@@ -79,7 +80,16 @@ export function Scanner({
   const frame = fill ? styles.fill : styles.frame;
 
   // Dark while Apple's prompt is up (and before the first read): the camera opens behind it.
-  if (!permission || askNow) return <View style={frame} />;
+  if (!permission) return <View style={frame} />;
+  // Apple's camera prompt: the orb says what's being waited on, under and around the alert.
+  if (askNow) {
+    return (
+      <View style={[frame, styles.waiting]} accessibilityLabel={ASKING_APPLE}>
+        <SearchingOrb />
+        <Text style={styles.waitingText}>{ASKING_APPLE}</Text>
+      </View>
+    );
+  }
 
   if (!permission.granted) {
     return (
@@ -134,4 +144,6 @@ const styles = StyleSheet.create({
   fill: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
   ask: { justifyContent: 'center', padding: Space.xl, gap: Space.l },
   askText: { ...Type.body, color: Nocturne.text2, textAlign: 'center' },
+  waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.s },
+  waitingText: { ...Type.secondary, color: Nocturne.text2, fontWeight: '600' },
 });

@@ -650,13 +650,16 @@ function shieldConfig({ title, subtitle, button, ring }: ShieldText) {
     // white text and a see-through white pill (user, 2026-11-05).
     // UIBlurEffectStyle.systemUltraThinMaterialDark, as a number: the tests fake the library.
     backgroundBlurStyle: 16 as const,
+    // A black wash over the frost, so white text still reads over a white app (user, 2026-11-08).
+    // Neutral darkening, not a glow. Tune between ~0.35 and 0.45 on the phone.
+    backgroundColor: { red: 0, green: 0, blue: 0, alpha: 0.4 },
     // The worn moon's icon; the extension falls back to the symbol if the file can't be read.
     // The tint is for the symbol only (ShieldConfigurationExtension.swift's `resolveIcon`).
     iconSystemName: 'moon.zzz.fill',
     ...(moonIcon ? { iconAppGroupRelativePath: moonIcon } : {}),
     iconTint: { red: 255, green: 255, blue: 255 },
     titleColor: { red: 255, green: 255, blue: 255 },
-    subtitleColor: { red: 161, green: 161, blue: 166 },
+    subtitleColor: { red: 255, green: 255, blue: 255, alpha: 0.7 },
     primaryButtonLabelColor: { red: 255, green: 255, blue: 255 },
     primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255, alpha: 0.2 },
   };

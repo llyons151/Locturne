@@ -1,15 +1,22 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { PressScale } from '@/components/press-scale';
 import { Text } from '@/components/text';
+import { SearchingOrb } from '@/components/thinking-orb';
 
 import { tap } from '@/lib/haptics';
 import { CTA_HEIGHT, Nocturne, Radius, Space } from '@/theme';
 
 /** Inside onboarding's footer, over the sky that pales toward dawn: darker not-ready pills and a stronger text link. */
 export const OnSky = createContext(false);
+
+/**
+ * `busy`'s words while iOS gets its permission sheet up. Apple's Screen Time sheet takes about
+ * a second to appear (user, 2026-11-08: the tap looked like it hadn't registered).
+ */
+export const ASKING_APPLE = 'Asking Apple…';
 
 /** The main white pill. Every screen's bottom action uses it, at the same height. */
 export function PrimaryButton({
@@ -19,10 +26,16 @@ export function PrimaryButton({
   icon,
   flex,
   slim,
+  busy,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  /**
+   * Words for a wait the tap started (`ASKING_APPLE`): the orb and these, faded, take the label's
+   * place and the pill stays white, so the tap reads as taken. Can't be pressed again meanwhile.
+   */
+  busy?: string;
   /** A glyph before the label, as in the Sleep sheet's buttons. */
   icon?: SymbolViewProps['name'];
   /** Shares a row with another button. */
@@ -37,14 +50,27 @@ export function PrimaryButton({
         tap();
         onPress();
       }}
-      disabled={disabled}
+      disabled={disabled || !!busy}
       accessibilityRole="button"
-      style={[styles.cta, slim && styles.ctaSlim, flex && styles.flex, disabled && (sky ? styles.ctaDisabledSky : styles.ctaDisabled)]}
+      accessibilityLabel={busy ?? undefined}
+      accessibilityState={{ busy: !!busy, disabled: disabled || !!busy }}
+      style={[styles.cta, slim && styles.ctaSlim, flex && styles.flex, disabled && !busy && (sky ? styles.ctaDisabledSky : styles.ctaDisabled)]}
     >
-      {icon ? <SymbolView name={icon} size={17} weight="semibold" tintColor={disabled ? (sky ? DISABLED_LABEL_SKY : DISABLED_LABEL) : Nocturne.onCta} /> : null}
-      <Text style={[styles.ctaLabel, slim && styles.ctaLabelSlim, disabled && (sky ? styles.ctaLabelDisabledSky : styles.ctaLabelDisabled)]} numberOfLines={1}>
-        {label}
-      </Text>
+      {busy ? (
+        <Animated.View entering={FadeIn.duration(160)} style={styles.busy}>
+          <SearchingOrb color={Nocturne.onCta} onLight />
+          <Text style={[styles.ctaLabel, slim && styles.ctaLabelSlim, styles.busyLabel]} numberOfLines={1}>
+            {busy}
+          </Text>
+        </Animated.View>
+      ) : (
+        <>
+          {icon ? <SymbolView name={icon} size={17} weight="semibold" tintColor={disabled ? (sky ? DISABLED_LABEL_SKY : DISABLED_LABEL) : Nocturne.onCta} /> : null}
+          <Text style={[styles.ctaLabel, slim && styles.ctaLabelSlim, disabled && (sky ? styles.ctaLabelDisabledSky : styles.ctaLabelDisabled)]} numberOfLines={1}>
+            {label}
+          </Text>
+        </>
+      )}
     </PressScale>
   );
 }
@@ -116,8 +142,17 @@ export function OutlineButton({ label, onPress, flex }: { label: string; onPress
  * A quiet grey text link for secondary actions. `lead`: a quiet question before the action, as in "Already have an account? Sign in"
  * (Suno, FotMob, LARQ): the question in grey, the action in white.
  */
-export function TextButton({ label, onPress, lead }: { label: string; onPress: () => void; lead?: string }) {
+export function TextButton({ label, onPress, lead, busy }: { label: string; onPress: () => void; lead?: string; busy?: string }) {
   const sky = useContext(OnSky);
+  if (busy) {
+    // Waiting on Apple's sheet: a small orb and the words, faded, where the link was.
+    return (
+      <View style={[styles.textButton, styles.textButtonBusy, lead && styles.textButtonLed]} accessibilityRole="button" accessibilityLabel={busy} accessibilityState={{ busy: true }}>
+        <SearchingOrb color={sky ? '#FFFFFF' : Nocturne.text2} />
+        <Text style={[styles.textButtonLabel, sky && styles.textButtonSky, styles.busyLabel]}>{busy}</Text>
+      </View>
+    );
+  }
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={lead ? `${lead} ${label}` : undefined} hitSlop={8} style={[styles.textButton, lead && styles.textButtonLed]}>
       <Text style={[styles.textButtonLabel, sky && styles.textButtonSky, lead && styles.textButtonAction]}>
@@ -160,6 +195,8 @@ const styles = StyleSheet.create({
   ctaDisabled: { backgroundColor: 'rgba(255, 255, 255, 0.22)' },
   ctaLabel: { color: Nocturne.onCta, fontSize: 17, fontWeight: '600' },
   ctaLabelSlim: { fontSize: 16 },
+  busy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.s },
+  busyLabel: { opacity: 0.55 },
   ctaLabelDisabled: { color: DISABLED_LABEL },
   // On the onboarding sky the faded white turned to fog on the pale dawn (2026-10-26): a dark see-through pill keeps its shape,
   // and turning solid white when ready is the bigger change.
@@ -167,6 +204,7 @@ const styles = StyleSheet.create({
   ctaLabelDisabledSky: { color: DISABLED_LABEL_SKY },
   textButton: { alignSelf: 'center', paddingVertical: Space.xs },
   textButtonLabel: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
+  textButtonBusy: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
   // With the footer's 8 above, about 22pt from the button to the text, as in Suno and Jobber.
   textButtonLed: { paddingVertical: Space.m },
   // Near-white and semibold so the link holds on the pale dawn; no text shadow (it read as a smudge, 2026-10-26).

@@ -253,6 +253,17 @@ export function timeBackQuestion(amount: string): string {
  * The paywall's headline: their weekly hours, as their own time back. Not "for workouts" or "for
  * reading" from `time-back`: that read like a workout app (user 2026-10-28).
  */
+/**
+ * The paywall's headline with no hours of their own to lead with (a light user): what they said hurts, back
+ * (user 2026-11-08: "take back your mornings or take back your nights based on what they said their pain was").
+ */
+export function painHeadline(pain: Pain | undefined): string {
+  if (pain === 'night') return 'Take back your nights.';
+  if (pain === 'morning') return 'Take back your mornings.';
+  if (pain === 'overall') return 'Take back your days.';
+  return 'Take back your nights and mornings.';
+}
+
 export function plansHeadline(amount: string): string {
   return `${upperFirst(amount)} a week of your time back.`;
 }

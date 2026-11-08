@@ -403,9 +403,15 @@ export function Ready({ ready, children }: PropsWithChildren<{ ready: boolean }>
   const reduced = useReducedMotion();
   const shown = useSharedValue(ready ? 1 : 0);
   useEffect(() => {
-    shown.value = reduced ? (ready ? 1 : 0) : withTiming(ready ? 1 : 0, { duration: 260 });
+    // Arriving: a slow ease-out, so it settles in rather than snapping (user 2026-11-08: 260 ms
+    // ease-in-out read fast and janky on the reveal's "Let's fix this"). Leaving stays quick.
+    shown.value = reduced
+      ? ready ? 1 : 0
+      : ready
+        ? withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) })
+        : withTiming(0, { duration: 200 });
   }, [ready, reduced, shown]);
-  const style = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ translateY: (1 - shown.value) * 6 }] }));
+  const style = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ translateY: (1 - shown.value) * 14 }] }));
   return (
     <Animated.View style={[style, { pointerEvents: ready ? 'auto' : 'none' }]} accessibilityElementsHidden={!ready}>
       {children}
