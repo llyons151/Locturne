@@ -459,12 +459,26 @@ func locturneDeletionHolds(now: Date = Date()) -> Bool {
   {
     return true
   }
-  // Two minutes on, as `reapplyLocturneBlocks` judges a schedule's block.
+  // Two minutes on, as `reapplyLocturneBlocks` judges a schedule's block. Only a block of up to
+  // 8 hours: a longer one (all day, round the clock) acts like the always list (screen-time.ts).
   let soon = now.addingTimeInterval(120)
   return locturneSchedules(now: soon).contains { schedule in
     guard let id = schedule["id"] as? String else { return false }
-    return locturneScheduleBlocking(schedule, at: soon) && getFamilyActivitySelectionById(id: id) != nil
+    return locturneScheduleMinutes(schedule) <= LOCTURNE_DELETION_HOLD_MAX_MINUTES
+      && locturneScheduleBlocking(schedule, at: soon) && getFamilyActivitySelectionById(id: id) != nil
   }
+}
+
+/// schedules.ts `DELETION_HOLD_MAX_MINUTES`: keep the two in step.
+let LOCTURNE_DELETION_HOLD_MAX_MINUTES = 8 * 60
+
+/// How long one of the schedule's blocks runs, in minutes, as schedules.ts `blockMinutes`.
+func locturneScheduleMinutes(_ schedule: [String: Any]) -> Int {
+  if (schedule["allDay"] as? Bool) == true { return 1440 }
+  let start = (schedule["start"] as? NSNumber)?.intValue ?? 0
+  let end = (schedule["end"] as? NSNumber)?.intValue ?? 0
+  let length = ((end - start) % 1440 + 1440) % 1440
+  return length == 0 ? 1440 : length
 }
 
 func syncLocturneAppRemoval() {

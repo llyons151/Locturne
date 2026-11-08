@@ -606,10 +606,14 @@ export function OnboardingFlow({
   const runArm = async () => {
     setArm({ status: 'working' });
     const result = await armTonight();
-    setArm(result);
+    // Screen Time access still off: no page for it (user 2026-11-08). Home's own "Screen Time
+    // access isn't on yet" asks for it, so it reads as the setting-tonight page while iOS's
+    // other prompts come up, then Home.
+    const noAccess = result.status === 'failed' && result.reason === 'no-access';
+    setArm(noAccess ? { status: 'working' } : result);
     // Set, so there's nothing to show: iOS's prompts come up over this page, then Home
-    // (`askAfterPurchase`). Only a failure or every night off has a page (`armed`).
-    if (result.status === 'armed' || result.status === 'preview') setLeaving(true);
+    // (`askAfterPurchase`). Only another failure or every night off has a page (`armed`).
+    if (result.status === 'armed' || result.status === 'preview' || noAccess) setLeaving(true);
     else if (step !== 'armed') dispatch({ type: 'reset', to: 'armed' });
     // `saveSetup` planned before the night was armed, so it found no bedtime to warn about.
     if (result.status === 'armed') rescheduleNotifications().catch(() => {});
@@ -620,18 +624,6 @@ export function OnboardingFlow({
     });
   };
   const retryArm = async () => {
-    if (arm.status === 'failed' && arm.reason === 'no-access') {
-      if (screenTime === 'asking') return;
-      // The button shows the orb while Apple's sheet comes up.
-      setScreenTime('asking');
-      try {
-        await requestAccess();
-      } catch {
-        // Still refused: armTonight says so again.
-      } finally {
-        setScreenTime('idle');
-      }
-    }
     runArm();
   };
   /** A Restore found a subscription in this session, so finishing from `commit` is a restore. */

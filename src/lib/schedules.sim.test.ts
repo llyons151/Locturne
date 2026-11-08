@@ -172,6 +172,21 @@ test('a pass wakes a schedule block under way until it ends, and the next block 
   assert.ok(asleep('youtube'));
 });
 
+test('a workday block refuses deleting apps; an all-day block, like the always list, does not', async () => {
+  await setup(at(5, 8));
+  pick('sched-0', ['youtube']);
+  await save('sched-0', WORK);
+  runTo(at(5, 10));
+  await open();
+  assert.ok(asleep('youtube'));
+  assert.ok(st.holdsDeletion(), '9 to 5 is 8 hours: deleting is off');
+  await save('sched-0', { ...WORK, allDay: true, days: [0, 1, 2, 3, 4, 5, 6] });
+  runTo(at(5, 11));
+  await open();
+  assert.ok(asleep('youtube'), 'all day still sleeps');
+  assert.ok(!st.holdsDeletion(), 'but deleting apps stays allowed');
+});
+
 test('with nothing else asleep, a schedule block alone is something for a pass to wake', async () => {
   await setup(at(5, 8));
   // No night held this morning: a pass only has the schedule to wake.

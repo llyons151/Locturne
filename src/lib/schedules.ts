@@ -75,6 +75,15 @@ function span(s: Pick<Schedule, 'start' | 'end' | 'allDay'>): { start: number; l
   return { start: s.start, length: length === 0 ? DAY : length };
 }
 
+/**
+ * A block longer than this doesn't refuse deleting apps (`holdsDeletion`): a workday still does,
+ * an all-day or round-the-clock schedule acts like the always list (user 2026-11-08: 8 hours).
+ */
+export const DELETION_HOLD_MAX_MINUTES = 8 * 60;
+
+/** How long one of the schedule's blocks runs, in minutes (a whole day for all day). */
+export const blockMinutes = (s: Pick<Schedule, 'start' | 'end' | 'allDay'>) => span(s).length;
+
 /** Midnight at the start of `date`'s day, `offset` days on, on the wall clock. */
 const dayOf = (date: Date, offset = 0) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
 const atMinute = (day: Date, minute: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minute);

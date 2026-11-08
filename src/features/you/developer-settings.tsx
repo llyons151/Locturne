@@ -21,7 +21,7 @@ import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
-import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, getMoonWheel, setMoonsAsPage, setMoonWheel } from '@/features/moons/moon-collection';
+import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, setMoonsAsPage } from '@/features/moons/moon-collection';
 import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { useMoon } from '@/features/moons/moon-theme';
 
@@ -81,7 +81,6 @@ export function DeveloperSettings() {
   const render = useMoonRender();
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
-  const [moonWheel, setWheel] = useState(getMoonWheel);
   // Only so the row's "On next open" shows straight away.
   const [, setArmed] = useState(false);
   const refresh = useCallback(() => setTestRun(getTestLock()), []);
@@ -133,7 +132,7 @@ export function DeveloperSettings() {
       {/* Wear any moon, all unlocked, to test them (features/moons). */}
       <Group
         label="Moon"
-        note="Wear any moon, unlocked or not. Unlock the next one and play the victory screen for it (the rare one once the ladder's done), earn the next one quietly, earn them all, or start over with none. The first switch opens the collection as its own page instead of a sheet; the second makes tapping the moon open the moon wheel instead of the collection."
+        note="Wear any moon, unlocked or not. Unlock the next one and play the victory screen for it (the rare one once the ladder's done), earn the next one quietly, earn them all, or start over with none. The switch opens the collection as its own page instead of a sheet."
       >
         <ValueRow {...icon('moon.circle', 'dark_mode')} title="Moon" value={moon.name} onPress={() => router.push('/moons' as Href)} last />
         <SwitchRow
@@ -143,16 +142,6 @@ export function DeveloperSettings() {
           onChange={(on) => {
             setMoonsAsPage(on);
             setAsPage(on);
-          }}
-          last
-        />
-        <SwitchRow
-          {...icon('circle.circle', 'radio_button_checked')}
-          title="Moon opens the wheel"
-          value={moonWheel}
-          onChange={(on) => {
-            setMoonWheel(on);
-            setWheel(on);
           }}
           last
         />

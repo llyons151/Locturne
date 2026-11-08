@@ -6,7 +6,7 @@ import { appsMoonRoom, raisedMoonArc } from '@/components/night-sky';
 import * as haptic from '@/lib/haptics';
 
 import { LOC_VIEW } from '../home/loc-rig';
-import { openMoonWheel } from './moon-collection';
+import { openMoons } from './moon-collection';
 
 /** Loc's width as a share of the screen, as on Home (loc.tsx). */
 const LOC_SHARE = 0.27;
@@ -77,7 +77,8 @@ export function RaisedMoonTap() {
 
 function open() {
   haptic.tap();
-  openMoonWheel();
+  // The collection, as a page (user 2026-11-08: the moon wheel removed).
+  openMoons('moon');
 }
 
 const styles = StyleSheet.create({

@@ -793,8 +793,8 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>You’re subscribed either way. Nothing is asleep until this works.</Body>
             </View>
           ),
-          footer: <PrimaryButton label={fail.button} busy={ctx.screenTime === 'asking' ? ASKING_APPLE : undefined} onPress={ctx.retryArm} />,
-          secondary: arm.reason === 'no-access' ? <TextButton label="Open Settings" onPress={() => Linking.openSettings().catch(() => {})} /> : undefined,
+          // Access off never gets here: it goes to Home, which asks for it (onboarding-flow.tsx `runArm`).
+          footer: <PrimaryButton label={fail.button} onPress={ctx.retryArm} />,
         };
       }
     }

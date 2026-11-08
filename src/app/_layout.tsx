@@ -71,11 +71,6 @@ export default function RootLayout() {
             name="moon-sheet"
             options={{ presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true, contentStyle: { backgroundColor: MOONS_BG } }}
           />
-          {/* Home's moon: the moon wheel, in the Sleep sheet's floating card (features/moons/moon-wheel-sheet.tsx, user 2026-11-07). */}
-          <Stack.Screen
-            name="moon-wheel"
-            options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
-          />
           {/* The tabs fade and the black strip slides up into it (features/moons/moons-page.tsx, user 2026-11-01). */}
           <Stack.Screen
             name="moon-page"

@@ -46,6 +46,8 @@ import { planNightWindows, WINDOW_PREFIX, type NightWindow } from './night-plan.
 import {
   blockAt,
   blockEnds,
+  blockMinutes,
+  DELETION_HOLD_MAX_MINUTES,
   isBlocking,
   MAX_SCHEDULES,
   SCHEDULE_IDS,
@@ -310,9 +312,10 @@ export function setAppRemovalWriter(write: ((deny: boolean) => void) | null): vo
 
 /**
  * Deleting Locturne takes every shield with it, so while a lock someone chose holds, iOS won't
- * delete apps: the night (bedtime until the morning's proof), Block now, an app schedule's block,
- * and a rehearsal night. Not a used-up daily limit, nor the always list, or deleting would be off
- * all evening, or forever (user 2026-11-02). Nothing without a subscription. The extensions judge
+ * delete apps: the night (bedtime until the morning's proof), Block now, an app schedule's block
+ * of up to 8 hours, and a rehearsal night. Not a used-up daily limit, nor the always list, nor a
+ * longer schedule block (all day, round the clock), or deleting would be off all evening, all day
+ * or forever (user 2026-11-02, 2026-11-08). Nothing without a subscription. The extensions judge
  * the same (`locturneDeletionHolds` in Locturne.swift): keep the two in step.
  */
 export function holdsDeletion(now = new Date()): boolean {
@@ -321,7 +324,9 @@ export function holdsDeletion(now = new Date()): boolean {
   const nap = readNap();
   if (nap && now.getTime() < nap.end && selectionSize(nap.list) > 0) return true;
   const soon = scheduleSoon(now);
-  return getSchedules(soon).some((schedule) => scheduleHolds(schedule, soon) && selectionSize(schedule.id) > 0);
+  return getSchedules(soon).some(
+    (schedule) => blockMinutes(schedule) <= DELETION_HOLD_MAX_MINUTES && scheduleHolds(schedule, soon) && selectionSize(schedule.id) > 0,
+  );
 }
 
 /** Refuses deleting apps while `holdsDeletion`, and allows it again after. Any app: iOS has no switch for one. */

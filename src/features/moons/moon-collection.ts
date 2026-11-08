@@ -222,24 +222,3 @@ export function openMoons(from?: unknown) {
   if (from === 'moon' && !moonTapped()) sharedSet(MOON_TAPPED_KEY, true);
   router.push((getMoonsAsPage() ? '/moon-page' : '/moon-sheet') as Href);
 }
-
-const WHEEL_KEY = 'locturne.moons.wheel';
-
-/** Whether the moon opens the moon wheel instead of the collection. Off by default; a Developer switch (user, 2026-11-08). */
-export function getMoonWheel(): boolean {
-  return sharedGet<boolean>(WHEEL_KEY) === true;
-}
-
-export function setMoonWheel(on: boolean) {
-  sharedSet(WHEEL_KEY, on);
-}
-
-/**
- * Home's moon (and the Apps tab's): the collection, as always, or the moon wheel when the Developer
- * switch is on (user, 2026-11-08: "add back in the normal way ... put this as a toggle in dev settings").
- */
-export function openMoonWheel() {
-  if (!getMoonWheel()) return openMoons('moon');
-  if (!moonTapped()) sharedSet(MOON_TAPPED_KEY, true);
-  router.push('/moon-wheel' as Href);
-}
