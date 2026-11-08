@@ -350,7 +350,7 @@ test('MIN_NIGHT: 3h59 is refused (also as a 1-minute night), 4h is saved', async
 test('method and step goal switched just after the walk: still awake, tomorrow uses the new ones', async () => {
   await wonMorning();
   advance(at(6, 7, 6));
-  for (const patch of [{ method: 'pushups' as const }, { stepGoal: 1000 }, { method: 'downstairs' as const }, { stepGoal: 50, method: 'steps' as const }]) {
+  for (const patch of [{ method: 'pushups' as const }, { stepGoal: 1000 }, { method: 'dance' as const }, { stepGoal: 50, method: 'steps' as const }]) {
     assert.equal(await edit(patch), 'applied');
     assert.equal(lc.syncLock().phase, 'day');
     assert.ok(!shielded());
@@ -809,7 +809,7 @@ async function chaos(seed: number, debug = false): Promise<Record<string, number
       case 6: return { kind: 'all-off', patch: { activeNights: [] } };
       case 7: return { kind: 'all-on', patch: { activeNights: [0, 1, 2, 3, 4, 5, 6] } };
       case 8: return { kind: 'step-goal', patch: { stepGoal: r.pick([50, 100, 200, 500, 1000]) } };
-      case 9: return { kind: 'method', patch: { method: r.pick(['steps', 'downstairs', 'pushups'] as const) } };
+      case 9: return { kind: 'method', patch: { method: r.pick(['steps', 'dance', 'pushups'] as const) } };
       case 10: {
         // Tries to break MIN_NIGHT.
         const b = snap(set.bedtime);

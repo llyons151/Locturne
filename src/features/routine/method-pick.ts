@@ -27,7 +27,7 @@ export function pickMethod(value: WakeMethod): { then?: Href } | null {
 /**
  * Where a tap on the way already picked goes (user 2026-11-03): its own settings, the same
  * screen as the row under the button on the Routine tab. Null for a way with nothing to set
- * (downstairs), or one that can't be changed tonight; the grid then just closes.
+ * , or one that can't be changed tonight; the grid then just closes.
  */
 export function methodSettings(value: WakeMethod): Href | null {
   switch (value) {
@@ -35,6 +35,8 @@ export function methodSettings(value: WakeMethod): Href | null {
       return '/steps';
     case 'pushups':
       return '/pushups';
+    case 'dance':
+      return '/dance';
     case 'downtime':
       return '/downtime';
     case 'scan':

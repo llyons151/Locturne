@@ -18,7 +18,7 @@ const { proofMorningStart } = await import('./morning-proof.ts');
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
 test('the saved times give that morning’s start', () => {
-  const proof = { morningKey: '2026-10-06', kind: 'downstairs' as const, at: at(10, 6, 7, 20).getTime(), bedtime: 23 * 60, morningStart: 7 * 60 };
+  const proof = { morningKey: '2026-10-06', kind: 'dance' as const, at: at(10, 6, 7, 20).getTime(), bedtime: 23 * 60, morningStart: 7 * 60 };
   assert.equal(proofMorningStart(proof)?.getTime(), at(10, 6, 7).getTime());
 });
 

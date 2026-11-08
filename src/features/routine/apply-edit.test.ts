@@ -105,7 +105,7 @@ describe('applyRoutineEdit', () => {
   test('a routine saved short before the rule: other edits save, and so does lengthening it', async () => {
     const short = { ...ROUTINE, bedtime: 23 * 60, morningStart: 60 };
     const world = load({ routine: short });
-    assert.equal(await world.applyRoutineEdit({ ...short, method: 'downstairs' }), true, 'method only');
+    assert.equal(await world.applyRoutineEdit({ ...short, method: 'dance' }), true, 'method only');
     assert.equal(await world.applyRoutineEdit({ ...short, morningStart: 2 * 60 }), true, 'longer, still short');
     assert.equal(await world.applyRoutineEdit({ ...short, morningStart: 30 }), false, 'shorter still');
     assert.equal(world.saved.length, 2);

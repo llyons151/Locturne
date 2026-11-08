@@ -140,8 +140,8 @@ beforeEach(() => {
   live = 0;
   nightPicks = 3;
   clock = at(12, 0, 0).getTime();
-  // Downstairs, so an edit to steps (the default) is a change of words.
-  saveRoutine({ ...DEFAULT_ROUTINE, method: 'downstairs' }, at(12, 0, 0)); // onboarding: applies at once
+  // Dance, so an edit to steps (the default) is a change of words.
+  saveRoutine({ ...DEFAULT_ROUTINE, method: 'dance' }, at(12, 0, 0)); // onboarding: applies at once
 });
 
 /** Armed the afternoon before, like a real install. */
@@ -174,7 +174,7 @@ describe('the morning gate', () => {
   test('bedtime wins: no proof at night, and a night-time proof never unlocks the morning', async () => {
     await armYesterday();
     nightHeld = true;
-    assert.equal(proveMorning('downstairs', at(23, 30)), null);
+    assert.equal(proveMorning('dance', at(23, 30)), null);
     // Even recorded directly, it doesn't count.
     const key = readLock(at(23, 30)).morningKey;
     assert.equal(recordProof({ morningKey: key, kind: 'steps', at: at(23, 30).getTime() }), false);
@@ -184,16 +184,16 @@ describe('the morning gate', () => {
 
   test('a morning proof made in time counts once; later ones are ignored', async () => {
     await armYesterday();
-    assert.ok(proveMorning('downstairs', at(7, 10)));
+    assert.ok(proveMorning('dance', at(7, 10)));
     assert.equal(proveMorning('steps', at(7, 20)), null);
     assert.equal(getProofs().length, 1);
-    assert.equal(getProofs()[0].kind, 'downstairs');
+    assert.equal(getProofs()[0].kind, 'dance');
   });
 
   test('a saved proof keeps counting when a later morning start re-reads its morning', async () => {
     await armYesterday();
     nightHeld = true;
-    assert.equal(proveMorning('downstairs', at(7, 30))?.phase, 'day');
+    assert.equal(proveMorning('dance', at(7, 30))?.phase, 'day');
     // Saved in the day: bedtime 01:00, mornings from 08:00. It takes over at 23:00, and the
     // morning it reads 23:00 to 01:00 as is this one, now starting at 08:00, after the walk.
     saveRoutine({ ...DEFAULT_ROUTINE, bedtime: 60, morningStart: 8 * 60 }, at(9));
@@ -301,9 +301,9 @@ describe('the words for a waiting edit', () => {
     saveRoutine({ ...DEFAULT_ROUTINE, method: 'steps' }, at(1, 0, 1)); // waits for tonight
     // 07:00, unproven: the last window's end can copy these words up to 30 minutes later.
     syncLock(at(7, 0, 1));
-    assert.match(morningSubtitles.at(-1) ?? '', /^Go down a floor/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Open Locturne and dance/);
     // Proven: the next morning's are the edit's.
-    proveMorning('downstairs', at(7, 10, 1));
+    proveMorning('dance', at(7, 10, 1));
     assert.match(morningSubtitles.at(-1) ?? '', /^Walk \d+ steps/);
   });
 
@@ -312,7 +312,7 @@ describe('the words for a waiting edit', () => {
     nightHeld = true;
     saveRoutine({ ...DEFAULT_ROUTINE, method: 'steps' }, at(7, 20)); // waits for tonight
     syncLock(at(7, 20));
-    assert.match(morningSubtitles.at(-1) ?? '', /^Go down a floor/);
+    assert.match(morningSubtitles.at(-1) ?? '', /^Open Locturne and dance/);
     // Never proven, so the morning lasts until bedtime. With the app closed overnight,
     // tomorrow's 07:00 copies whatever is written now, and tomorrow runs on the edit.
     assert.equal(syncLock(at(15)).phase, 'morning');

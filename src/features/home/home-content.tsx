@@ -60,7 +60,7 @@ export type HomeIcon = { ios: string; android: string };
 /**
  * A wake-up method drawn as Home's morning (docs/HOME_INTERACTIVE.md): the use-morning-*
  * hooks each return one, and Home shows it in place of its usual hero. `keepAwake` while a
- * live session needs the screen on (a barometer session stops when the phone locks).
+ * live session needs the screen on (a camera session stops when the phone locks).
  */
 export type HomeMorning = {
   icon: HomeIcon;

@@ -32,8 +32,9 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       return
     }
 
-    // Step away's window starting changes nothing (it starts as it's registered): only its end does.
-    if activity.rawValue == LOCTURNE_DOWNTIME_ACTIVITY {
+    // Step away's window starting changes nothing (it starts as it's registered): only its end
+    // does. A rehearsal's timer window too.
+    if activity.rawValue == LOCTURNE_DOWNTIME_ACTIVITY || activity.rawValue == LOCTURNE_REHEARSAL_TIMER_ACTIVITY {
       persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidStart")
       recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidStart")
       return
@@ -182,6 +183,16 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
       locturneRehearsalMorning(by: "iOS")
       persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidEnd")
       reapplyLocturneBlocks(triggeredBy: "locturne_rehearsal_intervalDidEnd")
+      recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidEnd")
+      notifyAppWithName(name: "intervalDidEnd")
+      return
+    }
+
+    // A rehearsal's Step away timer is over: its copy wakes (`locturneRehearsalTimerEnded`).
+    if activity.rawValue == LOCTURNE_REHEARSAL_TIMER_ACTIVITY {
+      locturneRehearsalTimerEnded()
+      persistToUserDefaults(activityName: activity.rawValue, callbackName: "intervalDidEnd")
+      reapplyLocturneBlocks(triggeredBy: "locturne_rehearsalTimer_intervalDidEnd")
       recordLocturneHeartbeat(activity: activity.rawValue, callback: "intervalDidEnd")
       notifyAppWithName(name: "intervalDidEnd")
       return

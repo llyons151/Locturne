@@ -21,7 +21,7 @@ const KEY = 'locturne.routine';
 const squats = { ...DEFAULT_ROUTINE, method: 'squats', squatGoal: 25 } as unknown as typeof DEFAULT_ROUTINE;
 
 test('six ways, squats not among them, Step away in', () => {
-  assert.deepEqual([...WAKE_METHODS].sort(), ['downstairs', 'downtime', 'place', 'pushups', 'scan', 'steps']);
+  assert.deepEqual([...WAKE_METHODS].sort(), ['dance', 'downtime', 'place', 'pushups', 'scan', 'steps']);
   assert.equal(isWakeMethod('squats'), false);
   assert.equal(isWakeMethod('downtime'), true);
 });

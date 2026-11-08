@@ -46,7 +46,7 @@ async function provenThenNightShift() {
   rt.saveRoutine(rt.DEFAULT_ROUTINE);
   assert.equal((await armTonight()).status, 'armed');
   advance(at(6, 7, 30));
-  assert.equal(lc.proveMorning('downstairs')?.phase, 'day');
+  assert.equal(lc.proveMorning('dance')?.phase, 'day');
   advance(at(6, 10));
   // Saved in the day, it waits for tonight's 23:00.
   rt.saveRoutine({ ...rt.getRoutine(), bedtime: 8 * 60, morningStart: 16 * 60 }, new Date(), lc.inPendingFirstNight(new Date()));
@@ -61,7 +61,7 @@ test('a proven morning stays proven when a night-shift routine applies', async (
   assert.equal(state.morningKey, '2026-10-06', 'the new routine names the same morning');
   assert.equal(state.phase, 'day', 'Oct 6 was proved at 07:30');
   assert.deepEqual([...device.state.shielded], [], 'the bedtime apps stay awake');
-  assert.equal(lc.currentProof()?.kind, 'downstairs', 'Home sees the walk');
+  assert.equal(lc.currentProof()?.kind, 'dance', 'Home sees the walk');
   assert.equal(lc.proveMorning('steps'), null, 'nothing asks for a second wake-up');
 });
 
@@ -76,12 +76,12 @@ test("the night shift's own first night still locks, and its morning needs a pro
   assert.equal(state.morningKey, '2026-10-07');
   assert.equal(state.phase, 'morning');
   assert.deepEqual([...device.state.shielded], ['tiktok']);
-  assert.equal(lc.proveMorning('downstairs')?.phase, 'day');
+  assert.equal(lc.proveMorning('dance')?.phase, 'day');
 });
 
 test('a proof saved without its times goes by the night in the routine of now', () => {
   process.env.TZ = 'America/New_York';
-  const legacy = { morningKey: '2026-10-06', kind: 'downstairs' as const, at: at(6, 7, 30) };
+  const legacy = { morningKey: '2026-10-06', kind: 'dance' as const, at: at(6, 7, 30) };
   const nightShift = { key: '2026-10-06', nightStart: new Date(at(6, 8)) };
   assert.equal(proofUnlocks(legacy, nightShift), false);
   assert.equal(proofUnlocks({ ...legacy, bedtime: 23 * 60, morningStart: 7 * 60 }, nightShift), true);
@@ -102,7 +102,7 @@ test('a same-day night held early after the walk needs its own wake-up (the rare
   rt.saveRoutine(nine);
   assert.deepEqual(await armTonight(), { status: 'armed', now: false });
   advance(at(6, 7, 30));
-  assert.equal(lc.proveMorning('downstairs')?.phase, 'day');
+  assert.equal(lc.proveMorning('dance')?.phase, 'day');
   advance(at(6, 10));
   rt.saveRoutine({ ...nine, bedtime: 20 * 60, morningStart: 22 * 60 }, new Date(), lc.inPendingFirstNight(new Date()));
   lc.syncLock();

@@ -744,8 +744,8 @@ export function simDevice() {
     if (start.getTime() > t) start = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1, start.getHours(), start.getMinutes());
     const key = dayKey(start);
     const routine = routineInForce() as (Times & { method?: string }) | undefined;
-    // As `locturneMethodInUse`: with no step counter, a walk or downstairs morning is Step away.
-    const walks = routine?.method === 'steps' || routine?.method === 'downstairs';
+    // As `locturneMethodInUse`: with no step counter, a walk morning is Step away.
+    const walks = routine?.method === 'steps';
     const method = walks && get<boolean>('locturne.noStepCounter') === true ? 'downtime' : routine?.method;
     if (method !== 'downtime') return;
     const timer = get<{ morningKey?: string; reachedAt?: number; endsAt?: number }>(DOWNTIME_KEY);

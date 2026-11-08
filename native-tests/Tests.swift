@@ -1380,14 +1380,13 @@ func registerTests() {
     expect(proofs().isEmpty, "nothing recorded")
   }
 
-  test("go downstairs: a floor with a few steps proves it; a floor without steps doesn't") {
+  test("go downstairs is gone: a routine saved with it dances, and floors prove nothing") {
     heldMorning(method: "downstairs")
     at("2026-10-06 07:15")
-    expect(!locturneJudgeMorning(steps: 5, floors: 1), "a floor with five steps is a lift, or noise")
+    expect(!locturneJudgeMorning(steps: 40, floors: 1), "a floor no longer wakes them")
+    expect(!locturneJudgeMorning(steps: 400, floors: 0), "nor a walk: dance is done in Locturne")
     expect(nightHeld(), "still held")
-    expect(locturneJudgeMorning(steps: 40, floors: 1), "down the stairs")
-    expectEqual(proofs().first?["kind"] as? String, "downstairs")
-    expect(!shielded().contains("tiktok"), "tiktok awake")
+    expect(proofs().isEmpty, "nothing recorded")
   }
 
   test("I'm up does nothing during the night, however far they walked") {

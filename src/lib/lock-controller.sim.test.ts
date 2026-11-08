@@ -83,7 +83,7 @@ const pickTimes = (r: ReturnType<typeof prng>) => (r.chance(0.25) ? r.pick(SHIFT
 
 type Action =
   | { kind: 'open' }
-  | { kind: 'proof'; method: 'downstairs' | 'steps' | 'scan' }
+  | { kind: 'proof'; method: 'dance' | 'steps' | 'scan' }
   | { kind: 'emergency' }
   | { kind: 'pass' }
   | { kind: 'nap'; list: 'night' | 'block'; minutes: number }
@@ -136,7 +136,7 @@ function randomRoutine(r: ReturnType<typeof prng>): Routine {
     bedtime,
     morningStart,
     activeNights: r.chance(0.5) ? [0, 1, 2, 3, 4, 5, 6] : r.subset([0, 1, 2, 3, 4, 5, 6], 1).sort(),
-    method: r.pick(['downstairs', 'steps', 'scan'] as const),
+    method: r.pick(['dance', 'steps', 'scan'] as const),
     stepGoal: r.pick([100, 200, 300]),
   };
 }
@@ -161,7 +161,7 @@ function scenario(seed: number, maxDays: number): Scenario {
     const base = midnight(d);
     const minute = (m: number) => base + m * MIN + r.int(0, 59) * 1000;
     for (let i = r.int(0, 3); i > 0; i--) add(minute(r.int(0, 1439)), { kind: 'open' });
-    if (r.chance(0.85)) add(minute(morningStart + r.int(-30, 180)), { kind: 'proof', method: r.pick(['downstairs', 'steps', 'scan'] as const) });
+    if (r.chance(0.85)) add(minute(morningStart + r.int(-30, 180)), { kind: 'proof', method: r.pick(['dance', 'steps', 'scan'] as const) });
     if (r.chance(0.1)) add(minute(bedtime + r.int(5, 120)), { kind: 'proof', method: 'steps' });
     if (r.chance(0.3)) add(minute(bedtime + r.int(-20, 60)), { kind: 'open' });
     if (r.chance(0.08)) add(minute(r.int(0, 1439)), { kind: 'emergency' });
@@ -178,7 +178,7 @@ function scenario(seed: number, maxDays: number): Scenario {
         bedtime = b;
         morningStart = m;
       } else if (which === 2) patch = { activeNights: r.subset([0, 1, 2, 3, 4, 5, 6], 1).sort() };
-      else if (which === 3) patch = { method: r.pick(['downstairs', 'steps', 'scan'] as const) };
+      else if (which === 3) patch = { method: r.pick(['dance', 'steps', 'scan'] as const) };
       else patch = { stepGoal: r.pick([100, 200, 300, 500]) };
       add(minute(r.chance(0.5) ? bedtime + r.int(-90, 240) : r.int(0, 1439)), { kind: 'routine', patch });
     }

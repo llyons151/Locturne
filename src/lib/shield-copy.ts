@@ -62,16 +62,16 @@ export function shieldRule(facts: ShieldFacts): ShieldRule {
 }
 
 /**
- * What the morning asks for, in the order that works. Steps and floors count from the motion
+ * What the morning asks for, in the order that works. Steps count from the motion
  * chip's history, so the shield's I'm up button checks them with Locturne closed
- * (`locturneMorningCheck`): walk or take the stairs first, then tap it. The camera and the
+ * (`locturneMorningCheck`): walk first, then tap it. The camera and the
  * place check-in live in the app, so those open Locturne. Walking only wakes a steps morning
  * from here; walking instead of another method is chosen in Locturne (user 2026-10-28). Step
  * away's few steps start its timer from the shield too, and the timer's end wakes them by itself.
  */
 type ProofRoutine = Pick<Routine, 'stepGoal' | 'downtimeSteps'>;
 const PROOF: Record<WakeMethod, (routine: ProofRoutine) => string> = {
-  downstairs: () => 'Go down a floor, then tap I’m up.',
+  dance: () => 'Open Locturne and dance.',
   steps: (r) => `Walk ${r.stepGoal} steps, then tap I’m up.`,
   scan: () => 'Open Locturne and scan your code.',
   place: () => 'Go to your place and check in from Locturne.',

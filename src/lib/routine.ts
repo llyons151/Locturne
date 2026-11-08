@@ -11,16 +11,17 @@ import { getArmedNight, sharedGet, sharedSet } from './screen-time.ts';
 import { EXTENSION_SLACK_MS } from './wake/arming.ts';
 
 /**
- * The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). Downstairs is the hero. `place` is
+ * The v1 wake-up methods (GAME_PLAN, "Wake-up methods"). `dance`: dance in front of the camera
+ * for N seconds straight (wake/dance.ts; 2026-11-07, in place of Go downstairs). `place` is
  * "Leave the house": get to a place picked in the day (place.ts). `pushups`: ten on the floor,
  * counted by the front camera (wake/pushups.ts). `downtime`, "Step away": a few steps to show
  * you're up, then a stretch of time with the apps still asleep (wake/downtime.ts; 2026-11-05,
  * in place of squats, which went the same day).
  */
-export type WakeMethod = 'downstairs' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime';
+export type WakeMethod = 'dance' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime';
 
 /** Every method, for checking a saved one (`normalizeRoutine`). */
-export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'downstairs', 'scan', 'place', 'pushups', 'downtime'];
+export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'dance', 'scan', 'place', 'pushups', 'downtime'];
 
 export const isWakeMethod = (value: unknown): value is WakeMethod => WAKE_METHODS.includes(value as WakeMethod);
 
@@ -33,6 +34,8 @@ export type Routine = {
   stepGoal: number;
   /** Push-ups a morning takes (`PUSHUP_MIN`–`PUSHUP_MAX`). Missing on routines saved before it was kept: 10. */
   pushupGoal?: number;
+  /** Dance: seconds straight a morning takes (`DANCE_RANGE`). Missing: `DEFAULT_DANCE_GOAL`. */
+  danceGoal?: number;
   /** Step away's steps: no longer read, fixed at `DOWNTIME_STEPS` (30) since 2026-11-05. Kept so old saves parse. */
   downtimeSteps?: number;
   /** Step away: minutes the apps stay asleep after those steps (`DOWNTIME_MINUTES_RANGE`). Missing: 60. */
@@ -49,6 +52,12 @@ export const DEFAULT_PUSHUP_GOAL = 10;
 
 export const pushupGoalOf = (routine: Pick<Routine, 'pushupGoal'>) => routine.pushupGoal ?? DEFAULT_PUSHUP_GOAL;
 
+/** Dance's seconds straight on the wheel (user 2026-11-07: "like ten seconds straight"). */
+export const DANCE_RANGE = { min: 5, max: 120, by: 5 };
+export const DEFAULT_DANCE_GOAL = 10;
+
+export const danceGoalOf = (routine: Pick<Routine, 'danceGoal'>) => routine.danceGoal ?? DEFAULT_DANCE_GOAL;
+
 // Step away's numbers live with its rules (wake/downtime.ts, which has no imports), so the
 // pure modules (shield-copy.ts) can read them; re-exported here with the routine's other counts.
 export {
@@ -63,13 +72,15 @@ export {
 /**
  * Pure: a saved routine as this build can run it. Squats went on 2026-11-05: a routine saved
  * with them (or with any method this build doesn't know) walks, the default, so nobody is left
- * with a morning no screen can prove. Their count goes too. Returns the same object when
- * nothing needed changing.
+ * with a morning no screen can prove. Their count goes too. Go downstairs went on 2026-11-07,
+ * replaced by dance: a downstairs routine dances. Returns the same object when nothing needed
+ * changing.
  */
 export function normalizeRoutine<R extends Routine>(routine: R): R {
   const legacy = routine as R & { squatGoal?: number };
-  if (isWakeMethod(routine.method) && legacy.squatGoal === undefined) return routine;
-  const next = { ...legacy, method: isWakeMethod(routine.method) ? routine.method : 'steps' };
+  const method: string = routine.method;
+  if (isWakeMethod(method) && legacy.squatGoal === undefined) return routine;
+  const next = { ...legacy, method: method === 'downstairs' ? 'dance' : isWakeMethod(method) ? method : 'steps' };
   delete next.squatGoal;
   return next;
 }
@@ -222,7 +233,7 @@ export function applyEdit(
 function read(now: Date): StoredRoutine | undefined {
   const saved = sharedGet<StoredRoutine>(KEY);
   if (!saved) return undefined;
-  // A method this build no longer has (squats) walks instead, saved so the extensions read it
+  // A method this build no longer has (squats walks, downstairs dances) is swapped, saved so the extensions read it
   // too. Not an edit: it keeps `since`, so no night is judged as run under a new routine.
   const stored = normalizeStored(saved);
   if (stored !== saved) sharedSet(KEY, stored);

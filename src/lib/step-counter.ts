@@ -2,8 +2,8 @@ import { sharedGet, sharedRemove, sharedSet } from './screen-time.ts';
 
 /**
  * Devices with no step counter (an iPad running the iPhone app, where App Review sometimes
- * tests; the simulator). Walk and Go downstairs could never be finished there, so their
- * mornings run as Step away with no steps: its timer from the morning start (`morningMethod`,
+ * tests; the simulator). A walk could never be finished there, so its
+ * morning runs as Step away with no steps: its timer from the morning start (`morningMethod`,
  * `startDowntime`; user 2026-11-07).
  *
  * Saved in the App Group so the extensions read the same answer (`locturneMethodInUse`).

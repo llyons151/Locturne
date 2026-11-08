@@ -568,7 +568,7 @@ async function run(seed: number): Promise<string | null> {
         const morningStart = r.pick([R0.morningStart, bedtime + 30, bedtime + 120, r.int(0, 95) * 15, R0.morningStart - 60, mins + 10].map((x) => (x + 1440) % 1440));
         if ((morningStart - bedtime + 1440) % 1440 < 30) break;
         const activeNights = r.pick([ALL, [], [now.getDay()], others(now.getDay()), others((now.getDay() + 6) % 7)]);
-        const method = r.pick(['downstairs', 'steps', 'scan'] as const);
+        const method = r.pick(['dance', 'steps', 'scan'] as const);
         note = `${bedtime}/${morningStart} nights ${activeNights.join('')} ${method}`;
         await commit({ ...edited(), bedtime, morningStart, activeNights, method });
         break;
@@ -579,7 +579,7 @@ async function run(seed: number): Promise<string | null> {
         if (field === 'bedtime') next.bedtime = r.pick([(mins + 1) % 1440, (mins + 2) % 1440, (mins + 5) % 1440, (mins + 20) % 1440, (mins + 1410) % 1440, R0.bedtime, r.int(0, 95) * 15]);
         else if (field === 'morningStart') next.morningStart = r.pick([R0.morningStart, (mins + 1) % 1440, (mins + 30) % 1440, (mins + 1410) % 1440, r.int(0, 95) * 15]);
         else if (field === 'activeNights') next.activeNights = r.pick([[], ALL, R0.activeNights, others(now.getDay()), others((now.getDay() + 6) % 7)]);
-        else if (field === 'method') next.method = r.pick(['downstairs', 'steps', 'scan'] as const);
+        else if (field === 'method') next.method = r.pick(['dance', 'steps', 'scan'] as const);
         else next.stepGoal = r.pick([0, 50, 200, 1000]);
         if ((next.morningStart - next.bedtime + 1440) % 1440 < 30) break;
         note = `${field}=${JSON.stringify(next[field])}`;
@@ -689,7 +689,7 @@ async function run(seed: number): Promise<string | null> {
         break;
       }
       case 'proof': {
-        const result = lc.proveMorning(r.pick(['downstairs', 'steps'] as const), now);
+        const result = lc.proveMorning(r.pick(['dance', 'steps'] as const), now);
         await flush();
         drain();
         note = result ? 'accepted' : 'refused';
@@ -939,7 +939,7 @@ async function run(seed: number): Promise<string | null> {
       if (t >= start) homeAgrees();
     }
     // A walk before morning start is refused.
-    if (t >= start && t < end && r.chance(0.3) && lc.proveMorning('downstairs', new Date(t))) {
+    if (t >= start && t < end && r.chance(0.3) && lc.proveMorning('dance', new Date(t))) {
       failed = `after restoring R0: walk accepted at ${hm(t)} before ${label} morning ${hm(end)}`;
     }
     if (failed) break;

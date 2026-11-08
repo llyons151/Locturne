@@ -144,7 +144,7 @@ const PREVIEW_ANSWERS: Partial<Answers> = {
   age: 21,
   timeBack: 'study',
   found: 'tiktok',
-  method: 'downstairs',
+  method: 'dance',
   apps: ['TikTok', 'Instagram', 'YouTube'],
 };
 

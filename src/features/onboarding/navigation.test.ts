@@ -133,7 +133,7 @@ describe('back', () => {
 });
 
 describe('editing from the schedule card on commit', () => {
-  const summary = () => reach('commit', run(startNav('hello', initialAnswers), set({ method: 'downstairs' })));
+  const summary = () => reach('commit', run(startNav('hello', initialAnswers), set({ method: 'dance' })));
 
   test('Save returns to commit without stacking a second copy', () => {
     const before = summary();

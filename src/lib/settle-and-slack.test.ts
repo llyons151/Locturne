@@ -257,7 +257,7 @@ test('a removal moved to now when protection is armed again lands now, as the Ap
   device.state.asyncRegistration = false;
   fireOnRegister = true;
   runTo(at(10, 12));
-  lc.proveMorning('downstairs', new Date());
+  lc.proveMorning('dance', new Date());
   lc.settleSubscription(false);
   drain();
   await open();

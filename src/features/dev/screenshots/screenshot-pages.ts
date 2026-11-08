@@ -97,7 +97,7 @@ export const SHOT_GROUPS: ShotGroup[] = [
       { label: '2 · Walking the steps', open: () => home('morning-steps') },
       { label: '3 · The payoff, a new moon rising', open: () => payoff('steps', 3, 'harvest') },
       { label: '4 · Routine', open: () => tab('/routine') },
-      { label: '5 · Going downstairs', open: () => home('morning-downstairs') },
+      { label: '5 · Dancing', open: () => home('morning-dance') },
       { label: '6 · Push-ups (tap Start: a drawn body counts)', open: pushups },
       { label: '7 · Passes', open: () => over('look-night', '/exits') },
       { label: '8 · Home in the day', open: () => home('look-day') },
@@ -136,7 +136,7 @@ export const SHOT_GROUPS: ShotGroup[] = [
           setTimeout(openMoons, AFTER_HOME_MS * 2);
         },
       },
-      { label: 'Payoff, no new moon', open: () => payoff('downstairs', 12) },
+      { label: 'Payoff, no new moon', open: () => payoff('dance', 12) },
       { label: 'Set up a code', open: () => over('look-day', '/code') },
       { label: 'Pick a place', open: () => over('look-day', '/place-pick') },
       { label: 'Passes', open: () => over('look-day', '/exits') },

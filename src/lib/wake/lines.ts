@@ -5,7 +5,6 @@
  *
  * Pure, so the thresholds are tested.
  */
-import type { DownstairsStatus } from './downstairs.ts';
 import type { Hint, Miss, PushupsStatus } from './pushups.ts';
 
 /** The steps lines, from VOICE.md's line bank (0, 80, 160 and 200 of 200). */
@@ -15,27 +14,6 @@ export function stepsLine(steps: number, goal: number): string {
   if (done >= 0.8) return 'Fine. *Fine.*';
   if (done >= 0.4) return "I can hear you walking. I'm ignoring it.";
   return 'No.';
-}
-
-/** Downstairs, before Start and while it runs. `progress` is 0–1 of the height needed. */
-export function downstairsLine(status: DownstairsStatus | 'idle', progress: number): string {
-  switch (status) {
-    case 'idle':
-      return 'Downstairs first. Then your apps.';
-    case 'waiting':
-      return 'Fine. Carry me down.';
-    case 'moving':
-      return progress >= 0.5 ? 'Almost. Keep going.' : 'Stairs. Wonderful.';
-    case 'holding':
-      return "Stay there. Don't go back up.";
-    case 'met':
-      return "I'm up. Don't talk to me yet.";
-    case 'timedOut':
-      return 'Five minutes and no stairs. Start again.';
-    case 'noSignal':
-    case 'flat':
-      return "Your barometer isn't reading, so I can't tell you went downstairs.";
-  }
 }
 
 /**
@@ -79,6 +57,40 @@ export function pushupsLine(
       return "I'm up. Don't talk to me yet.";
     case 'timedOut':
       return reps > 0 ? `Ten quiet minutes. ${Math.max(0, goal - reps)} left. Keep going.` : 'Ten minutes and no push-ups. Start again.';
+  }
+}
+
+/**
+ * Dance (wake/dance.ts), before Start and while the camera watches. The clock is seconds
+ * *straight*: stopping says so first, then he's himself, a line a second.
+ */
+const DURING_DANCE = [
+  'Bears don’t dance. I’m making an exception.',
+  'Don’t tell Gerald about this.',
+  'This is how I got out of the zoo.',
+  'The pigeon taught me this. Badly.',
+  'I’m not watching. I am.',
+  'Keep going. Your apps can hear you.',
+] as const;
+
+export function danceLine(status: PushupsStatus | 'idle', seconds: number, goal: number, miss: Miss | null, hint: Hint | null = null): string {
+  switch (status) {
+    case 'idle':
+      return 'Dance. Then your apps.';
+    case 'finding':
+      if (hint === 'notStanding') return 'Up. I don’t count lying down.';
+      return 'Stand back. All of you.';
+    case 'counting':
+      if (seconds === 0 && miss === 'broke') return 'You stopped. The clock ate it.';
+      if (hint === 'legs') return 'Legs too. Bears bounce.';
+      if (hint === 'still') return seconds > 0 ? 'Don’t stop.' : 'Now move.';
+      if (seconds === 0) return 'Now move.';
+      if (goal - seconds <= 3) return 'Don’t stop. I’m *furious*.';
+      return DURING_DANCE[Math.floor((seconds - 1) / 2) % DURING_DANCE.length];
+    case 'met':
+      return "I'm up. Don't talk to me yet.";
+    case 'timedOut':
+      return 'Ten minutes and no dancing. Gerald would weep.';
   }
 }
 

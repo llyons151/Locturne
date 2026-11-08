@@ -46,7 +46,7 @@ const fr = await import('./first-run.ts');
 const night = { phase: 'night' as const, morningKey: '2026-10-04' };
 const morning = { phase: 'morning' as const, morningKey: '2026-10-04' };
 const day = { phase: 'day' as const, morningKey: '2026-10-04' };
-const walked = { kind: 'downstairs' as const, morningKey: '2026-10-04' };
+const walked = { kind: 'dance' as const, morningKey: '2026-10-04' };
 
 describe('which first shows', () => {
   test('a first shows until it has been seen on another morning', () => {
@@ -72,7 +72,7 @@ describe('which first shows', () => {
 });
 
 describe('the script', () => {
-  const routine = { method: 'downstairs' as const, stepGoal: 200 };
+  const routine = { method: 'dance' as const, stepGoal: 200 };
 
   test('every first has a short line and no exclamation points', () => {
     for (const moment of ['night', 'morning', 'up'] as const) {
@@ -83,7 +83,7 @@ describe('the script', () => {
   });
 
   test('the notes use the routine', () => {
-    assert.match(fr.firstLine('night', routine).note, /until you get downstairs/);
+    assert.match(fr.firstLine('night', routine).note, /until you get up and dance/);
     assert.match(fr.firstLine('night', { method: 'scan', stepGoal: 200 }).note, /scan your code/);
     assert.match(fr.firstLine('morning', routine).note, /Walk 200 steps instead/);
     assert.match(fr.firstLine('morning', { method: 'steps', stepGoal: 300 }).note, /never resets/);

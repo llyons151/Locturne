@@ -23,6 +23,7 @@ import Animated, {
 import { MoonRingView, isMoonRingViewAvailable } from 'moon-ring';
 import { MoonSkyView, isMoonSkyViewAvailable } from 'moon-sky';
 
+import { useMoonRenderFace } from '@/features/dev/moon-render/moon-render';
 import { DRAG_BOX, MOON_DRAG } from '@/features/moons/moon-drag';
 import { moonFadeMs, useMoon } from '@/features/moons/moon-theme';
 import type { MoonDef } from '@/features/moons/moon-types';
@@ -545,7 +546,9 @@ export function NightSky({
  * `still`: a picture of it (the card), so the twin is already risen and the eclipse ring is the
  * drawn one, not the live native view, which a snapshot can't see.
  */
-export function MoonFace({ moon, box, drag, still = false }: { moon: MoonDef; box: number; drag?: SharedValue<number>; still?: boolean }) {
+export function MoonFace({ moon: worn, box, drag, still = false }: { moon: MoonDef; box: number; drag?: SharedValue<number>; still?: boolean }) {
+  // Dev test: the Blender renders in place of the moon's image (Developer → Moon render, 2026-11-07).
+  const moon = useMoonRenderFace(worn);
   const twin = moon.twin ? (still ? <StillTwin moon={moon} box={box} /> : <TwinMoon moon={moon} box={box} />) : null;
   return (
     <>

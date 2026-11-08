@@ -1,0 +1,7 @@
+{"id": "eclipse", "name": "Eclipse",
+ "ramp": ["#3A3633", "#8C8580", "#D8D2CC"], "albedo": 0.9, "relief": 2.5, "bump": 0.4,
+ "lights": [
+   {"from": [0.55, 2.2, 0.75], "colour": "#5FE0E8", "strength": 16},
+   {"from": [0.75, 2.2, -0.45], "colour": "#E0479E", "strength": 13},
+   {"from": [-0.2, -1, 0.1], "colour": "#9FB0C8", "strength": 0.05}
+ ]}

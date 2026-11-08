@@ -12,6 +12,11 @@ const SCENES: MenuOption<PushupsPreview['scene']>[] = [
   { value: 'hold', label: 'Fake plank hold' },
   { value: 'standing', label: 'Fake standing' },
   { value: 'nobody', label: 'Fake nobody' },
+  { value: 'danceTour', label: 'Fake dance tour' },
+  { value: 'dance', label: 'Fake dancing' },
+  { value: 'danceStill', label: 'Fake standing still' },
+  { value: 'danceArms', label: 'Fake arms only' },
+  { value: 'danceSitting', label: 'Fake sitting on the bed' },
 ];
 
 const PHONES: MenuOption<PushupsPreview['phone']>[] = [

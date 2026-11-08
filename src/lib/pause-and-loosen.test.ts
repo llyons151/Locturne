@@ -152,7 +152,7 @@ for (const [label, day, hh, proven] of [
     await setUp(at(4, 12), ['tiktok', 'insta'], ['reddit']);
     advance(at(5, 7, 10));
     await open();
-    if (proven) lc.proveMorning('downstairs');
+    if (proven) lc.proveMorning('dance');
     advance(at(day, hh));
     await open();
     const phase = lc.readLock().phase;
@@ -177,7 +177,7 @@ test('a throwaway bedtime in the day pulls neither an always-list removal nor a 
   await setUp(at(4, 12), ['tiktok'], ['reddit']);
   advance(at(5, 7, 10));
   await open();
-  lc.proveMorning('downstairs');
+  lc.proveMorning('dance');
   advance(at(5, 9));
   await open();
   const id = dl.freeLimitId(st.getLimits())!;

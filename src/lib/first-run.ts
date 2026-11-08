@@ -53,7 +53,7 @@ export function firstMoment(
 
 /** What getting up means for each method. */
 const VERB: Record<WakeMethod, (goal: number) => string> = {
-  downstairs: () => 'get downstairs',
+  dance: () => 'get up and dance',
   steps: (goal) => `walk ${goal} steps`,
   scan: () => 'scan your code',
   place: () => 'get to your place',
@@ -63,7 +63,7 @@ const VERB: Record<WakeMethod, (goal: number) => string> = {
 
 /** The safety valve for each method, said once so the first morning never feels like a trap. */
 const FALLBACK: Record<WakeMethod, (goal: number) => string> = {
-  downstairs: (goal) => `No stairs where you are? Walk ${goal} steps instead.`,
+  dance: (goal) => `Can’t dance right now? Walk ${goal} steps instead.`,
   steps: () => 'Steps from before you opened me count. Reopening never resets them.',
   scan: (goal) => `Can’t find the code? Walk ${goal} steps instead.`,
   place: (goal) => `Not going out today? Walk ${goal} steps instead.`,

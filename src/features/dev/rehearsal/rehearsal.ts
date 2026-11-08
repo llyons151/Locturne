@@ -48,11 +48,10 @@ export async function rehearse(method: WakeMethod, quick = false, now = new Date
   }
   const routine = getRoutine();
   const wakeAt = (d: Date) => ({ ...routine, method, morningStart: minuteOf(d) });
-  // Step away's rehearsal morning is its steps with no timer after (`locturneRehearsalCheck`), so
-  // its shield can't promise one (user 2026-11-06: 30 steps, then 200 after a tap).
+  // Step away's rehearsal runs as the real morning, its timer a minute (`locturneJudgeRehearsalDowntime`).
   const morning = (end: Date) => {
     const words = shieldCopy('morning', wakeAt(end));
-    return method === 'downtime' ? { ...words, subtitle: `Walk ${DOWNTIME_STEPS} steps, then tap I’m up. No timer in a rehearsal.` } : words;
+    return method === 'downtime' ? { ...words, subtitle: `Walk ${DOWNTIME_STEPS} steps, then tap I’m up to start a 1-min timer.` } : words;
   };
   return startRehearsal({
     method,

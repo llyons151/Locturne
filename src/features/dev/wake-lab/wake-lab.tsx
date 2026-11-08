@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';
 import { getMorningPlace, judgeFix } from '@/lib/place';
-import { downtimeMinutesOf, downtimeStepsOf, getRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
+import { downtimeMinutesOf, downtimeStepsOf, danceGoalOf, getRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
 import { getScanCode, matches } from '@/lib/scan';
 import { endTestLock, getTestLock, startTestLock } from '@/lib/screen-time';
 import { downtimeLine } from '@/lib/wake/lines';
@@ -18,7 +18,6 @@ import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { readFix } from '../../place/locate';
 import { Scanner, type Scan } from '../../scan/scanner';
-import { DownstairsView } from '../../wake/downstairs-view';
 import { Body, TopBar, Voice } from '../../wake/parts';
 import { PushupsView } from '../../wake/pushups-view';
 import { StepsView } from '../../wake/steps-view';
@@ -26,7 +25,7 @@ import { usePushupsPreview } from './pushups-preview';
 
 export const LAB_METHODS: { value: WakeMethod; title: string }[] = [
   { value: 'steps', title: 'Walk steps' },
-  { value: 'downstairs', title: 'Go downstairs' },
+  { value: 'dance', title: 'Dance' },
   { value: 'scan', title: 'Scan a code' },
   { value: 'place', title: 'Get to a place' },
   { value: 'pushups', title: 'Push-ups' },
@@ -95,13 +94,13 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
         </View>
       </Animated.View>
     );
-  } else if (method === 'downstairs') content = <DownstairsView key={run} goal={routine.stepGoal} onMet={onMet} onSteps={toSteps} />;
-  else if (method === 'pushups')
+  } else if (method === 'pushups' || method === 'dance')
     content = (
       <PushupsView
-        key={run}
+        key={`${method}${run}`}
+        exercise={method}
         goal={routine.stepGoal}
-        target={preview.goal || pushupGoalOf(routine)}
+        target={preview.goal || (method === 'dance' ? danceGoalOf(routine) : pushupGoalOf(routine))}
         onMet={onMet}
         onSteps={toSteps}
         preview={preview}

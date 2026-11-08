@@ -1,0 +1,5 @@
+{"id": "harvest", "name": "Harvest Moon",
+ "ramp": ["#8C5C22", "#B58530", "#D9B07B", "#F4DDB4"], "albedo": 1.0, "relief": 2.5, "bump": 0.35,
+ "lights": [
+   {"from": [-0.45, -1, 0.35], "colour": "#FFF2DE", "strength": 3.6, "angle": 0.5}
+ ]}

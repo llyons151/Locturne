@@ -143,7 +143,7 @@ async function setLimit(minutes: number | null) {
 async function proveAt(time: number) {
   runTo(time);
   await open();
-  assert.ok(lc.proveMorning('downstairs'));
+  assert.ok(lc.proveMorning('dance'));
   await flush();
   drain();
 }

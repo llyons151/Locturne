@@ -9,7 +9,7 @@
  * - passes (2 a month) are the only way out early, at night or in the morning;
  * - app schedules hold their apps on their own clock.
  * Mornings are proved through the methods' own entry points: the step watcher on a pedometer's
- * history (`watchSteps`), `submitScan`, `submitPlaceFix`, and `proveMorning` as the stairs and
+ * history (`watchSteps`), `submitScan`, `submitPlaceFix`, and `proveMorning` as the dance and
  * push-ups hooks call it once their sensors say so.
  *
  * The oracle is deliberately small: lock-state's pure rules on the routine in force, plus what
@@ -63,7 +63,7 @@ const NIGHT_POOL = ['tiktok', 'insta', 'yt', 'snap'];
 const ALWAYS = ['reddit'];
 const BLOCK = ['games', 'tiktok'];
 const SCHED_POOL = ['mail', 'yt', 'news'];
-const METHODS: WakeMethod[] = ['steps', 'downstairs', 'scan', 'place', 'pushups', 'downtime'];
+const METHODS: WakeMethod[] = ['steps', 'dance', 'scan', 'place', 'pushups', 'downtime'];
 
 /** Ordinary nights, shift work, a just-after-midnight bedtime and iOS's 15-minute minimum (the dial snaps to 15). */
 const TIMES: (readonly [number, number])[] = [
@@ -393,7 +393,7 @@ async function run(seed: number, debug = false): Promise<{ log: Log; stats: Reco
       const far = r.chance(0.2);
       return place.submitPlaceFix({ latitude: GYM.latitude + (far ? 0.01 : 0.0001), longitude: GYM.longitude, accuracy: 10, timestamp: Date.now() - 1000 }).kind === 'unlocked';
     }
-    // The stairs and push-ups hooks call this once the barometer or the counter says so (and Step
+    // The dance and push-ups hooks call this once the camera says so (and Step
     // away's sync, once its timer ends: its own rules are in downtime.test.ts and wake-methods.sim).
     return lc.proveMorning(how) !== null;
   }

@@ -49,7 +49,7 @@ const listeners = new Set<() => void>();
 
 /**
  * Pure: may this proof be recorded for `morning`, the morning its moment belongs to? Bedtime
- * wins (GAME_PLAN, "Core loop"), so stairs, steps or a scan only count once the morning has
+ * wins (GAME_PLAN, "Core loop"), so a dance, steps or a scan only count once the morning has
  * started: a walk at 23:30 must not unlock tomorrow. A pass or an emergency unlock is a
  * deliberate choice and counts whenever it was made (a pass used the night before covers the
  * morning).
@@ -67,7 +67,7 @@ export function proofCounts(proof: MorningProof, morning: Morning): boolean {
 
 /**
  * Pure: does this saved proof unlock `morning`, as worked out in the zone and routine of now?
- * Its timing against morning start was judged when it was saved (`proofCounts`). A stairs,
+ * Its timing against morning start was judged when it was saved (`proofCounts`). A dance,
  * steps or scan proof still has to come after the start of the night that leads into
  * `morning`: no bedtime may have begun here since it. A flight west over the date line (07:30
  * Oct 6 in Sydney, then LA's Oct 5 23:00 to Oct 6 07:00) replays the same morning key after a

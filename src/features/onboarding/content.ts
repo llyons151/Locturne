@@ -347,7 +347,7 @@ export function trialVoice(days: number): string {
 export function methodChoices(steps = 200, reps: number = DEFAULT_PUSHUP_GOAL): Choice<WakeMethod>[] {
   return [
     { label: `Walk ${steps} steps`, value: 'steps' },
-    { label: 'Go downstairs', value: 'downstairs' },
+    { label: 'Dance for 10 seconds straight', value: 'dance' },
     { label: 'Scan a code in another room', value: 'scan' },
     { label: 'Get to a place, like the gym', value: 'place' },
     { label: `${reps} push-ups on the floor`, value: 'pushups' },
@@ -375,14 +375,15 @@ export const METHOD_COPY: Record<
     morning: MorningLine;
   }
 > = {
-  downstairs: {
-    echo: 'I hate stairs. That’s the point.',
-    short: 'Downstairs',
-    check: 'Awake again after one trip downstairs',
-    until: 'you’ve been downstairs',
-    commit: 'Downstairs to wake them.',
-    offer: 'One trip downstairs. I’ll complain the whole way.',
-    morning: { line: 'Open me and take the stairs, up or down.' },
+  // Dance (wake/dance.ts): written for the default, 10 seconds straight.
+  dance: {
+    echo: 'Bears don’t dance. I’ll make an exception.',
+    short: 'Dance',
+    check: 'Awake again after 10 seconds of dancing',
+    until: 'you’ve danced 10 seconds straight',
+    commit: '10 seconds of dancing to wake them.',
+    offer: '10 seconds of dancing. I’ll be watching. Unfortunately.',
+    morning: { line: 'Open me, stand back and dance for 10 seconds.' },
   },
   steps: {
     echo: 'About two minutes of walking. I timed it.',

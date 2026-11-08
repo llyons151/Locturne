@@ -7,7 +7,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SwitchRow } from '@/components/controls';
+import { MenuRow, SwitchRow } from '@/components/controls';
 import { sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
@@ -16,6 +16,7 @@ import { methodInUse } from '@/lib/scan-code';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
+import { MOON_RENDER_STYLES, setMoonRender, useMoonRender } from '@/features/dev/moon-render/moon-render';
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
@@ -41,7 +42,7 @@ function preview(href: Href, method?: WakeMethod) {
 
 const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
   steps: sym('figure.walk', 'directions_walk'),
-  downstairs: sym('figure.stairs', 'stairs'),
+  dance: sym('figure.dance', 'taunt'),
   scan: sym('barcode.viewfinder', 'barcode_scanner'),
   place: sym('mappin.and.ellipse', 'location_on'),
   pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
@@ -77,6 +78,7 @@ function testLock(method: WakeMethod) {
 export function DeveloperSettings() {
   const insets = useSafeAreaInsets();
   const moon = useMoon();
+  const render = useMoonRender();
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
   // Only so the row's "On next open" shows straight away.
@@ -183,6 +185,31 @@ export function DeveloperSettings() {
             haptic.tap();
             devForgetMoons();
           }}
+          last
+        />
+      </Group>
+
+      {/* Dev test (user, 2026-11-07): the Blender moon renders on the phone (features/dev/moon-render). */}
+      <Group
+        label="Moon render test"
+        note="The 3D renders in place of today's moon, on the Eclipse, Crescent and Harvest Moon only: wear one of those to see it. Behind the frost blurs the render like the sky's frosted glass, the way today's moons look."
+      >
+        <MenuRow
+          {...icon('circle.lefthalf.filled', 'contrast')}
+          title="Render"
+          value={render.style}
+          options={MOON_RENDER_STYLES}
+          onChange={(style) => {
+            haptic.tap();
+            setMoonRender({ style });
+          }}
+          last
+        />
+        <SwitchRow
+          {...icon('aqi.medium', 'blur_on')}
+          title="Behind the frost"
+          value={render.frost}
+          onChange={(frost) => setMoonRender({ frost })}
           last
         />
       </Group>

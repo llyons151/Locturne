@@ -26,7 +26,7 @@ func appActions(tap: [String: Any]?) -> [String: Any] {
 
 /// `PROOF` in shield-copy.ts, the morning subtitle per method.
 let proofLine = [
-  "steps": "Walk 200 steps and I’ll wake them.", "downstairs": "Go down a floor and I’ll wake them.",
+  "steps": "Walk 200 steps and I’ll wake them.", "dance": "Dance and I’ll wake them.",
   "scan": "Scan your code and I’ll wake them.", "place": "Get to your place and I’ll wake them.",
   "pushups": "Do your push-ups and I’ll wake them.",
 ]
@@ -301,49 +301,18 @@ func registerShieldTapTests() {
     expectEqual(won(), 1, "not counted twice")
   }
 
-  // MARK: Go downstairs
+  // MARK: Go downstairs is gone (2026-11-07): a routine still saved with it dances
 
-  test("shield tap, downstairs: a floor down with a few steps wakes them") {
-    closedNight(method: "downstairs")
-    expectEqual(drawn("tiktok").subtitle, "Go down a floor and I’ll wake them.")
-    at("2026-10-06 07:10")
-    tap("tiktok", .data(steps: 30, ascended: 0, descended: 1))
-    expectWoke("downstairs")
-    expect(sentTaps().isEmpty, "no notification")
-  }
-
-  test("shield tap, downstairs: a floor up counts too (stairs either way)") {
+  test("shield tap, downstairs saved: it's dance now, so floors and steps wake nothing and Locturne opens") {
     closedNight(method: "downstairs")
     at("2026-10-06 07:10")
-    tap("tiktok", .data(steps: 25, ascended: 1, descended: 0))
-    expectWoke("downstairs")
-  }
-
-  test("shield tap, downstairs: floors with under 20 steps is a lift or noise") {
-    closedNight(method: "downstairs")
-    at("2026-10-06 07:10")
-    expectEqual(tap("tiktok", .data(steps: 19, ascended: 0, descended: 2)), [.defer])
+    expectEqual(tap("tiktok", .data(steps: 240, ascended: 0, descended: 2)), [.defer])
     expectStillAsleep()
-    expectEqual(drawn("tiktok").subtitle, "No stairs yet. Go down a floor, then tap I’m up.")
-    expect(sentTaps().isEmpty, "said on the shield")
+    expectEqual(sentTaps().count, 1, "the open-Locturne notification")
+    expectEqual(drawn("tiktok").subtitle, "This one’s in Locturne. Open it and I’ll wake them.")
   }
 
-  test("shield tap, downstairs: 200 steps with no floors doesn't wake them (walking instead is chosen in Locturne)") {
-    closedNight(method: "downstairs")
-    at("2026-10-06 07:10")
-    tap("tiktok", .data(steps: 200, ascended: nil, descended: nil))
-    expectStillAsleep()
-  }
-
-  test("shield tap, downstairs: a pedometer error opens Locturne, whose stairs listen live") {
-    closedNight(method: "downstairs")
-    at("2026-10-06 07:10")
-    tap("tiktok", .error)
-    expectStillAsleep()
-    expectEqual(sentTaps().count, 1)
-  }
-
-  // MARK: Scan, place, push-ups: the shield can't do them, so the tap opens Locturne
+  // MARK: Scan, place, push-ups, dance: the shield can't do them, so the tap opens Locturne
 
   for method in ["scan", "place"] {
     test("shield tap, \(method) with nothing set up yet: it's a walk, and 200 steps wake them") {
@@ -360,7 +329,7 @@ func registerShieldTapTests() {
     if method == "place" { set("locturne.morningPlace", ["name": "Gym", "latitude": 1.0, "longitude": 1.0, "radius": 100]) }
   }
 
-  for method in ["scan", "place", "pushups"] {
+  for method in ["scan", "place", "pushups", "dance"] {
     test("shield tap, \(method): the tap opens Locturne and wakes nothing") {
       setUpMethod(method)
       closedNight(method: method)
@@ -382,7 +351,7 @@ func registerShieldTapTests() {
       expectEqual(sentTaps().count, 1, "the open-Locturne notification")
     }
 
-    test("shield tap, \(method): floors never prove it (only downstairs uses them)") {
+    test("shield tap, \(method): floors never prove it (nothing uses them since downstairs went)") {
       setUpMethod(method)
       closedNight(method: method)
       at("2026-10-06 07:15")

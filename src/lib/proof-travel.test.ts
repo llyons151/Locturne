@@ -43,7 +43,7 @@ async function provenInNewYork() {
   rt.saveRoutine(rt.DEFAULT_ROUTINE); // 23:00 to 07:00 every night
   assert.equal((await armTonight()).status, 'armed');
   advance(at(6, 7, 30));
-  assert.equal(lc.proveMorning('downstairs')?.phase, 'day');
+  assert.equal(lc.proveMorning('dance')?.phase, 'day');
   assert.deepEqual([...device.state.shielded], []);
 }
 
@@ -56,7 +56,7 @@ test('a morning proven at 07:30 in New York stays proven after a same-day flight
   assert.equal(state.phase, 'day');
   assert.equal(state.morningKey, '2026-10-06');
   assert.deepEqual([...device.state.shielded], [], 'the bedtime apps stay awake');
-  assert.equal(lc.currentProof()?.kind, 'downstairs', 'Home sees the walk');
+  assert.equal(lc.currentProof()?.kind, 'dance', 'Home sees the walk');
   assert.equal(lc.proveMorning('steps'), null, 'nothing asks for a second wake-up');
 });
 
@@ -90,7 +90,7 @@ test('a Sydney walk does not unlock the morning with the same date that comes ro
   rt.saveRoutine(rt.DEFAULT_ROUTINE);
   assert.equal((await armTonight()).status, 'armed');
   advance(at(6, 7, 30));
-  assert.equal(lc.proveMorning('downstairs')?.phase, 'day');
+  assert.equal(lc.proveMorning('dance')?.phase, 'day');
   advance(at(6, 11)); // departs 11:00 Sydney, 17:00 Oct 5 in LA
   process.env.TZ = 'America/Los_Angeles';
   // LA's night into Oct 6 (23:00 to 07:00) runs entirely after the walk.
@@ -101,6 +101,6 @@ test('a Sydney walk does not unlock the morning with the same date that comes ro
   assert.deepEqual([...device.state.shielded], ['tiktok']);
   assert.equal(lc.currentProof(), null, 'Home shows no walk for it');
   // The Sydney walk doesn't count as this morning's, so it doesn't stop a new one either.
-  assert.equal(lc.proveMorning('downstairs')?.phase, 'day');
+  assert.equal(lc.proveMorning('dance')?.phase, 'day');
   assert.deepEqual([...device.state.shielded], []);
 });

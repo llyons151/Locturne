@@ -5,7 +5,7 @@
 import { useState, type ReactNode } from 'react';
 import { Linking } from 'react-native';
 
-import type { Exercise } from '@/lib/wake/pushups';
+import { isTimed, type Exercise } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 
 import { isPoseCameraAvailable, type PoseCameraError } from '../../../modules/pose-camera';
@@ -17,11 +17,13 @@ import { WALK_INSTEAD } from './morning';
 
 const ICONS = {
   pushups: { ios: 'figure.strengthtraining.functional', android: 'fitness_center' },
+  dance: { ios: 'figure.dance', android: 'taunt' },
 } as const satisfies Record<Exercise, { ios: string; android: string }>;
 
-/** How he asks for the setup: the phone on its side, on the floor. */
+/** How he asks for the setup: push-ups, the phone on its side on the floor; dance, standing up facing you. */
 const SETUP: Record<Exercise, string> = {
   pushups: 'Lean me on my side on the floor, two steps away and side-on to you.',
+  dance: 'Stand me up facing you, about four steps back, so I can see all of you.',
 };
 
 /**
@@ -51,7 +53,9 @@ export function useMorningPushups(
   }
 
   // Read each render: closing the camera re-renders Home with the total so far.
-  const done = Math.min(target, getRepsDone(morning, exercise));
+  // Dance is seconds straight: nothing carries over, so there's never a "so far".
+  const timed = isTimed(exercise);
+  const done = timed ? 0 : Math.min(target, getRepsDone(morning, exercise));
   const noun = EXERCISE_NOUN[exercise];
   const ICON = ICONS[exercise];
   const left = Math.max(0, target - done);
@@ -104,17 +108,20 @@ export function useMorningPushups(
   return {
     morning: {
       icon: ICON,
-      hero: {
-        // Read out for the meter, which stands in for the headline (home-content).
-        title: `${done} of ${target} ${noun}`,
-        body: `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
-      },
-      meter,
+      hero: timed
+        ? // Short (user, 2026-11-07): the camera screen says where to stand.
+          { title: `Dance ${target} seconds`, body: 'Stop and it’s back to zero.' }
+        : {
+            // Read out for the meter, which stands in for the headline (home-content).
+            title: `${done} of ${target} ${noun}`,
+            body: `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
+          },
+      meter: timed ? undefined : meter,
       // The phone lies on the floor untouched through the set: auto-lock would stop the camera.
       keepAwake: open,
       // HIG: the button before Apple's prompt says Continue, never "Allow" (App Review 5.1.1(iv)).
       action: {
-        label: camera.access === 'ask' ? 'Continue' : done > 0 ? 'Keep going' : `Start ${noun}`,
+        label: camera.access === 'ask' ? 'Continue' : timed ? 'Start dancing' : done > 0 ? 'Keep going' : `Start ${noun}`,
         onPress: () => {
           if (camera.access !== 'checking') begin();
         },

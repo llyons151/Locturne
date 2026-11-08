@@ -86,7 +86,7 @@ function firstStage(mode: ScanMode | undefined, start?: Start): Stage {
   if (mode === 'morning' || (!mode && phase === 'morning' && code)) {
     // No code: from bed it can't be set up ("your usual way still works"); in the day it can.
     if (!code) return phase === 'night' || phase === 'morning' ? { kind: 'noCode' } : { kind: 'choose', source: 'barcode' };
-    // A saved code only wakes a scan morning, never a steps or stairs one (`submitScan`).
+    // A saved code only wakes a scan morning, never a steps or dance one (`submitScan`).
     if (!pretendPhase() && phase === 'morning' && routineAt(new Date()).method !== 'scan') return { kind: 'notMethod' };
     return notMorning(phase) ?? { kind: 'morning' };
   }

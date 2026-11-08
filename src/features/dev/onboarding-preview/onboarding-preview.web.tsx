@@ -77,7 +77,7 @@ type Settings = {
   exit: ExitArm;
   newYear: boolean;
   step: StepId;
-  /** The wake method every frame after `method` shows (the preview's own answer is Downstairs). */
+  /** The wake method every frame after `method` shows (the preview's own answer is Dance). */
   method: WakeMethod;
 };
 
@@ -135,7 +135,7 @@ type Stage =
 
 const METHOD_LABEL: Record<WakeMethod, string> = {
   steps: '200 steps',
-  downstairs: 'Downstairs',
+  dance: 'Dance',
   scan: 'Scan a code',
   place: 'Go to a place',
   pushups: 'Push-ups',

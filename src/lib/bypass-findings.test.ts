@@ -181,7 +181,7 @@ test("F2: a refused Undo leaves a throwaway edit's windows armed: an always-list
   await setup(at(4, 12), R0);
   runTo(at(5, 7, 30));
   await open();
-  assert.ok(lc.proveMorning('downstairs', new Date()));
+  assert.ok(lc.proveMorning('dance', new Date()));
   runTo(at(5, 12));
   // A throwaway: bedtime 21:00 tonight (armed at once: it only tightens).
   await commit({ ...R0, bedtime: 21 * 60 });
@@ -246,7 +246,7 @@ test('F2b: as F2 with one registration refused, a removal at 20:30, then the app
   await setup(at(4, 12), R0);
   runTo(at(5, 7, 30));
   await open();
-  assert.ok(lc.proveMorning('downstairs', new Date()));
+  assert.ok(lc.proveMorning('dance', new Date()));
   runTo(at(5, 12));
   await commit({ ...R0, bedtime: 21 * 60 });
   runTo(at(5, 20, 28));

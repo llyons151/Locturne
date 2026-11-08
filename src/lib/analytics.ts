@@ -8,7 +8,7 @@
  *
  * What may never be sent (web/public/privacy.html, docs/app-store/PRIVACY_LABELS.md):
  * - which apps were picked (only how many);
- * - step counts, stairs or altitude (only the method and the outcome);
+ * - step counts, poses or altitude (only the method and the outcome);
  * - an exact age (only a bracket), and nothing at all once someone says they're under 13;
  * - bedtime and wake times, or anything from the Screen Time extensions.
  */
@@ -83,7 +83,7 @@ export type AnalyticsSink = {
   screen(name: string): void;
   /** Sent with every later event, and kept across launches. */
   register(properties: Record<string, Value>): void;
-  /** Person properties, for cohorts ("trial starters whose method is downstairs"). */
+  /** Person properties, for cohorts ("trial starters whose method is dance"). */
   setPerson(properties: Record<string, Value>): void;
   optOut(): void;
 };

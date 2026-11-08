@@ -24,6 +24,9 @@
       ],
       "day-dots": [
         "./modules/day-dots"
+      ],
+      "dance-ring": [
+        "./modules/dance-ring"
       ]
     }
   },

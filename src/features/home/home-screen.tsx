@@ -18,7 +18,7 @@ import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getTrialEnd } from '@/lib/notifications';
 import { manageSubscriptions } from '@/lib/purchases';
-import { getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
+import { danceGoalOf, getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
 import { morningMethod } from '@/lib/scan-code';
 import {
   bedtimeAppCount,
@@ -56,7 +56,6 @@ import { scanMorning, WALK_INSTEAD } from './morning';
 import { useMorningDowntime } from './use-morning-downtime';
 import { useMorningPlace } from './use-morning-place';
 import { useMorningPushups } from './use-morning-pushups';
-import { useMorningStairs } from './use-morning-stairs';
 import { useMorningWalk, type MorningWalk } from './use-morning-walk';
 import { askWalk, useWalkRequest } from './walk-request';
 import { useHomeMock } from '../dev/state-lab/app-states';
@@ -79,7 +78,7 @@ const MOCK_WEEK = __DEV__;
  * The evening button names tomorrow's wake-up, the part of the night that's still to come, in
  * Routine's words (steps and push-ups carry their counts where it's built).
  */
-const METHOD_NAME = { downstairs: 'Go downstairs', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away' } as const;
+const METHOD_NAME = { dance: 'Dance', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away' } as const;
 
 /** `pauseWording`'s answer: the paused night's words. */
 type PauseWords = ReturnType<typeof pauseWording>;
@@ -231,7 +230,7 @@ export function HomeScreen() {
   // paused, past a lapse's last paid night, or an empty bedtime list), so it reads as day.
   const phase = facts.held === 'night' && !bedtimeApps ? 'day' : facts.held;
   // The morning happens right here (docs/HOME_INTERACTIVE.md): a walk is counted on Home, the
-  // stairs and the place check-in run on it, and the scan and push-ups open only their camera
+  // place check-in runs on it, and the scan, push-ups and dance open only their camera
   // (push-ups used to open the old wake page; user, 2026-10-15). Steps count under every
   // method, but only wake the apps when the walk is the morning's way or was chosen instead with
   // "Walk 200 steps instead" (user 2026-10-28: 200 steps no longer beat the other methods by themselves).
@@ -262,12 +261,13 @@ export function HomeScreen() {
         }
       : undefined;
   const own = morningHere && !walkingInstead;
-  const stairs = useMorningStairs(own && method === 'downstairs', walked);
   const place = useMorningPlace(own && method === 'place', walked, routine.stepGoal);
   const pushups = useMorningPushups(own && method === 'pushups', pushupGoalOf(routine), lock.morningKey);
+  // The same camera, front-on, timed (wake/dance.ts).
+  const dance = useMorningPushups(own && method === 'dance', danceGoalOf(routine), lock.morningKey, 'dance');
   // A few steps, then the countdown to when the apps wake (wake/downtime.ts).
   const downtime = useMorningDowntime(own && method === 'downtime', routine);
-  const morningHero = stairs ?? place ?? pushups?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : null);
+  const morningHero = place ?? pushups?.morning ?? dance?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : null);
   // The method's "walk instead" placeholder, made real; never the passes (they stay in You).
   const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));
   const here = morningHero && { ...morningHero, action: made(morningHero.action) ?? null, alt: made(morningHero.alt) };
@@ -350,7 +350,9 @@ export function HomeScreen() {
         ? `${routine.stepGoal} steps`
         : method === 'pushups'
           ? `${pushupGoalOf(routine)} push-ups`
-          : METHOD_NAME[method];
+          : method === 'dance'
+            ? `Dance ${danceGoalOf(routine)} seconds`
+            : METHOD_NAME[method];
     // A day sleeper's "morning" is in the afternoon: "Later today", as onboarding says it (wake-day.ts).
     const thisOne = routine.morningStart >= 12 * 60 ? 'Later today' : 'This morning';
     if (today && phase === 'night' && minutes !== null && minutes <= 60) return `${thisOne}: ${name}`;
@@ -491,6 +493,7 @@ export function HomeScreen() {
       {/* Only while Home is the tab showing: a morning left running under Routine or You can sleep. */}
       {focused && here?.keepAwake ? <StayAwake /> : null}
       {pushups?.camera}
+      {dance?.camera}
       {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>
   );
@@ -500,7 +503,7 @@ export function HomeScreen() {
 
 /** Under the walk taken instead: back to the routine's own way. */
 const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
-  downstairs: 'Take the stairs instead',
+  dance: 'Dance instead',
   scan: 'Scan my code instead',
   place: 'Check in instead',
   pushups: 'Do push-ups instead',
@@ -512,8 +515,7 @@ const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
 const DONE_FOR = 3 * 3_600_000;
 /** The done look's line: what got them up. */
 const DONE_WORDS: Record<WakeMethod, string> = {
-  // Down or up: whichever floor the coffee is on.
-  downstairs: 'Took the stairs',
+  dance: 'Danced it off',
   steps: 'Steps walked',
   scan: 'Code scanned',
   place: 'Out the door',
@@ -525,7 +527,7 @@ const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };
 
 /**
  * Opens the morning payoff (/morning-won) once per morning, as soon as Home is on top after a
- * real wake-up (not a pass): straight away for a walk or the stairs on Home. A scan's camera
+ * real wake-up (not a pass): straight away for a walk on Home. A scan's camera
  * opens it itself in Home's place (`openPayoffNow`), so nothing of Home shows in between.
  */
 function usePayoff(proof: MorningProof | null, live: boolean) {
@@ -565,7 +567,7 @@ function useArmedMoonSim(visit: number, live: boolean) {
   }, [visit, live]);
 }
 
-/** The phone is in hand on the stairs; don't let it lock mid-session. */
+/** A camera morning is under way on Home; don't let it lock mid-session. */
 function StayAwake() {
   // Web's wake lock throws if it never activated (denied, or unmounted first): not worth a red screen.
   useKeepAwake(undefined, { suppressDeactivateWarnings: true });

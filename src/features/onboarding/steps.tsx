@@ -901,7 +901,7 @@ type PlanLine = { when: string; what: string };
 
 /**
  * The rows on `armed` for what iOS turned down: the trial reminder that can't come, Motion off,
- * or no step counter (an iPad, which still has a barometer for stairs). The flow reads it too,
+ * or no step counter (an iPad). The flow reads it too,
  * to stay on the page after the prompts when there's something to read.
  */
 export function morningWarnings({
@@ -920,7 +920,7 @@ export function morningWarnings({
   const rows: PlanLine[] = [];
   if (notifications === 'denied' && remindTrial && trialEnds) rows.push({ when: 'Free trial', what: noReminderLine(trialEnds) });
   if (motion === 'denied')
-    rows.push({ when: 'Motion', what: 'It’s off, so I can’t feel stairs or count steps. Turn on Motion & Fitness for Locturne in Settings.' });
+    rows.push({ when: 'Motion', what: 'It’s off, so I can’t count steps. Turn on Motion & Fitness for Locturne in Settings.' });
   if (motion === 'unavailable' && method === 'steps')
     rows.push({ when: 'This device', what: 'It can’t count steps. Set up a scan code from the You tab, or use a pass.' });
   return rows;

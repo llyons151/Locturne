@@ -168,7 +168,7 @@ func configureActions(_ activity: String, _ callback: String, event: String? = n
 
 /// `routine.ts`'s stored routine. Days are `Date.getDay()` numbers, 0 is Sunday.
 func routine(bedtime: Int = 23 * 60, morningStart: Int = 7 * 60, nights: [Int] = Array(0...6)) -> [String: Any] {
-  ["bedtime": bedtime, "morningStart": morningStart, "activeNights": nights, "method": "downstairs", "stepGoal": 200]
+  ["bedtime": bedtime, "morningStart": morningStart, "activeNights": nights, "method": "dance", "stepGoal": 200]
 }
 
 func saveRoutine(_ active: [String: Any], pending: (routine: [String: Any], from: Date)? = nil) {

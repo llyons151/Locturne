@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 import type { WakeMethod } from '@/lib/routine';
 import { nextBedtime, syncLock } from '@/lib/lock-controller';
-import { endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, sharedGet, sharedSet, winRehearsal } from '@/lib/screen-time';
+import { armRehearsalTimerEnd, endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, sharedGet, sharedSet, winRehearsal } from '@/lib/screen-time';
 
 import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
 
@@ -11,7 +11,7 @@ import { getPushupsPreview, setPushupsPreview } from './pushups-preview';
  * The wake preview's settings (/wake-preview, You → Developer): a pretend morning at any hour,
  * and a fake stand-in for each wake-up method's sensor or native view, so the REAL morning
  * screens can be opened and laid out in a browser (`npx expo start`, press w) or a dev build
- * without walking, stairs, a printed code or a trip to the gym. Push-ups' own fakes live in
+ * without walking, dancing, a printed code or a trip to the gym. Push-ups' own fakes live in
  * pushups-preview.ts. Kept in memory; a reload starts from the defaults.
  *
  * Every fake is named "Fake …" in the controls, so it's always clear what's real.
@@ -29,8 +29,6 @@ export type WakePreview = {
   method: 'routine' | WakeMethod;
   /** The pedometer (expo-sensors) behind Walk steps. */
   steps: 'real' | 'walking' | 'halfway' | 'done' | 'still' | 'denied' | 'unavailable';
-  /** The barometer (expo-sensors CMAltimeter) behind Go downstairs. */
-  stairs: 'real' | 'down' | 'up' | 'short' | 'still' | 'flat' | 'noSignal' | 'denied' | 'unavailable';
   /** The barcode camera (expo-camera CameraView) behind Scan a code. */
   scan: 'real' | 'fake' | 'ask' | 'denied';
   /** The location read (expo-location) behind Get to a place. */
@@ -52,7 +50,6 @@ const START: WakePreview = {
   phase: 'real',
   method: 'routine',
   steps: web ? 'walking' : 'real',
-  stairs: web ? 'down' : 'real',
   scan: web ? 'fake' : 'real',
   place: web ? 'walking' : 'real',
   standIns: true,
@@ -129,6 +126,9 @@ export function startPretendTimer(since: number, now: number, minutes: number): 
   if (running) return running;
   const timer = { since, reachedAt: now, endsAt: now + minutes * 60_000 };
   sharedSet(PRETEND_TIMER_KEY, timer);
+  // A rehearsal's timer wakes its copy at the end with Locturne closed, as the real one does.
+  const rehearsal = getRehearsal();
+  if (rehearsalHeld(rehearsal) && rehearsal?.end === since) armRehearsalTimerEnd(timer.endsAt).catch(() => {});
   return timer;
 }
 
@@ -214,7 +214,6 @@ export function fakeTheMorning(method: WakePreview['method'] = 'routine') {
     method,
     since: Date.now(),
     steps: p.steps === 'real' ? 'walking' : p.steps,
-    stairs: p.stairs === 'real' ? 'down' : p.stairs,
     scan: p.scan === 'real' ? 'fake' : p.scan,
     place: p.place === 'real' ? 'walking' : p.place,
   });

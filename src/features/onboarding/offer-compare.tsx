@@ -17,7 +17,7 @@ export const OFFER_ARC_AT = 0.7;
 
 /** What wakes their apps, as a row label. */
 const WAKE_ROW: Record<WakeMethod, string> = {
-  downstairs: 'Downstairs wakes them',
+  dance: 'Dancing wakes them',
   steps: '200 steps wake them',
   scan: 'Your code wakes them',
   place: 'Your place wakes them',
@@ -34,7 +34,7 @@ function rowsFor(method: WakeMethod, compact: boolean): Row[] {
     { icon: sym('moon.zzz.fill', 'bedtime'), label: 'Apps sleep at bedtime', apple: 'yes', ours: 'yes' },
     { icon: sym('hand.tap.fill', 'do_not_touch'), label: 'No “Ignore limit” button', apple: 'no', ours: 'yes' },
     { icon: sym('sunrise.fill', 'wb_twilight'), label: 'Asleep till you’re up', apple: 'no', ours: 'yes' },
-    { icon: sym('figure.walk', 'directions_walk'), label: WAKE_ROW[method], apple: 'no', ours: 'yes' },
+    { icon: method === 'dance' ? sym('figure.dance', 'taunt') : sym('figure.walk', 'directions_walk'), label: WAKE_ROW[method], apple: 'no', ours: 'yes' },
     { icon: sym('ticket.fill', 'confirmation_number'), label: 'Ways out early', apple: '∞', ours: '2/mo.' },
   ];
   // Short phones: the table has to end above the moon.

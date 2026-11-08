@@ -46,7 +46,7 @@ func locturneMorningCheck(config: [String: Any], completion: @escaping (ShieldAc
       let woke = locturneJudgeMorning(steps: steps, floors: floors, reachedAt: reachedAt)
       // Not when there's nothing left to prove (another tap or the app just won the morning).
       // Step away's steps and timer are both judged here, so it only opens Locturne with no steps.
-      if !woke && locturneHeldMorning() != nil && (steps == nil || !["steps", "downstairs", "downtime"].contains(morning.method)) {
+      if !woke && locturneHeldMorning() != nil && (steps == nil || !["steps", "downtime"].contains(morning.method)) {
         for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {
           if let payload = action["payload"] as? [String: Any] { sendNotification(contents: payload, placeholders: [:]) }
         }
@@ -107,12 +107,9 @@ func locturneRehearsalCheck(config: [String: Any], completion: @escaping (Shield
     completion(.defer)
     return
   }
-  // A rehearsal is the lock's mechanics, not its timer: Step away's rehearsal morning is its own
-  // few steps, judged as a walk, and they wake the copy with no timer after (its morning words
-  // in `rehearse` say so). Not the routine's 200: the shield said 30 (user 2026-11-06).
-  let saved = locturneMethodInUse(rehearsal["method"] as? String ?? "steps")
-  let method = saved == "downtime" ? "steps" : saved
-  let stepGoal = saved == "downtime" ? LOCTURNE_DOWNTIME_STEPS : (rehearsal["stepGoal"] as? NSNumber)?.intValue ?? 200
+  // Step away runs as the real morning does, with a one-minute timer (`locturneJudgeRehearsalDowntime`).
+  let method = locturneMethodInUse(rehearsal["method"] as? String ?? "steps")
+  let stepGoal = (rehearsal["stepGoal"] as? NSNumber)?.intValue ?? 200
 
   var answered = false
   let pedometer = CMPedometer()
@@ -122,13 +119,19 @@ func locturneRehearsalCheck(config: [String: Any], completion: @escaping (Shield
       answered = true
       if !locturneRehearsalLive() {
         // Won in Locturne meanwhile: nothing left to do.
+      } else if method == "downtime" {
+        if !locturneJudgeRehearsalDowntime(steps: steps, now: Date()), steps == nil {
+          for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {
+            if let payload = action["payload"] as? [String: Any] { sendNotification(contents: payload, placeholders: [:]) }
+          }
+        }
       } else if let steps, let kind = locturneMotionProof(method: method, stepGoal: stepGoal, steps: steps, floors: floors) {
         locturneNoteRehearsal(["lastCheck": kind])
         locturneWakeRehearsal(steps: steps, floors: floors)
       } else {
         locturneShowRehearsalProgress(locturneMorningProgress(method: method, stepGoal: stepGoal, steps: steps))
         locturneNoteRehearsal(["lastCheck": steps == nil ? "noHistory" : "short", "steps": steps ?? -1, "floors": floors])
-        if steps == nil || !["steps", "downstairs"].contains(method) {
+        if steps == nil || method != "steps" {
           for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {
             if let payload = action["payload"] as? [String: Any] { sendNotification(contents: payload, placeholders: [:]) }
           }

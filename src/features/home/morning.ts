@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import type { HomeAction, HomeMorning } from './home-content';
 
 /**
- * Pieces shared by Home's morning hooks (use-morning-stairs, use-morning-place,
+ * Pieces shared by Home's morning hooks (use-morning-place,
  * use-morning-scan): each draws its method as Home's hero (`HomeMorning`), with steps counted
  * underneath as the way out every morning offers (GAME_PLAN, "walk N steps instead").
  */

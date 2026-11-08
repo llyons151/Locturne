@@ -594,8 +594,9 @@ export function finishRehearsal(now = new Date()): void {
   // First, so nothing re-shields the copy on the way out.
   sharedRemove(REHEARSAL_KEY);
   if (!isAvailable()) return;
-  stopMonitoring([REHEARSAL_ACTIVITY]);
+  stopMonitoring([REHEARSAL_ACTIVITY, REHEARSAL_TIMER_ACTIVITY]);
   cleanUpAfterActivity(REHEARSAL_ACTIVITY);
+  cleanUpAfterActivity(REHEARSAL_TIMER_ACTIVITY);
   unshield(REHEARSAL);
   clearSelection(REHEARSAL);
   for (const key of [`${CONFIG_FOR_LIST}${REHEARSAL}`, `${ACTIONS_FOR_LIST}${REHEARSAL}`]) userDefaultsRemove(key);
@@ -1223,6 +1224,25 @@ export function stopDowntimeEnd(): void {
     cleanUpAfterActivity(DOWNTIME_ACTIVITY);
   }
   sharedRemove(DOWNTIME_ARMED_KEY);
+}
+
+/**
+ * A rehearsal's Step away timer (You → Rehearse a night): its one-minute timer's end as a one-off
+ * window, so the copy wakes with Locturne closed (`locturneRehearsalTimerEnded` in the monitor
+ * extension). Home's test morning arms it when it starts the timer; the shield's I'm up arms its own.
+ */
+export const REHEARSAL_TIMER_ACTIVITY = 'locturne-rehearsal-timer';
+
+export async function armRehearsalTimerEnd(endsAt: number, now = new Date()): Promise<boolean> {
+  if (!isAvailable() || endsAt <= now.getTime()) return false;
+  const { intervalStart, intervalEnd } = downtimeInterval(endsAt, now.getTime());
+  try {
+    makeRoomFor(REHEARSAL_TIMER_ACTIVITY);
+    await startMonitoring(REHEARSAL_TIMER_ACTIVITY, { intervalStart, intervalEnd, repeats: false }, []);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Is the timer's end armed with iOS? */

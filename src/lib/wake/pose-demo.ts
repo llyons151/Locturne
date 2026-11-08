@@ -71,7 +71,91 @@ export function demoPose(ms: number, width: number, height: number): PoseFrame['
  * - `hold`: a plank, no reps. `standing`: curls standing up. `nobody`: an empty room.
  * - `tour`: all of them in a row, then good reps to the end.
  */
-export type DemoScene = 'pushups' | 'shallow' | 'quick' | 'hold' | 'standing' | 'nobody' | 'tour';
+export type DemoScene =
+  | 'pushups'
+  | 'shallow'
+  | 'quick'
+  | 'hold'
+  | 'standing'
+  | 'nobody'
+  | 'tour'
+  // Dance, front-on (wake/dance.ts): a bounce with the arms going, standing still, arms only,
+  // sitting on the bed's edge, and all of them in a row ending in a good dance.
+  | 'dance'
+  | 'danceStill'
+  | 'danceArms'
+  | 'danceSitting'
+  | 'danceTour';
+
+/** One bounce, down and up, in ms. */
+export const DEMO_BOUNCE_MS = 600;
+
+/**
+ * A pretend body front-on to the phone, for dance: `bounce` 0–1 drops the hips and bends the
+ * knees out (the feet stay put), `arms` 0–1 swings the forearms from down by the sides to up
+ * overhead. `sitting` folds the thighs toward the camera, the knees level with the hips.
+ */
+export function frontPose(
+  width: number,
+  height: number,
+  { bounce = 0, arms = 0, sitting = false }: { bounce?: number; arms?: number; sitting?: boolean } = {},
+  c = 0.9,
+): PoseFrame['joints'] {
+  const u = Math.min(width, height * 0.62);
+  const cx = width / 2;
+  const torso = u * 0.42;
+  const top = height * 0.2;
+  const drop = bounce * torso * 0.16 + (sitting ? torso * 0.75 : 0);
+  const sy = top + torso * 0.25 + drop;
+  const hy = sy + torso;
+  const ankleY = top + torso * 2.55;
+  const kneeY = sitting ? hy + torso * 0.08 : hy + (ankleY - hy) * 0.5 + bounce * torso * 0.04;
+  const at = (x: number, y: number, sure = c): JointPoint => ({ x, y, c: sure });
+  const joints: Partial<Record<Joint, JointPoint>> = { nose: at(cx, sy - torso * 0.3) };
+  for (const [side, dir] of [['left', -1], ['right', 1]] as const) {
+    const sx = cx + dir * torso * 0.4;
+    joints[`${side}Shoulder`] = at(sx, sy);
+    // Upper arm out to the side; the forearm swings from hanging down to straight up.
+    const ex = sx + dir * torso * 0.25;
+    const ey = sy + torso * 0.35 - arms * torso * 0.3;
+    joints[`${side}Elbow`] = at(ex, ey);
+    const swingRad = arms * Math.PI;
+    joints[`${side}Wrist`] = at(ex + dir * torso * 0.12 * Math.sin(swingRad), ey + torso * 0.38 * Math.cos(swingRad));
+    joints[`${side}Hip`] = at(cx + dir * torso * 0.22, hy);
+    joints[`${side}Knee`] = at(cx + dir * torso * (0.24 + bounce * 0.12), kneeY);
+    joints[`${side}Ankle`] = at(cx + dir * torso * 0.24, sitting ? kneeY + torso * 0.6 : ankleY);
+  }
+  return joints;
+}
+
+/** 0 → 1 → 0 every `period` ms. */
+const wave = (ms: number, period: number) => 0.5 - 0.5 * Math.cos(((ms % period) / period) * 2 * Math.PI);
+
+/** The dance scenes' joints `ms` in. */
+function danceScene(scene: 'dance' | 'danceStill' | 'danceArms' | 'danceSitting', ms: number, width: number, height: number) {
+  switch (scene) {
+    case 'dance':
+      return frontPose(width, height, { bounce: wave(ms, DEMO_BOUNCE_MS), arms: wave(ms, DEMO_BOUNCE_MS * 2) });
+    case 'danceStill':
+      // A body breathing: barely moving.
+      return frontPose(width, height, { bounce: 0.02 * wave(ms, 3_000) });
+    case 'danceArms':
+      return frontPose(width, height, { arms: wave(ms, DEMO_BOUNCE_MS * 1.5) });
+    case 'danceSitting':
+      return frontPose(width, height, { sitting: true, arms: wave(ms, DEMO_BOUNCE_MS * 1.5) });
+  }
+}
+
+/** The dance tour: each scene and how long it plays; the last plays on. */
+const DANCE_TOUR: [Exclude<DemoScene, 'tour' | 'danceTour'>, number][] = [
+  ['nobody', 2_000],
+  ['danceSitting', 3_000],
+  ['danceStill', 3_000],
+  ['danceArms', 3_000],
+  ['dance', 4_000],
+  ['danceStill', 2_500],
+  ['dance', Infinity],
+];
 
 /** The elbow swinging from `top` to `bottom` and back every `period` ms. */
 const swing = (ms: number, period: number, top: number, bottom: number) =>
@@ -135,9 +219,9 @@ const TOUR: [Exclude<DemoScene, 'tour'>, number][] = [
 
 /** `scene`'s joints `ms` into it, in a `width` × `height` view. Every scene but `nobody` starts with a beat of empty room, like stepping back. */
 export function scenePose(scene: DemoScene, ms: number, width: number, height: number): PoseFrame['joints'] {
-  if (scene === 'tour') {
+  if (scene === 'tour' || scene === 'danceTour') {
     let from = 0;
-    for (const [part, length] of TOUR) {
+    for (const [part, length] of scene === 'tour' ? TOUR : DANCE_TOUR) {
       if (ms < from + length) return scenePose(part, ms - from + (part === 'nobody' ? 0 : SCENE_LEAD_MS), width, height);
       from += length;
     }
@@ -159,7 +243,22 @@ export function scenePose(scene: DemoScene, ms: number, width: number, height: n
       return plankIn(162 + 2 * Math.sin(t / 400), width, height);
     case 'standing':
       return standingPose(t, width, height);
+    default:
+      return danceScene(scene, t, width, height);
   }
+}
+
+/** A push-up scene's dance twin, so the wake lab's one scene picker works for both. Dance scenes are kept. */
+export function danceSceneFor(scene: DemoScene): DemoScene {
+  const twin: Partial<Record<DemoScene, DemoScene>> = {
+    pushups: 'dance',
+    quick: 'dance',
+    hold: 'danceStill',
+    shallow: 'danceArms',
+    standing: 'danceArms',
+    tour: 'danceTour',
+  };
+  return twin[scene] ?? scene;
 }
 
 /** The empty beat before a scene's body appears. */

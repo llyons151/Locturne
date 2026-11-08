@@ -56,3 +56,7 @@ targets/*/generated.entitlements
 # Research, plans and business docs stay local (the repo is public)
 docs/
 __pycache__/
+
+# Moon render test: NASA maps (big binaries) and render output
+tools/moon-render/maps/
+tools/moon-render/out/

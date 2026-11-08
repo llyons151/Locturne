@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { addPose, isOver, retarget, startPushups, tick, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
+import { addPose, isOver, isTimed, retarget, startPushups, tick, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone, saveRepsDone } from '@/lib/wake/pushups-done';
 
 const TICK_MS = 1_000;
@@ -16,7 +16,7 @@ const TICK_MS = 1_000;
  * real morning's key, never the preview's) the reps are saved as they come, so closing the camera,
  * walking off or relaunching carries on from there. `start` is stable, so the screen starts once;
  * a new `goal` meanwhile keeps the reps done (`retarget`, on the next clock tick). `exercise`:
- * what the machine counts (push-ups).
+ * what the machine counts: push-ups, or dance, whose seconds are *straight*, so never saved or carried.
  */
 export function usePushups(goal: number, timeoutIn?: number, morning?: string, exercise: Exercise = 'pushups') {
   const [session, setSession] = useState<PushupsSession | null>(null);
@@ -64,6 +64,7 @@ export function usePushups(goal: number, timeoutIn?: number, morning?: string, e
 
   const reps = session?.reps ?? 0;
   useEffect(() => {
+    if (isTimed(exercise)) return;
     if (morning !== undefined && reps > getRepsDone(morning, exercise)) saveRepsDone(morning, reps, exercise);
   }, [morning, reps, exercise]);
 

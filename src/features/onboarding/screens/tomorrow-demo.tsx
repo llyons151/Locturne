@@ -20,12 +20,11 @@ import { Glyph } from '@/components/ios-glyphs';
 import { Reveal } from '@/components/motion';
 import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
-import type { WakeMethod } from '@/lib/routine';
+import { DEFAULT_DANCE_GOAL, type WakeMethod } from '@/lib/routine';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
-import { DOWNSTAIRS } from '@/lib/wake/downstairs';
-import { downstairsLine, downtimeLine, PHASE_LINES, pushupsLine, stepsLine } from '@/lib/wake/lines';
-import { DEMO_REP_MS, demoPose } from '@/lib/wake/pose-demo';
-import { PUSHUPS, type Joint } from '@/lib/wake/pushups';
+import { danceLine, downtimeLine, PHASE_LINES, pushupsLine, stepsLine } from '@/lib/wake/lines';
+import { DEMO_REP_MS, demoPose, frontPose } from '@/lib/wake/pose-demo';
+import { PUSHUPS, type Joint, type PoseFrame } from '@/lib/wake/pushups';
 import { DisplayFont, Nocturne, NUMBER_FONT } from '@/theme';
 
 import { formatDistance } from '../../place/place-stage';
@@ -98,7 +97,7 @@ const DOCK_APPS: SystemName[] = ['Phone', 'Safari', 'Messages', 'Music'];
 
 /**
  * Each method's wake-up, timed (B2 in docs/ONBOARDING_OPTIMIZATION.md): someone who said "yes,
- * stairs" mustn't watch a step counter at the aha moment. `t` is ms into the wake-up itself;
+ * dance" mustn't watch a step counter at the aha moment. `t` is ms into the wake-up itself;
  * what it looks like at `t` is `MethodApp`'s.
  */
 type MethodDemo = {
@@ -124,15 +123,10 @@ const stepsAt = (t: number) =>
     ? Math.floor((t / STEPS_FAST_MS) * 38) * 5
     : Math.min(STEP_GOAL, 190 + Math.floor((t - STEPS_FAST_MS) / LAST_STEP_MS));
 
-/** Downstairs: the height moves to the threshold, then the five-second hold, sped up. */
-const STAIRS_MS = 2300;
-const HOLD_SECOND_MS = 300;
-const HOLD_SECONDS = 5;
-const stairsAt = (t: number) => {
-  const height = easeInOut(Math.min(1, t / STAIRS_MS));
-  const held = Math.max(0, t - STAIRS_MS) / (HOLD_SECOND_MS * HOLD_SECONDS);
-  return { height, held: Math.min(1, held), left: Math.max(0, HOLD_SECONDS - Math.floor(held * HOLD_SECONDS)) };
-};
+/** Dance: ten seconds straight, played in three, the count a second at a time. */
+const DANCE_MS = 3000;
+const DANCE_SECONDS = DEFAULT_DANCE_GOAL;
+const danceAt = (t: number) => Math.min(DANCE_SECONDS, Math.floor((Math.max(0, t) / DANCE_MS) * DANCE_SECONDS));
 
 /** The place: out the door and down the street, then Check in. */
 const PLACE_WALK_MS = 2900;
@@ -157,11 +151,8 @@ function methodDemo(method: WakeMethod, reps: number): MethodDemo {
           return s < 190 ? [Math.floor(s / 20), 'tick'] : [10 + s - 190, 'thud'];
         },
       };
-    case 'downstairs':
-      return {
-        ms: STAIRS_MS + HOLD_SECOND_MS * HOLD_SECONDS + 100,
-        beat: (t) => (t < STAIRS_MS ? [Math.floor(stairsAt(t).height * 4), 'tick'] : [10 - stairsAt(t).left, 'tick']),
-      };
+    case 'dance':
+      return { ms: DANCE_MS, start: 'Start dancing', beat: (t) => [danceAt(t), 'thud'] };
     case 'place':
       return { ms: 3600, beat: (t) => (t < PLACE_WALK_MS ? [0, 'tick'] : t < PLACE_TAP_MS ? [1, 'tick'] : [2, 'tick']) };
     case 'scan':
@@ -690,8 +681,8 @@ const HomeScreen = memo(function HomeScreen({ k, press }: { k: number; press: Sh
 
 /**
  * Locturne's morning, small, inside the phone: the method they picked, done the way the real
- * one is (src/features/home, src/features/wake), from `t` ms into it. Steps count, the stairs
- * move a dot down a flight and hold, the place walks a dot down a street to the pin and checks
+ * one is (src/features/home, src/features/wake), from `t` ms into it. Steps count, dance
+ * traces a body bouncing front-on, the place walks a dot down a street to the pin and checks
  * in, the scan brings the code into the frame, and push-ups trace a body doing them.
  */
 function MethodApp({
@@ -724,23 +715,35 @@ function MethodApp({
         />
       );
     }
-    case 'downstairs': {
-      const { height, held, left } = going ? stairsAt(t) : { height: 0, held: 0, left: HOLD_SECONDS };
-      const holding = height >= 1;
-      // Home listens as soon as it shows the morning: no Start (use-morning-stairs.ts).
-      const status = done ? 'met' : holding ? 'holding' : going ? 'moving' : 'waiting';
+    case 'dance': {
+      if (!started)
+        return (
+          <AppPage
+            k={k}
+            line={danceLine('idle', 0, DANCE_SECONDS, null)}
+            meter={{ value: '0', unit: ` / ${DANCE_SECONDS} seconds`, progress: 0 }}
+            button={demo.start}
+            press={start}
+          />
+        );
+      const secs = going ? danceAt(t) : 0;
       return (
-        <AppPage
+        <PushupsCamera
           k={k}
-          line={done ? PHASE_LINES.day : downstairsLine(status, height)}
-          meter={{
-            value: (height * DOWNSTAIRS.threshold).toFixed(1),
-            unit: done ? ' m · Floor reached' : holding ? ` m · Hold ${left} s` : ` / ${DOWNSTAIRS.threshold} m down`,
-            progress: holding ? held : height,
-          }}
-        >
-          <Stairs k={k} height={height} />
-        </AppPage>
+          // The pretend body bouncing front-on (pose-demo.ts), a little quicker than life.
+          // Set lower than the camera's own framing, so the head clears the big count.
+          joints={shiftedDown(
+            frontPose(SCREEN_PT.width, SCREEN_PT.height, {
+              bounce: going && !done ? 0.5 - 0.5 * Math.cos((t / 300) * Math.PI) : 0,
+              arms: going && !done ? 0.5 - 0.5 * Math.cos((t / 600) * Math.PI) : 0,
+            }),
+            SCREEN_PT.height * 0.08,
+          )}
+          bones={FRONT_BONES}
+          count={secs}
+          goal={DANCE_SECONDS}
+          line={done ? PHASE_LINES.day : danceLine('counting', secs, DANCE_SECONDS, null).replace(/\*/g, '')}
+        />
       );
     }
     case 'place': {
@@ -818,7 +821,7 @@ function MethodApp({
         <PushupsCamera
           k={k}
           // The pretend body's own clock (pose-demo.ts), sped up so a rep takes `each`.
-          poseMs={going && !done ? (t / each) * DEMO_REP_MS : 0}
+          joints={demoPose(going && !done ? (t / each) * DEMO_REP_MS : 0, SCREEN_PT.width, SCREEN_PT.height)}
           count={count}
           goal={reps}
           line={done ? PHASE_LINES.day : lineFor('counting', count, reps, null).replace(/\*/g, '')}
@@ -876,26 +879,6 @@ function AppPage({
         ) : null}
       </View>
     </View>
-  );
-}
-
-/** A flight of four steps, side-on, and you on it: `height` is 0 at the top to 1 at the bottom. */
-function Stairs({ k, height }: { k: number; height: number }) {
-  const FLIGHTS = 4;
-  const run = 52;
-  const rise = 34;
-  const level = Math.min(FLIGHTS, Math.floor(height * FLIGHTS));
-  const along = level >= FLIGHTS ? 0 : height * FLIGHTS - level;
-  // Along each tread, then a hop down its edge at the end.
-  const x = 40 + (level + along) * run;
-  const y = 30 + level * rise + (along > 0.75 ? ((along - 0.75) / 0.25) * rise : 0) - 12;
-  let d = 'M10 30';
-  for (let i = 0; i <= FLIGHTS; i++) d += ` H${40 + (i + 1) * run - 4}` + (i < FLIGHTS ? ` V${30 + (i + 1) * rise}` : '');
-  return (
-    <Svg width={k * 300} height={k * 200} viewBox="0 0 300 200">
-      <Path d={d} stroke="#FFFFFF" strokeOpacity={0.35} strokeWidth={4} fill="none" strokeLinejoin="round" />
-      <Circle cx={x} cy={y} r={10} fill="#FFFFFF" />
-    </Svg>
   );
 }
 
@@ -978,16 +961,18 @@ function ScanCamera({ k, found, done }: { k: number; found: number; done: boolea
   );
 }
 
-/** The push-ups camera: you traced in white over a dark room, the count big at the top. */
+/** The push-ups (or dance) camera: you traced in white over a dark room, the count big at the top. */
 function PushupsCamera({
   k,
-  poseMs,
+  joints,
+  bones = BONES,
   count,
   goal,
   line,
 }: {
   k: number;
-  poseMs: number;
+  joints: PoseFrame['joints'];
+  bones?: [Joint, Joint][];
   count: number;
   goal: number;
   line: string;
@@ -995,15 +980,14 @@ function PushupsCamera({
   const pt = (n: number) => n * k;
   const w = SCREEN_PT.width;
   const h = SCREEN_PT.height;
-  const joints = demoPose(poseMs, w, h);
   const p = (j: Joint) => joints[j];
-  const floor = Math.max(p('leftWrist')?.y ?? 0, p('leftAnkle')?.y ?? 0) + 6;
+  const floor = Math.max(p('leftWrist')?.y ?? 0, p('leftAnkle')?.y ?? 0, p('rightAnkle')?.y ?? 0) + 6;
   const nose = p('nose');
   return (
     <View style={styles.camera}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} style={StyleSheet.absoluteFill}>
         <Rect x={0} y={floor} width={w} height={h - floor} fill="#14161C" />
-        {BONES.map(([a, b]) => {
+        {bones.map(([a, b]) => {
           const from = p(a);
           const to = p(b);
           return from && to ? (
@@ -1030,6 +1014,22 @@ const BONES: [Joint, Joint][] = [
   ['leftShoulder', 'leftHip'],
   ['leftHip', 'leftKnee'],
   ['leftKnee', 'leftAnkle'],
+];
+
+/** Every joint `dy` points lower. */
+const shiftedDown = (joints: PoseFrame['joints'], dy: number) =>
+  Object.fromEntries(Object.entries(joints).map(([name, p]) => [name, { ...p, y: p.y + dy }])) as PoseFrame['joints'];
+
+/** Both sides, front-on, for dance. */
+const FRONT_BONES: [Joint, Joint][] = [
+  ...BONES,
+  ['rightShoulder', 'rightElbow'],
+  ['rightElbow', 'rightWrist'],
+  ['rightShoulder', 'rightHip'],
+  ['rightHip', 'rightKnee'],
+  ['rightKnee', 'rightAnkle'],
+  ['leftShoulder', 'rightShoulder'],
+  ['leftHip', 'rightHip'],
 ];
 
 const TAB = 83;

@@ -10,17 +10,19 @@ import { PANEL_RADIUS } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { CountText } from '@/components/count-text';
-import { Track } from '@/components/meter';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import { pushupsLine, spokenRep } from '@/lib/wake/lines';
+import { danceLine, pushupsLine, spokenRep } from '@/lib/wake/lines';
+import { DANCE } from '@/lib/wake/dance';
+import { danceSceneFor } from '@/lib/wake/pose-demo';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
-import { repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
+import { isTimed, repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 import { CTA_HEIGHT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { hush, isPoseCameraAvailable, PoseCameraView, say, type PoseCameraError } from '../../../modules/pose-camera';
 import { LocBubble } from '../home/loc-bubble';
+import { CameraBar, DanceTimer } from './dance-timer';
 import { LOC_VIEW, type LocMood } from '../home/loc-rig';
 import LocStage from '../home/loc-stage';
 import { FAST_TIMEOUT_MS, PREVIEW_PHONES, type PushupsPreview } from '../dev/wake-lab/pushups-preview';
@@ -63,7 +65,7 @@ export function PushupsView({
   morning,
   exercise = 'pushups',
 }: {
-  /** What the camera counts: push-ups (the machine's only exercise). */
+  /** What the camera counts: push-ups, or dance (seconds straight, front-on). */
   exercise?: Exercise;
   /** The step goal, for "walk instead". */
   goal: number;
@@ -99,7 +101,8 @@ export function PushupsView({
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
   const instead = `Walk ${goal} steps instead`;
   // Read each render: closing the camera re-renders this page with the total so far.
-  const done = getRepsDone(morning, exercise);
+  const timed = isTimed(exercise);
+  const done = timed ? 0 : getRepsDone(morning, exercise);
   const noun = EXERCISE_NOUN[exercise];
   // Screen Time or a profile keeps the camera off; Settings can't change that, so only walking is offered.
   const restricted = access === 'restricted' || failed === 'restricted';
@@ -140,18 +143,20 @@ export function PushupsView({
   return (
     <View style={styles.page}>
       <View style={styles.top}>
-        <Voice text={denied ? 'I need the camera for this.' : pushupsLine('idle', 0, target, null)} />
+        <Voice text={denied ? 'I need the camera for this.' : timed ? danceLine('idle', 0, target, null) : pushupsLine('idle', 0, target, null)} />
         <Body>
           {denied
             ? `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`
-            : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
+            : timed
+              ? `Stand me up facing you, about four steps back, so I can see all of you, head to feet. Then dance for ${target} seconds straight. Stop, and it’s back to zero.`
+              : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
                 done > 0 ? `${Math.max(0, target - done)} more ${noun}; you've done ${done}` : `${target} ${noun}`
               }. I count out loud.`}
         </Body>
       </View>
 
       <View style={styles.flex} />
-      {denied ? null : <SetupSketch />}
+      {denied || timed ? null : <SetupSketch />}
       <View style={styles.flex} />
 
       <View style={styles.bottom}>
@@ -248,15 +253,19 @@ function useTurn(
   live: boolean,
   finding: boolean,
   preview?: PushupsPreview,
+  standing = false,
 ): { turn: PhoneTurn; hint: ViewHint | null; upright: boolean } {
   const sensed = usePhone(live);
-  const forced = preview && preview.phone !== 'sensor' ? PREVIEW_PHONES[preview.phone] : null;
+  // Dance stands the phone up: the preview's sideways default (push-ups') doesn't apply to it.
+  const sideways = preview?.phone === 'sideways' || preview?.phone === 'sidewaysOther';
+  const forced = preview && preview.phone !== 'sensor' && !(standing && sideways) ? PREVIEW_PHONES[preview.phone] : null;
   const turn = forced?.turn ?? sensed.turn ?? 'portrait';
   const hint = forced ? (live ? forced.hint : null) : sensed.hint;
   // `upright` is the accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
   const upright = sensed.turn === 'portrait' && sensed.hint !== 'flat';
   // Push-ups: upright counts too: the nudge to turn it only while he's still looking for you.
-  return { turn, hint: hint === 'tall' && !finding ? null : hint, upright };
+  // Dance: upright is the way (a standing body is tall), so never nudged.
+  return { turn, hint: hint === 'tall' && (!finding || standing) ? null : hint, upright };
 }
 
 /**
@@ -267,11 +276,18 @@ function TuningReadout({ session, pose }: { session: PushupsSession | null; pose
   if (!session) return null;
   const n = (v: number | null, digits = 0) => (v === null ? '–' : v.toFixed(digits));
   const R = rulesFor(session.exercise);
-  const lines = [
+  const d = session.dance;
+  const lines = d
+    ? [
+        `dance · ${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · ${session.miss}` : ''}`,
+        `energy ${d.energy.toFixed(2)}  (need ${DANCE.move})  legs ${d.leg.toFixed(2)}  (need ${DANCE.legMove})`,
+        `run ${(d.runMs / 1000).toFixed(1)}s  breaks after ${DANCE.breakMs / 1000}s still`,
+      ]
+    : [
     `${session.exercise} · ${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · miss ${session.miss}` : ''}`,
     `elbow ${n(session.elbow)}°  (down ≤${R.downDeg}, up ≥${R.upDeg})`,
     `drop ${n(session.drop, 2)}  (need ${R.minDrop}, or ${R.deepDrop} held)  low frames ${session.lowFrames}`,
-  ];
+      ];
   // What the iPhone handed over: the picture's size, how Vision read it, and how sure it was.
   const info = pose?.info;
   if (info) lines.push(`${info.w}×${info.h} ${info.upright ? 'stood up' : 'old table'} · read ${info.read} · seen ${info.score.toFixed(2)}/4`);
@@ -345,7 +361,7 @@ function Corners({ width }: { width: number }) {
 }
 
 /** What the count says it's counting. */
-export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups' };
+export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups', dance: 'seconds' };
 
 /**
  * The set itself, full screen: the front camera, you traced in white over it, the count big at
@@ -379,7 +395,7 @@ export function PushupsCamera({
   // The phone on its side (the main way for push-ups) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview);
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview, isTimed(exercise));
   const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
@@ -483,7 +499,9 @@ export function PushupsCamera({
 
   // The phone lying flat, upside down or upright: say that first, it's why he can't see (all of) you.
   // His bubble is the only words on the picture: the setup is on Home, before Start.
-  const line = phone ? PHONE_LINES[phone] : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null);
+  const line = phone
+    ? PHONE_LINES[phone]
+    : (isTimed(exercise) ? danceLine : pushupsLine)(status, reps, target, session?.miss ?? null, session?.hint ?? null);
   const locH = Math.round((LOC_PT * LOC_VIEW.height) / LOC_VIEW.width);
   // The same object between renders: the camera re-renders this about 30 times a second, and
   // Loc's DOM view would otherwise be handed new props every time. The whole width, as on Home,
@@ -501,8 +519,11 @@ export function PushupsCamera({
   const ends = { paddingLeft: Gap.gutter + insets.left, paddingRight: Gap.gutter + insets.right };
   // Loc in the bottom-left corner, out of the way of you, his bubble over him reading from the
   // same edge (user 2026-10-29: in the middle, he and his lines covered the person).
+  // Dance, though, has him in the middle (user 2026-11-07): you stand well back, so he's under
+  // your feet, not over you.
+  const centred = isTimed(exercise);
   const edge = Gap.gutter + insets.left;
-  const offset = (edge + LOC_PT / 2) / width - 0.5;
+  const offset = centred ? 0 : (edge + LOC_PT / 2) / width - 0.5;
   // The black: sits as the ledge, and floods up to the top while the screen turns.
   const ground = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - flood.get()) * (height - ledge) }] }));
   // The meter goes first as the black comes up, and comes back last.
@@ -526,7 +547,7 @@ export function PushupsCamera({
           {drawn ? (
             <DemoCamera
               style={StyleSheet.absoluteFill}
-              scene={preview!.scene === 'camera' ? 'nobody' : preview!.scene}
+              scene={preview!.scene === 'camera' ? 'nobody' : isTimed(exercise) ? danceSceneFor(preview!.scene) : preview!.scene}
               fail={fails(preview!)}
               active={!met && !timedOut}
               onPose={onPose}
@@ -543,10 +564,18 @@ export function PushupsCamera({
             accessible
             accessibilityLabel={`${reps} of ${target} ${EXERCISE_NOUN[exercise]}.`}
           >
-            {/* Rolls each rep, as Home's and the onboarding's counts do. */}
-            <View style={!counting && styles.countIdle}>
-              <CountText value={String(reps)} size={short || side ? 68 : 96} />
-            </View>
+            {isTimed(exercise) ? (
+              // Dance: the time left in a ring that empties as you dance (user 2026-11-07, after
+              // Peloton's set timer). A break fills it back up rather than cutting to the start.
+              <View style={[styles.timer, !counting && styles.countIdle]}>
+                <DanceTimer runMs={session?.dance?.runMs ?? 0} goal={target} met={met} size={short || side ? 120 : 160} />
+              </View>
+            ) : (
+              // Rolls each rep, as Home's and the onboarding's counts do.
+              <View style={!counting && styles.countIdle}>
+                <CountText value={String(reps)} size={short || side ? 68 : 96} />
+              </View>
+            )}
           </View>
 
           <Pressable
@@ -565,7 +594,14 @@ export function PushupsCamera({
             <LocStage mood={moodFor(session)} share={LOC_PT / width} offset={offset} present dom={dom} />
           </View>
           {arrived ? (
-            <View style={[styles.speech, { left: edge, bottom: ledge + Math.round(locH * BUBBLE_AT) }]} pointerEvents="box-none">
+            <View
+              style={[
+                styles.speech,
+                centred ? styles.speechMiddle : { left: edge },
+                { bottom: ledge + Math.round(locH * BUBBLE_AT) },
+              ]}
+              pointerEvents="box-none"
+            >
               <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} smoked />
             </View>
           ) : null}
@@ -575,7 +611,7 @@ export function PushupsCamera({
             <View style={styles.black} />
           </Animated.View>
           <Animated.View style={[styles.ledge, ends, { height: ledge, paddingBottom: side ? Space.m : Math.max(insets.bottom, Space.l) }, ledgeIn]}>
-            <Track progress={session ? repProgress(session) : 0} />
+            <CameraBar progress={session ? repProgress(session) : 0} />
             {timedOut ? (
               // The reps done stay: a long set with a break in it carries on from where it was.
               <Animated.View entering={FadeIn.duration(250)} style={side && styles.againSide}>
@@ -613,10 +649,12 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   reading: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   countIdle: { opacity: 0.45 },
+  timer: { alignItems: 'center' },
   loc: { position: 'absolute', left: 0, right: 0 },
   tuning: { position: 'absolute', top: '30%', left: Gap.gutter, right: Gap.gutter, padding: Space.s, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.6)' },
   tuningText: { ...Type.caption, color: Nocturne.text, fontVariant: ['tabular-nums'] },
   speech: { position: 'absolute', alignItems: 'flex-start' },
+  speechMiddle: { left: Gap.gutter, right: Gap.gutter, alignItems: 'center' },
   ground: { position: 'absolute', left: 0, right: 0, top: -PANEL_RADIUS },
   black: { flex: 1, backgroundColor: '#000000' },
   ledge: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: Space.l, gap: Space.l },

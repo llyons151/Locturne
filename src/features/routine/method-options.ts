@@ -50,12 +50,13 @@ export const methodOptions = ({ place, steps, wake, downtime = DEFAULT_DOWNTIME 
     recommended: true,
   },
   {
-    value: 'downstairs',
-    sf: 'figure.stairs',
-    icon: sym('figure.stairs', 'stairs'),
-    title: 'Go downstairs',
-    detail: 'One floor',
-    action: 'Go down one floor',
+    // Front-on to the camera, seconds straight (wake/dance.ts; 2026-11-07, in place of Go downstairs).
+    value: 'dance',
+    sf: 'figure.dance',
+    icon: sym('figure.dance', 'taunt'),
+    title: 'Dance',
+    detail: 'The camera watches',
+    action: 'Dance in front of the camera',
     recommended: false,
   },
   {

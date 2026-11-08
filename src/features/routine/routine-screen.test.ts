@@ -124,7 +124,7 @@ function screen(initial: Stored, now?: Date) {
     '@/theme': { DisplayFont: {}, Gap: {}, italicOverhang: () => ({}), Nocturne: {}, Radius: {}, Space: {}, Type: {}, VoiceSize: { aside: 0 } },
     './method-options': {
       methodOptions: () =>
-        ['steps', 'downstairs', 'scan', 'place', 'pushups'].map((value) => ({ value, icon: '', title: value, detail: '' })),
+        ['steps', 'dance', 'scan', 'place', 'pushups'].map((value) => ({ value, icon: '', title: value, detail: '' })),
     },
     './method-picker': { MethodPicker: 'MethodPicker' },
     './night-dial': { NightDial: 'NightDial' },

@@ -118,30 +118,51 @@ func registerRehearsalTests() {
     expectEqual(shielded(), ["reddit"])
   }
 
-  test("rehearsal, downstairs: a floor with a few steps wakes them") {
-    rehearsalArmed(method: "downstairs")
-    rehearsalNightRuns()
-    at("2026-10-05 15:20")
-    tap("tiktok", .data(steps: 300))
-    expectEqual(shielded(), ["instagram", "reddit", "tiktok"], "steps alone don't prove stairs")
-    tap("tiktok", .data(steps: 30, ascended: 0, descended: 1))
-    expectEqual(shielded(), ["reddit"])
-    expectEqual(rehearsalNote("lastCheck") as? String, "downstairs")
-  }
-
-  test("rehearsal, Step away: its 30 steps wake the copy, not the routine's 200, and no timer") {
+  test("rehearsal, Step away: 30 steps start a 1-min timer, the copy sleeps on until it ends") {
     rehearsalArmed(method: "downtime")
     rehearsalNightRuns()
     at("2026-10-05 15:20")
     tap("tiktok", .data(steps: 0))
     expectEqual(shielded(), ["instagram", "reddit", "tiktok"])
-    expectEqual(drawn("tiktok").subtitle, "0 of 30 steps. 30 more, then tap I’m up.")
+    expectEqual(drawn("tiktok").subtitle, "0 of 30 steps. 30 more, then tap I’m up to start your timer.")
     expect(sentTaps().isEmpty, "steps are judged here, no open-Locturne notification")
     tap("tiktok", .data(steps: 34))
-    expectEqual(shielded(), ["reddit"], "woken at 30, with no timer after")
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"], "the steps start the timer, they don't wake the copy")
+    expectEqual(drawn("tiktok").subtitle, "Timer’s running. They wake at 3:21 pm.")
+    expectEqual(rehearsalNote("lastCheck") as? String, "timerRunning")
+    expect(DeviceActivityCenter.monitored.contains(DeviceActivityName(LOCTURNE_REHEARSAL_TIMER_ACTIVITY)), "its end handed to iOS")
+    at("2026-10-05 15:20")
+    tap("tiktok", .data(steps: 40))
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"], "a tap before the end changes nothing")
+    at("2026-10-05 15:21")
+    end(LOCTURNE_REHEARSAL_TIMER_ACTIVITY)
+    expectEqual(shielded(), ["reddit"], "woken when the timer ends, Locturne closed")
     expectEqual(rehearsalNote("wonBy") as? String, "shield")
-    expect(get(LOCTURNE_DOWNTIME_KEY) == nil, "no Step away timer started")
+    expect(get(LOCTURNE_DOWNTIME_KEY) == nil, "the real Step away timer untouched")
     expectRealLockUntouched()
+  }
+
+  test("rehearsal, Step away: a timer Home started is the shield's too, and I'm up after it wakes them") {
+    rehearsalArmed(method: "downtime")
+    rehearsalNightRuns()
+    set(LOCTURNE_PRETEND_TIMER_KEY, ["since": ms(local("2026-10-05 15:17")), "reachedAt": ms(local("2026-10-05 15:19")), "endsAt": ms(local("2026-10-05 15:20"))])
+    at("2026-10-05 15:19")
+    tap("tiktok", .data(steps: 50))
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"])
+    expectEqual(drawn("tiktok").subtitle, "Timer’s running. They wake at 3:20 pm.")
+    at("2026-10-05 15:20")
+    tap("tiktok", .data(steps: 50))
+    expectEqual(shielded(), ["reddit"])
+  }
+
+  test("rehearsal, Step away: an older test's timer doesn't count") {
+    rehearsalArmed(method: "downtime")
+    rehearsalNightRuns()
+    set(LOCTURNE_PRETEND_TIMER_KEY, ["since": ms(local("2026-10-04 15:17")), "reachedAt": ms(local("2026-10-04 15:19")), "endsAt": ms(local("2026-10-04 15:20"))])
+    at("2026-10-05 15:20")
+    tap("tiktok", .data(steps: 5))
+    expectEqual(shielded(), ["instagram", "reddit", "tiktok"])
+    expectEqual(drawn("tiktok").subtitle, "5 of 30 steps. 25 more, then tap I’m up to start your timer.")
   }
 
   test("rehearsal, push-ups: I'm up opens Locturne, nothing wakes") {

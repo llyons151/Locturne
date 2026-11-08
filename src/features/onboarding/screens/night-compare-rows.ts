@@ -2,8 +2,8 @@ import type { WakeMethod } from '@/lib/routine';
 
 import { formatWhen } from '../estimate';
 
-/** Minutes from the alarm to proof, by how they prove it. A trip downstairs is about three. */
-const UP_AFTER: Record<WakeMethod, number> = { downstairs: 3, steps: 3, scan: 2, place: 15, pushups: 2, downtime: 2 };
+/** Minutes from the alarm to proof, by how they prove it. A walk is about three. */
+const UP_AFTER: Record<WakeMethod, number> = { dance: 2, steps: 3, scan: 2, place: 15, pushups: 2, downtime: 2 };
 
 export type CompareRow = { label: string; usual: string; withMe: string };
 

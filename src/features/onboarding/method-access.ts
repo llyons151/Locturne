@@ -4,14 +4,14 @@ import * as Location from 'expo-location';
 import type { WakeMethod } from '../../lib/routine.ts';
 
 /**
- * The iOS permission a wake-up way needs beyond Motion & Fitness: the camera for a scan code or
- * push-ups, When-In-Use location for a place. Steps and stairs need only Motion. Asked on
+ * The iOS permission a wake-up way needs beyond Motion & Fitness: the camera for a scan code,
+ * push-ups or dance, When-In-Use location for a place. Steps need only Motion. Asked on
  * `armed` right after Motion, so the first morning never opens on a prompt (user, 2026-10-26).
  */
 export type MethodAccess = 'camera' | 'location';
 
 export function methodAccessFor(method: WakeMethod): MethodAccess | null {
-  if (method === 'scan' || method === 'pushups') return 'camera';
+  if (method === 'scan' || method === 'pushups' || method === 'dance') return 'camera';
   if (method === 'place') return 'location';
   return null;
 }

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { downstairsLine, stepsLine } from './lines.ts';
+import { danceLine, stepsLine } from './lines.ts';
 
 test('steps lines follow the line bank at 0, 80, 160 and 200 of 200', () => {
   assert.equal(stepsLine(0, 200), 'No.');
@@ -15,8 +15,8 @@ test('steps lines follow the line bank at 0, 80, 160 and 200 of 200', () => {
 test('his lines never shout', () => {
   const all = [
     ...[0, 50, 100, 199, 200].map((n) => stepsLine(n, 200)),
-    ...(['idle', 'waiting', 'moving', 'holding', 'met', 'timedOut', 'noSignal', 'flat'] as const).map((s) =>
-      downstairsLine(s, 0.6),
+    ...(['idle', 'finding', 'counting', 'met', 'timedOut'] as const).flatMap((s) =>
+      [0, 1, 5, 9].flatMap((n) => [danceLine(s, n, 10, null), danceLine(s, n, 10, 'broke', 'still'), danceLine(s, n, 10, null, 'legs')]),
     ),
   ];
   for (const line of all) assert.ok(!line.includes('!'), line);

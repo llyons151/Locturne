@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { beforeEach, mock, test } from 'node:test';
 
 import { fakeDeviceActivity } from './fake-device-activity.ts';
+import type { WakeMethod } from './routine.ts';
 
 type HourMinute = { hour: number; minute: number };
 type Schedule = { intervalStart: HourMinute; intervalEnd: HourMinute; repeats: boolean };
@@ -112,13 +113,13 @@ function callbacks(from: Date, to: Date) {
   return out.sort((a, b) => a.at - b.at || (a.callback === 'end' ? -1 : 1));
 }
 
-type Method = 'steps' | 'downstairs' | 'scan' | 'place' | 'pushups' | 'downtime';
+type Method = 'steps' | 'downstairs' | 'dance' | 'scan' | 'place' | 'pushups' | 'downtime';
 type Scenario = {
   name: string;
   method: Method;
   pedometer: { steps: number; ascended?: number; descended?: number };
   /** What the tap should do with Locturne closed. */
-  woke: false | 'steps' | 'downstairs' | 'downtime';
+  woke: false | 'steps' | 'downtime';
   /** Step away: the tap started its timer, still running a minute later. */
   timer?: boolean;
   /** Step away's timer, in minutes. */
@@ -130,10 +131,12 @@ type Scenario = {
 const SCENARIOS: Scenario[] = [
   { name: 'steps-at-goal', method: 'steps', pedometer: { steps: 240 }, woke: 'steps', opens: false },
   { name: 'steps-short', method: 'steps', pedometer: { steps: 120 }, woke: false, opens: false },
-  { name: 'downstairs-floor', method: 'downstairs', pedometer: { steps: 30, descended: 1 }, woke: 'downstairs', opens: false },
-  // 200 steps no longer wake another method's morning by themselves (user 2026-10-28).
-  { name: 'downstairs-walked', method: 'downstairs', pedometer: { steps: 220 }, woke: false, opens: false },
-  { name: 'downstairs-short', method: 'downstairs', pedometer: { steps: 12, descended: 1 }, woke: false, opens: false },
+  // Dance is done on the camera in Locturne: the tap opens it. 200 steps no longer wake another
+  // method's morning by themselves (user 2026-10-28).
+  { name: 'dance-short', method: 'dance', pedometer: { steps: 10 }, woke: false, opens: true },
+  { name: 'dance-walked', method: 'dance', pedometer: { steps: 300, descended: 1 }, woke: false, opens: true },
+  // Go downstairs went on 2026-11-07: a routine still saved with it dances, so a floor wakes nothing.
+  { name: 'downstairs-saved', method: 'downstairs', pedometer: { steps: 30, descended: 1 }, woke: false, opens: true },
   // No code or place set up here, so those mornings are walks (`methodInUse`): judged on the shield.
   { name: 'scan-short', method: 'scan', pedometer: { steps: 50 }, woke: false, opens: false },
   { name: 'scan-walked', method: 'scan', pedometer: { steps: 260 }, woke: 'steps', opens: false },
@@ -157,7 +160,7 @@ async function closedNightFor(s: Scenario) {
   clock(at(10, 5, 15));
   fake.ids().night = 'tiktok,instagram';
   fake.ids().always = 'reddit';
-  saveRoutine({ ...DEFAULT_ROUTINE, method: s.method, ...(s.minutes ? { downtimeMinutes: s.minutes } : {}) }, at(10, 5, 15));
+  saveRoutine({ ...DEFAULT_ROUTINE, method: s.method as WakeMethod, ...(s.minutes ? { downtimeMinutes: s.minutes } : {}) }, at(10, 5, 15));
   const result = await armTonight();
   assert.equal(result.status, 'armed');
   const evening = at(10, 5, 22);

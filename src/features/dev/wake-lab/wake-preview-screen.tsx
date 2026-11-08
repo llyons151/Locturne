@@ -30,18 +30,6 @@ const STEPS: MenuOption<WakePreview['steps']>[] = [
   { value: 'unavailable', label: 'Fake no sensor' },
 ];
 
-const STAIRS: MenuOption<WakePreview['stairs']>[] = [
-  { value: 'real', label: 'Real sensor' },
-  { value: 'down', label: 'Fake downstairs' },
-  { value: 'up', label: 'Fake upstairs' },
-  { value: 'short', label: 'Fake half a floor' },
-  { value: 'still', label: 'Fake times out' },
-  { value: 'flat', label: 'Fake stuck sensor' },
-  { value: 'noSignal', label: 'Fake no readings' },
-  { value: 'denied', label: 'Fake access off' },
-  { value: 'unavailable', label: 'Fake no barometer' },
-];
-
 const SCAN: MenuOption<WakePreview['scan']>[] = [
   { value: 'real', label: 'Real camera' },
   { value: 'fake', label: 'Fake viewfinder' },
@@ -64,7 +52,7 @@ const PLACE: MenuOption<WakePreview['place']>[] = [
 
 const PAYOFF_METHOD: MenuOption<string>[] = [
   { value: 'steps', label: 'Steps' },
-  { value: 'downstairs', label: 'Downstairs' },
+  { value: 'dance', label: 'Dance' },
   { value: 'pushups', label: 'Push-ups' },
   { value: 'downtime', label: 'Step away' },
   { value: 'scan', label: 'Scan' },
@@ -142,12 +130,11 @@ export function WakePreviewScreen() {
       </Card>
 
       <Card
-        icon={sym('figure.stairs', 'stairs')}
-        title="Go downstairs"
-        footer="Fake replaces the barometer (expo-sensors) with a scripted trip: Start, ~8 s on the stairs, 5 s hold. On Home: src/features/home/use-morning-stairs.ts"
+        icon={sym('figure.dance', 'taunt')}
+        title="Dance"
+        footer="The push-up camera, front-on and timed (src/lib/wake/dance.ts). The push-up rows below set it up too; a drawn push-up scene plays as its dance one (a good dance, standing still, arms only, the tour)."
       >
-        <MenuRow title="Barometer" value={p.stairs} options={STAIRS} onChange={(stairs) => setWakePreview({ stairs })} />
-        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'downstairs')} last />
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'dance')} last />
       </Card>
 
       <Card

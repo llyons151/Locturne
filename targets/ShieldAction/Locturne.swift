@@ -653,9 +653,6 @@ let LOCTURNE_FIRST_KEY = "locturne.firstMorning"
 let LOCTURNE_PROOFS_KEEP = 30
 /// The button type the app puts on the morning shield (`shieldActions` in screen-time.ts).
 let LOCTURNE_MORNING_CHECK = "locturneMorningCheck"
-/// A floor changed counts for "go downstairs" with at least this many steps around it: the
-/// chip only counts floors while walking, and a few steps rule out a lift.
-let LOCTURNE_FLOOR_STEPS = 20
 /// What each check found, newest first, for the Screen Time lab (device testing).
 let LOCTURNE_MORNING_CHECKS_KEY = "locturne.morningChecks"
 let LOCTURNE_MORNING_CHECKS_KEEP = 20
@@ -712,13 +709,13 @@ func locturneOnWheel(_ value: Any?, min: Int, max: Int, fallback: Int) -> Int {
 
 /// Pure: the proof the motion history gives, or nil. Steps prove only a steps morning (user
 /// 2026-10-28: 200 steps no longer beat the other methods by themselves; walking instead is
-/// chosen in Locturne); a floor changed with a few steps proves "go downstairs".
+/// chosen in Locturne). Floors no longer prove anything: Go downstairs went on 2026-11-07
+/// (dance, on the camera, in its place); they're still read for the morning-check log.
 func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int) -> String? {
-  if method == "downstairs" && floors >= 1 && steps >= LOCTURNE_FLOOR_STEPS { return "downstairs" }
   // A goal of 0 or less (never saved by the app) mustn't wake on no steps at all.
   // A method this extension doesn't know (a newer app's) still takes a walk, so nobody is stuck.
   // Step away (`downtime`) is steps and then its timer: walking further never skips the timer.
-  let walks = !["downstairs", "scan", "place", "pushups", "downtime"].contains(method)
+  let walks = !["dance", "scan", "place", "pushups", "downtime"].contains(method)
   if walks && steps >= max(stepGoal, 1) { return "steps" }
   return nil
 }
@@ -731,9 +728,12 @@ func locturneMethodInUse(_ method: String) -> String {
   // Squats went on 2026-11-05 (`normalizeRoutine` in src/lib/routine.ts): a routine saved with
   // them, not yet opened in the new app, walks.
   if method == "squats" { return "steps" }
-  // No step counter (an iPad; `noStepCounter` in src/lib/step-counter.ts): a walk or downstairs
-  // morning is Step away, its timer from the morning start.
-  if (method == "steps" || method == "downstairs") && userDefaults?.bool(forKey: "locturne.noStepCounter") == true {
+  // Go downstairs went on 2026-11-07: a routine saved with it, not yet opened in the new app,
+  // dances (as `normalizeRoutine`), which opens Locturne for the camera.
+  if method == "downstairs" { return "dance" }
+  // No step counter (an iPad; `noStepCounter` in src/lib/step-counter.ts): a walk morning is
+  // Step away, its timer from the morning start.
+  if method == "steps" && userDefaults?.bool(forKey: "locturne.noStepCounter") == true {
     return "downtime"
   }
   return method
@@ -745,8 +745,6 @@ func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> Stri
   guard let steps else { return "I can’t read your steps from here. Open Locturne and I’ll check." }
   let left = max(0, stepGoal - steps)
   switch method {
-  case "downstairs":
-    return "No stairs yet. Go down a floor, then tap I’m up."
   case "steps":
     return "\(steps) of \(stepGoal) steps. \(left) more, then tap I’m up."
   default:
@@ -969,7 +967,16 @@ func locturneStartDowntime(_ morning: LocturneMorning, reachedAt: Date, now: Dat
 /// 15 minutes long, so its start is in the past when the end is close, which iOS starts at once.
 /// Refused (no room, too short) it's left: the next open or I'm up after the end wakes them.
 func locturneArmDowntimeEnd(_ ends: Date, now: Date = Date()) {
-  guard ends > now else { return }
+  if locturneArmOneOffEnd(LOCTURNE_DOWNTIME_ACTIVITY, ends: ends, now: now) {
+    userDefaults?.set((ends.timeIntervalSince1970 * 1000).rounded(), forKey: LOCTURNE_DOWNTIME_ARMED_KEY)
+  }
+}
+
+/// A one-off window named `activity` ending at `ends`, its start in the past when the end is close.
+/// False when there's nothing to arm or iOS refused.
+@discardableResult
+func locturneArmOneOffEnd(_ activity: String, ends: Date, now: Date = Date()) -> Bool {
+  guard ends > now else { return false }
   let calendar = Calendar.current
   let start = min(now, ends.addingTimeInterval(-15 * 60))
   let parts: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
@@ -977,7 +984,7 @@ func locturneArmDowntimeEnd(_ ends: Date, now: Date = Date()) {
   var to = calendar.dateComponents(parts, from: ends)
   from.calendar = calendar; from.timeZone = calendar.timeZone
   to.calendar = calendar; to.timeZone = calendar.timeZone
-  let name = DeviceActivityName(LOCTURNE_DOWNTIME_ACTIVITY)
+  let name = DeviceActivityName(activity)
   // The list settle gives up its slot first, as for a nap (`makeRoomFor`).
   if !center.activities.contains(name), center.activities.count >= 20,
     center.activities.contains(DeviceActivityName("locturne-settle"))
@@ -987,9 +994,10 @@ func locturneArmDowntimeEnd(_ ends: Date, now: Date = Date()) {
   }
   do {
     try center.startMonitoring(name, during: DeviceActivitySchedule(intervalStart: from, intervalEnd: to, repeats: false), events: [:])
-    userDefaults?.set((ends.timeIntervalSince1970 * 1000).rounded(), forKey: LOCTURNE_DOWNTIME_ARMED_KEY)
+    return true
   } catch {
-    logger.log("downtime: iOS refused the end \(error.localizedDescription, privacy: .public)")
+    logger.log("\(activity, privacy: .public): iOS refused the end \(error.localizedDescription, privacy: .public)")
+    return false
   }
 }
 
@@ -1196,6 +1204,79 @@ func locturneWakeRehearsal(steps: Int?, floors: Int, now: Date = Date()) {
   }
   restoreLocturneFallbackShield(triggeredBy: "locturne_rehearsalUp")
   reapplyLocturneBlocks(triggeredBy: "locturne_rehearsalUp")
+}
+
+// MARK: - A rehearsal's Step away timer
+//
+// A rehearsal of Step away runs as the real morning does, its timer a minute rather than an hour
+// (user 2026-11-07: "build the rehearsal matching the real one with a 1-minute timer"): its 30
+// steps and I'm up start the timer, the shield says when they wake, and the copy wakes when it
+// ends, with Locturne closed too (a one-off window, `locturne-rehearsal-timer`). The timer is
+// the one Home's test morning keeps (`locturne.pretendTimer`, `startPretendTimer` in
+// src/features/dev/wake-lab/wake-preview.ts), so whichever starts it, the other shows it.
+
+let LOCTURNE_PRETEND_TIMER_KEY = "locturne.pretendTimer"
+let LOCTURNE_REHEARSAL_TIMER_ACTIVITY = "locturne-rehearsal-timer"
+let LOCTURNE_REHEARSAL_TIMER_MINUTES = 1
+
+/// When this rehearsal's timer ends, or nil before it's started. Kept by the rehearsal's morning
+/// start (`since`, as Home keys it), so an older test's timer never counts.
+func locturneRehearsalTimerEnd() -> Date? {
+  guard let since = (locturneRehearsal()?["end"] as? NSNumber)?.doubleValue,
+    let timer = userDefaults?.dictionary(forKey: LOCTURNE_PRETEND_TIMER_KEY),
+    let timerSince = (timer["since"] as? NSNumber)?.doubleValue, timerSince == since,
+    let ends = (timer["endsAt"] as? NSNumber)?.doubleValue
+  else { return nil }
+  return Date(timeIntervalSince1970: ends / 1000)
+}
+
+/// Starts the rehearsal's timer from `now` (once: a running one stays) and hands its end to iOS.
+func locturneStartRehearsalTimer(now: Date) -> Date? {
+  if let ends = locturneRehearsalTimerEnd() { return ends }
+  guard let since = (locturneRehearsal()?["end"] as? NSNumber)?.doubleValue else { return nil }
+  let ends = now.addingTimeInterval(Double(LOCTURNE_REHEARSAL_TIMER_MINUTES) * 60)
+  userDefaults?.set(
+    ["since": since, "reachedAt": locturneStamp(now), "endsAt": locturneStamp(ends)] as [String: Any],
+    forKey: LOCTURNE_PRETEND_TIMER_KEY
+  )
+  locturneArmOneOffEnd(LOCTURNE_REHEARSAL_TIMER_ACTIVITY, ends: ends, now: now)
+  return ends
+}
+
+/// Step away in a rehearsal, on I'm up (`slack` 0) or at its timer's window end (iOS's slack, as
+/// the real timer's): starts the timer once its 30 steps are in, wakes the copy once it's over,
+/// and otherwise says how it's going, in the real morning's words. A tap gets no slack: two
+/// minutes' give on a one-minute timer would wake them on the tap that starts it. True when woken.
+@available(iOS 15.0, *)
+@discardableResult
+func locturneJudgeRehearsalDowntime(steps: Int?, now: Date, slack: TimeInterval = 0) -> Bool {
+  var ends = locturneRehearsalTimerEnd()
+  if ends == nil, let steps, steps >= LOCTURNE_DOWNTIME_STEPS { ends = locturneStartRehearsalTimer(now: now) }
+  // No step counter: nothing to wait for, as the real morning (which runs from its start).
+  if ends == nil, userDefaults?.bool(forKey: "locturne.noStepCounter") == true { ends = locturneStartRehearsalTimer(now: now) }
+  if let ends, now.addingTimeInterval(slack) >= ends {
+    locturneNoteRehearsal(["lastCheck": "downtime"])
+    locturneWakeRehearsal(steps: steps, floors: 0, now: now)
+    return true
+  }
+  let line: String
+  if let ends {
+    line = "Timer’s running. They wake at \(locturneClockLabel(locturneMinute(ends)))."
+  } else if let steps {
+    line = "\(steps) of \(LOCTURNE_DOWNTIME_STEPS) steps. \(max(0, LOCTURNE_DOWNTIME_STEPS - steps)) more, then tap I’m up to start your timer."
+  } else {
+    line = "I can’t read your steps from here. Open Locturne and I’ll check."
+  }
+  locturneShowRehearsalProgress(line)
+  locturneNoteRehearsal(["lastCheck": ends != nil ? "timerRunning" : steps == nil ? "noHistory" : "short", "steps": steps ?? -1])
+  return false
+}
+
+/// The rehearsal timer's window ended (the monitor extension's `intervalDidEnd`).
+@available(iOS 15.0, *)
+func locturneRehearsalTimerEnded(now: Date = Date()) {
+  guard locturneRehearsalLive(), locturneRehearsal()?["method"] as? String == "downtime", locturneRehearsalTimerEnd() != nil else { return }
+  locturneJudgeRehearsalDowntime(steps: nil, now: now, slack: LOCTURNE_DOWNTIME_SLACK)
 }
 
 /// Puts how far they've got on the rehearsal's morning shield, as `locturneShowMorningProgress`

@@ -52,11 +52,11 @@ export function methodInUse(method: WakeMethod): WakeMethod {
 
 /**
  * The method a morning really runs on: `methodInUse`, and on a device with no step counter
- * (step-counter.ts) a walk or downstairs morning is Step away, its timer from the morning
+ * (step-counter.ts) a walk morning is Step away, its timer from the morning
  * start. Setup screens keep `methodInUse` (their "not set up yet" notes are about scan and place).
  */
 export function morningMethod(method: WakeMethod): WakeMethod {
   const used = methodInUse(method);
-  if ((used === 'steps' || used === 'downstairs') && noStepCounter()) return 'downtime';
+  if (used === 'steps' && noStepCounter()) return 'downtime';
   return used;
 }

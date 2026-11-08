@@ -170,7 +170,7 @@ test('no morning promise for a morning already unlocked, or one whose night was 
 
 test('a walk made before a morning\'s night began (the date replayed after a flight west) still gets its morning note', () => {
   // Proved 07:30 on the 4th somewhere a day ahead; here the night into the 4th ran 23:00 to 07:00 after it.
-  const walk = { morningKey: '2026-10-04', kind: 'downstairs' as const, at: at(3, 7, 30).getTime() };
+  const walk = { morningKey: '2026-10-04', kind: 'dance' as const, at: at(3, 7, 30).getTime() };
   assert.deepEqual(summary(plan({ now: at(3, 12), days: 1, proofs: [walk] })), ['bedtime 3 22:45', 'morning 4 7:0']);
   // A pass is tied to its morning, not to a moment after bedtime: it still frees it.
   const pass = { ...walk, kind: 'pass' as const };
@@ -232,7 +232,7 @@ test('copy stays in his voice: no exclamation marks', () => {
 
 test('ask for permission only after a night held or a morning was unlocked, and only once', () => {
   const held = { morningKey: '2026-10-04', start: at(3, 23), end: at(4, 7), verdict: 'onTime' as const, firstStart: null, lateBy: 0 };
-  const proof = { morningKey: '2026-10-04', kind: 'downstairs' as const, at: 0 };
+  const proof = { morningKey: '2026-10-04', kind: 'dance' as const, at: 0 };
   assert.equal(isGoodMomentToAsk('undetermined', { proofs: [], nights: [] }), false);
   assert.equal(isGoodMomentToAsk('undetermined', { proofs: [], nights: [{ ...held, verdict: 'missed' }] }), false);
   assert.equal(isGoodMomentToAsk('undetermined', { proofs: [], nights: [held] }), true);

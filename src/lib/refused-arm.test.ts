@@ -65,7 +65,7 @@ test('a refused re-arm for an earlier bedtime, saved inside it, leaves no app as
   lc.settleSubscription(true, at(4, 15));
   assert.equal((await armTonight()).status, 'armed');
   clock(at(5, 8));
-  assert.equal(lc.proveMorning('downstairs', at(5, 8))?.phase, 'day');
+  assert.equal(lc.proveMorning('dance', at(5, 8))?.phase, 'day');
   clock(at(5, 21, 45));
   assert.equal(lc.syncLock(at(5, 21, 45)).phase, 'day');
   // The Routine tab at 21:45: bedtime 21:30, armed at once (it only tightens). iOS accepts the

@@ -4,13 +4,12 @@
  * Every wake-up method, whole mornings, on the simulated iPhone (sim-device.ts): onboarding arms
  * the night, the phone runs with Locturne closed through bedtime, and the morning is proved
  * through the method's own logic as Home runs it, with sensors faked at the level the app reads
- * them (the pedometer's history and live batches, the altimeter's relative altitude, Vision's
+ * them (the pedometer's history and live batches, Vision's
  * joints, a GPS fix, a scanned string). What's shielded is read from the simulated device.
  *
  * - steps: `watchSteps` (step-watch.ts) and the rules in steps.ts, proved as `useMorningWalk`
  *   does, at the goal.
- * - downstairs: `watchDownstairs` (downstairs-watch.ts) with altimeter traces, restarted as
- *   `useMorningStairs` does after a session with no floor.
+ * - dance: the same camera machine timed (dance.ts), on pose-demo.ts's front-on body.
  * - pushups: the counter (pushups.ts) on Vision-like joints, with the reps saved per morning as
  *   `usePushups` does, proved when the set is met.
  * - scan: `submitScan`. place: `submitPlaceFix`.
@@ -49,16 +48,14 @@ const em = await import('./emergency.ts');
 const { armTonight } = await import('./arm.ts');
 const { watchSteps } = await import('./wake/step-watch.ts');
 const { stepsOf } = await import('./wake/steps.ts');
-const { watchDownstairs, TICK_MS } = await import('./wake/downstairs-watch.ts');
 const pu = await import('./wake/pushups.ts');
-const { plankPose } = await import('./wake/pose-demo.ts');
+const { plankPose, scenePose } = await import('./wake/pose-demo.ts');
 const payoff = await import('../features/wake/payoff.ts');
 const counter = await import('./step-counter.ts');
 const sc2 = await import('./scan-code.ts');
 
 type WakeMethod = import('./routine.ts').WakeMethod;
 type Routine = import('./routine.ts').Routine;
-type DownstairsSession = import('./wake/downstairs.ts').DownstairsSession;
 
 const MIN = 60_000;
 /** October 2026, local time. The 5th is a Monday. */
@@ -244,94 +241,6 @@ function homeWalk(pedometer: ReturnType<typeof fakePedometer>, routine: Routine)
   };
 }
 
-/** Altitude over time, metres, for the altimeter. */
-type Trace = (t: number) => number;
-
-/** A seeded wobble, about ±`amp` m, like CMAltimeter's noise. */
-function noise(seed: number, amp: number) {
-  let x = seed;
-  return () => {
-    x = (x * 1103515245 + 12345) % 2147483648;
-    return ((x / 2147483648) * 2 - 1) * amp;
-  };
-}
-
-/**
- * Home's stairs (`useMorningStairs`): listens straight away, starts again after a session with no
- * floor, proves at met. Runs the trace at 1 Hz for `ms` and returns what happened.
- */
-async function homeStairs(trace: Trace, ms: number, opts: { background?: number } = {}) {
-  let session: DownstairsSession | null = null;
-  let access = 'checking';
-  const live: { listener: ((r: { relativeAltitude?: number }) => void) | null } = { listener: null };
-  let clock: (() => void) | null = null;
-  let appState: ((s: string) => void)[] = [];
-  let origin = 0;
-  const statuses: string[] = [];
-  let proved: ReturnType<typeof lc.proveMorning> | undefined;
-  const watch = watchDownstairs({
-    barometer: {
-      isAvailableAsync: async () => true,
-      setUpdateInterval: () => {},
-      addListener: (l) => {
-        // CMAltimeter's relative altitude starts from zero at each start.
-        origin = trace(Date.now());
-        live.listener = l;
-        return { remove: () => (live.listener = null) };
-      },
-    },
-    pedometer: {
-      getPermissionsAsync: async () => ({ granted: true, canAskAgain: true }),
-      requestPermissionsAsync: async () => ({ granted: true, canAskAgain: true }),
-    },
-    isIOS: true,
-    onAppState: (l) => {
-      appState.push(l);
-      return { remove: () => (appState = appState.filter((x) => x !== l)) };
-    },
-    onAccess: (a) => (access = a),
-    onSession: (s) => {
-      session = s;
-      if (s && statuses.at(-1) !== s.status) statuses.push(s.status);
-      if (s?.status === 'met' && proved === undefined) proved = lc.proveMorning('downstairs');
-    },
-    setInterval: (run) => {
-      clock = run;
-      return 1;
-    },
-    clearInterval: () => (clock = null),
-  });
-  await flush();
-  const t0 = Date.now();
-  for (let t = t0; t < t0 + ms; t += 1000) {
-    mock.timers.setTime(t);
-    const idle = session === null || (session as DownstairsSession).status === 'timedOut';
-    if (access === 'ready' && idle && t !== opts.background) {
-      await watch.start();
-      await flush();
-    }
-    if (opts.background !== undefined && t === opts.background) {
-      for (const l of [...appState]) l('background');
-      continue;
-    }
-    live.listener?.({ relativeAltitude: trace(t) - origin });
-    if (clock && (t - t0) % TICK_MS === 0) (clock as () => void)();
-    if (proved !== undefined) break;
-  }
-  watch.dispose();
-  return { proved, statuses, session: session as DownstairsSession | null };
-}
-
-/** A walk down one flight: flat in bed, `drop` metres over `stairsMs`, then still at the bottom. */
-function flight(start: number, drop: number, { stairsMs = 8_000, seed = 1, amp = 0.15, delay = 10_000 } = {}): Trace {
-  const wobble = noise(seed, amp);
-  return (t) => {
-    const s = t - start - delay;
-    const h = s <= 0 ? 0 : s >= stairsMs ? -drop : (-drop * s) / stairsMs;
-    return 100 + h + wobble();
-  };
-}
-
 /* ---------- Push-up poses (pose-demo.ts's side-on body, as Vision reports joints) ---------- */
 
 const BODY = { upper: 80, fore: 76, wrist: { x: 200, y: 500 }, ankle: { x: 520, y: 490 } };
@@ -379,6 +288,25 @@ function pushupsCamera(goal: number) {
         s = pu.tick(pu.addPose(s, f), f.at);
         if (s.reps > saved()) st.sharedSet('locturne.pushupsDone', { morning, reps: s.reps });
         if (s.status === 'met' && proved === undefined) proved = lc.proveMorning('pushups');
+      }
+    },
+    session: () => s,
+    proved: () => proved,
+  };
+}
+
+/** Home's dance: the camera from zero (seconds straight are never carried), the run's end proves. */
+function danceCamera(goal: number) {
+  let s = pu.startPushups(Date.now(), goal, { exercise: 'dance' });
+  let proved: ReturnType<typeof lc.proveMorning> | undefined;
+  return {
+    feed(scene: Parameters<typeof scenePose>[0], ms: number) {
+      const from = Date.now();
+      for (let t = 0; t < ms; t += FRAME_MS) {
+        mock.timers.setTime(from + t);
+        // Past the scene's empty lead-in, so the body is there from the first frame.
+        s = pu.tick(pu.addPose(s, { at: from + t, joints: scenePose(scene, t + 1_500, 390, 844) }), from + t);
+        if (s.status === 'met' && proved === undefined) proved = lc.proveMorning('dance');
       }
     },
     session: () => s,
@@ -466,127 +394,52 @@ describe('steps', () => {
   });
 });
 
-/* ---------- Go downstairs ---------- */
+/* ---------- Dance ---------- */
 
-describe('downstairs', () => {
-  const routine = { ...rt.DEFAULT_ROUTINE, method: 'downstairs' as const };
+describe('dance', () => {
+  const routine = { ...rt.DEFAULT_ROUTINE, method: 'dance' as const, danceGoal: 10 };
 
-  test('one floor down (3 m over 8 s, ±0.15 m noise) proves after the 5 s hold', async () => {
+  test('ten seconds of dancing straight proves', async () => {
     await onboard(routine);
     await sleepThroughNight();
-    const r = await homeStairs(flight(Date.now(), 3), 60_000);
-    assert.ok(r.proved, `statuses: ${r.statuses.join(' → ')}`);
-    assert.ok(r.statuses.includes('holding'));
-    await assertWoke('downstairs');
+    const cam = danceCamera(10);
+    cam.feed('dance', 12_000);
+    assert.ok(cam.proved());
+    await assertWoke('dance');
     assertNextNightLocks();
   });
 
-  test('going up a floor proves too (someone who sleeps downstairs)', async () => {
+  test('standing still, arms only, or sitting on the bed never prove', async () => {
     await onboard(routine);
     await sleepThroughNight();
-    const down = flight(Date.now(), 3);
-    const r = await homeStairs((t) => 200 - down(t), 60_000);
-    assert.ok(r.proved);
-    await assertWoke('downstairs');
-  });
-
-  test('2.6 m stairs with ±0.3 m noise still finish (the hysteresis)', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const r = await homeStairs(flight(Date.now(), 2.6, { amp: 0.3, seed: 7 }), 90_000);
-    assert.ok(r.proved, r.statuses.join(' → '));
-  });
-
-  test('2.3 m (a few steps, a split level) never proves, even with noise', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const r = await homeStairs(flight(Date.now(), 2.3, { amp: 0.1, seed: 3 }), 6 * MIN);
-    assert.equal(r.proved, undefined, r.statuses.join(' → '));
+    const cam = danceCamera(10);
+    cam.feed('danceStill', 15_000);
+    cam.feed('danceArms', 15_000);
+    cam.feed('danceSitting', 15_000);
+    assert.equal(cam.proved(), undefined);
     assert.ok(NIGHT.every(asleep));
   });
 
-  test('down and straight back up within 3 s does not prove: the hold has to last', async () => {
+  test('stopping halfway starts the ten over: five, a pause, five more is not enough', async () => {
     await onboard(routine);
     await sleepThroughNight();
-    const t0 = Date.now();
-    const down = flight(t0, 3, { amp: 0.05 });
-    const trace: Trace = (t) => (t - t0 < 18_000 + 3_000 ? down(t) : 100);
-    const r = await homeStairs(trace, 50_000);
-    assert.equal(r.proved, undefined, r.statuses.join(' → '));
+    const cam = danceCamera(10);
+    cam.feed('dance', 5_500);
+    cam.feed('danceStill', 3_000);
+    cam.feed('dance', 5_500);
+    assert.equal(cam.proved(), undefined);
+    cam.feed('dance', 6_000);
+    assert.ok(cam.proved(), 'ten straight in the end');
   });
 
-  test('a phone on the bedside table for 20 minutes in a storm (pressure falling 0.5 m per 2 min) never proves', async () => {
+  test('a routine saved with Go downstairs dances', async () => {
     await onboard(routine);
-    await sleepThroughNight();
-    const t0 = Date.now();
-    const wobble = noise(11, 0.1);
-    // Falling pressure reads as rising altitude: 0.25 m a minute, 5 m over 20 minutes.
-    const r = await homeStairs((t) => 100 + ((t - t0) / MIN) * 0.25 + wobble(), 20 * MIN);
-    assert.equal(r.proved, undefined, r.statuses.join(' → '));
-    assert.ok(r.statuses.includes('timedOut'), 'sessions restart every 5 minutes, which bounds the drift');
+    const stored = st.sharedGet<{ active: Routine }>('locturne.routine')!;
+    st.sharedSet('locturne.routine', { ...stored, active: { ...stored.active, method: 'downstairs' } });
+    assert.equal(rt.getRoutine().method, 'dance');
   });
 
-  test('a very fast storm (1 m a minute on the desk) is the edge: it is reported, not hidden', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const t0 = Date.now();
-    const r = await homeStairs((t) => 100 + ((t - t0) / MIN) * 1, 10 * MIN);
-    // 1 m/min passes 2.5 m in 2.5 minutes of one session. Real weather never moves that fast
-    // (a hurricane's eye wall is ~0.3 m/min); recorded so a change to the rules shows here.
-    assert.ok(r.proved, 'a drift this fast would pass: the rules rely on weather being slower');
-  });
-
-  test('shaking the phone in bed (±1 m spikes at random) never proves', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const spike = noise(5, 1);
-    const r = await homeStairs(() => 100 + spike(), 3 * MIN);
-    assert.equal(r.proved, undefined, r.statuses.join(' → '));
-  });
-
-  test('a door slam (a 4 m spike for 2 s) never proves', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const t0 = Date.now();
-    const r = await homeStairs((t) => (t - t0 >= 20_000 && t - t0 < 22_000 ? 96 : 100), 60_000);
-    assert.equal(r.proved, undefined, r.statuses.join(' → '));
-  });
-
-  test('an elevator down three floors (9 m in 15 s) proves: it is a floor change', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const r = await homeStairs(flight(Date.now(), 9, { stairsMs: 15_000 }), 60_000);
-    assert.ok(r.proved);
-  });
-
-  test('a single-storey home: listening goes on for 15 minutes, restarting, and never proves', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const wobble = noise(9, 0.2);
-    const r = await homeStairs(() => 100 + wobble(), 15 * MIN);
-    assert.equal(r.proved, undefined);
-    assert.ok(r.statuses.filter((s) => s === 'timedOut').length >= 2, 'restarted after each 5 minutes');
-  });
-
-  test('going downstairs BEFORE Home is open: the stairs alone cannot prove (only steps or the shield can)', async () => {
-    await onboard(routine);
-    await sleepThroughNight(at(6, 7, 1));
-    // Walked down at 7:02 with the app closed; opened Home at 7:05, already downstairs.
-    runTo(at(6, 7, 5));
-    const r = await homeStairs(() => 97 + noise(2, 0.1)(), 6 * MIN);
-    assert.equal(r.proved, undefined, 'the session baselines downstairs: nothing to measure');
-  });
-
-  test('locking the phone mid-trip: the session ends, and the new one starts from where the phone now is', async () => {
-    await onboard(routine);
-    await sleepThroughNight();
-    const t0 = Date.now();
-    // Halfway down when the phone is locked (iOS stops the altimeter); back on at the bottom.
-    const r = await homeStairs(flight(t0, 3, { amp: 0.05 }), 60_000, { background: t0 + 14_000 });
-    assert.equal(r.proved, undefined, 'the trip is lost: they must change floors again or walk');
-  });
-
-  test('walk instead on a stairs morning proves with steps', async () => {
+  test('walk instead on a dance morning proves with steps', async () => {
     await onboard(routine);
     await sleepThroughNight();
     const pedometer = fakePedometer();
@@ -838,7 +691,7 @@ describe('no step counter (user 2026-11-07)', () => {
     assert.equal(sc2.morningMethod('steps'), 'steps', 'off iOS nothing is decided');
     await counter.checkStepCounter({ isIOS: true, isAvailable: async () => false });
     assert.equal(sc2.morningMethod('steps'), 'downtime');
-    assert.equal(sc2.morningMethod('downstairs'), 'downtime', 'downstairs needs steps too');
+    assert.equal(sc2.morningMethod('dance'), 'dance', 'dance needs no step counter');
     assert.equal(sc2.morningMethod('pushups'), 'pushups', 'the camera ones stay');
     assert.equal(sc2.methodInUse('steps'), 'steps', 'setup screens are untouched');
     await counter.checkStepCounter({ isIOS: true, isAvailable: async () => true });
@@ -1032,7 +885,7 @@ describe('place', () => {
 
 describe('every method', () => {
   test('a pass that morning wakes the bedtime apps, counts as no morning won, and the next night locks', async () => {
-    await onboard({ method: 'downstairs' });
+    await onboard({ method: 'dance' });
     await sleepThroughNight();
     assert.equal(passes.spendPass(), null);
     await open();
@@ -1100,7 +953,7 @@ describe('every method', () => {
     assert.equal(lc.proveMorning('steps'), null, 'nothing to prove');
   });
 
-  for (const method of ['steps', 'downstairs', 'pushups', 'downtime', 'scan', 'place'] as const) {
+  for (const method of ['steps', 'dance', 'pushups', 'downtime', 'scan', 'place'] as const) {
     test(`${method}: three nights in a row lock and wake (method ${method}, proved each morning)`, async () => {
       await onboard({ method }, at(5, 18));
       if (method === 'scan') scan.registerScanCode({ kind: 'qr', data: 'LOCTURNE-ABCDEFGHJKMN', type: 'qr' });
@@ -1119,8 +972,8 @@ describe('every method', () => {
           await flush();
           await p.walk(205);
           w.stop();
-        } else if (method === 'downstairs') {
-          await homeStairs(flight(Date.now(), 3, { seed: night + 1 }), 60_000);
+        } else if (method === 'dance') {
+          danceCamera(10).feed('dance', 12_000);
         } else if (method === 'pushups') {
           pushupsCamera(10).feed(poseFrames(REP, 10, Date.now()));
         } else if (method === 'downtime') {

@@ -40,7 +40,7 @@ runs two sets of checks.
   the ShieldConfiguration extension's real lookup says which words and button an app shows
   (`drawn`, `buttonType`). Each scenario is a whole night with the App Group in the shapes
   screen-time.ts writes. It covers every method: steps (at, under and over the goal, a custom
-  goal), downstairs (a floor down or up with 20+ steps, a lift, no barometer), and scan,
+  goal), a saved downstairs routine (dances now: nothing on the shield proves it), and scan,
   place and push-ups (the tap opens Locturne unless the steps are walked). It also covers the
   4-second timeout, double taps, a pass night, stand-down, the next bedtime after a
   shield-won morning, a schedule holding the same app, the always list, and category picks.

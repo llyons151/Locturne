@@ -128,7 +128,8 @@ export function useMorningDowntime(enabled: boolean, routine: Routine): HomeMorn
         action: null,
       };
     const counted = status === 'counting' ? (shown ?? Math.min(steps, goal)) : null;
-    const minutes = minutesLabel(downtimeMinutesOf(routine));
+    // A test morning's timer is a minute, not the routine's hour.
+    const minutes = minutesLabel(pretending ? PRETEND_MINUTES : downtimeMinutesOf(routine));
     return {
       icon: ICON,
       hero: {

@@ -58,7 +58,7 @@ const rise = (delay: number, by = 8) => enter({ opacity: 0, transform: [{ transl
 const pop = (delay: number) => enter({ opacity: 0, transform: [{ translateY: 0 }, { scale: 0.5 }] }, delay, 500);
 
 const METHOD_GLYPH: Record<WakeMethod, SymbolViewProps['name']> = {
-  downstairs: { ios: 'figure.stairs', android: 'stairs', web: 'stairs' },
+  dance: { ios: 'figure.dance', android: 'taunt', web: 'taunt' },
   steps: { ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' },
   scan: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner', web: 'qr_code_scanner' },
   place: { ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' },

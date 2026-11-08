@@ -87,7 +87,7 @@ test('offline in a morning after the last paid one: a pass, a scan and a walk pr
     assert.equal(ps.getPassesLeft(), ps.PASSES_PER_MONTH, 'no pass spent');
     assert.equal(sc.submitScan('LOCTURNE-ABCDEFGH'), 'notMorning');
     assert.equal(lc.proveMorning('steps'), null);
-    assert.equal(lc.proveMorning('downstairs'), null);
+    assert.equal(lc.proveMorning('dance'), null);
     assert.equal(em.previewEmergency(), null, 'nothing for an emergency to lift');
   } finally {
     off();

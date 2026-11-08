@@ -129,7 +129,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Locturne uses the camera to scan your wake-up code, or to count your push-ups, in the morning. It looks on this phone; nothing is recorded or saved.",
+          "cameraPermission": "Locturne uses the camera to scan your wake-up code, or to watch your push-ups or dancing, in the morning. It looks on this phone; nothing is recorded or saved.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -143,13 +143,13 @@
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false,
-          "motionUsagePermission": "Locturne checks your steps and stairs each morning to wake your apps. That\u2019s all it uses motion for."
+          "motionUsagePermission": "Locturne checks your steps each morning to wake your apps. That\u2019s all it uses motion for."
         }
       ],
       [
         "expo-sensors",
         {
-          "motionPermission": "Locturne checks your steps and stairs each morning to wake your apps. That\u2019s all it uses motion for."
+          "motionPermission": "Locturne checks your steps each morning to wake your apps. That\u2019s all it uses motion for."
         }
       ],
       [

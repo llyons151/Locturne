@@ -9,14 +9,14 @@ import { askForNotifications, shouldAskForNotifications } from '@/lib/notificati
 import { pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { awakeStatus } from './awake-status';
 
-/** The methods proved through this hook (Home's walk, stairs, push-ups, and Step away's pretend timer). */
-export type WakeMethodShown = 'downstairs' | 'steps' | 'pushups' | 'downtime';
+/** The methods proved through this hook (Home's walk, push-ups, dance, and Step away's pretend timer). */
+export type WakeMethodShown = 'dance' | 'steps' | 'pushups' | 'downtime';
 
 /**
  * A wake-up method met: record the proof (`proveMorning`, which syncs the shields), the success
  * haptic, a VoiceOver line, and the first proven morning's notification ask. Returns the new
  * state, or null when nothing was recorded (bedtime came round, or the night was off). Shared by
- * Home's morning walk, stairs and push-ups.
+ * Home's morning walk, push-ups and dance.
  *
  * In the wake preview's pretend morning (/wake-preview) nothing is recorded: it moves to "done".
  */

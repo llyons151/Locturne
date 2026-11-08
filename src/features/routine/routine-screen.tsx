@@ -32,6 +32,7 @@ import {
   downtimeMinutesOf,
   downtimeStepsOf,
   pushupGoalOf,
+  danceGoalOf,
   toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
@@ -64,7 +65,7 @@ const SHADOW_LOC = false;
 /**
  * The Routine tab: how he gets woken up, then bedtime, morning start and which nights.
  *
- * The wake-up method leads the screen (DOWNSTAIRS_METHOD.md): it's the part of the routine
+ * The wake-up method leads the screen (GAME_PLAN, "Wake-up methods"): it's the part of the routine
  * nobody else has, so it gets a heading and a full list of choices, not a menu row.
  *
  * Awake, every change applies at once, like Settings; there's no Save step. While the apps are
@@ -90,6 +91,7 @@ type Routine = {
   method: Method;
   stepGoal: number;
   pushupGoal?: number;
+  danceGoal?: number;
   downtimeSteps?: number;
   downtimeMinutes?: number;
 };
@@ -139,6 +141,7 @@ const same = (a: Routine, b: Routine) =>
   a.method === b.method &&
   a.stepGoal === b.stepGoal &&
   pushupGoalOf(a) === pushupGoalOf(b) &&
+  danceGoalOf(a) === danceGoalOf(b) &&
   downtimeStepsOf(a) === downtimeStepsOf(b) &&
   downtimeMinutesOf(a) === downtimeMinutesOf(b) &&
   a.nights.join() === b.nights.join();
@@ -240,6 +243,8 @@ export function RoutineScreen() {
   const fallsBack = methodInUse(saved.method) !== saved.method;
   // Push-ups picked: how many. Like every routine edit, a change waits for bedtime while armed.
   const offerReps = saved.method === 'pushups';
+  // Dance picked: how many seconds straight, the same wheel.
+  const offerDance = saved.method === 'dance';
   // Step away picked: its timer and its steps, each a row of its own.
   const offerDowntime = saved.method === 'downtime';
   // Walk picked, or another way not set up yet (it walks for now): how many steps.
@@ -364,6 +369,9 @@ export function RoutineScreen() {
         {offerReps ? (
           // A wheel in the floating sheet: any count, not a short menu (user's ask, 2026-10-10).
           <ValueRow title="Push-ups" value={`${reps}`} onPress={() => router.push('/pushups')} last />
+        ) : null}
+        {offerDance ? (
+          <ValueRow title="Seconds straight" value={`${danceGoalOf(saved)}`} onPress={() => router.push('/dance')} last />
         ) : null}
         {offerDowntime ? (
           <>

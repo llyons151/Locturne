@@ -117,17 +117,17 @@ describe('the words', () => {
     assert.match(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'steps', stepGoal: 300 }).subtitle, /^Walk 300 steps/);
   });
 
-  // The barometer only listens after Start, and the camera is in the app. A shield that says
-  // "go downstairs, then open Locturne" fails the morning of anyone who does what it says.
-  test('steps and stairs are checked from the shield; the camera methods start in the app', () => {
+  // The camera is in the app. A shield that says "dance, then tap I'm up" fails the morning
+  // of anyone who does what it says.
+  test('steps are checked from the shield; the camera methods start in the app', () => {
     // The motion chip keeps the history, so I'm up checks them with Locturne closed.
-    for (const method of ['steps', 'downstairs'] as const) {
+    for (const method of ['steps'] as const) {
       const { subtitle, button } = shieldCopy('morning', { ...DEFAULT_ROUTINE, method });
       assert.match(subtitle, /tap I’m up/, `${method}: ${subtitle}`);
       assert.doesNotMatch(subtitle, /Open Locturne/, `${method}: ${subtitle}`);
       assert.match(button, /^I’m up/);
     }
-    for (const method of ['scan', 'pushups'] as const) {
+    for (const method of ['scan', 'pushups', 'dance'] as const) {
       const { subtitle } = shieldCopy('morning', { ...DEFAULT_ROUTINE, method });
       assert.match(subtitle, /^Open Locturne/, `${method}: ${subtitle}`);
       // Walking only wakes a steps morning from the shield (user 2026-10-28); instead is chosen in Locturne.

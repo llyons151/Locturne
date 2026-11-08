@@ -1,0 +1,6 @@
+{"id": "crescent", "name": "Crescent",
+ "ramp": ["#24365C", "#3E5A8E", "#9FB6D8", "#E6EEF8"], "albedo": 1.0, "relief": 3.0, "bump": 0.45,
+ "lights": [
+   {"from": [1, 0.55, 0.25], "colour": "#FFF6EA", "strength": 4.5, "angle": 0.3},
+   {"from": [-0.3, -1, 0], "colour": "#7090D8", "strength": 0.03}
+ ]}

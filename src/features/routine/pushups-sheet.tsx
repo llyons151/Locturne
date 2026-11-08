@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import { closeSleepSheet, SHEET_PADDING } from '@/features/nap/sleep-sheet';
 import * as haptic from '@/lib/haptics';
-import { pushupGoalOf } from '@/lib/routine';
+import { DANCE_RANGE, danceGoalOf, pushupGoalOf } from '@/lib/routine';
 import type { Exercise } from '@/lib/wake/pushups';
 import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
@@ -16,10 +16,11 @@ import { PushupWheel } from './pushup-wheel';
  * 2026-10-10: "it should be a scroll wheel, you can pick as many as you want"). A title, the
  * wheel, and one white Done button, laid out like the Sleep sheet. The number saves however the
  * sheet closes, Done, a swipe or a tap outside (user, 2026-10-14: tapping out lost it), like
- * every routine edit (apply-edit.ts).
+ * every routine edit (apply-edit.ts). Dance's seconds straight are picked the same way (/dance).
  */
 const GOAL = {
-  pushups: { title: 'Push-ups', of: pushupGoalOf, key: 'pushupGoal', range: undefined },
+  pushups: { title: 'Push-ups', body: 'How many it takes to wake your apps.', of: pushupGoalOf, key: 'pushupGoal', range: undefined },
+  dance: { title: 'Dance', body: 'Seconds straight it takes to wake your apps.', of: danceGoalOf, key: 'danceGoal', range: DANCE_RANGE },
 } as const;
 
 export function PushupsSheet({ exercise = 'pushups' }: { exercise?: Exercise }) {
@@ -51,7 +52,7 @@ export function PushupsSheet({ exercise = 'pushups' }: { exercise?: Exercise }) 
         <Text style={styles.title} accessibilityRole="header">
           {goal.title}
         </Text>
-        <Text style={styles.body}>How many it takes to wake your apps.</Text>
+        <Text style={styles.body}>{goal.body}</Text>
       </View>
       <PushupWheel value={count} onChange={setCount} range={goal.range} label={goal.title} />
       <Pressable

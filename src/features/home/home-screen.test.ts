@@ -106,7 +106,7 @@ function home({
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { pushupGoalOf: () => 20, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
+    '@/lib/routine': { pushupGoalOf: () => 20, danceGoalOf: () => 10, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m },
     '@/lib/screen-time': {
       sharedGet: () => undefined,
@@ -141,14 +141,14 @@ function home({
     './walk-request': { askWalk() {}, useWalkRequest: () => null },
     'expo-keep-awake': { useKeepAwake() {} },
     './morning': { scanMorning: () => morningOf('scan', true), WALK_INSTEAD },
-    './use-morning-stairs': { useMorningStairs: (on: boolean, w: unknown) => (on ? morningOf('stairs', w) : null) },
     './use-morning-place': { useMorningPlace: (on: boolean, w: unknown) => (on ? morningOf('place', w) : null) },
     './use-morning-downtime': {
       // Step away has no walk instead: its hook gets no walk, and its morning offers none.
       useMorningDowntime: (on: boolean) => (on ? { ...morningOf('downtime', null), alt: undefined } : null),
     },
     './use-morning-pushups': {
-      useMorningPushups: (on: boolean, w: unknown) => (on ? { morning: morningOf('pushups', w), camera: null } : null),
+      useMorningPushups: (on: boolean, _goal: number, _morning: string, exercise = 'pushups') =>
+        on ? { morning: { ...morningOf(exercise, _goal), meter: exercise === 'pushups' ? { value: '3', caption: 'of 20 push-ups', progress: 0.15 } : undefined }, camera: null } : null,
     },
     '../dev/wake-lab/wake-preview': { pretendMethod: () => null, pretendNightEnd: () => null, useWakePreview: () => ({ won: null }) },
     '../dev/state-lab/app-states': { useHomeMock: () => null },
@@ -184,7 +184,7 @@ function morningOf(name: string, walk: unknown) {
   return {
     icon: { ios: `${name}.icon`, android: name },
     hero: { title: `${name} hero`, body: walk ? 'walk counted' : 'no walk' },
-    meter: name === 'stairs' ? { value: '1.2', caption: 'm down of 2.5 m', progress: 0.48 } : undefined,
+    meter: undefined,
     action: { label: `${name} action`, onPress() {} },
     alt,
   };
@@ -390,13 +390,11 @@ describe('Home during a walk morning', () => {
 describe('Home during the other methods’ mornings', () => {
   const now = new Date(2026, 9, 9, 7, 10);
 
-  test('downstairs runs on Home: its meter, icon, button and walking instead, with steps counted under it', () => {
-    const { hero, meter, icon, action, alt } = home({ now, phase: 'morning', method: 'downstairs' });
-    assert.equal(hero.title, 'stairs hero');
-    assert.equal(hero.body, 'walk counted');
-    assert.equal(meter?.value, '1.2');
-    assert.equal(icon?.ios, 'stairs.icon');
-    assert.equal(action.label, 'stairs action');
+  test('dance runs on Home through the camera hook, with walking instead', () => {
+    const { hero, icon, action, alt } = home({ now, phase: 'morning', method: 'dance' });
+    assert.equal(hero.title, 'dance hero');
+    assert.equal(icon?.ios, 'dance.icon');
+    assert.equal(action.label, 'dance action');
     assert.equal(alt?.label, 'Walk 200 steps instead');
   });
 
@@ -428,7 +426,7 @@ describe('Home during the other methods’ mornings', () => {
 
   test('the walk’s own meter is the walk icon, and nothing else leaks in by day', () => {
     assert.equal(home({ now, phase: 'morning' }).icon?.ios, 'figure.walk');
-    const day = home({ now: new Date(2026, 9, 9, 13), phase: 'day', method: 'downstairs' });
+    const day = home({ now: new Date(2026, 9, 9, 13), phase: 'day', method: 'dance' });
     assert.equal(day.icon, undefined);
     assert.equal(day.alt, undefined);
   });
@@ -475,7 +473,7 @@ describe('Home’s looks', () => {
   });
 
   test('a locked morning wears the morning look', () => {
-    assert.equal(home({ now: new Date(2026, 9, 9, 7, 10), phase: 'morning', method: 'downstairs' }).look, 'morning');
+    assert.equal(home({ now: new Date(2026, 9, 9, 7, 10), phase: 'morning', method: 'dance' }).look, 'morning');
   });
 
   test('Screen Time off takes over as a problem, even at night', () => {

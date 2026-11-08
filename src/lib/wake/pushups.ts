@@ -24,8 +24,10 @@
  *
  * The machine is written against `RepRules` (a working joint, a part that drops, a yardstick),
  * so another counted exercise could share it. Squats did, from 2026-11-03 until they were taken
- * out on 2026-11-05; push-ups are the only one now (`exercise`).
+ * out on 2026-11-05. Dance (2026-11-07) shares the session but reads frames its own way
+ * (wake/dance.ts): it's timed, so `reps` holds the seconds danced straight.
  */
+import { addDancePose, DANCE, tickDance, type DanceState } from './dance.ts';
 
 export const PUSHUPS = {
   /** The default target; the routine's `pushupGoal` sets the real one. */
@@ -107,11 +109,17 @@ export type PushupsStatus =
   | 'met'
   | 'timedOut';
 
-/** Why he can't count right now: nobody in the picture, or somebody who isn't in a plank. */
-export type Hint = 'noBody' | 'notPlank';
+/**
+ * Why he can't count right now: nobody in the picture, or somebody who isn't in a plank. Dance:
+ * not standing, standing still, or only the arms going.
+ */
+export type Hint = 'noBody' | 'notPlank' | 'notStanding' | 'still' | 'legs';
 
-/** What the camera counts. */
-export type Exercise = 'pushups';
+/** What the camera counts. Dance is timed: its "reps" are seconds danced straight. */
+export type Exercise = 'pushups' | 'dance';
+
+/** Is this exercise counted in seconds (dance) rather than reps? */
+export const isTimed = (exercise: Exercise) => exercise === 'dance';
 
 /**
  * One exercise's rules for the shared machine: the thresholds (as `PUSHUPS`), and how a frame
@@ -135,8 +143,8 @@ export type RepRules = {
   read: (joints: PoseFrame['joints']) => { angle: number; y: number; scale: number } | { hint: Hint };
 };
 
-/** Why the last dip didn't count, so Loc can say so. */
-export type Miss = 'shallow' | 'quick';
+/** Why the last dip didn't count, so Loc can say so. Dance: `broke`, stopped and back to zero. */
+export type Miss = 'shallow' | 'quick' | 'broke';
 
 export type PushupsSession = {
   /** Which rules count (`rulesFor`). */
@@ -172,12 +180,18 @@ export type PushupsSession = {
   miss: Miss | null;
   metAt: number | null;
   status: PushupsStatus;
+  /** Dance only: its frame reader's state (wake/dance.ts). */
+  dance?: DanceState;
 };
 
-/** The rules a session counts by. */
+/** The rules a session counts by. Dance doesn't count reps; only its defaults are read (`defaultsFor`). */
 export function rulesFor(_exercise: Exercise): RepRules {
   return PUSHUP_RULES;
 }
+
+/** The default goal and timeout of an exercise. */
+export const defaultsFor = (exercise: Exercise): { reps: number; timeoutMs: number; lostMs: number } =>
+  exercise === 'dance' ? DANCE : PUSHUPS;
 
 const PUSHUP_RULES: RepRules = {
   ...PUSHUPS,
@@ -199,9 +213,10 @@ export function startPushups(
   goal: number = PUSHUPS.reps,
   { reps = 0, timeoutMs, exercise = 'pushups' }: { reps?: number; timeoutMs?: number; exercise?: Exercise } = {},
 ): PushupsSession {
-  const R = rulesFor(exercise);
+  const R = defaultsFor(exercise);
   const whole = wholeGoal(goal, R.reps);
-  const done = Number.isFinite(reps) ? Math.max(0, Math.floor(reps)) : 0;
+  // Dance is seconds *straight*: every camera starts from zero.
+  const done = Number.isFinite(reps) && !isTimed(exercise) ? Math.max(0, Math.floor(reps)) : 0;
   const met = done >= whole;
   return {
     exercise,
@@ -242,7 +257,7 @@ export function repsDoneFor(saved: RepsDone | null | undefined, morning: string 
  * finished.
  */
 export function retarget(s: PushupsSession, goal: number, now: number): PushupsSession {
-  const whole = wholeGoal(goal, rulesFor(s.exercise).reps);
+  const whole = wholeGoal(goal, defaultsFor(s.exercise).reps);
   if (whole === s.goal || s.status === 'met') return s;
   if (s.status === 'timedOut' || s.reps < whole) return { ...s, goal: whole };
   return { ...s, goal: whole, now: Math.max(s.now, now), status: 'met', metAt: Math.max(s.now, now) };
@@ -312,6 +327,7 @@ export function readFrame(joints: PoseFrame['joints']): { elbow: number; shoulde
 
 export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
   if (isOver(s)) return s;
+  if (s.exercise === 'dance') return addDancePose(s, frame);
   const at = frame.at;
   const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, at) };
@@ -427,6 +443,7 @@ function top(next: PushupsSession, at: number, y: number, R: RepRules): PushupsS
 
 export function tick(s: PushupsSession, now: number): PushupsSession {
   if (isOver(s)) return s;
+  if (s.exercise === 'dance') return tickDance(s, now);
   const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, now) };
   if (next.status === 'counting' && next.seenAt !== null && next.now - next.seenAt >= R.lostMs) {
@@ -443,6 +460,7 @@ export const repProgress = (s: PushupsSession) => Math.min(1, s.reps / s.goal);
 
 /** 0–1 of the way down the current rep, for the meter: 0 at the top, 1 at `downDeg`. */
 export function depthOf(s: PushupsSession): number {
+  if (s.exercise === 'dance') return Math.min(1, (s.dance?.energy ?? 0) / DANCE.move);
   const R = rulesFor(s.exercise);
   return s.elbow === null ? 0 : Math.min(1, Math.max(0, (R.upDeg - s.elbow) / (R.upDeg - R.downDeg)));
 }

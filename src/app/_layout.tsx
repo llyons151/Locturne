@@ -100,6 +100,15 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
+          {/* Dance's seconds, the same way. */}
+          <Stack.Screen
+            name="dance"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           {/* Step away's timer and steps, the same way. */}
           <Stack.Screen
             name="downtime"

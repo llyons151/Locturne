@@ -115,7 +115,7 @@ export type PlanFacts = {
   /** Actual picks now and after the next native handoff; a parked emergency list returns later. */
   nightSelection?: { hasApps: boolean; change?: { at: Date; hasApps: boolean } };
   /**
-   * The saved proofs (stairs, steps, a scan, a pass, an emergency unlock). A morning one of
+   * The saved proofs (steps, a dance, a scan, a pass, an emergency unlock). A morning one of
    * them unlocks (`proofUnlocks`: made since its night began, under the routine it was made
    * under, or a pass or emergency for its key) is already free.
    */

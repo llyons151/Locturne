@@ -204,7 +204,7 @@ async function run(seed: number, zone: string): Promise<string | null> {
     bedtime: b0,
     morningStart: m0,
     activeNights: r.chance(0.7) ? ALL : r.subset(ALL, 4).sort(),
-    method: r.pick(['downstairs', 'steps', 'scan'] as const),
+    method: r.pick(['dance', 'steps', 'scan'] as const),
     stepGoal: r.pick([100, 200, 300]),
   };
   const days = r.int(7, 14);
@@ -768,7 +768,7 @@ async function run(seed: number, zone: string): Promise<string | null> {
       next.bedtime = b;
       next.morningStart = m;
     } else if (kind === 'nights') next.activeNights = r.subset(ALL, 3).sort();
-    else if (kind === 'method') next.method = r.pick(['downstairs', 'steps', 'scan'] as const);
+    else if (kind === 'method') next.method = r.pick(['dance', 'steps', 'scan'] as const);
     else if (kind === 'goal') next.stepGoal = r.pick([100, 200, 300, 500]);
     else if (kind === 'off') next.activeNights = [];
     else next.activeNights = ALL;
