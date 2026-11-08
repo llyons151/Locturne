@@ -28,7 +28,7 @@ function tap(width: number, arc = width * 0.9 * 0.36, room = true) {
     'react-native': { Pressable: 'Pressable', StyleSheet: { create: (s: unknown) => s }, useWindowDimensions: () => ({ width, height: 800 }) },
     '@/lib/haptics': { tap() {} },
     '../home/loc-rig': { LOC_VIEW },
-    './moon-collection': { openMoons: () => opened++ },
+    './moon-collection': { openMoonWheel: () => opened++ },
     react: { useSyncExternalStore: (_: unknown, get: () => unknown) => get() },
     '@/components/night-sky': { appsMoonRoom: { subscribe: () => () => {}, get: () => room }, raisedMoonArc: (w: number) => w * 0.9 * (0.36 + 0.35 * 0.3) },
   };

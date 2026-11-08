@@ -20,6 +20,14 @@ const code = babel.transformSync(readFileSync(new URL('./moon-collection-view.ts
   presets: ['@babel/preset-typescript'],
   plugins: [['@babel/plugin-transform-react-jsx', { runtime: 'classic' }], '@babel/plugin-transform-modules-commonjs'],
 }).code;
+// The slots it lists (moon-slots.ts), run for real against the same mocks.
+const slotsCode = babel.transformSync(readFileSync(new URL('./moon-slots.ts', import.meta.url), 'utf8'), {
+  filename: 'moon-slots.ts',
+  configFile: false,
+  babelrc: false,
+  presets: ['@babel/preset-typescript'],
+  plugins: ['@babel/plugin-transform-modules-commonjs'],
+}).code;
 
 const LADDER = ['dawn', 'harvest', 'aurora', 'supermoon', 'nebula', 'midnightsun', 'blood', 'deepsea', 'prism', 'eclipse', 'twin-moonlet', 'twin-sisters', 'micromoon'];
 const SECRETS = ['twin-moonlet', 'twin-sisters', 'micromoon'];
@@ -86,6 +94,9 @@ function render({
     './moon-theme': { DEFAULT_MOON: MOONS[0], useMoon: () => MOONS.find((m) => m.id === worn), useWornMoon: () => MOONS.find((m) => m.id === worn) },
     './moon-thumb': { MoonThumb: 'MoonThumb' },
   };
+  const slots: Record<string, any> = {};
+  runInNewContext(slotsCode, { exports: slots, require: (id: string) => mocks[id] ?? assert.fail(`unmocked import ${id}`), Math });
+  mocks['./moon-slots'] = slots;
   const exports: Record<string, any> = {};
   runInNewContext(code, { exports, React: react, require: (id: string) => mocks[id] ?? assert.fail(`unmocked import ${id}`), Math });
   // Expand function components (Grid) into their output.

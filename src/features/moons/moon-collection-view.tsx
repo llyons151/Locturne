@@ -10,19 +10,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import { readLock } from '@/lib/lock-controller';
-import { getFirstMorning, getMorningsWon } from '@/lib/morning-proof';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
-import { checkSecretMoons, isSecret, LIMITED, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
-import { LADDER, MOONS } from './moon-data';
-import { ladderNeed, RARE_MOONS } from './moon-ladder';
+import { checkSecretMoons, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
+import { MOONS } from './moon-data';
+import { moonSlots, slotLabel, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
-import type { MoonDef } from './moon-types';
 
-const BY_ID = new Map(MOONS.map((m) => [m.id, m]));
 const COLUMNS = 3;
 const GAP = Space.m;
 /** The top bar's close button, as on the schedule sheet. */
@@ -30,13 +26,7 @@ const CLOSE = 30;
 /** Each side of the top bar, equal so the title sits in the middle. */
 const SIDE = 72;
 
-type Slot = {
-  moon: MoonDef;
-  owned: boolean;
-  /** A locked moon's one line instead of its name: "Morning 3", "Week 50" (user, 2026-11-02: no name till it's yours). */
-  title?: string;
-  secret?: boolean;
-};
+type Slot = MoonSlot;
 
 /**
  * The moon collection (docs/reports/Moon collection flow.md, decisions 2026-11-01): Moonlight,
@@ -66,25 +56,7 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
   }, [owned]);
   useEffect(() => () => markSeen(Object.keys(ownedNow.current)), []);
 
-  const mornings = getMorningsWon();
-  const today = readLock().morningKey;
-  const firstMorning = getFirstMorning();
-
-  const ladder: Slot[] = LADDER.flatMap((id, i): Slot[] => {
-    const moon = id ? BY_ID.get(id) : undefined;
-    if (!id || !moon) return [];
-    if (isSecret(id)) {
-      return owned[id] ? [{ moon, owned: true }] : [{ moon, owned: false, secret: true }];
-    }
-    if (owned[id]) return [{ moon, owned: true }];
-    const need = ladderNeed(i, { mornings, firstMorning, today });
-    return [{ moon, owned: false, title: need?.at ?? moon.name }];
-  });
-  const extras: Slot[] = [...RARE_MOONS, ...LIMITED.map((l) => l.id)].flatMap((id): Slot[] => {
-    const moon = BY_ID.get(id);
-    return moon && owned[id] ? [{ moon, owned: true }] : [];
-  });
-  const slots: Slot[] = [{ moon: DEFAULT_MOON, owned: true }, ...ladder];
+  const { main: slots, extras } = moonSlots(owned);
   // Every moon you have: Moonlight, which you start with, then every one earned, rare and secret too (user, 2026-11-02).
   const count = 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
   const countLabel = count === 1 ? '1 moon' : `${count} moons`;
@@ -149,7 +121,7 @@ function Grid({ slots, tile, worn, onPress }: { slots: Slot[]; tile: number; wor
   return (
     <View style={styles.grid}>
       {slots.map((slot) => {
-        const name = slot.owned ? slot.moon.name : slot.secret ? 'Secret moon' : (slot.title ?? slot.moon.name);
+        const name = slotLabel(slot);
         return (
           <Pressable
             key={slot.moon.id}

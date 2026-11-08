@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -50,7 +50,7 @@ const POOLS: Pool[] = [
   { id: 'd', color: '#4A93E0', r: 0.34, opacity: 0.8, ax: 0.26, ay: 0.14, fx: 3, fy: 2, phase: 1.3 },
 ];
 
-function PoolCircle({ pool, size, clock }: { pool: Pool; size: number; clock: SharedValue<number> }) {
+function PoolCircle({ pool, size, clock, k }: { pool: Pool; size: number; clock: SharedValue<number>; k: string }) {
   const c = size / 2;
   const props = useAnimatedProps(() => {
     const t = clock.value * Math.PI * 2;
@@ -59,7 +59,7 @@ function PoolCircle({ pool, size, clock }: { pool: Pool; size: number; clock: Sh
       cy: c + Math.cos(t * pool.fy + pool.phase) * pool.ay * size,
     };
   });
-  return <AnimatedCircle animatedProps={props} r={pool.r * size} fill={`url(#moon-water-${pool.id})`} />;
+  return <AnimatedCircle animatedProps={props} r={pool.r * size} fill={`url(#${k}${pool.id})`} />;
 }
 
 /**
@@ -69,6 +69,8 @@ function PoolCircle({ pool, size, clock }: { pool: Pool; size: number; clock: Sh
  */
 export function MoonWater({ size, reduced, colors }: { size: number; reduced: boolean; colors?: string[] }) {
   const clock = useSharedValue(0);
+  // Its own ids: several orbs on one page (the moon wheel) would otherwise all paint the first one's gradients.
+  const k = `moon-water-${useId().replace(/[^a-zA-Z0-9]/g, '')}-`;
   const [c0, c1, c2, c3] = colors?.length === 4 ? colors : [];
   const pools = c3 ? POOLS.map((p, i) => ({ ...p, color: [c3, c2, c3, c2][i] })) : POOLS;
 
@@ -82,38 +84,38 @@ export function MoonWater({ size, reduced, colors }: { size: number; reduced: bo
   return (
     <Svg width={size} height={size} style={{ position: 'absolute' }} pointerEvents="none">
       <Defs>
-        <ClipPath id="moon-water-clip">
+        <ClipPath id={`${k}clip`}>
           <Circle cx={c} cy={c} r={c} />
         </ClipPath>
-        <LinearGradient id="moon-water-base" x1="0.2" y1="0" x2="0.8" y2="1">
+        <LinearGradient id={`${k}base`} x1="0.2" y1="0" x2="0.8" y2="1">
           <Stop offset="0" stopColor={c2 ?? '#5FA6EC'} />
           <Stop offset="1" stopColor={c1 ?? '#17488F'} />
         </LinearGradient>
         {/* The orb's gloss: a soft light up and to the left, held still while the pools move. */}
-        <RadialGradient id="moon-water-gloss" cx="34%" cy="26%" r="42%">
+        <RadialGradient id={`${k}gloss`} cx="34%" cy="26%" r="42%">
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.6} />
           <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
         </RadialGradient>
         {/* A darker edge, so it reads as a sphere rather than a flat disc. */}
-        <RadialGradient id="moon-water-rim" cx="50%" cy="50%" r="50%">
+        <RadialGradient id={`${k}rim`} cx="50%" cy="50%" r="50%">
           <Stop offset="0.72" stopColor={c0 ?? '#0A2D5E'} stopOpacity={0} />
           <Stop offset="1" stopColor={c0 ?? '#0A2D5E'} stopOpacity={0.45} />
         </RadialGradient>
         {pools.map((p) => (
-          <RadialGradient key={p.id} id={`moon-water-${p.id}`} cx="50%" cy="50%" r="50%">
+          <RadialGradient key={p.id} id={`${k}${p.id}`} cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor={p.color} stopOpacity={p.opacity} />
             <Stop offset="0.55" stopColor={p.color} stopOpacity={p.opacity * 0.35} />
             <Stop offset="1" stopColor={p.color} stopOpacity={0} />
           </RadialGradient>
         ))}
       </Defs>
-      <G clipPath="url(#moon-water-clip)">
-        <Rect width={size} height={size} fill="url(#moon-water-base)" />
+      <G clipPath={`url(#${k}clip)`}>
+        <Rect width={size} height={size} fill={`url(#${k}base)`} />
         {pools.map((p) => (
-          <PoolCircle key={p.id} pool={p} size={size} clock={clock} />
+          <PoolCircle key={p.id} pool={p} size={size} clock={clock} k={k} />
         ))}
-        <Rect width={size} height={size} fill="url(#moon-water-rim)" />
-        <Rect width={size} height={size} fill="url(#moon-water-gloss)" />
+        <Rect width={size} height={size} fill={`url(#${k}rim)`} />
+        <Rect width={size} height={size} fill={`url(#${k}gloss)`} />
       </G>
     </Svg>
   );

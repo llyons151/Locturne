@@ -18,6 +18,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
+from orb_colors import orb_from_art
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 OUT = Path(os.environ.get('MOONS_OUT', REPO / 'assets' / 'moons'))
@@ -191,10 +193,15 @@ def ring_glow(m, box=2048):
     return f"{m['id']}-ring.webp"
 
 
-def orb(m):
-    """The Moonwell's four colours: given, or taken from the sky, halo and moon (as the lab does)."""
+def orb(m, moon_file=None):
+    """
+    The Moonwell's four colours: given, or sampled from the baked moon itself (orb_colors.py, user 2026-11-07: the orb is
+    the theme's icon in the moon wheel, so it should look like that moon). Without art, from the sky, halo and moon stops.
+    """
     if m.get('orb'):
         return m['orb']
+    if moon_file and Path(moon_file).exists():
+        return orb_from_art(moon_file, m['sky'], m.get('tint'))
     sky = [rgb(s) for s in m['sky']]
     moon = [rgb(s) for s in m['moon']]
     hexed = lambda c: '#%02X%02X%02X' % tuple(int(round(v)) for v in c)
@@ -259,6 +266,7 @@ def main():
                 if m.get('phase'):
                     px = shadow(px, m['phase'])
                 e['moon'] = save(px, name)
+            e['orb'] = orb(m, OUT / e['moon'])
             if m.get('ring'):
                 name = f"{m['id']}-ring.webp"
                 e['ring'] = name if kept(name) else ring_glow(m)

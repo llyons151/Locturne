@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orb wheel lab</title>
+<!--
+  Orb wheel lab (user, 2026-11-07): the Block now gem (the Moonwell orb, bottom right of the tab strip) becomes
+  the theme's icon instead of the moon. Tap the moon → a liquid-glass pop-up with a slide wheel of orbs; the
+  one you pick re-themes everything (sky, moon, gem). 25 takes. Each runs a scripted demo (?v=N&auto=1) that
+  record.mjs films; ?v=N alone is interactive (tap the moon, drag the wheel). Static mockups, not the app.
+  Orbs are the app's Moonwell shader (docs/design-references/orbs/orb-studies.html) with each moon's `orb`
+  palette from src/features/moons/moon-data.ts (themes.js).
+-->
+<style>
+  :root { --text: #fff; --text2: rgba(235,240,255,.62); --sans: -apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #0b0b0d; color: var(--text); font-family: var(--sans); }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  body.solo { overflow: hidden; }
+  body.solo #phone { position: fixed; inset: 0; border-radius: 0; }
+  #phone { position: relative; width: 390px; height: 844px; overflow: hidden; background: #000; border-radius: 44px; isolation: isolate; user-select: none; touch-action: none; }
+
+  .index { padding: 28px 16px 60px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .index h1 { font-size: 22px; } .index p { color: var(--text2); font-size: 14px; text-align: center; max-width: 560px; line-height: 1.5; }
+  .picks { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 720px; }
+  .picks button { padding: 7px 11px; border-radius: 999px; background: #1c1c20; font-size: 13px; }
+  .picks button.on { background: #fff; color: #000; }
+  .vname { font-size: 15px; font-weight: 600; } .vdesc { color: var(--text2); font-size: 13px; max-width: 420px; text-align: center; line-height: 1.45; }
+
+  .status { position: absolute; z-index: 90; top: 0; left: 0; right: 0; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 6px 34px 0 46px; font-size: 16px; font-weight: 600; pointer-events: none; }
+  .status i { display: flex; gap: 6px; align-items: center; }
+  .status i b { display: block; width: 25px; height: 12px; border: 1.5px solid rgba(255,255,255,.5); border-radius: 4px; position: relative; }
+  .status i b::after { content: ''; position: absolute; inset: 1.5px; right: 5px; background: #fff; border-radius: 1.5px; }
+  .homebar { position: absolute; z-index: 90; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: #fff; pointer-events: none; }
+  #finger { position: absolute; z-index: 100; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,.30); border: 1.5px solid rgba(255,255,255,.75); opacity: 0; pointer-events: none; transition: opacity .18s, transform .14s; }
+  #finger.on { opacity: 1; } #finger.down { transform: scale(.78); }
+
+  /* Home */
+  #home { position: absolute; inset: 0; }
+  .panel { position: absolute; left: 0; right: 0; top: 0; height: 744px; border-radius: 0 0 40px 40px; overflow: hidden; background: #05060A; }
+  .scenes, .scene { position: absolute; inset: 0; }
+  .scene .sky { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .scene .moon { position: absolute; left: 80px; top: 420px; width: 230px; height: 230px; object-fit: contain; }
+  .bigtime { position: absolute; top: 96px; left: 0; right: 0; text-align: center; font-size: 64px; font-weight: 700; letter-spacing: -2px; }
+  .hstate { position: absolute; top: 172px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.72); font-size: 15px; }
+  .loc { position: absolute; left: 50%; bottom: 0; width: 112px; margin-left: -56px; pointer-events: none; }
+  .moonhit { position: absolute; left: 80px; top: 420px; width: 230px; height: 230px; border-radius: 50%; cursor: pointer; }
+  .strip { position: absolute; left: 0; right: 0; top: 744px; bottom: 0; }
+  .tab { position: absolute; top: 14px; width: 52px; height: 52px; border-radius: 50%; background: #1c1c1f; display: grid; place-items: center; }
+  .tab.on { background: #fff; }
+  .tab svg { width: 22px; height: 22px; fill: none; stroke: #8b8b93; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tab.on svg { stroke: #000; }
+  .gemwrap { position: absolute; top: 14px; right: 20px; width: 52px; height: 52px; }
+
+  /* Orbs */
+  canvas.orb { display: block; border-radius: 50%; }
+  .ring { position: absolute; border-radius: 50%; border: 2px solid #fff; pointer-events: none; }
+
+  /* Liquid glass: blur + saturation of what's behind, a white specular edge, a neutral drop shadow. No tint. */
+  .glass { position: absolute; background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05) 60%, rgba(255,255,255,.08));
+    -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 0 0 1px rgba(255,255,255,.12), inset 0 -1px 0 rgba(255,255,255,.12), 0 16px 40px rgba(0,0,0,.42); }
+  .glass.clear { background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)); }
+  .glass.dark { background: linear-gradient(180deg, rgba(20,22,30,.55), rgba(10,10,14,.6)); }
+  .wname { font-size: 17px; font-weight: 650; text-align: center; letter-spacing: -.2px; white-space: nowrap; }
+  .wtag { font-size: 13px; color: var(--text2); text-align: center; margin-top: 2px; white-space: nowrap; }
+  .gbtn { position: absolute; height: 46px; border-radius: 23px; background: #fff; color: #000; font-size: 16px; font-weight: 650; display: grid; place-items: center; }
+  .glink { position: absolute; color: var(--text2); font-size: 15px; text-align: center; }
+  .witem { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+  .pressed { filter: brightness(.85); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="themes.js"></script>
+<script src="orb-render.js"></script>
+<script>
+// ───────── Themes ─────────
+const ORDER = ['moonlight', 'deepsea', 'harvest', 'rose', 'ember', 'aurora', 'blood', 'golden', 'twilight', 'prism', 'eclipse', 'nebula'];
+const T = ORDER.map((id) => THEMES.find((t) => t.id === id));
+const SKY = (id) => id === 'moonlight' ? '/assets/onboarding/night-sky-moonless.png' : `/assets/moons/${id}-sky.webp`;
+const MOON = (id) => id === 'moonlight' ? '/assets/onboarding/moon-frosted.png' : `/assets/moons/${id}-moon.webp`;
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+const PAL = Object.fromEntries(T.map((t) => [t.id, t.orb.map(hex)]));
+const lerpPal = (a, b, f) => a.map((c, i) => c.map((v, j) => v + (b[i][j] - v) * f));
+const state = { theme: 'moonlight' };
+const idx = (id) => ORDER.indexOf(id);
+
+// ───────── Helpers ─────────
+const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const anim = (el, kf, o) => el.animate(kf, { fill: 'forwards', ...o }).finished;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (t) => 1 - Math.pow(1 - t, 3);
+const easeIO = (t) => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+function tween(ms, fn, e = ease) { return new Promise((done) => { const t0 = performance.now(); const step = (now) => { const t = Math.min(1, (now - t0) / ms); fn(e(t)); t < 1 ? requestAnimationFrame(step) : done(); }; requestAnimationFrame(step); }); }
+let phone, finger, home, layer;
+const rel = (el) => { const r = el.getBoundingClientRect(), p = phone.getBoundingClientRect(); return { x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height, cx: r.left - p.left + r.width / 2, cy: r.top - p.top + r.height / 2 }; };
+
+// ───────── Finger + scripted gestures ─────────
+async function tap(el, hold = 140) {
+  if (!el) throw new Error('tap target missing');
+  const r = rel(el);
+  finger.style.left = r.cx + 'px'; finger.style.top = r.cy + 'px';
+  finger.classList.add('on'); await wait(260);
+  finger.classList.add('down'); el.classList.add('pressed'); await wait(hold);
+  finger.classList.remove('down'); el.classList.remove('pressed');
+  el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await wait(90); finger.classList.remove('on');
+}
+/** Moves the finger along path(e) → {x, y} (phone coords), calling onMove(e). */
+async function glide(path, ms, onMove, { lift = true, press = true } = {}) {
+  finger.style.transition = 'opacity .18s, transform .14s';
+  const p0 = path(0); finger.style.left = p0.x + 'px'; finger.style.top = p0.y + 'px';
+  if (press) { finger.classList.add('on', 'down'); await wait(150); }
+  await tween(ms, (e) => { const p = path(e); finger.style.left = p.x + 'px'; finger.style.top = p.y + 'px'; onMove?.(e); }, easeIO);
+  if (lift) { finger.classList.remove('down'); await wait(80); finger.classList.remove('on'); }
+}
+
+// ───────── The slide wheel ─────────
+// pos is a float index into T. layout(el, d, i) places item i at offset d = i - pos.
+// axis: 'x' | 'y' (drag along it, `step` px per orb), 'angle' (drag round `center`, `step` degrees per orb),
+// 'point' (pos = map(x, y) of the finger; `at(pos)` gives the point back for demos).
+class Wheel {
+  constructor(o) {
+    Object.assign(this, { axis: 'x', step: 80, sign: 1, snap: true }, o);
+    this.pos = this.index ?? idx(state.theme); this.last = clamp(Math.round(this.pos), 0, T.length - 1);
+    this.els = T.map((t, i) => { const el = this.make(t, i); el.classList.add('witem'); el.dataset.i = i; this.host.append(el); return el; });
+    this.render();
+    if (this.drag !== false) this.attach(this.dragHost || this.host);
+  }
+  get i() { return clamp(Math.round(this.pos), 0, T.length - 1); }
+  get theme() { return T[this.i].id; }
+  set(p) {
+    const lo = 0, hi = T.length - 1;
+    this.pos = p < lo ? lo - (1 - 1 / (1 + (lo - p) * .5)) * .6 : p > hi ? hi + (1 - 1 / (1 + (p - hi) * .5)) * .6 : p;
+    this.render();
+  }
+  render() {
+    this.els.forEach((el, i) => this.layout(el, i - this.pos, i, this));
+    this.onPos?.(this.pos);
+    if (this.i !== this.last) { const prev = this.last; this.last = this.i; this.onIndex?.(this.i, prev); }
+  }
+  async snapTo(i, ms = 420) { const from = this.pos; i = clamp(i, 0, T.length - 1); await tween(ms, (e) => this.set(from + (i - from) * e)); }
+  angleAt(x, y) { return Math.atan2(y - this.center[1], x - this.center[0]) * 180 / Math.PI; }
+  attach(host) {
+    let start, p0, a0, lastA, v = 0, lastT;
+    const pt = (ev) => { const p = phone.getBoundingClientRect(); return [ev.clientX - p.left, ev.clientY - p.top]; };
+    host.addEventListener('pointerdown', (ev) => {
+      if (this.locked) return;
+      start = pt(ev); p0 = this.pos; lastT = performance.now(); v = 0; this.moved = false;
+      a0 = lastA = this.axis === 'angle' ? this.angleAt(...start) : 0;
+      if (this.axis === 'point') this.set(this.map(...start));
+      host.setPointerCapture(ev.pointerId);
+    });
+    host.addEventListener('pointermove', (ev) => {
+      if (!start) return;
+      const [x, y] = pt(ev), now = performance.now(); let np;
+      if (this.axis === 'point') np = this.map(x, y);
+      else if (this.axis === 'angle') { const a = this.angleAt(x, y); let da = a - lastA; if (da > 180) da -= 360; if (da < -180) da += 360; lastA = a; np = this.pos - this.sign * da / this.step; }
+      else { const d = this.axis === 'x' ? x - start[0] : y - start[1]; np = p0 - this.sign * d / this.step; }
+      if (Math.abs(np - this.pos) > .01) this.moved = true;
+      v = (np - this.pos) / Math.max(1, now - lastT) * 16; lastT = now;
+      this.set(np);
+    });
+    const up = () => { if (!start) return; start = null; if (this.snap) this.snapTo(Math.round(this.pos + v * 3)); this.onRelease?.(this.i); };
+    host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up);
+  }
+  /** Demo: drag the wheel by n orbs, the finger moving the way a thumb would. */
+  async spin(n, ms = 640, o = {}) {
+    const from = this.pos, to = from + n;
+    let path;
+    if (this.axis === 'point') path = (e) => this.at(from + n * e);
+    else if (this.axis === 'angle') {
+      const [cx, cy] = this.center, r = o.r ?? this.fingerR, a0 = (o.a0 ?? this.fingerA) * Math.PI / 180, da = -this.sign * n * this.step * Math.PI / 180;
+      path = (e) => ({ x: cx + r * Math.cos(a0 + da * e), y: cy + r * Math.sin(a0 + da * e) });
+    } else {
+      const f = o.from ?? this.finger ?? (() => { const r = rel(this.host); return { x: r.cx, y: r.cy }; })();
+      const d = -this.sign * n * this.step;
+      path = (e) => ({ x: f.x + (this.axis === 'x' ? d * e : 0), y: f.y + (this.axis === 'y' ? d * e : 0) });
+    }
+    await glide(path, ms, (e) => this.set(from + n * e), { lift: o.lift !== false, press: o.press !== false });
+    if (this.snap && this.axis !== 'point') await this.snapTo(Math.round(to), 260);
+    else if (this.axis === 'point' && o.lift !== false) await this.snapTo(Math.round(to), 200);
+  }
+}
+
+/** A name + tag label that follows the wheel. */
+function label(host, style = '') {
+  const el = $(`<div style="position:absolute;${style}"><div class="wname"></div><div class="wtag"></div></div>`); host.append(el);
+  const set = (i) => { el.querySelector('.wname').textContent = T[i].name; el.querySelector('.wtag').textContent = T[i].tag; };
+  return { el, set };
+}
+
+// ───────── Home ─────────
+const ICONS = {
+  home: '<svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z"/></svg>',
+  apps: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>',
+  you: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+};
+function sceneEl(id) { return $(`<div class="scene" data-t="${id}"><img class="sky" src="${SKY(id)}"><img class="moon" src="${MOON(id)}"></div>`); }
+function buildHome() {
+  home = $(`<div id="home"><div class="panel"><div class="scenes"></div><div class="bigtime">6:42</div><div class="hstate">Your apps are awake</div>
+    <img class="loc" src="/loc/loc-peek.svg"><div class="moonhit"></div></div>
+    <div class="strip"><div class="tab on" style="left:20px">${ICONS.home}</div><div class="tab" style="left:84px">${ICONS.apps}</div><div class="tab" style="left:148px">${ICONS.you}</div><div class="gemwrap"></div></div></div>`);
+  home.querySelector('.scenes').append(sceneEl(state.theme));
+  const g = orb(null, 52, 'gem'); g._pal = PAL[state.theme]; home.querySelector('.gemwrap').append(g);
+  phone.append(home);
+}
+const scenes = () => home.querySelector('.scenes');
+const curScene = () => scenes().lastElementChild;
+const gem = () => home.querySelector('canvas.gem');
+const moonHit = () => home.querySelector('.moonhit');
+function gemTo(id, ms = 700) { const g = gem(), a = g._pal, b = PAL[id]; return tween(ms, (e) => (g._pal = lerpPal(a, b, e))); }
+async function decode(el) { await Promise.all([...el.querySelectorAll('img')].map((i) => i.decode().catch(() => {}))); }
+
+// ───────── Re-theming Home ─────────
+// fade | moonset | reveal (circle from {x, y}) | pour (rises from the gem) | wipe (dir: 1 = from the right) | live (already shown)
+async function applyTheme(id, mode = 'fade', o = {}) {
+  if (mode === 'live') { liveCommit(id); state.theme = id; return; }
+  if (id === state.theme && mode !== 'force') return;
+  state.theme = id;
+  const old = curScene(), nu = sceneEl(id); await decode(nu); scenes().append(nu);
+  const done = () => old.remove();
+  if (mode === 'fade') { gemTo(id, 700); await anim(nu, [{ opacity: 0 }, { opacity: 1 }], { duration: 700, easing: 'ease-in-out' }); }
+  else if (mode === 'moonset') {
+    const om = old.querySelector('.moon'), nm = nu.querySelector('.moon');
+    nu.style.opacity = 0; nm.style.transform = 'translateY(330px)';
+    await anim(om, [{ transform: 'none' }, { transform: 'translateY(330px)' }], { duration: 520, easing: 'cubic-bezier(.5,0,.75,0)' });
+    gemTo(id, 700); await anim(nu, [{ opacity: 0 }, { opacity: 1 }], { duration: 500 });
+    await anim(nm, [{ transform: 'translateY(330px)' }, { transform: 'none' }], { duration: 1300, easing: 'cubic-bezier(.2,.9,.25,1)' });
+  } else if (mode === 'reveal') {
+    const x = o.x ?? 195, y = o.y ?? 535; gemTo(id, 900);
+    await anim(nu, [{ clipPath: `circle(0px at ${x}px ${y}px)` }, { clipPath: `circle(1000px at ${x}px ${y}px)` }], { duration: 1000, easing: 'cubic-bezier(.45,0,.2,1)' });
+  } else if (mode === 'pour') {
+    await gemTo(id, 380);
+    await anim(nu, [{ clipPath: 'inset(100% 0 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 950, easing: 'cubic-bezier(.45,0,.2,1)' });
+  } else if (mode === 'wipe') {
+    const from = (o.dir ?? 1) > 0 ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)'; gemTo(id, 800);
+    await anim(nu, [{ clipPath: from }, { clipPath: 'inset(0 0 0 0)' }], { duration: 800, easing: 'cubic-bezier(.45,0,.2,1)' });
+  }
+  nu.getAnimations().forEach((a) => { a.commitStyles?.(); a.cancel(); });
+  nu.style.clipPath = ''; nu.style.opacity = '';
+  done();
+}
+// Live preview: the sky, moon and gem follow a float index while you scroll.
+const liveCache = {};
+function livePreview(f) {
+  f = clamp(f, 0, T.length - 1);
+  const i0 = Math.floor(f), i1 = Math.min(T.length - 1, i0 + 1), fr = f - i0;
+  const want = [T[i0].id, T[i1].id];
+  for (const sc of [...scenes().children]) if (!want.includes(sc.dataset.t)) sc.remove();
+  const get = (id) => scenes().querySelector(`[data-t="${id}"]`) || (() => { const s = sceneEl(id); scenes().append(s); return s; })();
+  const a = get(want[0]), b = get(want[1]);
+  a.style.zIndex = 1; a.style.opacity = 1; b.style.zIndex = 2; if (b !== a) b.style.opacity = fr;
+  gem()._pal = lerpPal(PAL[want[0]], PAL[want[1]], fr);
+}
+function liveCommit(id) { for (const sc of [...scenes().children]) if (sc.dataset.t !== id) sc.remove(); const s = curScene(); s.style.opacity = ''; s.style.zIndex = ''; gem()._pal = PAL[id]; }
+
+// ───────── Pop-up helpers ─────────
+function glass(style, cls = '') { const g = $(`<div class="glass ${cls}" style="${style}"></div>`); layer.append(g); return g; }
+const popIn = (el, from = 'scale(.85)', ms = 420, origin) => { if (origin) el.style.transformOrigin = origin; return anim(el, [{ transform: from, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: ms, easing: 'cubic-bezier(.32,1.25,.5,1)' }); };
+const popOut = (el, to = 'scale(.9)', ms = 260) => anim(el, [{ transform: 'none', opacity: 1 }, { transform: to, opacity: 0 }], { duration: ms, easing: 'cubic-bezier(.4,0,.8,.4)' }).then(() => el.remove());
+function scrim(op = .25) { const s = $(`<div style="position:absolute;inset:0;background:rgba(0,0,0,${op})"></div>`); layer.append(s); anim(s, [{ opacity: 0 }, { opacity: 1 }], { duration: 260 }); return s; }
+const scrimOut = (s) => anim(s, [{ opacity: 1 }, { opacity: 0 }], { duration: 240 }).then(() => s.remove());
+/** A stock item: an orb, optionally with a name under it. */
+function orbItem(t, size, { name = false, ring = false } = {}) {
+  const el = $(`<div style="width:${size}px;height:${size}px"></div>`); el.append(orb(t.id, size));
+  if (name) el.append($(`<div style="position:absolute;top:${size + 8}px;left:50%;transform:translateX(-50%);font-size:12px;white-space:nowrap;color:rgba(255,255,255,.85)">${t.name}</div>`));
+  return el;
+}
+const place = (el, x, y, s = 1, extra = '') => { const w = el.offsetWidth || parseFloat(el.style.width), h = el.offsetHeight || parseFloat(el.style.height); el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) scale(${s}) ${extra}`; };
+
+// ───────── Run a take ─────────
+// V.open(ctx) → { w: Wheel, pick: () => element to tap to choose (or null if the release picks), close: async () => {} }
+// V.apply: 'fade' | 'moonset' | 'reveal' | 'pour' | 'wipe' | 'live'; V.at(ui) → {x, y} for reveal.
+// V.script: list of spins (default [2, 2, -1]: lands on Ember); V.demo overrides everything after the moon tap.
+async function run(V, auto) {
+  const token = (run.token = {});
+  phone.innerHTML = '<div id="layer" style="position:absolute;inset:0;z-index:50;pointer-events:none"></div><div id="finger"></div><div class="status"><span>6:42</span><i><b></b></i></div><div class="homebar"></div>';
+  layer = phone.querySelector('#layer'); finger = phone.querySelector('#finger'); state.theme = 'moonlight';
+  buildHome(); await decode(home);
+  if (run.token !== token) return;
+  const ctx = { V };
+  const commit = async (ui) => {
+    const id = ui.w.theme, at = V.at?.(ui);
+    if (V.commit) return V.commit(ui, id, ctx);
+    if (V.apply === 'live') { await ui.close(); await applyTheme(id, 'live'); return; }
+    if (V.applyFirst) { await applyTheme(id, V.apply, at); await ui.close(); return; }
+    await ui.close(); await applyTheme(id, V.apply || 'fade', at);
+  };
+  const open = async () => {
+    if (ctx.ui || ctx.opening) return;
+    ctx.opening = true;
+    layer.style.pointerEvents = 'auto';
+    const ui = ctx.ui = await V.open(ctx); ctx.opening = false;
+    ui.commit = async () => { await commit(ui); layer.innerHTML = ''; layer.style.pointerEvents = 'none'; ctx.ui = null; };
+    const pk = ui.pick?.(); if (pk) pk.addEventListener('click', () => { if (!ui.w.moved) ui.commit(); });
+    if (!auto && !pk && !V.hold) ui.w.onRelease = () => setTimeout(() => ui.commit(), 300);
+  };
+  if (auto) {} else if (V.hold) moonHit().addEventListener('pointerdown', (ev) => V.hold(ctx, ev, open));
+  else moonHit().addEventListener('click', open);
+  if (!auto) return;
+  await wait(800);
+  if (V.demo) await V.demo(ctx, open);
+  else {
+    await tap(moonHit()); await open(); await wait(650);
+    for (const n of V.script ?? [2, 3, -1]) { await ctx.ui.w.spin(n, 520 + Math.abs(n) * 120); await wait(520); }
+    await wait(250);
+    const pk = ctx.ui.pick?.(); if (pk) await tap(pk); else await ctx.ui.commit();
+  }
+  await wait(1500);
+  window.__done = true;
+}
+</script>
+<script src="variants.js"></script>
+<script>
+const q = new URLSearchParams(location.search), app = document.getElementById('app');
+const preload = () => Promise.all(T.flatMap((t) => [SKY(t.id), MOON(t.id)]).concat(['/loc/loc-peek.svg']).map((src) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = r; i.src = src; })));
+if (q.has('v')) {
+  document.body.classList.add('solo');
+  app.innerHTML = '<div id="phone"></div>'; phone = app.firstChild;
+  preload().then(() => { window.__ready = true; return run(VARIANTS[+q.get('v') - 1], q.has('auto')); });
+} else {
+  app.innerHTML = `<div class="index"><h1>Orb wheel lab</h1><p>Tap the moon: a liquid-glass wheel of orbs; the one you pick re-themes Home. Pick a take, then Play, or tap the moon yourself.</p>
+    <div class="picks"></div><div class="vname"></div><div class="vdesc"></div><button class="play" style="padding:9px 18px;border-radius:999px;background:#fff;color:#000;font-weight:600">Play</button><div id="phone"></div></div>`;
+  phone = document.getElementById('phone');
+  let cur = 0; const picks = app.querySelector('.picks');
+  const show = (i, auto) => { cur = i; picks.querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', j === i));
+    app.querySelector('.vname').textContent = `${i + 1}. ${VARIANTS[i].name}`; app.querySelector('.vdesc').textContent = VARIANTS[i].desc; run(VARIANTS[i], auto); };
+  VARIANTS.forEach((V, i) => { const b = $(`<button>${i + 1}</button>`); b.onclick = () => show(i, false); picks.append(b); });
+  app.querySelector('.play').onclick = () => show(cur, true);
+  preload().then(() => show(+(location.hash.slice(1) || 1) - 1, false));
+}
+</script>
+</body>
+</html>

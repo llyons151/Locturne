@@ -222,3 +222,9 @@ export function openMoons(from?: unknown) {
   if (from === 'moon' && !moonTapped()) sharedSet(MOON_TAPPED_KEY, true);
   router.push((getMoonsAsPage() ? '/moon-page' : '/moon-sheet') as Href);
 }
+
+/** Home's moon (and the Apps tab's): the moon wheel, to wear another moon there and then (user, 2026-11-07). */
+export function openMoonWheel() {
+  if (!moonTapped()) sharedSet(MOON_TAPPED_KEY, true);
+  router.push('/moon-wheel' as Href);
+}

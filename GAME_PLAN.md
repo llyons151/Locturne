@@ -2,7 +2,7 @@
 
 Updated October 1, 2026 (wake-up methods, daytime controls, build status and the
 launch timeline); v1 wake-up methods widened to five on October 9, 2026, and set at six on
-November 5, 2026 (squats out, Step away in); Go downstairs replaced by Dance on November 7, 2026. This is the source of truth for product direction. It
+November 5, 2026 (squats out, Step away in); Go downstairs replaced by Dance on November 7, 2026 (Dance worked on the phone the same day). This is the source of truth for product direction. It
 replaces the September 21 plan, which is archived at
 [docs/archive/GAME_PLAN_2026-09-21.md](docs/archive/GAME_PLAN_2026-09-21.md). The
 reasoning behind it is in [docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md),
@@ -76,7 +76,7 @@ different ways to prove it, each with its own lines from Loc. Details in
 | Method | Proof | v1 role |
 |---|---|---|
 | **Walk it off** | 200 steps on `CMPedometer` since the morning start | **The default** (2026-10-10): top of "How you get up" and the routine's starting method; also the "steps instead" fallback every morning |
-| **Dance** | Phone stood up about four steps away, facing you; the front camera (Apple Vision body pose, on the phone, nothing recorded) times N seconds of dancing **straight** (default 10, wheel 5–120). You must be standing, whole body in view, and the legs have to move, not just the arms; stop for 1.5 s and it's back to zero. A live timer shows on screen. Rules in `src/lib/wake/dance.ts`, untuned on real clips. | Replaced Go downstairs on 2026-11-07: the most filmable method (marketing), and testable without stairs. |
+| **Dance** | Phone stood up about four steps away, facing you; the front camera (Apple Vision body pose, on the phone, nothing recorded) times N seconds of dancing **straight** (default 10, wheel 5–120). You must be standing, whole body in view, and the legs have to move, not just the arms; stop for 1.5 s and it's back to zero. A live timer shows on screen. Rules in `src/lib/wake/dance.ts`; **worked on the phone 2026-11-07** (thresholds still first guesses). | Replaced Go downstairs on 2026-11-07: the most filmable method (marketing), and testable without stairs. |
 | **Scan your code** | A per-user QR or a registered product barcode kept in another room | Alternative; the leading candidate for the accessible option |
 | **Leave the house** | An in-app "I'm out" check reads location once: at least ~150 m from the saved home spot, or at a saved place (gym, campus, café). When-In-Use permission only, no background geofence. Optional light check: the camera's exposure value (brightness only, never the picture) confirms daylight; before sunrise it's location only. | Alternative; the "get outside / see the sky" morning |
 | **Push-ups** | Phone leaning on the floor two steps away, side-on; the front camera counts the reps (Apple Vision body pose, on the phone, nothing recorded). Loc peeks over the bottom strip, reacting, and says the count out loud. | Alternative; the effort option and a strong video ("my alarm watches me do push-ups") |

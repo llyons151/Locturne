@@ -6,7 +6,7 @@ import { appsMoonRoom, raisedMoonArc } from '@/components/night-sky';
 import * as haptic from '@/lib/haptics';
 
 import { LOC_VIEW } from '../home/loc-rig';
-import { openMoons } from './moon-collection';
+import { openMoonWheel } from './moon-collection';
 
 /** Loc's width as a share of the screen, as on Home (loc.tsx). */
 const LOC_SHARE = 0.27;
@@ -18,8 +18,8 @@ const SIDE = 0.1;
 const LOC_ROOM = 8;
 
 /**
- * Home's moon opens the collection (user, 2026-11-01: "I like the idea of clicking on the moon
- * to change it"). Invisible: the moon is the button. Loc's canvas runs the panel's full width
+ * Home's moon opens the moon wheel (user, 2026-11-07; before, the whole collection: 2026-11-01, "I like the
+ * idea of clicking on the moon to change it"). Invisible: the moon is the button. Loc's canvas runs the panel's full width
  * along its edge, in a layer over every tab, so the moon is covered in parts: this one above
  * Loc (in Home), and `MoonSides` either side of him (in Loc's own layer, or the canvas would
  * swallow taps on most of the moon). Loc himself, the middle `LOC_SHARE`, is left alone: poke
@@ -77,7 +77,7 @@ export function RaisedMoonTap() {
 
 function open() {
   haptic.tap();
-  openMoons('moon');
+  openMoonWheel();
 }
 
 const styles = StyleSheet.create({
