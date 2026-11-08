@@ -35,13 +35,15 @@ type ShellProps = PropsWithChildren<{
   onBack?: () => void;
   /** Missing hides Exit: a first setup can't be left before it's saved. */
   onExit?: () => void;
+  /** The top-right link's word: "Exit", or "Restore" on a first run's welcome (user 2026-11-07, Jomo mockup). */
+  exitLabel?: string;
   footer?: ReactNode;
   /** Off lets a page run past the body's bottom, over the button's area (`build`'s ground sliding off). */
   clip?: boolean;
 }>;
 
 /** Fixed full-screen page: top bar, content, and a bottom action that never scrolls away. */
-export function Shell({ progress, centered = false, onBack, onExit, footer, clip = true, children }: ShellProps) {
+export function Shell({ progress, centered = false, onBack, onExit, exitLabel, footer, clip = true, children }: ShellProps) {
   // Pad with the provider's window insets; the native SafeAreaView can measure zero inside a full-screen modal.
   const insets = useSafeAreaInsets();
   // Pages are laid out to fit at the standard text sizes. Past that (B13: larger Dynamic Type
@@ -51,7 +53,7 @@ export function Shell({ progress, centered = false, onBack, onExit, footer, clip
   return (
     // The button floats clear of the bottom (Insight Timer, user 2026-10-26): never flush on a phone without a home bar.
     <View style={[styles.shell, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, Space.l) }]}>
-      <TopBar progress={progress} onBack={onBack} onExit={onExit} />
+      <TopBar progress={progress} onBack={onBack} onExit={onExit} exitLabel={exitLabel} />
       {/* At standard text sizes pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
       <Centered.Provider value={centered}>
         {scrolls ? (
@@ -78,7 +80,7 @@ export function Shell({ progress, centered = false, onBack, onExit, footer, clip
  * the flow opens (the place map, the code setup), so they read as part of it (user, 2026-10-26).
  * No inset padding: whoever places it is under the status bar already.
  */
-export function TopBar({ progress, onBack, onExit }: Pick<ShellProps, 'progress' | 'onBack' | 'onExit'>) {
+export function TopBar({ progress, onBack, onExit, exitLabel = 'Exit' }: Pick<ShellProps, 'progress' | 'onBack' | 'onExit' | 'exitLabel'>) {
   return (
     <View style={styles.topBar}>
       <Pressable
@@ -102,11 +104,11 @@ export function TopBar({ progress, onBack, onExit }: Pick<ShellProps, 'progress'
         disabled={!onExit}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel="Exit"
+        accessibilityLabel={exitLabel}
         accessibilityElementsHidden={!onExit}
         style={[styles.exitButton, !onExit && styles.hidden]}
       >
-        <Text style={styles.exit}>Exit</Text>
+        <Text style={styles.exit}>{exitLabel}</Text>
       </Pressable>
     </View>
   );

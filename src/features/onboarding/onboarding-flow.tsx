@@ -77,9 +77,8 @@ import { BUILD_EXIT_MS, BUILD_RISE_FIRST_MS, BuildFloor, moonBelow } from './scr
 import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './screens/reveal-screen';
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { morningWarnings, renderStep } from './steps';
-import { OpenerScene } from './opener-scene';
 import { OFFER_ARC_AT } from './offer-compare';
-import { WELCOME_EXIT_MS } from './welcome-demo';
+import { WELCOME_EXIT_MS, WelcomeHero } from './welcome-hero';
 import { FooterEnter, Shell, StepEnter, TopBar, useSwap, type Progress } from './ui';
 
 
@@ -999,6 +998,7 @@ export function OnboardingFlow({
     buy,
     busy,
     restorePurchases,
+    restoreUp: !canLeave,
     entitled,
     finishSetup: () => finishSetup(),
     setUpMethod,
@@ -1041,7 +1041,7 @@ export function OnboardingFlow({
   const isBuild = (key: string) => key.startsWith('build-');
   // The reveal's dots drop off the screen before `build` comes up (a light user's text-only reveal just fades).
   const isReveal = (key: string) => key.startsWith('reveal-');
-  // The opener runs its own way out too: its phone sinks and fades, its words fade after (welcome-demo.tsx).
+  // The opener runs its own way out too: its phone, words and buttons fade, and the sky comes up (welcome-hero.tsx).
   const holds = (key: string) =>
     isBuild(key)
       ? BUILD_EXIT_MS
@@ -1097,7 +1097,7 @@ export function OnboardingFlow({
         </View>
       ) : null}
       <NightSky quiz={quiz || offerMoon} arcAt={offerMoon ? OFFER_ARC_AT : undefined} drift={opening} riseMs={riseMs} />
-      <OpenerScene shown={opening && !moonMoving} />
+      <WelcomeHero shown={opening} />
       <RevealDark shown={dark} />
       {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} after={buildPage.held} /> : null}
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
@@ -1108,7 +1108,9 @@ export function OnboardingFlow({
           // And on the paywall, whose heading sits up in the top bar's empty middle (user 2026-10-27).
           clip={step !== 'plans' && !buildPage?.leaving && !pages.some((page) => page.leaving && isReveal(page.key))}
           onBack={back}
-          onExit={canLeave ? leave : undefined}
+          // A first run's welcome has no Exit, so Restore takes its corner (user 2026-11-07, Jomo mockup).
+          onExit={canLeave ? leave : opening ? restorePurchases : undefined}
+          exitLabel={canLeave || !opening ? 'Exit' : 'Restore'}
           footer={
             footers.length > 0 ? (
               <View>

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 
 import { useProtection } from '@/hooks/use-protection';
 import { isPickerSettling, settlePicker } from '@/features/apps/picker-settle';
@@ -315,17 +316,33 @@ export function NapScreen() {
       </Animated.View>
 
       {nap ? (
+        /* The time left inside a ring that fills as the session runs, its end time under it
+           (user's pick, 2026-11-07: "A · Ring", so "until 6:06 pm" is said once). */
         <View
           style={styles.timer}
           accessible
           accessibilityLabel={`${spokenLeft(left)} left. ${napStatus}.`}
         >
-          <Text style={styles.countdown} maxFontSizeMultiplier={1.2}>
+          <Svg width={RING} height={RING} style={styles.ring}>
+            <Circle cx={RING / 2} cy={RING / 2} r={RING_R} stroke={LINE} strokeWidth={RING_STROKE} fill="none" />
+            <Circle
+              cx={RING / 2}
+              cy={RING / 2}
+              r={RING_R}
+              stroke={Nocturne.cta}
+              strokeWidth={RING_STROKE}
+              strokeLinecap="round"
+              fill="none"
+              strokeDasharray={RING_C}
+              strokeDashoffset={RING_C * (1 - Math.min(1, Math.max(0, done)))}
+            />
+          </Svg>
+          <Text style={styles.countdown} maxFontSizeMultiplier={1.1}>
             {clock(left)}
           </Text>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${Math.min(1, done) * 100}%` }]} />
-          </View>
+          <Text style={styles.ringUntil} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+            {napProtected ? `until ${timeOf(nap.end)}` : 'Protection is off'}
+          </Text>
         </View>
       ) : (
         <View style={styles.length}>
@@ -340,18 +357,20 @@ export function NapScreen() {
         </View>
       )}
 
-      <View style={styles.until} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={13} tintColor={INK2} />
-        <Text style={styles.untilText} numberOfLines={1}>
-          {until}
-        </Text>
-      </View>
+      {nap ? null : (
+        <View style={styles.until} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <SymbolView name={sym('moon.zzz.fill', 'bedtime')} size={13} tintColor={INK2} />
+          <Text style={styles.untilText} numberOfLines={1}>
+            {until}
+          </Text>
+        </View>
+      )}
 
       {nap && !napProtected ? (
         <TextButton label="Turn Screen Time access back on" onPress={turnAccessOn} />
       ) : nap ? (
-        <Text style={styles.body}>
-          {`${nap.list === 'night' ? 'Your bedtime apps are' : 'The apps you picked are'} asleep with him. Phone calls still get through.`}
+        <Text style={styles.ringNote} numberOfLines={2}>
+          {`${nap.list === 'night' ? 'Bedtime apps' : 'Your picked apps'} asleep · calls still get through`}
         </Text>
       ) : (
         /* TIDE's split row (user's reference, 2026-10-08): one pill, two halves, each an icon,
@@ -479,6 +498,12 @@ const LINE = 'rgba(255, 255, 255, 0.12)';
 /** A pane of glass inside the glass: a faint white fill. */
 const GLASS = 'rgba(255, 255, 255, 0.07)';
 
+/** The running session's ring: its box, radius, stroke and circumference. */
+const RING = 220;
+const RING_STROKE = 8;
+const RING_R = (RING - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+
 const styles = StyleSheet.create({
   // Sized to its contents inside the card (sleep-sheet.tsx). The side padding matches the
   // card's bottom padding, so the button's round ends sit concentric with its corners.
@@ -520,8 +545,10 @@ const styles = StyleSheet.create({
   hold: { height: 56, marginTop: Space.xs },
   notice: { ...Type.caption, color: INK2, textAlign: 'center' },
 
-  timer: { gap: Space.m, alignItems: 'center' },
-  countdown: { ...NUMBER_FONT, color: INK, fontSize: 56, lineHeight: 62, fontVariant: ['tabular-nums'] },
-  track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: LINE, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.cta },
+  timer: { width: RING, height: RING, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  // The ring starts at 12 o'clock and runs clockwise.
+  ring: { position: 'absolute', transform: [{ rotate: '-90deg' }] },
+  countdown: { ...NUMBER_FONT, color: INK, fontSize: 44, lineHeight: 50, fontVariant: ['tabular-nums'] },
+  ringUntil: { ...Type.caption, fontWeight: '500', color: INK2 },
+  ringNote: { ...Type.caption, color: INK2, textAlign: 'center' },
 });

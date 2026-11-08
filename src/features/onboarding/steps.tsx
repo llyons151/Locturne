@@ -70,7 +70,7 @@ import { RollingCount } from './rolling-count';
 import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
 import { Body, Eyebrow, HoldButton, Options, page, Ready, Reply, Title, Voice } from './ui';
 import { wakeDayFor } from './wake-day';
-import { WelcomeDemo, WelcomeWords } from './welcome-demo';
+import { WelcomeWords } from './welcome-hero';
 
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */
 export type StepContext = {
@@ -105,6 +105,8 @@ export type StepContext = {
   /** A purchase or restore is in flight. */
   busy: boolean;
   restorePurchases: () => void;
+  /** Restore sits in the top bar's corner (a first run's welcome, where there's no Exit), so the footer leaves it out. */
+  restoreUp: boolean;
   /** Already subscribed (restored): setup skips the paywall and arms. */
   entitled: boolean;
   /** Saves the setup and arms tonight, for someone already entitled. */
@@ -170,10 +172,10 @@ export type StepContext = {
 const OPENER_LINE_MS = 150;
 
 /**
- * The cold open, under the lock happening on a phone (welcome-demo.tsx). Same line at every
- * hour; New Year week has its own headline (`NEW_YEAR`).
+ * The cold open, under the real Home on a phone (welcome-hero.tsx, Jomo's welcome). Same line at
+ * every hour; New Year week has its own headline (`NEW_YEAR`).
  */
-const HELLO = { head: 'Your apps go to bed\nwhen you do.', sub: 'They wake up when you’re out of bed.' };
+const HELLO = { head: 'Your apps go to bed\nwhen you do', sub: 'They wake up when you’re out of bed' };
 
 /** `commit`: the card starts building once the title's in, and the line under it once it's built. */
 const DEAL_CARD_AT_MS = 700;
@@ -233,11 +235,9 @@ export function renderStep(ctx: StepContext): StepView {
       const hello = ctx.newYear ? NEW_YEAR.hello : HELLO;
       return {
         body: (
-          // Cal AI's opener (user, 2026-11-02, docs/WELCOME_SCREEN.md): the app working on a
-          // phone up top, then the promise and the line under it just above the buttons.
+          // Jomo's welcome (user 2026-11-07, docs/WELCOME_SCREEN.md): the phone and moon are drawn
+          // behind the page by the flow (WelcomeHero); the page holds the words, just above the buttons.
           <View style={styles.opener}>
-            <WelcomeDemo />
-            <View style={page.gapBlock} />
             <WelcomeWords head={hello.head} sub={HELLO.sub} delay={OPENER_LINE_MS} />
           </View>
         ),
@@ -247,9 +247,11 @@ export function renderStep(ctx: StepContext): StepView {
             <Reveal delay={OPENER_LINE_MS * 3}>
               <PrimaryButton label="Get started" onPress={next} />
             </Reveal>
-            <Reveal delay={OPENER_LINE_MS * 4}>
-              <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
-            </Reveal>
+            {ctx.restoreUp ? null : (
+              <Reveal delay={OPENER_LINE_MS * 4}>
+                <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
+              </Reveal>
+            )}
           </View>
         ),
         secondary: (
@@ -958,7 +960,7 @@ function FineLink({ label, url }: { label: string; url: string }) {
 const styles = StyleSheet.create({
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
-  opener: { flex: 1, alignItems: 'center', paddingBottom: Space.l },
+  opener: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: Space.xxl },
   openerFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center', paddingTop: Space.s },
   fineLink: { color: Nocturne.text },
   gap8: { height: Space.s },
