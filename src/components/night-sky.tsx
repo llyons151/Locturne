@@ -115,6 +115,13 @@ export function restingMoonDisc(width: number, height: number) {
  * 2026-10-10). Set by useMoonSink in Home.
  */
 export const moonSink = makeMutable(0);
+/**
+ * Where the moon is headed, not where it is: the tab's resting place (useMoonSink). A page opened
+ * over the tab while the moon is still rising (straight after a tab switch or another page closing)
+ * puts it back here, not at the half-risen spot it read, which left it barely poking out until
+ * the next tab switch (user, 2026-11-09).
+ */
+export const moonRest = { value: 0 };
 /** How much of the moon's width it drops when sunk, and how much of its glow stays. */
 const SINK_DEPTH = 0.3;
 const SUNK_GLOW = 0.25;

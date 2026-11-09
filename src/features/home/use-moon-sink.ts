@@ -2,7 +2,7 @@ import { useNavigation } from 'expo-router';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Easing, useReducedMotion, withTiming } from 'react-native-reanimated';
 
-import { appsMoonRoom, MOON_GONE, MOON_RAISED, MOON_SHOWS_FROM, moonSink } from '@/components/night-sky';
+import { appsMoonRoom, MOON_GONE, MOON_RAISED, MOON_SHOWS_FROM, moonRest, moonSink } from '@/components/night-sky';
 
 /** The tab picked in the tab bar, by route name. A sheet opened over it doesn't change it. */
 function useSelectedTab() {
@@ -36,9 +36,16 @@ export function useMoonSink() {
   const appsRoom = useSyncExternalStore(appsMoonRoom.subscribe, appsMoonRoom.get);
   useEffect(() => {
     const to = tab === 'index' ? 0 : tab === 'apps' && appsRoom ? MOON_RAISED : tab === 'routine' || tab === 'profile' ? MOON_GONE : 1;
+    moonRest.value = to;
     // Back from out of sight: start at the edge, so it's seen moving from the first frame.
     if (!reduced && to < MOON_SHOWS_FROM && moonSink.get() > MOON_SHOWS_FROM) moonSink.set(MOON_SHOWS_FROM);
     moonSink.set(reduced ? to : withTiming(to, { duration: 1600, easing: Easing.bezier(0.45, 0, 0.25, 1) }));
   }, [tab, appsRoom, reduced]);
-  useEffect(() => () => moonSink.set(0), []);
+  useEffect(
+    () => () => {
+      moonRest.value = 0;
+      moonSink.set(0);
+    },
+    [],
+  );
 }

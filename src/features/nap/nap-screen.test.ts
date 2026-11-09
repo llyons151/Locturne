@@ -63,16 +63,18 @@ test('an active nap reports revoked protection and recovers its status when acce
   const texts = (tree: any): string => typeof tree === 'string' ? tree : !tree || typeof tree !== 'object' ? ''
     : Array.isArray(tree) ? tree.map(texts).join(' ') : texts(tree.children);
   await nodes(render()).find((n) => n.props?.label === 'Hold to tuck him in').props.onComplete();
-  assert.match(texts(render()), /Apps asleep until/);
+  // The status lives in the ring since the 2026-11-07 redesign: "until 3:00 PM", or "Protection is off".
+  assert.match(texts(render()), /until 3:00 PM[\s\S]*asleep · calls still get through/);
   protection = 'off';
   const revoked = render();
-  assert.match(texts(revoked), /Screen Time protection is off/);
-  assert.doesNotMatch(texts(revoked), /Apps asleep until|asleep with him/);
+  assert.match(texts(revoked), /Protection is off/);
+  assert.doesNotMatch(texts(revoked), /until 3:00 PM|calls still get through/);
+  assert.ok(nodes(revoked).some((n) => n.props?.label === 'Turn Screen Time access back on'));
   const spoken = nodes(revoked).find((n) => n.props?.accessibilityLabel?.includes('minute')).props.accessibilityLabel;
   assert.match(spoken, /protection is off/);
   assert.doesNotMatch(spoken, /Apps asleep/);
   protection = 'on';
-  assert.match(texts(render()), /Apps asleep until/);
+  assert.match(texts(render()), /until 3:00 PM[\s\S]*asleep · calls still get through/);
 });
 
 const compile = (file: string) => babel.transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {

@@ -14,7 +14,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
-import { HOME_RISE_MS, MOON_GONE, MOON_SHOWS_FROM, moonSink } from '@/components/night-sky';
+import { HOME_RISE_MS, MOON_GONE, MOON_SHOWS_FROM, moonRest, moonSink } from '@/components/night-sky';
 import { homeEntrance, HIDE_FADE_MS } from '@/features/home/entrance';
 import { locAway, tabPagesShown, tabsShown } from '@/features/moons/moons-cover';
 
@@ -62,8 +62,9 @@ export function StripPage({ background, children }: { background: string; childr
   // What's on it: 0 hidden, 1 shown.
   const shown = useSharedValue(reduced ? 1 : 0);
   const leaving = useRef(false);
-  // Where the moon rested when the page opened (Home: in view; other tabs: already out of sight).
-  const rest = useRef(moonSink.get());
+  // Where the moon rests on the tab under the page (Home: in view; other tabs: out of sight). Its
+  // resting place, not `moonSink.get()`: mid-rise that reads half sunk, and the moon came back there.
+  const rest = useRef(moonRest.value);
   // Over another strip page: the cover's already on, and it stays on when this one goes.
   const nested = useRef(openPages > 0);
 
