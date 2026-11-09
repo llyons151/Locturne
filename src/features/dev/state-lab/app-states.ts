@@ -245,6 +245,30 @@ export const APP_STATES: AppState[] = [
     facts: accessOff,
   },
   {
+    id: 'wake-off-steps',
+    group: 'Status',
+    label: 'Motion & Fitness off',
+    note: 'The walk can’t count steps, so the morning would never wake the apps. Settings, or change the wake-up.',
+    facts: (d) => ({ ...d, routine: { ...d.routine, method: 'steps' }, method: 'steps', wakeRefused: true }),
+  },
+  {
+    id: 'wake-off-camera',
+    group: 'Status',
+    label: 'Camera off (push-ups), at night',
+    note: 'Push-ups, dance and scan need the camera. Shown at night too, so it can be fixed before the morning.',
+    facts: (d, now) => {
+      const n = night(d, now);
+      return { ...n, routine: { ...n.routine, method: 'pushups' }, method: 'pushups', wakeRefused: true };
+    },
+  },
+  {
+    id: 'wake-off-location',
+    group: 'Status',
+    label: 'Location off (place)',
+    note: 'Getting to your place needs When-In-Use location.',
+    facts: (d) => ({ ...d, routine: { ...d.routine, method: 'place' }, method: 'place', wakeRefused: true }),
+  },
+  {
     id: 'access-looks-off',
     group: 'Status',
     label: 'Screen Time looks off',

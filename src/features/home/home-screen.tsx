@@ -59,6 +59,8 @@ import { useMorningPlace } from './use-morning-place';
 import { useMorningPushups } from './use-morning-pushups';
 import { useMorningWalk, type MorningWalk } from './use-morning-walk';
 import { askWalk, useWalkRequest } from './walk-request';
+import { useWakeAccess } from './use-wake-access';
+import { wakeAccessHero, wakeFixLabel } from './wake-access-words';
 import { useHomeMock } from '../dev/state-lab/app-states';
 import { MockBar, MockSwipe } from '../dev/state-lab/mock-bar';
 import { pretendMethod, pretendNightEnd, useWakePreview } from '../dev/wake-lab/wake-preview';
@@ -124,6 +126,8 @@ export type HomeFacts = {
   /** Bedtime apps and typed-in websites, or null while a list change is still to land. */
   apps: number | null;
   websites: number | null;
+  /** Dev only (app-states lab): the wake-up's permission refused, as `useWakeAccessRefused` reads it for real. */
+  wakeRefused?: boolean;
   /** Put before Loc's moment keys, so a made-up state never uses up a real night's line. */
   sayKey: string;
 };
@@ -296,9 +300,21 @@ export function HomeScreen() {
   const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
   // The trial's last days (B4): the paywall's "I remind you", kept even without notifications.
   // Leads by day, behind anything that needs fixing.
-  const trial = !unprotected && !attention && !paused && phase === 'day' ? trialNotice(facts.trialEnd, now) : null;
+  // The wake-up's permission refused (Motion & Fitness for steps, the camera, location): the
+  // morning could never wake the apps, so by day and by night Home says so rather than look
+  // set up (user 2026-11-08). The morning itself already shows its own Settings line.
+  const wakeCheck = !unprotected && (phase === 'day' || phase === 'night');
+  const wakeAccess = useWakeAccess(method, !mock && wakeCheck);
+  const wakeRefused =
+    (mock ? wakeCheck && !!facts.wakeRefused : wakeAccess.off) &&
+    !(attention && health.needsSubscription) &&
+    armed &&
+    !stoodDown;
+  const trial = !unprotected && !attention && !paused && !wakeRefused && phase === 'day' ? trialNotice(facts.trialEnd, now) : null;
   const hero = unprotected
     ? { title: health.title, body: health.detail }
+    : wakeRefused
+      ? wakeAccessHero(method)
     : pause && lock.phase === 'night' && !napping && facts.pauseWords
       ? pausedHero(facts.pauseWords)
       : trial
@@ -372,6 +388,8 @@ export function HomeScreen() {
     ? health.protection === 'notSetUp'
       ? { label: 'Turn on Screen Time', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
       : { label: 'Turn Screen Time back on', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
+    : wakeRefused
+      ? { label: wakeFixLabel(method), onPress: wakeAccess.fix, busy: wakeAccess.asking ? ASKING_APPLE : undefined }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : trial
@@ -391,7 +409,7 @@ export function HomeScreen() {
               : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // Each state's look (`HomeLook`), so they differ by more than their words.
-  const problem = unprotected || (attention && health.needsSubscription) || (attention && !napping);
+  const problem = unprotected || wakeRefused || (attention && health.needsSubscription) || (attention && !napping);
   // The morning just won with a wake-up (not a pass), for three hours after.
   const wonAt = phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency' && now.getTime() - proof.at < DONE_FOR ? proof : null;
   // The countdown to a bedtime that will really sleep: the day's plain "Bedtime in" hero.
@@ -459,7 +477,7 @@ export function HomeScreen() {
   const mood = baseMood === 'awake' && mind.proud ? 'smug' : baseMood;
   // What Loc has something to say about (loc-lines.ts), once each: bedtime within the hour, the
   // apps just gone to sleep, this morning's wake-up done. Keyed so each is said once per night.
-  const quiet = unprotected || attention || paused || stoodDown;
+  const quiet = unprotected || wakeRefused || attention || paused || stoodDown;
   const moment: LocMoment | null = quiet
     ? null
     : mind.moment
@@ -494,7 +512,7 @@ export function HomeScreen() {
         icon={walk ? WALK_ICON : here?.icon}
         searching={!walk && here?.searching}
         action={action}
-        alt={backToOwn ?? (here && action === here.action && here.alt !== here.action ? here.alt : undefined)}
+        alt={wakeRefused ? { label: 'Change wake-up', onPress: () => router.push('/routine') } : backToOwn ?? (here && action === here.action && here.alt !== here.action ? here.alt : undefined)}
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
