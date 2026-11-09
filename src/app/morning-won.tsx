@@ -9,7 +9,7 @@ import { Platform } from 'react-native';
 import { LeaveRoute } from '@/components/leave-route';
 import { settleMoons, unpresented } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
-import { markPayoffShown } from '@/features/wake/open-payoff';
+import { markPayoffShown, wonProof } from '@/features/wake/open-payoff';
 import { PayoffLab } from '@/features/wake/payoff-lab';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
 import { revealApp } from '@/lib/launch-splash';
@@ -43,7 +43,7 @@ export default function MorningWonRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const demo = !!params.demo && labs;
-  const facts = cold ? null : demo ? demoFacts(params) : realFacts();
+  const facts = cold ? null : demo ? demoFacts(params) : realFacts(params.key);
   // A real morning's payoff counts as shown once it's up, not when Home asked for it (open-payoff.ts).
   const shownKey = !demo && facts ? facts.today : null;
   useEffect(() => {
@@ -73,9 +73,11 @@ export default function MorningWonRoute() {
 /** Home's own entrance finishes before the payoff goes over it. */
 const OVER_HOME_MS = 1500;
 
-function realFacts(): PayoffFacts | null {
-  const now = new Date();
-  const proof = currentProof(now);
+/** `key`: the morning Home opened it for (open-payoff.ts), maybe an earlier one; else this morning's. */
+function realFacts(key?: string): PayoffFacts | null {
+  const proof = key ? wonProof(key) : currentProof(new Date());
+  // That morning's own clock: its routine and week, not today's, when it's opened a day or more later.
+  const now = proof ? new Date(proof.at) : new Date();
   if (!proof || proof.kind === 'pass' || proof.kind === 'emergency') return null;
   const at = new Date(proof.at);
   const ups = getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency');

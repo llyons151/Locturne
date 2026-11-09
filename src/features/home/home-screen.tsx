@@ -41,7 +41,7 @@ import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
 import { HomeContent, type HomeAction, type HomeMeter } from './home-content';
 import type { HomeLook } from './home-look';
 import { LocCue } from './loc';
-import { openPayoff, openPretendPayoff, PAYOFF_FOR } from '../wake/open-payoff';
+import { duePayoffKey, openPayoff, openPretendPayoff } from '../wake/open-payoff';
 import type { LocMoment } from './loc-lines';
 import { bigClock, duration, useMinute } from './night-meter';
 import { useReviewPrompt } from './review-prompt';
@@ -562,11 +562,12 @@ function usePayoff(proof: MorningProof | null, live: boolean) {
   const focused = useIsFocused();
   const won = !!proof && proof.kind !== 'pass' && proof.kind !== 'emergency';
   const key = won ? proof.morningKey : null;
-  const at = won ? proof.at : 0;
+  // The most recent win not seen yet, however long ago (`duePayoffKey`): `key` re-runs it on a new win.
   useEffect(() => {
-    if (!live || !focused || !key || Date.now() - at > PAYOFF_FOR) return;
-    openPayoff(key);
-  }, [live, focused, key, at]);
+    if (!live || !focused) return;
+    const due = duePayoffKey();
+    if (due) openPayoff(due);
+  }, [live, focused, key]);
 }
 
 /**

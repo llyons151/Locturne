@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 
-import { currentProof, readLock, routineAt } from '@/lib/lock-controller';
-import { getMorningsWon } from '@/lib/morning-proof';
+import { readLock, routineAt } from '@/lib/lock-controller';
+import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import type { WakeMethod } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
@@ -33,18 +33,29 @@ export function openPayoff(key: string, how: How = 'push', cut = how === 'replac
   if (opening === key || sharedGet<string>(PAYOFF_KEY) === key) return false;
   // Saved only once it's on screen (`markPayoffShown`): an app killed in between gets it next launch.
   opening = key;
-  router[how]({ pathname: '/morning-won', params: cut ? { cut: '1' } : {} });
+  // `key`: the page shows that morning, which may be an earlier one than today's.
+  router[how]({ pathname: '/morning-won', params: cut ? { cut: '1', key } : { key } });
   return true;
 }
 
-/** A wake-up older than this, found on opening the app, gets Home's done look but no payoff. */
-export const PAYOFF_FOR = 15 * 60_000;
+/**
+ * The most recent real wake-up (not a pass) whose payoff hasn't shown, or null. However long ago
+ * it was won, any method: the next open plays it, so a moon it brought is still seen (user,
+ * 2026-11-09). A 15-minute cut-off meant a Step away morning, which wins on its timer with the
+ * phone put away, never showed one. Never one older than the last payoff shown.
+ */
+export function duePayoffKey(): string | null {
+  const shown = sharedGet<string>(PAYOFF_KEY);
+  const latest = getProofs()
+    .filter((p) => p.kind !== 'pass' && p.kind !== 'emergency')
+    .reduce<MorningProof | null>((best, p) => (!best || p.morningKey > best.morningKey ? p : best), null);
+  if (!latest || opening === latest.morningKey) return null;
+  return shown && latest.morningKey <= shown ? null : latest.morningKey;
+}
 
-/** The real morning won in the last `PAYOFF_FOR` (not a pass) whose payoff hasn't shown, or null. */
-export function duePayoffKey(now = new Date()): string | null {
-  const proof = currentProof(now);
-  if (!proof || proof.kind === 'pass' || proof.kind === 'emergency' || now.getTime() - proof.at > PAYOFF_FOR) return null;
-  return opening === proof.morningKey || sharedGet<string>(PAYOFF_KEY) === proof.morningKey ? null : proof.morningKey;
+/** The real wake-up for the morning keyed `key`, or null (the payoff page's facts). */
+export function wonProof(key: string): MorningProof | null {
+  return getProofs().find((p) => p.morningKey === key && p.kind !== 'pass' && p.kind !== 'emergency') ?? null;
 }
 
 /**
