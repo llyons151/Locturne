@@ -9,7 +9,7 @@ import { Reveal } from '@/components/motion';
 import { Text } from '@/components/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Nocturne, Space } from '@/theme';
 
-import { useLeaving } from './ui';
+import { OPENER_EXIT_EASING, OPENER_EXIT_MS, useLeaving } from './ui';
 
 /**
  * The opener, after Jomo's welcome (user 2026-11-07, docs/WELCOME_SCREEN.md "Round 4"): the real
@@ -20,7 +20,8 @@ import { useLeaving } from './ui';
  *
  * Leaving it (Get started): "Blur through", option 1 of the ten (user 2026-11-07,
  * welcome-transitions.html). Everything fades and the night sky comes up under the next page's
- * words. The mockup also blurred it; blur never drew on iPhone, so here it's the fade alone.
+ * words. The mockup also blurred it; blur never drew on iPhone, so here the phone and moon sink
+ * back a touch as they fade instead (timings and curve: `OPENER_EXIT_MS` in ui.tsx).
  */
 
 const PHONE = require('@/assets/onboarding/welcome-phone.webp');
@@ -49,12 +50,10 @@ const M = {
 /** When the words look again for where they landed (see `WelcomeWords`). */
 const REMEASURE_MS = [120, 300, 600, 1000];
 
-/** How long the opener takes to leave: its words, buttons and phone fade together. */
-export const WELCOME_EXIT_MS = 380;
 /** The black under the phone fades a little slower, so the sky comes up as the next page comes in. */
-const BACKDROP_EXIT_MS = 600;
-/** Leaving: an ease-in, the way things leave the screen in the mockup. */
-const EXIT_EASING = Easing.bezier(0.55, 0, 0.8, 0.2);
+const BACKDROP_EXIT_MS = 640;
+/** How far the phone and moon shrink back as they leave, standing in for the mockup's blur. */
+const EXIT_SHRINK = 0.03;
 /** Arriving: one ease-out with no overshoot (the user's "clean, not bouncy", 2026-11-07). */
 const ENTER_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 
@@ -105,11 +104,11 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
   useEffect(() => {
     if (!measured) return;
     if (!shown) {
-      const out = (ms: number) => withTiming(0, { duration: reduced ? 200 : ms, easing: EXIT_EASING });
+      const out = (ms: number) => withTiming(0, { duration: reduced ? 200 : ms, easing: OPENER_EXIT_EASING });
       backdrop.set(out(BACKDROP_EXIT_MS));
-      phone.set(out(WELCOME_EXIT_MS));
-      moon.set(out(WELCOME_EXIT_MS));
-      glow.set(out(WELCOME_EXIT_MS));
+      phone.set(out(OPENER_EXIT_MS));
+      moon.set(out(OPENER_EXIT_MS));
+      glow.set(out(OPENER_EXIT_MS));
       return;
     }
     backdrop.set(1);
@@ -128,7 +127,11 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
   }, [shown, measured, reduced, backdrop, phone, moon, glow]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.get() }));
-  // Leaving, the parts only fade; arriving, the phone rises 40pt and the moon slides 18pt in from the left.
+  // Leaving, the phone, moon and glow shrink back as one (so the moon stays on the phone's edge).
+  const groupStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: shown || reduced ? 1 : 1 - (1 - phone.get()) * EXIT_SHRINK }],
+  }));
+  // Leaving, the parts fade where they are; arriving, the phone rises 40pt and the moon slides 18pt in from the left.
   const phoneStyle = useAnimatedStyle(() => ({
     opacity: phone.get(),
     transform: [{ translateY: shown ? (1 - phone.get()) * 40 * k : 0 }],
@@ -144,18 +147,20 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
       <Animated.View style={[StyleSheet.absoluteFill, styles.black, backdropStyle]}>
         {measured ? (
           <>
-            <Animated.View style={[styles.at, { left: phoneLeft, top: phoneTop, width: phoneWidth, height: phoneWidth / PHONE_RATIO }, phoneStyle]}>
-              <Image source={PHONE} style={StyleSheet.absoluteFill} contentFit="contain" />
-            </Animated.View>
-            <Animated.View
-              style={[styles.at, { left: phoneLeft + M.glow.dx * u, top: phoneTop + M.glow.dy * u, width: M.glow.size * u, height: M.glow.size * u }, glowStyle]}
-            >
-              <Image source={GLOW} style={StyleSheet.absoluteFill} contentFit="contain" />
-            </Animated.View>
-            <Animated.View
-              style={[styles.at, { left: phoneLeft + M.moon.dx * u, top: phoneTop + M.moon.dy * u, width: M.moon.size * u, height: M.moon.size * u }, moonStyle]}
-            >
-              <Image source={MOON} style={StyleSheet.absoluteFill} contentFit="contain" />
+            <Animated.View style={[StyleSheet.absoluteFill, groupStyle]}>
+              <Animated.View style={[styles.at, { left: phoneLeft, top: phoneTop, width: phoneWidth, height: phoneWidth / PHONE_RATIO }, phoneStyle]}>
+                <Image source={PHONE} style={StyleSheet.absoluteFill} contentFit="contain" />
+              </Animated.View>
+              <Animated.View
+                style={[styles.at, { left: phoneLeft + M.glow.dx * u, top: phoneTop + M.glow.dy * u, width: M.glow.size * u, height: M.glow.size * u }, glowStyle]}
+              >
+                <Image source={GLOW} style={StyleSheet.absoluteFill} contentFit="contain" />
+              </Animated.View>
+              <Animated.View
+                style={[styles.at, { left: phoneLeft + M.moon.dx * u, top: phoneTop + M.moon.dy * u, width: M.moon.size * u, height: M.moon.size * u }, moonStyle]}
+              >
+                <Image source={MOON} style={StyleSheet.absoluteFill} contentFit="contain" />
+              </Animated.View>
             </Animated.View>
             <Svg style={[styles.at, { left: 0, top: fadeAt, width, height: below }]} width={width} height={below}>
               <Defs>
@@ -187,7 +192,7 @@ export function WelcomeWords({ head, sub, delay }: { head: string; sub: string; 
   const { width, height } = useWindowDimensions();
   const there = useSharedValue(1);
   useEffect(() => {
-    if (leaving) there.set(withTiming(0, { duration: reduced ? 200 : WELCOME_EXIT_MS, easing: EXIT_EASING }));
+    if (leaving) there.set(withTiming(0, { duration: reduced ? 200 : OPENER_EXIT_MS, easing: OPENER_EXIT_EASING }));
   }, [leaving, reduced, there]);
   const fade = useAnimatedStyle(() => ({ opacity: there.get() }));
   const measure = () => ref.current?.measureInWindow((_x, y) => y > 0 && setWordsTop(y));

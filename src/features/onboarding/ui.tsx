@@ -9,6 +9,7 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withTiming,
+  type WithTimingConfig,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -175,6 +176,18 @@ export const EXIT_MS = 240;
 /** How long a leaving page stays past its fade: the fade starts once the next page is built, a few frames late. */
 const EXIT_LATE_MS = 80;
 const FOOTER_EXIT_MS = 220;
+/**
+ * The opener's way out (welcome-hero.tsx): its phone, words and buttons fade as one, on one curve.
+ * The curve moves from the first frame. The mockup's ease-in leaned on a blur to show the tap had
+ * landed; iPhone draws no blur, so the page sat whole for 200ms and then dropped in five frames,
+ * which read as stiff (user 2026-11-09).
+ */
+export const OPENER_EXIT_MS = 420;
+export const OPENER_EXIT_EASING = Easing.bezier(0.3, 0, 0.6, 1);
+/** The opener stays this long: past its fade, which starts a few frames late (once the next page is built). */
+export const OPENER_HOLD_MS = OPENER_EXIT_MS + 80;
+/** The next page's words start this far into the opener's fade, so the two overlap (the mockup's 300 of 380). */
+export const OPENER_ENTER_AT_MS = 320;
 const ENTER_AFTER_MS = 140;
 /**
  * A sheet sliding up onto the screen or down off it (`build`'s ground and button). In takes its
@@ -250,11 +263,11 @@ export function useSwap<T>(key: string, depth: number, value: T | null, holds?: 
  * Continue. Set from an effect, the fade's start reaches the main thread after the new page's
  * views, so it starts once they're up and runs whole.
  */
-function useExitFade(fading: boolean, duration: number) {
+function useExitFade(fading: boolean, duration: number, easing: WithTimingConfig['easing'] = EXIT_EASING) {
   const opacity = useSharedValue(1);
   useEffect(() => {
-    if (fading) opacity.set(withTiming(0, { duration, easing: EXIT_EASING }));
-  }, [fading, duration, opacity]);
+    if (fading) opacity.set(withTiming(0, { duration, easing }));
+  }, [fading, duration, easing, opacity]);
   return useAnimatedStyle(() => ({ opacity: opacity.get() }));
 }
 
@@ -294,11 +307,22 @@ export function StepEnter({
   leaving = null,
   replaced = false,
   held = 0,
+  early = 0,
   children,
-}: PropsWithChildren<{ motion?: TextMotion; leaving?: Leaving | null; replaced?: boolean; held?: number }>) {
+}: PropsWithChildren<{
+  motion?: TextMotion;
+  leaving?: Leaving | null;
+  replaced?: boolean;
+  held?: number;
+  /**
+   * After a held page whose exit is only a fade (the opener): built at once, under it, with its
+   * words starting this many ms in. Built later, it stalled the fade it was waiting on.
+   */
+  early?: number;
+}>) {
   // After a page that runs its own way out (`build`), this one isn't mounted until that's over,
   // so nothing in it (the reveal's count, Loc) starts under the page still leaving (user 2026-10-26).
-  const [waiting, setWaiting] = useState(() => !leaving && replaced && held > 0);
+  const [waiting, setWaiting] = useState(() => !leaving && replaced && held > 0 && !early);
   useEffect(() => {
     if (!waiting) return;
     const id = setTimeout(() => setWaiting(false), held);
@@ -316,7 +340,7 @@ export function StepEnter({
       <LeavingContext.Provider value={leaving}>
         {waiting ? null : (
           // Mounted after the held page has gone: its text comes in at once.
-          <MotionPage motion={motion} offset={replaced && !held ? ENTER_AFTER_MS : 0}>
+          <MotionPage motion={motion} offset={replaced && early ? early : replaced && !held ? ENTER_AFTER_MS : 0}>
             {children}
           </MotionPage>
         )}
@@ -497,7 +521,13 @@ export function FooterEnter({
   sheet = false,
   held = 0,
   wash = false,
+  under = false,
 }: PropsWithChildren<{
+  /**
+   * Arriving while the last page's footer keeps its room (the opener's, which is taller): laid over
+   * it at the bottom, so the body above doesn't grow and drop the leaving page's words onto its buttons.
+   */
+  under?: boolean;
   secondary?: ReactNode;
   /** Over the quiz's pale wash: darker not-ready button and a stronger link (user 2026-10-26); the dark sky keeps the old look. */
   wash?: boolean;
@@ -527,7 +557,8 @@ export function FooterEnter({
     const id = setTimeout(() => setLive(true), sheet ? delay + SLIDE_IN_MS : delay);
     return () => clearTimeout(id);
   }, [live, sheet, delay]);
-  const fade = useExitFade(leaving !== null && !sheet, FOOTER_EXIT_MS);
+  // The opener's buttons leave with its words and phone, not ahead of them.
+  const fade = useExitFade(leaving !== null && !sheet, selfTimed ? OPENER_EXIT_MS : FOOTER_EXIT_MS, selfTimed ? OPENER_EXIT_EASING : EXIT_EASING);
   return (
     // Two layers: the outer one leaves (a fade, or the sheet's slide), the inner one arrives.
     // The arrival stays on as it leaves, so its end state holds and nothing snaps back.
@@ -539,7 +570,7 @@ export function FooterEnter({
         !sheet && fade,
         leaving
           ? [!alone && styles.footerLeaving, styles.inert, sheet && slideAnimation('out', height, held - SLIDE_OUT_MS)]
-          : !reduced && sheet && slideAnimation('in', height, delay),
+          : [under && styles.footerLeaving, !reduced && sheet && slideAnimation('in', height, delay)],
       ]}
     >
       <Animated.View

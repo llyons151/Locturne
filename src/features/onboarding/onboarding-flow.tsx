@@ -78,8 +78,8 @@ import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './scr
 import { SleepDrop, useSleepDrop } from './sleep-drop';
 import { morningWarnings, renderStep } from './steps';
 import { OFFER_ARC_AT } from './offer-compare';
-import { WELCOME_EXIT_MS, WelcomeHero } from './welcome-hero';
-import { FooterEnter, Shell, StepEnter, TopBar, useSwap, type Progress } from './ui';
+import { WelcomeHero } from './welcome-hero';
+import { FooterEnter, OPENER_ENTER_AT_MS, OPENER_HOLD_MS, Shell, StepEnter, TopBar, useSwap, type Progress } from './ui';
 
 
 const ADVANCE_AFTER_CHOICE_MS = 280;
@@ -1049,7 +1049,7 @@ export function OnboardingFlow({
       : isReveal(key) && (numbers.skipped || !numbers.lightUser)
         ? REVEAL_EXIT_MS
         : key.startsWith('hello-')
-          ? WELCOME_EXIT_MS
+          ? OPENER_HOLD_MS
           : 0;
   // The page and its button swap as one, so the page that leaves is cleared in one render, not
   // one for the page and another for its button just as the next page's words come in.
@@ -1070,6 +1070,8 @@ export function OnboardingFlow({
   );
   const footers = pages.flatMap((page) => (page.value.footer ? [{ ...page, value: page.value.footer }] : []));
   const buildPage = pages.find((page) => isBuild(page.key));
+  // The page after the opener is built at once, under it, and comes in as the opener's fade ends.
+  const afterOpener = pages.some((page) => page.leaving && page.key.startsWith('hello-'));
   const dark = step === 'reveal' || pages.some((page) => isReveal(page.key));
 
   // The code setup is part of `tomorrow`'s place in the chapter.
@@ -1119,7 +1121,10 @@ export function OnboardingFlow({
                   <FooterEnter
                     key={page.key}
                     leaving={page.leaving}
-                    alone={footers.length === 1}
+                    // The opener's footer keeps its room as it leaves, and the next one lies over it: the opener's
+                    // words sit on its footer, and dropped 40pt onto the buttons when a shorter footer took over.
+                    alone={footers.length === 1 || page.key.startsWith('hello-')}
+                    under={afterOpener && !page.leaving}
                     selfTimed={page.key.startsWith('hello-')}
                     secondary={page.value.secondary}
                     wash={page.value.wash}
@@ -1136,7 +1141,14 @@ export function OnboardingFlow({
         >
           <View style={styles.fill}>
             {pages.map((page) => (
-              <StepEnter key={page.key} motion={MOTION[step] ?? 'focus'} leaving={page.leaving} replaced={page.replaced} held={page.held}>
+              <StepEnter
+                key={page.key}
+                motion={MOTION[step] ?? 'focus'}
+                leaving={page.leaving}
+                replaced={page.replaced}
+                held={page.held}
+                early={afterOpener && !page.leaving ? OPENER_ENTER_AT_MS : 0}
+              >
                 {page.value.body}
               </StepEnter>
             ))}
