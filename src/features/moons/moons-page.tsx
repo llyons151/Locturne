@@ -8,5 +8,5 @@ import { MoonCollection } from './moon-collection-view';
  * to fill the screen with the moons on it (components/strip-page.tsx, shared with Settings).
  */
 export function MoonsPage() {
-  return <StripPage background={MOONS_BG}>{(close) => <MoonCollection as="page" onClose={close} />}</StripPage>;
+  return <StripPage background={MOONS_BG}>{(close, closePulled) => <MoonCollection as="page" onClose={close} onPullClose={closePulled} />}</StripPage>;
 }

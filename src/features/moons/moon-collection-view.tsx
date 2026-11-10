@@ -4,7 +4,8 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sym } from '@/components/grouped-list';
@@ -26,6 +27,16 @@ const CLOSE = 30;
 /** Each side of the top bar, equal so the title sits in the middle. */
 const SIDE = 72;
 
+/**
+ * The page scrolls like any iOS page: past either end it resists and springs back. Pulled down
+ * off its top and let go this far past it (the rubber band halves the finger's travel, so about
+ * twice this under the thumb), or flicked down from a little way, it closes (user, 2026-11-09).
+ */
+const PULL_CLOSE = 70;
+const FLICK_FROM = 24;
+/** Points per ms, iOS's own unit for the speed a drag ended at. */
+const FLICK_SPEED = 1.2;
+
 type Slot = MoonSlot;
 
 /**
@@ -38,7 +49,16 @@ type Slot = MoonSlot;
  * Shown as a sheet over the screen or as its own page grown out of the tab strip (`/moon-sheet`,
  * `/moon-page`, moons-page.tsx, which closes it with its own `onClose`). Both draw one top bar: close, "Moons", the count (user, 2026-11-01).
  */
-export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'page'; onClose?: () => void }) {
+export function MoonCollection({
+  as,
+  onClose = closeMoons,
+  onPullClose,
+}: {
+  as: 'sheet' | 'page';
+  onClose?: () => void;
+  /** The page's close for when it's pulled down off its top and let go; without it, pulling only bounces. */
+  onPullClose?: () => void;
+}) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const owned = useOwnedMoons();
@@ -70,9 +90,43 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
     onClose();
   };
 
+  // How far it's scrolled (under 0: pulled down past its top), and where it was let go to close.
+  const scrollY = useSharedValue(0);
+  const letGoAt = useSharedValue(0);
+  const pullClose = () => {
+    haptic.tap();
+    onPullClose?.();
+  };
+  const canPull = onPullClose !== undefined;
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.value = e.contentOffset.y;
+    },
+    onEndDrag: (e) => {
+      const y = e.contentOffset.y;
+      if (!canPull || letGoAt.value < 0) return;
+      if (y < -PULL_CLOSE || (y < -FLICK_FROM && (e.velocity?.y ?? 0) < -FLICK_SPEED)) {
+        letGoAt.value = y;
+        runOnJS(pullClose)();
+      }
+    },
+  });
+  // Let go to close, the moons stay where the finger left them as the page drops, instead of
+  // springing back up against it: this takes back the spring's travel.
+  const held = useAnimatedStyle(() => ({
+    transform: [{ translateY: letGoAt.value < 0 ? Math.min(0, scrollY.value) - letGoAt.value : 0 }],
+  }));
+
   return (
-    <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}
-      style={styles.screen}
+    <Animated.ScrollView
+      // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
+      bounces={as === 'page'}
+      alwaysBounceVertical={as === 'page'}
+      overScrollMode={as === 'page' ? 'always' : 'never'}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      showsVerticalScrollIndicator={false}
+      style={[styles.screen, held]}
       contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[styles.content, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
     >
@@ -113,7 +167,7 @@ export function MoonCollection({ as, onClose = closeMoons }: { as: 'sheet' | 'pa
           <Grid slots={extras} tile={tile} worn={worn.id} onPress={press} />
         </>
       ) : null}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

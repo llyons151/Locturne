@@ -34,6 +34,11 @@ const HIDE_MS = 160;
 // A touch slower than the way up: at 460 the drop felt abrupt (user, 2026-11-02).
 const DOWN_MS = 560;
 const BACK_MS = 320;
+/**
+ * Pulled down off its top and let go (the moons, user 2026-11-09): it goes at once, carrying on the
+ * way the finger was going, instead of waiting for its contents to fade first.
+ */
+const PULLED_DOWN_MS = 420;
 /** The moon drops out of sight with the fade, and rises back with the tabs once the page has gone. */
 const MOON_DROP_MS = FADE_MS;
 const MOON_RISE_MS = HOME_RISE_MS;
@@ -50,9 +55,16 @@ let openPages = 0;
  * it, everything on the tabs fades, the moon drops away, Loc pops down, and the black strip under
  * them slides up to fill the screen with `children` on it. Closing runs it backwards: the page goes
  * first, then it all comes back. Drawn over a transparent modal with no navigator animation, so the
- * strip itself seems to grow. `children` gets the close that plays it backwards.
+ * strip itself seems to grow. `children` gets the close that plays it backwards, and a second one
+ * for a page let go after being pulled down off its top (`PULLED_DOWN_MS`).
  */
-export function StripPage({ background, children }: { background: string; children: (close: () => void) => ReactNode }) {
+export function StripPage({
+  background,
+  children,
+}: {
+  background: string;
+  children: (close: () => void, closePulled: () => void) => ReactNode;
+}) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -98,7 +110,7 @@ export function StripPage({ background, children }: { background: string; childr
     };
   }, [reduced, up, shown]);
 
-  const close = useCallback(() => {
+  const go = useCallback((pulled: boolean) => {
     if (leaving.current) return;
     leaving.current = true;
     const was = rest.current;
@@ -113,11 +125,15 @@ export function StripPage({ background, children }: { background: string; childr
       }
       return leave();
     }
+    // How long until the page is all the way down.
+    const wait = pulled ? 0 : HIDE_MS / 2;
+    const down = pulled ? PULLED_DOWN_MS : DOWN_MS;
     shown.set(withTiming(0, { duration: HIDE_MS }));
     up.set(
       withDelay(
-        HIDE_MS / 2,
-        withTiming(0, { duration: DOWN_MS, easing: Easing.inOut(Easing.cubic) }, (done) => {
+        wait,
+        // Pulled, it's already moving: no easing in.
+        withTiming(0, { duration: down, easing: pulled ? Easing.out(Easing.cubic) : Easing.inOut(Easing.cubic) }, (done) => {
           if (done) runOnJS(leave)();
         }),
       ),
@@ -127,7 +143,7 @@ export function StripPage({ background, children }: { background: string; childr
     tabPagesShown.set(1);
     // Only once the page is all the way down does anything come back: the tabs fade in, the moon
     // (a new one, if one was picked) rises, and Loc pops up (user, 2026-11-01).
-    const home = HIDE_MS / 2 + DOWN_MS;
+    const home = wait + down;
     tabsShown.set(withDelay(home, withTiming(1, { duration: BACK_MS })));
     if (was < MOON_SHOWS_FROM) {
       moonSink.set(MOON_SHOWS_FROM);
@@ -139,6 +155,8 @@ export function StripPage({ background, children }: { background: string; childr
       locAway.set(false);
     }, home);
   }, [reduced, up, shown]);
+  const close = useCallback(() => go(false), [go]);
+  const closePulled = useCallback(() => go(true), [go]);
 
   const panel = useAnimatedStyle(() => ({ transform: [{ translateY: interpolate(up.value, [0, 1], [height - strip, 0]) }] }));
   const contents = useAnimatedStyle(() => ({
@@ -148,7 +166,7 @@ export function StripPage({ background, children }: { background: string; childr
 
   return (
     <Animated.View style={[styles.panel, { height, backgroundColor: background }, panel]}>
-      <Animated.View style={[styles.fill, contents]}>{children(close)}</Animated.View>
+      <Animated.View style={[styles.fill, contents]}>{children(close, closePulled)}</Animated.View>
     </Animated.View>
   );
 }
