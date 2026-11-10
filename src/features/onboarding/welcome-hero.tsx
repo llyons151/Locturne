@@ -13,7 +13,7 @@ import { useLeaving } from './ui';
 
 /**
  * The opener, after Jomo's welcome (user 2026-11-07, docs/WELCOME_SCREEN.md "Round 4"): the real
- * Home on a 3D iPhone, the blue crescent hanging off its left edge, the phone fading into black
+ * Home on a 3D iPhone, the cratered crescent hanging off its left edge, the phone fading into black
  * above the words. Every number below is in points of a 390pt-wide screen, measured off the
  * mockup the user signed off (docs/design-references/welcome-jomo.html), and scaled to the
  * screen's width.
