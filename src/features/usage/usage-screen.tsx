@@ -36,7 +36,7 @@ export function UsageScreen() {
       </View>
       <Segmented label="Screen time range" value={days} options={[{ value: 1, label: 'Today' }, { value: 7, label: '7 days' }, { value: 30, label: '30 days' }]} onChange={setDays} />
       {Platform.OS === 'web' ? <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.preview}><PreviewChart days={days} /><PreviewApps days={days} /></ScrollView> : !isScreenTimeReportAvailable ? (
-        <Text style={styles.message}>Screen time reports will be available with the next app build.</Text>
+        <Text style={styles.message}>Screen time isn’t available on this phone right now.</Text>
       ) : access !== 'approved' ? (
         <View style={styles.preview}>
           <Text style={styles.message}>{access === 'denied' ? 'Screen Time access is off, so there’s no usage to show.' : 'Turn on Screen Time access to see your usage.'}</Text>

@@ -104,7 +104,7 @@ export function HomeContent(props: HomeContentProps) {
       {/* The top only fades in, where it sits; only the middle rises (`group`). */}
       {top ? (
         <View style={{ opacity: top }}>
-          <HomeTop mornings={mornings} today={today} won={won} free={free} revision={revision} enter={enter} usage={look !== 'night'} />
+          <HomeTop mornings={mornings} today={today} won={won} free={free} revision={revision} enter={enter} />
         </View>
       ) : null}
       <Animated.View style={[styles.hero, group, swap]}>
@@ -168,11 +168,6 @@ export function HomeContent(props: HomeContentProps) {
                 </Text>
               )}
             </Pressable>
-          ) : weight === 'link' ? (
-            <Pressable onPress={action.onPress} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <Text style={styles.altLabel}>{action.label}</Text>
-              {action.opens ? <SymbolView name={sym('chevron.right', 'chevron_right')} size={10} weight="semibold" tintColor={Nocturne.text3} /> : null}
-            </Pressable>
           ) : (
             <Pressable
               onPress={action.onPress}
@@ -222,7 +217,6 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   ghostLabel: { ...Type.secondary, fontWeight: '600', color: Nocturne.text },
   alt: { paddingVertical: Space.xs },
-  link: { marginTop: Space.s, paddingVertical: Space.xs, flexDirection: 'row', alignItems: 'center', gap: 4 },
   // The screen's one white button, as wide as the column (buttons.tsx's PrimaryButton).
   primaryWrap: { alignSelf: 'stretch' },
   primary: {

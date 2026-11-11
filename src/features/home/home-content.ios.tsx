@@ -128,10 +128,9 @@ export function HomeContent(props: HomeContentProps) {
   };
 
   const days = weekDays(today, won, free);
-  // The pill is off at night only. Without the report (no access yet), Home draws a stand-in rather than
-  // leaving the corner empty (user 2026-11-05).
-  const usagePill = look !== 'night';
-  const showUsage = usagePill && isScreenTimeReportAvailable && getAccess() === 'approved';
+  // The pill stays at night too, dim with the rest of the top (user 2026-11-11). Without the report
+  // (no access yet), Home draws a stand-in rather than leaving the corner empty (user 2026-11-05).
+  const showUsage = isScreenTimeReportAvailable && getAccess() === 'approved';
   // Ready to fade the pill in again if Screen Time goes off and comes back.
   if (!showUsage && usageIn) setUsageIn(false);
 
@@ -178,7 +177,7 @@ export function HomeContent(props: HomeContentProps) {
                     <ScreenTimeReport pill days={1} revision={revision} style={{ width: 200, height: 36 }} />
                   </RNHostView>
                 </ZStack>
-              ) : usagePill ? (
+              ) : (
                 <HStack
                   spacing={6}
                   modifiers={[
@@ -192,7 +191,7 @@ export function HomeContent(props: HomeContentProps) {
                   <Image systemName="hourglass" size={14} color={Nocturne.text} />
                   <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>No screen time yet</Text>
                 </HStack>
-              ) : null}
+              )}
             </HStack>
     
             <WeekDots
@@ -355,15 +354,6 @@ export function HomeContent(props: HomeContentProps) {
                   {action.label}
                 </Text>
               )}
-            </Button>
-          ) : weight === 'link' ? (
-            <Button onPress={action.onPress} modifiers={[buttonStyle('plain'), padding({ top: Space.s }), piece, ...enter(5)]}>
-              <HStack spacing={4} modifiers={[padding({ vertical: Space.xs })]}>
-                <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>{action.label}</Text>
-                {action.opens ? (
-                  <Image systemName="chevron.right" color={Nocturne.text3} modifiers={[font({ size: 10, weight: 'semibold' })]} />
-                ) : null}
-              </HStack>
             </Button>
           ) : (
             <Button
