@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>NSExtension</key><dict>
-    <key>NSExtensionPointIdentifier</key><string>com.apple.deviceactivityui.report-extension</string>
+  <!-- A Device Activity report is an ExtensionKit extension: App Store processing refuses it as an
+       NSExtension in PlugIns (ITMS 91179, 2026-11-10). It goes in the app's Extensions folder. -->
+  <key>EXAppExtensionAttributes</key><dict>
+    <key>EXExtensionPointIdentifier</key><string>com.apple.deviceactivityui.report-extension</string>
   </dict>
 </dict></plist>

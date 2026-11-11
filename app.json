@@ -159,7 +159,8 @@
           "appGroup": "group.com.lukelyons.locturne",
           "copyToTargetFolder": false
         }
-      ]
+      ],
+      "./plugins/with-extensionkit-report"
     ],
     "experiments": {
       "typedRoutes": true,
