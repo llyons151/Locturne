@@ -337,6 +337,8 @@ export function OnboardingFlow({
   // Set once `declined` shows (Back from it mustn't bring it round again) or a purchase is
   // waiting for approval (no half price right after asking a parent for full price).
   const [noMoreExitOffer, setNoMoreExitOffer] = useState(() => isPurchasePending());
+  // Ask to Buy: bought, waiting on a parent. The one unpaid first run that can be left (`canLeave`).
+  const [awaitingApproval, setAwaitingApproval] = useState(() => isPurchasePending());
   const requestedArm = isExitArm(exitOffer) ? exitOffer : undefined;
   // Off in 1.0 (`EXIT_OFFER_LIVE`); the review tools' `?exit=` still previews each arm.
   const liveArm = requestedArm ?? (EXIT_OFFER_LIVE && offers ? offers.exitArm : 'none');
@@ -499,10 +501,13 @@ export function OnboardingFlow({
   const leave = onMoneyStep && canSkipPaywall()
     ? skipForTesting
     : PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
-  // A first run must reach the saved setup: the app's tabs only ever show a finished one.
-  // A rerun (See plans, Redo setup) already has one, so it can always be left. Dev builds
-  // can always leave too, to get between onboarding and the tabs while working on either.
-  const canLeave = __DEV__ || rerun || finished || history.some((s) => SETUP_DONE.includes(s));
+  // A first run has no Exit until it's paid (user 2026-11-11: the paywall is a hard one, and an Exit
+  // on it read as a testing leftover). It can be left once bought, or while a purchase waits for a
+  // parent's approval (nothing more to do here). A rerun (See plans, Redo setup) came from the
+  // app, so it can always be left. Dev builds can always leave too, to get between onboarding and
+  // the tabs while working on either.
+  // Free-testing builds (preview, dev) keep the paywall's Exit: it's how they get in with nothing bought (`skipForTesting`).
+  const canLeave = __DEV__ || rerun || finished || awaitingApproval || (onMoneyStep && canSkipPaywall());
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -706,6 +711,7 @@ export function OnboardingFlow({
       saveTrialReminder(latestAnswers.get('value')!.remindTrial);
       markPurchasePending();
       setNoMoreExitOffer(true);
+      setAwaitingApproval(true);
       say('Waiting for approval', 'Once the purchase is approved, open Locturne and I’ll set tonight. Nothing is asleep until then.');
     } else if (!flowActive.has('active')) {
       return;

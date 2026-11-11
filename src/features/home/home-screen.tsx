@@ -17,8 +17,6 @@ import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-con
 import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
-import { getTrialEnd } from '@/lib/notifications';
-import { manageSubscriptions } from '@/lib/purchases';
 import { danceGoalOf, getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
 import { morningMethod } from '@/lib/scan-code';
 import {
@@ -34,10 +32,9 @@ import {
 } from '@/lib/screen-time';
 import { getSites } from '@/lib/websites';
 import { clockLabel } from '@/lib/shield-copy';
-import { trialNotice } from '@/lib/trial-notice';
 import { Gap, Space } from '@/theme';
 
-import { awakeLine, dayHero, napHero, offHero, trialHero } from './awake-line';
+import { awakeLine, dayHero, napHero, offHero } from './awake-line';
 import { HomeContent, type HomeAction, type HomeMeter } from './home-content';
 import type { HomeLook } from './home-look';
 import { LocCue } from './loc';
@@ -122,7 +119,6 @@ export type HomeFacts = {
   stoodDown: boolean;
   /** The always list has apps in it (or there's no Screen Time to ask). */
   alwaysSleeps: boolean;
-  trialEnd: Date | null;
   /** Bedtime apps and typed-in websites, or null while a list change is still to land. */
   apps: number | null;
   websites: number | null;
@@ -182,7 +178,6 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
     armed: nightLockArmed(),
     stoodDown: isStoodDown() || (subscriptionEnded() && lapseStillCovers(now) === null),
     alwaysSleeps: !isScreenTimeAvailable() || selectionSize('always') > 0,
-    trialEnd: getTrialEnd(),
     apps: listChanges ? null : shownSelection('night').size === 0 ? 0 : bedtimeAppCount('night'),
     websites: listChanges ? null : getSites('night').length,
     sayKey: '',
@@ -298,8 +293,6 @@ export function HomeScreen() {
   // asleep, so it leads over the countdown to bedtime and the paused night's "Awake tonight"
   // (a status that needs attention still comes first).
   const napping = !attention && lock.blockNowUntil && lock.blockNowUntil > now ? lock.blockNowUntil : null;
-  // The trial's last days (B4): the paywall's "I remind you", kept even without notifications.
-  // Leads by day, behind anything that needs fixing.
   // The wake-up's permission refused (Motion & Fitness for steps, the camera, location): the
   // morning could never wake the apps, so by day and by night Home says so rather than look
   // set up (user 2026-11-08). The morning itself already shows its own Settings line.
@@ -310,16 +303,14 @@ export function HomeScreen() {
     !(attention && health.needsSubscription) &&
     armed &&
     !stoodDown;
-  const trial = !unprotected && !attention && !paused && !wakeRefused && phase === 'day' ? trialNotice(facts.trialEnd, now) : null;
+  // The trial's last days change nothing here (user 2026-11-11): the notification reminds, Settings manages.
   const hero = unprotected
     ? { title: health.title, body: health.detail }
     : wakeRefused
       ? wakeAccessHero(method)
     : pause && lock.phase === 'night' && !napping && facts.pauseWords
       ? pausedHero(facts.pauseWords)
-      : trial
-        ? trialHero(trial)
-        : (phase === 'day' || phase === 'off') && napping
+      : (phase === 'day' || phase === 'off') && napping
         ? napHero(clockAt(napping))
         : phase === 'off'
         ? offHero(alwaysSleeps && !stoodDown)
@@ -392,9 +383,7 @@ export function HomeScreen() {
       ? { label: wakeFixLabel(method), onPress: wakeAccess.fix, busy: wakeAccess.asking ? ASKING_APPLE : undefined }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
-      : trial
-        ? { label: 'Manage subscription', onPress: manageTrial }
-        : walkSettings
+      : walkSettings
           ? walkSettings
         : walk
           ? null
@@ -413,7 +402,7 @@ export function HomeScreen() {
   // The morning just won with a wake-up (not a pass), for three hours after.
   const wonAt = phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency' && now.getTime() - proof.at < DONE_FOR ? proof : null;
   // The countdown to a bedtime that will really sleep: the day's plain "Bedtime in" hero.
-  const countdown = phase === 'day' && !problem && !attention && !paused && !trial && !napping && !offTonight && armed && !stoodDown && bedtimeApps && minutes !== null && !!sleepsAt;
+  const countdown = phase === 'day' && !problem && !attention && !paused && !napping && !offTonight && armed && !stoodDown && bedtimeApps && minutes !== null && !!sleepsAt;
   const asleep = phase === 'night' && !paused && !napping && !unprotected;
   const look: HomeLook = problem
     ? 'problem'
@@ -421,7 +410,7 @@ export function HomeScreen() {
       ? 'morning'
       : asleep
         ? 'night'
-        : wonAt && !trial && !napping
+        : wonAt && !napping
           ? 'done'
           : countdown
             ? minutes <= 60
@@ -601,14 +590,6 @@ function StayAwake() {
   // Web's wake lock throws if it never activated (denied, or unmounted first): not worth a red screen.
   useKeepAwake(undefined, { suppressDeactivateWarnings: true });
   return null;
-}
-
-/** Apple's sheet (cancel, or switch plans); its web page where there's no sheet. Same as the You tab. */
-function manageTrial() {
-  const page = () => Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
-  manageSubscriptions()
-    .then((shown) => (shown ? null : page()))
-    .catch(page);
 }
 
 /** Night and morning; the day is `dayHero`, a night off `offHero`. */

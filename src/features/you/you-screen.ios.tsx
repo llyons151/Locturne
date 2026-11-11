@@ -33,11 +33,12 @@ import {
   multilineTextAlignment,
   navigationBarTitleDisplayMode,
   navigationTitle,
+  onScrollPhaseChange,
   padding,
   scrollContentBackground,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -175,8 +176,37 @@ const page = (title: string) => [
   background(SETTINGS_BG),
 ];
 
-export function YouScreen({ onClose }: { onClose: () => void }) {
+/** Pulled down this far past its top and let go, Settings closes, as the moons do (moon-collection-view.tsx). */
+const PULL_CLOSE = 70;
+
+/**
+ * Pull down off the top and let go to close, like the moons (user 2026-11-11). The Form reports its
+ * offset only as its scroll phase changes (iOS 18+), and at rest that offset is its top inset rather
+ * than 0, so the first one seen (the first touch, before anything has scrolled) is the top.
+ * Returns true once, on the let-go that closes.
+ */
+function pullCloseTracker() {
+  let top: number | null = null;
+  let dragging = false;
+  let pulled = false;
+  return (phase: string, y: number): boolean => {
+    if (top === null) top = y;
+    const letGo = dragging && phase !== 'interacting';
+    dragging = phase === 'interacting';
+    if (!letGo || pulled || y > top - PULL_CLOSE) return false;
+    pulled = true;
+    return true;
+  };
+}
+
+export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPullClose?: () => void }) {
   const s = useSettings();
+  const [pullTracker] = useState(pullCloseTracker);
+  const pull = onScrollPhaseChange((phase, geometry) => {
+    if (!onPullClose || !pullTracker(phase, geometry.contentOffsetY)) return;
+    haptic.tap();
+    onPullClose();
+  });
   const planName = s.plan ? `${PLAN_LABEL[s.plan]}${s.inTrial ? ' trial' : ''}` : ' ';
 
   const insets = useSafeAreaInsets();
@@ -190,7 +220,7 @@ export function YouScreen({ onClose }: { onClose: () => void }) {
       <Host style={{ flex: 1, backgroundColor: SETTINGS_BG }} colorScheme="dark" ignoreSafeArea="all">
         <NavigationStack>
           <Toolbar>
-            <Form modifiers={page('Settings')}>
+            <Form modifiers={[...page('Settings'), pull]}>
               {/* Loc as the profile picture and your mornings under him, like CapWords' profile
                   (user reference, 2026-10-14). Long press the mornings for beta diagnostics. */}
               <Section>

@@ -70,7 +70,7 @@ test('Ask to Buy resolving after exit records approval state without overwriting
     answers: { bedtime: 1380, remindTrial: true },
     latestAnswers: new Map([['value', { bedtime: 1380, remindTrial: true }]]),
     saveSetup: () => { saved++; }, saveTrialReminder: (on: boolean) => { reminders.push(on); },
-    markPurchasePending: () => { pending = true; }, setNoMoreExitOffer() {}, setPaywallOpen() {},
+    markPurchasePending: () => { pending = true; }, setNoMoreExitOffer() {}, setAwaitingApproval() {}, setPaywallOpen() {},
     say: () => { messages++; },
     invoke: undefined as unknown as (target: string) => Promise<void>,
   };
@@ -101,7 +101,7 @@ test('Ask to Buy resolving while an edited flow remains open saves its latest co
     flowActive: new Set(['active']), latestAnswers: new Map([['value', oldAnswers]]), hasRoutine: () => true,
     answers: oldAnswers,
     saveSetup: (answers: unknown) => { saved = answers; }, saveTrialReminder() {},
-    markPurchasePending() {}, setNoMoreExitOffer() {}, say() {}, setPaywallOpen() {},
+    markPurchasePending() {}, setNoMoreExitOffer() {}, setAwaitingApproval() {}, say() {}, setPaywallOpen() {},
     invoke: undefined as unknown as (target: string) => Promise<void>,
   };
   const code = babel.transformSync(`${handler}\nglobalThis.invoke = buy;`, {

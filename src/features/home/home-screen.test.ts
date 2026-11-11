@@ -1,7 +1,7 @@
 /// <reference types="node" />
 /**
  * Home's hero and action, rendered from home-screen.tsx with its stores mocked: the status
- * Home picks for the trial's last days and for a night that's switched off.
+ * Home picks for a night that's switched off.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,7 +10,6 @@ import { describe, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 
 import { clockLabel } from '../../lib/shield-copy.ts';
-import { trialNotice } from '../../lib/trial-notice.ts';
 import * as awakeLine from './awake-line.ts';
 
 const require = createRequire(import.meta.url);
@@ -29,7 +28,6 @@ const code = babel.transformSync(readFileSync(new URL('./home-screen.tsx', impor
 type Setup = {
   now: Date;
   phase?: string;
-  trialEnd?: Date | null;
   blockNowUntil?: Date | null;
   always?: number;
   health?: Record<string, unknown>;
@@ -61,7 +59,6 @@ type Setup = {
 function home({
   now,
   phase = 'day',
-  trialEnd = null,
   blockNowUntil = null,
   always = 0,
   health = {},
@@ -107,7 +104,6 @@ function home({
     },
     '@/lib/lock-state': { dateKey: () => '2026-10-09' },
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
-    '@/lib/notifications': { getTrialEnd: () => trialEnd },
     '@/lib/purchases': { manageSubscriptions: async () => true },
     '@/lib/routine': { pushupGoalOf: () => 20, danceGoalOf: () => 10, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m },
@@ -127,7 +123,6 @@ function home({
     },
     '@/lib/websites': { getSites: () => [] },
     '@/lib/shield-copy': { clockLabel },
-    '@/lib/trial-notice': { trialNotice },
     '@/theme': { Gap: {}, Space: {} },
     './awake-line': awakeLine,
     './home-content': { HomeContent: 'HomeContent' },
@@ -194,46 +189,6 @@ function morningOf(name: string, walk: unknown) {
     alt,
   };
 }
-
-describe('Home in the trial’s last days (B4)', () => {
-  const trialEnd = new Date(2026, 9, 10, 12);
-
-  test('the day before the charge, Home says the trial ends tomorrow and offers Manage subscription', () => {
-    const { hero, action } = home({ now: new Date(2026, 9, 9, 14), trialEnd });
-    assert.equal(hero.title, 'Your free trial ends tomorrow.');
-    assert.match(hero.body, /Manage subscription/);
-    assert.equal(action.label, 'Manage subscription');
-  });
-
-  test('the day of the charge, it says today', () => {
-    const { hero } = home({ now: new Date(2026, 9, 10, 8), phase: 'day', trialEnd });
-    assert.equal(hero.title, 'Your free trial ends today.');
-  });
-
-  test('outside the last two days, or with no trial, Home shows the day as usual', () => {
-    for (const end of [new Date(2026, 9, 14, 12), null]) {
-      const { hero, action } = home({ now: new Date(2026, 9, 9, 14), trialEnd: end });
-      assert.match(hero.title, /^Bedtime in/);
-      assert.equal(action.label, 'Tomorrow: 200 steps at 7 am');
-    }
-  });
-
-  test('a status that needs fixing still leads', () => {
-    const { hero, action } = home({
-      now: new Date(2026, 9, 9, 14),
-      trialEnd,
-      health: { level: 'attention', title: 'Arming failed', detail: 'Try again.' },
-    });
-    assert.equal(hero.title, 'Arming failed');
-    assert.notEqual(action.label, 'Manage subscription');
-  });
-
-  test('a night that sleeps keeps its own hero and action', () => {
-    const { hero, action } = home({ now: new Date(2026, 9, 10, 7, 30), phase: 'morning', trialEnd, method: 'pushups' });
-    assert.equal(hero.title, 'pushups hero');
-    assert.equal(action.label, 'pushups action');
-  });
-});
 
 describe('Home on a night that’s switched off', () => {
   const now = new Date(2026, 9, 9, 22, 30);
@@ -512,7 +467,6 @@ describe('Home\'s moon opens your moons (features/moons)', () => {
     ['by day', { now: new Date(2026, 9, 9, 14), phase: 'day' }],
     ['at night', { now: new Date(2026, 9, 9, 23, 30), phase: 'night' }],
     ['during a walk morning', { now: new Date(2026, 9, 10, 7, 5), phase: 'morning' }],
-    ['in the trial\'s last day', { now: new Date(2026, 9, 9, 14), phase: 'day', trialEnd: new Date(2026, 9, 10, 9) }],
   ];
   for (const [when, setup] of cases) {
     test(`the moon is a button ${when}, on the panel's edge, as tall as the moon showing`, () => {

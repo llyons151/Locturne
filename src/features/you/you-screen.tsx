@@ -44,7 +44,7 @@ export { SETTINGS_BG };
  * a SwiftUI Form, laid out the same on the app's smoked cards. Subscription opens in place here,
  * where the iPhone pushes it.
  */
-export function YouScreen({ onClose }: { onClose: () => void }) {
+export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: pulled down off its top (you-screen.ios.tsx). */ onPullClose?: () => void }) {
   const insets = useSafeAreaInsets();
   const s = useSettings();
   const [subscription, setSubscription] = useState(false);

@@ -139,15 +139,6 @@ export function napHero(until: string): { title: string; body: string } {
 }
 
 /**
- * The trial's last days (B4, `trialNotice`): the paywall promises a reminder before the
- * charge, and a notification can't keep it for someone with notifications off, so Home says
- * it too. Leads over the day's hero; the caller keeps it behind anything that needs fixing.
- */
-export function trialHero(trial: { title: string; detail: string }): { title: string; body: string } {
-  return { title: trial.title, body: trial.detail };
-}
-
-/**
  * Home's hero on a night that's switched off (phase 'off'). The bedtime apps stay awake, but
  * the always list still sleeps unless it's empty or stood down (round 7 #46), so "nothing
  * sleeps" is only said when that's true. A Block now running leads over this (`napHero`).

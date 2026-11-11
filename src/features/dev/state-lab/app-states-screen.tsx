@@ -14,7 +14,6 @@ const ICONS: Record<StateGroup, ReturnType<typeof sym>> = {
   'Needs attention': sym('exclamationmark.triangle.fill', 'warning'),
   Day: sym('sun.max.fill', 'light_mode'),
   'Woken up': sym('sunrise.fill', 'wb_twilight'),
-  Trial: sym('calendar', 'event'),
   Week: sym('circle.grid.3x3.fill', 'calendar_view_week'),
   Nap: sym('moon.zzz.fill', 'bedtime'),
   Night: sym('moon.stars.fill', 'nights_stay'),

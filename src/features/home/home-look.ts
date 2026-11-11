@@ -10,7 +10,7 @@ import type { HomeAction } from './home-content';
  *   instead is the quiet link under it.
  * - `done`: the morning just won, "Up at 7:06 am".
  * - `problem`: something to fix takes over: the top goes and the fix is the primary button.
- * - `plain`: the headline and line (naps, passes, nights off, the trial).
+ * - `plain`: the headline and line (naps, passes, nights off).
  */
 export type HomeLook = 'day' | 'evening' | 'night' | 'morning' | 'done' | 'problem' | 'plain';
 

@@ -22,9 +22,9 @@ import { fakeTheMorning, setWakePreview, useWakePreview, type WakePreview } from
  * says today, as a place to start on it.
  */
 
-export type StateGroup = 'Looks' | 'Status' | 'Needs attention' | 'Day' | 'Woken up' | 'Trial' | 'Week' | 'Nap' | 'Night' | 'Morning';
+export type StateGroup = 'Looks' | 'Status' | 'Needs attention' | 'Day' | 'Woken up' | 'Week' | 'Nap' | 'Night' | 'Morning';
 
-export const GROUPS: StateGroup[] = ['Looks', 'Status', 'Needs attention', 'Day', 'Woken up', 'Trial', 'Week', 'Nap', 'Night', 'Morning'];
+export const GROUPS: StateGroup[] = ['Looks', 'Status', 'Needs attention', 'Day', 'Woken up', 'Week', 'Nap', 'Night', 'Morning'];
 
 export type AppState = {
   id: string;
@@ -104,7 +104,6 @@ function plainDay(now: Date, routine: Routine): HomeFacts {
     armed: true,
     stoodDown: false,
     alwaysSleeps: false,
-    trialEnd: null,
     apps: 6,
     websites: 0,
     sayKey: '',
@@ -225,7 +224,7 @@ export const APP_STATES: AppState[] = [
     id: 'look-plain',
     group: 'Looks',
     label: 'Nap or pass',
-    note: 'Naps, passes, nights off and the trial keep the headline and line.',
+    note: 'Naps, passes and nights off keep the headline and line.',
     facts: (d, now) => nap(d, now),
   },
 
@@ -522,29 +521,6 @@ export const APP_STATES: AppState[] = [
     facts: (d, now) => woke(d, now, 'emergency'),
   },
 
-  // Trial.
-  {
-    id: 'trial-tomorrow',
-    group: 'Trial',
-    label: 'Trial ends tomorrow',
-    note: 'The paywall’s reminder, kept on Home. Button: Manage subscription.',
-    facts: (d, now) => ({ ...d, trialEnd: on(now, 1, 10 * 60) }),
-  },
-  {
-    id: 'trial-today',
-    group: 'Trial',
-    label: 'Trial ends today',
-    note: 'The last hours of the trial.',
-    facts: (d, now) => ({ ...d, trialEnd: from(now, 2) }),
-  },
-  {
-    id: 'trial-weekday',
-    group: 'Trial',
-    label: 'Trial ends in 2 days',
-    note: 'Names the weekday.',
-    facts: (d, now) => ({ ...d, trialEnd: on(now, 2, 9 * 60) }),
-  },
-
   // Week strip and the mornings count.
   {
     id: 'week-first',
@@ -603,14 +579,6 @@ export const APP_STATES: AppState[] = [
     label: 'Nap while something needs fixing',
     note: 'A status that needs attention comes first, by design.',
     facts: (d, now) => nap({ ...d, armed: false, health: health(now, { armed: null }) }, now),
-  },
-  {
-    id: 'nap-trial',
-    group: 'Nap',
-    label: 'Nap in the trial’s last days',
-    note: 'The trial notice leads, so the running nap isn’t shown.',
-    gap: true,
-    facts: (d, now) => nap({ ...d, trialEnd: on(now, 1, 10 * 60) }, now),
   },
   {
     id: 'nap-morning',
