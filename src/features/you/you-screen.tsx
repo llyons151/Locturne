@@ -47,7 +47,8 @@ export { SETTINGS_BG };
 export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: pulled down off its top (you-screen.ios.tsx). */ onPullClose?: () => void }) {
   const insets = useSafeAreaInsets();
   const s = useSettings();
-  const [subscription, setSubscription] = useState(false);
+  // A made-up subscription (`?sub=`, dev labs) opens straight on its page.
+  const [subscription, setSubscription] = useState(s.subPreview && s.plan !== null);
   const row = (ios: Parameters<typeof sym>[0], android: Parameters<typeof sym>[1]) => ({ iconTint: Nocturne.text, icon: sym(ios, android) });
 
   return (
@@ -74,11 +75,12 @@ export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: p
             </View>
           </Section>
           <Section>
-            <ValueRow {...row('arrow.left.arrow.right', 'swap_horiz')} title="Change plan" value="" onPress={s.manage} last={!s.inTrial} />
+            <ValueRow {...row('arrow.left.arrow.right', 'swap_horiz')} title="Change plan" value="" onPress={s.manage} last={!s.inTrial && !s.ending} />
+            {s.ending ? <ValueRow {...row('arrow.clockwise', 'refresh')} title="Resubscribe" value="" onPress={s.manage} last /> : null}
             {s.inTrial ? <SwitchRow {...row('bell', 'notifications')} title="Trial reminder" value={s.alerts.trial} onChange={s.toggle('trial')} last /> : null}
           </Section>
           <QuietRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
-          <RedRow title="Cancel subscription" onPress={cancelSubscription} />
+          {s.ending ? null : <RedRow title="Cancel subscription" onPress={cancelSubscription} />}
         </>
       ) : (
         <>

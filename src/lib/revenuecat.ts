@@ -478,6 +478,10 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
         ? new Date(record.expiresAt)
         : null;
     },
+    async currentEnding() {
+      const record = await latest().catch(() => undefined);
+      return record?.active && record.willRenew === false && record.expiresAt ? new Date(record.expiresAt) : null;
+    },
     async currentPlan() {
       const record = await latest().catch(() => undefined);
       return record?.active && record.productId ? planOf(record.productId) : null;

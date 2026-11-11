@@ -162,6 +162,11 @@ export interface PurchasesProvider {
    * planned back from it, so a 14-day exit-offer trial gets its own date.
    */
   currentTrialEnd(): Promise<Date | null>;
+  /**
+   * When a cancelled subscription (or cancelled trial) stops: it's still active until then.
+   * Null while it renews, and without one. For the Subscription page, so it says what's true.
+   */
+  currentEnding(): Promise<Date | null>;
   /** The plan behind the active subscription, or null without one. For the You tab. */
   currentPlan(): Promise<PlanId | null>;
   /**
@@ -394,6 +399,10 @@ export function createDevPurchases(options: DevPurchasesOptions = {}): DevPurcha
       const ends = entitlement()?.trialEndsAt;
       return ends ? new Date(ends) : null;
     },
+    // The stub has no cancelling.
+    async currentEnding() {
+      return null;
+    },
     async currentPlan() {
       const target = entitlement()?.target;
       return target ? planOf(PRODUCT_IDS[target]) : null;
@@ -455,6 +464,9 @@ export function createClosedPurchases(): PurchasesProvider {
     async currentTrialEnd() {
       return null;
     },
+    async currentEnding() {
+      return null;
+    },
     async currentPlan() {
       return null;
     },
@@ -514,6 +526,7 @@ export const restore = async () => {
 };
 export const isEntitled = () => provider.isEntitled();
 export const currentTrialEnd = () => provider.currentTrialEnd();
+export const currentEnding = () => provider.currentEnding();
 export const currentPlan = () => provider.currentPlan();
 export const manageSubscriptions = () => provider.manageSubscriptions();
 export const getSaveOffer = () => provider.getSaveOffer();

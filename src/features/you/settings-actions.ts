@@ -9,7 +9,7 @@
  */
 
 import Constants from 'expo-constants';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useGlobalSearchParams } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import { useCallback, useEffect, useState } from 'react';
 import { ActionSheetIOS, Alert, AppState, Linking, Platform } from 'react-native';
@@ -21,7 +21,7 @@ import { getNotificationPrefs, getTrialEnd, setNotificationPrefs, type Notificat
 import { onLockChange } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import { getPassesLeft } from '@/lib/passes';
-import { currentPlan, currentTrialEnd, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
+import { currentEnding, currentPlan, currentTrialEnd, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 
 import { getOwned, settleMoons } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
@@ -51,6 +51,17 @@ function moonCount() {
 }
 
 export const moonsLabel = (n: number) => (n === 1 ? '1 moon' : `${n} moons`);
+
+/** Dev labs: the Subscription page's states, made up (`/settings?sub=<name>`). */
+const inDays = (days: number) => new Date(Date.now() + days * 24 * 3_600_000);
+const SUB_PREVIEWS: Record<string, () => { plan: PlanId | null; trialEnd: Date | null; ending: Date | null }> = {
+  none: () => ({ plan: null, trialEnd: null, ending: null }),
+  trial: () => ({ plan: 'annual', trialEnd: inDays(5), ending: null }),
+  'trial-cancelled': () => ({ plan: 'annual', trialEnd: null, ending: inDays(5) }),
+  annual: () => ({ plan: 'annual', trialEnd: null, ending: null }),
+  monthly: () => ({ plan: 'monthly', trialEnd: null, ending: null }),
+  cancelled: () => ({ plan: 'annual', trialEnd: null, ending: inDays(200) }),
+};
 
 const trialDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -137,14 +148,17 @@ export function useSettings() {
 
   // The store's trial end, not the reminder's saved date: that one is gone when "Remind me" was
   // off or renewal was turned off mid-trial. The saved date stands in until the store answers.
-  const [trialEnd, setTrialEnd] = useState<Date | null>(getTrialEnd);
-  const inTrial = (trialEnd?.getTime() ?? 0) > Date.now();
+  const [storeTrialEnd, setTrialEnd] = useState<Date | null>(getTrialEnd);
 
   // Undefined until the store answers, so a subscriber never sees "Subscribe" flash by.
-  const [plan, setPlan] = useState<PlanId | null | undefined>(undefined);
+  const [storePlan, setPlan] = useState<PlanId | null | undefined>(undefined);
+  // Cancelled but not run out yet: the page says so and offers the way back, not Cancel again
+  // (user 2026-11-11: it read as an active plan and walked the cancel flow a second time).
+  const [storeEnding, setEnding] = useState<Date | null>(null);
   const askPlan = () => {
     currentPlan().then(setPlan, () => {});
     currentTrialEnd().then(setTrialEnd, () => {});
+    currentEnding().then(setEnding, () => {});
   };
   const refresh = useCallback(() => {
     // A moon earned while away (a morning won in the background) counts here.
@@ -189,10 +203,23 @@ export function useSettings() {
     }
   };
 
-  /** "Annual", "Annual trial", "None", or blank while the store is asked. */
-  const planValue = plan === null ? 'None' : plan ? `${PLAN_LABEL[plan]}${inTrial ? ' trial' : ''}` : '';
-  /** Under the plan on the Subscription page. */
-  const planNote = inTrial && trialEnd ? `Your trial ends on ${trialDate(trialEnd)}.` : 'Billed by the App Store.';
+  // Dev labs: a made-up subscription (`/settings?sub=trial`), since the browser has no store to be in each state.
+  const { sub: subParam } = useGlobalSearchParams<{ sub?: string }>();
+  const preview = devLabs && subParam ? SUB_PREVIEWS[subParam]?.() : undefined;
+  const plan = preview ? preview.plan : storePlan;
+  const trialEnd = preview ? preview.trialEnd : storeTrialEnd;
+  const ending = preview ? preview.ending : storeEnding;
+  // eslint-disable-next-line react-hooks/purity -- the clock decides it, as before
+  const inTrial = (trialEnd?.getTime() ?? 0) > Date.now();
 
-  return { ...facts, inTrial, trialEnd, alerts, toggle, plan, planValue, planNote, manage, restoring, restorePurchases };
+  /** "Annual", "Annual trial", "None", or blank while the store is asked. */
+  const planValue = plan === null ? 'None' : plan ? `${PLAN_LABEL[plan]}${ending ? ', cancelled' : inTrial ? ' trial' : ''}` : '';
+  /** Under the plan on the Subscription page. */
+  const planNote = ending
+    ? `Cancelled. Your apps keep sleeping until ${trialDate(ending)}, then I stop.`
+    : inTrial && trialEnd
+      ? `Your trial ends on ${trialDate(trialEnd)}.`
+      : 'Billed by the App Store.';
+
+  return { ...facts, inTrial, trialEnd, ending, subPreview: preview !== undefined, alerts, toggle, plan, planValue, planNote, manage, restoring, restorePurchases };
 }

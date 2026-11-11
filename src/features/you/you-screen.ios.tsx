@@ -321,6 +321,9 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
               <Section>
                 {/* Apple's sheet: switch between Annual and Monthly in the group. */}
                 <Row icon="arrow.left.arrow.right" title="Change plan" onPress={s.manage} />
+                {/* Cancelled, not run out yet: Apple's sheet turns renewal back on. Up here with what acts
+                    on the plan, so it isn't read as a second Restore (user 2026-11-11). */}
+                {s.ending ? <Row icon="arrow.clockwise" title="Resubscribe" onPress={s.manage} /> : null}
                 {/* Only someone in a trial has a reminder to switch off. */}
                 {s.inTrial ? <SwitchRow icon="bell" title="Trial reminder" value={s.alerts.trial} onChange={s.toggle('trial')} /> : null}
               </Section>
@@ -329,10 +332,13 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
                 <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
               </Section>
 
-              {/* The cancel flow on its way to Apple's sheet (features/cancel), last and in red. */}
-              <Section>
-                <CenteredButton title="Cancel subscription" onPress={cancelSubscription} />
-              </Section>
+              {/* The cancel flow on its way to Apple's sheet (features/cancel), last and in red. Already
+                  cancelled, there's nothing to cancel (Resubscribe, above). */}
+              {s.ending ? null : (
+                <Section>
+                  <CenteredButton title="Cancel subscription" onPress={cancelSubscription} />
+                </Section>
+              )}
             </Form>
           </NavigationDestination>
         </NavigationStack>

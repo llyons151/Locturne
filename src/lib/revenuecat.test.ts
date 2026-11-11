@@ -308,6 +308,16 @@ test('a cancelled trial stays paid until its end but has no trial end to remind 
   sdk.info = customer({ productId: PRODUCT_IDS.annual, trial: true, startedAt: 1000, willRenew: false });
   assert.equal(await rc.isEntitled(), true);
   assert.equal(await rc.currentTrialEnd(), null);
+  // The Subscription page says it's cancelled and when it stops, instead of offering Cancel again.
+  assert.equal((await rc.currentEnding())?.getTime(), 1000 + 7 * DAY);
+});
+
+test('a renewing subscription has no ending, and none has none', async () => {
+  const sdk = fakeSdk();
+  const rc = provider(sdk);
+  assert.equal(await rc.currentEnding(), null);
+  sdk.info = customer({ productId: PRODUCT_IDS.annual, trial: true, startedAt: 1000 });
+  assert.equal(await rc.currentEnding(), null);
 });
 
 test('offline, the cached answer decides, with grace past the end date', async () => {
