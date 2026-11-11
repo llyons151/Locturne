@@ -346,7 +346,9 @@ export function RoutineScreen() {
         <MethodPicker
           options={options}
           selected={saved.method}
-          detail={fallsBack ? `Not set up yet, so ${saved.stepGoal} steps for now` : current.detail}
+          // One line: "…steps for now" wrapped to two and the page outgrew the screen, so at rest the
+          // card's foot sat under the panel's edge, as if cut off (user, 2026-11-10).
+          detail={fallsBack ? `Not set up yet, so ${saved.stepGoal} steps` : current.detail}
           separator={setupRow}
           onPicked={() => setLoaded(load())}
         />
