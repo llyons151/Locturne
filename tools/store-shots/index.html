@@ -489,6 +489,14 @@
     }
 
     // Exact numbers for the selected thing.
+    // A phone's screenshot, from tools/store-shots/shots/. On the moons panel, only the user's own phone
+    // screenshots of Home with each moon (11-moon-phone-*.png; user, 2026-11-10: "the only options").
+    function shotPicker(cur, pid) {
+      const all = [...new Set([cur, ...shots])].filter(Boolean);
+      const list = pid === 'moons' ? all.filter((s) => s.startsWith('11-moon-phone-')) : all;
+      return `<label>Screenshot<select id="ed-shot">${list.map((s) => `<option ${s === cur ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>`;
+    }
+
     function fields() {
       const box = $('#ed-fields');
       if (!box) return;
@@ -512,6 +520,7 @@
         const o = t.obj, keys = ['text', 'label', 'title', 'sub'].filter((k) => k in o);
         box.innerHTML = `<span style="display:inline-flex;gap:10px;align-items:end;flex-wrap:wrap">
           <label>${esc(o.type)}${o.kind ? ' · ' + esc(o.kind) : ''}</label>
+          ${'shot' in o ? shotPicker(o.shot, t.pid) : ''}
           ${keys.map((k) => `<label>${k}<input data-k="${k}" style="width:280px" value="${esc(o[k])}"></label>`).join('')}
           ${['size', 'w', 'rot', 'scale'].filter((k) => k in o || k === 'rot' || k === 'scale').map((k) => `<label>${k}<input type="number" step="any" data-k="${k}" data-n="1" value="${o[k] ?? (k === 'scale' ? 1 : 0)}"></label>`).join('')}
           <label>colour<input data-k="color" style="width:110px" placeholder="default" value="${esc(o.color ?? '')}"></label>
@@ -522,6 +531,8 @@
           if (!set.color) { delete set.color; delete o.color; }
           edApply(edSel, {}, set);
         };
+        // Switching the screenshot applies at once (user, 2026-11-10: flip between moons on the moons panel).
+        if ($('#ed-shot')) $('#ed-shot').onchange = () => edApply(edSel, {}, { shot: $('#ed-shot').value });
         $('#ed-dup').onclick = () => { undo.push(JSON.stringify({ lib, strip: data.strip })); t.items.push({ ...structuredClone(o), x: (o.x ?? 660) + 80, y: (o.y ?? 1434) + 80 });
           edSel = `item:${t.pid}:${t.items.length - 1}`; edSave(false, edFrom); };
         $('#ed-del').onclick = resetSel;

@@ -688,7 +688,7 @@
      "items": [
       {
        "type": "phone",
-       "shot": "12-wake-methods-clean.png",
+       "shot": "12-wake-methods-phone.png",
        "angle": "yawp030_pitchp00",
        "x": 660,
        "y": 1745,
@@ -704,7 +704,7 @@
      "items": [
       {
        "type": "phone",
-       "shot": "11-moon-noir.png",
+       "shot": "11-moon-phone-ember.png",
        "angle": "yawp030_pitchp00",
        "x": 290,
        "y": 1560,
@@ -716,7 +716,7 @@
       },
       {
        "type": "phone",
-       "shot": "11-moon-newmoon.png",
+       "shot": "11-moon-phone-teal.png",
        "angle": "yawm030_pitchp00",
        "x": 1030,
        "y": 1560,
@@ -728,7 +728,7 @@
       },
       {
        "type": "phone",
-       "shot": "11-moon-bluehour.png",
+       "shot": "11-moon-phone-lavender.png",
        "angle": "yawp000_pitchp00",
        "x": 660,
        "y": 1745,
