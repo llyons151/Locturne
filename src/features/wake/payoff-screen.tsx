@@ -212,6 +212,10 @@ export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: Pa
   const [snaps, setSnaps] = useState(0);
   const [locShot, setLocShot] = useState<string | null>(null);
   const onYell = useCallback(() => {
+    // Done pressed before his first yell: the yell can still land (the strip's timer, his webview's
+    // message, even after this screen has gone), and the shared moon would rise off Home's sky and
+    // stay there (user, 2026-11-10: Done mid-animation left Home with no moon).
+    if (leaving.current) return;
     haptic.done();
     if (yelled.current) return;
     yelled.current = true;
@@ -240,7 +244,7 @@ export function PayoffScreen({ facts, cut = false, fadeIn = false }: { facts: Pa
   // moon. Rare and secret moons too. Home's sky is the same one, so both blend together.
   const firstShown = useRef(false);
   const showNewMoon = () => {
-    if (firstShown.current) return;
+    if (firstShown.current || leaving.current) return;
     firstShown.current = true;
     if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, reduced ? 0 : payoffTuning.moonFadeMs);
   };
