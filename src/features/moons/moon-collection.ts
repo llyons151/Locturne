@@ -1,10 +1,10 @@
 import { router, type Href } from 'expo-router';
 import { useSyncExternalStore } from 'react';
-import { getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
+import { devSeedMornings, getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER, MOONS } from './moon-data';
-import { RARE_MOONS, SECRET_FROM, SECRET_RULES, secretsMet, settleLadder, type OwnedMoon, type RareState, type SecretRule } from './moon-ladder';
+import { LADDER_MORNINGS, RARE_MOONS, SECRET_FROM, SECRET_RULES, secretsMet, settleLadder, type OwnedMoon, type RareState, type SecretRule } from './moon-ladder';
 
 /**
  * The moons you own (docs/reports/Moon collection flow.md). Earned by mornings (moon-ladder.ts),
@@ -192,6 +192,26 @@ export function devEarnAll(): number {
   }
   if (added) saveOwned(next);
   return added;
+}
+
+/**
+ * Dev and preview builds, for recording demos: a made-up history of `count` mornings in a row
+ * (`devSeedMornings`) and the ladder moons they'd have brought, each on the morning it stood for
+ * and already shown and seen, as on a phone that lived those mornings. Replaces the moons owned.
+ */
+export function devSeedHistory(count: number): number {
+  // The proofs' change settles the ladder, dating every moon yesterday: the save below replaces that.
+  const keys = devSeedMornings(count);
+  const owned: Record<string, OwnedMoon> = {};
+  LADDER_MORNINGS.forEach((morning, i) => {
+    const id = LADDER[i];
+    const morningKey = keys[morning - 1];
+    if (!id || !morningKey) return;
+    const at = getProofs().find((p) => p.morningKey === morningKey)?.at ?? new Date(`${morningKey}T07:00:00`).getTime();
+    owned[id] = { id, morningKey, morning, at, presented: true, seen: true };
+  });
+  saveOwned(owned);
+  return Object.keys(owned).length;
 }
 
 /** Dev and preview builds: back to owning nothing. */

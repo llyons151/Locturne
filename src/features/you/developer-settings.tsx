@@ -21,7 +21,7 @@ import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
-import { devEarnAll, devEarnNext, devForgetMoons, getMoonsAsPage, setMoonsAsPage } from '@/features/moons/moon-collection';
+import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, getMoonsAsPage, setMoonsAsPage } from '@/features/moons/moon-collection';
 import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { useMoon } from '@/features/moons/moon-theme';
 
@@ -128,6 +128,32 @@ export function DeveloperSettings() {
           <ValueRow {...icon('arrow.uturn.backward', 'undo')} title="Back to the real app" value="" onPress={backToRealApp} last />
         </Group>
       </Fold>
+
+      {/* A lived-in app for recording demos: mornings got up and the moons they brought. */}
+      <Group
+        label="Demo data"
+        note="31 mornings got up in a row, the last one yesterday, and the five moons they bring. Replaces this phone's real mornings and moons; today's morning is left as it is."
+      >
+        <ValueRow
+          {...icon('calendar.badge.plus', 'event_available')}
+          title="Make up 31 mornings"
+          value=""
+          onPress={() =>
+            Alert.alert('Make up 31 mornings?', "This phone's real mornings and moons are replaced, and can't be brought back.", [
+              { text: 'Not now', style: 'cancel' },
+              {
+                text: 'Make them up',
+                style: 'destructive',
+                onPress: () => {
+                  devSeedHistory(31);
+                  haptic.done();
+                },
+              },
+            ])
+          }
+          last
+        />
+      </Group>
 
       {/* Wear any moon, all unlocked, to test them (features/moons). */}
       <Group

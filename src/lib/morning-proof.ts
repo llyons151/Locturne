@@ -3,7 +3,7 @@
  * the same way: a proof recorded for that morning's key. `lock-controller.ts` reads it and
  * wakes the apps, so adding a method never touches the lock rules.
  */
-import { currentMorning, nightInto, type Morning } from './lock-state.ts';
+import { currentMorning, dateKey, nightInto, type Morning } from './lock-state.ts';
 import { getRoutine, getRoutineChange, nightRanUnder, toLockSettings, type Routine, type WakeMethod } from './routine.ts';
 import { sharedGet, sharedSet } from './screen-time.ts';
 
@@ -187,6 +187,34 @@ export function recordProof(proof: MorningProof, governing?: { routine: Routine;
   sharedSet(KEY, [saved, ...all].slice(0, KEEP));
   for (const listener of listeners) listener();
   return true;
+}
+
+/**
+ * Dev and preview builds (Developer → Make up mornings, for recording demos): a made-up history
+ * of `count` mornings got up in a row, the last one yesterday, under the routine in force now.
+ * Replaces every saved proof from before today; today's and later ones are kept and counted in
+ * `count`, so the morning under way is left as it really is. Returns the morning keys of all
+ * `count` mornings, the oldest first (moon-collection.ts dates the ladder's moons by them).
+ */
+export function devSeedMornings(count: number, now = new Date()): string[] {
+  const routine = getRoutine(now);
+  const today = dateKey(now);
+  const kept = getProofs().filter((p) => p.morningKey >= today);
+  const keptWins = [...winsIn(kept)].sort();
+  const made: MorningProof[] = [];
+  for (let back = 1; back <= count - keptWins.length; back++) {
+    const morningKey = dateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - back));
+    const start = nightInto(morningKey, routine).end.getTime();
+    // A few minutes after morning start, not the same minute every day.
+    const at = start + (2 + ((back * 7) % 11)) * 60_000;
+    made.push({ morningKey, kind: routine.method, at, bedtime: routine.bedtime, morningStart: routine.morningStart });
+  }
+  const keys = [...made.map((p) => p.morningKey).reverse(), ...keptWins];
+  sharedSet(FIRST_KEY, keys[0] ?? null);
+  sharedSet(WON_KEY, keys.length);
+  sharedSet(KEY, [...kept, ...made].slice(0, KEEP));
+  for (const listener of listeners) listener();
+  return keys;
 }
 
 export function onProofChange(listener: () => void): () => void {
