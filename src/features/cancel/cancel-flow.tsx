@@ -4,10 +4,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
-import { AppBackground } from '@/components/app-background';
 import { OutlineButton, PrimaryButton, TextButton } from '@/components/buttons';
 import { GlassCard } from '@/components/glass-card';
+import { MoonSurface } from '@/components/moon-surface';
+import { NightSky, QUIZ_RISE_MS } from '@/components/night-sky';
 import { Text } from '@/components/text';
 import { track } from '@/lib/analytics';
 import * as haptic from '@/lib/haptics';
@@ -17,7 +19,7 @@ import { ATTRIBUTES, claimSaveOffer, getSaveOffer, manageSubscriptions, setAttri
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
-import { Body, Options, page, PreviewNote, Shell, StepEnter, Voice } from '../onboarding/ui';
+import { Body, FooterEnter, Options, page, PreviewNote, Shell, StepEnter, useSwap, Voice } from '../onboarding/ui';
 import { fixFor, offerTerms, REASONS, recordLine, sampleOffer, WHAT_STOPS, type CancelReason } from './cancel-copy';
 
 /**
@@ -60,8 +62,6 @@ export function CancelFlow() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [mornings] = useState(getMorningsWon);
   const offerShown = useRef(false);
-  /** A reason tap waits a beat before moving on; a second tap in that beat is ignored. */
-  const choosing = useRef(false);
   /** Apple's sheet reports the outcome once, however often it's reopened. */
   const ended = useRef(false);
 
@@ -115,15 +115,11 @@ export function CancelFlow() {
     go('offer');
   };
 
-  const choose = (picked: CancelReason) => {
-    if (choosing.current) return;
-    choosing.current = true;
-    setReason(picked);
-    setTimeout(() => {
-      choosing.current = false;
-      if (fixFor(picked)) go('fix');
-      else toOffer();
-    }, 250);
+  // Picking only marks the answer; the button under it moves on, as on onboarding's questions (user 2026-11-11).
+  const submitReason = () => {
+    if (!reason) return;
+    if (fixFor(reason)) go('fix');
+    else toOffer();
   };
 
   const fix = fixFor(reason);
@@ -162,12 +158,28 @@ export function CancelFlow() {
     }
   };
 
+  // The question sits on the risen moon, as onboarding's do; the page waits while the moon moves.
+  const reduced = useReducedMotion();
+  const quiz = step === 'why';
+  const [lastQuiz, setLastQuiz] = useState(quiz);
+  const [moonMoving, setMoonMoving] = useState(0);
+  if (lastQuiz !== quiz) {
+    setLastQuiz(quiz);
+    if (!reduced) setMoonMoving(QUIZ_RISE_MS);
+  }
+  useEffect(() => {
+    if (!moonMoving) return;
+    const timer = setTimeout(() => setMoonMoving(0), moonMoving);
+    return () => clearTimeout(timer);
+  }, [moonMoving, step]);
+
   const bar = BAR[step];
   const progress = bar === undefined ? null : { chapter: bar, value: 1, chapters: 3 };
   const note = preview ? <PreviewNote>Nothing is charged, cancelled or recorded here.</PreviewNote> : null;
 
   let body: React.ReactNode;
   let footer: React.ReactNode;
+  let secondary: React.ReactNode = null;
 
   if (step === 'stay') {
     body = (
@@ -179,7 +191,6 @@ export function CancelFlow() {
         <GlassCard dark style={styles.card}>
           {WHAT_STOPS.map((line, i) => (
             <View key={line} style={[styles.stopRow, i > 0 && styles.rowLine]}>
-              <Text style={styles.stopMark}>–</Text>
               <Text style={styles.stopText}>{line}</Text>
             </View>
           ))}
@@ -189,32 +200,26 @@ export function CancelFlow() {
       </View>
     );
     footer = (
-      <View style={styles.footer}>
-        <PrimaryButton
-          label="Keep my plan"
-          onPress={() => {
-            end('kept');
-            close();
-          }}
-        />
-        <TextButton label="Continue to cancel" onPress={() => go('why')} />
-      </View>
+      <PrimaryButton
+        label="Keep my plan"
+        onPress={() => {
+          end('kept');
+          close();
+        }}
+      />
     );
+    secondary = <TextButton label="Continue to cancel" onPress={() => go('why')} />;
   } else if (step === 'why') {
     body = (
       <View style={page.top}>
+        {/* One of onboarding's questions: the title, the answers on the risen moon, and a button that wakes once one is picked. */}
         <Voice text="What’s the problem?" header />
-        <View style={page.gapAside} />
-        <Body>One tap. It changes what I say next.</Body>
         <View style={page.gapBlock} />
-        <Options options={REASONS} value={reason ?? undefined} onChoose={choose} dense />
+        <Options options={REASONS} value={reason ?? undefined} onChoose={setReason} tone="moon" dense />
       </View>
     );
-    footer = (
-      <View style={styles.footer}>
-        <TextButton label="Skip" onPress={toOffer} />
-      </View>
-    );
+    footer = <PrimaryButton label={reason ? 'Continue' : 'Next'} disabled={!reason} onPress={submitReason} />;
+    secondary = <TextButton label="Skip" onPress={toOffer} />;
   } else if (step === 'fix' && fix) {
     body = (
       <View style={page.top}>
@@ -225,12 +230,8 @@ export function CancelFlow() {
         {note}
       </View>
     );
-    footer = (
-      <View style={styles.footer}>
-        <PrimaryButton label={fix.action} onPress={useFix} />
-        <TextButton label="Continue to cancel" onPress={toOffer} />
-      </View>
-    );
+    footer = <PrimaryButton label={fix.action} onPress={useFix} />;
+    secondary = <TextButton label="Continue to cancel" onPress={toOffer} />;
   } else if (step === 'offer' && offer) {
     const { price, unit, terms } = offerTerms(offer);
     body = (
@@ -272,11 +273,7 @@ export function CancelFlow() {
         {note}
       </View>
     );
-    footer = (
-      <View style={styles.footer}>
-        <PrimaryButton label="Done" onPress={close} />
-      </View>
-    );
+    footer = <PrimaryButton label="Done" onPress={close} />;
   } else {
     body = (
       <View style={page.top}>
@@ -290,31 +287,68 @@ export function CancelFlow() {
         {note}
       </View>
     );
-    footer = (
-      <View style={styles.footer}>
-        <PrimaryButton label="Done" onPress={close} />
-        <TextButton label="Open App Store subscriptions again" onPress={toApple} />
-      </View>
-    );
+    footer = <PrimaryButton label="Done" onPress={close} />;
+    secondary = <TextButton label="Open App Store subscriptions again" onPress={toApple} />;
   }
 
   const final = step === 'done' || step === 'claimed';
+  // The page and its button swap as onboarding's do (useSwap): the old page fades where it stands
+  // while the new one's words come into focus, instead of cutting (user 2026-11-11).
+  const pages = useSwap(
+    step,
+    history.length,
+    moonMoving
+      ? null
+      : {
+          body: (
+            // From the top, not onboarding's drop to the moon's curve: six answers and the button don't fit under it.
+            <View style={styles.fill}>
+              <MoonSurface value={quiz}>{body}</MoonSurface>
+            </View>
+          ),
+          footer: { footer, secondary, wash: quiz },
+        },
+  );
   return (
-    <AppBackground>
-      <Shell progress={progress} onBack={final ? undefined : back} footer={footer}>
-        <StepEnter key={step}>{body}</StepEnter>
+    <View style={styles.root}>
+      <NightSky quiz={quiz} />
+      {/* Centred, like onboarding's pages (user 2026-11-11). */}
+      <Shell
+        progress={progress}
+        centered
+        clip={false}
+        onBack={final ? undefined : back}
+        footer={
+          <View>
+            {pages.map((entry) => (
+              <FooterEnter key={entry.key} leaving={entry.leaving} alone={pages.length === 1} secondary={entry.value.footer.secondary} wash={entry.value.footer.wash}>
+                {entry.value.footer.footer}
+              </FooterEnter>
+            ))}
+          </View>
+        }
+      >
+        <View style={styles.fill}>
+          {pages.map((entry) => (
+            <StepEnter key={entry.key} leaving={entry.leaving} replaced={entry.replaced} held={entry.held}>
+              {entry.value.body}
+            </StepEnter>
+          ))}
+        </View>
       </Shell>
-    </AppBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Clipped: the sky's moon layers run past the screen edges (as onboarding's root).
+  root: { flex: 1, backgroundColor: Nocturne.bg, overflow: 'hidden' },
+  fill: { flex: 1 },
   footer: { gap: Space.s, alignItems: 'stretch' },
   card: { paddingHorizontal: Space.l, paddingVertical: Space.s },
-  stopRow: { flexDirection: 'row', gap: Space.m, paddingVertical: Space.m },
+  stopRow: { paddingVertical: Space.m },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Nocturne.line },
-  stopMark: { ...Type.body, color: Nocturne.text3 },
-  stopText: { ...Type.body, color: Nocturne.text, flex: 1 },
+  stopText: { ...Type.body, color: Nocturne.text, textAlign: 'center' },
   offer: { paddingVertical: Space.xl, alignItems: 'center', gap: Space.xs },
   offerBadge: { ...Type.label, color: Nocturne.text, marginBottom: Space.s },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: Space.m },
