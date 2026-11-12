@@ -7,8 +7,8 @@ import { IDLE_MP4, JUMP_MP4, PLOP_MP4 } from './loc-clip-art';
 /**
  * Loc's payoff clips, all drawn on one canvas (user, 2026-11-12: "freezing and cutting out", "two
  * versions of him on screen"): the jump, then the idle round and round from the frame the jump ends,
- * then on Done the plop (the jump's landing run backwards: he dips and springs up, legs tucked), held
- * on its last frame while loc-clip.tsx drops the canvas through the floor. Nothing is swapped in or out of the page, so there's
+ * then on Done the plop (he dips, springs up legs tucked, and drops behind the floor's edge), which
+ * ends with him gone. Nothing is swapped in or out of the page, so there's
  * never a gap or a second him. Each clip is a grey video (tools/loc-clips/bake.py): his alpha in its
  * top half and his eyes' white in the bottom half, put together here in WebGL.
  *
@@ -140,7 +140,7 @@ class Player {
     this.go('jump');
   }
 
-  /** Done: from whatever he's doing. Its last frame (up, legs tucked) stays drawn once it ends. */
+  /** Done: from whatever he's doing. Its last frame is empty: he's under the floor. */
   plop() {
     if (this.phase === 'none' || this.phase === 'plop') return;
     this.go('plop');

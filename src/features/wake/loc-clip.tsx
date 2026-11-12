@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import LocClipPlayer from './loc-clip-player';
 // Written by tools/loc-clips/bake.py with the clips: their shape and timings.
@@ -46,27 +46,16 @@ export function pickLocClip(name?: string): LocClipName {
   return LOC_CLIP_NAMES[Math.floor(Math.random() * LOC_CLIP_NAMES.length)];
 }
 
-/** Done: how long until he's gone, and when in that the moon starts to fall. */
 /**
- * Done (user, 2026-11-12: "plop down", using the first clip's leap where "he plops up and tucks his
- * legs"): the player plays the jump's landing backwards (loc-plop: he dips and springs up, legs
- * tucked), he hangs there a beat, then drops through the floor, which ripples where he went in
- * (floor-ripple.tsx).
+ * Done (user, 2026-11-12: "plop down", like the first clip's leap where he tucks his legs): the plop
+ * clip (loc-plop-hailuo.mp4: he dips, springs up legs tucked, and drops behind the floor's edge),
+ * played on the canvas from his idle. The floor ripples as his feet go under it (floor-ripple.tsx).
  */
-const PLOP = {
-  /** The spring up: the plop clip's own length. */
-  up: plopMeta.ms,
-  /** Hanging at the top, legs tucked. */
-  hang: 70,
-  drop: 360,
-  /** He's in the floor this far into the drop: the ripple starts. */
-  splashAt: 0.4,
-};
-const PLOP_MS = PLOP.up + PLOP.hang + PLOP.drop;
+const PLOP_MS = plopMeta.ms;
 
 /** Done: how long until he's gone, when the floor ripples, and when the moon starts to fall (once he's in). */
 export function locClipExit(_name: LocClipName) {
-  const rippleMs = Math.round(PLOP.up + PLOP.hang + PLOP.drop * PLOP.splashAt);
+  const rippleMs = plopMeta.splashMs;
   // The floor settles most of the way before anything else moves, so the ripple is seen whole.
   return { ms: PLOP_MS, rippleMs, moonMs: rippleMs + 650 };
 }
@@ -105,14 +94,7 @@ export function LocClip({
   const clip = CLIPS[name];
   const { w, h } = locClipSize(name, width);
   const rise = useSharedValue(nonce > 0 ? 0 : 1);
-  // Done: once he's sprung up (the plop clip, in the player), he drops through the floor.
-  const fall = useSharedValue(0);
-  const riseStyle = useAnimatedStyle(() => ({ transform: [{ translateY: (rise.get() * RISE_FROM + fall.get()) * h }] }));
-  useEffect(() => {
-    if (!leaving || nonce === 0) return;
-    // Gravity: slow off the top, fast into the floor, and on until he's well under it.
-    fall.set(withDelay(PLOP.up + PLOP.hang, withTiming(1.15, { duration: PLOP.drop, easing: Easing.in(Easing.quad) })));
-  }, [leaving, nonce, fall]);
+  const riseStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.get() * RISE_FROM * h }] }));
   useEffect(() => {
     if (nonce === 1) rise.set(withTiming(0, { duration: RISE_MS, easing: Easing.out(Easing.cubic) }));
   }, [nonce, rise]);

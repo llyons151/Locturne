@@ -10,8 +10,20 @@
     "launchAt": 5.75,
     "speed": 1,
     "dropCut": false,
-    "eyes": {},
-    "pad": 100,
+    "eyes": {
+      "on": true,
+      "gap": 0.31,
+      "drop": 0.4,
+      "size": 0.058,
+      "tall": 1.0,
+      "pupil": 0.029,
+      "lookX": 0.0,
+      "lookY": -0.006,
+      "glint": 0,
+      "lid": 0,
+      "lidTilt": 0
+    },
+    "pad": 270,
     "size": 0.43,
     "skips": [
       [
@@ -22,7 +34,8 @@
         8.58,
         8.84
       ]
-    ]
+    ],
+    "steadyHead": 1
   },
   "loc-idle": {
     "src": "docs/design-references/higgsfield/loc-idle-kling.mp4",
@@ -35,21 +48,35 @@
     "dropCut": false,
     "loop": true,
     "eyesFrom": "loc-jump",
-    "pad": 100
+    "pad": 270,
+    "gaze": true,
+    "calm": true,
+    "steadyHead": 4
   },
   "loc-plop": {
-    "src": "docs/design-references/higgsfield/loc-jump-kling.mp4",
-    "x": 440,
-    "w": 1000,
-    "ledge": 1008,
-    "pad": 100,
-    "start": 6.0,
-    "end": 6.6,
-    "reverse": true,
-    "speed": 1.15,
+    "src": "docs/design-references/higgsfield/loc-plop-hailuo.mp4",
+    "x": 1192,
+    "w": 546,
+    "y": 2,
+    "ledge": 699,
+    "pad": 0,
+    "start": 0.8,
+    "end": 4.46,
+    "skips": [
+      [
+        2.45,
+        2.95
+      ]
+    ],
+    "speed": 1.6,
     "dropCut": false,
     "exit": true,
-    "moonAt": 6.0,
-    "eyesFrom": "loc-jump"
+    "moonAt": 4.46,
+    "splashAt": 4.05,
+    "eyesFrom": "loc-jump",
+    "faster": [
+      3.3,
+      1.5
+    ]
   }
 }
