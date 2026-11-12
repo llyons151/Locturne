@@ -139,6 +139,10 @@ const BACK_FADE_MS = 900;
 
 /** If his webview never yells (it failed to load), the moon rises anyway. */
 const YELL_FALLBACK_MS = 7000;
+/** His line's fade on Done. */
+const SPEECH_OUT_MS = 160;
+/** Where the dev tools are (dev and preview builds). */
+const LABS = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
 /** The drawn Loc's duck under the edge (loc-rig.ts, POP_DOWN) before the clip's Loc comes up. */
 const DUCK_MS = 300;
 
@@ -321,9 +325,21 @@ export function PayoffScreen({
   // Home won't say its wake-up line again after it.
   const [line] = useState(() => payoffMoment(mornings, Math.random));
   const [said, setSaid] = useState<string | null>(null);
+  // Done: his line fades at once, by opacity, and is taken away once it has (user, 2026-11-11: it
+  // stayed up through his exit on the phone, where it was left to the bubble's own exit).
+  const speech = useSharedValue(1);
+  const speechStyle = useAnimatedStyle(() => ({ opacity: speech.get() }));
+  const hush = () => {
+    speech.set(withTiming(0, { duration: SPEECH_OUT_MS, easing: Easing.out(Easing.quad) }));
+    setTimeout(() => setSaid(null), SPEECH_OUT_MS + 20);
+  };
+  // Preview builds: how his clip is playing, read out small at the top (loc-clip-player.tsx).
+  const [clipStats, setClipStats] = useState<string | null>(null);
   useEffect(() => {
     if (!shown) return;
     const up = setTimeout(() => {
+      // Done already: nothing more to say.
+      if (leaving.current) return;
       setSaid(payoffLine(line));
       if (sayKey !== null) markLocSaid(`${sayKey}woke:${today}`);
     // Stays till Done (user, 2026-10-28: the band over him sat empty once it went).
@@ -402,7 +418,7 @@ export function PayoffScreen({
       setLocAway(true);
     }
     const settleAt = out ? exit.moonMs : SETTLE_AT_MS;
-    setSaid(null);
+    hush();
     // Home's week stays put for ours to land on; with nowhere to land, it all fades as before.
     const spot = homeWeekSpot();
     homeEntrance.hide(spot ? [HOME_WEEK_STEP] : []);
@@ -613,12 +629,17 @@ export function PayoffScreen({
             dom={dom}
           />
         </View>
-        {clip ? <LocClip name={which} width={width} nonce={clipNonce} leaving={goingBack} onYell={onYell} onTap={onTap} /> : null}
+        {clip ? <LocClip name={which} width={width} nonce={clipNonce} leaving={goingBack} onYell={onYell} onTap={onTap} onStats={LABS ? setClipStats : undefined} /> : null}
       </Animated.View>
       {said ? (
-        <View style={[styles.speech, { bottom: headUp + bubbleLift }]} pointerEvents="box-none">
+        <Animated.View style={[styles.speech, { bottom: headUp + bubbleLift }, speechStyle]} pointerEvents="box-none">
           <LocBubble line={said} room={ONE_LINE} wide={width - 32} onDismiss={() => setSaid(null)} />
-        </View>
+        </Animated.View>
+      ) : null}
+      {clipStats ? (
+        <Text style={[styles.clipStats, { top: insets.top }]} pointerEvents="none">
+          {clipStats}
+        </Text>
       ) : null}
       {cards > 0 ? (
         <ShareCard facts={card} loc={locShot} nonce={cards} onCard={onCard} />
@@ -694,6 +715,7 @@ const styles = StyleSheet.create({
   timeValueShort: { fontSize: 48, lineHeight: 54 },
   timeUnit: { ...DisplayFont, fontSize: 24, color: 'rgba(255,255,255,0.86)' },
   speech: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
+  clipStats: { position: 'absolute', left: 8, right: 8, textAlign: 'center', fontSize: 10, lineHeight: 13, color: 'rgba(255, 255, 255, 0.7)' },
   below: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center', justifyContent: 'center' },
   // Full width between the gutters, as Home's, so the dots land on Home's exactly.
   // Closer to the time over it (user, 2026-11-12: "move this up a little"; was xxxl).

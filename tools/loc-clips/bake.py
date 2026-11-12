@@ -166,12 +166,19 @@ def draw_eyes(shape, tr, e):
     for side in (-1, 1):
         ex = cx + side * e['gap'] * hw / 2
         dw.ellipse([(ex - rx) * S, (ey - ry) * S, (ex + rx) * S, (ey + ry) * S], fill=255)
-        px, py = ex + e['lookX'] * hw, ey + e['lookY'] * hw
+        # Kept in the white however far he looks, tighter than Home's (loc-rig.ts keeps 0.6): a thin ring of white stays all round: the idle
+        # holds its glances, and a pupil half off the white read as a crescent, not Home's eye.
+        lx, ly = e['lookX'] * hw, e['lookY'] * hw
+        n = float(np.hypot(lx / max(1e-6, rx - pr * 1.15), ly / max(1e-6, ry - pr * 1.15)))
+        if n > 1:
+            lx, ly = lx / n, ly / n
+        px, py = ex + lx, ey + ly
         dp.ellipse([(px - pr) * S, (py - pr) * S, (px + pr) * S, (py + pr) * S], fill=255)
         if e['glint'] > 0:
-            g = pr * e['glint']
-            gx, gy = px + pr * 0.35, py - pr * 0.35
-            dp.ellipse([(gx - g) * S, (gy - g) * S, (gx + g) * S, (gy + g) * S], fill=0)
+            # Home's catchlights (loc-rig.ts): a big one up and to the left, a speck down and to the right.
+            for ox, oy, g in ((-0.36, -0.4, pr * e['glint']), (0.32, 0.3, pr * e['glint'] / 3)):
+                gx, gy = px + pr * ox, py + pr * oy
+                dp.ellipse([(gx - g) * S, (gy - g) * S, (gx + g) * S, (gy + g) * S], fill=0)
         if e['lid'] > 0:
             y0 = ey - ry + e['lid'] * 2 * ry
             x1, x2 = ex - 2 * rx, ex + 2 * rx

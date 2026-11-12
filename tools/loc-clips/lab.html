@@ -93,6 +93,8 @@ const CLIP_ROWS = [
   ['skipTo', 'Leave out to (s)', 0, 10, 0.05],
 ];
 const PRESETS = {
+  // Home's Loc (loc-rig.ts: white 34, eyes 188 apart, the pupil as big as it gets there: 0.7 of the white, his two catchlights).
+  'Home': { size: 0.056, tall: 1, gap: 0.31, drop: 0.4, pupil: 0.039, lookX: 0, lookY: 0.003, glint: 0.3, lid: 0, lidTilt: 0 },
   'Sleepy smug': { size: 0.06, tall: 1.05, gap: 0.36, drop: 0.4, pupil: 0.033, lookX: 0, lookY: -0.006, glint: 0.35, lid: 0.2, lidTilt: 12 },
   'Soft dots': { size: 0.034, tall: 1.15, gap: 0.34, drop: 0.41, pupil: 0, lookX: 0, lookY: 0, glint: 0, lid: 0, lidTilt: 0 },
   'Big cute': { size: 0.075, tall: 1.1, gap: 0.38, drop: 0.41, pupil: 0.052, lookX: 0, lookY: -0.004, glint: 0.4, lid: 0, lidTilt: 0 },
@@ -149,9 +151,14 @@ function eyes(ctx, head, e, k) {
       ctx.beginPath(); ctx.moveTo(x1, line(x1)); ctx.lineTo(x2, line(x2)); ctx.lineTo(x2, ey + 3 * ry); ctx.lineTo(x1, ey + 3 * ry); ctx.closePath(); ctx.clip();
     }
     ctx.fillStyle = '#fff'; ctx.fillRect(ex - rx, ey - ry, rx * 2, ry * 2);
-    const px = ex + e.lookX * hw, py = ey + e.lookY * hw;
+    // Kept in the white however far he looks (bake.py does the same).
+    let lx = e.lookX * hw, ly = e.lookY * hw;
+    const far = Math.hypot(lx / Math.max(1e-6, rx - pr * 1.15), ly / Math.max(1e-6, ry - pr * 1.15));
+    if (far > 1) { lx /= far; ly /= far; }
+    const px = ex + lx, py = ey + ly;
     ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
-    if (e.glint > 0 && pr > 0) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px + pr * 0.35, py - pr * 0.35, pr * e.glint, 0, Math.PI * 2); ctx.fill(); }
+    // Home's catchlights (loc-rig.ts): a big one up and to the left, a speck down and to the right.
+    if (e.glint > 0 && pr > 0) for (const [ox, oy, g] of [[-0.36, -0.4, pr * e.glint], [0.32, 0.3, pr * e.glint / 3]]) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px + pr * ox, py + pr * oy, g, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
   }
 }

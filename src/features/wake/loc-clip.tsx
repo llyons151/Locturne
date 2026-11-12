@@ -83,6 +83,7 @@ export function LocClip({
   leaving = false,
   onYell,
   onTap,
+  onStats,
 }: {
   name: LocClipName;
   width: number;
@@ -90,6 +91,8 @@ export function LocClip({
   leaving?: boolean;
   onYell: () => void;
   onTap: () => void;
+  /** Preview builds: how the clip is playing, a line a second (loc-clip-player.tsx). */
+  onStats?: (line: string) => void;
 }) {
   const clip = CLIPS[name];
   const { w, h } = locClipSize(name, width);
@@ -113,7 +116,7 @@ export function LocClip({
   return (
     <View style={[styles.clip, { width: w, height: h }]} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, riseStyle]} pointerEvents="none">
-        <LocClipPlayer nonce={nonce} leaving={leaving && nonce > 0} launchMs={clip.launchMs} onLaunch={onYell} dom={dom} />
+        <LocClipPlayer nonce={nonce} leaving={leaving && nonce > 0} launchMs={clip.launchMs} onLaunch={onYell} onStats={onStats} dom={dom} />
       </Animated.View>
       {/* Over the webview, which would take the touch. */}
       <Pressable onPress={onTap} style={StyleSheet.absoluteFill} accessibilityRole="image" />
