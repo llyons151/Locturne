@@ -10,7 +10,8 @@ import plopMeta from '../../../assets/loc-clips/loc-plop.json';
 /**
  * Loc's payoff moment as clips (user, 2026-11-12: the drawn yell "looks kinda terrible"): Kling videos
  * of him jumping out from his duck and landing arms up, idling, and sinking back down on Done, baked
- * by tools/loc-clips/bake.py (docs/LOC_CLIPS.md) and played on one canvas (loc-clip-player.tsx). The
+ * by tools/loc-clips/bake.py (docs/LOC_CLIPS.md), traced into outlines (outlines.py) and drawn on one
+ * canvas (loc-clip-player.tsx). The
  * cuts, speeds and his eyes are set in the clip lab (`npm run loc-clips`). He stands on the panel's
  * edge: a clip's bottom is where the video's ledge was.
  */
@@ -107,9 +108,6 @@ export function LocClip({
       scrollEnabled: false,
       bounces: false,
       contentInsetAdjustmentBehavior: 'never' as const,
-      // The clips are muted videos, played inline the moment they're wanted.
-      allowsInlineMediaPlayback: true,
-      mediaPlaybackRequiresUserAction: false,
     }),
     [w, h],
   );
