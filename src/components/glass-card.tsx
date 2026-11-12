@@ -41,7 +41,9 @@ export function GlassCard({
 }) {
   const sheenTop = dark ? 0.07 : 0.16;
   const sheen = (
-    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
+    // Sized by its edges, not "100%": on iPhone a percentage is of the card inside its padding, so
+    // the sheen stopped short of a padded card's foot in a hard line (the cancel cards, user 2026-11-11).
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
       <Defs>
         <LinearGradient id={dark ? 'glass-sheen-dark' : 'glass-sheen'} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity={sheenTop} />

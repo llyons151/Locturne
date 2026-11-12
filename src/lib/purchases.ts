@@ -34,6 +34,12 @@ export const EXIT_ARMS = ['none', 'half-price', 'longer-trial'] as const;
  * only in a build that goes through review with it on, never from the dashboard.
  */
 export const EXIT_OFFER_LIVE = false;
+/**
+ * Whether the cancel flow's half-price save offer can show outside its preview. Off for 1.0
+ * (user, 2026-11-11: not live on day one): cancelling goes straight to Apple's sheet, whatever
+ * is set up in App Store Connect. Turning it on takes a build, and the promotional offers there.
+ */
+export const SAVE_OFFER_LIVE = false;
 export type ExitArm = (typeof EXIT_ARMS)[number];
 export type ExitOfferArm = Exclude<ExitArm, 'none'>;
 

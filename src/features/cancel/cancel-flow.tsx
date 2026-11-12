@@ -15,7 +15,7 @@ import { track } from '@/lib/analytics';
 import * as haptic from '@/lib/haptics';
 import { SUPPORT_EMAIL } from '@/lib/links';
 import { getMorningsWon } from '@/lib/morning-proof';
-import { ATTRIBUTES, claimSaveOffer, getSaveOffer, manageSubscriptions, setAttributes, type SaveOffer } from '@/lib/purchases';
+import { ATTRIBUTES, claimSaveOffer, getSaveOffer, manageSubscriptions, SAVE_OFFER_LIVE, setAttributes, type SaveOffer } from '@/lib/purchases';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
@@ -68,7 +68,8 @@ export function CancelFlow() {
   // Priced while they read the first screens, so the last one never waits.
   useEffect(() => {
     if (usedUp) return;
-    getSaveOffer()
+    // Off in 1.0 (`SAVE_OFFER_LIVE`): only the preview has one, its sample.
+    (SAVE_OFFER_LIVE ? getSaveOffer() : Promise.resolve(null))
       .then((found) => setOffer(found ?? (preview ? sampleOffer() : null)))
       .catch(() => setOffer(preview ? sampleOffer() : null));
   }, [preview, usedUp]);
