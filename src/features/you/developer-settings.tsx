@@ -12,6 +12,7 @@ import { sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
+import { getReelFrame, setReelFrameOn } from '@/lib/reel-frame';
 import { methodInUse } from '@/lib/scan-code';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
@@ -81,6 +82,7 @@ export function DeveloperSettings() {
   const render = useMoonRender();
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
+  const [reelFrame, setReel] = useState(getReelFrame);
   // Only so the row's "On next open" shows straight away.
   const [, setArmed] = useState(false);
   const refresh = useCallback(() => setTestRun(getTestLock()), []);
@@ -128,6 +130,23 @@ export function DeveloperSettings() {
           <ValueRow {...icon('arrow.uturn.backward', 'undo')} title="Back to the real app" value="" onPress={backToRealApp} last />
         </Group>
       </Fold>
+
+      {/* Recording Reels: the whole app in a 9:16 box, so a screen recording fills a Reel uncropped (lib/reel-frame.ts). */}
+      <Group
+        label="Recording"
+        note="Squeezes the app into a 9:16 box at the bottom of the screen, for screen recordings that fill a Reel with nothing cut off. Crop the recording to the box. Stays on after closing the app until you switch it off."
+      >
+        <SwitchRow
+          {...icon('record.circle', 'fiber_manual_record')}
+          title="Reel frame"
+          value={reelFrame}
+          onChange={(on) => {
+            setReelFrameOn(on);
+            setReel(on);
+          }}
+          last
+        />
+      </Group>
 
       {/* A lived-in app for recording demos: mornings got up and the moons they brought. */}
       <Group

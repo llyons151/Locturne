@@ -27,6 +27,9 @@
       ],
       "dance-ring": [
         "./modules/dance-ring"
+      ],
+      "reel-frame": [
+        "./modules/reel-frame"
       ]
     }
   },

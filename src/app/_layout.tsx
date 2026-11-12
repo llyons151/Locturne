@@ -11,6 +11,7 @@ import { useStandingBlocks } from '@/hooks/use-standing-blocks';
 import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { setClockReader } from '@/lib/clock-guard';
 import { holdSplash } from '@/lib/launch-splash';
+import { applyReelFrame } from '@/lib/reel-frame';
 import { startPurchases } from '@/lib/purchases-start';
 import { setAppRemovalWriter } from '@/lib/screen-time';
 import { checkStepCounter } from '@/lib/step-counter';
@@ -28,6 +29,8 @@ startAnalytics();
 // Before the first sync: the lock reads the phone's boot clock to catch a wound-back clock.
 setClockReader(readDeviceClock);
 setAppRemovalWriter(denyAppRemoval);
+// Dev and preview builds: back in the 9:16 recording box if it was left on (lib/reel-frame.ts).
+applyReelFrame();
 // A device with no step counter (an iPad) gets Step away's timer for a walk (step-counter.ts).
 checkStepCounter({ isIOS: Platform.OS === 'ios', isAvailable: () => Pedometer.isAvailableAsync() });
 
