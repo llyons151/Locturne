@@ -1,0 +1,9 @@
+{
+  "aspect": 0.9025,
+  "headroom": 0.0903,
+  "share": 0.43,
+  "launchMs": 292,
+  "againLaunchMs": 292,
+  "ms": 3000,
+  "againMs": 3000
+}

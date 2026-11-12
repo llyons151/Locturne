@@ -49,6 +49,7 @@ export default function LocStage({
   pokeOnly = false,
   rise = false,
   quick = false,
+  centre = false,
   look,
   roam = 0,
   offset = 0,
@@ -107,6 +108,8 @@ export default function LocStage({
   rise?: boolean;
   /** He pops straight down and back up instead of running off and back along the edge (the moons page). */
   quick?: boolean;
+  /** He comes back up in the middle (with `quick`). */
+  centre?: boolean;
   /** Where his eyes rest, `[x, y]` in the rig's gaze units (+y down); his glances play around it. */
   look?: [number, number];
   /** How much of the ledge he dashes about on by himself, 0..1 (the paywall's wide canvas). */
@@ -135,6 +138,7 @@ export default function LocStage({
   const inkRef = useRef(ink);
   const riseRef = useRef(rise);
   const quickRef = useRef(quick);
+  const centreRef = useRef(centre);
   const lookRef = useRef(look);
   const roamRef = useRef(roam);
   const offsetRef = useRef(offset);
@@ -223,7 +227,8 @@ export default function LocStage({
   // Before the `present` effect, so a change of both in one render pops him.
   useEffect(() => {
     quickRef.current = quick;
-  }, [quick]);
+    centreRef.current = centre;
+  }, [quick, centre]);
 
   const standingRef = useRef(standing);
   useEffect(() => {
@@ -242,7 +247,7 @@ export default function LocStage({
     }
     // Cleared if he's sent away again first, so a quick flip never brings him up off Home.
     const t = setTimeout(() => {
-      rig.setPresent(true, quickRef.current);
+      rig.setPresent(true, quickRef.current, centreRef.current);
       wakeRef.current();
     }, ARRIVE_DELAY_MS);
     return () => clearTimeout(t);

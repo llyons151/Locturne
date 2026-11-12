@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loc clip lab</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0f1a; color: #e8ecf5; font: 14px/1.4 system-ui, sans-serif; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; max-width: 1180px; margin: 0 auto; padding: 24px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  a { color: #8fb0ff; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8d99b5; margin: 20px 0 8px; }
+  .sub { color: #8d99b5; margin: 0 0 16px; }
+  .stage { background: linear-gradient(#0a0e1a, #1c2c5c); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; align-items: center; }
+  canvas { width: 100%; max-width: 520px; height: auto; display: block; }
+  .zoom { width: 100%; max-width: 520px; margin-top: 12px; border-radius: 12px; background: #1c2c5c; }
+  .bar { display: flex; gap: 8px; align-items: center; width: 100%; max-width: 520px; margin-top: 12px; }
+  .bar input[type=range] { flex: 1; }
+  button { font: inherit; color: #0b0f1a; background: #f2f6fc; border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; font-weight: 600; }
+  button.quiet { background: #222b42; color: #e8ecf5; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: grid; grid-template-columns: 120px 1fr 52px; gap: 8px; align-items: center; margin: 6px 0; }
+  .row output { text-align: right; color: #8d99b5; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: #8fb0ff; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
+  .note { color: #8d99b5; font-size: 12px; margin: 4px 0 0; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+  #status { margin-top: 10px; color: #8d99b5; min-height: 20px; white-space: pre-line; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1>Loc clip lab</h1>
+    <p class="sub">What plays here is what Bake puts in the app. <a href="/?clip=loc-jump">The jump</a> · <a href="/?clip=loc-idle">The idle after it</a> · <a href="http://localhost:8081/payoff-lab" target="_blank">Play the whole thing in the app</a></p>
+    <div class="stage">
+      <canvas id="view"></canvas>
+      <canvas id="zoom" class="zoom"></canvas>
+      <div class="bar">
+        <button id="play" class="quiet">Pause</button>
+        <input id="scrub" type="range" min="0" max="1" step="1" value="0" aria-label="Frame">
+        <span id="time" class="note"></span>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>Eye presets</h2>
+    <div class="presets" id="presets"></div>
+    <h2>Eyes</h2>
+    <label class="check"><input type="checkbox" id="on"> <span>Show his eyes</span></label>
+    <div id="eyeRows"></div>
+    <h2>The animation</h2>
+    <div id="clipRows"></div>
+    <label class="check"><input type="checkbox" id="dropCut">
+      <span>Skip the frames where he leaves the top of the video
+        <span class="note" style="display:block">Off: the jump keeps its full length, and his head is cut flat for a moment at the top. On: no flat head, but the jump is shorter.</span></span></label>
+    <div class="actions">
+      <button id="bake">Bake into the app</button>
+      <button id="save" class="quiet">Save only</button>
+      <button id="reset" class="quiet">Reset eyes</button>
+    </div>
+    <div id="status"></div>
+  </section>
+</main>
+<script>
+const NAME = new URLSearchParams(location.search).get('clip') || 'loc-jump';
+const EYE_ROWS = [
+  ['size', 'Size', 0.02, 0.12, 0.001],
+  ['tall', 'Height', 0.4, 1.8, 0.01],
+  ['gap', 'Spacing', 0.15, 0.6, 0.002],
+  ['drop', 'Up / down', 0.2, 0.7, 0.002],
+  ['pupil', 'Pupil size', 0, 0.09, 0.001],
+  ['lookX', 'Look left / right', -0.04, 0.04, 0.001],
+  ['lookY', 'Look up / down', -0.04, 0.04, 0.001],
+  ['glint', 'Shine', 0, 0.7, 0.01],
+  ['lid', 'Eyelid', 0, 0.8, 0.01],
+  ['lidTilt', 'Eyelid slope', -30, 30, 1],
+];
+const CLIP_ROWS = [
+  ['start', 'Starts at (s)', 0, 10, 0.05],
+  ['end', 'Ends at (s)', 0, 10.05, 0.05],
+  ['again', 'Tap replay from (s)', 0, 10, 0.05],
+  ['launchAt', 'Moon rises at (s)', 0, 10, 0.05],
+  ['speed', 'Speed', 0.5, 3, 0.05],
+  ['size', 'Size in the app', 0.3, 0.7, 0.01],
+  ['moonAt', 'Moon falls at (s)', 0, 10, 0.05],
+  ['eyesUntil', 'Eyes shown until (s)', 0, 10, 0.05],
+  ['skipFrom', 'Leave out from (s)', 0, 10, 0.05],
+  ['skipTo', 'Leave out to (s)', 0, 10, 0.05],
+];
+const PRESETS = {
+  'Sleepy smug': { size: 0.06, tall: 1.05, gap: 0.36, drop: 0.4, pupil: 0.033, lookX: 0, lookY: -0.006, glint: 0.35, lid: 0.2, lidTilt: 12 },
+  'Soft dots': { size: 0.034, tall: 1.15, gap: 0.34, drop: 0.41, pupil: 0, lookX: 0, lookY: 0, glint: 0, lid: 0, lidTilt: 0 },
+  'Big cute': { size: 0.075, tall: 1.1, gap: 0.38, drop: 0.41, pupil: 0.052, lookX: 0, lookY: -0.004, glint: 0.4, lid: 0, lidTilt: 0 },
+  'Angry': { size: 0.06, tall: 0.9, gap: 0.36, drop: 0.4, pupil: 0.028, lookX: 0, lookY: 0.004, glint: 0, lid: 0.35, lidTilt: 22 },
+  'Wide awake': { size: 0.073, tall: 1.1, gap: 0.356, drop: 0.4, pupil: 0.03, lookX: 0, lookY: -0.016, glint: 0, lid: 0, lidTilt: 0 },
+};
+
+const $ = (id) => document.getElementById(id);
+const view = $('view'), zoom = $('zoom');
+let clip, defaults, frames, size, fps, images = [], order = [], at = 0, playing = true, last = 0, dirty = false;
+
+function rows(host, list, get, set) {
+  for (const [key, label, min, max, step] of list) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<label for="r-${key}">${label}</label><input id="r-${key}" type="range" min="${min}" max="${max}" step="${step}"><output></output>`;
+    const input = row.querySelector('input'), out = row.querySelector('output');
+    const show = () => { out.textContent = Number(input.value).toFixed(step < 0.01 ? 3 : step < 1 ? 2 : 0); };
+    input.value = get(key); show();
+    input.addEventListener('input', () => { set(key, Number(input.value)); show(); changed(); });
+    row.sync = () => { input.value = get(key); show(); };
+    host.appendChild(row);
+  }
+}
+function syncAll() {
+  document.querySelectorAll('.row').forEach((r) => r.sync());
+  $('on').checked = clip.eyes.on;
+  $('dropCut').checked = clip.dropCut;
+}
+function rate() { return clip.speed; }
+function changed() { dirty = true; pick(); draw(); }
+
+/** The frames the clip plays: bake.py's `picked`. */
+function pick() {
+  order = [];
+  const cuts = [[clip.skipFrom ?? 0, clip.skipTo ?? 0], ...(clip.skips ?? [])];
+  frames.forEach((f, i) => { if (f.t >= clip.start - 1e-6 && f.t < clip.end - 1e-6 && !(clip.dropCut && f.cut) && !cuts.some(([a, b]) => f.t >= a - 1e-6 && f.t < b - 1e-6)) order.push(i); });
+  $('scrub').max = Math.max(0, order.length - 1);
+  if (at >= order.length) at = 0;
+}
+
+/** His eyes: the same drawing as bake.py's `draw_eyes`. */
+function eyes(ctx, head, e, k) {
+  const hw = head.hw * k, cx = head.cx * k;
+  const ey = head.top * k + e.drop * hw, rx = e.size * hw, ry = rx * e.tall, pr = e.pupil * hw;
+  const slope = Math.tan(e.lidTilt * Math.PI / 180);
+  for (const side of [-1, 1]) {
+    const ex = cx + side * e.gap * hw / 2;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    if (e.lid > 0) {
+      const y0 = ey - ry + e.lid * 2 * ry, line = (x) => y0 - side * slope * (x - ex);
+      const x1 = ex - 2 * rx, x2 = ex + 2 * rx;
+      ctx.beginPath(); ctx.moveTo(x1, line(x1)); ctx.lineTo(x2, line(x2)); ctx.lineTo(x2, ey + 3 * ry); ctx.lineTo(x1, ey + 3 * ry); ctx.closePath(); ctx.clip();
+    }
+    ctx.fillStyle = '#fff'; ctx.fillRect(ex - rx, ey - ry, rx * 2, ry * 2);
+    const px = ex + e.lookX * hw, py = ey + e.lookY * hw;
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+    if (e.glint > 0 && pr > 0) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px + pr * 0.35, py - pr * 0.35, pr * e.glint, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+}
+
+function draw() {
+  const i = order[at];
+  if (i === undefined || !images[i]?.complete) return;
+  const k = view.width / size[0], head = frames[i].head;
+  const ctx = view.getContext('2d');
+  ctx.clearRect(0, 0, view.width, view.height);
+  ctx.drawImage(images[i], 0, 0, view.width, view.height);
+  const face = clip.eyes.on && head && frames[i].t < (clip.eyesUntil ?? 1e9);
+  if (face) eyes(ctx, head, clip.eyes, k);
+  // His head, close up.
+  const z = zoom.getContext('2d');
+  z.clearRect(0, 0, zoom.width, zoom.height);
+  if (head) {
+    const w = head.hw * 1.5, h = w * zoom.height / zoom.width, x = head.cx - w / 2, y = head.top - h * 0.12, kz = zoom.width / w;
+    z.drawImage(images[i], x, y, w, h, 0, 0, zoom.width, zoom.height);
+    if (face) { z.save(); z.translate(-x * kz, -y * kz); eyes(z, head, clip.eyes, kz); z.restore(); }
+  }
+  $('scrub').value = at;
+  $('time').textContent = `${frames[i].t.toFixed(2)} s · ${(order.length / (fps * rate())).toFixed(1)} s long`;
+}
+
+function tick(now) {
+  if (playing && order.length) {
+    const step = 1000 / (fps * rate());
+    if (now - last >= step) {
+      last = now;
+      // Holds the last frame for a moment, as the app holds it, then starts over.
+      at = at + 1 >= order.length + (clip.loop ? 0 : Math.round(fps)) ? 0 : at + 1;
+      if (at < order.length) draw();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return r.json();
+}
+async function save() {
+  const out = { ...clip };
+  if (clip.eyesFrom) delete out.eyes;
+  await post('/api/save', { name: NAME, clip: out });
+  dirty = false;
+}
+async function watch() {
+  const j = await (await fetch('/api/bake')).json();
+  $('status').textContent = j.log.join('\n');
+  $('bake').disabled = j.running;
+  if (j.running) setTimeout(watch, 600);
+  else if (j.log.length) $('status').textContent += '\nReload the app to see it.';
+}
+
+async function start() {
+  const all = await (await fetch('/api/clips')).json();
+  defaults = all.defaults; fps = all.fps;
+  clip = all.clips[NAME];
+  // A clip wearing another's eyes (`eyesFrom`) shows them; they're edited on that clip's page.
+  const worn = clip.eyesFrom ? all.clips[clip.eyesFrom] : clip;
+  const own = !clip.eyesFrom;
+  clip.eyes = { ...defaults, ...worn.eyes };
+  $('status').textContent = 'Reading the video…';
+  const got = await (await fetch(`/api/frames/${NAME}`)).json();
+  frames = got.frames; size = got.size;
+  $('status').textContent = '';
+  view.width = size[0] * 2; view.height = size[1] * 2;
+  zoom.width = 1040; zoom.height = 520;
+  images = frames.map((_, i) => { const im = new Image(); im.src = `/f/${NAME}/e${String(i).padStart(4, '0')}.png`; im.onload = () => { if (order[at] === i) draw(); }; return im; });
+  if (own) rows($('eyeRows'), EYE_ROWS, (k) => clip.eyes[k], (k, v) => { clip.eyes[k] = v; });
+  else $('eyeRows').innerHTML = '<p class="note">Same eyes as the jump: change them on the jump\'s page.</p>';
+  rows($('clipRows'), CLIP_ROWS.filter((r) => (clip.loop ? ['start', 'end', 'speed'] : clip.exit ? ['start', 'end', 'speed', 'moonAt', 'eyesUntil', 'skipFrom', 'skipTo'] : ['start', 'end', 'again', 'launchAt', 'speed', 'size']).includes(r[0])), (k) => clip[k], (k, v) => { clip[k] = v; });
+  for (const [name, p] of Object.entries(own ? PRESETS : {})) {
+    const b = document.createElement('button');
+    b.className = 'quiet'; b.textContent = name;
+    b.onclick = () => { Object.assign(clip.eyes, p, { on: true }); syncAll(); changed(); };
+    $('presets').appendChild(b);
+  }
+  $('on').onchange = (e) => { clip.eyes.on = e.target.checked; changed(); };
+  $('dropCut').onchange = (e) => { clip.dropCut = e.target.checked; changed(); };
+  $('play').onclick = () => { playing = !playing; $('play').textContent = playing ? 'Pause' : 'Play'; };
+  $('scrub').oninput = (e) => { playing = false; $('play').textContent = 'Play'; at = Number(e.target.value); draw(); };
+  $('reset').onclick = () => { Object.assign(clip.eyes, defaults); syncAll(); changed(); };
+  $('save').onclick = async () => { await save(); $('status').textContent = 'Saved. Not in the app until you bake.'; };
+  $('bake').onclick = async () => { await save(); await post('/api/bake', { name: NAME }); watch(); };
+  syncAll(); pick(); draw(); watch();
+  requestAnimationFrame(tick);
+}
+start();
+</script>
+</body>
+</html>

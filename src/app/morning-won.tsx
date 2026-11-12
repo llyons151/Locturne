@@ -61,10 +61,15 @@ export default function MorningWonRoute() {
   // `lab=1` (browser, made-up facts): the entrance's timings on sliders, with a Replay (payoff-lab.web.tsx).
   const lab = demo && params.lab === '1' && Platform.OS === 'web';
   const cut = params.cut === '1';
-  if (!lab) return <PayoffScreen facts={facts} cut={cut} />;
+  // `loc=rig` (dev): the drawn yell instead of a clip, to compare; `clip=jump|dance` picks a clip.
+  const clip = !(demo && params.loc === 'rig');
+  const clipName = demo ? params.clip : undefined;
+  // `autoDone=<ms>` (dev): Done presses itself that long after the page is in, to watch the whole thing.
+  const autoDoneMs = demo ? Number(params.autoDone) || 0 : 0;
+  if (!lab) return <PayoffScreen facts={facts} cut={cut} clip={clip} clipName={clipName} autoDoneMs={autoDoneMs} />;
   return (
     <>
-      <PayoffScreen facts={facts} cut={cut} fadeIn={!cut} />
+      <PayoffScreen facts={facts} cut={cut} fadeIn={!cut} clip={clip} clipName={clipName} autoDoneMs={autoDoneMs} />
       <PayoffLab params={params} />
     </>
   );

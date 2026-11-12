@@ -14,9 +14,10 @@ const STORE = 'locturne.payoffLab.v2';
 const MESSAGE = 'locturne.payoffLab';
 const PHONE = { width: 393, height: 852 };
 
-type Lab = PayoffTuning & { homeMs: number };
+/** `doneMs`: the whole sequence presses Done by itself this long after the page has come in. */
+type Lab = PayoffTuning & { homeMs: number; doneMs: number };
 
-const LAB_DEFAULTS: Lab = { ...PAYOFF_DEFAULTS, homeMs: 900 };
+const LAB_DEFAULTS: Lab = { ...PAYOFF_DEFAULTS, homeMs: 900, doneMs: 5000 };
 const fresh = (): Lab => ({ ...LAB_DEFAULTS, rise: [...LAB_DEFAULTS.rise], band: [...LAB_DEFAULTS.band] });
 
 type Curve = 'rise' | 'band';
@@ -48,6 +49,7 @@ setPayoffTuning(load());
 
 const SLIDERS: { key: keyof Omit<Lab, Curve>; label: string; max: number; step: number }[] = [
   { key: 'homeMs', label: 'Home first (replay only)', max: 3000, step: 50 },
+  { key: 'doneMs', label: 'Whole sequence: Done pressed after the page is in', max: 15000, step: 250 },
   { key: 'screenFadeMs', label: 'Home’s pieces fade out', max: 2000, step: 10 },
   { key: 'bandDelayMs', label: 'Pause, then the strip rises', max: 2000, step: 10 },
   { key: 'bandMs', label: 'Strip rises, Done fades in', max: 3000, step: 10 },
@@ -75,8 +77,15 @@ export function PayoffLab({ params }: { params: Record<string, string> }) {
       if (e.origin !== window.location.origin || e.data?.type !== MESSAGE) return;
       const lab = load();
       setPayoffTuning(lab);
-      const { newMoon: _moon, ...rest } = paramsRef.current;
-      const again = { ...rest, over: '1', cut: e.data.cut ? '1' : '', ...(e.data.newMoon ? { newMoon: e.data.newMoon } : {}) };
+      const { newMoon: _moon, autoDone: _done, ...rest } = paramsRef.current;
+      const again = {
+        ...rest,
+        over: '1',
+        cut: e.data.cut ? '1' : '',
+        ...(e.data.newMoon ? { newMoon: e.data.newMoon } : {}),
+        // The whole sequence: Done presses itself (payoff-screen.tsx, `autoDoneMs`).
+        ...(e.data.whole ? { autoDone: String(lab.doneMs) } : {}),
+      };
       if (router.canGoBack()) router.back();
       setTimeout(() => router.push({ pathname: '/morning-won', params: again }), lab.homeMs);
     };
@@ -107,16 +116,25 @@ export function PayoffLabSimulator() {
     setLab(next);
     setCopied(false);
   };
-  const replay = (how: { cut: boolean; newMoon: boolean }) => {
+  const replay = (how: { cut: boolean; newMoon: boolean; whole?: boolean }) => {
     setCut(how.cut);
     setNewMoon(how.newMoon);
+    // The whole thing loads the frame afresh, from Home: the payoff opens over it and presses Done by
+    // itself (`autoDone`), so it runs start to finish every time, whatever the frame was showing.
+    if (how.whole && frame.current) {
+      const q = new URLSearchParams({ demo: '1', lab: '1', autoDone: String(lab.doneMs), run: String(Date.now()) });
+      if (how.newMoon) q.set('newMoon', 'harvest');
+      if (how.cut) q.set('cut', '1');
+      frame.current.src = `/morning-won?${q}`;
+      return;
+    }
     frame.current?.contentWindow?.postMessage(
-      { type: MESSAGE, cut: how.cut, newMoon: how.newMoon ? 'harvest' : 'none' },
+      { type: MESSAGE, cut: how.cut, newMoon: how.newMoon ? 'harvest' : 'none', whole: !!how.whole },
       window.location.origin,
     );
   };
   const copy = () => {
-    const { homeMs: _home, ...tuning } = lab;
+    const { homeMs: _home, doneMs: _done, ...tuning } = lab;
     navigator.clipboard?.writeText(JSON.stringify(tuning, null, 2)).then(() => setCopied(true), () => {});
   };
 
@@ -130,10 +148,14 @@ export function PayoffLabSimulator() {
       <div style={s.panel}>
         <strong style={s.title}>Payoff lab</strong>
         <div style={s.row}>
-          <button type="button" style={s.primary} onClick={() => replay({ cut, newMoon })}>
-            Replay
+          <button type="button" style={s.primary} onClick={() => replay({ cut, newMoon, whole: true })}>
+            Play the whole thing
+          </button>
+          <button type="button" style={s.button} onClick={() => replay({ cut, newMoon })}>
+            Entrance only
           </button>
         </div>
+        <div style={s.note}>The whole thing: Home, the payoff opens, he jumps and idles, Done is pressed for you, he leaves, Home again.</div>
         <div style={s.row}>
           <button type="button" style={cut ? s.button : s.picked} onClick={() => replay({ cut: false, newMoon })}>
             Fade over Home

@@ -1374,11 +1374,16 @@ export class LocRig {
   onBurrow: ((path: BurrowPath) => void) | null = null;
   /**
    * Off Home he dives under the covers and runs off; back on Home he runs in and bursts out.
-   * `quick` (the moons page): he pops straight down, and back straight up.
+   * `quick` (the moons page): he pops straight down, and back straight up. `centre`: he comes up in
+   * the middle, wherever he'd wandered to (after the morning payoff; user, 2026-11-12).
    */
-  setPresent(present: boolean, quick = false) {
+  setPresent(present: boolean, quick = false, centre = false) {
     if (present === !this.hidden) return;
     this.hidden = !present;
+    if (present && centre) {
+      this.spot = 0;
+      this.landing = 0;
+    }
     if (this.reduced) {
       this.canvas.style.opacity = present ? '1' : '0';
       this.play(present ? ARRIVE_CALM : LEAVE_CALM);

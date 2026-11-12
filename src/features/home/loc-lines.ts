@@ -183,6 +183,26 @@ export function locSpecial(kind: MomentKind | 'streak' | 'birthday' | 'ultra', r
   return draw(pool, random);
 }
 
+/**
+ * The payoff's bubble is one line (payoff-screen.tsx), so it only says lines that fit on one at full
+ * size on the narrowest iPhone (user, 2026-11-11: "remove lines that cut off"). Home keeps them all.
+ */
+const PAYOFF_MAX = 37;
+/** Said only on the payoff, alongside the wake-up's short lines (user, 2026-11-11). */
+const PAYOFF_EXTRA: Pool = ['Idle animation start now.'];
+const payoffPools = new Map<MomentKind, Pool>();
+
+/** A line of `kind` for the payoff; the wake-up's when `kind` has none short enough. */
+export function payoffLine(kind: MomentKind, random: () => number = Math.random): string {
+  let pool = payoffPools.get(kind);
+  if (!pool) {
+    const short = MOMENTS[kind].filter((l) => l.length <= PAYOFF_MAX);
+    pool = kind === 'wakeDone' ? [...short, ...PAYOFF_EXTRA] : short;
+    payoffPools.set(kind, pool);
+  }
+  return pool.length ? draw(pool, random) : payoffLine('wakeDone', random);
+}
+
 /** How often he says hello when you come back to Home: rarely enough to stay a surprise. */
 export const HELLO_CHANCE = 1 / 3;
 

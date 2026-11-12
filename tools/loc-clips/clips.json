@@ -1,0 +1,55 @@
+{
+  "loc-jump": {
+    "src": "docs/design-references/higgsfield/loc-jump-kling.mp4",
+    "x": 440,
+    "w": 1000,
+    "ledge": 1008,
+    "start": 5.45,
+    "end": 8.93,
+    "again": 5.45,
+    "launchAt": 5.75,
+    "speed": 1,
+    "dropCut": false,
+    "eyes": {},
+    "pad": 100,
+    "size": 0.43,
+    "skips": [
+      [
+        6.85,
+        7.06
+      ],
+      [
+        8.58,
+        8.84
+      ]
+    ]
+  },
+  "loc-idle": {
+    "src": "docs/design-references/higgsfield/loc-idle-kling.mp4",
+    "x": 440,
+    "w": 1000,
+    "ledge": 1008,
+    "start": 2.0417,
+    "end": 5.3333,
+    "speed": 1.25,
+    "dropCut": false,
+    "loop": true,
+    "eyesFrom": "loc-jump",
+    "pad": 100
+  },
+  "loc-plop": {
+    "src": "docs/design-references/higgsfield/loc-jump-kling.mp4",
+    "x": 440,
+    "w": 1000,
+    "ledge": 1008,
+    "pad": 100,
+    "start": 6.0,
+    "end": 6.6,
+    "reverse": true,
+    "speed": 1.15,
+    "dropCut": false,
+    "exit": true,
+    "moonAt": 6.0,
+    "eyesFrom": "loc-jump"
+  }
+}

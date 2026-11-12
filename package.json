@@ -73,6 +73,7 @@
     "bubble-lab": "node tools/bubble-lab/server.mjs",
     "moon-lab": "node tools/moon-lab/server.mjs",
     "moon-studio": "node tools/moon-studio/server.mjs",
+    "loc-clips": "python3 tools/loc-clips/lab.py",
     "shield-lab": "node tools/shield-lab/server.mjs",
     "moons:bake": "python3 tools/moon-lab/bake.py && python3 tools/moon-lab/bake-icons.py",
     "moons:icons": "python3 tools/moon-lab/bake-icons.py",

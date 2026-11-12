@@ -77,6 +77,33 @@ export const holdLocLines = (ms: number) => {
   quietUntil = Date.now() + ms;
 };
 
+/**
+ * Sent out of sight, whatever tab is up: the morning payoff's Loc jumps down behind the edge on Done,
+ * so Home's stays down under it and comes up once the payoff has gone (user, 2026-11-12).
+ */
+// `pop`: coming back from it, he pops straight up in the middle, not in from the side; kept on a
+// moment past his return so it's still set when he's brought up.
+let sentAway = { away: false, pop: false };
+let popOff: ReturnType<typeof setTimeout> | undefined;
+const awayListeners = new Set<() => void>();
+export function setLocAway(away: boolean) {
+  if (sentAway.away === away) return;
+  clearTimeout(popOff);
+  sentAway = { away, pop: true };
+  awayListeners.forEach((l) => l());
+  if (!away) {
+    popOff = setTimeout(() => {
+      sentAway = { away: false, pop: false };
+      awayListeners.forEach((l) => l());
+    }, 3000);
+  }
+}
+const subscribeAway = (listener: () => void) => {
+  awayListeners.add(listener);
+  return () => void awayListeners.delete(listener);
+};
+const awaySnapshot = () => sentAway;
+
 /** Counts `key` as said, so Home doesn't say it again (the payoff already said the wake-up's line). */
 export const markLocSaid = (key: string) => saidOnce.add(key);
 
@@ -176,7 +203,8 @@ export function Loc() {
   const { mood, wary, present: onHome, seen, moment, floor } = useSyncExternalStore(subscribe, snapshot);
   // The moons page is up: he pops down out of its way, and back up when it goes.
   const moons = useSyncExternalStore(locAway.subscribe, locAway.get);
-  const present = onHome && !moons.away;
+  const sent = useSyncExternalStore(subscribeAway, awaySnapshot);
+  const present = onHome && !moons.away && !sent.away;
   const take = useSyncExternalStore(subscribeCarry, carriedPose);
   const asked = useSyncExternalStore(subscribeAsk, askedPose);
   // The knock lab's Burrow button and live tuning (dev only; at rest it never changes).
@@ -361,7 +389,8 @@ export function Loc() {
           wary={wary}
           share={SHARE}
           present={present}
-          quick={moons.quick}
+          quick={moons.quick || sent.pop}
+          centre={sent.pop}
           onCue={onCue}
           onTap={onTap}
           onBurrow={onBurrow}
