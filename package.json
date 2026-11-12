@@ -70,6 +70,7 @@
     "pushups-preview": "tools/pushups-preview/start.sh",
     "store-shots": "node tools/store-shots/server.mjs",
     "payoff-lab": "node tools/payoff-lab/server.mjs",
+    "payoff-studio": "node tools/payoff-studio/save.mjs",
     "bubble-lab": "node tools/bubble-lab/server.mjs",
     "moon-lab": "node tools/moon-lab/server.mjs",
     "moon-studio": "node tools/moon-studio/server.mjs",

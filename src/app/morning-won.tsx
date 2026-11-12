@@ -12,6 +12,7 @@ import { MOONS } from '@/features/moons/moon-data';
 import { markPayoffShown, wonProof } from '@/features/wake/open-payoff';
 import { PayoffLab } from '@/features/wake/payoff-lab';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
+import { PayoffStudioBridge } from '@/features/wake/payoff-studio';
 import { revealApp } from '@/lib/launch-splash';
 import { currentProof, routineAt } from '@/lib/lock-controller';
 import { dateKey } from '@/lib/lock-state';
@@ -66,9 +67,20 @@ export default function MorningWonRoute() {
   const clipName = demo ? params.clip : undefined;
   // `autoDone=<ms>` (dev): Done presses itself that long after the page is in, to watch the whole thing.
   const autoDoneMs = demo ? Number(params.autoDone) || 0 : 0;
-  if (!lab) return <PayoffScreen facts={facts} cut={cut} clip={clip} clipName={clipName} autoDoneMs={autoDoneMs} />;
+  // In the browser the payoff studio's placement applies, live (payoff-studio.web.tsx).
+  const studio = demo && Platform.OS === 'web' ? <PayoffStudioBridge /> : null;
+  const screen = <PayoffScreen facts={facts} cut={cut} clip={clip} clipName={clipName} autoDoneMs={autoDoneMs} />;
+  if (!lab && !studio) return screen;
+  if (!lab)
+    return (
+      <>
+        {screen}
+        {studio}
+      </>
+    );
   return (
     <>
+      {studio}
       <PayoffScreen facts={facts} cut={cut} fadeIn={!cut} clip={clip} clipName={clipName} autoDoneMs={autoDoneMs} />
       <PayoffLab params={params} />
     </>

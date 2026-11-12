@@ -26,6 +26,7 @@ import type { MoonDef } from '../moons/moon-types';
 import { MoonThumb } from '../moons/moon-thumb';
 import { homeEntrance, REPLAY_START_MS } from '../home/entrance';
 import { payoffTuning } from './payoff-tuning';
+import { payoffBox, usePayoffLayout } from './payoff-layout';
 import { askHomeLocPose, holdLocLines, markLocSaid, passLocPose, setLocAway } from '../home/loc';
 import { LocBubble } from '../home/loc-bubble';
 import { payoffLine } from '../home/loc-lines';
@@ -70,8 +71,11 @@ const HOME_SINK = 0;
 // The entrance's timings (the rise, the page coming into focus a step at a time, Loc's line, the new
 // moon's colours) are in payoff-tuning.ts, where the browser lab can change them and replay.
 
-/** Under this tall (an iPhone SE) the page's gaps tighten. */
-const SHORT_SCREEN = 720;
+/**
+ * Under this tall the page's gaps tighten and the time shrinks: an iPhone SE (667) and the Reel
+ * frame's 9:16 box (764 on a 430-wide phone; user 2026-11-12). A 13 mini (812) is tall enough.
+ */
+const SHORT_SCREEN = 800;
 
 /** Share's row under Done: its label with the button's own padding. */
 const SHARE_ROW = 44;
@@ -112,6 +116,11 @@ const PASS_LEAD_MS = 160;
 const MOON_SHARE = 0.46;
 const MOON_MAX = 190;
 const MOON_GAP = Space.xl;
+/** The smallest the risen moon gets on a short screen, with the time still reading under it. */
+const MOON_MIN = 64;
+/** In the Reel frame's box: the moon's top (clear of TikTok's top bar, ~43 points of a 430-wide Reel), and the gap over his head with no line to make room for. */
+const REEL_MOON_TOP = 44;
+const QUIET_ROOM = Space.l;
 
 /** Home's week is its entrance's step 1 (entrance.ts): left in place for ours to land on. */
 const HOME_WEEK_STEP = 1;
@@ -180,6 +189,9 @@ export function PayoffScreen({
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const short = height < SHORT_SCREEN;
+  // Nudges placed by hand in the payoff studio (payoff-layout.ts), one set for the whole screen, one
+  // for the Reel frame's box.
+  const nudge = usePayoffLayout(width, height);
   const { mornings, today, won, free, upAt, sayKey } = facts;
   // The sky is laid out over Home's tab strip, so the moon and the panel are Home's exactly; the
   // payoff's own strip is taller (Done, Share under it), drawn over the sky's foot as a black band
@@ -188,7 +200,9 @@ export function PayoffScreen({
   // Share's row has its own air round the label, so the foot can give back some of the home bar's inset.
   // (user, 2026-10-28: too much space below Share).
   const foot = Math.max(insets.bottom - Space.l, Space.s);
-  const strip = STRIP_TOP + CTA_HEIGHT + Space.xs + SHARE_ROW + foot;
+  // The strip as worked out, and as nudged: the panel's edge moved up makes it taller.
+  const baseStrip = STRIP_TOP + CTA_HEIGHT + Space.xs + SHARE_ROW + foot;
+  const strip = Math.max(homeStrip, baseStrip - nudge.edgeY);
   const lift = Math.max(0, strip - homeStrip);
   // Loc's canvas runs the panel's full width, so he can wander along the edge.
   const locH = Math.round((width * LOC_SHARE * LOC_VIEW.height) / LOC_VIEW.width);
@@ -199,15 +213,38 @@ export function PayoffScreen({
   const headAt = clip ? clipSize.head : BUBBLE_AT;
   // His bubble sits halfway between the week's dots and his head, whatever the phone leaves between
   // them (user, 2026-11-11: it hugged the dots on one phone and his head on another).
-  const [weekEnd, setWeekEnd] = useState<number | null>(null);
   // The moon rises to the top and shrinks as it goes, into a small moon with the time inside;
   // under it the headline and the apps, then this week (Bloom's layout, user 2026-10-28).
-  const moonSize = Math.round(Math.min(width * MOON_SHARE, MOON_MAX) * (short ? 0.7 : 1));
-  const moonTop = insets.top + (short ? Space.s : MOON_GAP);
-  const belowTop = moonTop + moonSize + Space.l;
-  // His head, up from the screen's foot; and the sky between it and the week, the capsule centred in it.
+  // Recording a Reel (the Reel frame's box; user 2026-11-12): he says nothing, so the room kept for his
+  // line goes to the moon, which also starts lower, clear of TikTok's buttons along a Reel's top.
+  const reel = payoffBox(width, height) === 'reel';
+  const lineRoom = reel ? QUIET_ROOM : BUBBLE_LIFT + BUBBLE_ROOM;
+  const baseMoonTop = insets.top + (reel ? REEL_MOON_TOP : short ? Space.s : MOON_GAP);
+  // His head, up from the screen's foot (as worked out, before the studio's nudges).
+  const baseHeadUp = baseStrip + Math.round(figH * headAt);
+  // The moon gives way on a short screen (an SE, the Reel frame's 9:16 box: user 2026-11-12, the
+  // time sat on the moon and his line on the week): it shrinks until the time, Apply and the week
+  // (measured, `stackH`) fit between it and one line of his bubble over his head.
+  const [stackH, setStackH] = useState<number | null>(null);
+  // In the Reel's box the room decides alone: no line to share it with.
+  const fullMoon = Math.round(Math.min(width * MOON_SHARE, MOON_MAX) * (short && !reel ? 0.7 : 1));
+  const moonRoom =
+    stackH === null ? fullMoon : height - baseHeadUp - lineRoom - stackH - Space.l - baseMoonTop;
+  const baseMoonSize = Math.max(MOON_MIN, Math.min(fullMoon, Math.round(moonRoom)));
+  const overflows = stackH !== null && moonRoom < MOON_MIN;
+  // The page is laid out round the moon and the edge as worked out, so a nudge moves one piece alone.
+  const belowTop = baseMoonTop + baseMoonSize + Space.l;
+  const moonSize = Math.max(40, baseMoonSize + nudge.moonSize);
+  const moonTop = baseMoonTop + nudge.moonY;
+  // His head as nudged; and the sky between it and the week, the capsule centred in it.
   const headUp = strip + Math.round(figH * headAt);
-  const sky = weekEnd === null ? null : height - headUp - (belowTop + weekEnd);
+  // The week is the stack's last piece, so its foot is the stack's: both read from the one layout,
+  // so they never disagree (user, 2026-11-12: read apart, the bubble sat on the dots).
+  // Worked out, not measured: the stack is centred in the room between the moon and his bubble's room
+  // (hung from the moon when it overflows), and a browser's layout events miss a view only moving.
+  const roomH = height - baseHeadUp - lineRoom - belowTop;
+  const stackTop = stackH === null ? 0 : belowTop + (overflows ? 0 : Math.max(0, (roomH - stackH) / 2));
+  const sky = stackH === null ? null : height - baseHeadUp - (stackTop + stackH);
   const bubbleLift = sky === null ? BUBBLE_LIFT : Math.max(0, Math.round((sky - ONE_LINE - BUBBLE_GAP) / 2));
   const sinkTo = moonSinkForCentre(width, height, homeStrip, moonTop + moonSize / 2);
   const scaleTo = moonSize / (restingMoonDisc(width, height).r * 2);
@@ -290,6 +327,13 @@ export function PayoffScreen({
     setTimeout(() => setShown(true), reduced ? 0 : payoffTuning.pageAtMs);
     setTimeout(() => setSnaps(1), SNAP_MS);
   }, [reduced, drag]);
+  // Risen already and moved (the payoff studio's moon nudge): straight there.
+  useEffect(() => {
+    if (yelled.current && !leaving.current) {
+      moonSink.set(sinkTo);
+      moonScale.set(scaleTo);
+    }
+  }, [sinkTo, scaleTo]);
   // A moon this morning brought (user, 2026-11-01): shown here, worn with a tap or left for later.
   // Kept from the first render: once shown they're marked, and the route's next read would drop them.
   const [newMoons] = useState(facts.newMoons);
@@ -334,14 +378,14 @@ export function PayoffScreen({
   useEffect(() => {
     if (!shown) return;
     const up = setTimeout(() => {
-      // Done already: nothing more to say.
-      if (leaving.current) return;
+      // Done already: nothing more to say; in a Reel, nothing at all.
+      if (leaving.current || reel) return;
       setSaid(payoffLine(line));
       if (sayKey !== null) markLocSaid(`${sayKey}woke:${today}`);
     // Stays till Done (user, 2026-10-28: the band over him sat empty once it went).
     }, reduced ? 0 : payoffTuning.lineAtMs);
     return () => clearTimeout(up);
-  }, [shown, reduced, line, sayKey, today]);
+  }, [shown, reduced, line, sayKey, today, reel]);
   // Home's moon is the same one: it rises from where Home rests it, and goes back there (`HOME_SINK`)
   // on the way back. Never a value read here: on iOS a read right after a `.set()` can be stale.
   useEffect(() => {
@@ -534,12 +578,18 @@ export function PayoffScreen({
       {/* Under the moon: the time (user, 2026-11-02, in the headline's place), then this week. */}
       {/* Centred in the sky between the moon and Loc's line (user, 2026-10-28: too high, too close to the moon). */}
       <View
-        style={[styles.below, { top: belowTop, bottom: headUp + BUBBLE_LIFT + BUBBLE_ROOM }]}
+        style={[
+          styles.below,
+          { top: belowTop, bottom: baseHeadUp + lineRoom },
+          // Taller than the room left (the moon at its smallest): hung from the moon, never pushed up into it.
+          overflows && styles.belowTop,
+        ]}
         pointerEvents="box-none"
       >
+        <View style={styles.stack} pointerEvents="box-none" onLayout={(e) => setStackH(Math.round(e.nativeEvent.layout.height))}>
         <Animated.View style={pageStyle}>
         {/* The time, where the headline was: the moon stays bare at the top, its drag under it (user, 2026-11-02). */}
-        <In shown={shown} step={0} style={styles.time} accessible accessibilityRole="header" accessibilityLabel={`Up at ${up.value} ${up.unit}, ${payoffKicker(mornings)}`}>
+        <In shown={shown} step={0} testID="payoff-time" style={[styles.time, moved(nudge.timeY)]} accessible accessibilityRole="header" accessibilityLabel={`Up at ${up.value} ${up.unit}, ${payoffKicker(mornings)}`}>
           <View style={styles.timeRow}>
             <Text style={[styles.timeValue, short && styles.timeValueShort]} maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
               {up.value}
@@ -552,7 +602,7 @@ export function PayoffScreen({
         </In>
         {/* The new moon's Apply pill, where its card used to be (user, 2026-11-02). A surprise taps open here first. */}
         {newMoon ? (
-          <In shown={shown} step={1} style={[styles.apply, short && styles.applyShort]}>
+          <In shown={shown} step={1} testID="payoff-apply" style={[styles.apply, short && styles.applyShort, moved(nudge.applyY)]}>
             <ApplyPill moon={newMoon} applied={applied || worn.id === newMoon.id} onPress={wear} />
           </In>
         ) : null}
@@ -560,8 +610,8 @@ export function PayoffScreen({
         <In
           shown={shown}
           step={2}
-          style={[styles.week, short && styles.weekShort]}
-          onLayout={(e) => setWeekEnd(Math.round(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}
+          testID="payoff-week"
+          style={[styles.week, short && styles.weekShort, moved(nudge.weekY)]}
         >
           {/* An SE has no room for both the new moon and the label. */}
           {short && newMoon ? null : <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>}
@@ -570,6 +620,7 @@ export function PayoffScreen({
             <WeekStrip days={days} reduced={reduced} />
           </Animated.View>
         </In>
+        </View>
       </View>
       </View>
 
@@ -589,7 +640,7 @@ export function PayoffScreen({
         </View>
         <View style={styles.strip}>
           <Animated.View style={[{ height: strip, paddingBottom: foot }, pageStyle]}>
-            <Animated.View style={[styles.actions, actionsStyle]}>
+            <Animated.View testID="payoff-done" style={[styles.actions, moved(nudge.doneY), actionsStyle]}>
               {/* Done and Share only; a new moon is applied under the week (user, 2026-11-02: no Your moons here). */}
               <PrimaryButton label="Done" onPress={() => close()} />
               <View style={styles.links}>
@@ -599,6 +650,10 @@ export function PayoffScreen({
           </Animated.View>
         </View>
       </Animated.View>
+
+      {/* Where the risen moon and the panel's edge are, unseen: the payoff studio finds them by these. */}
+      <View testID="payoff-moon" style={[styles.marker, { top: moonTop, height: moonSize, left: (width - moonSize) / 2, width: moonSize }]} pointerEvents="none" />
+      <View testID="payoff-edge" style={[styles.marker, { top: height - strip, height: 0, left: 0, right: 0 }]} pointerEvents="none" />
 
       {/* On the panel's edge, as on Home; one point past it so no hairline of sky shows under him. */}
       <Animated.View
@@ -628,7 +683,7 @@ export function PayoffScreen({
         {clip ? <LocClip name={which} width={width} nonce={clipNonce} leaving={goingBack} onYell={onYell} onTap={onTap} /> : null}
       </Animated.View>
       {said ? (
-        <Animated.View style={[styles.speech, { bottom: headUp + bubbleLift }, speechStyle]} pointerEvents="box-none">
+        <Animated.View testID="payoff-bubble" style={[styles.speech, { bottom: headUp + bubbleLift - nudge.bubbleY }, speechStyle]} pointerEvents="box-none">
           <LocBubble line={said} room={ONE_LINE} wide={width - 32} onDismiss={() => setSaid(null)} />
         </Animated.View>
       ) : null}
@@ -687,8 +742,13 @@ function In({
   );
 }
 
+/** A piece nudged up or down (payoff-layout.ts). */
+const moved = (y: number): ViewStyle | null => (y ? { transform: [{ translateY: y }] } : null);
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  marker: { position: 'absolute' },
+  stack: { alignSelf: 'stretch', alignItems: 'center' },
   // "Morning 12", under the time (user, 2026-10-27). Near-white: the label grey is lost on the moon's drag.
   kicker: { ...Type.label, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.86)', textAlign: 'center', marginTop: Space.xs },
   loc: { position: 'absolute', left: 0, right: 0 },
@@ -703,9 +763,11 @@ const styles = StyleSheet.create({
   time: { alignItems: 'center' },
   timeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   timeValue: { ...NUMBER_FONT, fontSize: 64, lineHeight: 70, letterSpacing: -1.6, color: Nocturne.text, fontVariant: ['tabular-nums'] },
-  timeValueShort: { fontSize: 48, lineHeight: 54 },
+  // Smaller on a short screen, so it keeps clear of the moon over it (user, 2026-11-12: it touched the moon on an SE).
+  timeValueShort: { fontSize: 42, lineHeight: 46, letterSpacing: -1 },
   timeUnit: { ...DisplayFont, fontSize: 24, color: 'rgba(255,255,255,0.86)' },
   speech: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
+  belowTop: { justifyContent: 'flex-start' },
   below: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center', justifyContent: 'center' },
   // Full width between the gutters, as Home's, so the dots land on Home's exactly.
   // Closer to the time over it (user, 2026-11-12: "move this up a little"; was xxxl).

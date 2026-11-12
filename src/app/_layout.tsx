@@ -2,6 +2,8 @@ import '@/global.css';
 
 import { denyAppRemoval, readDeviceClock } from 'blocked-apps';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+
+import { PreviewInsets } from '@/lib/preview-insets';
 import { StatusBar } from 'expo-status-bar';
 import { Pedometer } from 'expo-sensors';
 import { Platform, StyleSheet } from 'react-native';
@@ -48,6 +50,8 @@ export default function RootLayout() {
   useScreenViews();
   return (
     <GestureHandlerRootView style={styles.root}>
+      {/* The device studio's frames: an iPhone's safe areas in the browser (lib/preview-insets.web.tsx). */}
+      <PreviewInsets>
       <ThemeProvider value={DarkTheme}>
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }}>
@@ -202,6 +206,7 @@ export default function RootLayout() {
           />
         </Stack>
       </ThemeProvider>
+      </PreviewInsets>
     </GestureHandlerRootView>
   );
 }

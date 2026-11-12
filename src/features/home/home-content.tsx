@@ -1,5 +1,5 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { Text } from '@/components/text';
@@ -89,6 +89,8 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
  * same entrance in Reanimated (entrance.ts).
  */
 export function HomeContent(props: HomeContentProps) {
+  // An SE: the big number a size down, in proportion with its smaller screen (user, 2026-11-12).
+  const short = useWindowDimensions().height < SHORT_HOME;
   const { mornings, today, won, free, revision } = props;
   const { group, piece: enter } = useEntrance();
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
@@ -120,7 +122,7 @@ export function HomeContent(props: HomeContentProps) {
         {meter ? (
           <Animated.View style={[styles.meter, enter(3)]} accessible accessibilityRole="header" accessibilityLabel={hero.title}>
             {meter.kicker ? <Text style={styles.kicker}>{meter.kicker}</Text> : null}
-            <Text style={[APP_FONT, styles.count]} maxFontSizeMultiplier={1.2}>
+            <Text style={[APP_FONT, styles.count, short && styles.countShort]} maxFontSizeMultiplier={1.2}>
               {meter.value}
               {meter.unit ? <Text style={styles.unit}>{` ${meter.unit}`}</Text> : null}
             </Text>
@@ -192,6 +194,9 @@ export function HomeContent(props: HomeContentProps) {
   );
 }
 
+/** Under this tall, Home's big number is a size down: an iPhone SE (667). */
+const SHORT_HOME = 700;
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Space.m },
@@ -199,6 +204,7 @@ const styles = StyleSheet.create({
   meter: { alignItems: 'center', gap: Space.xs },
   kicker: { ...Type.label, textAlign: 'center' },
   unit: { fontSize: 28, letterSpacing: 0, color: Nocturne.text2 },
+  countShort: { fontSize: 50, lineHeight: 56 },
   count: { fontSize: 64, lineHeight: 70, fontWeight: '300', letterSpacing: -1, color: Nocturne.text, fontVariant: ['tabular-nums'] },
   track: { width: TRACK, height: 6, marginTop: Space.s, borderRadius: 3, backgroundColor: Nocturne.progressTrack, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: Nocturne.text },

@@ -31,6 +31,7 @@ function route({ params = {} as Record<string, string>, proof = { morningKey: '2
     '@/components/leave-route': { LeaveRoute: 'LeaveRoute' },
     '@/features/wake/payoff-screen': { PayoffScreen: 'PayoffScreen' },
     '@/features/wake/payoff-lab': { PayoffLab: 'PayoffLab' },
+    '@/features/wake/payoff-studio': { PayoffStudioBridge: 'PayoffStudioBridge' },
     'react-native': { Platform: { OS: 'ios' } },
     '@/lib/lock-controller': { currentProof: () => proof, routineAt: () => ({ morningStart: 420, bedtime: 1380 }) },
     '@/lib/lock-state': { dateKey: (d: Date) => d.toISOString().slice(0, 10) },
