@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tail lab</title>
+<style>
+  :root { --bg: #07080c; --panel: #1b2a55; --ink: #e8ecf6; --dim: #8e97ad; --line: #2a3350; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  header { text-align: center; padding: 20px 16px 8px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--dim); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: center; padding: 12px 16px; max-width: 960px; margin: 0 auto; }
+  .controls label { display: flex; align-items: center; gap: 8px; color: var(--dim); }
+  .controls output { color: var(--ink); width: 36px; font-variant-numeric: tabular-nums; }
+  button { background: #fff; color: #000; border: 0; border-radius: 999px; padding: 8px 16px; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; padding: 12px 16px 40px; max-width: 1200px; margin: 0 auto; }
+  figure { margin: 0; text-align: center; }
+  .stage { background: linear-gradient(#0a0d18, var(--panel)); border-radius: 0 0 28px 28px; border-bottom: 10px solid #000; overflow: hidden; }
+  canvas { display: block; width: 100%; height: auto; }
+  figcaption { color: var(--dim); margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tail lab</h1>
+  <p>The tail from the running video, drawn behind Loc in each clip. Testing only, not in the app.</p>
+</header>
+<div class="controls">
+  <button id="toggle">Tail: on</button>
+  <button id="replay" class="ghost">Replay</button>
+  <label>Size <input id="size" type="range" min="0.5" max="1.6" step="0.01" value="1" /><output id="sizeV">1.00</output></label>
+  <label>Right/left <input id="dx" type="range" min="-60" max="60" step="1" value="0" /><output id="dxV">0</output></label>
+  <label>Up/down <input id="dy" type="range" min="-80" max="80" step="1" value="0" /><output id="dyV">0</output></label>
+  <label>Sway speed <input id="sway" type="range" min="4" max="24" step="1" value="12" /><output id="swayV">12</output></label>
+  <label><input id="flip" type="checkbox" /> Other side</label>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+const CAPTIONS = { 'loc-jump': 'Jump (payoff)', 'loc-jump-again': 'Jump again (tap)', 'loc-idle': 'Idle (loops)', 'loc-down': 'Down (exit)' };
+const $ = (id) => document.getElementById(id);
+const state = { on: true, size: 1, dx: 0, dy: 0, sway: 12, flip: false, t0: performance.now() };
+const img = (src) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+
+(async () => {
+  const data = await (await fetch('out/data.json')).json();
+  const tail = await img('out/tail.png');
+  const T = data.tail;
+  const panels = [];
+  for (const [name, c] of Object.entries(data.clips)) {
+    const sheet = await img(`out/${name}.png`);
+    const fig = document.createElement('figure');
+    const stage = document.createElement('div');
+    stage.className = 'stage';
+    const cv = document.createElement('canvas');
+    // Room round the clip so a tail that reaches past its box still shows.
+    const padX = Math.round(c.w * 0.25), padTop = Math.round(c.h * 0.15);
+    cv.width = c.w + padX * 2; cv.height = c.h + padTop;
+    stage.appendChild(cv);
+    fig.appendChild(stage);
+    const cap = document.createElement('figcaption');
+    cap.textContent = CAPTIONS[name] || name;
+    fig.appendChild(cap);
+    $('grid').appendChild(fig);
+    panels.push({ name, c, sheet, cv, ctx: cv.getContext('2d'), padX, padTop, loops: name === 'loc-idle' });
+  }
+
+  function draw(now) {
+    const t = now - state.t0;
+    // Ping-pong through the sway frames so it never jumps.
+    const n = T.frames, cyc = (n - 1) * 2;
+    const k = Math.floor((t / 1000) * state.sway) % cyc;
+    const tf = k < n ? k : cyc - k;
+    for (const p of panels) {
+      const { c, ctx, cv, padX, padTop } = p;
+      const per = c.ms / c.frames;
+      let f = Math.floor(t / per);
+      // One-shot clips play once, hold the last frame for a beat, then start over.
+      const hold = 1200 / per;
+      f = p.loops ? f % c.frames : f % (c.frames + hold);
+      if (f >= c.frames) f = c.frames - 1;
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const pt = c.track[f];
+      if (state.on && pt) {
+        const s = c.scale * state.size;
+        const w = T.w * s, h = T.h * s;
+        let rx = pt[0];
+        if (state.flip) rx = c.w - rx; // mirror: the left side of his body
+        const ax = padX + rx + state.dx * (state.flip ? -1 : 1);
+        const ay = padTop + pt[1] + state.dy;
+        ctx.save();
+        // Clip to above the panel's edge: behind the ledge he's hidden, and so is his tail.
+        ctx.beginPath(); ctx.rect(0, 0, cv.width, padTop + c.h); ctx.clip();
+        ctx.translate(ax, ay);
+        if (state.flip) ctx.scale(-1, 1);
+        ctx.drawImage(tail, tf * T.w, 0, T.w, T.h, -T.rootX * s, -T.rootY * s, w, h);
+        ctx.restore();
+      }
+      ctx.drawImage(p.sheet, (f % c.cols) * c.w, Math.floor(f / c.cols) * c.h, c.w, c.h, padX, padTop, c.w, c.h);
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+
+for (const id of ['size', 'dx', 'dy', 'sway']) {
+  $(id).addEventListener('input', (e) => { state[id] = +e.target.value; $(id + 'V').textContent = id === 'size' ? (+e.target.value).toFixed(2) : e.target.value; });
+}
+$('flip').addEventListener('change', (e) => { state.flip = e.target.checked; });
+$('toggle').addEventListener('click', () => { state.on = !state.on; $('toggle').textContent = `Tail: ${state.on ? 'on' : 'off'}`; });
+$('replay').addEventListener('click', () => { state.t0 = performance.now(); });
+</script>
+</body>
+</html>

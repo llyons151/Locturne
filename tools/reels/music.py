@@ -35,7 +35,7 @@ i = 0
 while i * bar < total:
     st = int(i * bar * SR)
     for j, m in enumerate(CHORDS[i % 4]):
-        s = st + int(j * 0.012 * SR)  # slight strum
+        s = st + int(j * 0.003 * SR)  # slight strum
         x = note(midi(m), bar * 1.2, 0.12)
         e = min(n, s + len(x))
         keys[s:e] += x[: e - s]
@@ -89,7 +89,7 @@ while b < soft:
 # vinyl crackle all the way through
 crackle = np.zeros(n)
 pops = rng.random(n) < 0.0009
-crackle[pops] = rng.standard_normal(pops.sum()) * 0.25
+crackle[pops] = rng.standard_normal(pops.sum()) * 0.05
 crackle = crackle - lowpass(crackle, 1500)
 hiss = lowpass(rng.standard_normal(n) * 0.012, 5000)
 
