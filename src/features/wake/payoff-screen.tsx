@@ -141,8 +141,6 @@ const BACK_FADE_MS = 900;
 const YELL_FALLBACK_MS = 7000;
 /** His line's fade on Done. */
 const SPEECH_OUT_MS = 160;
-/** Where the dev tools are (dev and preview builds). */
-const LABS = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
 /** The drawn Loc's duck under the edge (loc-rig.ts, POP_DOWN) before the clip's Loc comes up. */
 const DUCK_MS = 300;
 
@@ -333,8 +331,6 @@ export function PayoffScreen({
     speech.set(withTiming(0, { duration: SPEECH_OUT_MS, easing: Easing.out(Easing.quad) }));
     setTimeout(() => setSaid(null), SPEECH_OUT_MS + 20);
   };
-  // Preview builds: how his clip is playing, read out small at the top (loc-clip-player.tsx).
-  const [clipStats, setClipStats] = useState<string | null>(null);
   useEffect(() => {
     if (!shown) return;
     const up = setTimeout(() => {
@@ -629,17 +625,12 @@ export function PayoffScreen({
             dom={dom}
           />
         </View>
-        {clip ? <LocClip name={which} width={width} nonce={clipNonce} leaving={goingBack} onYell={onYell} onTap={onTap} onStats={LABS ? setClipStats : undefined} /> : null}
+        {clip ? <LocClip name={which} width={width} nonce={clipNonce} leaving={goingBack} onYell={onYell} onTap={onTap} /> : null}
       </Animated.View>
       {said ? (
         <Animated.View style={[styles.speech, { bottom: headUp + bubbleLift }, speechStyle]} pointerEvents="box-none">
           <LocBubble line={said} room={ONE_LINE} wide={width - 32} onDismiss={() => setSaid(null)} />
         </Animated.View>
-      ) : null}
-      {clipStats ? (
-        <Text style={[styles.clipStats, { top: insets.top }]} pointerEvents="none">
-          {clipStats}
-        </Text>
       ) : null}
       {cards > 0 ? (
         <ShareCard facts={card} loc={locShot} nonce={cards} onCard={onCard} />
@@ -715,7 +706,6 @@ const styles = StyleSheet.create({
   timeValueShort: { fontSize: 48, lineHeight: 54 },
   timeUnit: { ...DisplayFont, fontSize: 24, color: 'rgba(255,255,255,0.86)' },
   speech: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
-  clipStats: { position: 'absolute', left: 8, right: 8, textAlign: 'center', fontSize: 10, lineHeight: 13, color: 'rgba(255, 255, 255, 0.7)' },
   below: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center', justifyContent: 'center' },
   // Full width between the gutters, as Home's, so the dots land on Home's exactly.
   // Closer to the time over it (user, 2026-11-12: "move this up a little"; was xxxl).

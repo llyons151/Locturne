@@ -92,7 +92,7 @@ export function LocClip({
   leaving?: boolean;
   onYell: () => void;
   onTap: () => void;
-  /** Preview builds: how the clip is playing, a line a second (loc-clip-player.tsx). */
+  /** How the clip is playing, a line a second (loc-clip-player.tsx): for checking it on a phone; nothing shows it now. */
   onStats?: (line: string) => void;
 }) {
   const clip = CLIPS[name];
