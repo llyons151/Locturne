@@ -342,6 +342,10 @@ struct TodayPill: View {
     .accessibilityElement(children: .combine)
     .accessibilityLabel("\(duration(configuration.total)) of screen time today")
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+    // The extension is handed the window's safe area too: in the Reel frame, Home's top row sits
+    // inside the island's inset and the pill was pushed down out of its 36-point frame, its top edge
+    // showing (user 2026-11-12). Fill the frame the app gives it, always.
+    .ignoresSafeArea()
     .preferredColorScheme(.dark)
   }
 }
