@@ -135,7 +135,9 @@ export function HomeContent(props: HomeContentProps) {
   if (!showUsage && usageIn) setUsageIn(false);
 
   return (
-    <Host style={{ flex: 1 }} colorScheme="dark">
+    // The screen already pads for the island (home-screen.tsx); left to itself SwiftUI added it again
+    // wherever the window's inset was wrong, as in the Reel frame (user 2026-11-12).
+    <Host style={{ flex: 1 }} colorScheme="dark" ignoreSafeArea="container">
       <VStack
         spacing={0}
         modifiers={[

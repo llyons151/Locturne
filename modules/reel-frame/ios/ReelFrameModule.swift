@@ -29,7 +29,16 @@ public class ReelFrameModule: Module {
       for window in scene.windows where window.windowLevel == .normal && !window.isHidden {
         window.frame = frame
         window.clipsToBounds = on
-        window.rootViewController?.view.setNeedsLayout()
+        guard let root = window.rootViewController else { continue }
+        // The box sits below the status bar and Dynamic Island, but iOS still gives a window that
+        // starts lower the screen's top inset, so SwiftUI views (Home's middle) started ~60 points
+        // down inside the box (user 2026-11-12). Cancel it on the root, which every screen sits in.
+        root.additionalSafeAreaInsets = .zero
+        window.layoutIfNeeded()
+        if on && frame.minY > 0 {
+          root.additionalSafeAreaInsets = UIEdgeInsets(top: -window.safeAreaInsets.top, left: 0, bottom: 0, right: 0)
+        }
+        root.view.setNeedsLayout()
       }
     }
   }
