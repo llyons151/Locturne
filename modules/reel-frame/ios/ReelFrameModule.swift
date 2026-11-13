@@ -81,8 +81,13 @@ public class ReelFrameModule: Module {
         // down inside the box (user 2026-11-12). Cancel it on the root, which every screen sits in.
         root.additionalSafeAreaInsets = .zero
         window.layoutIfNeeded()
-        if on && frame.minY > 0 {
-          root.additionalSafeAreaInsets = UIEdgeInsets(top: -window.safeAreaInsets.top, left: 0, bottom: 0, right: 0)
+        // Read the root view's inset, not the window's: in the box the window reports a top inset of
+        // 0 while the root view is still handed the island's 59, so cancelling the window's value
+        // cancelled nothing (Measure the box, user 2026-11-13). Every native view, the screen-time
+        // report included, inherits whatever is left here.
+        let top = root.view.safeAreaInsets.top
+        if on && frame.minY > 0 && top > 0 {
+          root.additionalSafeAreaInsets = UIEdgeInsets(top: -top, left: 0, bottom: 0, right: 0)
         }
         root.view.setNeedsLayout()
       }
