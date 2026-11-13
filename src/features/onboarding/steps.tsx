@@ -106,8 +106,6 @@ export type StepContext = {
   /** A purchase or restore is in flight. */
   busy: boolean;
   restorePurchases: () => void;
-  /** Restore sits in the top bar's corner (a first run's welcome, where there's no Exit), so the footer leaves it out. */
-  restoreUp: boolean;
   /** Already subscribed (restored): setup skips the paywall and arms. */
   entitled: boolean;
   /** Saves the setup and arms tonight, for someone already entitled. */
@@ -248,11 +246,10 @@ export function renderStep(ctx: StepContext): StepView {
             <Reveal delay={OPENER_LINE_MS * 3}>
               <PrimaryButton label="Get started" onPress={next} />
             </Reveal>
-            {ctx.restoreUp ? null : (
-              <Reveal delay={OPENER_LINE_MS * 4}>
-                <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
-              </Reveal>
-            )}
+            {/* Always here, under the button, never in the top bar's corner (user 2026-11-12). */}
+            <Reveal delay={OPENER_LINE_MS * 4}>
+              <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
+            </Reveal>
           </View>
         ),
         secondary: (

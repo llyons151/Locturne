@@ -1002,7 +1002,6 @@ export function OnboardingFlow({
     buy,
     busy,
     restorePurchases,
-    restoreUp: !canLeave,
     entitled,
     finishSetup: () => finishSetup(),
     setUpMethod,
@@ -1117,9 +1116,9 @@ export function OnboardingFlow({
           // And on the paywall, whose heading sits up in the top bar's empty middle (user 2026-10-27).
           clip={step !== 'plans' && !buildPage?.leaving && !pages.some((page) => page.leaving && isReveal(page.key))}
           onBack={back}
-          // A first run's welcome has no Exit, so Restore takes its corner (user 2026-11-07, Jomo mockup).
-          onExit={canLeave ? leave : opening ? restorePurchases : undefined}
-          exitLabel={canLeave || !opening ? 'Exit' : 'Restore'}
+          // Restore is never up here: it's always under Get started, the corner empty on a first run (user 2026-11-12).
+          onExit={canLeave ? leave : undefined}
+          exitLabel="Exit"
           footer={
             footers.length > 0 ? (
               <View>
