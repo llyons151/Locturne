@@ -14,9 +14,20 @@ export function getReelFrame(): boolean {
   return labsOn && sharedGet<boolean>(KEY) === true;
 }
 
+const listeners = new Set<() => void>();
+
+/** For useSyncExternalStore: hears the switch flip (lib/preview-insets.tsx). */
+export function subscribeReelFrame(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function setReelFrameOn(on: boolean) {
   sharedSet(KEY, on);
   setReelFrame(labsOn && on);
+  listeners.forEach((l) => l());
 }
 
 /** At launch: puts the window back in the box if it was left on. */
