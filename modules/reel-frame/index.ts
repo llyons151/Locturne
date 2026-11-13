@@ -1,1 +1,1 @@
-export { setReelFrame } from './src/reel-frame';
+export { measureReelFrame, setReelFrame } from './src/reel-frame';

@@ -13,6 +13,7 @@ import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
 import { getReelFrame, setReelFrameOn } from '@/lib/reel-frame';
+import { measureReelFrame } from 'reel-frame';
 import { methodInUse } from '@/lib/scan-code';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
@@ -83,6 +84,8 @@ export function DeveloperSettings() {
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
   const [reelFrame, setReel] = useState(getReelFrame);
+  // The Reel frame's measured safe areas (modules/reel-frame), shown under the switch.
+  const [measured, setMeasured] = useState<string | null>(null);
   // Only so the row's "On next open" shows straight away.
   const [, setArmed] = useState(false);
   const refresh = useCallback(() => setTestRun(getTestLock()), []);
@@ -134,7 +137,10 @@ export function DeveloperSettings() {
       {/* Recording Reels: the whole app in a 9:16 box, so a screen recording fills a Reel uncropped (lib/reel-frame.ts). */}
       <Group
         label="Recording"
-        note="Squeezes the app into a 9:16 box at the bottom of the screen, for screen recordings that fill a Reel with nothing cut off. Crop the recording to the box. Stays on after closing the app until you switch it off."
+        note={
+          'Squeezes the app into a 9:16 box at the bottom of the screen, for screen recordings that fill a Reel with nothing cut off. Crop the recording to the box. Stays on after closing the app until you switch it off.' +
+          (measured ? `\n\n${measured}` : '')
+        }
       >
         <SwitchRow
           {...icon('record.circle', 'fiber_manual_record')}
@@ -143,7 +149,15 @@ export function DeveloperSettings() {
           onChange={(on) => {
             setReelFrameOn(on);
             setReel(on);
+            setMeasured(null);
           }}
+        />
+        {/* The safe areas each layer is handed in the box: open Home first, so its screen-time pill is measured too. */}
+        <ValueRow
+          {...icon('ruler', 'straighten')}
+          title="Measure the box"
+          value=""
+          onPress={() => void measureReelFrame().then((m) => setMeasured(m ?? 'Nothing to measure on this device.'))}
           last
         />
       </Group>

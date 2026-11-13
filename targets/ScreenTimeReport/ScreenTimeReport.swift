@@ -341,10 +341,13 @@ struct TodayPill: View {
     .background(Capsule().fill(.white.opacity(0.08)))
     .accessibilityElement(children: .combine)
     .accessibilityLabel("\(duration(configuration.total)) of screen time today")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-    // The extension is handed the window's safe area too: in the Reel frame, Home's top row sits
-    // inside the island's inset and the pill was pushed down out of its 36-point frame, its top edge
-    // showing (user 2026-11-12). Fill the frame the app gives it, always.
+    // Pinned to the bottom, not centred. The extension is handed the window's safe area too: in the
+    // Reel frame, Home's top row sits inside the island's inset. Respected, it pushed the pill down out
+    // of its 36-point frame; ignored, the space it lays out in reaches above the frame, so centred it
+    // rode ~7 points high with its top cut off (user 2026-11-12). The bottom edge is the frame's own,
+    // and the pill is the frame's height, so pinned there it fills the frame exactly; with no inset
+    // (everywhere else) bottom and centre are the same spot.
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     .ignoresSafeArea()
     .preferredColorScheme(.dark)
   }

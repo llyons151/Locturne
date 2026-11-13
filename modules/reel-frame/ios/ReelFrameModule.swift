@@ -14,6 +14,52 @@ public class ReelFrameModule: Module {
     Function("set") { (on: Bool) in
       DispatchQueue.main.async { ReelFrameModule.apply(on) }
     }
+
+    // Dev readout (You → Developer): the safe areas each layer is actually handed, so a layout fix in
+    // the box is made from numbers rather than screenshots (user 2026-11-12, the screen-time pill).
+    AsyncFunction("measure") { () -> String in
+      ReelFrameModule.measure()
+    }.runOnQueue(.main)
+  }
+
+  static func measure() -> String {
+    func n(_ v: CGFloat) -> String { String(format: "%.1f", v) }
+    func describe(_ view: UIView, in window: UIWindow) -> String {
+      let f = view.convert(view.bounds, to: window)
+      let s = view.safeAreaInsets
+      return "y \(n(f.minY)) h \(n(f.height)) · safe t \(n(s.top)) b \(n(s.bottom))"
+    }
+    func find(_ view: UIView, _ match: (UIView) -> Bool) -> UIView? {
+      if match(view) { return view }
+      for sub in view.subviews { if let hit = find(sub, match) { return hit } }
+      return nil
+    }
+    var lines: [String] = []
+    for scene in UIApplication.shared.connectedScenes {
+      guard let scene = scene as? UIWindowScene else { continue }
+      lines.append("screen h \(n(scene.screen.bounds.height))")
+      for window in scene.windows where window.windowLevel == .normal && !window.isHidden {
+        let s = window.safeAreaInsets
+        lines.append("window y \(n(window.frame.minY)) h \(n(window.frame.height)) · safe t \(n(s.top)) b \(n(s.bottom))")
+        if let root = window.rootViewController {
+          lines.append("root extra t \(n(root.additionalSafeAreaInsets.top)) · \(describe(root.view, in: window))")
+        }
+        let isReport: (UIView) -> Bool = { String(describing: type(of: $0)).contains("ScreenTimeReportView") }
+        if let report = find(window, isReport) {
+          lines.append("report \(describe(report, in: window))")
+          if let host = report.subviews.first {
+            lines.append("report host \(describe(host, in: window))")
+            let isRemote: (UIView) -> Bool = { String(describing: type(of: $0)).contains("Remote") }
+            if let remote = find(host, isRemote) {
+              lines.append("remote \(String(describing: type(of: remote))) \(describe(remote, in: window))")
+            }
+          }
+        } else {
+          lines.append("report: not on screen (open Home first)")
+        }
+      }
+    }
+    return lines.joined(separator: "\n")
   }
 
   static func apply(_ on: Bool) {
