@@ -60,6 +60,10 @@ class ScreenTimeReportView: ExpoView {
     super.init(appContext: appContext)
     backgroundColor = .clear
     host.view.backgroundColor = .clear
+    // The report fills exactly the box React Native gives it, never pushed in by a safe area. Near the
+    // top of the screen (Home in the Reel frame, user 2026-11-12) the island's inset shoved the pill's
+    // content down out of its 36-point frame and it vanished.
+    if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
     addSubview(host.view)
   }
 
