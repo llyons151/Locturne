@@ -101,6 +101,27 @@ test('after a lapse, only the morning still covered gets a note; later nights ge
   assert.deepEqual(summary(plan({ now: at(4, 2), lastPaidMorning: '2026-10-04' })), ['morning 4 7:0']);
 });
 
+test('a plan the extensions stop honouring: the night under way finishes, later nights get nothing', () => {
+  // Cancelled (seen by the app), ending 02:00 on the 4th: the 3rd's night started before it.
+  const paidUntil = { at: at(4, 2).getTime(), renewing: false };
+  assert.deepEqual(summary(plan({ paidUntil })), ['bedtime 3 22:45', 'morning 4 7:0']);
+});
+
+test('a renewal the extensions can\'t see gets one honest note half a day before they stop', () => {
+  const paidUntil = { at: at(4, 20).getTime(), renewing: true };
+  const notes = plan({ paidUntil });
+  assert.deepEqual(summary(notes), ['bedtime 3 22:45', 'morning 4 7:0', 'renew 4 8:0']);
+  const renew = notes.find((n) => n.kind === 'renew');
+  assert.equal(renew?.id, 'locturne.renew');
+  assert.match(renew?.body ?? '', /before your next bedtime/);
+  // Months ahead, past the nights planned: the note still goes in, at its own time.
+  const far = plan({ paidUntil: { at: at(3, 12).getTime() + 200 * 24 * 60 * 60 * 1000, renewing: true } });
+  assert.equal(far.filter((n) => n.kind === 'renew').length, 1);
+  // Cancelled: no note (it ends, and the trial reminder said so); nothing armed: no note.
+  assert.equal(plan({ paidUntil: { ...paidUntil, renewing: false } }).some((n) => n.kind === 'renew'), false);
+  assert.equal(plan({ paidUntil, armed: false }).some((n) => n.kind === 'renew'), false);
+});
+
 test('an earlier bedtime on an evening that was off starts at the edit, not early (iOS doesn\'t hold it)', () => {
   const offSaturday = { ...DEFAULT_ROUTINE, activeNights: [0, 1, 2, 3, 4, 5] };
   const pending = { routine: { ...DEFAULT_ROUTINE, bedtime: 21 * H + 30 }, from: at(3, 23).getTime() };

@@ -21,10 +21,21 @@ import { Platform } from 'react-native';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
 import { createClosedPurchases, createDevPurchases, setPurchasesProvider } from './purchases';
-import { createRevenueCatPurchases, revenueCatKey } from './revenuecat';
+import { createRevenueCatPurchases, ENTITLEMENT_KEY, revenueCatKey } from './revenuecat';
 import { sharedGet, sharedSet } from './screen-time';
 
 const appGroup = { get: sharedGet, set: sharedSet };
+
+/**
+ * The stub's subscription isn't RevenueCat's: drop an answer a real-store build left in the App
+ * Group (a TestFlight build installed before this one). The extensions read its end date
+ * (`locturnePaidUntil` in each extension's Locturne.swift), and a long-expired sandbox one would skip
+ * every night the stub calls paid.
+ */
+function startStub(provider: Parameters<typeof setPurchasesProvider>[0]): void {
+  sharedSet(ENTITLEMENT_KEY, null);
+  setPurchasesProvider(provider);
+}
 
 export function startPurchases(): void {
   const extra = Constants.expoConfig?.extra as
@@ -36,7 +47,7 @@ export function startPurchases(): void {
   // builds). A leftover free-testing flag must not bypass the real store in an
   // ordinary release; only development and explicitly enabled previews use it.
   if (process.env.EXPO_PUBLIC_FREE_TESTING === '1' && (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1')) {
-    setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: appGroup, skippable: true }));
+    startStub(createDevPurchases({ latencyMs: 400, store: appGroup, skippable: true }));
     return;
   }
   if (!apiKey && Platform.OS === 'ios' && !expoGo && !__DEV__ && process.env.EXPO_PUBLIC_DEV_LABS !== '1') {
@@ -44,7 +55,7 @@ export function startPurchases(): void {
     return;
   }
   if (!apiKey || Platform.OS !== 'ios' || expoGo) {
-    setPurchasesProvider(createDevPurchases({ latencyMs: 400, store: appGroup }));
+    startStub(createDevPurchases({ latencyMs: 400, store: appGroup }));
     return;
   }
   if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG).catch(() => {});

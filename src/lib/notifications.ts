@@ -24,6 +24,7 @@ import { readNightChecks } from './heartbeat.ts';
 import { trialEndDay } from './trial-notice.ts';
 import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { wallClock } from './lock-state.ts';
+import { ENTITLEMENT_KEY, extensionPaidUntil, type EntitlementRecord } from './revenuecat.ts';
 import { getProofs, proofUnlocks, type MorningProof } from './morning-proof.ts';
 import { asArmed, getPendingRoutine, getRoutine, getRoutineChange, hasRoutine, holdsEarly, runsAs, type ArmedTimes, type Routine, type StoredRoutine } from './routine.ts';
 import { armedSince, getArmedNight, getProtection, listChangeLandsAt, nightPickCount, nightPickCountAfterChange, sharedGet, sharedRemove, sharedSet, type Protection } from './screen-time.ts';
@@ -45,7 +46,7 @@ export const DAYS_AHEAD = 27;
 /** The paywall promises a reminder 2 days before the trial ends. */
 export const TRIAL_REMINDER_DAYS_BEFORE = 2;
 
-export type NotificationKind = 'morning' | 'bedtime' | 'revoked' | 'trial';
+export type NotificationKind = 'morning' | 'bedtime' | 'revoked' | 'trial' | 'renew';
 
 export type PlannedNotification = {
   id: string;
@@ -62,6 +63,12 @@ export const COPY = {
   bedtime: {
     title: `Bedtime in ${BEDTIME_WARNING} minutes.`,
     body: 'Then your apps sleep. Then I sleep.',
+  },
+  // Before the extensions stop on a renewal they can't see (`extensionPaidUntil`). Only someone
+  // who hasn't opened Locturne since the end date gets it: every open re-plans from the store.
+  renew: {
+    title: 'Open me once.',
+    body: 'I can’t see your plan from in here. Open Locturne before your next bedtime so your apps keep sleeping.',
   },
   revoked: {
     title: 'Screen Time access is off.',
@@ -126,6 +133,11 @@ export type PlanFacts = {
   prefs?: NotificationPrefs;
   /** A lapsed subscription's last covered morning (`lastPaidMorning`): later nights don't sleep. */
   lastPaidMorning?: string | null;
+  /**
+   * When the extensions stop locking with Locturne closed (`extensionPaidUntil`): nights from
+   * then don't sleep unless an open finds the plan renewed.
+   */
+  paidUntil?: { at: number; renewing: boolean } | null;
   now: Date;
   days?: number;
 };
@@ -180,6 +192,8 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
 
     const key = dayKey(end);
     if (facts.lastPaidMorning && key > facts.lastPaidMorning) continue;
+    // The night under way at the end date finishes; one starting after it doesn't lock.
+    if (facts.paidUntil && start.getTime() >= facts.paidUntil.at) continue;
     const warnAt = new Date(start.getTime() - BEDTIME_WARNING * MINUTE);
     if (warnAt > now && hasAppsAt(start) && (protection === 'off' || prefs.bedtime)) {
       const kind = protection === 'off' ? 'revoked' : 'bedtime';
@@ -197,6 +211,10 @@ export function planNotifications(facts: PlanFacts): PlannedNotification[] {
 
   const trial = facts.trialEnd && prefs.trial ? planTrialReminder(facts.trialEnd, now) : null;
   if (trial) plan.push(trial);
+  // Half a day before the extensions stop on a renewal they can't see. Like the revoked warning,
+  // no switch: it's the honest status, and only a protected night is at stake.
+  const renewAt = facts.paidUntil?.renewing ? new Date(facts.paidUntil.at - 12 * 60 * MINUTE) : null;
+  if (nightly && renewAt && renewAt > now) plan.push({ id: `${ID_PREFIX}renew`, kind: 'renew', at: renewAt, ...COPY.renew });
   return plan.sort((a, b) => +a.at - +b.at);
 }
 
@@ -393,7 +411,7 @@ export async function cancelTrialReminder(): Promise<void> {
  * the tests (honest-fuzz.test.ts fires what iOS was handed).
  */
 export function triggerFor(n: PlannedNotification): Notifications.SchedulableNotificationTriggerInput {
-  if (n.kind === 'trial') return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at };
+  if (n.kind === 'trial' || n.kind === 'renew') return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at };
   // In the hour an autumn clock change repeats, calendar parts name its first pass, and iOS would
   // fire then: an hour early for one meant for the second. Those stay a real instant.
   const first = new Date(n.at.getFullYear(), n.at.getMonth(), n.at.getDate(), n.at.getHours(), n.at.getMinutes());
@@ -477,6 +495,7 @@ export function rescheduleNotifications(routine?: Routine): Promise<void> {
       trialEnd: getTrialEnd(),
       prefs: getNotificationPrefs(),
       lastPaidMorning: lastPaidMorning(),
+      paidUntil: extensionPaidUntil(sharedGet<EntitlementRecord>(ENTITLEMENT_KEY)),
       now: new Date(),
     });
     for (const n of plan) {

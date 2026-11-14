@@ -218,12 +218,52 @@ func locturneNightIsOn(evening: Date, now: Date = Date()) -> Bool {
 /// morning, and the night leading into it, finish. Every later night must not lock, even if
 /// Locturne stays closed until then. Without the morning recorded, nothing is skipped.
 func locturneSubscriptionLapsed(before evening: Date) -> Bool {
+  locturneNoteSubscriptionRanOut()
   guard userDefaults?.object(forKey: LOCTURNE_SUBSCRIPTION_ENDED_KEY) != nil,
     let ended = userDefaults?.string(forKey: LOCTURNE_ENDED_MORNING_KEY),
     let morning = Calendar.current.date(byAdding: .day, value: 1, to: evening)
   else { return false }
   // Both are YYYY-MM-DD, so they compare as dates.
   return locturneDayKey(morning) > ended
+}
+
+/// The app's last answer about the subscription (`ENTITLEMENT_KEY` in src/lib/revenuecat.ts).
+let LOCTURNE_ENTITLEMENT_KEY = "locturne.entitlement"
+
+/// How long past its cached end date a plan the app last saw renewing still counts here. The
+/// extensions can't ask the store, so a renewal, or a cancel made in Settings, shows only on
+/// Locturne's next open. A week covers a payer who doesn't open it around a renewal, and caps
+/// what a trial cancelled with Locturne closed gets for free.
+let LOCTURNE_RENEWAL_GRACE: TimeInterval = 7 * 24 * 60 * 60
+
+/// When the subscription the app last saw runs out, as the extensions judge it: its end date
+/// (`expiresAt`), plus the renewal grace unless the app saw it cancelled (`willRenew` false).
+/// Nil with no end date, or when the app's last answer was already unpaid (it records that
+/// lapse itself, in `settleSubscription`).
+func locturnePaidUntil() -> Date? {
+  // A plist bool reads as Bool or NSNumber depending on the platform: take either.
+  let flag = { (value: Any?) in (value as? Bool) ?? (value as? NSNumber)?.boolValue }
+  guard let record = userDefaults?.dictionary(forKey: LOCTURNE_ENTITLEMENT_KEY),
+    flag(record["active"]) == true,
+    let expires = (record["expiresAt"] as? NSNumber)?.doubleValue
+  else { return nil }
+  let cancelled = flag(record["willRenew"]) == false
+  return Date(timeIntervalSince1970: expires / 1000 + (cancelled ? 0 : LOCTURNE_RENEWAL_GRACE))
+}
+
+/// The plan ran out with Locturne closed: record the lapse as the app would
+/// (`settleSubscription` in src/lib/lock-controller.ts), so the night under way when it ran
+/// out finishes and no later night locks. Without this, someone who cancelled and only ever
+/// wakes their apps from the shield kept every night locked, for free. The app's next open
+/// asks the store, and a renewal it couldn't see clears this and arms tonight again.
+func locturneNoteSubscriptionRanOut(now: Date = Date()) {
+  guard userDefaults?.object(forKey: LOCTURNE_SUBSCRIPTION_ENDED_KEY) == nil,
+    let until = locturnePaidUntil(), now > until,
+    // The night under way at the end, or else the last one before it: its morning.
+    let morning = Calendar.current.date(byAdding: .day, value: 1, to: locturneWindowNight(until).evening)
+  else { return }
+  userDefaults?.set(until.timeIntervalSince1970 * 1000, forKey: LOCTURNE_SUBSCRIPTION_ENDED_KEY)
+  userDefaults?.set(locturneDayKey(morning), forKey: LOCTURNE_ENDED_MORNING_KEY)
 }
 
 /// Whether a selection holds no apps, categories or sites.

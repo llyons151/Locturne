@@ -888,6 +888,95 @@ func registerTests() {
     expect(!nightHeld(), "and the unproven morning's hold ends")
   }
 
+  test("a trial cancelled with Locturne closed stops locking a week after its end date") {
+    // The app last saw the trial running and renewing; the cancel happened in Settings, and the
+    // person only ever wakes the apps from the shield, so the app never opens to find out.
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.entitlement", ["active": true, "expiresAt": ms(local("2026-10-05 12:00")), "checkedAt": 0])
+    at("2026-10-11 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "inside the renewal grace, a payer who hasn't opened the app keeps the lock")
+    at("2026-10-12 23:00")
+    start("night-0")
+    expectEqual(shielded(), [], "past it, nothing locks for free")
+    expectEqual(get("locturne.subscriptionEndedMorning") as? String, "2026-10-12", "recorded as the app records it")
+    expect(get("locturne.subscriptionEnded") != nil)
+  }
+
+  test("a cancel the app saw ends at the end date: the night under way finishes, the next doesn't lock") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.entitlement", [
+      "active": true, "expiresAt": ms(local("2026-10-06 02:00")), "willRenew": false, "checkedAt": 0,
+    ])
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "paid at bedtime")
+    at("2026-10-06 23:00")
+    start("night-0")
+    expectEqual(shielded(), [], "the plan ran out during last night: tonight is free")
+    expectEqual(get("locturne.subscriptionEndedMorning") as? String, "2026-10-06")
+  }
+
+  test("a plan with no end date, or a renewed one, keeps locking") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.entitlement", ["active": true, "checkedAt": 0])
+    at("2026-10-20 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "no end date")
+    set("locturne.entitlement", ["active": true, "expiresAt": ms(local("2027-10-05 12:00")), "checkedAt": 0])
+    at("2026-10-21 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "an end date ahead")
+    expect(get("locturne.subscriptionEnded") == nil, "nothing recorded")
+  }
+
+  test("a lapse the app already recorded is kept as the app wrote it") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.entitlement", ["active": true, "expiresAt": ms(local("2026-09-01 12:00")), "checkedAt": 0])
+    set("locturne.subscriptionEnded", ms(local("2026-10-05 12:00")))
+    set("locturne.subscriptionEndedMorning", "2026-10-06")
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "the app's own last paid night still finishes")
+    expectEqual(get("locturne.subscriptionEndedMorning") as? String, "2026-10-06", "not moved by the older end date")
+  }
+
+  test("a renewal the app finds later clears the lapse and the next night locks again") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.entitlement", ["active": true, "expiresAt": ms(local("2026-10-05 12:00")), "willRenew": false, "checkedAt": 0])
+    at("2026-10-05 23:00")
+    start("night-0")
+    expectEqual(shielded(), [], "lapsed with Locturne closed")
+    // The next open finds a new plan: `settleSubscription(true)` drops the lapse keys, and the
+    // store's answer brings a new end date.
+    set("locturne.subscriptionEnded", nil)
+    set("locturne.subscriptionEndedMorning", nil)
+    set("locturne.entitlement", ["active": true, "expiresAt": ms(local("2027-10-06 09:00")), "checkedAt": 0])
+    at("2026-10-06 23:00")
+    start("night-0")
+    expectEqual(shielded(), ["tiktok"], "locks again")
+  }
+
+  test("an app answer of no subscription leaves the recording to the app") {
+    pick("night", ["tiktok"])
+    saveRoutine(routine())
+    armNight()
+    set("locturne.entitlement", ["active": false, "checkedAt": 0])
+    at("2026-10-05 23:00")
+    start("night-0")
+    expect(get("locturne.subscriptionEnded") == nil, "the extension writes nothing for an unpaid answer")
+  }
+
   test("an ended subscription recorded without its morning skips nothing") {
     pick("night", ["tiktok"])
     saveRoutine(routine())

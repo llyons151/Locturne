@@ -16,6 +16,8 @@ import {
   DEVICE_SEEN_AT_KEY,
   ENTITLEMENT_KEY,
   entitlementRecord,
+  EXTENSION_RENEWAL_GRACE_MS,
+  extensionPaidUntil,
   EXIT_ARM_KEY,
   introTrialDays,
   OFFLINE_GRACE_MS,
@@ -345,6 +347,21 @@ test('cachedEntitlement', () => {
   assert.equal(cachedEntitlement({ active: true, expiresAt: now.getTime() - OFFLINE_GRACE_MS, checkedAt: 0 }, now), false);
   // Cancelled: it won't renew, so there's no offline renewal to wait for.
   assert.equal(cachedEntitlement({ active: true, willRenew: false, expiresAt: now.getTime() - 1, checkedAt: 0 }, now), false);
+});
+
+test('extensionPaidUntil: the end date the extensions go by (locturnePaidUntil in Locturne.swift)', () => {
+  assert.equal(EXTENSION_RENEWAL_GRACE_MS, 7 * DAY, 'same as LOCTURNE_RENEWAL_GRACE');
+  assert.equal(extensionPaidUntil(undefined), null);
+  assert.equal(extensionPaidUntil({ active: false, expiresAt: 10, checkedAt: 0 }), null);
+  assert.equal(extensionPaidUntil({ active: true, checkedAt: 0 }), null, 'no end date: never stops');
+  assert.deepEqual(extensionPaidUntil({ active: true, expiresAt: 10, checkedAt: 0 }), { at: 10 + 7 * DAY, renewing: true });
+  assert.deepEqual(extensionPaidUntil({ active: true, expiresAt: 10, willRenew: false, checkedAt: 0 }), { at: 10, renewing: false });
+  // The fields the Swift reads, as entitlementRecord writes them: active (bool), expiresAt (ms), willRenew (bool, only false).
+  const end = Date.UTC(2027, 0, 1);
+  const record = entitlementRecord(customer({ productId: PRODUCT_IDS.annual, expiresAt: end }), new Date(5));
+  assert.equal(record.active, true);
+  assert.equal(record.expiresAt, end);
+  assert.deepEqual(extensionPaidUntil(record), { at: end + 7 * DAY, renewing: true });
 });
 
 test('entitlementRecord keeps only plist-safe fields', () => {

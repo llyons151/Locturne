@@ -290,6 +290,24 @@ export function cachedEntitlement(record: EntitlementRecord | undefined, now: Da
   return record.expiresAt === undefined || now.getTime() < record.expiresAt + grace;
 }
 
+/**
+ * How long past its end date a plan last seen renewing still locks with Locturne closed. Same as
+ * `LOCTURNE_RENEWAL_GRACE` in the extensions' Locturne.swift: they can't ask the store, so they
+ * go by this record until the next open refreshes it.
+ */
+export const EXTENSION_RENEWAL_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * When the extensions stop locking on this record, as `locturnePaidUntil` judges it: its end
+ * date, plus the renewal grace unless the app saw it cancelled. Null with no end date or no
+ * subscription. `renewing`: a renewal may have happened that only an open can see.
+ */
+export function extensionPaidUntil(record: EntitlementRecord | undefined): { at: number; renewing: boolean } | null {
+  if (record?.active !== true || typeof record.expiresAt !== 'number') return null;
+  const renewing = record.willRenew !== false;
+  return { at: record.expiresAt + (renewing ? EXTENSION_RENEWAL_GRACE_MS : 0), renewing };
+}
+
 /** A purchase that threw, in the paywall's terms. Closing Apple's sheet isn't an error. */
 export function purchaseFailure(error: unknown): PurchaseResult {
   const { code, userCancelled } = (error ?? {}) as Partial<PurchasesError>;
