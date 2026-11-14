@@ -14,6 +14,8 @@ import * as haptic from '@/lib/haptics';
 import type { WakeMethod } from '@/lib/routine';
 import { getReelFrame, setReelFrameOn } from '@/lib/reel-frame';
 import { measureReelFrame } from 'reel-frame';
+import { backupAvailable, hasCloudAccount, readBackup } from 'progress-backup';
+import { parseProgress } from '@/lib/progress-sync';
 import { methodInUse } from '@/lib/scan-code';
 import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '@/lib/screen-time';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
@@ -26,6 +28,7 @@ import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
 import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, getMoonsAsPage, setMoonsAsPage } from '@/features/moons/moon-collection';
 import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { useMoon } from '@/features/moons/moon-theme';
+import { replaceProgressBackup } from '@/features/moons/progress-backup';
 
 import { SETTINGS_BG } from './settings-actions';
 
@@ -75,6 +78,18 @@ function testLock(method: WakeMethod) {
   }
   haptic.done();
   preview('/', method);
+}
+
+/** One line per copy: its mornings, moons and proofs, or why there's nothing. */
+function describeBackup(): string {
+  if (!backupAvailable()) return 'Not in this build (or not on an iPhone).';
+  const { cloud, keychain } = readBackup();
+  const line = (name: string, json: string | null) => {
+    const p = parseProgress(json);
+    if (!p) return `${name}: nothing${json ? ' readable' : ''}`;
+    return `${name}: ${p.won} mornings, ${Object.keys(p.owned).length} moons, ${p.proofs.length} proofs`;
+  };
+  return [line('iCloud', cloud), line('Keychain', keychain), hasCloudAccount() ? 'Signed in to iCloud' : 'Not signed in to iCloud'].join('\n');
 }
 
 export function DeveloperSettings() {
@@ -162,6 +177,20 @@ export function DeveloperSettings() {
         />
       </Group>
 
+      {/* Phase A's reinstall test (features/moons/progress-backup.ts): what each copy holds. */}
+      <Group
+        label="Progress backup"
+        note="What the iCloud and Keychain copies hold. Delete the app, reinstall it and open it: the mornings and moons should come back from these."
+      >
+        <ValueRow
+          {...icon('icloud', 'cloud')}
+          title="Show the copies"
+          value=""
+          onPress={() => Alert.alert('Progress backup', describeBackup())}
+          last
+        />
+      </Group>
+
       {/* A lived-in app for recording demos: mornings got up and the moons they brought. */}
       <Group
         label="Demo data"
@@ -179,6 +208,7 @@ export function DeveloperSettings() {
                 style: 'destructive',
                 onPress: () => {
                   devSeedHistory(31);
+                  replaceProgressBackup();
                   haptic.done();
                 },
               },
@@ -243,6 +273,7 @@ export function DeveloperSettings() {
           onPress={() => {
             haptic.tap();
             devForgetMoons();
+            replaceProgressBackup();
           }}
           last
         />

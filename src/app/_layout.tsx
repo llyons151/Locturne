@@ -18,6 +18,7 @@ import { startPurchases } from '@/lib/purchases-start';
 import { setAppRemovalWriter } from '@/lib/screen-time';
 import { checkStepCounter } from '@/lib/step-counter';
 import { MOONS_BG } from '@/features/moons/moon-collection';
+import { startProgressBackup } from '@/features/moons/progress-backup';
 import { useShieldMoon } from '@/features/moons/shield-moon';
 import { payoffTuning } from '@/features/wake/payoff-tuning';
 import { Nocturne } from '@/theme';
@@ -35,6 +36,8 @@ setAppRemovalWriter(denyAppRemoval);
 applyReelFrame();
 // A device with no step counter (an iPad) gets Step away's timer for a walk (step-counter.ts).
 checkStepCounter({ isIOS: Platform.OS === 'ios', isAvailable: () => Pedometer.isAvailableAsync() });
+// Mornings and moons back after a reinstall, before any screen reads them; then kept backed up (progress-backup.ts).
+startProgressBackup();
 
 /**
  * The tabs always sit under a deep-linked screen (`locturne://wake` from a Shortcut, say):

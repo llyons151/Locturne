@@ -167,6 +167,22 @@ function subscribe(listener: () => void) {
   return () => void listeners.delete(listener);
 }
 
+/** Told whenever the moons owned change (the progress backup saves then). */
+export const onOwnedChange = subscribe;
+
+/** The progress backup (progress-backup.ts): the moons and the rare roll, as kept on disk. */
+export function getSavedMoons(): { owned: Record<string, OwnedMoon>; rare: RareState | null } {
+  return { owned: sharedGet<Record<string, OwnedMoon>>(OWNED_KEY) ?? {}, rare: sharedGet<RareState>(RARE_KEY) ?? null };
+}
+
+/** The progress backup brought back moons the phone didn't have: saved, and the screens told. */
+export function restoreMoons(owned: Record<string, OwnedMoon>, rare: RareState | null) {
+  if (rare) sharedSet(RARE_KEY, rare);
+  sharedSet(OWNED_KEY, owned);
+  snapshot = known(owned);
+  listeners.forEach((listener) => listener());
+}
+
 export function useOwnedMoons(): Record<string, OwnedMoon> {
   return useSyncExternalStore(subscribe, getOwned, getOwned);
 }

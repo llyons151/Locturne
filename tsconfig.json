@@ -30,6 +30,9 @@
       ],
       "reel-frame": [
         "./modules/reel-frame"
+      ],
+      "progress-backup": [
+        "./modules/progress-backup"
       ]
     }
   },

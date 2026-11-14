@@ -217,6 +217,22 @@ export function devSeedMornings(count: number, now = new Date()): string[] {
   return keys;
 }
 
+/** The progress backup (features/moons/progress-backup.ts): the count, first morning and proofs, as kept. */
+export function getSavedMornings(): { won: number; first: string | null; proofs: MorningProof[] } {
+  return { won: getMorningsWon(), first: getFirstMorning(), proofs: getProofs() };
+}
+
+/**
+ * The progress backup brought back more than the phone has (after a reinstall, say): saved over
+ * the phone's own, and everything listening told, as after a wake-up.
+ */
+export function restoreMornings(saved: { won: number; first: string | null; proofs: MorningProof[] }) {
+  sharedSet(WON_KEY, saved.won);
+  sharedSet(FIRST_KEY, saved.first);
+  sharedSet(KEY, saved.proofs.slice(0, KEEP));
+  for (const listener of listeners) listener();
+}
+
 export function onProofChange(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
