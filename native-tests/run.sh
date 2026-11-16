@@ -43,7 +43,7 @@ copy() {
     -e 's/, privacy: \.public\)/)/g' \
     "$1"; } >"$build/$(basename "$1")"
 }
-for file in Shared.swift Locturne.swift DeviceActivityMonitorExtension.swift; do copy "$src/$file"; done
+for file in Shared.swift Locturne.swift LocturneText.swift DeviceActivityMonitorExtension.swift; do copy "$src/$file"; done
 copy "$root/targets/ShieldAction/LocturneMorningCheck.swift"
 # Without the delegate class at its end, which only forwards each tap to `handleAction`.
 copy "$root/targets/ShieldAction/ShieldActionExtension.swift"
@@ -51,15 +51,15 @@ sed -i '/^class ShieldActionExtension: ShieldActionDelegate/,$d' "$build/ShieldA
 copy "$root/targets/ShieldConfiguration/ShieldConfigurationExtension.swift"
 copy "$root/targets/ShieldConfiguration/LocturneShieldRing.swift"
 
-# All the copies of Shared.swift and Locturne.swift must be the same file: the tests run one of them.
-for shared in Shared.swift Locturne.swift; do
+# All the copies of Shared.swift, Locturne.swift and LocturneText.swift must be the same file: the tests run one of them.
+for shared in Shared.swift Locturne.swift LocturneText.swift; do
   for other in "$root"/targets/*/"$shared"; do
     cmp -s "$other" "$src/$shared" || { echo "targets differ: $other" >&2; exit 1; }
   done
 done
 
 swiftc -swift-version 5 -suppress-warnings -o "$build/native-tests" \
-  "$here/Shims.swift" "$build/Shared.swift" "$build/Locturne.swift" "$build/DeviceActivityMonitorExtension.swift" \
+  "$here/Shims.swift" "$build/Shared.swift" "$build/Locturne.swift" "$build/LocturneText.swift" "$build/DeviceActivityMonitorExtension.swift" \
   "$build/ShieldActionExtension.swift" "$build/LocturneMorningCheck.swift" "$build/ShieldConfigurationExtension.swift" "$build/LocturneShieldRing.swift" \
   "$here/Harness.swift" "$here/Tests.swift" "$here/ShieldTapTests.swift" "$here/ShieldRingTests.swift" "$here/DowntimeTests.swift" "$here/RehearsalTests.swift" "$here/RobustnessTests.swift" "$here/Fixtures.swift" "$here/WakeFixtures.swift" "$here/main.swift"
 

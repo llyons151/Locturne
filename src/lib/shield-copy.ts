@@ -14,6 +14,10 @@
 import type { LockState, Phase } from './lock-state.ts';
 import type { Routine, WakeMethod } from './routine.ts';
 import { downtimeStepsOf } from './wake/downtime.ts';
+import { t } from './i18n/core.ts';
+import { clockLabel } from './i18n/format.ts';
+
+export { clockLabel };
 
 /**
  * `ring`: the block's start and end as minutes of the day. The shield extension draws the moon
@@ -40,15 +44,6 @@ export type ShieldFacts = {
   limitReached: boolean;
 };
 
-/** "7 am", "7:30 am", "11 pm": the same style as the Routine tab. */
-export function clockLabel(minutes: number): string {
-  const m = ((minutes % 1440) + 1440) % 1440;
-  const h = Math.floor(m / 60);
-  const mins = m % 60;
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  return `${mins ? `${hour}:${String(mins).padStart(2, '0')}` : hour} ${h < 12 ? 'am' : 'pm'}`;
-}
-
 /** Midnight to 5am: VOICE.md's "App opened at 2am" line. */
 const isLate = (minuteOfDay: number) => minuteOfDay < 5 * 60;
 
@@ -71,12 +66,12 @@ export function shieldRule(facts: ShieldFacts): ShieldRule {
  */
 type ProofRoutine = Pick<Routine, 'stepGoal' | 'downtimeSteps'>;
 const PROOF: Record<WakeMethod, (routine: ProofRoutine) => string> = {
-  dance: () => 'Open Locturne and dance.',
-  steps: (r) => `Walk ${r.stepGoal} steps, then tap I’m up.`,
-  scan: () => 'Open Locturne and scan your code.',
-  place: () => 'Go to your place and check in from Locturne.',
-  pushups: () => 'Open Locturne for your push-ups.',
-  downtime: (r) => `Walk ${downtimeStepsOf(r)} steps, then tap I’m up. The timer starts from your steps.`,
+  dance: () => t('shield.proofDance'),
+  steps: (r) => t('shield.proofSteps', { steps: r.stepGoal }),
+  scan: () => t('shield.proofScan'),
+  place: () => t('shield.proofPlace'),
+  pushups: () => t('shield.proofPushups'),
+  downtime: (r) => t('shield.proofDowntime', { steps: downtimeStepsOf(r) }),
 };
 
 /**
@@ -86,8 +81,8 @@ const PROOF: Record<WakeMethod, (routine: ProofRoutine) => string> = {
 export type ShieldTimer = { wakesAt: Date; bedtimeFirst: boolean } | null;
 
 function timerLine(timer: NonNullable<ShieldTimer>): string {
-  if (timer.bedtimeFirst) return 'Your timer runs past bedtime, so they sleep through to tomorrow.';
-  return `Timer’s running. They wake at ${clockLabel(timer.wakesAt.getHours() * 60 + timer.wakesAt.getMinutes())}.`;
+  if (timer.bedtimeFirst) return t('shield.timerPastBedtime');
+  return t('shield.timerRunning', { clock: clockLabel(timer.wakesAt.getHours() * 60 + timer.wakesAt.getMinutes()) });
 }
 
 /**
@@ -105,32 +100,32 @@ export function shieldCopy(
   switch (rule) {
     case 'night':
       return {
-        title: 'Shh. I’m sleeping. So are they.',
-        subtitle: `They wake up after ${wake}, once you’re out of bed.`,
-        button: 'Fine',
+        title: t('shield.nightTitle'),
+        subtitle: t('shield.nightSubtitle', { wake }),
+        button: t('shield.fine'),
         ...nightRing(routine),
       };
     case 'lateNight':
       return {
-        title: 'Why are we awake.',
-        subtitle: `Your apps are asleep until you’re up after ${wake}.`,
-        button: 'Back to bed',
+        title: t('shield.lateTitle'),
+        subtitle: t('shield.lateSubtitle', { wake }),
+        button: t('shield.backToBed'),
         ...nightRing(routine),
       };
     case 'morning':
       return {
         // Step away's timer running: they're up, so not "No.", and nothing to tap.
-        title: timer ? 'Not yet.' : 'No.',
+        title: timer ? t('shield.notYet') : t('shield.no'),
         subtitle: timer ? timerLine(timer) : (PROOF[routine.method] ?? PROOF.steps)(routine),
-        button: 'I’m up',
+        button: t('shield.imUp'),
       };
     case 'blockNow':
       return {
-        title: 'Tucked in. Do not perceive me.',
+        title: t('shield.napTitle'),
         subtitle: until
-          ? `Napping until ${clockLabel(until.getHours() * 60 + until.getMinutes())}.`
-          : 'Napping. They wake when the nap ends.',
-        button: 'Fine',
+          ? t('shield.napUntil', { clock: clockLabel(until.getHours() * 60 + until.getMinutes()) })
+          : t('shield.napOpen'),
+        button: t('shield.fine'),
         // Minutes of the day can't tell a nap of a day or more from a short one.
         ...(until && since && until.getTime() - since.getTime() < 1440 * 60_000
           ? { ring: { from: minuteOf(since), until: minuteOf(until) } }
@@ -138,9 +133,9 @@ export function shieldCopy(
       };
     case 'limit':
       return {
-        title: 'That’s today’s lot.',
-        subtitle: 'Your daily limit is used up. It wakes at midnight.',
-        button: 'Fine',
+        title: t('shield.limitTitle'),
+        subtitle: t('shield.limitSubtitle'),
+        button: t('shield.fine'),
         ring: { from: 0, until: 1440 },
       };
     case 'always':
@@ -148,9 +143,9 @@ export function shieldCopy(
       // night windows switch the text themselves (docs/v1-build/v1-screens.md). So it has to
       // be true of both lists.
       return {
-        title: 'Shh. It’s asleep.',
-        subtitle: 'You put this one to sleep. It stays that way for now.',
-        button: 'Fine',
+        title: t('shield.alwaysTitle'),
+        subtitle: t('shield.alwaysSubtitle'),
+        button: t('shield.fine'),
       };
   }
 }
@@ -182,8 +177,8 @@ export function shieldTextFor(
 export function shieldTap(phase: Phase) {
   if (phase !== 'morning') return null;
   return {
-    title: 'Up already?',
-    body: 'Tap here and prove it. Then they wake.',
+    title: t('shield.tapTitle'),
+    body: t('shield.tapBody'),
     identifier: 'locturne.shieldTap',
     userInfo: { url: 'locturne://wake' },
   };

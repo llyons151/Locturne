@@ -28,9 +28,7 @@ func locturneRingProgress(config: [String: Any], now: Date = Date()) -> (left: I
 
 /// "Asleep for 6h 12m more." / "Asleep for 48m more."
 func locturneTimeLeftLine(minutes: Int) -> String {
-  let m = max(minutes, 1)
-  let text = m >= 60 ? (m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m") : "\(m)m"
-  return "Asleep for \(text) more."
+  locturneText("shield.asleepFor", "Asleep for {time} more.", ["time": locturneDuration(minutes: max(minutes, 1))])
 }
 
 /// The worn moon inside a ring filled to `done`, starting at the top and going clockwise.

@@ -22,6 +22,8 @@ import { Platform } from 'react-native';
 import { hadSuccessfulNight, type NightCheck } from './health.ts';
 import { readNightChecks } from './heartbeat.ts';
 import { trialEndDay } from './trial-notice.ts';
+import { t } from './i18n/core.ts';
+import { monthDay, weekdayName } from './i18n/format.ts';
 import { lastPaidMorning, onArmed } from './lock-controller.ts';
 import { wallClock } from './lock-state.ts';
 import { ENTITLEMENT_KEY, extensionPaidUntil, type EntitlementRecord } from './revenuecat.ts';
@@ -59,30 +61,28 @@ export type PlannedNotification = {
 /* The words. One place, so the voice stays consistent. */
 
 export const COPY = {
-  morning: { title: 'Morning.', body: 'Your apps stay asleep until you’re up. I’m not getting up first.' },
-  bedtime: {
-    title: `Bedtime in ${BEDTIME_WARNING} minutes.`,
-    body: 'Then your apps sleep. Then I sleep.',
+  get morning() {
+    return { title: t('notifications.morningTitle'), body: t('notifications.morningBody') };
+  },
+  get bedtime() {
+    return { title: t('notifications.bedtimeTitle', { minutes: BEDTIME_WARNING }), body: t('notifications.bedtimeBody') };
   },
   // Before the extensions stop on a renewal they can't see (`extensionPaidUntil`). Only someone
   // who hasn't opened Locturne since the end date gets it: every open re-plans from the store.
-  renew: {
-    title: 'Open me once.',
-    body: 'I can’t see your plan from in here. Open Locturne before your next bedtime so your apps keep sleeping.',
+  get renew() {
+    return { title: t('notifications.renewTitle'), body: t('notifications.renewBody') };
   },
-  revoked: {
-    title: 'Screen Time access is off.',
-    body: 'So I can’t block anything tonight. Turn it back on in Settings. Until then I’m just a raccoon.',
+  get revoked() {
+    return { title: t('notifications.revokedTitle'), body: t('notifications.revokedBody') };
   },
   // Named, not counted: noon two days before an 8:00 end is nearly three days out.
   // An end in the small hours is the night before's (`trialEndDay`): "Saturday night", not "Sunday".
   trial: (ends: Date) => {
     const { day, night } = trialEndDay(ends);
-    const weekday = day.toLocaleDateString('en-US', { weekday: 'long' });
-    const date = day.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const words = { weekday: weekdayName(day), date: monthDay(day) };
     return {
-      title: `Your free trial ends ${weekday}${night ? ' night' : ''}.`,
-      body: `It ends ${night ? `${weekday} night, ${date}, just after midnight` : `${weekday}, ${date}`}, then the annual plan starts. To cancel, tap Manage subscription in the You tab. No hard feelings. Some feelings.`,
+      title: t(night ? 'notifications.trialTitleNight' : 'notifications.trialTitle', words),
+      body: t(night ? 'notifications.trialBodyNight' : 'notifications.trialBody', words),
     };
   },
 };

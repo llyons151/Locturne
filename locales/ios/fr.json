@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Le matin, Locturne utilise l’appareil photo pour scanner ton code de réveil, ou regarder tes pompes ou ta danse. Tout se passe sur ce téléphone ; rien n’est enregistré ni conservé.",
+    "NSLocationWhenInUseUsageDescription": "Quand Locturne est ouvert, il te montre sur la carte et vérifie que tu as atteint l’endroit choisi pour tes matins. Il n’utilise jamais ta position en arrière-plan.",
+    "NSMotionUsageDescription": "Locturne vérifie tes pas chaque matin pour réveiller tes apps. C’est tout ce qu’il fait des données de mouvement.",
+    "NSPhotoLibraryAddUsageDescription": "Locturne enregistre ta carte du matin dans Photos quand tu choisis Enregistrer l’image."
+  }
+}

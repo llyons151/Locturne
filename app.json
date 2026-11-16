@@ -14,6 +14,7 @@
       "appStoreUrl": "https://apps.apple.com/app/id6822555693",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true,
         "NSPhotoLibraryAddUsageDescription": "Locturne saves your morning card to Photos when you choose Save Image."
       },
       "privacyManifests": {
@@ -92,6 +93,13 @@
         ]
       }
     },
+    "locales": {
+      "es": "./locales/ios/es.json",
+      "de": "./locales/ios/de.json",
+      "fr": "./locales/ios/fr.json",
+      "pt-BR": "./locales/ios/pt-BR.json",
+      "ja": "./locales/ios/ja.json"
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#05070C",
@@ -121,6 +129,14 @@
           "backgroundColor": "#05070C",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["en", "es", "de", "fr", "pt-BR", "ja"]
+          }
         }
       ],
       "expo-video",

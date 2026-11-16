@@ -89,9 +89,12 @@ struct UsageReport<Content: View>: DeviceActivityReportScene {
   }
 }
 
+/// "2h 18m", "48m", in the iPhone's language where Locturne speaks it (LocturneText.swift).
 private func duration(_ seconds: TimeInterval) -> String {
   let minutes = Int(seconds / 60)
-  return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+  // "2h", not "2h 0m": except English, as before, which kept the zero.
+  if minutes >= 60, minutes % 60 == 0, locturneTable() == nil { return "\(minutes / 60)h 0m" }
+  return locturneDuration(minutes: minutes)
 }
 
 struct UsageChart: View {
@@ -103,20 +106,20 @@ struct UsageChart: View {
       VStack(alignment: .leading, spacing: 20) {
         if configuration.reported.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
-            Text("No Screen Time data yet").font(.headline)
-            Text("Your iPhone usage will appear here when Screen Time has data to share.")
+            Text(locturneText("report.noData", "No Screen Time data yet")).font(.headline)
+            Text(locturneText("report.noDataBody", "Your iPhone usage will appear here when Screen Time has data to share."))
               .font(.subheadline).foregroundStyle(.secondary)
           }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
           HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
               Text(duration(configuration.total)).font(.system(.title, design: .rounded, weight: .bold))
-              Text("Total screen time").font(.caption).foregroundStyle(.secondary)
+              Text(locturneText("report.total", "Total screen time")).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
               Text(duration(configuration.average)).font(.system(.headline, design: .rounded))
-              Text("Daily average").font(.caption).foregroundStyle(.secondary)
+              Text(locturneText("report.dailyAverage", "Daily average")).font(.caption).foregroundStyle(.secondary)
             }
           }.monospacedDigit()
   
@@ -148,10 +151,17 @@ struct UsageChart: View {
             }
           }
           .frame(height: 118)
-          Text(configuration.days.count == 1 ? "Today so far" : "Last \(configuration.days.count) days · includes today so far")
+          Text(
+            configuration.days.count == 1
+              ? locturneText("report.todaySoFar", "Today so far")
+              : locturneText("report.lastDays", "Last {days} days · includes today so far", ["days": "\(configuration.days.count)"]))
             .font(.caption).foregroundStyle(.secondary)
           if configuration.reported.count < configuration.days.count {
-            Text("Average uses \(configuration.reported.count) \(configuration.reported.count == 1 ? "day" : "days") with data. Missing days are left blank.")
+            Text(
+              locturnePlural(
+                "report.averageUses", count: configuration.reported.count,
+                one: "Average uses {count} day with data. Missing days are left blank.",
+                other: "Average uses {count} days with data. Missing days are left blank."))
               .font(.caption2).foregroundStyle(.secondary)
           }
           appsSection
@@ -167,12 +177,12 @@ struct UsageChart: View {
 
   private var appsSection: some View {
     LazyVStack(alignment: .leading, spacing: 20) {
-      Text("All apps").font(.system(.title2, design: .rounded, weight: .bold))
+      Text(locturneText("report.allApps", "All apps")).font(.system(.title2, design: .rounded, weight: .bold))
         .accessibilityAddTraits(.isHeader)
-      Text("Most used first · iPhone usage")
+      Text(locturneText("report.mostUsed", "Most used first · iPhone usage"))
         .font(.caption).foregroundStyle(.secondary)
       if configuration.apps.isEmpty {
-        Text("No app activity reported for this period.")
+        Text(locturneText("report.noActivity", "No app activity reported for this period."))
           .font(.subheadline).foregroundStyle(.secondary)
       }
       ForEach(configuration.apps) { app in
@@ -188,14 +198,20 @@ struct UsageChart: View {
           }.font(.system(.body, design: .rounded, weight: .semibold))
           ProgressView(value: min(1, app.seconds / max(1, configuration.total)))
             .tint(.white)
-            .accessibilityLabel("Share of screen time")
-            .accessibilityValue("\(Int(app.seconds / max(1, configuration.total) * 100)) percent")
-          Text("\(app.pickups) \(app.pickups == 1 ? "pickup" : "pickups") · \(app.notifications) \(app.notifications == 1 ? "notification" : "notifications")")
+            .accessibilityLabel(locturneText("report.share", "Share of screen time"))
+            .accessibilityValue(
+              locturneText("report.percent", "{percent} percent", ["percent": "\(Int(app.seconds / max(1, configuration.total) * 100))"]))
+          Text(
+            locturnePlural("report.pickups", count: app.pickups, one: "{count} pickup", other: "{count} pickups") + " · "
+              + locturnePlural("report.notifications", count: app.notifications, one: "{count} notification", other: "{count} notifications"))
             .font(.caption).foregroundStyle(.secondary)
           Divider().overlay(.white.opacity(0.1))
         }
       }
-      Text("Usage is reported by Screen Time. Totals add up time in apps, so they can be lower than Settings, which also counts the lock screen. Phone and FaceTime calls aren't counted.")
+      Text(
+        locturneText(
+          "report.footnote",
+          "Usage is reported by Screen Time. Totals add up time in apps, so they can be lower than Settings, which also counts the lock screen. Phone and FaceTime calls aren’t counted."))
         .font(.caption).foregroundStyle(.secondary)
     }.padding(.top, 12)
   }
@@ -210,7 +226,7 @@ struct CompactUsageChart: View {
 
   var body: some View {
     if configuration.reported.isEmpty {
-      Text("Your screen time will appear here when data is available.")
+      Text(locturneText("report.emptyCompact", "Your screen time will appear here when data is available."))
         .font(.system(.caption, design: .rounded)).foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .preferredColorScheme(.dark)
@@ -259,16 +275,16 @@ struct CompactUsageChart: View {
                 .popover(isPresented: Binding(get: { selectedDate != nil }, set: { if !$0 { selectedDate = nil } }), arrowEdge: .bottom) {
                   VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center) {
-                      Text(Calendar.current.isDateInToday(date) ? "Today" : date.formatted(.dateTime.month(.abbreviated).day()))
+                      Text(Calendar.current.isDateInToday(date) ? locturneText("report.today", "Today") : date.formatted(.dateTime.month(.abbreviated).day()))
                         .font(.subheadline.weight(.semibold))
                       Spacer(minLength: 16)
                       Button { selectedDate = nil } label: {
                         Image(systemName: "xmark").font(.system(size: 13, weight: .medium))
                           .frame(width: 44, height: 44)
                           .contentShape(Rectangle())
-                      }.buttonStyle(.plain).accessibilityLabel("Close screen time details")
+                      }.buttonStyle(.plain).accessibilityLabel(locturneText("report.closeDetails", "Close screen time details"))
                     }
-                    Text("\(duration(seconds)) of screen time on this day.")
+                    Text(locturneText("report.onDay", "{time} of screen time on this day.", ["time": duration(seconds)]))
                       .font(.subheadline).foregroundStyle(.secondary)
                   }
                   .padding(.leading, 16).padding(.trailing, 8).padding(.bottom, 16)
@@ -329,7 +345,7 @@ struct TodayPill: View {
       Text(duration(configuration.total)).font(.system(size: 16, weight: .heavy)).foregroundStyle(text)
         .monospacedDigit()
         .rollingDigits(configuration.total)
-      Text("screen time").font(.system(size: 15)).foregroundStyle(text2)
+      Text(locturneText("report.pill", "screen time")).font(.system(size: 15)).foregroundStyle(text2)
     }
     // One line always: "10h 30m screen time" wrapped "screen time" onto two lines in the
     // 200-point frame. Too long for the frame, the whole pill's type shrinks a little instead.
@@ -340,7 +356,7 @@ struct TodayPill: View {
     .frame(height: 36)
     .background(Capsule().fill(.white.opacity(0.08)))
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(duration(configuration.total)) of screen time today")
+    .accessibilityLabel(locturneText("report.pillLabel", "{time} of screen time today", ["time": duration(configuration.total)]))
     // Pinned to the bottom, not centred. The extension is handed the window's safe area too: in the
     // Reel frame, Home's top row sits inside the island's inset. Respected, it pushed the pill down out
     // of its 36-point frame; ignored, the space it lays out in reaches above the frame, so centred it

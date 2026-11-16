@@ -11,12 +11,14 @@ import { SwitchRow } from '@/components/controls';
 import { Section, sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
+import { LANGUAGES, type LanguageChoice } from '@/lib/i18n/core';
+import { chooseLanguage, getLanguageChoice, systemLanguage, useT } from '@/lib/i18n/store';
 import { LEGAL_URLS } from '@/lib/links';
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { openMoons } from '@/features/moons/moon-collection';
 
-import { SIGN_OFF } from './fire-loc';
+import { signOff } from './fire-loc';
 import { LocProfile } from './loc-profile';
 import {
   appVersion,
@@ -29,7 +31,7 @@ import {
   openDeveloper,
   openDiagnostics,
   openPasses,
-  PLAN_LABEL,
+  planLabel,
   rate,
   SETTINGS_BG,
   subscribe,
@@ -46,9 +48,20 @@ export { SETTINGS_BG };
  */
 export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: pulled down off its top (you-screen.ios.tsx). */ onPullClose?: () => void }) {
   const insets = useSafeAreaInsets();
+  const t = useT();
   const s = useSettings();
   // A made-up subscription (`?sub=`, dev labs) opens straight on its page.
-  const [subscription, setSubscription] = useState(s.subPreview && s.plan !== null);
+  const [page, setPage] = useState<'main' | 'subscription' | 'language'>(s.subPreview && s.plan !== null ? 'subscription' : 'main');
+  const subscription = page === 'subscription';
+  const setSubscription = (open: boolean) => setPage(open ? 'subscription' : 'main');
+  const [language, setLanguage] = useState<LanguageChoice>(getLanguageChoice);
+  const pickLanguage = (choice: LanguageChoice) => {
+    setLanguage(choice);
+    chooseLanguage(choice);
+  };
+  // The row shows the language in use, as iOS's own Language row does; following the iPhone is the
+  // checkmark on the Language page.
+  const languageName = (choice: LanguageChoice) => LANGUAGES.find((l) => l.code === (choice === 'system' ? systemLanguage() : choice))!.name;
   const row = (ios: Parameters<typeof sym>[0], android: Parameters<typeof sym>[1]) => ({ iconTint: Nocturne.text, icon: sym(ios, android) });
 
   return (
@@ -61,26 +74,50 @@ export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: p
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
     >
       <Head
-        title={subscription ? 'Subscription' : 'Settings'}
-        back={subscription}
-        onPress={() => (subscription ? setSubscription(false) : onClose())}
+        title={subscription ? t('subscription.title') : page === 'language' ? t('language.title') : t('settings.title')}
+        back={page !== 'main'}
+        closeLabel={t('settings.close')}
+        onPress={() => (page !== 'main' ? setPage('main') : onClose())}
       />
 
-      {subscription ? (
+      {page === 'language' ? (
+        <>
+          <Section>
+            <ValueRow
+              title={t('language.system')}
+              value={language === 'system' ? `✓ ${LANGUAGES.find((l) => l.code === systemLanguage())!.name}` : LANGUAGES.find((l) => l.code === systemLanguage())!.name}
+              onPress={() => pickLanguage('system')}
+              last
+            />
+          </Section>
+          <Section>
+            {LANGUAGES.map((l, i) => (
+              <ValueRow
+                key={l.code}
+                title={l.name}
+                value={language === l.code ? '✓' : l.english}
+                onPress={() => pickLanguage(l.code)}
+                last={i === LANGUAGES.length - 1}
+              />
+            ))}
+          </Section>
+          <Text style={styles.signOff}>{t('language.footer')}</Text>
+        </>
+      ) : subscription ? (
         <>
           <Section>
             <View style={styles.plan}>
-              <Text style={styles.planName}>{s.plan ? `${PLAN_LABEL[s.plan]}${s.inTrial ? ' trial' : ''}` : ' '}</Text>
+              <Text style={styles.planName}>{s.plan ? (s.inTrial ? t('subscription.planTrial', { plan: planLabel(s.plan) }) : planLabel(s.plan)) : ' '}</Text>
               <Text style={styles.planNote}>{s.planNote}</Text>
             </View>
           </Section>
           <Section>
-            <ValueRow {...row('arrow.left.arrow.right', 'swap_horiz')} title="Change plan" value="" onPress={s.manage} last={!s.inTrial && !s.ending} />
-            {s.ending ? <ValueRow {...row('arrow.clockwise', 'refresh')} title="Resubscribe" value="" onPress={s.manage} last /> : null}
-            {s.inTrial ? <SwitchRow {...row('bell', 'notifications')} title="Trial reminder" value={s.alerts.trial} onChange={s.toggle('trial')} last /> : null}
+            <ValueRow {...row('arrow.left.arrow.right', 'swap_horiz')} title={t('subscription.changePlan')} value="" onPress={s.manage} last={!s.inTrial && !s.ending} />
+            {s.ending ? <ValueRow {...row('arrow.clockwise', 'refresh')} title={t('subscription.resubscribe')} value="" onPress={s.manage} last /> : null}
+            {s.inTrial ? <SwitchRow {...row('bell', 'notifications')} title={t('subscription.trialReminder')} value={s.alerts.trial} onChange={s.toggle('trial')} last /> : null}
           </Section>
-          <QuietRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
-          {s.ending ? null : <RedRow title="Cancel subscription" onPress={cancelSubscription} />}
+          <QuietRow title={t('settings.restore')} value={s.restoring ? t('settings.checking') : undefined} onPress={s.restorePurchases} />
+          {s.ending ? null : <RedRow title={t('subscription.cancel')} onPress={cancelSubscription} />}
         </>
       ) : (
         <>
@@ -88,47 +125,51 @@ export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: p
           <View style={styles.firstGap} />
 
           <Section>
-            <ValueRow {...row('moon', 'dark_mode')} title="Moons" value={moonsLabel(s.moons)} onPress={openMoons} />
-            <ValueRow {...row('ticket', 'confirmation_number')} title="Passes" value={`${s.passesLeft} left`} onPress={openPasses} last />
+            <ValueRow {...row('moon', 'dark_mode')} title={t('settings.moonsRow')} value={moonsLabel(s.moons)} onPress={openMoons} />
+            <ValueRow {...row('ticket', 'confirmation_number')} title={t('settings.passes')} value={t('settings.passesLeft', { count: s.passesLeft })} onPress={openPasses} last />
           </Section>
 
-          <Heading>Notifications</Heading>
+          <Heading>{t('settings.notifications')}</Heading>
           <Section>
-            <SwitchRow {...row('bell', 'notifications')} title="Bedtime heads-up" value={s.alerts.bedtime} onChange={s.toggle('bedtime')} />
-            <SwitchRow {...row('sunrise', 'wb_twilight')} title="Morning nudge" value={s.alerts.morning} onChange={s.toggle('morning')} last />
+            <SwitchRow {...row('bell', 'notifications')} title={t('settings.bedtimeHeadsUp')} value={s.alerts.bedtime} onChange={s.toggle('bedtime')} />
+            <SwitchRow {...row('sunrise', 'wb_twilight')} title={t('settings.morningNudge')} value={s.alerts.morning} onChange={s.toggle('morning')} last />
           </Section>
 
-          <Heading>Help</Heading>
           <Section>
-            <ValueRow {...row('trash.slash', 'delete_forever')} title="Why can't I delete apps?" value="" onPress={whyNoDeleting} />
-            <ValueRow {...row('lifepreserver', 'support')} title="Help & feedback" value="" onPress={helpOrFeedback} />
-            <ValueRow {...row('star', 'star')} title="Rate Locturne" value="" onPress={rate} last />
+            <ValueRow {...row('globe', 'language')} title={t('language.title')} value={languageName(language)} onPress={() => setPage('language')} last />
+          </Section>
+
+          <Heading>{t('settings.help')}</Heading>
+          <Section>
+            <ValueRow {...row('trash.slash', 'delete_forever')} title={t('settings.whyNoDelete')} value="" onPress={whyNoDeleting} />
+            <ValueRow {...row('lifepreserver', 'support')} title={t('settings.helpFeedback')} value="" onPress={helpOrFeedback} />
+            <ValueRow {...row('star', 'star')} title={t('settings.rate')} value="" onPress={rate} last />
           </Section>
 
           <Section>
             {s.plan === null ? (
-              <ValueRow {...row('sparkles', 'auto_awesome')} title="Subscribe" value="" onPress={subscribe} last />
+              <ValueRow {...row('sparkles', 'auto_awesome')} title={t('settings.subscribe')} value="" onPress={subscribe} last />
             ) : (
-              <ValueRow {...row('sparkles', 'auto_awesome')} title="Subscription" value={s.planValue} onPress={() => setSubscription(true)} last />
+              <ValueRow {...row('sparkles', 'auto_awesome')} title={t('settings.subscription')} value={s.planValue} onPress={() => setSubscription(true)} last />
             )}
           </Section>
 
           {devLabs ? (
             <Section>
-              <ValueRow iconTint={Nocturne.text2} icon={sym('hammer', 'build')} title="Developer" value="" onPress={openDeveloper} last />
+              <ValueRow iconTint={Nocturne.text2} icon={sym('hammer', 'build')} title={t('settings.developer')} value="" onPress={openDeveloper} last />
             </Section>
           ) : null}
 
-          <QuietRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
-          <QuietRow title="Privacy Policy" onPress={() => open(LEGAL_URLS.privacy)} />
-          <QuietRow title="Terms of Use" onPress={() => open(LEGAL_URLS.terms)} />
+          <QuietRow title={t('settings.restore')} value={s.restoring ? t('settings.checking') : undefined} onPress={s.restorePurchases} />
+          <QuietRow title={t('settings.privacy')} onPress={() => open(LEGAL_URLS.privacy)} />
+          <QuietRow title={t('settings.terms')} onPress={() => open(LEGAL_URLS.terms)} />
 
           <Text style={styles.signOff}>
-            Locturne {appVersion()}
+            {t('settings.version', { version: appVersion() })}
             {'\n'}
-            {SIGN_OFF}
+            {signOff()}
           </Text>
-          <RedRow title="Fire Loc" onPress={fireLoc} />
+          <RedRow title={t('settings.fireLoc')} onPress={fireLoc} />
         </>
       )}
     </ScrollView>
@@ -136,7 +177,7 @@ export function YouScreen({ onClose }: { onClose: () => void; /** iPhone only: p
 }
 
 /** The title bar: the way out (down for the page, back for Subscription), the title, nothing on the right. */
-function Head({ title, back, onPress }: { title: string; back: boolean; onPress: () => void }) {
+function Head({ title, back, closeLabel, onPress }: { title: string; back: boolean; closeLabel: string; onPress: () => void }) {
   return (
     <View style={styles.head}>
       <View style={styles.side}>
@@ -146,7 +187,7 @@ function Head({ title, back, onPress }: { title: string; back: boolean; onPress:
             onPress();
           }}
           accessibilityRole="button"
-          accessibilityLabel={back ? 'Back' : 'Close'}
+          accessibilityLabel={back ? 'Back' : closeLabel}
           hitSlop={8}
           style={({ pressed }) => [styles.close, pressed && styles.pressed]}
         >

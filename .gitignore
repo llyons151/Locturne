@@ -60,3 +60,7 @@ __pycache__/
 # Moon render test: NASA maps (big binaries) and render output
 tools/moon-render/maps/
 tools/moon-render/out/
+# Slideshow studio: third-party stand-in photos, exports and scratch stay local
+tools/slides/photos/
+tools/slides/out/
+tools/slides/.cache/

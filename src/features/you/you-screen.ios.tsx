@@ -44,12 +44,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import * as haptic from '@/lib/haptics';
+import { LANGUAGES, type LanguageChoice } from '@/lib/i18n/core';
+import { chooseLanguage, getLanguageChoice, systemLanguage, useT } from '@/lib/i18n/store';
 import { LEGAL_URLS } from '@/lib/links';
 import { Nocturne } from '@/theme';
 
 import { openMoons } from '@/features/moons/moon-collection';
 
-import { SIGN_OFF } from './fire-loc';
+import { signOff } from './fire-loc';
 import { LocProfile } from './loc-profile';
 import {
   appVersion,
@@ -62,7 +64,7 @@ import {
   openDeveloper,
   openDiagnostics,
   openPasses,
-  PLAN_LABEL,
+  planLabel,
   rate,
   SETTINGS_BG,
   subscribe,
@@ -89,6 +91,7 @@ const TILE = 'rgba(255,255,255,0.10)';
 const TILE_SIZE = 30;
 const CLEAR = 'clear';
 const ROUTE_SUBSCRIPTION = 'subscription';
+const ROUTE_LANGUAGE = 'language';
 
 function Tile({ icon }: { icon: SFSymbol }) {
   return (
@@ -200,14 +203,24 @@ function pullCloseTracker() {
 }
 
 export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPullClose?: () => void }) {
+  const t = useT();
   const s = useSettings();
+  const [language, setLanguage] = useState<LanguageChoice>(getLanguageChoice);
+  const pickLanguage = (choice: LanguageChoice) => {
+    haptic.tap();
+    setLanguage(choice);
+    chooseLanguage(choice);
+  };
+  // The row shows the language in use, as iOS's own Language row does; following the iPhone is the
+  // checkmark on the Language page.
+  const languageName = (choice: LanguageChoice) => LANGUAGES.find((l) => l.code === (choice === 'system' ? systemLanguage() : choice))!.name;
   const [pullTracker] = useState(pullCloseTracker);
   const pull = onScrollPhaseChange((phase, geometry) => {
     if (!onPullClose || !pullTracker(phase, geometry.contentOffsetY)) return;
     haptic.tap();
     onPullClose();
   });
-  const planName = s.plan ? `${PLAN_LABEL[s.plan]}${s.inTrial ? ' trial' : ''}` : ' ';
+  const planName = s.plan ? (s.inTrial ? t('subscription.planTrial', { plan: planLabel(s.plan) }) : planLabel(s.plan)) : ' ';
 
   const insets = useSafeAreaInsets();
 
@@ -220,7 +233,7 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
       <Host style={{ flex: 1, backgroundColor: SETTINGS_BG }} colorScheme="dark" ignoreSafeArea="all">
         <NavigationStack>
           <Toolbar>
-            <Form modifiers={[...page('Settings'), pull]}>
+            <Form modifiers={[...page(t('settings.title')), pull]}>
               {/* Loc as the profile picture and your mornings under him, like CapWords' profile
                   (user reference, 2026-10-14). Long press the mornings for beta diagnostics. */}
               <Section>
@@ -234,31 +247,43 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
               </Section>
 
               <Section>
-                <Row icon="moon" title="Moons" value={moonsLabel(s.moons)} onPress={openMoons} />
-                <Row icon="ticket" title="Passes" value={`${s.passesLeft} left`} onPress={openPasses} />
+                <Row icon="moon" title={t('settings.moonsRow')} value={moonsLabel(s.moons)} onPress={openMoons} />
+                <Row icon="ticket" title={t('settings.passes')} value={t('settings.passesLeft', { count: s.passesLeft })} onPress={openPasses} />
               </Section>
 
-              <Section header={<Heading>Notifications</Heading>}>
-                <SwitchRow icon="bell" title="Bedtime heads-up" value={s.alerts.bedtime} onChange={s.toggle('bedtime')} />
-                <SwitchRow icon="sunrise" title="Morning nudge" value={s.alerts.morning} onChange={s.toggle('morning')} />
+              <Section header={<Heading>{t('settings.notifications')}</Heading>}>
+                <SwitchRow icon="bell" title={t('settings.bedtimeHeadsUp')} value={s.alerts.bedtime} onChange={s.toggle('bedtime')} />
+                <SwitchRow icon="sunrise" title={t('settings.morningNudge')} value={s.alerts.morning} onChange={s.toggle('morning')} />
               </Section>
 
-              <Section header={<Heading>Help</Heading>}>
-                <Row icon="trash.slash" title="Why can't I delete apps?" onPress={whyNoDeleting} />
-                <Row icon="lifepreserver" title="Help & feedback" onPress={helpOrFeedback} />
-                <Row icon="star" title="Rate Locturne" onPress={rate} />
+              {/* Its own page, as iOS's Language & Region: the iPhone's language, then each one by its own name. */}
+              <Section>
+                <NavigationLink value={ROUTE_LANGUAGE}>
+                  <HStack spacing={12}>
+                    <Tile icon="globe" />
+                    <Title>{t('language.title')}</Title>
+                    <Spacer />
+                    <Value>{languageName(language)}</Value>
+                  </HStack>
+                </NavigationLink>
+              </Section>
+
+              <Section header={<Heading>{t('settings.help')}</Heading>}>
+                <Row icon="trash.slash" title={t('settings.whyNoDelete')} onPress={whyNoDeleting} />
+                <Row icon="lifepreserver" title={t('settings.helpFeedback')} onPress={helpOrFeedback} />
+                <Row icon="star" title={t('settings.rate')} onPress={rate} />
               </Section>
 
               {/* Billing is one row (user 2026-11-03): the plan, and the rest one tap in. With no
                   plan, it goes straight to the paywall. */}
               <Section>
                 {s.plan === null ? (
-                  <Row icon="sparkles" title="Subscribe" onPress={subscribe} />
+                  <Row icon="sparkles" title={t('settings.subscribe')} onPress={subscribe} />
                 ) : (
                   <NavigationLink value={ROUTE_SUBSCRIPTION}>
                     <HStack spacing={12}>
                       <Tile icon="sparkles" />
-                      <Title>Subscription</Title>
+                      <Title>{t('settings.subscription')}</Title>
                       <Spacer />
                       <Value>{s.planValue}</Value>
                     </HStack>
@@ -269,32 +294,32 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
               {/* Dev and preview builds only: every test tool, on its own page (app/(dev)/developer.tsx). */}
               {devLabs ? (
                 <Section>
-                  <Row icon="hammer" title="Developer" grey onPress={openDeveloper} />
+                  <Row icon="hammer" title={t('settings.developer')} grey onPress={openDeveloper} />
                 </Section>
               ) : null}
 
               {/* The rows you rarely need, quieter: grey, no icons, no card. Restore stays on the
                   page, where App Review looks for it. */}
               <Section>
-                <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
-                <BareRow title="Privacy Policy" onPress={() => open(LEGAL_URLS.privacy)} />
-                <BareRow title="Terms of Use" onPress={() => open(LEGAL_URLS.terms)} />
+                <BareRow title={t('settings.restore')} value={s.restoring ? t('settings.checking') : undefined} onPress={s.restorePurchases} />
+                <BareRow title={t('settings.privacy')} onPress={() => open(LEGAL_URLS.privacy)} />
+                <BareRow title={t('settings.terms')} onPress={() => open(LEGAL_URLS.terms)} />
               </Section>
 
               {/* The version and his line, then Fire Loc last, in red with no card. */}
               <Section>
                 <VStack spacing={2} modifiers={[...BARE, frame({ maxWidth: 10_000 }), padding({ top: 8 })]}>
-                  <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3)]}>{`Locturne ${appVersion()}`}</Text>
-                  <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3), multilineTextAlignment('center')]}>{SIGN_OFF}</Text>
+                  <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3)]}>{t('settings.version', { version: appVersion() })}</Text>
+                  <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(Nocturne.text3), multilineTextAlignment('center')]}>{signOff()}</Text>
                 </VStack>
-                <CenteredButton title="Fire Loc" onPress={fireLoc} />
+                <CenteredButton title={t('settings.fireLoc')} onPress={fireLoc} />
               </Section>
             </Form>
             <Toolbar.Content>
               {/* The page slid up out of the strip, so the way out points back down. */}
               <ToolbarItem placement="topBarLeading">
                 <Button
-                  label="Close"
+                  label={t('settings.close')}
                   systemImage="chevron.down"
                   onPress={() => {
                     haptic.tap();
@@ -307,7 +332,7 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
           </Toolbar>
 
           <NavigationDestination value={ROUTE_SUBSCRIPTION}>
-            <Form modifiers={page('Subscription')}>
+            <Form modifiers={page(t('subscription.title'))}>
               {/* The plan shown, not a row: its name and what's next for it. */}
               <Section>
                 <VStack spacing={4} modifiers={[frame({ maxWidth: 10_000 }), padding({ vertical: 12 })]}>
@@ -320,25 +345,45 @@ export function YouScreen({ onClose, onPullClose }: { onClose: () => void; onPul
 
               <Section>
                 {/* Apple's sheet: switch between Annual and Monthly in the group. */}
-                <Row icon="arrow.left.arrow.right" title="Change plan" onPress={s.manage} />
+                <Row icon="arrow.left.arrow.right" title={t('subscription.changePlan')} onPress={s.manage} />
                 {/* Cancelled, not run out yet: Apple's sheet turns renewal back on. Up here with what acts
                     on the plan, so it isn't read as a second Restore (user 2026-11-11). */}
-                {s.ending ? <Row icon="arrow.clockwise" title="Resubscribe" onPress={s.manage} /> : null}
+                {s.ending ? <Row icon="arrow.clockwise" title={t('subscription.resubscribe')} onPress={s.manage} /> : null}
                 {/* Only someone in a trial has a reminder to switch off. */}
-                {s.inTrial ? <SwitchRow icon="bell" title="Trial reminder" value={s.alerts.trial} onChange={s.toggle('trial')} /> : null}
+                {s.inTrial ? <SwitchRow icon="bell" title={t('subscription.trialReminder')} value={s.alerts.trial} onChange={s.toggle('trial')} /> : null}
               </Section>
 
               <Section>
-                <BareRow title="Restore purchases" value={s.restoring ? 'Checking…' : undefined} onPress={s.restorePurchases} />
+                <BareRow title={t('settings.restore')} value={s.restoring ? t('settings.checking') : undefined} onPress={s.restorePurchases} />
               </Section>
 
               {/* The cancel flow on its way to Apple's sheet (features/cancel), last and in red. Already
                   cancelled, there's nothing to cancel (Resubscribe, above). */}
               {s.ending ? null : (
                 <Section>
-                  <CenteredButton title="Cancel subscription" onPress={cancelSubscription} />
+                  <CenteredButton title={t('subscription.cancel')} onPress={cancelSubscription} />
                 </Section>
               )}
+            </Form>
+          </NavigationDestination>
+
+          {/* Picked here, the app, the blocked-app screen and the notifications all switch (lib/i18n/store.ts).
+              iOS's own prompts follow the iPhone's language. */}
+          <NavigationDestination value={ROUTE_LANGUAGE}>
+            <Form modifiers={page(t('language.title'))}>
+              <Section footer={<Footnote>{t('language.footer')}</Footnote>}>
+                <LanguageRow
+                  title={t('language.system')}
+                  detail={t('language.systemNote', { language: LANGUAGES.find((l) => l.code === systemLanguage())!.name })}
+                  picked={language === 'system'}
+                  onPress={() => pickLanguage('system')}
+                />
+              </Section>
+              <Section>
+                {LANGUAGES.map((l) => (
+                  <LanguageRow key={l.code} title={l.name} detail={l.english} picked={language === l.code} onPress={() => pickLanguage(l.code)} />
+                ))}
+              </Section>
             </Form>
           </NavigationDestination>
         </NavigationStack>
@@ -366,3 +411,26 @@ function BareRow({ title, value, onPress }: { title: string; value?: string; onP
     </Button>
   );
 }
+
+/** A language: its name, a grey line under it, and the system's checkmark on the one in use. */
+function LanguageRow({ title, detail, picked, onPress }: { title: string; detail: string; picked: boolean; onPress: () => void }) {
+  return (
+    <Button onPress={onPress} modifiers={[accessibilityLabel(`${title}, ${detail}`)]}>
+      <HStack spacing={12}>
+        <VStack alignment="leading" spacing={2}>
+          <Title>{title}</Title>
+          <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(Nocturne.text2)]}>{detail}</Text>
+        </VStack>
+        <Spacer />
+        {picked ? <Image systemName="checkmark" size={15} color={Nocturne.text} modifiers={[font({ weight: 'semibold' })]} /> : null}
+      </HStack>
+    </Button>
+  );
+}
+
+/** Grey small print under a section, centered like the headings. */
+const Footnote = ({ children }: { children: string }) => (
+  <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(Nocturne.text3), frame({ maxWidth: 10_000 }), multilineTextAlignment('center')]}>
+    {children}
+  </Text>
+);

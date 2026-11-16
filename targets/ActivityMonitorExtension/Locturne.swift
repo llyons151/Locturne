@@ -796,14 +796,16 @@ func locturneMethodInUse(_ method: String) -> String {
 /// Pure: the morning shield's line while the morning isn't proven yet: how far they've got.
 /// Nil steps: the history couldn't be read here.
 func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> String {
-  guard let steps else { return "I can’t read your steps from here. Open Locturne and I’ll check." }
+  guard let steps else { return locturneText("shield.cantRead", "I can’t read your steps from here. Open Locturne and I’ll check.") }
   let left = max(0, stepGoal - steps)
   switch method {
   case "steps":
-    return "\(steps) of \(stepGoal) steps. \(left) more, then tap I’m up."
+    return locturneText(
+      "shield.stepsLeft", "{steps} of {goal} steps. {left} more, then tap I’m up.",
+      ["steps": "\(steps)", "goal": "\(stepGoal)", "left": "\(left)"])
   default:
     // The camera and the check-in live in Locturne, and so does walking instead.
-    return "This one’s in Locturne. Open it and I’ll wake them."
+    return locturneText("shield.inApp", "This one’s in Locturne. Open it and I’ll wake them.")
   }
 }
 
@@ -811,11 +813,15 @@ func locturneMorningProgress(method: String, stepGoal: Int, steps: Int?) -> Stri
 /// window up to 5 minutes early, so "I'm up" shows a little before it, but steps only count
 /// from then. In the app's clock style (`clockLabel` in src/lib/shield-copy.ts): "7 am".
 func locturneEarlyTapLine(morningStart: Int) -> String {
-  "Up early. Steps count from \(locturneClockLabel(morningStart)). Tap I’m up after that."
+  locturneText(
+    "shield.early", "Up early. Steps count from {clock}. Tap I’m up after that.",
+    ["clock": locturneClockLabel(morningStart)])
 }
 
-/// "7 am", "8:15 am": `clockLabel` in src/lib/shield-copy.ts.
+/// "7 am", "8:15 am": `clockLabel` in src/lib/i18n/format.ts. Another language's own clock
+/// ("19 Uhr") where Locturne speaks it (LocturneText.swift).
 func locturneClockLabel(_ minutes: Int) -> String {
+  if let local = locturneLocalClock(minutes) { return local }
   let m = ((minutes % 1440) + 1440) % 1440
   let hour = m / 60 % 12 == 0 ? 12 : m / 60 % 12
   let clock = m % 60 == 0 ? "\(hour)" : "\(hour):\(String(format: "%02d", m % 60))"
@@ -1059,13 +1065,18 @@ func locturneArmOneOffEnd(_ activity: String, ends: Date, now: Date = Date()) ->
 func locturneDowntimeLine(_ morning: LocturneMorning, steps: Int?, timer: LocturneDowntime?) -> String {
   if let timer {
     if let bed = locturneBedtimeAfter(morning), timer.endsAt >= bed {
-      return "Your timer runs past bedtime, so they sleep through to tomorrow."
+      return locturneText(
+        "shield.timerPastBedtime", "Your timer runs past bedtime, so they sleep through to tomorrow.")
     }
-    return "Timer’s running. They wake at \(locturneClockLabel(locturneMinute(timer.endsAt)))."
+    return locturneText(
+      "shield.timerRunning", "Timer’s running. They wake at {clock}.",
+      ["clock": locturneClockLabel(locturneMinute(timer.endsAt))])
   }
-  guard let steps else { return "I can’t read your steps from here. Open Locturne and I’ll check." }
+  guard let steps else { return locturneText("shield.cantRead", "I can’t read your steps from here. Open Locturne and I’ll check.") }
   let left = max(0, morning.downtimeSteps - steps)
-  return "\(steps) of \(morning.downtimeSteps) steps. \(left) more, then tap I’m up to start your timer."
+  return locturneText(
+    "shield.timerStepsLeft", "{steps} of {goal} steps. {left} more, then tap I’m up to start your timer.",
+    ["steps": "\(steps)", "goal": "\(morning.downtimeSteps)", "left": "\(left)"])
 }
 
 /// Step away on I'm up (`by` "imUp") or at the window's end ("timer"): starts the timer once its
@@ -1316,11 +1327,15 @@ func locturneJudgeRehearsalDowntime(steps: Int?, now: Date, slack: TimeInterval 
   }
   let line: String
   if let ends {
-    line = "Timer’s running. They wake at \(locturneClockLabel(locturneMinute(ends)))."
+    line = locturneText(
+      "shield.timerRunning", "Timer’s running. They wake at {clock}.",
+      ["clock": locturneClockLabel(locturneMinute(ends))])
   } else if let steps {
-    line = "\(steps) of \(LOCTURNE_DOWNTIME_STEPS) steps. \(max(0, LOCTURNE_DOWNTIME_STEPS - steps)) more, then tap I’m up to start your timer."
+    line = locturneText(
+      "shield.timerStepsLeft", "{steps} of {goal} steps. {left} more, then tap I’m up to start your timer.",
+      ["steps": "\(steps)", "goal": "\(LOCTURNE_DOWNTIME_STEPS)", "left": "\(max(0, LOCTURNE_DOWNTIME_STEPS - steps))"])
   } else {
-    line = "I can’t read your steps from here. Open Locturne and I’ll check."
+    line = locturneText("shield.cantRead", "I can’t read your steps from here. Open Locturne and I’ll check.")
   }
   locturneShowRehearsalProgress(line)
   locturneNoteRehearsal(["lastCheck": ends != nil ? "timerRunning" : steps == nil ? "noHistory" : "short", "steps": steps ?? -1])

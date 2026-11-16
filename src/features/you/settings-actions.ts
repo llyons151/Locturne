@@ -21,6 +21,8 @@ import { getNotificationPrefs, getTrialEnd, setNotificationPrefs, type Notificat
 import { onLockChange } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
 import { getPassesLeft } from '@/lib/passes';
+import { t } from '@/lib/i18n/core';
+import { shortDate } from '@/lib/i18n/format';
 import { currentEnding, currentPlan, currentTrialEnd, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
 
 import { getOwned, settleMoons } from '@/features/moons/moon-collection';
@@ -32,7 +34,8 @@ import { refusal } from './fire-loc';
 /** Settings' background: pure black, like the strip it grows out of (user, 2026-11-02). */
 export const SETTINGS_BG = '#000000';
 
-export const PLAN_LABEL: Record<PlanId, string> = { annual: 'Annual', monthly: 'Monthly' };
+/** "Annual", "Monthly", in the language in use. */
+export const planLabel = (plan: PlanId) => t(plan === 'annual' ? 'subscription.annual' : 'subscription.monthly');
 
 export const appVersion = () => Constants.expoConfig?.version ?? '';
 
@@ -50,7 +53,7 @@ function moonCount() {
   return 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
 }
 
-export const moonsLabel = (n: number) => (n === 1 ? '1 moon' : `${n} moons`);
+export const moonsLabel = (n: number) => t('settings.moons', { count: n });
 
 /** Dev labs: the Subscription page's states, made up (`/settings?sub=<name>`). */
 const inDays = (days: number) => new Date(Date.now() + days * 24 * 3_600_000);
@@ -63,13 +66,12 @@ const SUB_PREVIEWS: Record<string, () => { plan: PlanId | null; trialEnd: Date |
   cancelled: () => ({ plan: 'annual', trialEnd: null, ending: inDays(200) }),
 };
 
-const trialDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export function sendFeedback() {
   const version = appVersion();
-  const subject = encodeURIComponent(`Locturne${version ? ` ${version}` : ''} feedback`);
+  const subject = encodeURIComponent(version ? t('alerts.feedbackSubjectVersion', { version }) : t('alerts.feedbackSubject'));
   Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`).catch(() =>
-    Alert.alert('No mail app', `Write to ${SUPPORT_EMAIL}. I read everything. Slowly.`),
+    Alert.alert(t('alerts.noMailTitle'), t('alerts.noMailBody', { email: SUPPORT_EMAIL })),
   );
 }
 
@@ -78,27 +80,24 @@ export function sendFeedback() {
  * whoever forgot the deal screen's line (user 2026-11-02).
  */
 export function whyNoDeleting() {
-  Alert.alert(
-    "Why can't I delete apps?",
-    'While your apps are asleep for the night, a Block now or a schedule, Locturne holds that, or the lock would be one long-press from gone. Any app, since iOS can’t hold just one. It comes back the moment they wake.',
-  );
+  Alert.alert(t('alerts.whyTitle'), t('alerts.whyBody'));
 }
 
 /** Help or feedback, picked from the system's action sheet (the web preview opens Help). */
 export function helpOrFeedback() {
   if (Platform.OS !== 'ios') return open(LEGAL_URLS.support);
   ActionSheetIOS.showActionSheetWithOptions(
-    { options: ['Help', 'Send feedback', 'Cancel'], cancelButtonIndex: 2 },
+    { options: [t('alerts.help'), t('alerts.sendFeedback'), t('alerts.cancel')], cancelButtonIndex: 2 },
     (i) => (i === 0 ? open(LEGAL_URLS.support) : i === 1 ? sendFeedback() : null),
   );
 }
 
 /** Asks, then he refuses. Changes nothing (fire-loc.ts). */
 export function fireLoc() {
-  Alert.alert('Fire Loc?', 'He’ll be removed from Locturne and from your life.', [
-    { text: 'Keep him', style: 'cancel' },
+  Alert.alert(t('alerts.fireTitle'), t('alerts.fireBody'), [
+    { text: t('alerts.keepHim'), style: 'cancel' },
     {
-      text: 'Fire him',
+      text: t('alerts.fireHim'),
       style: 'destructive',
       onPress: () => {
         haptic.thud();
@@ -192,12 +191,12 @@ export function useSettings() {
         askPlan();
         // A routine saved but never armed (declined, or bought on another phone) arms now.
         armIfPaid();
-        Alert.alert('You’re subscribed', 'Your subscription is restored.');
+        Alert.alert(t('alerts.restoredTitle'), t('alerts.restoredBody'));
       } else {
-        Alert.alert('Nothing to restore', 'There’s no Locturne subscription on this Apple ID.');
+        Alert.alert(t('alerts.nothingTitle'), t('alerts.nothingBody'));
       }
     } catch {
-      Alert.alert('The App Store isn’t answering', 'Check your connection and try again.');
+      Alert.alert(t('alerts.storeTitle'), t('alerts.storeBody'));
     } finally {
       setRestoring(false);
     }
@@ -213,13 +212,22 @@ export function useSettings() {
   const inTrial = (trialEnd?.getTime() ?? 0) > Date.now();
 
   /** "Annual", "Annual trial", "None", or blank while the store is asked. */
-  const planValue = plan === null ? 'None' : plan ? `${PLAN_LABEL[plan]}${ending ? ', cancelled' : inTrial ? ' trial' : ''}` : '';
+  const planValue =
+    plan === null
+      ? t('subscription.none')
+      : plan
+        ? ending
+          ? t('subscription.planCancelled', { plan: planLabel(plan) })
+          : inTrial
+            ? t('subscription.planTrial', { plan: planLabel(plan) })
+            : planLabel(plan)
+        : '';
   /** Under the plan on the Subscription page. */
   const planNote = ending
-    ? `Cancelled. Your apps keep sleeping until ${trialDate(ending)}, then I stop.`
+    ? t('subscription.noteCancelled', { date: shortDate(ending) })
     : inTrial && trialEnd
-      ? `Your trial ends on ${trialDate(trialEnd)}.`
-      : 'Billed by the App Store.';
+      ? t('subscription.noteTrial', { date: shortDate(trialEnd) })
+      : t('subscription.noteBilled');
 
   return { ...facts, inTrial, trialEnd, ending, subPreview: preview !== undefined, alerts, toggle, plan, planValue, planNote, manage, restoring, restorePurchases };
 }
