@@ -28,8 +28,19 @@ let gates: (() => void)[] = [];
 /** Windows iOS fails to report back after arming (it keeps reporting a different count). */
 let lostWindows = 0;
 
+/** The self-check's verdicts (`readNightChecks`), and when access was last seen off. */
+let nightChecks: { morningKey: string; verdict: string }[] = [];
+let accessOffAt: number | null = null;
+/** This morning's Step away timer, as the App Group holds it. */
+let downtime: unknown = null;
+
+mock.module(new URL('./heartbeat.ts', import.meta.url).href, {
+  namedExports: { readNightChecks: () => nightChecks },
+});
+
 mock.module(new URL('./screen-time.ts', import.meta.url).href, {
   namedExports: {
+    accessOffSince: (since: number) => accessOffAt !== null && accessOffAt >= since,
     sharedGet: (key: string) => store.get(key),
     sharedSet: (key: string, value: unknown) => store.set(key, value),
     sharedRemove: (key: string) => store.delete(key),
@@ -70,7 +81,7 @@ mock.module(new URL('./screen-time.ts', import.meta.url).href, {
     rearmNap: async () => {},
     armDowntimeEnd: async () => false,
     downtimeEndArmed: () => false,
-    getDowntime: () => null,
+    getDowntime: () => downtime,
     saveDowntime: (r: unknown) => r,
     stopDowntimeEnd: () => {},
     getArmedNight: () => armed,
@@ -139,6 +150,9 @@ beforeEach(() => {
   armed = null;
   live = 0;
   nightPicks = 3;
+  nightChecks = [];
+  accessOffAt = null;
+  downtime = null;
   clock = at(12, 0, 0).getTime();
   // Dance, so an edit to steps (the default) is a change of words.
   saveRoutine({ ...DEFAULT_ROUTINE, method: 'dance' }, at(12, 0, 0)); // onboarding: applies at once
@@ -540,6 +554,42 @@ describe('re-shielding when the night was lost', () => {
     assert.ok(calls.includes('sleep:night'));
   });
 
+  test('a missed night with access seen off since bedtime is free: no shields back, no morning earned', async () => {
+    await armYesterday();
+    // Access turned off before bedtime: no window ran, and the app saw access off in the morning.
+    nightChecks = [{ morningKey: '2026-10-01', verdict: 'missed' }];
+    accessOffAt = at(7, 45).getTime();
+    // Back on at 19:26: the day, with nothing to wake from.
+    const state = syncLock(at(19, 26));
+    assert.equal(state.phase, 'day');
+    assert.ok(!calls.includes('sleep:night'));
+    assert.equal(proveMorning('steps', at(19, 26)), null);
+    assert.equal(getProofs().length, 0);
+  });
+
+  test('a missed night with access never seen off is still put back (iOS skipped the windows)', async () => {
+    await armYesterday();
+    nightChecks = [{ morningKey: '2026-10-01', verdict: 'missed' }];
+    syncLock(at(7, 30));
+    assert.ok(calls.includes('sleep:night'));
+  });
+
+  test('access seen off only before bedtime, then a missed night: still held', async () => {
+    await armYesterday();
+    nightChecks = [{ morningKey: '2026-10-01', verdict: 'missed' }];
+    accessOffAt = at(22, 0, 0).getTime();
+    assert.equal(syncLock(at(7, 30)).phase, 'morning');
+    assert.ok(calls.includes('sleep:night'));
+  });
+
+  test('a night that ran, then access off in the morning: the morning still holds', async () => {
+    await armYesterday();
+    nightHeld = true;
+    nightChecks = [{ morningKey: '2026-10-01', verdict: 'onTime' }];
+    accessOffAt = at(7, 45).getTime();
+    assert.equal(syncLock(at(8)).phase, 'morning');
+  });
+
   test('also at night', async () => {
     await armYesterday();
     syncLock(at(2));
@@ -577,6 +627,19 @@ describe('re-shielding when the night was lost', () => {
     const state = syncLock(at(23, 30));
     assert.equal(state.phase, 'off');
     assert.ok(calls.includes('wake:night'));
+  });
+});
+
+describe('Step away', () => {
+  test('a timer that ended hours before the sync is proved at its end, not at the sync', async () => {
+    store.clear();
+    saveRoutine({ ...DEFAULT_ROUTINE, method: 'downtime' }, at(12, 0, 0));
+    await armYesterday();
+    nightHeld = true;
+    downtime = { morningKey: '2026-10-01', start: at(7).getTime(), reachedAt: at(7, 10).getTime(), endsAt: at(8, 10).getTime(), minutes: 60, steps: 30 };
+    assert.equal(syncLock(at(19, 26)).phase, 'day');
+    assert.equal(getProofs()[0].kind, 'downtime');
+    assert.equal(getProofs()[0].at, at(8, 10).getTime());
   });
 });
 

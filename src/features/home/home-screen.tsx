@@ -399,8 +399,12 @@ export function HomeScreen() {
 
   // Each state's look (`HomeLook`), so they differ by more than their words.
   const problem = unprotected || wakeRefused || (attention && health.needsSubscription) || (attention && !napping);
-  // The morning just won with a wake-up (not a pass), for three hours after.
-  const wonAt = phase === 'day' && proof && proof.kind !== 'pass' && proof.kind !== 'emergency' && now.getTime() - proof.at < DONE_FOR ? proof : null;
+  // The morning just won with a wake-up (not a pass), for three hours after. Never in the last
+  // three hours before bedtime: a morning won late in the day hands over to "Bedtime in" there
+  // (user 2026-11-15: "Up at 7:26 pm" hid the countdown all evening).
+  const bedtimeNear = !!sleepsAt && sleepsAt.getTime() - now.getTime() <= DONE_FOR;
+  const wonAt =
+    phase === 'day' && !bedtimeNear && proof && proof.kind !== 'pass' && proof.kind !== 'emergency' && now.getTime() - proof.at < DONE_FOR ? proof : null;
   // The countdown to a bedtime that will really sleep: the day's plain "Bedtime in" hero.
   const countdown = phase === 'day' && !problem && !attention && !paused && !napping && !offTonight && armed && !stoodDown && bedtimeApps && minutes !== null && !!sleepsAt;
   const asleep = phase === 'night' && !paused && !napping && !unprotected;

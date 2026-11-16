@@ -15,6 +15,7 @@
 import { judgeClock, readClock, type ClockSeen } from './clock-guard.ts';
 import { armedInTime, currentMorning, dateKey, getLockState, nightInto, nightsAround, settingsTakeEffectAt, type DaytimeFacts, type LockState } from './lock-state.ts';
 import { looserEditsStart } from './daily-limits.ts';
+import { readNightChecks } from './heartbeat.ts';
 import { getProof, proofMorningStart, recordProof, type JudgedMorning, type MorningProof, type ProofKind } from './morning-proof.ts';
 import {
   armedForEdit,
@@ -34,6 +35,7 @@ import { morningMethod } from './scan-code.ts';
 import { noStepCounter } from './step-counter.ts';
 import { clearPurchasePending } from './pending-purchase.ts';
 import {
+  accessOffSince,
   armDowntimeEnd,
   armedSince,
   armSchedules,
@@ -104,7 +106,7 @@ function readDaytime(now: Date): DaytimeFacts {
 export function readLock(now = new Date()): LockState {
   const { routine, ran, free: unrun, prior } = judgedAt(now);
   let settings = toLockSettings(routine);
-  const morning: JudgedMorning = { ...currentMorning(now, settings), ran };
+  const morning: JudgedMorning & { start: Date } = { ...currentMorning(now, settings), ran };
   // A morning the routine before the edit held (`nightRanUnder` says `prior`) stays locked until
   // proven even if the edit has that evening off: the night already ran, and an open from bed
   // must not free it.
@@ -140,7 +142,13 @@ export function readLock(now = new Date()): LockState {
   // Once a morning has read free this way it stays free (`noteEmptyMorning`): apps added back
   // during it join the live list at once, but no night held them, so they sleep from tonight.
   const empty = (isScreenTimeAvailable() && nightPickCount() === 0) || emptyMorning(morning);
-  const free = unrun || !inTime || renewedFree || empty;
+  // A night Screen Time never ran held nothing (access off: no bedtime window started at all,
+  // and the app saw access off since bedtime), so its morning is free too: no wake-up
+  // asked of it, no morning or moon earned, and nothing shielded when access comes back later
+  // in the day (user 2026-11-15: access off all night, back on at 7:26 pm, and the Step away
+  // found the morning's steps and played the first-morning payoff). Only once the morning has
+  // started, when the night's log is complete; a window late by a few minutes doesn't free it.
+  const free = unrun || !inTime || renewedFree || empty || (!proof && isScreenTimeAvailable() && nightNeverRan(morning, now));
   // Steps reach the rules as a proof (recorded by the steps method), so pass 0 here.
   const state = getLockState(
     now,
@@ -167,6 +175,17 @@ export function readLock(now = new Date()): LockState {
     if (early && governsEarly(start, pending, getRoutine(now))) state.nextChange = start;
   }
   return state;
+}
+
+/**
+ * Whether the night into `morning` held nothing because Screen Time access was off: the app saw
+ * access off since that night began (`accessOffSince`), and no bedtime window ran at all
+ * (`missed` in the self-check). Judged once the morning has begun, when the night's log is
+ * complete. Both, so a heartbeat log that's merely empty never frees a morning by itself.
+ */
+function nightNeverRan(morning: { key: string; start: Date; nightStart: Date }, now: Date): boolean {
+  if (now < morning.start || !accessOffSince(morning.nightStart.getTime())) return false;
+  return readNightChecks(now).some((check) => check.morningKey === morning.key && check.verdict === 'missed');
 }
 
 /** The proof that unlocked the morning `now` belongs to (as `readLock` reads it), or null. */
@@ -583,7 +602,9 @@ function proveDowntimeIfDue(now: Date): void {
   if (!record || !downtimeDue(record, now.getTime())) return;
   const state = readLock(now);
   if (state.phase !== 'morning' || pastLastPaid(state.morningKey)) return;
-  recordProof({ morningKey: state.morningKey, kind: 'downtime', at: now.getTime() }, judgedAt(now));
+  // Dated when the timer really ended, not when this sync noticed: an open hours later (or
+  // access back in the evening) mustn't make "Up at" the time of the open.
+  recordProof({ morningKey: state.morningKey, kind: 'downtime', at: Math.min(now.getTime(), record.endsAt) }, judgedAt(now));
 }
 
 /**

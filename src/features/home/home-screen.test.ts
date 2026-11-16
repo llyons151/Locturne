@@ -450,6 +450,13 @@ describe('Home’s looks', () => {
     assert.equal(home({ now: new Date(2026, 9, 9, 11), proof }).look, 'day');
   });
 
+  test('a morning won late in the day hands over to the bedtime countdown in its last three hours', () => {
+    const proof = { morningKey: '2026-10-09', kind: 'downtime', at: new Date(2026, 9, 9, 20, 10).getTime() };
+    const late = home({ now: new Date(2026, 9, 9, 20, 15), proof });
+    assert.equal(late.look, 'day');
+    assert.equal(late.meter?.kicker, 'Bedtime in');
+  });
+
   test('a pass is no win: the day stays the day', () => {
     const proof = { morningKey: '2026-10-09', kind: 'pass', at: new Date(2026, 9, 9, 7).getTime() };
     assert.equal(home({ now: new Date(2026, 9, 9, 8), proof }).look, 'day');

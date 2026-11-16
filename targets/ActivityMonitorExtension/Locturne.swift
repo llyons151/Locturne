@@ -1082,7 +1082,8 @@ func locturneJudgeDowntime(_ morning: LocturneMorning, steps: Int?, reachedAt: D
     timer = locturneStartDowntime(morning, reachedAt: morning.start, now: now)
   }
   if let timer, now.addingTimeInterval(LOCTURNE_DOWNTIME_SLACK) >= timer.endsAt {
-    locturneRecordProof(morning, kind: "downtime", now: now)
+    // Dated when the timer really ended, not when this check ran (an I'm up hours later).
+    locturneRecordProof(morning, kind: "downtime", now: min(now, timer.endsAt))
     locturneWakeMorning(triggeredBy: "locturne_downtime_\(by)")
     userDefaults?.removeObject(forKey: LOCTURNE_DOWNTIME_ARMED_KEY)
     locturneLogMorningCheck(["verdict": "downtime", "by": by, "steps": steps ?? -1, "floors": 0], now: now)

@@ -115,11 +115,31 @@ export function getProtection(): Protection {
   if (!isAvailable()) return 'unavailable';
   const access = getAccess();
   if (access === 'notDetermined') return 'notSetUp';
-  if (access === 'denied') return 'off';
+  if (access === 'denied') return noteAccessOff();
   const armed = getArmedNight();
-  if (armed && currentNightWindowNames().length !== armed.windows) return 'off';
+  if (armed && currentNightWindowNames().length !== armed.windows) return noteAccessOff();
   if (heldLists().length > 0 && !isShieldActive()) return 'off';
   return 'on';
+}
+
+const ACCESS_OFF_KEY = 'locturne.accessOffAt';
+
+/**
+ * Notes when access was last seen off (refused, or the windows iOS drops on a revoke), for
+ * `accessOffSince`: a night with no window run and access seen off since it began held
+ * nothing, so its morning is free (lock-controller.ts, `nightNeverRan`).
+ */
+function noteAccessOff(): 'off' {
+  const now = Date.now();
+  // Read often (each Home render): written at most once a minute.
+  if (now - (sharedGet<number>(ACCESS_OFF_KEY) ?? 0) > 60_000) sharedSet(ACCESS_OFF_KEY, now);
+  return 'off';
+}
+
+/** Whether access was seen off at or after `since` (ms). */
+export function accessOffSince(since: number): boolean {
+  const at = sharedGet<number>(ACCESS_OFF_KEY);
+  return typeof at === 'number' && at >= since;
 }
 
 /**
