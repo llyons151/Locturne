@@ -8,8 +8,8 @@ test('each wake-up names the permission it needs and says the apps won’t wake'
   assert.equal(wakeNeedFor('steps'), 'motion');
   assert.equal(wakeNeedFor('downtime'), 'motion');
   assert.equal(wakeNeedFor('place'), 'location');
-  assert.equal(wakeFixLabel('downtime'), 'Turn on Motion & Fitness');
-  assert.equal(wakeFixLabel('dance'), 'Turn on Camera');
+  assert.equal(wakeFixLabel(false), 'Continue');
+  assert.equal(wakeFixLabel(true), 'Open Settings');
   for (const m of ['scan', 'pushups', 'dance'] as const) assert.equal(wakeNeedFor(m), 'camera');
   for (const m of WAKE_METHODS) {
     const hero = wakeAccessHero(m);

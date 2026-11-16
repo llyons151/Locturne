@@ -44,6 +44,8 @@ export type WakeAccess = {
   asking: boolean;
   /** Asks iOS right here while it still can; once refused for good, opens Settings. */
   fix: () => void;
+  /** `fix` opens Settings rather than Apple's prompt. */
+  settings: boolean;
 };
 
 /**
@@ -80,5 +82,5 @@ export function useWakeAccess(method: WakeMethod, live: boolean): WakeAccess {
       .then(setAnswer)
       .finally(() => setAsking(false));
   };
-  return { off: live && answer !== 'granted', asking, fix };
+  return { off: live && answer !== 'granted', asking, fix, settings: answer === 'settings' };
 }

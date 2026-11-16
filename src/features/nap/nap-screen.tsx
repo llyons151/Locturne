@@ -369,7 +369,8 @@ export function NapScreen() {
       )}
 
       {nap && !napProtected ? (
-        <TextButton label="Turn Screen Time access back on" onPress={turnAccessOn} />
+        // Continue, since it goes straight to Apple's prompt (App Review 5.1.1(iv), 2026-11-16).
+        <TextButton label="Continue" onPress={turnAccessOn} />
       ) : nap ? (
         <Text style={styles.ringNote} numberOfLines={2}>
           {`${nap.list === 'night' ? 'Bedtime apps' : 'Your picked apps'} asleep · calls still get through`}

@@ -123,6 +123,8 @@ export type StepContext = {
 
   /** Screen Time access, asked from the apps page's button: asked, and if refused, said plainly. */
   screenTime: 'idle' | 'asking' | 'refused';
+  /** Apple's prompt still to come: the apps page's button says Continue and there's no skip (App Review 5.1.1(iv)). */
+  accessPending: boolean;
   /** Asks for access if it isn't granted yet, then runs `then`. */
   askScreenTime: (then: () => void) => void;
   /** iOS's Motion & Fitness prompt if it hasn't been answered, then `then` (the method page). */
@@ -628,7 +630,8 @@ export function renderStep(ctx: StepContext): StepView {
           <PrimaryButton
             // On an iPhone nothing sleeps until bedtime, so the button confirms the list; the
             // preview's falling-asleep animation keeps its own label.
-            label={!picked ? 'Add apps' : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
+            // Before Apple's prompt, Continue (App Review 5.1.1(iv), 2026-11-16: "Use words like Continue or Next").
+            label={!picked ? (ctx.accessPending ? 'Continue' : 'Add apps') : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
             // Editing from the summary just saves; the first time, they watch them fall asleep.
             // Apple's Screen Time sheet takes a second to come up: the orb says the tap was taken.
             busy={ctx.screenTime === 'asking' ? ASKING_APPLE : undefined}
@@ -637,7 +640,8 @@ export function renderStep(ctx: StepContext): StepView {
         ),
         // Always under the button so every page keeps its shape:
         // on without the falling-asleep bit, and the list (if any) stays; changed later in the Apps tab.
-        secondary: editing ? undefined : <TextButton label="Skip for now" onPress={next} />,
+        // No skip until Apple's prompt has been shown: the page must always go on to it (App Review 5.1.1(iv)).
+        secondary: editing || ctx.accessPending ? undefined : <TextButton label="Skip for now" onPress={next} />,
       };
     }
 

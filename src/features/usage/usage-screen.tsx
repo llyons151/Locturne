@@ -40,9 +40,10 @@ export function UsageScreen() {
       ) : access !== 'approved' ? (
         <View style={styles.preview}>
           <Text style={styles.message}>{access === 'denied' ? 'Screen Time access is off, so there’s no usage to show.' : 'Turn on Screen Time access to see your usage.'}</Text>
-          {/* Asks right here rather than sending people to another tab (askAccessAgain). */}
+          {/* Asks right here rather than sending people to another tab (askAccessAgain). Continue, not "Turn on":
+              App Review 5.1.1(iv), 2026-11-16. */}
           <Pressable style={styles.accessButton} accessibilityRole="button" onPress={() => askAccessAgain().then(refresh)}>
-            <Text style={styles.title}>{access === 'denied' ? 'Turn Screen Time access back on' : 'Turn on Screen Time access'}</Text>
+            <Text style={styles.title}>Continue</Text>
           </Pressable>
         </View>
       ) : (

@@ -69,7 +69,7 @@ test('an active nap reports revoked protection and recovers its status when acce
   const revoked = render();
   assert.match(texts(revoked), /Protection is off/);
   assert.doesNotMatch(texts(revoked), /until 3:00 PM|calls still get through/);
-  assert.ok(nodes(revoked).some((n) => n.props?.label === 'Turn Screen Time access back on'));
+  assert.ok(nodes(revoked).some((n) => n.props?.label === 'Continue'));
   const spoken = nodes(revoked).find((n) => n.props?.accessibilityLabel?.includes('minute')).props.accessibilityLabel;
   assert.match(spoken, /protection is off/);
   assert.doesNotMatch(spoken, /Apps asleep/);

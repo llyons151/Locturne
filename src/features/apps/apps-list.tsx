@@ -298,7 +298,8 @@ function LiveAppsList() {
 
         {revoked ? (
           <ListCard note={limitError ? <Text style={styles.footer}>{limitError}</Text> : null}>
-            <EditRow label="Turn Screen Time access back on" onPress={actions.allow} />
+            {/* Continue, since it goes straight to Apple's prompt (App Review 5.1.1(iv), 2026-11-16). */}
+            <EditRow label="Continue" onPress={actions.allow} />
           </ListCard>
         ) : null}
         {unpaid ? (

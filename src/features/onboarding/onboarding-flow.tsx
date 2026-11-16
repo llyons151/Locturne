@@ -1015,6 +1015,7 @@ export function OnboardingFlow({
       setSettingUp('scan');
     },
     screenTime,
+    accessPending: screenTimeHere && screenTime !== 'refused' && getAccess() !== 'approved',
     askScreenTime,
     askMotion,
     retryScreenTime,

@@ -13,7 +13,7 @@ import { Text } from '@/components/text';
 import { PrimaryButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';
 import { LEGAL_URLS } from '@/lib/links';
-import { formatPrice, perMonth, type Offer } from '@/lib/purchases';
+import { perMonth, type Offer } from '@/lib/purchases';
 import { Gap, Nocturne, Space, Type, VoiceSize } from '@/theme';
 
 import { methodCopy, painHeadline, plansHeadline } from '../content';
@@ -127,19 +127,18 @@ export function plansStep(ctx: StepContext): StepView {
             {/* The plans sit on the button, as Calm's do. */}
             <View style={styles.fill} />
             {/* Calm Sleep's two cards, copied as they are (user 2026-11-08: "just copy it"): Yearly with its trial
-                tab sitting on top of it, per month first, then a year of Monthly struck through beside the real
-                yearly price; Monthly just its name and price. White where Calm is blue. */}
+                tab sitting on top of it, the billed yearly price big with per month under it (App Review 3.1.2(c));
+                Monthly just its name and price. White where Calm is blue. */}
             <Reveal rise>
               <PlanPicker
                 plan={plan}
                 onPick={(next) => set('plan', next)}
                 yearly={{
-                  // Per month first, as Calm Sleep's (user 2026-11-08: keep it, though App Review 3.1.2 prefers the
-                  // billed amount biggest; Calm ships this way). The billed price is the small line under it.
-                  price: `${perMonth(offers.annual)}/mo`,
-                  // What a year of Monthly costs, struck through: a real price, the one Yearly saves on.
-                  was: formatPrice(offers.monthly.price * 12, offers.monthly.currencyCode),
-                  billed: `${annual}/yr`,
+                  // The billed amount is the big line, per month small under it: App Review rejected the Calm order
+                  // (3.1.2(c), 2026-11-16: "the billed amount is the most clear and conspicuous pricing element").
+                  // The struck-through year of Monthly went with it, so nothing else on the card competes.
+                  price: `${annual}/yr`,
+                  billed: `${perMonth(offers.annual)}/mo`,
                 }}
                 monthly={`${monthly}/mo`}
                 trial={trialDays ? `${trialDays}-Day Free Trial` : undefined}
@@ -317,7 +316,7 @@ function PlanPicker({
 }: {
   plan: 'annual' | 'monthly';
   onPick: (plan: 'annual' | 'monthly') => void;
-  yearly: { price: string; was: string; billed: string };
+  yearly: { price: string; billed: string };
   monthly: string;
   trial?: string;
 }) {
@@ -348,7 +347,7 @@ function PlanPicker({
       </View>
       <View accessibilityRole="radiogroup" style={styles.planCards} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {width ? <Animated.View pointerEvents="none" style={[styles.ring, { width: half + 4 }, ring]} /> : null}
-        <PlanCard selected={plan === 'annual'} onPress={() => onPick('annual')} name="Yearly" price={yearly.price} was={yearly.was} billed={yearly.billed} trial={trial} />
+        <PlanCard selected={plan === 'annual'} onPress={() => onPick('annual')} name="Yearly" price={yearly.price} billed={yearly.billed} trial={trial} />
         <PlanCard selected={plan === 'monthly'} onPress={() => onPick('monthly')} name="Monthly" price={monthly} />
       </View>
     </View>
@@ -356,15 +355,14 @@ function PlanPicker({
 }
 
 /**
- * One plan, as Calm Sleep's: half of the plans' box (the ring is `PlanPicker`'s). Name, then the price;
- * the yearly card adds a struck-through year of Monthly and its billed price under.
+ * One plan, as Calm Sleep's: half of the plans' box (the ring is `PlanPicker`'s). Name, then the billed price;
+ * the yearly card adds its per-month price under it, smaller (App Review 3.1.2(c)).
  */
 function PlanCard({
   selected,
   onPress,
   name,
   price,
-  was,
   billed,
   trial,
 }: {
@@ -372,7 +370,6 @@ function PlanCard({
   onPress: () => void;
   name: string;
   price: string;
-  was?: string;
   billed?: string;
   trial?: string;
 }) {
@@ -386,7 +383,7 @@ function PlanCard({
       }}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${name}, ${price}${billed ? `, billed ${billed}` : ''}${trial ? `. ${trial}` : ''}`}
+      accessibilityLabel={`${name}, ${price}${billed ? `, ${billed}` : ''}${trial ? `. ${trial}` : ''}`}
     >
       <Text style={styles.planName}>{name}</Text>
       <Text style={styles.planPrice} numberOfLines={1} adjustsFontSizeToFit>
@@ -394,8 +391,6 @@ function PlanCard({
       </Text>
       {billed ? (
         <Text style={styles.planBilled} numberOfLines={1} adjustsFontSizeToFit>
-          {was ? <Text style={styles.planWas}>{was}</Text> : null}
-          {was ? '  ' : ''}
           {billed}
         </Text>
       ) : null}
@@ -461,9 +456,8 @@ const styles = StyleSheet.create({
   },
   planName: { color: Nocturne.text, fontSize: 18, fontWeight: '700' },
   planPrice: { color: Nocturne.text, fontSize: 18, lineHeight: 24, fontVariant: ['tabular-nums'] },
-  planBilled: { color: Nocturne.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: Space.s },
-  // White, a little quieter than the price beside it: grey sank into the bright sky behind (user 2026-11-08).
-  planWas: { textDecorationLine: 'line-through', fontWeight: '500', color: Nocturne.text, opacity: 0.7 },
+  // Under the billed price, smaller and quieter (App Review 3.1.2(c)).
+  planBilled: { color: Nocturne.text, opacity: 0.7, fontSize: 13, fontWeight: '500', fontVariant: ['tabular-nums'], marginTop: Space.xs },
   offerPage: { alignItems: 'center' },
   offerEyebrow: {
     color: Nocturne.text2,

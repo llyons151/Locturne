@@ -375,12 +375,11 @@ export function HomeScreen() {
     if (today && phase === 'night' && minutes !== null && minutes <= 60) return `${thisOne}: ${name}`;
     return `${today ? thisOne : 'Tomorrow'}: ${name} at ${clockLabel(routine.morningStart)}`;
   };
+  // The button goes straight to Apple's prompt, so it says Continue (App Review 5.1.1(iv), 2026-11-16).
   const action = unprotected
-    ? health.protection === 'notSetUp'
-      ? { label: 'Turn on Screen Time', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
-      : { label: 'Turn Screen Time back on', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
+    ? { label: 'Continue', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
     : wakeRefused
-      ? { label: wakeFixLabel(method), onPress: wakeAccess.fix, busy: wakeAccess.asking ? ASKING_APPLE : undefined }
+      ? { label: wakeFixLabel(mock ? false : wakeAccess.settings), onPress: wakeAccess.fix, busy: wakeAccess.asking ? ASKING_APPLE : undefined }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : walkSettings

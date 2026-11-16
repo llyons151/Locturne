@@ -137,8 +137,8 @@ function home({
     './catch-up': { useCatchingUp: () => false },
     './use-morning-walk': { useMorningWalk: (on: boolean) => (on ? walk : null) },
     './walk-request': { askWalk() {}, useWalkRequest: () => null },
-    './use-wake-access': { useWakeAccess: (_m: string, live: boolean) => ({ off: live && wakeRefused, asking: false, fix() {} }) },
-    './wake-access-words': { wakeAccessHero: (m: string) => ({ title: `${m} access off`, body: 'apps won’t wake' }), wakeFixLabel: (m: string) => `Turn on ${m}` },
+    './use-wake-access': { useWakeAccess: (_m: string, live: boolean) => ({ off: live && wakeRefused, asking: false, fix() {}, settings: false }) },
+    './wake-access-words': { wakeAccessHero: (m: string) => ({ title: `${m} access off`, body: 'apps won’t wake' }), wakeFixLabel: (settings: boolean) => (settings ? 'Open Settings' : 'Continue') },
     'expo-keep-awake': { useKeepAwake() {} },
     './morning': { scanMorning: () => morningOf('scan', true), WALK_INSTEAD },
     './use-morning-place': { useMorningPlace: (on: boolean, w: unknown) => (on ? morningOf('place', w) : null) },
@@ -490,7 +490,7 @@ describe('Home with the wake-up’s permission refused', () => {
   test('by day it says so instead of the countdown, offers to turn it on and a way to change the wake-up', () => {
     const { hero, action, alt, look } = home({ now: new Date(2026, 9, 9, 14), wakeRefused: true });
     assert.equal(hero.title, 'steps access off');
-    assert.equal(action.label, 'Turn on steps');
+    assert.equal(action.label, 'Continue');
     assert.equal(alt?.label, 'Change wake-up');
     assert.equal(look, 'problem');
   });
@@ -498,7 +498,7 @@ describe('Home with the wake-up’s permission refused', () => {
   test('at night too, so it can be fixed before the morning', () => {
     const { hero, action } = home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', method: 'pushups', wakeRefused: true });
     assert.equal(hero.title, 'pushups access off');
-    assert.equal(action.label, 'Turn on pushups');
+    assert.equal(action.label, 'Continue');
   });
 
   test('Screen Time off still leads, and the morning keeps its own screen', () => {

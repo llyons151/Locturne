@@ -18,9 +18,11 @@ const SETTING: Record<WakeNeed, string> = {
   location: 'Location is off.',
 };
 
-/** Home's button: asks iOS while it still can, else opens Settings (`useWakeAccess`). */
-export const wakeFixLabel = (method: WakeMethod) =>
-  ({ motion: 'Turn on Motion & Fitness', camera: 'Turn on Camera', location: 'Turn on Location' })[wakeNeedFor(method)];
+/**
+ * Home's button: asks iOS while it still can, else opens Settings (`useWakeAccess`). Continue when it leads to
+ * Apple's prompt, never "Turn on …" (App Review 5.1.1(iv), 2026-11-16, said so of Screen Time's button).
+ */
+export const wakeFixLabel = (settings: boolean) => (settings ? 'Open Settings' : 'Continue');
 
 /** What the morning can't do without it. Short: the buttons under it say the fix (user 2026-11-08). */
 const CANT: Record<WakeMethod, string> = {
