@@ -71,6 +71,8 @@ export const PANEL_RADIUS = 44;
 
 // Quick and settled: premium motion is fast, with no wobble at rest.
 const PRESS = { damping: 18, stiffness: 420 };
+/** Headroom for the tab icon's hop and the button's press spring, which both overshoot 1. */
+const OVERSAMPLE = 1.5;
 /** The selected button's fill. */
 const FADE = { duration: 180 };
 
@@ -313,8 +315,10 @@ function TabButton({
     transform: [{ scale: press.value }],
   }));
 
+  // Drawn at OVERSAMPLE times its size and shown scaled down, so the hop's overshoot never
+  // stretches the symbol's bitmap past 1x (it went soft for a moment on each pick, user 2026-11-16).
   const iconStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: bounce.value }],
+    transform: [{ scale: bounce.value / OVERSAMPLE }],
   }));
 
   return (
@@ -335,7 +339,7 @@ function TabButton({
         <Animated.View style={iconStyle}>
           <SymbolView
             name={tab.icon}
-            size={tab.size - 2}
+            size={(tab.size - 2) * OVERSAMPLE}
             weight='semibold'
             tintColor={focused ? Nocturne.onCta : Nocturne.text}
           />

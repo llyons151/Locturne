@@ -64,8 +64,12 @@ import { MockBar, MockSwipe } from '../dev/state-lab/mock-bar';
 import { pretendMethod, pretendNightEnd, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { weekDays } from './week';
 
-/** Dev only: fill Sunday through today with won days to preview the mist. */
-const MOCK_WEEK = __DEV__;
+/**
+ * Fill Sunday through today with won days to preview the mist. Off: in a development build it made
+ * Home's pill say 2 while the moons page said 0 (user 2026-11-16), and it hid the real streak.
+ * Developer → Make up mornings gives real numbers instead.
+ */
+const MOCK_WEEK = false as boolean;
 
 /**
  * Home, mocked up after Oura's "Bedtime's approaching" (docs/design-references/home-moon,
