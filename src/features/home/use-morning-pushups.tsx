@@ -5,6 +5,7 @@
 import { useState, type ReactNode } from 'react';
 import { Linking } from 'react-native';
 
+import { ASKING_APPLE } from '@/components/buttons';
 import { isTimed, type Exercise } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 
@@ -22,7 +23,7 @@ const ICONS = {
 
 /** How he asks for the setup: push-ups, the phone on its side on the floor; dance, standing up facing you. */
 const SETUP: Record<Exercise, string> = {
-  pushups: 'Lean me on my side on the floor, two steps away and side-on to you.',
+  pushups: 'Lean me on the floor, facing you or side-on.',
   dance: 'Stand me up facing you, about four steps back, so I can see all of you.',
 };
 
@@ -43,12 +44,15 @@ export function useMorningPushups(
   const prove = useProveMorning();
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState<PoseCameraError | null>(null);
+  /** Waiting on Apple's camera prompt, which takes about a second to come up. */
+  const [asking, setAsking] = useState(false);
 
   if (!enabled) {
     // Proved another way (the walk) or the morning over with the camera up: shut it, so the next
     // morning doesn't open on the camera, or on yesterday's "I can't see you".
     if (open) setOpen(false);
     if (failed) setFailed(null);
+    if (asking) setAsking(false);
     return null;
   }
 
@@ -58,7 +62,6 @@ export function useMorningPushups(
   const done = timed ? 0 : Math.min(target, getRepsDone(morning, exercise));
   const noun = EXERCISE_NOUN[exercise];
   const ICON = ICONS[exercise];
-  const left = Math.max(0, target - done);
   const restricted = camera.access === 'restricted' || failed === 'restricted';
   const denied = camera.access === 'denied' || (failed === 'denied' && camera.access !== 'granted');
   const meter = { value: String(done), caption: `of ${target} ${noun}`, progress: target > 0 ? done / target : 1 };
@@ -100,7 +103,11 @@ export function useMorningPushups(
   }
 
   const begin = async () => {
-    if (camera.access !== 'granted' && !(await camera.request())) return;
+    if (camera.access !== 'granted') {
+      setAsking(true);
+      const granted = await camera.request().finally(() => setAsking(false));
+      if (!granted) return;
+    }
     setFailed(null);
     setOpen(true);
   };
@@ -108,23 +115,30 @@ export function useMorningPushups(
   return {
     morning: {
       icon: ICON,
-      hero: timed
+      hero: asking
+        ? // What Apple's prompt is for, while it's up (user, 2026-11-16).
+          { title: timed ? `Dance ${target} seconds` : `${done} of ${target} ${noun}`, body: `Apple needs camera access for you to ${timed ? 'dance' : `do ${noun}`}.` }
+        : timed
         ? // Short (user, 2026-11-07): the camera screen says where to stand.
           { title: `Dance ${target} seconds`, body: 'Stop and it’s back to zero.' }
         : {
             // Read out for the meter, which stands in for the headline (home-content).
             title: `${done} of ${target} ${noun}`,
-            body: `${SETUP[exercise]} ${done > 0 ? `${left} more to go.` : `${target} ${noun}.`} I count out loud.`,
+            // One line (user, 2026-11-16): the meter has the count, and the camera coaches the rest.
+            body: SETUP[exercise],
           },
       meter: timed ? undefined : meter,
       // The phone lies on the floor untouched through the set: auto-lock would stop the camera.
       keepAwake: open,
-      // HIG: the button before Apple's prompt says Continue, never "Allow" (App Review 5.1.1(iv)).
+      // The set's own name even before Apple has asked for the camera: the tap starts the set and
+      // Apple's prompt comes in context, so Continue (onboarding's word for a page that only leads
+      // to a prompt) reads wrong here (user, 2026-11-16). The orb covers the second before it shows.
       action: {
-        label: camera.access === 'ask' ? 'Continue' : timed ? 'Start dancing' : done > 0 ? 'Keep going' : `Start ${noun}`,
+        label: timed ? 'Start dancing' : done > 0 ? 'Keep going' : `Start ${noun}`,
         onPress: () => {
-          if (camera.access !== 'checking') begin();
+          if (camera.access !== 'checking' && !asking) begin();
         },
+        busy: asking ? ASKING_APPLE : undefined,
         opens: true,
       },
       alt: WALK_INSTEAD,

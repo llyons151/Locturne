@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 
-import { pushupsLine, spokenRep } from './lines.ts';
+import { FILMING_LINES, pushupsLine, spokenRep } from './lines.ts';
 import { readPhone } from './phone-hint.ts';
 import { DEMO_REP_MS, demoPose, plankPose, scenePose, type DemoScene } from './pose-demo.ts';
 import {
@@ -326,9 +326,13 @@ describe('push-up session', () => {
  * Real clips (2026-10-10, docs/PUSHUP_TESTS.md): YouTube videos run through MediaPipe's pose
  * model at 15 frames a second, the joints kept, the video not. The counts were checked by eye.
  */
-describe('real clips', () => {
+// Facing the camera (2026-11-16): 16 of 43 clips collected that day (YouTube and Pexels), the
+// real front-on sets and the look-alikes. Missed for now, so not here: a camera right up against
+// the face, a raised camera, hands on a bench, and the fastest set (one rep short).
+for (const file of ['pushup-clips.json', 'pushup-front-clips.json'])
+describe(`real clips (${file})`, () => {
   type Clip = { reps: number; what: string; frames: number[][] };
-  const data = JSON.parse(readFileSync(new URL('./fixtures/pushup-clips.json', import.meta.url), 'utf8')) as {
+  const data = JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), 'utf8')) as {
     joints: Joint[];
     clips: Record<string, Clip>;
   };
@@ -414,6 +418,14 @@ describe('push-up lines', () => {
     assert.equal(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 2, 10, null));
     assert.notEqual(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 3, 10, null));
     assert.match(pushupsLine('counting', 9, 10, null), /Almost/);
+  });
+
+  test('filming (dev and preview builds): only the reel lines while counting, the usual ones out of frame', () => {
+    const said = [1, 2, 3, 4, 5, 6, 9].map((reps) => pushupsLine('counting', reps, 10, null, null, true));
+    assert.deepEqual(said, [...FILMING_LINES, FILMING_LINES[0], FILMING_LINES[3]]);
+    assert.equal(pushupsLine('counting', 3, 10, 'shallow', null, true), FILMING_LINES[2]);
+    assert.equal(pushupsLine('finding', 4, 10, null, 'noBody', true), 'Where did you go. Come back.');
+    assert.equal(pushupsLine('counting', 0, 10, null, null, true), 'Arms straight. Now go down.');
   });
 
   test('timed out says how many are left once some are done', () => {

@@ -8,7 +8,7 @@ export type CameraAccess = 'checking' | 'ask' | 'granted' | 'denied' | 'restrict
 
 /**
  * Camera access for push-ups, read again on the way back from Settings (as the scanner does).
- * `ask` shows Continue before Apple's prompt; `denied` sends to Settings; `restricted` (Screen
+ * `ask`: Apple hasn't asked yet (Home's Start asks); `denied` sends to Settings; `restricted` (Screen
  * Time or a profile) is off where Settings can't help, so only walking is offered.
  */
 export function useCameraAccess(): { access: CameraAccess; request: () => Promise<boolean> } {

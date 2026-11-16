@@ -16,8 +16,12 @@
  * real reps bottom out at 25–112° with a drop of 0.57–1.35 arms, in normal and darkened light;
  * dark-room jitter drops at most 0.33.
  *
- * Elbow angles are read in the picture, so they're only true side-on; facing the camera the
- * torso is foreshortened and the plank check fails, which is why Loc asks for side-on.
+ * Facing the camera works too (2026-11-16, user: front-on is easier to film). There the torso is
+ * foreshortened, so the plank check and the yardstick change (`readFront`): the drop is measured
+ * in shoulder widths, and the plank is wrists under the shoulders with the hips, where seen, not
+ * far below them (standing, they're a torso below). The elbow still reads from the front because
+ * elbows flare at the bottom. Which way you face is read from how wide the shoulders are against
+ * the arms (`FRONT.spreadIn`/`spreadOut`): side-on they overlap.
  *
  * Pure: times are ms, joints are in any one pixel space with y pointing down (the camera view's
  * points on iOS, the preview's pixels on web). The screen feeds it pose frames and clock ticks.
@@ -60,7 +64,7 @@ export const PUSHUPS = {
   /** Wrists may be this share of the arm's length above the shoulders and still be "below" (camera noise). */
   wristSlack: 0.15,
   /** The shortest time between two reps' tops. */
-  minRepMs: 700,
+  minRepMs: 500,
   /** Out of view or out of a plank this long and he says so. The reps done stay. */
   lostMs: 1_200,
   /**
@@ -71,6 +75,35 @@ export const PUSHUPS = {
   /** No plank in view for this long (not since the start: a long set with rests is fine) and the camera stops. */
   timeoutMs: 10 * 60_000,
 } as const;
+
+/** Facing the camera (`readFront`). */
+export const FRONT = {
+  /** Shoulder width at or over this share of the arm's length, and it's front-on. (Side-on clips read 0.05–0.4,
+   * rarely 0.7 for a frame; front-on 0.66–0.94.) */
+  spreadIn: 0.6,
+  /** Back to side-on at or under this, so a frame or two between doesn't flip it. */
+  spreadOut: 0.4,
+  /** Hips, when the camera finds them, at most this many shoulder widths below the shoulders. A front-on plank reads
+   * −0.6 to 0.55; standing, they're a torso (about 1.5 widths) down. */
+  maxHipDrop: 0.9,
+  /** An arm (shoulder to wrist, the two bones) shorter or longer than this many shoulder widths is the camera guessing. */
+  armToWidth: [0.5, 4],
+  /**
+   * The wrists below the shoulders, in shoulder widths: about 1.5 at the top of a front-on rep and
+   * 0.3–0.6 at the bottom (43 clips, 2026-11-16). Read as an elbow angle (`upExt` is `upDeg`, `downExt`
+   * is `downDeg`), and the lower of the two counts: from the front, tucked elbows barely look bent.
+   */
+  upExt: 1.1,
+  downExt: 0.75,
+  /** Both knees seen this surely and it isn't a plank: front-on, the body hides them (real push-ups' knees read a
+   * median 8–64% on MediaPipe; kneeling rock-backs, standing and sitting 90–100%). */
+  kneesSeen: 0.9,
+  /** The shoulder drop's yardstick from the front, in shoulder widths: up close the width is large against the drop. */
+  dropWidths: 0.7,
+} as const;
+
+/** Which way you face the camera: side-on (the plank's length across the picture) or front-on. */
+export type View = 'side' | 'front';
 
 export const JOINTS = [
   'nose',
@@ -140,7 +173,9 @@ export type RepRules = {
   regainMs: number;
   timeoutMs: number;
   reps: number;
-  read: (joints: PoseFrame['joints']) => { angle: number; y: number; scale: number } | { hint: Hint };
+  /** `view` is the way the last frames were read; `hold` keeps it (mid-dip, where a folded arm makes side-on
+   * shoulders look wide). */
+  read: (joints: PoseFrame['joints'], view: View | null, hold: boolean) => { angle: number; y: number; scale: number; view: View } | { hint: Hint };
 };
 
 /** Why the last dip didn't count, so Loc can say so. Dance: `broke`, stopped and back to zero. */
@@ -180,6 +215,8 @@ export type PushupsSession = {
   miss: Miss | null;
   metAt: number | null;
   status: PushupsStatus;
+  /** Side-on or front-on, as the last plank read (null before one). */
+  view: View | null;
   /** Dance only: its frame reader's state (wake/dance.ts). */
   dance?: DanceState;
 };
@@ -195,9 +232,10 @@ export const defaultsFor = (exercise: Exercise): { reps: number; timeoutMs: numb
 
 const PUSHUP_RULES: RepRules = {
   ...PUSHUPS,
-  read: (joints) => {
-    const r = readFrame(joints);
-    return 'hint' in r ? r : { angle: r.elbow, y: r.shoulderY, scale: r.torso };
+  read: (joints, view, hold) => {
+    const facing = hold && view ? view : viewOf(joints, view);
+    const r = facing === 'front' ? readFront(joints) : readFrame(joints);
+    return 'hint' in r ? r : { angle: r.elbow, y: r.shoulderY, scale: r.torso, view: facing };
   },
 };
 
@@ -235,6 +273,7 @@ export function startPushups(
     drop: 0,
     seenAt: null,
     hint: 'noBody',
+    view: null,
     lastRep: null,
     miss: null,
     metAt: met ? now : null,
@@ -325,13 +364,77 @@ export function readFrame(joints: PoseFrame['joints']): { elbow: number; shoulde
   return { elbow: angleAt(shoulder, elbow, wrist), shoulderY: shoulder.y, torso };
 }
 
+type Arm = { shoulder: JointPoint; elbow: JointPoint; wrist: JointPoint };
+
+const dist = (a: JointPoint, b: JointPoint) => Math.hypot(a.x - b.x, a.y - b.y);
+const armLength = ({ shoulder, elbow, wrist }: Arm) => dist(shoulder, elbow) + dist(elbow, wrist);
+
+/** Both arms the camera sees whole, and both shoulders, or null. */
+function frontParts(joints: PoseFrame['joints']): { left: JointPoint; right: JointPoint; arms: Arm[] } | null {
+  const ok = (p: JointPoint | undefined): p is JointPoint => !!p && p.c >= PUSHUPS.minConfidence;
+  const left = joints.leftShoulder;
+  const right = joints.rightShoulder;
+  if (!ok(left) || !ok(right)) return null;
+  const arms: Arm[] = [];
+  for (const side of ['left', 'right'] as const) {
+    const shoulder = joints[`${side}Shoulder`];
+    const elbow = joints[`${side}Elbow`];
+    const wrist = joints[`${side}Wrist`];
+    if (ok(shoulder) && ok(elbow) && ok(wrist)) arms.push({ shoulder, elbow, wrist });
+  }
+  return arms.length ? { left, right, arms } : null;
+}
+
+/**
+ * Side-on or front-on: the shoulders' width against the arms. Between `spreadOut` and `spreadIn`
+ * it stays the way it was, so a twist or a bad frame doesn't change the yardstick mid-rep.
+ */
+export function viewOf(joints: PoseFrame['joints'], was: View | null): View {
+  const parts = frontParts(joints);
+  if (!parts) return was ?? 'side';
+  const arm = parts.arms.reduce((sum, a) => sum + armLength(a), 0) / parts.arms.length;
+  if (!(arm > 0)) return was ?? 'side';
+  const spread = dist(parts.left, parts.right) / arm;
+  if (spread >= FRONT.spreadIn) return 'front';
+  if (spread <= FRONT.spreadOut) return 'side';
+  return was ?? (spread >= (FRONT.spreadIn + FRONT.spreadOut) / 2 ? 'front' : 'side');
+}
+
+/**
+ * A front-on frame, read as `readFrame` reads a side-on one: the elbows' angle (both arms', when
+ * both are seen), the shoulders' height, and the shoulders' width as the yardstick (the torso
+ * is foreshortened facing the camera). The plank: wrists below the shoulders, and the hips, when
+ * the camera finds them, not a torso below them, as they are standing up.
+ */
+export function readFront(joints: PoseFrame['joints']): { elbow: number; shoulderY: number; torso: number } | { hint: Hint } {
+  const parts = frontParts(joints);
+  if (!parts) return { hint: 'noBody' };
+  const { left, right, arms } = parts;
+  const width = dist(left, right);
+  const shoulderY = (left.y + right.y) / 2;
+  const [least, most] = FRONT.armToWidth;
+  if (!(width > 0) || arms.some((a) => armLength(a) < width * least || armLength(a) > width * most)) return { hint: 'noBody' };
+  if (arms.some((a) => a.wrist.y < a.shoulder.y - armLength(a) * PUSHUPS.wristSlack)) return { hint: 'notPlank' };
+  const hips = [joints.leftHip, joints.rightHip].filter((h): h is JointPoint => !!h && h.c >= PUSHUPS.minConfidence);
+  if (hips.length && hips.reduce((sum, h) => sum + h.y, 0) / hips.length - shoulderY > width * FRONT.maxHipDrop) return { hint: 'notPlank' };
+  const knees = [joints.leftKnee, joints.rightKnee];
+  if (knees.every((k) => !!k && k.c >= FRONT.kneesSeen)) return { hint: 'notPlank' };
+  const bend = arms.reduce((sum, a) => sum + angleAt(a.shoulder, a.elbow, a.wrist), 0) / arms.length;
+  const reach = arms.reduce((sum, a) => sum + a.wrist.y - a.shoulder.y, 0) / arms.length / width;
+  const k = (PUSHUPS.upDeg - PUSHUPS.downDeg) / (FRONT.upExt - FRONT.downExt);
+  const elbow = (bend + PUSHUPS.downDeg + (reach - FRONT.downExt) * k) / 2;
+  return { elbow, shoulderY, torso: width * FRONT.dropWidths };
+}
+
 export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
   if (isOver(s)) return s;
   if (s.exercise === 'dance') return addDancePose(s, frame);
   const at = frame.at;
   const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, at) };
-  const read = R.read(frame.joints);
+  // Which way you face is only read again out of a dip: at the bottom the arm folds, and side-on
+  // shoulders then look as wide as front-on ones against it.
+  const read = R.read(frame.joints, s.view, s.dip !== null);
 
   if ('hint' in read) {
     // A frame or two can drop out mid-rep; only a while without one loses the plank.
@@ -341,6 +444,20 @@ export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
 
   next.seenAt = at;
   next.hint = null;
+  if (next.view !== read.view) {
+    // Turned to or from the camera: the yardstick changed, so the dip under way and the top
+    // measured in the old one go; the next top starts over.
+    if (next.view !== null) {
+      next.down = false;
+      next.lowFrames = 0;
+      next.deepFrames = 0;
+      next.dip = null;
+      next.drop = 0;
+      next.topY = null;
+      next.topAt = null;
+    }
+    next.view = read.view;
+  }
   const elbow = read.angle;
   next.elbow = elbow;
 

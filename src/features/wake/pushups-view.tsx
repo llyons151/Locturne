@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { SymbolView } from 'expo-symbols';
 
-import { PANEL_RADIUS } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { CountText } from '@/components/count-text';
@@ -22,7 +21,7 @@ import { CTA_HEIGHT, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { hush, isPoseCameraAvailable, PoseCameraView, say, type PoseCameraError } from '../../../modules/pose-camera';
 import { LocBubble } from '../home/loc-bubble';
-import { CameraBar, DanceTimer } from './dance-timer';
+import { CameraBar } from './dance-timer';
 import { LOC_VIEW, type LocMood } from '../home/loc-rig';
 import LocStage from '../home/loc-stage';
 import { FAST_TIMEOUT_MS, PREVIEW_PHONES, type PushupsPreview } from '../dev/wake-lab/pushups-preview';
@@ -34,11 +33,13 @@ import { usePhone } from './use-phone-hint';
 import { usePushups } from './use-pushups';
 
 /** Loc's width in points, both ways up; his canvas is the screen's width, as on Home. */
-const LOC_PT = 116;
+const LOC_PT = 78;
 /** About how long he takes to run in under the covers and pop up (loc-rig ARRIVE), before his first line. */
 const ARRIVE_MS = 1_300;
 /** His bubble's tail, as a share of his canvas's height up from its bottom: just over his head. */
 const BUBBLE_AT = 0.78;
+/** LocBubble's `room` for exactly one line (its padding, one line and the gap under it). */
+const BUBBLE_ONE_LINE = 52;
 /** The black ledge he stands on, holding the meter, above the home bar; sideways, thinner. */
 const LEDGE = Space.l + 6;
 const LEDGE_SIDE = Space.l + 6 + Space.m;
@@ -49,9 +50,12 @@ const MET_BEAT_MS = 1_600;
 /** Out of sight at least this long before he says "Go on." again on finding you. */
 const GO_AGAIN_MS = 8_000;
 
+/** Dev and preview builds: the reel lines while counting (lines.ts `FILMING_LINES`), never in the App Store build. */
+const FILMING = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
+
 /**
  * Push-ups (GAME_PLAN, "Wake-up methods"; camera version 2026-10-10): stand the phone on the
- * floor side-on, and the front camera counts. This page explains the setup and asks for the
+ * floor, facing you or side-on, and the front camera counts. This page explains the setup and asks for the
  * camera; Start opens the camera full screen (`PushupsCamera`). "Walk N steps instead" is always
  * on offer, like every method.
  */
@@ -149,7 +153,7 @@ export function PushupsView({
             ? `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`
             : timed
               ? `Stand me up facing you, about four steps back, so I can see all of you, head to feet. Then dance for ${target} seconds straight. Stop, and it’s back to zero.`
-              : `Turn me sideways and lean me against something on the floor, two steps away and side-on to you, so I can see all of you. Then ${
+              : `Lean me against something on the floor, two steps away, facing you or side-on. Then ${
                 done > 0 ? `${Math.max(0, target - done)} more ${noun}; you've done ${done}` : `${target} ${noun}`
               }. I count out loud.`}
         </Body>
@@ -204,7 +208,7 @@ function SetupSketch() {
   const ink = Nocturne.text2;
   const faint = Nocturne.text3;
   return (
-    <View style={styles.sketch} accessible accessibilityLabel="The phone on its side, leaning on the floor, two steps from you, side-on.">
+    <View style={styles.sketch} accessible accessibilityLabel="The phone leaning on the floor, two steps from you.">
       <Svg width={260} height={110} viewBox="0 0 260 110">
         <Line x1={8} y1={98} x2={252} y2={98} stroke={faint} strokeWidth={1.5} strokeLinecap="round" />
         {/* The phone on its long edge, leaning back a little, camera facing you. */}
@@ -251,7 +255,6 @@ const PHONE_LINES: Record<ViewHint, string> = {
 /** Which way the phone stands: the preview's pretend one, or the accelerometer's. Upright until it knows. */
 function useTurn(
   live: boolean,
-  finding: boolean,
   preview?: PushupsPreview,
   standing = false,
 ): { turn: PhoneTurn; hint: ViewHint | null; upright: boolean } {
@@ -263,9 +266,9 @@ function useTurn(
   const hint = forced ? (live ? forced.hint : null) : sensed.hint;
   // `upright` is the accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
   const upright = sensed.turn === 'portrait' && sensed.hint !== 'flat';
-  // Push-ups: upright counts too: the nudge to turn it only while he's still looking for you.
-  // Dance: upright is the way (a standing body is tall), so never nudged.
-  return { turn, hint: hint === 'tall' && (!finding || standing) ? null : hint, upright };
+  // Never nudged to turn it: dance stands it up (a standing body is tall), and push-ups count
+  // facing the camera too (2026-11-16), where upright sees all of you.
+  return { turn, hint: hint === 'tall' ? null : hint, upright };
 }
 
 /**
@@ -348,14 +351,44 @@ function useFlood(turn: PhoneTurn) {
 
 /**
  * The ledge's top corners: the black curves up into the picture's rounded bottom corners, as
- * Home's strip meets its panel (PANEL_RADIUS); Loc's covers bend up the same curve.
+ * the camera card's rounded bottom (CARD_RADIUS, CARD_SIDE in from the edges).
  */
 function Corners({ width }: { width: number }) {
-  const R = PANEL_RADIUS;
+  const R = CARD_RADIUS;
+  const m = CARD_SIDE;
   return (
     <Svg width={width} height={R} pointerEvents="none">
-      <Path d={`M0 0 L0 ${R} L${R} ${R} A${R} ${R} 0 0 1 0 0 Z`} fill="#000000" />
-      <Path d={`M${width} 0 L${width} ${R} L${width - R} ${R} A${R} ${R} 0 0 0 ${width} 0 Z`} fill="#000000" />
+      <Path d={`M0 0 L0 ${R} L${m + R} ${R} A${R} ${R} 0 0 1 ${m} 0 Z`} fill="#000000" />
+      <Path d={`M${width} 0 L${width} ${R} L${width - m - R} ${R} A${R} ${R} 0 0 0 ${width - m} 0 Z`} fill="#000000" />
+    </Svg>
+  );
+}
+
+/** The camera as a card (user 2026-11-16, after Erly): black margins this wide at the sides, corners this round. */
+const CARD_SIDE = 10;
+const CARD_RADIUS = 28;
+/** The black band over the card with the app's name in it, under the status bar. */
+const TITLE_BAR = 52;
+
+/**
+ * Black all round the camera but a rounded card: the band with the name at the top, thin sides.
+ * The bottom corners are the ledge's own (`Corners`), so the black can flood up from there when
+ * the screen turns. The camera itself stays full screen underneath, so the joints still come back
+ * in the whole screen's points.
+ */
+function CardFrame({ width, height, top }: { width: number; height: number; top: number }) {
+  const R = CARD_RADIUS;
+  const m = CARD_SIDE;
+  const r = width - m;
+  // Down to below the screen: the ledge covers the bottom, and its corners round it.
+  const b = height + R;
+  return (
+    <Svg width={width} height={height} style={styles.frame} pointerEvents="none">
+      <Path
+        fillRule="evenodd"
+        fill="#000000"
+        d={`M0 0 H${width} V${height} H0 Z M${m + R} ${top} H${r - R} A${R} ${R} 0 0 1 ${r} ${top + R} V${b} H${m} V${top + R} A${R} ${R} 0 0 1 ${m + R} ${top} Z`}
+      />
     </Svg>
   );
 }
@@ -395,7 +428,7 @@ export function PushupsCamera({
   // The phone on its side (the main way for push-ups) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, status === 'finding', preview, isTimed(exercise));
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, preview, isTimed(exercise));
   const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
@@ -501,7 +534,9 @@ export function PushupsCamera({
   // His bubble is the only words on the picture: the setup is on Home, before Start.
   const line = phone
     ? PHONE_LINES[phone]
-    : (isTimed(exercise) ? danceLine : pushupsLine)(status, reps, target, session?.miss ?? null, session?.hint ?? null);
+    : isTimed(exercise)
+      ? danceLine(status, reps, target, session?.miss ?? null, session?.hint ?? null)
+      : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null, FILMING);
   const locH = Math.round((LOC_PT * LOC_VIEW.height) / LOC_VIEW.width);
   // The same object between renders: the camera re-renders this about 30 times a second, and
   // Loc's DOM view would otherwise be handed new props every time. The whole width, as on Home,
@@ -521,9 +556,9 @@ export function PushupsCamera({
   // same edge (user 2026-10-29: in the middle, he and his lines covered the person).
   // Dance, though, has him in the middle (user 2026-11-07): you stand well back, so he's under
   // your feet, not over you.
-  const centred = isTimed(exercise);
-  const edge = Gap.gutter + insets.left;
-  const offset = centred ? 0 : (edge + LOC_PT / 2) / width - 0.5;
+  // In the middle for both now, small, standing on the card's bottom edge (user 2026-11-16).
+  const offset = 0;
+  const cardTop = insets.top + TITLE_BAR;
   // The black: sits as the ledge, and floods up to the top while the screen turns.
   const ground = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - flood.get()) * (height - ledge) }] }));
   // The meter goes first as the black comes up, and comes back last.
@@ -556,26 +591,27 @@ export function PushupsCamera({
             />
           ) : null}
           <PoseOverlay pose={pose} counting={counting} />
-          <Scrim width={width} height={insets.top + (side ? 120 : 190)} />
+          <Scrim width={width} height={cardTop + (side ? 110 : 170)} />
           <Scrim width={width} height={ledge + Space.xxxl} flip />
+          {/* The name over the camera, so every screen recording says what the app is (user 2026-11-16, after Erly). */}
+          <CardFrame width={width} height={height} top={cardTop} />
+          <View style={[styles.titleBar, { top: insets.top, height: TITLE_BAR }]} pointerEvents="none">
+            <Text style={styles.title} maxFontSizeMultiplier={1.2} accessibilityRole="header">
+              Locturne
+            </Text>
+          </View>
 
           <View
-            style={[styles.reading, { top: insets.top + (side ? 0 : short ? Space.l : Space.xxl) }]}
+            style={[styles.reading, { top: cardTop + (side || short ? Space.s : Space.l) }]}
             accessible
             accessibilityLabel={`${reps} of ${target} ${EXERCISE_NOUN[exercise]}.`}
           >
-            {isTimed(exercise) ? (
-              // Dance: the time left in a ring that empties as you dance (user 2026-11-07, after
-              // Peloton's set timer). A break fills it back up rather than cutting to the start.
-              <View style={[styles.timer, !counting && styles.countIdle]}>
-                <DanceTimer runMs={session?.dance?.runMs ?? 0} goal={target} met={met} size={short || side ? 120 : 160} />
-              </View>
-            ) : (
-              // Rolls each rep, as Home's and the onboarding's counts do.
-              <View style={!counting && styles.countIdle}>
-                <CountText value={String(reps)} size={short || side ? 68 : 96} />
-              </View>
-            )}
+            {/* Rolls each rep, as Home's and the onboarding's counts do. Dance counts its seconds the
+                same way (user 2026-11-16: the same as push-ups), in place of the ring. */}
+            <View style={[styles.reading2, !counting && styles.countIdle]}>
+              <CountText value={String(reps)} size={short || side ? 68 : 96} />
+              <Text style={styles.of} maxFontSizeMultiplier={1.4}>{`of ${target} ${EXERCISE_NOUN[exercise]}`}</Text>
+            </View>
           </View>
 
           <Pressable
@@ -583,7 +619,7 @@ export function PushupsCamera({
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel={met ? 'Done' : 'Stop'}
-            style={({ pressed }) => [styles.close, { top: insets.top + Space.s, right: Gap.gutter + insets.right }, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.close, { top: insets.top + (TITLE_BAR - 36) / 2, right: Gap.gutter + insets.right }, pressed && styles.pressed]}
           >
             <SymbolView name={sym('xmark', 'close')} size={15} weight="bold" tintColor={Nocturne.text} />
           </Pressable>
@@ -595,18 +631,15 @@ export function PushupsCamera({
           </View>
           {arrived ? (
             <View
-              style={[
-                styles.speech,
-                centred ? styles.speechMiddle : { left: edge },
-                { bottom: ledge + Math.round(locH * BUBBLE_AT) },
-              ]}
+              style={[styles.speech, styles.speechMiddle, { bottom: ledge + Math.round(locH * BUBBLE_AT) }]}
               pointerEvents="box-none"
             >
-              <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} smoked />
+              {/* One line, whatever he says: iOS shrinks the words to fit the card (user 2026-11-16). */}
+              <LocBubble key={line} line={line.replace(/\*/g, '')} onDismiss={() => {}} smoked room={BUBBLE_ONE_LINE} wide={width - 2 * Gap.gutter} />
             </View>
           ) : null}
 
-          <Animated.View style={[styles.ground, { height: height + PANEL_RADIUS }, ground]} pointerEvents="none">
+          <Animated.View style={[styles.ground, { height: height + CARD_RADIUS }, ground]} pointerEvents="none">
             <Corners width={width} />
             <View style={styles.black} />
           </Animated.View>
@@ -637,6 +670,11 @@ const styles = StyleSheet.create({
   turned: { position: 'absolute', overflow: 'hidden' },
   scrimTop: { position: 'absolute', top: 0, left: 0 },
   scrimBottom: { position: 'absolute', bottom: 0, left: 0 },
+  frame: { position: 'absolute', top: 0, left: 0 },
+  titleBar: { position: 'absolute', left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
+  title: { color: '#FFFFFF', fontSize: 22, lineHeight: 28, fontWeight: '700', letterSpacing: -0.3 },
+  reading2: { alignItems: 'center' },
+  of: { ...Type.caption, color: 'rgba(255,255,255,0.8)', fontWeight: '500', marginTop: -Space.xs },
   close: {
     position: 'absolute',
     width: 36,
@@ -655,7 +693,7 @@ const styles = StyleSheet.create({
   tuningText: { ...Type.caption, color: Nocturne.text, fontVariant: ['tabular-nums'] },
   speech: { position: 'absolute', alignItems: 'flex-start' },
   speechMiddle: { left: Gap.gutter, right: Gap.gutter, alignItems: 'center' },
-  ground: { position: 'absolute', left: 0, right: 0, top: -PANEL_RADIUS },
+  ground: { position: 'absolute', left: 0, right: 0, top: -CARD_RADIUS },
   black: { flex: 1, backgroundColor: '#000000' },
   ledge: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: Space.l, gap: Space.l },
   againSide: { alignSelf: 'flex-end', minWidth: 220 },

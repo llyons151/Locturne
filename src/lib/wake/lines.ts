@@ -22,16 +22,30 @@ export function stepsLine(steps: number, goal: number): string {
  * a bubble's length), a different line every rep, the same one for the same rep every time.
  */
 const DURING = [
-  'One. Gerald is watching. Allegedly.',
+  // The first five picked by the user for filming (2026-11-16): uncomfortable, too familiar.
+  'Good boy. Who taught you that. Was it me.',
+  'I can see your toes. Keep going.',
+  'Your form is giving divorced dad.',
+  'Mommy’s not mad. Mommy’s counting.',
+  'This is going on my story.',
   'Down. Up. Very bear of you.',
-  'Each one wakes an app.',
-  'Good behaviour. I’m counting.',
-  'Bears do these. Probably.',
   'Lower than I fish. Low bar.',
-  'The grizzly does these. I assume.',
   'Push like you’re getting out early.',
   'I did these in the zoo. Briefly.',
   'I would help but I came out small.',
+] as const;
+
+/**
+ * Dev and preview builds only (`filming`; user, 2026-11-16, for the reels): while you're in frame
+ * and counting, these and nothing else, one a rep, round again after five. Not in frame, he says
+ * the usual lines.
+ */
+export const FILMING_LINES = [
+  'Good boy. Who taught you that. Was it me.',
+  'I can see your toes. Keep going.',
+  'Your form is giving divorced dad.',
+  'Mommy’s not mad. Mommy’s counting.',
+  'This is going on my story.',
 ] as const;
 
 export function pushupsLine(
@@ -40,6 +54,7 @@ export function pushupsLine(
   goal: number,
   miss: Miss | null,
   hint: Hint | null = null,
+  filming = false,
 ): string {
   switch (status) {
     case 'idle':
@@ -48,6 +63,7 @@ export function pushupsLine(
       if (hint === 'notPlank') return "On the floor. I don't count standing.";
       return reps > 0 ? 'Where did you go. Come back.' : "I can't see you. Back up.";
     case 'counting':
+      if (filming && reps > 0) return FILMING_LINES[(reps - 1) % FILMING_LINES.length];
       if (miss === 'shallow') return 'That was a nod. Lower.';
       if (miss === 'quick') return 'Slower. Bears count slow.';
       if (reps === 0) return 'Arms straight. Now go down.';
