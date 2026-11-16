@@ -209,6 +209,11 @@ Guardrails:
   or dance. Scan your code (a short walk to one spot) is the leading
   candidate; passes cover everyone else. Not final.
 - No money stakes, penalties, streak shaming or "neglect" states.
+- **Morning streak (decided 2026-11-16):** Home's pill shows mornings got up in a row
+  ("6 day streak"); a tap flips it to the lifetime count. A pass pauses the streak (held,
+  not added), a night that was off is skipped, and only a locked night nobody got up from
+  breaks it. A broken streak shows the lifetime count, never "0", and Loc doesn't sulk.
+  The lifetime count also sits on the moons page. Rules in `src/lib/streak.ts`.
 
 ## Reliability is a feature
 

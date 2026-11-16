@@ -17,6 +17,7 @@ import { lapseStillCovers, nextBedtime, subscriptionEnded } from '@/lib/lock-con
 import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
+import { getStreak } from '@/lib/streak';
 import { danceGoalOf, getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
 import { morningMethod } from '@/lib/scan-code';
 import {
@@ -105,6 +106,8 @@ export type HomeFacts = {
   won: Set<string>;
   free: Set<string>;
   mornings: number;
+  /** Mornings got up in a row (lib/streak.ts): Home's pill, the lifetime count on a tap. */
+  streak: number;
   /** The next night that will really sleep, or null when every night is off. */
   sleepsAt: Date | null;
   /** Tonight's night is switched on in the routine (`nightAt`). */
@@ -171,6 +174,7 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
     won,
     free,
     mornings: MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon(),
+    streak: MOCK_WEEK ? won.size : getStreak(lock.morningKey),
     sleepsAt,
     tonightOn: nightAt(nextBedtime(now), now).on,
     listChanges,
@@ -224,7 +228,7 @@ export function HomeScreen() {
   usePretendPayoff(!mock);
   useArmedMoonSim(visit, !mock);
   const facts = mock ? mock.facts(now, real.routine) : readHomeFacts(now, real, realHealth);
-  const { lock, routine, proof, health, pause, method, won, free, mornings, sleepsAt, bedtimeApps } = facts;
+  const { lock, routine, proof, health, pause, method, won, free, mornings, streak, sleepsAt, bedtimeApps } = facts;
   const unprotected = health.protection === 'off' || health.protection === 'notSetUp';
   // Nothing is asleep on a night that isn't held (never bought, stood down, arming failed,
   // paused, past a lapse's last paid night, or an empty bedtime list), so it reads as day.
@@ -492,6 +496,7 @@ export function HomeScreen() {
     <View style={[styles.container, { paddingTop: insets.top + Space.l, paddingBottom: tabInset + moonArc }]}>
       <HomeContent
         mornings={mornings}
+        streak={streak}
         today={lock.morningKey}
         won={won}
         free={free}

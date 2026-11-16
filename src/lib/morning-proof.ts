@@ -138,6 +138,24 @@ export function getMorningsWon(): number {
 const FIRST_KEY = 'locturne.firstMorning';
 
 /**
+ * The morning streak's run (lib/streak.ts): its length (0 once a morning broke it), the morning key
+ * of its last wake-up, and the last morning already judged (`checked`), whose verdict stands.
+ */
+export type Streak = { count: number; key: string; checked?: string };
+const STREAK_KEY = 'locturne.streak';
+
+/** The streak as last saved (lib/streak.ts reads and settles it), or null before one. */
+export function getSavedStreak(): Streak | null {
+  const saved = sharedGet<Streak>(STREAK_KEY);
+  return saved && typeof saved.count === 'number' && typeof saved.key === 'string' && (saved.checked === undefined || typeof saved.checked === 'string') ? saved : null;
+}
+
+/** Saved without telling the proof listeners: lib/streak.ts saves it from one of them. */
+export function saveStreak(streak: Streak | null) {
+  sharedSet(STREAK_KEY, streak);
+}
+
+/**
  * The morning key of the first morning you got up (the You tab's "since"), or null before
  * one. Kept on its own like the count: the proofs list drops its oldest. Before it was kept,
  * the oldest real wake-up on hand.
@@ -212,22 +230,25 @@ export function devSeedMornings(count: number, now = new Date()): string[] {
   const keys = [...made.map((p) => p.morningKey).reverse(), ...keptWins];
   sharedSet(FIRST_KEY, keys[0] ?? null);
   sharedSet(WON_KEY, keys.length);
+  // The made-up mornings are one run, ending yesterday or with today's wake-up.
+  saveStreak(keys.length ? { count: keys.length, key: keys[keys.length - 1], checked: keys[keys.length - 1] } : null);
   sharedSet(KEY, [...kept, ...made].slice(0, KEEP));
   for (const listener of listeners) listener();
   return keys;
 }
 
 /** The progress backup (features/moons/progress-backup.ts): the count, first morning and proofs, as kept. */
-export function getSavedMornings(): { won: number; first: string | null; proofs: MorningProof[] } {
-  return { won: getMorningsWon(), first: getFirstMorning(), proofs: getProofs() };
+export function getSavedMornings(): { won: number; first: string | null; proofs: MorningProof[]; streak: Streak | null } {
+  return { won: getMorningsWon(), first: getFirstMorning(), proofs: getProofs(), streak: getSavedStreak() };
 }
 
 /**
  * The progress backup brought back more than the phone has (after a reinstall, say): saved over
  * the phone's own, and everything listening told, as after a wake-up.
  */
-export function restoreMornings(saved: { won: number; first: string | null; proofs: MorningProof[] }) {
+export function restoreMornings(saved: { won: number; first: string | null; proofs: MorningProof[]; streak: Streak | null }) {
   sharedSet(WON_KEY, saved.won);
+  saveStreak(saved.streak);
   sharedSet(FIRST_KEY, saved.first);
   sharedSet(KEY, saved.proofs.slice(0, KEEP));
   for (const listener of listeners) listener();

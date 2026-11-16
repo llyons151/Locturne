@@ -12,7 +12,7 @@
  * the phone's mornings or moons).
  */
 import type { OwnedMoon, RareState } from '../features/moons/moon-ladder.ts';
-import type { MorningProof } from './morning-proof.ts';
+import type { MorningProof, Streak } from './morning-proof.ts';
 
 export type Progress = {
   /** Mornings got up, ever (Home's count). */
@@ -24,6 +24,8 @@ export type Progress = {
   owned: Record<string, OwnedMoon>;
   /** The rare-moon roll state, or null when none was saved yet. */
   rare: RareState | null;
+  /** The morning streak's run (lib/streak.ts), or null before one. Missing on copies saved before it. */
+  streak: Streak | null;
 };
 
 /** What's saved: the progress, its shape's version and when it was written. */
@@ -32,7 +34,7 @@ export type SavedProgress = Progress & { v: 1; savedAt: number };
 /** The same as morning-proof.ts keeps. */
 export const KEEP_PROOFS = 30;
 
-export const EMPTY: Progress = { won: 0, first: null, proofs: [], owned: {}, rare: null };
+export const EMPTY: Progress = { won: 0, first: null, proofs: [], owned: {}, rare: null, streak: null };
 
 const isWin = (p: MorningProof) => p.kind !== 'pass' && p.kind !== 'emergency';
 
@@ -52,12 +54,21 @@ export function parseProgress(json: string | null | undefined): Progress | null 
       }
     }
     const rare = raw.rare && typeof raw.rare === 'object' && typeof raw.rare.seed === 'number' ? raw.rare : null;
+    const streak =
+      raw.streak && typeof raw.streak === 'object' && typeof raw.streak.key === 'string' && typeof raw.streak.count === 'number' && raw.streak.count >= 0
+        ? {
+            count: Math.floor(raw.streak.count),
+            key: raw.streak.key,
+            ...(typeof raw.streak.checked === 'string' ? { checked: raw.streak.checked } : {}),
+          }
+        : null;
     return {
       won: typeof raw.won === 'number' && raw.won >= 0 ? Math.floor(raw.won) : 0,
       first: typeof raw.first === 'string' ? raw.first : null,
       proofs,
       owned,
       rare,
+      streak,
     };
   } catch {
     return null;
@@ -97,6 +108,18 @@ function mergeRare(a: RareState | null, b: RareState | null): RareState | null {
   return (b.rolled ?? '') > (a.rolled ?? '') ? b : a;
 }
 
+/**
+ * The copy judged up to the later morning (its last wake-up or its last verdict): a stale copy
+ * must not bring back a run a missed morning broke since. On the same morning, the longer.
+ */
+function mergeStreak(a: Streak | null, b: Streak | null): Streak | null {
+  if (!a) return b;
+  if (!b) return a;
+  const upTo = (s: Streak) => (s.checked !== undefined && s.checked > s.key ? s.checked : s.key);
+  if (upTo(a) !== upTo(b)) return upTo(a) > upTo(b) ? a : b;
+  return b.count > a.count ? b : a;
+}
+
 /** Pure: both copies together, nothing taken away. `a` wins ties (pass the phone's own first). */
 export function mergeProgress(a: Progress, b: Progress): Progress {
   const seen = new Set<string>();
@@ -119,6 +142,7 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
     proofs,
     owned,
     rare: mergeRare(a.rare, b.rare),
+    streak: mergeStreak(a.streak, b.streak),
   };
 }
 
@@ -134,6 +158,7 @@ export function sameProgress(a: Progress, b: Progress): boolean {
     const y = b.owned[id];
     if (!y || x.at !== y.at || x.morningKey !== y.morningKey || !!x.presented !== !!y.presented || !!x.seen !== !!y.seen) return false;
   }
+  if (a.streak?.key !== b.streak?.key || a.streak?.count !== b.streak?.count || a.streak?.checked !== b.streak?.checked) return false;
   return JSON.stringify(a.rare) === JSON.stringify(b.rare);
 }
 

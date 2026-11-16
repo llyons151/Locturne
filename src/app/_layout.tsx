@@ -12,10 +12,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useStandingBlocks } from '@/hooks/use-standing-blocks';
 import { startAnalytics, useScreenViews } from '@/lib/analytics-start';
 import { setClockReader } from '@/lib/clock-guard';
+import { startLanguage } from '@/lib/i18n/store';
 import { holdSplash } from '@/lib/launch-splash';
 import { applyReelFrame } from '@/lib/reel-frame';
 import { startPurchases } from '@/lib/purchases-start';
 import { setAppRemovalWriter } from '@/lib/screen-time';
+import { startStreak } from '@/features/home/streak-start';
 import { checkStepCounter } from '@/lib/step-counter';
 import { MOONS_BG } from '@/features/moons/moon-collection';
 import { startProgressBackup } from '@/features/moons/progress-backup';
@@ -23,6 +25,8 @@ import { useShieldMoon } from '@/features/moons/shield-moon';
 import { payoffTuning } from '@/features/wake/payoff-tuning';
 import { Nocturne } from '@/theme';
 
+// The language picked in Settings (or the iPhone's), before anything reads a word (lib/i18n).
+startLanguage();
 // The launch screen stays until the right first screen has drawn (launch-splash.ts).
 holdSplash();
 // RevenueCat, or the dev stub without a key. Before any screen asks about the subscription.
@@ -38,6 +42,8 @@ applyReelFrame();
 checkStepCounter({ isIOS: Platform.OS === 'ios', isAvailable: () => Pedometer.isAvailableAsync() });
 // Mornings and moons back after a reinstall, before any screen reads them; then kept backed up (progress-backup.ts).
 startProgressBackup();
+// The morning streak, saved past the proofs list's 30 (lib/streak.ts). After the backup brought its copy back.
+startStreak();
 
 /**
  * The tabs always sit under a deep-linked screen (`locturne://wake` from a Shortcut, say):

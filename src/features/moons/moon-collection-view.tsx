@@ -11,7 +11,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
+import { getMorningsWon } from '@/lib/morning-proof';
+import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
+
+import { morningsLabel } from '../home/week';
 
 import { checkSecretMoons, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
 import { MOONS } from './moon-data';
@@ -80,6 +83,9 @@ export function MoonCollection({
   // Every moon you have: Moonlight, which you start with, then every one earned, rare and secret too (user, 2026-11-02).
   const count = 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
   const countLabel = count === 1 ? '1 moon' : `${count} moons`;
+  // Every morning you got up, ever: the count the ladder's moons go by. Home's pill shows the
+  // streak; this is where the lifetime count lives (user 2026-11-16).
+  const mornings = getMorningsWon();
 
   const tile = Math.floor((width - Gap.gutter * 2 - GAP * (COLUMNS - 1)) / COLUMNS);
   const press = (slot: Slot) => {
@@ -158,6 +164,12 @@ export function MoonCollection({
           <Text style={styles.count}>{countLabel}</Text>
         </View>
       </View>
+      <View style={styles.total} accessible accessibilityLabel={`${mornings} ${morningsLabel(mornings)} you got up, in all`}>
+        <SymbolView name={sym('sunrise.fill', 'wb_twilight')} size={14} tintColor={Nocturne.text2} />
+        <Text style={styles.totalText}>
+          <Text style={styles.totalNum}>{mornings}</Text> {morningsLabel(mornings)} total
+        </Text>
+      </View>
       <Grid slots={slots} tile={tile} worn={worn.id} onPress={press} />
       {extras.length ? (
         <>
@@ -217,6 +229,9 @@ const styles = StyleSheet.create({
   side: { width: SIDE },
   sideEnd: { alignItems: 'flex-end' },
   count: { ...Type.secondary, color: Nocturne.text2, textAlign: 'right' },
+  total: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -Gap.block + Space.xs, marginBottom: Gap.block },
+  totalText: { ...Type.secondary, color: Nocturne.text2 },
+  totalNum: { ...NUMBER_FONT, fontSize: 15, color: Nocturne.text },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, rowGap: Space.l },
   slot: { alignItems: 'center', gap: Space.xs },
   name: { ...Type.secondary, color: Nocturne.text, textAlign: 'center', marginTop: Space.xs },

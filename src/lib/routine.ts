@@ -367,6 +367,18 @@ export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | 
   return read(now)?.pending ?? null;
 }
 
+const beforeSave = new Set<(now: Date) => void>();
+
+/**
+ * Called just before an edit is saved, with the routine still the one the past ran under: the
+ * streak (lib/streak.ts) judges the mornings so far by it, since an edit frees every morning
+ * before it in `nightWasOn`. Returns the unsubscribe.
+ */
+export function beforeRoutineSave(listener: (now: Date) => void): () => void {
+  beforeSave.add(listener);
+  return () => beforeSave.delete(listener);
+}
+
 /**
  * Saves an edit and returns when it takes effect. Callers pass `inPendingFirstNight(now)`
  * (lock-controller.ts) as `early`, so an edit made inside a waiting edit's early first night
@@ -374,6 +386,7 @@ export function getPendingRoutine(now = new Date()): StoredRoutine['pending'] | 
  * its day as `idle`, so an edit made before bedtime applies at once.
  */
 export function saveRoutine(next: Routine, now = new Date(), early = false, idle = false, atOnce = false): Date {
+  for (const listener of beforeSave) listener(now);
   const stored = applyEdit(read(now), next, now, getArmedNight() ?? false, early, idle, atOnce);
   sharedSet(KEY, stored);
   return stored.pending ? new Date(stored.pending.from) : now;

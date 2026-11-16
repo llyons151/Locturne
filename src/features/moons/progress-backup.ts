@@ -15,16 +15,16 @@ import { getSavedMoons, onOwnedChange, restoreMoons } from './moon-collection';
  */
 
 function readLocal(): Progress {
-  const { won, first, proofs } = getSavedMornings();
+  const { won, first, proofs, streak } = getSavedMornings();
   const { owned, rare } = getSavedMoons();
-  return { won, first, proofs, owned, rare };
+  return { won, first, proofs, owned, rare, streak };
 }
 
 function applyLocal(p: Progress) {
   // Moons first: the mornings' change settles the ladder, which must see the moons already back,
   // or it would earn them again dated today.
   restoreMoons(p.owned, p.rare);
-  restoreMornings({ won: p.won, first: p.first, proofs: p.proofs });
+  restoreMornings({ won: p.won, first: p.first, proofs: p.proofs, streak: p.streak });
 }
 
 const sync = createProgressSync({

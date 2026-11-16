@@ -87,7 +87,7 @@ function render({
     '@/lib/haptics': { tap() {}, tick: () => calls.ticks++ },
     '@/lib/lock-controller': { readLock: () => ({ morningKey: today }) },
     '@/lib/morning-proof': { getMorningsWon: () => mornings, getFirstMorning: () => first },
-    '@/theme': { DisplayFont: {}, Gap: { gutter: 24, block: 24, section: 32 }, Nocturne: {}, Space: { xs: 4, s: 8, m: 12, l: 16, xl: 24 }, Type: {} },
+    '@/theme': { DisplayFont: {}, NUMBER_FONT: {}, Gap: { gutter: 24, block: 24, section: 32 }, Nocturne: {}, Space: { xs: 4, s: 8, m: 12, l: 16, xl: 24 }, Type: {} },
     './moon-collection': {
       checkSecretMoons: () => void calls.secret++,
       isSecret: (id: string) => SECRETS.includes(id),
@@ -96,6 +96,7 @@ function render({
       settleMoons: () => void calls.settle++,
       useOwnedMoons: () => owned,
     },
+    '../home/week': { morningsLabel: (n: number) => (n === 1 ? 'morning' : 'mornings') },
     './moon-data': { LADDER, MOONS },
     './moon-ladder': ladder,
     './moon-rise': { wearAndRise: (id: string) => calls.wear.push(id) },

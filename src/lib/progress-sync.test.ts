@@ -18,6 +18,7 @@ const lived: Progress = {
   proofs: [proof('2026-10-10'), proof('2026-10-09'), proof('2026-10-08', 'pass')],
   owned: { dawn: moon('dawn', '2026-09-01', { presented: true, seen: true }), harvest: moon('harvest', '2026-09-03') },
   rare: { due: [], rolled: '2026-10-10', seed: 1234 },
+  streak: { count: 2, key: '2026-10-10' },
 };
 
 /** A phone: its App Group, both copies, and a counter of saves. */

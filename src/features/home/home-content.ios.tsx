@@ -13,12 +13,14 @@ import {
 import {
   accessibilityAddTraits,
   accessibilityElement,
+  accessibilityHint,
   accessibilityLabel,
   Animation,
   animation,
   background,
   blur,
   buttonStyle,
+  contentShape,
   contentTransition,
   font,
   foregroundStyle,
@@ -30,6 +32,7 @@ import {
   offset,
   onAppear,
   onGeometryChange,
+  onTapGesture,
   opacity,
   padding,
   shapes,
@@ -50,7 +53,8 @@ import { setHomeWeekSpot } from './week-spot';
 import type { HomeContentProps } from './home-content';
 import { actionWeight, topLevel } from './home-look';
 import { SWAP_IN, SWAP_OUT, useHeroSwap } from './hero-swap';
-import { morningsLabel, weekDays } from './week';
+import { useStreakPill } from './streak-pill';
+import { weekDays } from './week';
 import { WeekDots } from './week-dots-native';
 
 type SymbolName = NonNullable<ComponentProps<typeof Image>['systemName']>;
@@ -75,6 +79,8 @@ const BLUR = 8;
  * apart, top to bottom, on a critically damped spring about as long as its 1.4 s ease-out.
  */
 const REPLAY_S = 1.4;
+/** The streak pill's flip: digits, words and width together, no bounce. */
+const FLIP_S = 0.45;
 
 /**
  * Home's content in SwiftUI (@expo/ui), so iOS draws and animates all of it: the type,
@@ -88,7 +94,8 @@ const REPLAY_S = 1.4;
  */
 export function HomeContent(props: HomeContentProps) {
   'use no memo';
-  const { mornings, today, won, free, revision } = props;
+  const { mornings, streak, today, won, free, revision } = props;
+  const pill = useStreakPill(streak, mornings);
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(false);
   // The payoff hides the pieces while it covers Home, then plays them in again.
@@ -148,21 +155,36 @@ export function HomeContent(props: HomeContentProps) {
         {top ? (
           <VStack spacing={0}>
             <HStack modifiers={enter(0, top)}>
+              {/* The streak; a tap flips it to every morning ever (streak-pill.ts). The digits roll, the
+                  words morph through a blur and the capsule follows their width, all on one spring. */}
               <HStack
                 spacing={6}
                 modifiers={[
                   padding({ horizontal: 14 }),
                   frame({ minHeight: 36 }),
                   background(PILL, shapes.capsule()),
+                  contentShape(shapes.capsule()),
+                  onTapGesture(pill.flip),
+                  animation(Animation.spring({ duration: FLIP_S, bounce: 0 }), pill.total),
                   accessibilityElement('ignore'),
-                  accessibilityLabel(`${mornings} ${morningsLabel(mornings)} you got up`),
+                  accessibilityLabel(pill.a11y),
+                  ...(pill.hint ? [accessibilityHint(pill.hint), accessibilityAddTraits(['isButton' as const])] : []),
                 ]}
               >
                 <Image systemName="sunrise.fill" size={14} color={Nocturne.text} />
-                <Text modifiers={[font({ textStyle: 'callout', weight: 'heavy' }), monospacedDigit(), foregroundStyle(Nocturne.text)]}>
-                  {String(mornings)}
+                <Text
+                  modifiers={[
+                    font({ textStyle: 'callout', weight: 'heavy' }),
+                    monospacedDigit(),
+                    foregroundStyle(Nocturne.text),
+                    contentTransition('numericText', { countsDown: !pill.total }),
+                  ]}
+                >
+                  {String(pill.value)}
                 </Text>
-                <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2)]}>{morningsLabel(mornings)}</Text>
+                <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(Nocturne.text2), contentTransition('numericText')]}>
+                  {pill.label}
+                </Text>
               </HStack>
               <Spacer />
               {showUsage ? (

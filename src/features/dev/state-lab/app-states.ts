@@ -97,6 +97,7 @@ function plainDay(now: Date, routine: Routine): HomeFacts {
     won: pastDays(now, 3),
     free: new Set(),
     mornings: 23,
+    streak: 6,
     sleepsAt,
     tonightOn: true,
     listChanges: false,

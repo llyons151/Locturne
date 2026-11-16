@@ -15,6 +15,8 @@ import { actionWeight, topLevel, type HomeLook } from './home-look';
 export type HomeContentProps = {
   /** Mornings you got up, a wake-up method's proof only. */
   mornings: number;
+  /** Mornings got up in a row (lib/streak.ts). The pill shows it; a tap flips to `mornings`. */
+  streak: number;
   /** `LockState.morningKey`. */
   today: string;
   /** Morning keys you got up on. */
@@ -91,7 +93,7 @@ const sym = (ios: string, android: string): Symbol => ({ ios, android, web: andr
 export function HomeContent(props: HomeContentProps) {
   // An SE: the big number a size down, in proportion with its smaller screen (user, 2026-11-12).
   const short = useWindowDimensions().height < SHORT_HOME;
-  const { mornings, today, won, free, revision } = props;
+  const { mornings, streak, today, won, free, revision } = props;
   const { group, piece: enter } = useEntrance();
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
   const { content, visible } = useHeroSwap(props, props.catchingUp);
@@ -106,7 +108,7 @@ export function HomeContent(props: HomeContentProps) {
       {/* The top only fades in, where it sits; only the middle rises (`group`). */}
       {top ? (
         <View style={{ opacity: top }}>
-          <HomeTop mornings={mornings} today={today} won={won} free={free} revision={revision} enter={enter} />
+          <HomeTop mornings={mornings} streak={streak} today={today} won={won} free={free} revision={revision} enter={enter} />
         </View>
       ) : null}
       <Animated.View style={[styles.hero, group, swap]}>
