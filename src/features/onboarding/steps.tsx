@@ -125,6 +125,11 @@ export type StepContext = {
   screenTime: 'idle' | 'asking' | 'refused';
   /** Apple's prompt still to come: the apps page's button says Continue and there's no skip (App Review 5.1.1(iv)). */
   accessPending: boolean;
+  /**
+   * No access yet, refused or not: the apps page's button brings up Apple's prompt, so it says
+   * Continue, and the empty apps card isn't a second way to it (App Review 5.1.1(iv)).
+   */
+  asksApple: boolean;
   /** Asks for access if it isn't granted yet, then runs `then`. */
   askScreenTime: (then: () => void) => void;
   /** iOS's Motion & Fitness prompt if it hasn't been answered, then `then` (the method page). */
@@ -609,7 +614,8 @@ export function renderStep(ctx: StepContext): StepView {
               <AppsCard
                 apps={answers.apps}
                 live={live ?? undefined}
-                onOpen={openPicker}
+                // Before access, only the Continue button below brings up Apple's prompt.
+                onOpen={ctx.asksApple && !picked ? undefined : openPicker}
                 maxRows={compact ? 4 : 6}
                 onIconRef={onIconRef}
               />
@@ -631,7 +637,8 @@ export function renderStep(ctx: StepContext): StepView {
             // On an iPhone nothing sleeps until bedtime, so the button confirms the list; the
             // preview's falling-asleep animation keeps its own label.
             // Before Apple's prompt, Continue (App Review 5.1.1(iv), 2026-11-16: "Use words like Continue or Next").
-            label={!picked ? (ctx.accessPending ? 'Continue' : 'Add apps') : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
+            // After a Don't Allow too: it asks Apple again.
+            label={!picked ? (ctx.asksApple ? 'Continue' : 'Add apps') : editing ? 'Save' : live ? 'That’s the list' : `Put ${pickCount} to sleep`}
             // Editing from the summary just saves; the first time, they watch them fall asleep.
             // Apple's Screen Time sheet takes a second to come up: the orb says the tap was taken.
             busy={ctx.screenTime === 'asking' ? ASKING_APPLE : undefined}
@@ -761,7 +768,15 @@ export function renderStep(ctx: StepContext): StepView {
               ) : null}
             </View>
           ),
-          footer: <PrimaryButton label="Open Routine" disabled={ctx.notifications === null} busy={ctx.asking ? ASKING_APPLE : undefined} onPress={ctx.openRoutine} />,
+          // iOS's notification prompt comes first while it's unanswered: Continue (App Review 5.1.1(iv)).
+          footer: (
+            <PrimaryButton
+              label={ctx.notifications === 'undetermined' ? 'Continue' : 'Open Routine'}
+              disabled={ctx.notifications === null}
+              busy={ctx.asking ? ASKING_APPLE : undefined}
+              onPress={ctx.openRoutine}
+            />
+          ),
         };
       }
       if (arm.reason === 'no-apps') {
@@ -777,8 +792,16 @@ export function renderStep(ctx: StepContext): StepView {
               <Body>You’re subscribed. Nothing sleeps at bedtime until you pick some.</Body>
             </View>
           ),
-          footer: <PrimaryButton label="Pick apps" busy={ctx.asking || ctx.screenTime === 'asking' ? ASKING_APPLE : undefined} onPress={openPicker} />,
-          secondary: <TextButton label="Add them later" onPress={ctx.enterApp} />,
+          // Without access, Apple's prompt comes first: Continue, and no way past it until it has
+          // been answered (App Review 5.1.1(iv), 2026-11-16).
+          footer: (
+            <PrimaryButton
+              label={ctx.asksApple ? 'Continue' : 'Pick apps'}
+              busy={ctx.asking || ctx.screenTime === 'asking' ? ASKING_APPLE : undefined}
+              onPress={openPicker}
+            />
+          ),
+          secondary: ctx.accessPending ? undefined : <TextButton label="Add them later" onPress={ctx.enterApp} />,
         };
       }
       {

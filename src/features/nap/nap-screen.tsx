@@ -21,6 +21,7 @@ import { askAccessAgain } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
 import { onLockChange, syncLock } from '@/lib/lock-controller';
 import {
+  getAccess,
   getProtection,
   getNap,
   hasSelection,
@@ -144,9 +145,14 @@ const timeOf = (ms: number) => {
   return formatPreset(d.getHours() * 60 + d.getMinutes());
 };
 
+
+/** With Screen Time access off, where Block now sends a tap that would need it. */
+const CONTINUE_FIRST = 'Screen Time access is off. Tap Continue to turn it back on first.';
 export function NapScreen() {
   const fill = holdFill(useMoon());
   const [protection, recheckProtection] = useProtection();
+  // Asking again would bring up Apple's prompt: revoked in Settings, or never granted.
+  const accessOff = isScreenTimeAvailable() && (protection === 'off' || getAccess() !== 'approved');
 
   const [length, setLength] = useState(30);
   const [list, setList] = useState<List>('night');
@@ -220,7 +226,9 @@ export function NapScreen() {
 
   const start = async () => {
     if (isPickerSettling(list)) return refuse("Your app picks are still saving. Try again in a moment.");
-    // Access off: ask again here, then carry on with the nap (askAccessAgain explains a refusal).
+    // Only Continue brings up Apple's prompt (App Review 5.1.1(iv), 2026-11-16).
+    if (accessOff) return refuse(CONTINUE_FIRST);
+    // Access not set up yet but granted: asking again just sets it up, no prompt.
     if (isScreenTimeAvailable() && getProtection() !== 'on') {
       const allowed = await askAccessAgain();
       recheckProtection();
@@ -266,7 +274,8 @@ export function NapScreen() {
   const pickApps = async () => {
     if (!isScreenTimeAvailable()) return refuse("Apple's app picker only opens on iPhone.");
     if (isPickerSettling('block')) return;
-    // Apple's picker needs access: ask again first, as the Apps tab does.
+    // Apple's picker needs access. With it off, Continue asks for it, not this (App Review 5.1.1(iv)).
+    if (accessOff) return refuse(CONTINUE_FIRST);
     if (getProtection() !== 'on') {
       const allowed = await askAccessAgain();
       recheckProtection();
@@ -422,6 +431,8 @@ export function NapScreen() {
       )}
       {/* Under the main button, like every secondary link. Only adds: see nap-add.ts. */}
       {nap && napProtected ? <TextButton label="Add apps" onPress={addApps} /> : null}
+      {/* Access off before a block: the one way to Apple's prompt, so it says Continue (App Review 5.1.1(iv)). */}
+      {!nap && accessOff ? <TextButton label="Continue" onPress={turnAccessOn} /> : null}
       {/* Never imply protection is on when it isn't (GAME_PLAN, "Reliability"). */}
       {notice && <Text style={styles.notice}>{notice}</Text>}
 

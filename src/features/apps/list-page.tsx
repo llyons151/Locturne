@@ -64,6 +64,12 @@ export function ListPage() {
   return isScreenTimeAvailable() ? <LiveListPage id={id} /> : <PreviewListPage id={id} />;
 }
 
+/**
+ * The row that opens Apple's picker. With Screen Time access revoked it brings up Apple's prompt
+ * first, so it says Continue (App Review 5.1.1(iv), 2026-11-16: "Use words like Continue or Next").
+ */
+const editLabel = (revoked: boolean, picks: number) => (revoked ? 'Continue' : picks ? 'Add or remove apps' : 'Add apps');
+
 function LiveListPage({ id }: { id: string }) {
   const actions = useListActions();
   const { revision, limits, limitError, picker } = actions;
@@ -90,7 +96,7 @@ function LiveListPage({ id }: { id: string }) {
 
   const rows = (
     <ListCard note={group ? <PendingNote list={group.key} /> : null}>
-      <EditRow label={picks.size ? 'Add or remove apps' : 'Add apps'} onPress={() => actions.edit(list)} divided={picks.size > 0} />
+      <EditRow label={editLabel(actions.revoked, picks.size)} onPress={() => actions.edit(list, true)} divided={picks.size > 0} />
       {picks.size > 0 && !isBlockedAppsViewAvailable ? (
         // A build from before modules/blocked-apps existed can't draw the rows.
         <Text style={styles.oldBuild}>{countPicks(picks.size)}. Install the latest build to see them.</Text>
@@ -188,7 +194,7 @@ function SchedulePage({
       </ListCard>
       <Section label={`Apps · ${picks.size}`}>
         <ListCard note={note ? <Text style={styles.footer}>{note}</Text> : null}>
-          <EditRow label={picks.size ? 'Add or remove apps' : 'Add apps'} onPress={() => actions.edit(schedule.id)} divided={picks.size > 0} />
+          <EditRow label={editLabel(actions.revoked, picks.size)} onPress={() => actions.edit(schedule.id, true)} divided={picks.size > 0} />
           {isBlockedAppsViewAvailable ? (
             <PickedRows selectionId={picks.id} count={picks.size} revision={revision} onRemove={(pick) => actions.removed(schedule.id, pick)} />
           ) : picks.size > 0 ? (

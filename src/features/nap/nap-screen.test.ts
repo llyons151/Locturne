@@ -40,7 +40,7 @@ test('an active nap reports revoked protection and recovers its status when acce
     '@/features/apps/picker-settle': { isPickerSettling: () => false },
     '@/lib/lock-controller': { syncLock() {} },
     '@/lib/screen-time': {
-      isScreenTimeAvailable: () => true, getProtection: () => protection,
+      isScreenTimeAvailable: () => true, getProtection: () => protection, getAccess: () => 'approved',
       isStoodDown: () => false, hasSelection: () => true, selectionSize: () => 2, nightPickCount: () => 2, isNightHeld: () => false,
       startNap: async () => nap,
     },
@@ -101,7 +101,7 @@ test('VoiceOver hears the nap length and when the apps wake on the ruler', () =>
     'react-native-reanimated': { __esModule: true, default: { View: 'Animated' }, FadeIn: { duration() {} } },
     '@/hooks/use-protection': { useProtection: () => ['on', () => {}] },
     '@/components/grouped-list': { sym: (s: string) => s },
-    '@/lib/screen-time': { isScreenTimeAvailable: () => true },
+    '@/lib/screen-time': { isScreenTimeAvailable: () => true, getAccess: () => 'approved' },
     '@/lib/text': { formatPreset: (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` },
     '@/theme': { Type: {}, Space: {}, Nocturne: {}, VoiceSize: {}, italicOverhang: () => ({}) },
     '@/lib/haptics': { tap() {} },

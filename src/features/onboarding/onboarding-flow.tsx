@@ -896,8 +896,12 @@ export function OnboardingFlow({
     }, true);
   // The trial reminder needs notifications, and with every night off no later moment asks.
   const openRoutine = () => ask(leaveForRoutine, false);
-  /** `armed` with no apps picked yet: into the app, where Home's Bedtime apps card asks for them (user 2026-11-07). */
-  const enterApp = () => ask(() => exit(), false);
+  /**
+   * `armed` with no apps picked yet: into the app, where Home's Bedtime apps card asks for them
+   * (user 2026-11-07). No iOS prompt behind "Add them later": a button before one has to say
+   * Continue (App Review 5.1.1(iv), 2026-11-16), so notifications are asked later in the app.
+   */
+  const enterApp = () => exit();
 
   // While the moon moves (to or from the opener, or into and out of the quiz), the page
   // waits so text enters once it lands.
@@ -1016,6 +1020,7 @@ export function OnboardingFlow({
     },
     screenTime,
     accessPending: screenTimeHere && screenTime !== 'refused' && getAccess() !== 'approved',
+    asksApple: screenTimeHere && getAccess() !== 'approved',
     askScreenTime,
     askMotion,
     retryScreenTime,

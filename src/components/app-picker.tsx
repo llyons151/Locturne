@@ -101,7 +101,8 @@ export function AppsCard({
   live,
 }: {
   apps: string[];
-  onOpen: () => void;
+  /** Opens Apple's picker. Left out, the empty card is a plain placeholder: nothing to tap. */
+  onOpen?: () => void;
   maxRows?: number;
   /** Receives each icon's view, so the sleep animation can start from where the icons are. */
   onIconRef?: (app: string, view: View | null) => void;
@@ -110,6 +111,7 @@ export function AppsCard({
 }) {
   const picked = live ? live.count > 0 : apps.length > 0;
   const press = () => {
+    if (!onOpen) return;
     haptic.tap();
     onOpen();
   };
@@ -171,16 +173,17 @@ export function AppsCard({
         <GlassCard dark>
         <Pressable
           onPress={press}
-          accessibilityRole="button"
-          accessibilityLabel="Add apps"
-          style={({ pressed }) => [styles.card, styles.emptyCard, pressed && styles.pressed]}
+          disabled={!onOpen}
+          accessibilityRole={onOpen ? 'button' : undefined}
+          accessibilityLabel={onOpen ? 'Add apps' : 'No apps yet'}
+          style={({ pressed }) => [styles.card, styles.emptyCard, pressed && !!onOpen && styles.pressed]}
         >
           <AddTile size={52} />
           <View style={styles.emptyText}>
-            <Text style={styles.cardTitle}>Add apps</Text>
+            <Text style={styles.cardTitle}>{onOpen ? 'Add apps' : 'No apps yet'}</Text>
             <Text style={styles.cardSub}>TikTok, Instagram, games…</Text>
           </View>
-          <Chevron />
+          {onOpen ? <Chevron /> : null}
         </Pressable>
         </GlassCard>
       </Reveal>

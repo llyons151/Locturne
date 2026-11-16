@@ -56,6 +56,9 @@ let makingIcons: ((id: LimitId, size: number) => ReactNode) | null = null;
  * Apps tab and a list's own page (`list-page.tsx`) share it. Render `picker` somewhere on the
  * screen: it's Apple's app picker while one is open.
  */
+
+/** With Screen Time access revoked, where the Apps tab sends a tap that would need it. */
+const CONTINUE_FIRST = 'Screen Time access is off. Tap Continue to turn it back on first.';
 export function useListActions() {
   // Not just the cached access flag: iOS keeps reporting "approved" after a revoke.
   const [protection, recheckProtection] = useProtection();
@@ -216,9 +219,13 @@ export function useListActions() {
     saveAndArm([...current, created], created);
   };
 
-  /** Opens Apple's picker on a draft of the list. Only here, never on render. */
-  const edit = async (list: StandingList) => {
+  /** Opens Apple's picker on a draft of the list. Only here, never on render.
+   * With access revoked, only a control that says Continue may bring up Apple's prompt (App Review
+   * 5.1.1(iv), 2026-11-16): that's `asks`, the list page's row, which reads Continue then. Anything
+   * else points at Continue instead of asking. */
+  const edit = async (list: StandingList, asks = false) => {
     haptic.tap();
+    if (protection === 'off' && !asks) return setLimitError(CONTINUE_FIRST);
     // Onboarding always gets access, so this is only a revoke (or a stale first launch):
     // ask again first, since Apple's picker needs it.
     if (protection !== 'on' && !(await askAccess())) return;
@@ -236,7 +243,8 @@ export function useListActions() {
     haptic.tap();
     const id = freeLimitId(getLimits());
     if (!id || armingLimits.has(id) || isPickerSettling(id)) return;
-    // Apple's picker needs access, as in `edit`.
+    // Apple's picker needs access, as in `edit`; with it revoked, Continue asks for it, not this.
+    if (protection === 'off') return setLimitError(CONTINUE_FIRST);
     if (protection !== 'on' && !(await askAccess())) return;
     // A reused slot opens empty.
     clearSelection(id);
