@@ -22,11 +22,10 @@ export function stepsLine(steps: number, goal: number): string {
  * a bubble's length), a different line every rep, the same one for the same rep every time.
  */
 const DURING = [
-  // The first five picked by the user for filming (2026-11-16): uncomfortable, too familiar.
-  'Good boy. Who taught you that. Was it me.',
+  // Picked by the user for filming (2026-11-16): uncomfortable, too familiar. "Good boy…" and "Mommy's
+  // counting" are in FILMING_LINES only (dev and preview builds), not the App Store build (user, 2026-11-16).
   'I can see your toes. Keep going.',
   'Your form is giving divorced dad.',
-  'Mommy’s not mad. Mommy’s counting.',
   'This is going on my story.',
   'Down. Up. Very bear of you.',
   'Lower than I fish. Low bar.',
