@@ -156,6 +156,10 @@ export type StepContext = {
   motion: MotionAccess | null;
   /** iOS will still ask for the wake-up way's camera or location on `armed`. */
   methodAsks: boolean;
+  /** iOS's Motion & Fitness prompt comes up from the method page's button (App Review 5.1.1(iv)). */
+  motionAsks: boolean;
+  /** Setting up the wake-up way (scanner, place picker) opens on iOS's camera or location prompt. */
+  setupAsks: boolean;
   /** Notifications, as iOS has them once `armed` is shown. Null until checked. */
   notifications: NotificationPermission | null;
   /** When the trial bought in this session ends; null for no trial (monthly, restore). */
@@ -461,15 +465,17 @@ export function renderStep(ctx: StepContext): StepView {
         ),
         footer: (
           <PrimaryButton
-            label={editing ? 'Save' : answers.method ? (REPLY_BUTTON.method ?? 'Continue') : 'Next'}
+            // Continue while iOS's Motion & Fitness prompt comes next (App Review 5.1.1(iv), 2026-11-16).
+            label={editing ? 'Save' : !answers.method ? 'Next' : ctx.motionAsks ? 'Continue' : (REPLY_BUTTON.method ?? 'Continue')}
             disabled={!answers.method}
             // Motion & Fitness is asked on the way out (`askMotion`).
             busy={ctx.asking ? ASKING_APPLE : undefined}
             onPress={editing ? next : () => ctx.askMotion(next)}
           />
         ),
-        // Not sure yet: the default carries them through, and nothing here is final.
-        secondary: editing ? undefined : (
+        // Not sure yet: the default carries them through, and nothing here is final. Not while iOS's
+        // Motion prompt is still to come: no way past a permission request before it (5.1.1(iv)).
+        secondary: editing || ctx.motionAsks ? undefined : (
           <TextButton
             label={answers.method ? 'Skip for now' : `Skip for now. ${goals.steps} steps it is.`}
             onPress={() => {
@@ -560,9 +566,11 @@ export function renderStep(ctx: StepContext): StepView {
           />
         ),
         // A plain button, tappable from the start (user, 2026-10-26: not a progress bar).
-        footer: <PrimaryButton label="Set it up" onPress={setUp ? ctx.setUpMethod : next} />,
+        // A place opens the map on iOS's location prompt: Continue then, and no skip before it (App Review
+        // 5.1.1(iv)). A scan code has its own page next, so its button doesn't ask anything here.
+        footer: <PrimaryButton label={setUp && answers.method === 'place' && ctx.setupAsks ? 'Continue' : 'Set it up'} onPress={setUp ? ctx.setUpMethod : next} />,
         // Not now: 200 steps wakes them until the code or place is set in Routine.
-        secondary: setUp && !editing ? <TextButton label="Skip for now" onPress={next} /> : undefined,
+        secondary: setUp && !editing && !(answers.method === 'place' && ctx.setupAsks) ? <TextButton label="Skip for now" onPress={next} /> : undefined,
       };
     }
 
@@ -586,9 +594,11 @@ export function renderStep(ctx: StepContext): StepView {
           qr && !ctx.scanPrinted ? (
             <PrimaryButton label="Print it" onPress={ctx.printScanCode} />
           ) : (
-            <PrimaryButton label={qr ? 'It’s up. Scan it' : 'Scan a barcode'} onPress={ctx.openScanner} />
+            // The scanner opens on iOS's camera prompt: Continue then (App Review 5.1.1(iv)).
+            <PrimaryButton label={ctx.setupAsks ? 'Continue' : qr ? 'It’s up. Scan it' : 'Scan a barcode'} onPress={ctx.openScanner} />
           ),
-        secondary: <TextButton label="Skip for now" onPress={next} />,
+        // No way past the camera prompt before it, unless the button is Print it (no prompt behind it).
+        secondary: ctx.setupAsks && !(qr && !ctx.scanPrinted) ? undefined : <TextButton label="Skip for now" onPress={next} />,
       };
     }
 

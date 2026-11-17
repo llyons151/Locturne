@@ -28,7 +28,7 @@ import { Body, page, Voice } from '../ui';
  */
 
 /** While the App Store's prices load, or if they can't: never a made-up price. */
-export function storeStep({ offersFailed, retryOffers }: StepContext): StepView {
+export function storeStep({ offersFailed, retryOffers, restorePurchases }: StepContext): StepView {
   return {
     body: (
       <View style={page.top}>
@@ -45,8 +45,36 @@ export function storeStep({ offersFailed, retryOffers }: StepContext): StepView 
         ) : null}
       </View>
     ),
-    footer: offersFailed ? <PrimaryButton label="Try again" onPress={retryOffers} /> : undefined,
+    // Never a dead end for a reviewer whose store can't sell (App Review 2.1, 3.1.1): Restore, Terms and
+    // Privacy stay reachable while the prices can't load.
+    footer: offersFailed ? (
+      <UnderCta>
+        <PrimaryButton label="Try again" onPress={retryOffers} />
+        <View style={styles.underCta}>
+          <LegalLinks restore={restorePurchases} />
+        </View>
+      </UnderCta>
+    ) : undefined,
   };
+}
+
+/** Terms of Use · Privacy Policy · Restore, small under the button. */
+function LegalLinks({ restore }: { restore: () => void }) {
+  return (
+    <Text style={styles.legal}>
+      <Text accessibilityRole="link" onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => {})}>
+        Terms of Use
+      </Text>
+      {'  ·  '}
+      <Text accessibilityRole="link" onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => {})}>
+        Privacy Policy
+      </Text>
+      {'  ·  '}
+      <Text accessibilityRole="button" onPress={restore}>
+        Restore
+      </Text>
+    </Text>
+  );
 }
 
 /**
@@ -74,8 +102,9 @@ export function plansStep(ctx: StepContext): StepView {
   // One line under the button (user 2026-11-05): the billed price after the trial (Apple 3.1.2), then the
   // Terms, Privacy and Restore links under it, small, like the reference.
   const terms = {
-    annual: trialDays ? `${trialDays} days free, then ${annual}/year. Cancel anytime.` : `${annual}/year. Cancel anytime.`,
-    monthly: `${monthly}/month. Cancel anytime.`,
+    // "Renews automatically" said on the screen itself (3.1.2(c)), not only in the Terms.
+    annual: trialDays ? `${trialDays} days free, then ${annual}/year, renews automatically. Cancel anytime.` : `${annual}/year, renews automatically. Cancel anytime.`,
+    monthly: `${monthly}/month, renews automatically. Cancel anytime.`,
   }[plan];
   // The three promises, Calm's "Fall asleep faster with ..." shape: a bold lead, then the rest of the line.
   // Never an app's name: Apple's picker only hands back opaque tokens.
@@ -153,22 +182,10 @@ export function plansStep(ctx: StepContext): StepView {
       <UnderCta>
         <PrimaryButton label={cta} disabled={busy} onPress={() => buy(plan)} />
         <View style={styles.underCta}>
-          <Text style={styles.underCtaText} numberOfLines={1} adjustsFontSizeToFit>
+          <Text style={styles.underCtaText} numberOfLines={2}>
             {terms}
           </Text>
-          <Text style={styles.legal}>
-            <Text accessibilityRole="link" onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => {})}>
-              Terms of Use
-            </Text>
-            {'  ·  '}
-            <Text accessibilityRole="link" onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => {})}>
-              Privacy Policy
-            </Text>
-            {'  ·  '}
-            <Text accessibilityRole="button" onPress={ctx.restorePurchases}>
-              Restore
-            </Text>
-          </Text>
+          <LegalLinks restore={ctx.restorePurchases} />
         </View>
       </UnderCta>
     ),

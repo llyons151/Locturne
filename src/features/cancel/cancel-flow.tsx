@@ -48,7 +48,8 @@ const BAR: Partial<Record<Step, number>> = { stay: 0, why: 1, fix: 1, offer: 2 }
 
 export function CancelFlow() {
   const { preview: previewParam } = useLocalSearchParams<{ preview?: string }>();
-  const preview = previewParam === '1';
+  // The preview's sample offer is a dev tool: never in a store build (no promotional offer behind it).
+  const preview = previewParam === '1' && (__DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1');
   const close = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
 
   const [step, setStep] = useState<Step>('stay');

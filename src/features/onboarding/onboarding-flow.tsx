@@ -453,6 +453,21 @@ export function OnboardingFlow({
   // Its button opens the camera over the flow. A place opens the map picker, drawn inside the
   // flow under its own back and chapter bar. Saved moves on; back without one stays put.
   const [settingUp, setSettingUp] = useState<'place' | 'scan' | null>(null);
+  // Will setting up this wake-up way (the scanner, the place picker) open on iOS's camera or location
+  // prompt? Read fresh for the method picked and after each setup closes. Until it's known, assume
+  // yes: the button then says Continue (App Review 5.1.1(iv)).
+  const [setupAsks, setSetupAsks] = useState(screenTimeHere);
+  useEffect(() => {
+    if (!screenTimeHere || settingUp) return;
+    let live = true;
+    methodAccessPending(answers.method ?? 'steps').then(
+      (pending) => live && setSetupAsks(pending),
+      () => live && setSetupAsks(false),
+    );
+    return () => {
+      live = false;
+    };
+  }, [answers.method, settingUp]);
   const setUpMethod = () => (answers.method === 'place' ? setSettingUp('place') : go('scan-code'));
   // A code counts as set up once printed (`notePrinted`), so the camera moves on only when it
   // saved a scan: backing out to print again stays on the page (user 2026-10-29).
@@ -1034,7 +1049,10 @@ export function OnboardingFlow({
     openRoutine,
     enterApp,
     motion,
+    // Motion & Fitness still to be asked: the method page's button brings up iOS's prompt.
+    motionAsks: screenTimeHere && motion === null,
     methodAsks,
+    setupAsks,
     notifications,
     trialEnds,
     askPermissions,
