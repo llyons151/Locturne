@@ -1,0 +1,30 @@
+{
+  "title": "everyone in my house at 9am",
+  "format": "Old painting + modern caption",
+  "job": "share",
+  "why": "Bruegel's Land of Cockaigne is people collapsed everywhere; caption it as the morning after.",
+  "compare": "lvnarjules-painting-meme",
+  "account": "@loc or @locturne",
+  "caption": "the wifi was too good. what time did you put it down? #art #relatable",
+  "sound": "trending sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/cockaigne.jpg",
+      "caps": [
+        {
+          "text": "everyone in my house at 9am after \"one more episode\" at 2",
+          "y": 64,
+          "size": 46,
+          "style": "outline",
+          "w": 80
+        }
+      ]
+    }
+  ]
+}

@@ -4,9 +4,14 @@ import { FiveMinutes, FIVE_FPS, FIVE_FRAMES } from './five/FiveMinutes';
 import { PhoneGate, GATE_FPS, GATE_FRAMES } from './gate/PhoneGate';
 import { JustChecking, JC_FPS, JC_FRAMES } from './alarms/JustChecking';
 import { OneMoreVideo, OMV_FPS, OMV_FRAMES } from './night/OneMoreVideo';
+import { Confession, CF_FPS, framesFor } from './confession/Confession';
+import { SPECS } from './confession/specs';
 
 export const Root = () => (
   <>
+    {Object.entries(SPECS).map(([id, spec]) => (
+      <Composition key={id} id={id} component={Confession} defaultProps={spec} durationInFrames={framesFor(spec)} fps={CF_FPS} width={1080} height={1920} />
+    ))}
     <Composition id="PhoneGate" component={PhoneGate} durationInFrames={GATE_FRAMES} fps={GATE_FPS} width={1080} height={1920} />
     <Composition id="JustChecking" component={JustChecking} durationInFrames={JC_FRAMES} fps={JC_FPS} width={1080} height={1920} />
     <Composition id="OneMoreVideo" component={OneMoreVideo} durationInFrames={OMV_FRAMES} fps={OMV_FPS} width={1080} height={1920} />

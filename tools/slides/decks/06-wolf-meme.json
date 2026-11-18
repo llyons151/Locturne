@@ -1,0 +1,41 @@
+{
+  "title": "welcome back to those who said \"i'll sleep early tonight\"",
+  "format": "Dark meme, text above and below",
+  "job": "share",
+  "app": "punchline",
+  "why": "Tough-love meme tone; a real painting replaced the AI raccoon.",
+  "compare": "gigglechicken-wolf-meme",
+  "account": "@loc (Loc account)",
+  "caption": "now don't let it happen again. what time did you sleep? #relatable #sleep #meme #phoneaddiction",
+  "sound": "dramatic / phonk",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "meme",
+      "top": "welcome back to those who said\n\"i'll sleep early tonight\"",
+      "image": "/photos/art/two-men-moon.jpg",
+      "bottom": "i hope you learned your lesson.\nnow don't let it happen again."
+    },
+    {
+      "layout": "screen",
+      "line": "your apps are asleep.\nyou're next.",
+      "phone": "/photos/renders/shield.png"
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 1,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

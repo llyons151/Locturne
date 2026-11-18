@@ -1,0 +1,35 @@
+{
+  "title": "welcome back",
+  "format": "Dark meme, text above and below",
+  "job": "share",
+  "why": "Tough-love tone over a lone figure; a real Friedrich painting instead of an AI animal.",
+  "compare": "gigglechicken-wolf-meme",
+  "account": "@loc (Loc account)",
+  "caption": "the algorithm missed you. how long were you gone? #relatable #meme",
+  "sound": "dramatic / phonk",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "meme",
+      "top": "welcome back to everyone who said\n\"i'll sleep early tonight\"",
+      "image": "/photos/art/wanderer.jpg",
+      "bottom": "you were gone for 4 hours.\nthe algorithm missed you."
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 1,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

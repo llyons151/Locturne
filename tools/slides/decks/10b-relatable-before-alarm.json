@@ -1,0 +1,31 @@
+{
+  "title": "3 videos deep before the alarm",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "10-relatable-alarm-tiktok",
+  "why": "Variant of 10: the twist that you woke up before the alarm and still lost the morning to the feed.",
+  "compare": "zararose-phone-in-bed",
+  "account": "face / Day-N account",
+  "caption": "was it worth it? yes. no. #relatable #morning #phoneaddiction",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/phone-on-duvet.jpg",
+      "caps": [
+        {
+          "text": "when you wake up 2 minutes before your alarm and you're already 3 videos deep when it goes off",
+          "y": 24,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

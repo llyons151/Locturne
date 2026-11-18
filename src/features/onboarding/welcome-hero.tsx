@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
+import { StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -13,7 +13,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Ellipse, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { Reveal } from '@/components/motion';
+import { MotionHold, Reveal } from '@/components/motion';
 import { Text } from '@/components/text';
 import { DISPLAY_MAX_SCALE, DisplayFont, Nocturne, Space } from '@/theme';
 
@@ -25,10 +25,10 @@ import { OPENER_EXIT_EASING, OPENER_EXIT_MS, useLeaving } from './ui';
  * the phone's edge and the phone's own status bar are gone, the whole phone shows with nothing over
  * it, and only the headline sits under it, after Cal AI's welcome (see `L`).
  *
- * Leaving it (Get started): "Blur through", option 1 of the ten (user 2026-11-07,
- * welcome-transitions.html). Everything fades and the night sky comes up under the next page's
- * words. The mockup also blurred it; blur never drew on iPhone, so here the phone sinks
- * back a touch as it fades instead (timings and curve: `OPENER_EXIT_MS` in ui.tsx).
+ * Leaving it (Get started): the words and buttons fade and the phone shrinks away around its screen
+ * (from take 7 of the second ten, user 2026-11-18, tools/welcome-load-lab/handoff). The first
+ * question then comes in like every other page: its answers rise in as one (user 2026-11-18: the
+ * answers flying out of the phone looked wrong). The black behind fades as before.
  */
 
 /**
@@ -64,8 +64,10 @@ const REMEASURE_MS = [120, 300, 600, 1000];
 
 /** The black under the phone fades a little slower, so the sky comes up as the next page comes in. */
 const BACKDROP_EXIT_MS = 640;
-/** How far the phone shrinks back as it leaves, standing in for the mockup's blur. */
-const EXIT_SHRINK = 0.03;
+/** Leaving, the phone shrinks this much around its own screen as it fades, over this long on this curve. */
+const EXIT_SHRINK = 0.45;
+const PHONE_EXIT_MS = 800;
+const PHONE_EXIT_EASING = Easing.bezier(0.4, 0, 0.2, 1);
 /** Arriving: one ease-out with no overshoot (the user's "clean, not bouncy", 2026-11-07). */
 const ENTER_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 
@@ -83,6 +85,44 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 const getWordsTop = () => wordsTop;
+
+/**
+ * Nothing on the opener moves until everything on it has drawn (user 2026-11-18: "make sure everything is
+ * actually rendered before it starts playing the fade in animations"). The phone's frame image, the clip's
+ * first frame and the words' final place all land at different moments on a cold start, and fading in over
+ * them showed as pops and stutter. The phone, its light, the words and the buttons all wait for this, then
+ * start together. `READY_MAX_MS` after the words are placed it goes anyway, so a slow clip never holds the page.
+ */
+let ready = false;
+const readyListeners = new Set<() => void>();
+function setReady() {
+  if (ready) return;
+  ready = true;
+  readyListeners.forEach((l) => l());
+}
+const subscribeReady = (l: () => void) => {
+  readyListeners.add(l);
+  return () => readyListeners.delete(l);
+};
+const getReady = () => ready;
+const useWelcomeReady = () => useSyncExternalStore(subscribeReady, getReady, getReady);
+/** The longest the opener waits for its phone to draw. */
+const READY_MAX_MS = 1500;
+/** The words are looked at again until then (`REMEASURE_MS`): the phone waits for their place to hold. */
+const SETTLE_MS = 300;
+
+/**
+ * Laid out but unseen until the opener is ready, then its entrances play from that moment, in their
+ * own order (a fresh sequence, so a long wait doesn't make them all start at once).
+ */
+export function WelcomeGate({ style, children }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
+  const go = useWelcomeReady();
+  return (
+    <View key={go ? 'go' : 'wait'} style={[style, !go && styles.unseen]}>
+      <MotionHold offset={0}>{children}</MotionHold>
+    </View>
+  );
+}
 
 /**
  * The phone and the black behind it, drawn by the flow between the sky and the
@@ -118,12 +158,36 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
   useEffect(() => {
     if (measured) player.play();
   }, [player, measured]);
+
+  // Ready once the frame has drawn, the clip has shown its first frame and the words have held their
+  // place, then two more frames so the first frame of the fade isn't the one that commits it all.
+  const [frameDrawn, setFrameDrawn] = useState(false);
+  const [clipDrawn, setClipDrawn] = useState(false);
+  const [settled, setSettled] = useState(false);
+  const go = useWelcomeReady();
   useEffect(() => {
     if (!measured) return;
+    const settle = setTimeout(() => setSettled(true), SETTLE_MS);
+    const anyway = setTimeout(setReady, READY_MAX_MS);
+    return () => {
+      clearTimeout(settle);
+      clearTimeout(anyway);
+    };
+  }, [measured]);
+  useEffect(() => {
+    if (go || !(frameDrawn && clipDrawn && settled)) return;
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(setReady);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [go, frameDrawn, clipDrawn, settled]);
+
+  useEffect(() => {
+    if (!go || !measured) return;
     if (!shown) {
       const out = (ms: number) => withTiming(0, { duration: reduced ? 200 : ms, easing: OPENER_EXIT_EASING });
       backdrop.set(out(BACKDROP_EXIT_MS));
-      phone.set(out(OPENER_EXIT_MS));
+      phone.set(withTiming(0, { duration: reduced ? 200 : PHONE_EXIT_MS, easing: PHONE_EXIT_EASING }));
       return;
     }
     backdrop.set(1);
@@ -133,19 +197,17 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
     }
     phone.set(0);
     phone.set(withTiming(1, { duration: 900, easing: ENTER_EASING }));
-  }, [shown, measured, reduced, backdrop, phone]);
+  }, [shown, go, measured, reduced, backdrop, phone]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.get() }));
-  // Leaving, the phone shrinks back.
-  const groupStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: shown || reduced ? 1 : 1 - (1 - phone.get()) * EXIT_SHRINK }],
-  }));
   // The blue glow behind the phone comes and goes with it.
   const glowStyle = useAnimatedStyle(() => ({ opacity: phone.get() }));
-  // Leaving, it fades where it is; arriving, it rises 40pt.
+  // Arriving, it rises 40pt; leaving, it shrinks away around its screen as it fades.
   const phoneStyle = useAnimatedStyle(() => ({
     opacity: phone.get(),
-    transform: [{ translateY: shown ? (1 - phone.get()) * 40 * k : 0 }],
+    transform: shown
+      ? [{ translateY: (1 - phone.get()) * 40 * k }]
+      : [{ scale: reduced ? 1 : 1 - (1 - phone.get()) * EXIT_SHRINK }],
   }));
 
   return (
@@ -158,7 +220,7 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
             <Animated.View style={[StyleSheet.absoluteFill, glowStyle]}>
               <WelcomeGlow width={width} phoneTop={phoneTop} phoneHeight={phoneHeight} />
             </Animated.View>
-            <Animated.View style={[StyleSheet.absoluteFill, groupStyle]}>
+            <Animated.View style={StyleSheet.absoluteFill}>
               <Animated.View style={[styles.at, { left: phoneLeft, top: phoneTop, width: phoneWidth, height: phoneWidth / PHONE_RATIO }, phoneStyle]}>
                 {/* Rounded like the glass, so the clip's square corners never show past the frame's. */}
                 <View
@@ -181,9 +243,10 @@ export function WelcomeHero({ shown }: { shown: boolean }) {
                     nativeControls={false}
                     fullscreenOptions={{ enable: false }}
                     allowsPictureInPicture={false}
+                    onFirstFrameRender={() => setClipDrawn(true)}
                   />
                 </View>
-                <Image source={FRAME} style={StyleSheet.absoluteFill} contentFit="contain" />
+                <Image source={FRAME} style={StyleSheet.absoluteFill} contentFit="contain" onDisplay={() => setFrameDrawn(true)} />
               </Animated.View>
             </Animated.View>
           </>
@@ -350,15 +413,17 @@ export function WelcomeWords({ head, sub, delay }: { head: string; sub: string; 
   }, [width, height]);
   return (
     <Animated.View style={[styles.words, fade]} onLayout={measure}>
-      <View ref={ref} onLayout={measure} style={styles.wordsInner}>
-        <Reveal delay={delay}>
-          <Text style={[styles.head, width < 393 && narrow(width)]} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
-            {head}
-          </Text>
-        </Reveal>
-        <Reveal delay={delay + 120}>
-          <Text style={styles.sub}>{sub}</Text>
-        </Reveal>
+      <View ref={ref} onLayout={measure} style={styles.wordsAt}>
+        <WelcomeGate style={styles.wordsInner}>
+          <Reveal delay={delay}>
+            <Text style={[styles.head, width < 393 && narrow(width)]} accessibilityRole="header" maxFontSizeMultiplier={DISPLAY_MAX_SCALE}>
+              {head}
+            </Text>
+          </Reveal>
+          <Reveal delay={delay + 120}>
+            <Text style={styles.sub}>{sub}</Text>
+          </Reveal>
+        </WelcomeGate>
       </View>
     </Animated.View>
   );
@@ -371,11 +436,14 @@ const styles = StyleSheet.create({
   black: { backgroundColor: '#000000' },
   at: { position: 'absolute' },
   clip: { overflow: 'hidden' },
+  unseen: { opacity: 0 },
   words: { alignSelf: 'stretch', alignItems: 'center' },
+  wordsAt: { alignSelf: 'stretch' },
   wordsInner: { alignSelf: 'stretch', alignItems: 'center', gap: Space.s },
   // Cal AI's welcome type: one bold two-line promise, a little bigger than Jomo's 28pt (32 broke
   // "Your apps go to bed" onto two lines on a 393pt phone).
   head: { ...DisplayFont, color: Nocturne.text, fontSize: 30, lineHeight: 35, letterSpacing: -0.5, textAlign: 'center' },
-  // The small line, back under it (user 2026-11-17): regular weight, grey-blue, so the headline leads.
-  sub: { color: Nocturne.text2, fontSize: 15, lineHeight: 20, fontWeight: '400', textAlign: 'center' },
+  // The small line, back under it (user 2026-11-17). Headline white, dimmed, at 17pt (user 2026-11-18): in
+  // grey-blue 15pt it matched "Restore purchases" under the button and read as a second link.
+  sub: { color: Nocturne.text, opacity: 0.72, fontSize: 17, lineHeight: 22, fontWeight: '400', textAlign: 'center' },
 });

@@ -1,0 +1,30 @@
+{
+  "title": "getting in bed at 9:30 to\u00a0be on my phone until 2am",
+  "format": "One-slide relatable: empty lamp-lit bed shot from standing, one two-line caption mid-frame",
+  "job": "share",
+  "app": "none",
+  "why": "Copies peyt's one-slide post (3.9M likes): an empty unmade bed, one warm lamp the only light, phone-camera angle from standing, carpet in the foreground, and a single lowercase two-line Classic caption across the middle. No person, no app. New line about the same ritual: going to bed early just to scroll in comfort.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "the most productive i am all day is getting comfy for this #relatable #phoneinbed #bedtime",
+  "sound": "trending sad sound",
+  "size": [1080, 1920],
+  "check": [
+    "AI-made photo (empty room, no person): turn on TikTok's AI-generated label, or swap in a photo of your own bed"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-peyt-1.jpg",
+      "caps": [
+        {
+          "text": "getting into bed at 9:30 to\u00a0be on my phone until 2am",
+          "y": 59,
+          "size": 56,
+          "style": "classic",
+          "w": 76
+        }
+      ]
+    }
+  ]
+}

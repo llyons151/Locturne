@@ -1,0 +1,82 @@
+{
+  "title": "fun fact: bears don't scroll",
+  "format": "Photo dump with a tweet cover",
+  "job": "promo",
+  "app": "confession",
+  "why": "Dump energy hides the app among night photos.",
+  "compare": "coke3xb-tweet-dump",
+  "account": "@loc (Loc account)",
+  "caption": "november dump 🌙 which slide is you? #nightdump",
+  "sound": "trending soft song",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "tweet cards are Loc's real in-app lines, made up as posts. No fake view counts on them, keep it that way",
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "fun fact:\n\nwhoever is reading this deserves to be asleep right now",
+      "when": "11:02 PM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/rain-car-window.jpg"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/shield.png"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/dark-room-window.jpg"
+    },
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "gerald says hi. he's a possum.",
+      "when": "12:40 AM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/09-moons.png"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/moon-crescent-trees.jpg"
+    },
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "lights out. i'd know. it's court-ordered.",
+      "when": "11:00 PM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/bed-c.jpg"
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 1,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  },
+  "scoreNotes": "cover tweet rewritten to the reference shape (flatter/relate the viewer); handle on the card must match the posting account"
+}

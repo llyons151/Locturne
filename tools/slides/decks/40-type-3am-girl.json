@@ -1,0 +1,44 @@
+{
+  "title": "i'm a type 3am guy",
+  "format": "\"i'm a type ___ girl\" identity text",
+  "job": "identity",
+  "why": "Readers either see themselves (share, tag) or argue (comment). The contradictions are the joke.",
+  "compare": "blondequeen-type-c",
+  "account": "face account",
+  "caption": "type 3am, unite. what's your type? #relatable #sleep",
+  "sound": "trending",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/red-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "i'm a type 3am guy\ni can be asleep by 11, i can be watching chess openings at 3. i set 6 alarms and hear none of them",
+          "y": 57,
+          "size": 48,
+          "style": "classic",
+          "w": 72
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 0,
+    "comment": 2,
+    "truth": 2
+  }
+}

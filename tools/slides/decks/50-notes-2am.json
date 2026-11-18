@@ -1,0 +1,74 @@
+{
+  "title": "7 things that fixed my 2am scrolling",
+  "format": "Notes listicle, app on one point",
+  "job": "save",
+  "why": "Real fixes earn the one confession slide; the app is the \"what actually worked\".",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "number 4 is cheating but it works. which one would you try? #screentimehacks #sleep",
+  "sound": "moody, low volume",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "every point must be true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "7 things that fixed my 2am scrolling",
+      "image": "/photos/phone-glow-room.jpg",
+      "narrow": true,
+      "aside": "(niche edition)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "_boring_ beats blocked",
+      "top": "i stopped trying to fight the urge and started making bed _boring_",
+      "text": "a paper book on the pillow\n\nnothing to scroll, so the brain gives up",
+      "bottom": "",
+      "image": "/photos/book-on-bed.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "the charger _moved rooms_",
+      "top": "if it charges by the bed, it _ends up in the bed_",
+      "text": "kitchen counter, every night\n\nthe walk back is long enough to change my mind",
+      "bottom": "",
+      "image": "/photos/unmade-bed.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "my apps _go to sleep_",
+      "top": "this is the one that actually stuck",
+      "text": "at 11 my apps sleep and _don't wake up until i've walked_ in the morning\n\nwillpower at 1am is not a plan",
+      "bottom": "",
+      "phone": "/photos/renders/13-shield-night.png"
+    },
+    {
+      "layout": "point",
+      "heading": "lights _down at 10_",
+      "top": "ceiling lights off, one lamp on",
+      "text": "my brain stopped thinking it was noon\n\ni got sleepy before midnight for the first time in years",
+      "bottom": "",
+      "image": "/photos/light-on-bed.jpg",
+      "imageSide": "left"
+    }
+  ],
+  "app": "confession",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 1
+  }
+}

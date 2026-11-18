@@ -1,0 +1,51 @@
+{
+  "title": "5 signs your phone runs your nights",
+  "format": "Dark painting cover + one line per paper slide",
+  "job": "save",
+  "why": "The Scream as the cover for a self-diagnosis list: viewers count how many they tick.",
+  "compare": "sumimxojpd0-dark-art-list",
+  "account": "@locturne",
+  "caption": "i got 5/5. what did you get? #screentime #phoneaddiction",
+  "sound": "slow dark ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/art/the-scream.jpg",
+      "caps": [
+        {
+          "text": "5 SIGNS YOUR PHONE RUNS YOUR NIGHTS..",
+          "y": 56,
+          "size": 58,
+          "style": "classic",
+          "w": 90
+        }
+      ]
+    },
+    {
+      "layout": "paper",
+      "text": "You plan to sleep at 11 and **check the time at 1:40**."
+    },
+    {
+      "layout": "paper",
+      "text": "You open an app, close it, and **open it again** without thinking."
+    },
+    {
+      "layout": "paper",
+      "text": "You **cannot fall asleep** without something playing."
+    },
+    {
+      "layout": "paper",
+      "text": "Your phone is **the first thing you touch** every morning."
+    },
+    {
+      "layout": "paper",
+      "text": "You **feel robbed** of the night, so you stay up to take it back."
+    }
+  ],
+  "app": "none"
+}

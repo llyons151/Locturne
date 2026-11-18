@@ -1,0 +1,31 @@
+{
+  "title": "'just one notification' at 7am",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "10-relatable-alarm-tiktok",
+  "why": "Variant of 10: the same morning-scroll admission with a specific time cost (7am to 7:48), on a real faceless morning photo.",
+  "compare": "zararose-phone-in-bed",
+  "account": "face / Day-N account",
+  "caption": "where did the 48 minutes go? #relatable #morning #phoneaddiction",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/bed-blind-shadows.jpg",
+      "caps": [
+        {
+          "text": "me at 7am checking 'just one notification' and resurfacing at 7:48",
+          "y": 30,
+          "size": 58,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

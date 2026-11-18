@@ -1,0 +1,42 @@
+{
+  "title": "the room at 2am",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "why": "Peyt's empty-room trick: no person, just the scene, so every viewer puts themselves in it.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "i said 11. what time did you say? #relatable #bedtime #sleepschedule",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/bedroom-night-purple.jpg",
+      "caps": [
+        {
+          "text": "my room at 2am when i told everyone i'd be asleep by 11",
+          "y": 68,
+          "size": 62,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

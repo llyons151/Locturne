@@ -1,0 +1,76 @@
+{
+  "title": "sometimes staying up late isn't about the phone",
+  "format": "Moody night quotes, one line per slide",
+  "job": "share",
+  "app": "punchline",
+  "why": "Validation first, one product beat near the end.",
+  "compare": "nadiaaddesi-night-quotes",
+  "account": "@locturne or face account",
+  "caption": "revenge bedtime procrastination is real. what time did you sleep? #sleep #mentalhealth #nightthoughts #screentime",
+  "sound": "slow, sad piano",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 1 should be a real selfie (yours or a creator's). The Codex face is a stand-in",
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "photo",
+      "image": "/photos/moody-selfie.jpg",
+      "pos": "low",
+      "white": true,
+      "line": "sometimes staying up late isn't about the phone..."
+    },
+    {
+      "layout": "photo",
+      "image": "/photos/moon-crescent-trees.jpg",
+      "pos": "top",
+      "white": true,
+      "line": "it's the only part of the day nobody needs anything from you."
+    },
+    {
+      "layout": "photo",
+      "image": "/photos/rain-bokeh-night.jpg",
+      "pos": "top",
+      "white": true,
+      "line": "so you steal hours from tomorrow to feel like today was yours."
+    },
+    {
+      "layout": "photo",
+      "image": "/photos/phone-blue-dark.jpg",
+      "pos": "top",
+      "white": true,
+      "line": "the scrolling isn't the reward. the quiet is."
+    },
+    {
+      "layout": "photo",
+      "image": "/photos/bed-c.jpg",
+      "pos": "top",
+      "white": true,
+      "line": "then the alarm goes off and tomorrow sends the bill."
+    },
+    {
+      "layout": "photo",
+      "image": "/photos/moon-cloud-trees.jpg",
+      "white": true,
+      "line": "it was never a willpower problem. the phone is just always there.",
+      "low": true
+    },
+    {
+      "layout": "screen",
+      "line": "so i gave my phone\nthe bedtime instead",
+      "phone": "/photos/renders/01-asleep-clean.png",
+      "bg": "/photos/rain-car-window.jpg"
+    },
+    {
+      "layout": "photo",
+      "image": "/photos/lamp-nightstand-dark.jpg",
+      "pos": "top",
+      "white": true,
+      "line": "keep the quiet. lose the scroll."
+    }
+  ]
+}

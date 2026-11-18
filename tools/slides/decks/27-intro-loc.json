@@ -1,0 +1,61 @@
+{
+  "title": "hi i'm loc! you've doomscrolled your way to my bedtime",
+  "format": "Creator intro (\"You've doomscrolled your way to my ___\")",
+  "job": "promo",
+  "why": "Same opener from the mascot; the \"work\" is his app, no words.",
+  "compare": "jwhorner-doomscrolled-intro",
+  "account": "@loc (Loc account)",
+  "caption": "lights out. court-ordered. what time is your lights out? #raccoon #sleep #fyp",
+  "sound": "upbeat, happy",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "Loc is the mascot speaking: post only from the Loc account, with the \"Your brand\" disclosure on"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-point.jpg",
+      "caps": [
+        {
+          "text": "hi i'm loc! you've doomscrolled your way to my bedtime. lights out 🌙",
+          "y": 21,
+          "size": 54,
+          "style": "classic",
+          "w": 78,
+          "igY": 11
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/01-asleep-clean.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/03-payoff.png",
+      "caps": []
+    }
+  ],
+  "app": "intro",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 1,
+    "app": 2,
+    "native": 1,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

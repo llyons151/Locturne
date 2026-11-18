@@ -1,0 +1,35 @@
+{
+  "title": "me at 6:58am lying perfectly still so the alarm can't find me",
+  "format": "\"Me in bed…\" absurd object in bed, letterboxed on black, outlined caption",
+  "job": "share",
+  "app": "none",
+  "why": "Third variant of the egg post (4.6M likes, 845K shares), same structure as r-egg-calc-sleep-math: a cheap-edit photo of a deadpan object with a drawn meme face tucked into a real bed, letterboxed across the middle of a black slide, small white outlined sentence-case caption over the lower part of the photo. Hook-first pass: 6 candidate lines ranked by a fresh agent against the ref; the winner is a relatable-moment line (the two minutes before the alarm, lying still like it's a predator), and the frozen wide-eyed lemon acts it out. A crude pasted cut-out face on the lemon, the same cheap-edit uncanniness as the egg. Reach format, no app.",
+  "compare": "egg-me-in-bed",
+  "variantOf": "r-egg-calc-sleep-math",
+  "account": "@loc (Loc account)",
+  "caption": "what time does your alarm go off? #relatable #morning #alarm",
+  "sound": "morning flower alarm (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made photo (a lemon with a crude pasted-on cut-out face, AI-generated, not a real person): turn on TikTok's AI-generated label",
+    "Don't post on the same day as r-egg-potato-one-more-video or r-egg-calc-sleep-math (same format, same account)"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-egg-lemon-1.jpg",
+      "caps": [
+        {
+          "text": "Me at 6:58am lying perfectly still so the alarm can't find me",
+          "y": 69.5,
+          "size": 54,
+          "style": "outline",
+          "w": 62
+        }
+      ]
+    }
+  ]
+}

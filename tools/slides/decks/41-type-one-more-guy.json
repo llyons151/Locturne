@@ -1,0 +1,44 @@
+{
+  "title": "i'm a type 'one more video' guy",
+  "format": "\"i'm a type ___ girl\" identity text",
+  "job": "identity",
+  "why": "The same identity line from a guy, to test who shares more.",
+  "compare": "blondequeen-type-c",
+  "account": "face account",
+  "caption": "this is a cry for help. what's your type? #relatable",
+  "sound": "trending",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/red-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "i'm a type 'one more video' guy\ni can be at the gym by 6, i can watch 3 hours of car repairs at 2am. always tired, never sleepy",
+          "y": 57,
+          "size": 48,
+          "style": "classic",
+          "w": 72
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 0,
+    "comment": 2,
+    "truth": 2
+  }
+}

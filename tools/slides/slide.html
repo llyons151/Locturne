@@ -1,0 +1,261 @@
+<!doctype html>
+<!-- One slideshow slide, drawn from a deck in decks/*.json. The studio shows it in an iframe, export
+     screenshots it at the deck's size. ?deck=<name>&i=<index>, or the studio posts a draft slide in. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>slide</title>
+<style>
+  @font-face { font-family: Inter; src: url(/fonts/Inter.woff2) format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'TikTok Sans'; src: url(/fonts/TikTokSans-400.ttf); font-weight: 400; }
+  @font-face { font-family: 'TikTok Sans'; src: url(/fonts/TikTokSans-500.ttf); font-weight: 500; }
+  @font-face { font-family: 'TikTok Sans'; src: url(/fonts/TikTokSans-600.ttf); font-weight: 600; }
+  @font-face { font-family: 'TikTok Sans'; src: url(/fonts/TikTokSans-700.ttf); font-weight: 700; }
+  :root { --w: 1080px; --h: 1350px; --m: 60px; --ink: #121212; --grey: #6f6f6f; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: #fff; }
+  body { font-family: Inter, Helvetica, Arial, sans-serif; color: var(--ink); font-weight: 400;
+    font-feature-settings: 'cv11' 1; -webkit-font-smoothing: antialiased; }
+  u { text-decoration-thickness: 2px; text-underline-offset: 7px; }
+  .page { position: absolute; inset: 0; padding: 0 var(--m); display: flex; flex-direction: column; }
+  img { display: block; object-fit: cover; }
+  p { font-size: 40px; line-height: 1.27; letter-spacing: -0.005em; }
+  p + p { margin-top: 1.1em; }
+  .grey { color: var(--grey); }
+
+  /* hook: big title, one image, a small aside */
+  .hook { padding-top: 215px; }
+  .hook h1 { font-size: 59px; line-height: 1.22; font-weight: 400; letter-spacing: -0.012em; max-width: 920px; }
+  .hook .img { margin-top: 52px; width: 100%; height: 560px; }
+  .hook .img.narrow { width: 720px; height: 570px; }
+  .hook .aside { margin-top: 30px; font-size: 33px; }
+  .hook .aside.right { align-self: flex-end; margin-right: 60px; color: var(--ink); }
+
+  /* point: underlined heading, text beside a photo, one line to finish */
+  .point { padding-top: 220px; }
+  .point h2 { font-size: 57px; line-height: 1.2; font-weight: 400; letter-spacing: -0.012em; margin-bottom: 44px; }
+  .point .row { display: flex; gap: 36px; align-items: flex-start; margin: 46px 0; }
+  .point .row.img-left { flex-direction: row-reverse; }
+  .point .row .text { flex: 1; }
+  .point .row img.photo { width: 470px; height: 540px; }
+  .point .row img.photo.wide { width: 540px; height: 400px; }
+  .phone { width: 330px; border: 11px solid #111; border-radius: 50px; overflow: hidden; background: #000;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); flex: none; }
+  .phone img { width: 100%; height: auto; }
+  img.render { width: 350px; height: auto; object-fit: contain; flex: none; }
+  .demo img.render { width: 360px; }
+  .screen img.render { width: 660px; position: relative; }
+
+  /* checklist: heading + counter, two photos, ten ticked-off-able items */
+  .check { padding-top: 140px; }
+  .check .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 36px; }
+  .check h2 { font-size: 50px; font-weight: 400; letter-spacing: -0.012em; }
+  .check .count { font-size: 28px; color: var(--grey); }
+  .check .pics { display: flex; gap: 14px; margin-bottom: 44px; }
+  .check .pics img { flex: 1; width: 0; height: 330px; }
+  .check ol { list-style: none; display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; row-gap: 40px;
+    grid-auto-flow: column; grid-template-rows: repeat(5, auto); }
+  .check li { display: flex; gap: 22px; font-size: 32px; line-height: 1.3; }
+  .check li::before { content: ''; flex: none; width: 40px; height: 40px; border-radius: 50%; border: 3px solid #d4d4d4;
+    margin-top: 0; }
+
+  /* demo: "how i actually do it", phone on the left, text on the right, App Store card */
+  .demo { padding-top: 165px; align-items: center; }
+  .demo h2 { font-size: 50px; font-weight: 400; letter-spacing: -0.012em; text-align: center; margin-bottom: 60px; }
+  .demo .row { display: flex; gap: 50px; align-items: center; width: 100%; }
+  .demo .phone { width: 340px; }
+  .demo .text p { font-size: 38px; }
+  .card { margin-top: 64px; display: flex; gap: 30px; align-items: center; padding: 26px 34px; background: #fafafa;
+    border-radius: 24px; }
+  .card img { width: 150px; height: 150px; border-radius: 34px; }
+  .card b { display: block; font-size: 32px; font-weight: 500; }
+  .card span { display: block; font-size: 24px; color: var(--grey); margin-top: 4px; }
+  .card i { display: inline-block; margin-top: 16px; font-style: normal; font-size: 24px; font-weight: 600; color: #fff;
+    background: #0a84ff; border-radius: 30px; padding: 6px 30px; }
+
+  /* closer: round photo, a question, two small lines */
+  .closer { padding-top: 190px; align-items: center; text-align: center; }
+  .closer img.avatar { width: 250px; height: 250px; border-radius: 50%; border: 6px solid #fff;
+    box-shadow: 0 0 0 2px #e6e6e6; }
+  .closer h2 { margin-top: 40px; font-size: 49px; font-weight: 400; letter-spacing: -0.01em; }
+  .closer p { margin-top: 34px; font-size: 31px; }
+  .closer p + p { margin-top: 22px; }
+
+  /* photo: full-bleed photo with centred text, the one-slide relatable style */
+  .photo-text { padding: 0 100px; justify-content: center; align-items: center; }
+  .photo-text img.bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .photo-text .line { position: relative; text-align: center; font-size: 54px; line-height: 1.27; font-weight: 500;
+    font-family: 'TikTok Sans', Inter, sans-serif;
+    color: #f7eba8; text-shadow: 0 0 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.5); }
+  .photo-text.low { justify-content: flex-end; padding-bottom: 560px; }
+
+  .photo-text .line, .screen .line, .meme .t { text-wrap: balance; }
+  .photo-text.top { justify-content: flex-start; padding-top: 300px; }
+  .photo-text.white .line { color: #fff; }
+
+  /* meme: black page, image in the middle, white text above and below */
+  .meme { background: #000; justify-content: center; align-items: center; padding: 0 90px; text-align: center; }
+  .meme .t { color: #fff; font-size: 50px; line-height: 1.28; font-weight: 500; }
+  .meme img { width: 100%; height: 760px; margin: 50px 0; }
+
+  /* tweet: a post card on black (no platform logo, no made-up numbers) */
+  .tweet { background: #000; justify-content: center; padding: 0 70px; color: #e7e9ea; }
+  .tweet .who { display: flex; gap: 22px; align-items: center; }
+  .tweet .who img { width: 128px; height: 128px; border-radius: 50%; }
+  .tweet .who b { display: block; font-size: 46px; font-weight: 700; }
+  .tweet .who span { font-size: 40px; color: #71767b; }
+  .tweet .body { margin-top: 44px; font-size: 60px; line-height: 1.32; font-weight: 600; }
+  .tweet .body p { font-size: inherit; line-height: inherit; }
+  .tweet .when { margin-top: 40px; font-size: 38px; color: #71767b; }
+
+  /* full: one picture filling the slide (photo dumps), or a render centred on black */
+  .full { background: #000; justify-content: center; align-items: center; padding: 0; }
+  .full img.cover { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .full img.render { width: 760px; }
+  .full.capped img.render { width: 640px; margin-top: 150px; }
+  .ig .full.capped img.render { width: 500px; margin-top: 190px; }
+  .ig .full img.render { width: 560px; }
+
+
+  /* captions: TikTok's own text styles, placed by centre (y, % of height) and max width (w, % of width).
+     size is px at 1080 wide, measured from each reference. */
+  .cap { position: absolute; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 3;
+    font-family: 'TikTok Sans', Inter, sans-serif; text-wrap: balance; }
+  .cap.classic { font-weight: 500; color: #fff; line-height: 1.27;
+    text-shadow: 0 0 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.5); }
+  .cap.outline { font-weight: 600; color: #fff; line-height: 1.31; -webkit-text-stroke: 0.13em #000; paint-order: stroke fill; }
+  .cap.strong { font-weight: 700; color: #fff; line-height: 1.3; -webkit-text-stroke: 0.08em #000; paint-order: stroke fill; }
+  .cap.box { font-weight: 600; color: #000; line-height: 1.3; }
+  .cap.box span { background: #fff; padding: 0.09em 0.34em; border-radius: 0.28em; box-decoration-break: clone;
+    -webkit-box-decoration-break: clone; }
+  .cap.dark { font-weight: 500; color: #111; line-height: 1.25; }
+  .cap.left { text-align: left; }
+  .cap.purple b, .cap b.p { color: #c879ff; font-weight: inherit; }
+
+  /* pic: one picture filling the slide. letterbox: a picture across the middle of a black slide */
+  .pic { padding: 0; background: #000; }
+  .pic img.bg, .split img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .letterbox { padding: 0; background: #000; justify-content: center; }
+  .letterbox img.mid { width: 100%; height: auto; max-height: 100%; object-fit: contain; }
+  .split { padding: 0; background: #000; }
+  .split .half { position: absolute; left: 0; width: 100%; height: 50%; overflow: hidden; }
+  .split .half.b { top: 50%; }
+  .split .half + .half { border-top: 6px solid #000; }
+
+  /* paper: one line per slide on grey paper, bold keywords (the dark-art list's inside slides) */
+  .paper { background: #e6e6e3; justify-content: center; padding: 0 70px; }
+  .paper .t { font-family: Inter, sans-serif; font-size: 76px; line-height: 1.3; font-weight: 400; color: #1a1a1a; }
+  .paper .t b { font-weight: 700; }
+
+  /* notes: an iOS Notes page in dark mode, a title then rows (the "past me" routine) */
+  .notes { background: #1c1c1e; color: #f2f2f7; padding: 150px 64px 0; font-family: -apple-system, 'SF Pro Text', Inter, sans-serif; }
+  .notes h3 { font-size: 46px; font-style: italic; font-weight: 700; margin-bottom: 44px; }
+  .notes .sub { font-size: 40px; margin-bottom: 26px; }
+  .notes table { border-collapse: collapse; width: 100%; font-size: 38px; }
+  .notes td { border: 2px solid #3a3a3c; padding: 16px 18px; }
+  .notes td + td u { text-underline-offset: 6px; }
+
+  /* solid: a flat colour slide with big centred text (the "2023 me was not real" cover) */
+  .solid { justify-content: center; align-items: center; text-align: center; padding: 0 70px; }
+  .solid .emoji { font-size: 110px; margin-bottom: 80px; }
+  .solid .t { font-family: 'TikTok Sans', Inter, sans-serif; font-weight: 600; font-size: 128px; line-height: 1.15; color: #fff; }
+  .solid .t b { color: #c879ff; font-weight: 600; }
+
+  /* screen: the app itself, big, on black with a line above */
+  .screen { background: #000; align-items: center; padding-top: 170px; }
+  .screen .line { color: #fff; font-size: 54px; line-height: 1.27; font-weight: 500; font-family: 'TikTok Sans', Inter, sans-serif; text-align: center;
+    margin-bottom: 80px; max-width: 880px; }
+  .screen .phone { width: 640px; border-color: #1c1c1c; box-shadow: none; }
+  .screen img.bg { position: absolute; inset: -60px; width: calc(100% + 120px); height: calc(100% + 120px);
+    filter: blur(28px) brightness(0.42); }
+  .screen .line { position: relative; color: #f7eba8; text-shadow: 0 0 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// `_words_` underline, `*words*` grey, a blank line between paragraphs.
+const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const md = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<u>$1</u>').replace(/\*(.+?)\*/g, '<span class="grey">$1</span>');
+const paras = (t) => (Array.isArray(t) ? t : String(t ?? '').split(/\n\s*\n/)).filter((x) => String(x).trim())
+  .map((x) => `<p>${md(x).replace(/\n/g, '<br>')}</p>`).join('');
+// Instagram 4:5 re-render of a 9:16 deck (?size=1080x1350): captions may carry igY, full renders shrink to fit.
+let IGMODE = false;
+const pic = (src, cls = 'photo') => src ? `<img class="${cls}" src="${esc(src)}">` : '';
+// /photos/renders/ are real 3D iPhone renders (tools/store-shots/phone3d), drawn as they are; anything else gets a frame.
+const phone = (src) => /\/renders\//.test(src) ? `<img class="render" src="${esc(src)}">`
+  : `<div class="phone"><img src="${esc(src)}"></div>`;
+
+const caps = (list) => (list ?? []).map((c) => {
+  const lines = md(c.text).split('\n');
+  const inner = c.style === 'box' ? lines.map((l) => `<span>${l}</span>`).join('<br>') : lines.join('<br>');
+  return `<div class="cap ${c.style ?? 'classic'} ${c.align ?? ''}" style="top:${(IGMODE && c.igY != null) ? c.igY : (c.y ?? 50)}%;width:${c.w ?? 78}%;font-size:${c.size ?? 56}px;${c.color ? 'color:' + c.color + ';' : ''}">${inner}</div>`;
+}).join('');
+const half = (h, k) => `<div class="half ${k}">${pic(h.image, 'bg')}${caps(h.caps)}</div>`;
+
+const LAYOUTS = {
+  pic: (s) => `<div class="page pic">${pic(s.image, 'bg')}${caps(s.caps)}</div>`,
+  letterbox: (s) => `<div class="page letterbox">${pic(s.image, 'mid')}${caps(s.caps)}</div>`,
+  split: (s) => `<div class="page split">${half(s.top ?? {}, 'a')}${half(s.bottom ?? {}, 'b')}</div>`,
+  paper: (s) => `<div class="page paper"><div class="t">${md(s.text).replace(/\n/g, '<br>')}</div></div>`,
+  notes: (s) => `<div class="page notes"><h3>${md(s.title)}</h3><div class="sub">${md(s.sub)}</div><table>${(s.rows ?? [])
+    .map((r) => `<tr><td>${md(r[0])}</td><td>${md(r[1])}</td></tr>`).join('')}</table></div>`,
+  solid: (s) => `<div class="page solid" style="background:${s.bg ?? '#2b2b2b'}">${s.emoji ? `<div class="emoji">${esc(s.emoji)}</div>` : ''}
+    <div class="t">${md(s.text).replace(/\n/g, '<br>')}</div></div>`,
+  hook: (s) => `<div class="page hook"><h1>${md(s.title).replace(/\n/g, '<br>')}</h1>
+    ${s.image ? `<img class="img ${s.narrow ? 'narrow' : ''}" src="${esc(s.image)}">` : ''}
+    ${s.aside ? `<div class="aside ${s.asideRight ? 'right' : 'grey'}">${md(s.aside)}</div>` : ''}</div>`,
+  point: (s) => `<div class="page point"><h2>${md(s.heading)}</h2>
+    ${paras(s.top)}
+    <div class="row ${s.imageSide === 'left' ? 'img-left' : ''}"><div class="text">${paras(s.text)}</div>
+      ${s.phone ? phone(s.phone) : pic(s.image, 'photo' + (s.wide ? ' wide' : ''))}</div>
+    ${paras(s.bottom)}</div>`,
+  checklist: (s) => `<div class="page check"><div class="head"><h2>${md(s.heading)}</h2>
+      <div class="count">${s.start}–${s.start + s.items.length - 1}</div></div>
+    <div class="pics">${(s.images ?? []).map((x) => `<img src="${esc(x)}">`).join('')}</div>
+    <ol>${s.items.map((x, k) => `<li><span>${s.start + k}. ${md(x)}</span></li>`).join('')}</ol></div>`,
+  demo: (s) => `<div class="page demo"><h2>${md(s.heading)}</h2>
+    <div class="row">${phone(s.phone)}<div class="text">${paras(s.text)}</div></div>
+    ${s.card ? `<div class="card"><img src="${esc(s.card.icon)}"><div><b>${esc(s.card.name)}</b>
+      <span>${esc(s.card.subtitle)}</span><i>Get</i></div></div>` : ''}</div>`,
+  closer: (s) => `<div class="page closer">${pic(s.avatar, 'avatar')}<h2>${md(s.question)}</h2>
+    ${(s.lines ?? []).map((x, k) => `<p class="${k === 0 ? 'grey' : ''}">${md(x)}</p>`).join('')}</div>`,
+  photo: (s) => `<div class="page photo-text ${s.low ? 'low' : ''} ${s.pos ?? ''} ${s.white ? 'white' : ''}">${pic(s.image, 'bg')}
+    <div class="line">${md(s.line).replace(/\n/g, '<br>')}</div></div>`,
+  meme: (s) => `<div class="page meme"><div class="t">${md(s.top).replace(/\n/g, '<br>')}</div>${pic(s.image, 'm')}
+    <div class="t">${md(s.bottom).replace(/\n/g, '<br>')}</div></div>`,
+  tweet: (s) => `<div class="page tweet"><div class="who">${pic(s.avatar, 'a')}<div><b>${esc(s.name)}</b>
+    <span>${esc(s.handle)}</span></div></div><div class="body">${paras(s.text)}</div>
+    ${s.when ? `<div class="when">${esc(s.when)}</div>` : ''}</div>`,
+  full: (s) => `<div class="page full ${s.caps?.length ? 'capped' : ''}">${/\/renders\//.test(s.image ?? '') ? pic(s.image, 'render') : pic(s.image, 'cover')}${caps(s.caps)}</div>`,
+  screen: (s) => `<div class="page screen">${s.bg ? `<img class="bg" src="${esc(s.bg)}">` : ''}<div class="line">${md(s.line).replace(/\n/g, '<br>')}</div>${phone(s.phone)}</div>`,
+};
+
+function draw(slide, size = [1080, 1350]) {
+  document.documentElement.style.setProperty('--w', size[0] + 'px');
+  document.documentElement.style.setProperty('--h', size[1] + 'px');
+  const make = LAYOUTS[slide?.layout];
+  document.getElementById('root').innerHTML = make ? make(slide) : `<div class="page"><p>unknown layout</p></div>`;
+}
+
+const q = new URLSearchParams(location.search);
+// ?nocaps=1 hides text drawn straight on photos, so contrast.py can diff it against the normal render.
+if (q.get('nocaps')) document.head.insertAdjacentHTML('beforeend',
+  '<style>.cap.classic, .cap.dark, .photo-text .line, .screen .line { visibility: hidden !important; }</style>');
+// ?flat=1 swaps every photo for flat mid-grey, so the glyphs differ clearly from the background whatever their colour.
+if (q.get('flat')) document.head.insertAdjacentHTML('beforeend',
+  '<style>img { visibility: hidden !important; } html, body, #root, .page { background: #808080 !important; }</style>');
+if (q.get('deck')) {
+  fetch(`/decks/${q.get('deck')}.json`, { cache: 'no-store' }).then((r) => r.json())
+    .then((d) => {
+      const sz = q.get('size') ? q.get('size').split('x').map(Number) : d.size;
+      IGMODE = !!q.get('size') && (d.size ?? [1080, 1350])[1] / (d.size ?? [1080, 1350])[0] > 1.5 && sz[1] / sz[0] < 1.4;
+      document.documentElement.classList.toggle('ig', IGMODE);
+      draw(d.slides[Number(q.get('i') ?? 0)], sz);
+    });
+// ?size=1080x1350 re-renders a deck at another size (Instagram carousels crop 9:16 to 4:5; captions are placed in %).
+}
+addEventListener('message', (e) => { if (e.data?.slide) draw(e.data.slide, e.data.size); });
+</script>
+</body>
+</html>

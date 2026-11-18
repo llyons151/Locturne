@@ -1,0 +1,42 @@
+{
+  "title": "my phone on my chest at 2am",
+  "format": "Old painting + modern caption",
+  "job": "share",
+  "why": "Fuseli's Nightmare literally has a demon sitting on a sleeper's chest; the modern caption makes the demon your phone.",
+  "compare": "lvnarjules-painting-meme",
+  "account": "@loc or @locturne",
+  "caption": "he lives here now. which app is yours? #art #phoneaddiction #sleep",
+  "sound": "trending sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/nightmare2.jpg",
+      "caps": [
+        {
+          "text": "my phone sitting on my chest at 2am asking if i want to see 40 more videos",
+          "y": 64,
+          "size": 46,
+          "style": "outline",
+          "w": 80
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

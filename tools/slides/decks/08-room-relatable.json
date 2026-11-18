@@ -1,0 +1,43 @@
+{
+  "title": "the silence when my apps go to sleep at 11",
+  "format": "One-slide relatable on an empty-room photo",
+  "job": "share",
+  "app": "punchline",
+  "why": "Slide 1 is pure relatable (no app); slide 2 reveals why there's nothing to scroll: the shield. Wondered-why punchline shape.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "and then i have to think about things. what's the first thought? #relatable #sleep #bedtime #phoneaddiction",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "photo",
+      "image": "/photos/window-city-dark.jpg",
+      "pos": "low",
+      "white": true,
+      "line": "the silence when there's nothing left to scroll and i remember i have thoughts"
+    },
+    {
+      "layout": "screen",
+      "line": "shh",
+      "phone": "/photos/renders/shield.png",
+      "bg": "/photos/window-city-dark.jpg"
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

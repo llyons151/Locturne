@@ -1,0 +1,156 @@
+{
+  "title": "50 things to do in bed instead of scrolling",
+  "format": "growing.diaries 8-slide checklist: hook over one candid photo with a grey save aside, five 10-item checklists (heading + 1–10 counter, two photos, two columns of circles), 'how i actually do it' with the app in a phone + App Store card, comment-bait closer with a round photo",
+  "job": "save",
+  "app": "method",
+  "why": "Copies growing.diaries' 92K-like checklist slide for slide (8 slides, white page, lowercase, the app only on the 'how i actually do it' slide, a 'which one tonight' closer). Every item can be done without leaving the bed, so the list answers the exact moment the app creates: apps asleep, still awake. Photos are one person's lamp-lit bedroom, matching the ref's candid same-account look.",
+  "compare": "growing-diaries-50-things",
+  "account": "@locturne",
+  "caption": "for when your apps are asleep and you aren't yet #nightroutine #screentime #bedtimeroutine #doomscrolling",
+  "sound": "soft, sleepy lo-fi at low volume (the ref has no saved sound)",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 7: 'at 11 my apps go to sleep … i grab a number off the list' must be true for you (your real bedtime, or change 11)",
+    "slide 8: 'i'm on #3 (moon phases)' must be true; swap in the item you're actually doing",
+    "slide 7: the phone shows the real shield render (13-shield-night), not a mock",
+    "AI-made photos (all 12; one person seen from behind on slide 1, no faces): turn on TikTok's AI-generated label",
+    "promo: turn on TikTok's \"Your brand\" disclosure"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "50 things to do in bed\ninstead of scrolling",
+      "image": "/photos/gen-r/r-gd50-hook.jpg",
+      "narrow": true,
+      "aside": "(save this for the next time it's 1am and you're \"just checking one thing\")"
+    },
+    {
+      "layout": "checklist",
+      "heading": "teach yourself something",
+      "start": 1,
+      "images": [
+        "/photos/gen-r/r-gd50-1a.jpg",
+        "/photos/gen-r/r-gd50-1b.jpg"
+      ],
+      "items": [
+        "fold a paper crane from memory",
+        "memorize one short poem",
+        "learn the phases of the moon",
+        "find 5 countries you've never heard of",
+        "learn to shuffle cards like a dealer",
+        "learn 3 knots with a shoelace",
+        "read one chapter of a history book",
+        "learn every bone in your hand",
+        "learn to count to 20 in a new language",
+        "memorize the planets in order (again)"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "make something",
+      "start": 11,
+      "images": [
+        "/photos/gen-r/r-gd50-2a.jpg",
+        "/photos/gen-r/r-gd50-2b.jpg"
+      ],
+      "items": [
+        "draw your own hand",
+        "crochet one granny square",
+        "write a haiku about your ceiling",
+        "draw the floor plan of your dream house",
+        "write the worst song you can",
+        "fold a paper star",
+        "write tomorrow's list in your nicest handwriting",
+        "doodle everyone you saw today",
+        "write a letter you'll never send",
+        "start a tiny zine about your week"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "slow down",
+      "start": 21,
+      "images": [
+        "/photos/gen-r/r-gd50-3a.jpg",
+        "/photos/gen-r/r-gd50-3b.jpg"
+      ],
+      "items": [
+        "give yourself a hand massage",
+        "legs up the wall for 5 minutes",
+        "drink something warm, slowly",
+        "put on the good socks",
+        "listen to one album start to finish",
+        "read a poem out loud, quietly",
+        "write 3 things that went fine today",
+        "stretch your hips without getting up",
+        "turn every light off but one",
+        "read until your eyes give up"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "with whoever's in your bed",
+      "start": 31,
+      "images": [
+        "/photos/gen-r/r-gd50-4a.jpg",
+        "/photos/gen-r/r-gd50-4b.jpg"
+      ],
+      "items": [
+        "play cards on the duvet",
+        "read to each other",
+        "rank your top 5 movies, then fight",
+        "ask \"best part of your day?\"",
+        "plan a trip on paper",
+        "play 20 questions",
+        "draw each other badly",
+        "tell how you met, but wrong",
+        "thumb war, best of 7",
+        "pet the cat until it leaves"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "when you can't sleep",
+      "start": 41,
+      "images": [
+        "/photos/gen-r/r-gd50-5a.jpg",
+        "/photos/gen-r/r-gd50-5b.jpg"
+      ],
+      "items": [
+        "write down what's looping, close the notebook",
+        "walk through your old house, room by room",
+        "name a city for every letter",
+        "say the alphabet backwards",
+        "replay your favorite movie in your head",
+        "list every teacher you ever had",
+        "breathe in 4, out 8, ten times",
+        "plan your perfect day, hour by hour",
+        "write a note to your younger self",
+        "just lie there. it still counts"
+      ]
+    },
+    {
+      "layout": "demo",
+      "heading": "how i actually do it",
+      "phone": "/photos/renders/13-shield-night.png",
+      "text": "at 11, my apps _go to sleep_\n\nso when my thumb opens tiktok anyway, it gets _this screen_ and i grab a number off the list\n\n*(they wake up once i'm out of bed. link in bio)*",
+      "card": {
+        "icon": "/demo/icon.png",
+        "name": "Locturne",
+        "subtitle": "Bedtime lock. Walk to unlock."
+      }
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/gen-r/r-gd50-av.jpg",
+      "question": "which one are you doing tonight? 👇",
+      "lines": [
+        "i'm on #3. still can't tell waxing from waning",
+        "the app that puts my apps to sleep is the link in bio 🤍"
+      ]
+    }
+  ]
+}

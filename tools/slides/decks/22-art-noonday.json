@@ -1,0 +1,30 @@
+{
+  "title": "me and my 5 alarms",
+  "format": "Old painting + modern caption",
+  "job": "share",
+  "why": "Millet's two farm workers passed out in hay: \"me and the snooze button\".",
+  "compare": "lvnarjules-painting-meme",
+  "account": "@loc or @locturne",
+  "caption": "we have an understanding. snooze or no snooze? #snooze #art",
+  "sound": "trending sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/noonday-rest.jpg",
+      "caps": [
+        {
+          "text": "me and the snooze button, 7:45am, ignoring 5 alarms together",
+          "y": 66,
+          "size": 46,
+          "style": "outline",
+          "w": 80
+        }
+      ]
+    }
+  ]
+}

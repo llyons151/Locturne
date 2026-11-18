@@ -1,0 +1,71 @@
+{
+  "title": "10/10 things quietly wrecking your focus",
+  "format": "Notes listicle, app on one point",
+  "job": "save",
+  "app": "confession",
+  "variantOf": "01-mornings-10-things",
+  "why": "Variant of 01 on the reference post's own topic (attention span) with Locturne's points; the morning lock is the confession.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "the third one is the whole problem. which one is you? #focus #screentime #productivity",
+  "sound": "something moody at low volume",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 4: 'my mornings start scrolling'. Only if true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "10/10 things quietly wrecking your focus",
+      "image": "/photos/journal.jpg",
+      "narrow": true,
+      "aside": "(niche edition)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "your phone _face up_ on the desk",
+      "top": "you're not using it. it's still _using you_",
+      "text": "every light-up is a tiny decision\n\nput it _face down_, or in a drawer",
+      "bottom": "",
+      "image": "/photos/water.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "notifications on _for everything_",
+      "top": "group chats, sales, an app you opened once",
+      "text": "each one costs more than the second it takes\n\nturn off everything that _isn't a person_",
+      "bottom": "",
+      "image": "/photos/tea.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "your day starts _scrolling_",
+      "top": "the first hour sets the pace for the rest",
+      "text": "my mornings used to start in bed on tiktok\n\nnow my apps stay _asleep_ until i've _walked_, so the day starts with me",
+      "bottom": "",
+      "phone": "/photos/renders/02-steps-clean.png"
+    },
+    {
+      "layout": "point",
+      "heading": "you never let yourself be _bored_",
+      "top": "queue, kettle, lift: phone out every time",
+      "text": "boredom is where your brain _tidies up_\n\nlet a few minutes stay _empty_",
+      "bottom": "",
+      "image": "/photos/book-on-bed.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "checking it _for the time_",
+      "top": "and leaving 15 minutes later",
+      "text": "a watch or a clock across the room\n\nremoves the _excuse_",
+      "bottom": "",
+      "image": "/photos/clock-127.jpg"
+    }
+  ]
+}

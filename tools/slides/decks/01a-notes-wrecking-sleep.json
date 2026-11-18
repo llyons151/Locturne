@@ -1,0 +1,71 @@
+{
+  "title": "10/10 things quietly ruining your sleep",
+  "format": "Notes listicle, app on one point",
+  "job": "save",
+  "app": "confession",
+  "variantOf": "01-mornings-10-things",
+  "why": "Variant of 01 (amayareading shape, 182K / 58K saves): same notes listicle and slide-4 confession, moved to the night side with fresh points and photos.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "number 2 hurt. which number got you? #sleep #screentime #sleeptips",
+  "sound": "something moody at low volume",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 4: 'lasted a week'. Only if true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "10/10 things quietly ruining your sleep",
+      "image": "/photos/sheets.jpg",
+      "narrow": true,
+      "aside": "(niche edition)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "falling asleep _to a video_",
+      "top": "autoplay doesn't know you're asleep",
+      "text": "your brain keeps half-listening\n\nthe background noise is still _input_",
+      "bottom": "",
+      "image": "/photos/light-on-bed.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "coffee _after 2pm_",
+      "top": "the buzz is gone by bedtime, the caffeine _isn't_",
+      "text": "it hangs around for hours after you stop feeling it\n\nmove the last cup _earlier_",
+      "bottom": "",
+      "image": "/photos/coffee.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "the _one last check_",
+      "top": "you put the phone down, then pick it up _one more time_",
+      "text": "i tried willpower. _lasted a week_\n\nnow my apps _go to sleep at 11_ and there's nothing left to check",
+      "bottom": "",
+      "phone": "/photos/renders/13-shield-night.png"
+    },
+    {
+      "layout": "point",
+      "heading": "a _warm_ bedroom",
+      "top": "duvet, heating, laptop on the bed",
+      "text": "cooler rooms make falling asleep easier\n\nopen the window for _ten minutes_ before bed",
+      "bottom": "",
+      "image": "/photos/unmade-bed.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "lying there _trying_ to sleep",
+      "top": "20 minutes, 40 minutes, checking the time",
+      "text": "if you're wide awake, get up and do something _boring_ in dim light\n\nthen try again",
+      "bottom": "",
+      "image": "/photos/clock-127.jpg"
+    }
+  ]
+}

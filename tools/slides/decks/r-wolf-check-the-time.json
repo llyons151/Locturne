@@ -1,0 +1,40 @@
+{
+  "title": "to those who picked up their phone \"to check the time\"",
+  "format": "Sigma-wolf-in-a-suit meme letterboxed on black, plain white text above and below, one slide",
+  "job": "share",
+  "app": "none",
+  "why": "Copies gigglechicken's wolf meme (2.5M likes) one-for-one: a dim black-and-white wolf-headed man in a suit on a throne across the middle of a black slide, small plain white lowercase text over the top of the picture and a stern verdict over the lower half. Same 'to those who … / scolding' shape, our own line: picking up the phone to check the time at night, and the wolf's stern verdict. Hook ranked first of 6 by a fresh agent. Reach format, no app.",
+  "compare": "gigglechicken-wolf-meme",
+  "account": "@locturne",
+  "caption": "what time was it when you finally put it down? #relatable #sleep #meme #phoneaddiction",
+  "sound": "dark phonk / sigma edit sound (the original's style)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made wolf-in-a-suit picture (no real person): turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-wolf-1.jpg",
+      "caps": [
+        {
+          "text": "to those who picked up their\nphone “to check the time.”",
+          "y": 22.6,
+          "size": 58,
+          "style": "classic",
+          "w": 80
+        },
+        {
+          "text": "it was 2:47. it is now 4:12.\nput it down.\ni will not ask twice.",
+          "y": 68,
+          "size": 54,
+          "style": "classic",
+          "w": 74
+        }
+      ]
+    }
+  ]
+}

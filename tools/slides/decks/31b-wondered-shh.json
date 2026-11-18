@@ -1,0 +1,52 @@
+{
+  "title": "why tiktok kept saying 'shh'",
+  "format": "\"I wondered why…\" → a screenshot as the punchline",
+  "job": "share",
+  "app": "punchline",
+  "variantOf": "31-wondered-phone",
+  "why": "Variant of 31: the shield literally says \"Shh. I'm sleeping.\" so the hook quotes it; the reveal is the walk unlock.",
+  "compare": "everybodylovesg-wondered-why",
+  "account": "@locturne",
+  "caption": "it does not care that i am awake. what time would you pick? #sleep #phoneaddiction",
+  "sound": "subwoofer lullaby (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 3: 'i built this' is true for Luke; keep it on Luke's accounts only"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/pov-couch-scroll.jpg",
+      "caps": [
+        {
+          "text": "I wondered why my phone kept telling me 'shh' at 11pm...",
+          "y": 50,
+          "size": 125,
+          "style": "strong",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/shield.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": [
+        {
+          "text": "and it won't wake up till i walk. i built this.",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

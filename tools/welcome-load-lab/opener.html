@@ -1,0 +1,167 @@
+<title>Locturne Opener</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* One stage, centered: the iPhone screen, the controls under it, the notes beside it. */
+  :root {
+    --bg: #0c0f16; --panel: #151a24; --line: #262c3a; --ink: #e8ecf4; --dim: #8e97aa; --chip: #222837;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
+    padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 32px; justify-content: center; align-items: flex-start; }
+  .left { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .notes { flex: 1 1 320px; min-width: 0; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 22px; letter-spacing: -.3px; text-wrap: balance; }
+  .notes p, .notes li { color: #c4cbd9; }
+  .notes ol { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .notes .t { color: var(--dim); font-variant-numeric: tabular-nums; }
+  .notes a { color: #b9c8ea; }
+  .small { color: var(--dim); font-size: 12.5px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  button.ctl { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ctl[aria-pressed="true"] { background: var(--ink); color: #0b0d12; border-color: var(--ink); }
+  button.ctl:focus-visible { outline: 2px solid #9fb4e8; outline-offset: 2px; }
+  .seg { display: inline-flex; background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: transparent; color: var(--dim); border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #0b0d12; }
+
+  /* The iPhone screen: 390 x 844 pt, scaled to fit. */
+  .holder { width: calc(390px * var(--k)); height: calc(844px * var(--k)); --k: .78; cursor: pointer; }
+  .screen { width: 390px; height: 844px; transform: scale(var(--k)); transform-origin: 0 0; position: relative; overflow: hidden; border-radius: 54px; background: #000; outline: 7px solid #2a2f3b; }
+  .screen > * { position: absolute; }
+  .status { top: 16px; left: 0; right: 0; height: 30px; z-index: 40; display: flex; justify-content: space-between; padding: 0 34px 0 46px; font: 600 16px/30px -apple-system, Inter, sans-serif; color: #fff; }
+  .status i { font-style: normal; letter-spacing: 1px; }
+  .sky { inset: 0; background: url(frost-sky.webp) center / cover; z-index: 20; }
+  /* The wordmark: 255pt wide (65% of the screen, as in the user's frame), centred on the screen. */
+  .wm { left: 67.5px; top: 400px; width: 255px; height: 43.8px; z-index: 21; color: #000; }
+  /* The black that spreads out of the logo: a disc just big enough to reach the screen's farthest corner
+     (sized in play()), laid out full size and scaled up from nothing, so its edge stays sharp. */
+  .burst { border-radius: 50%; background: #000; z-index: 22; transform: scale(0); }
+  .wm-svg { width: 100%; height: 100%; display: block; }
+
+  .scene { inset: 0; }
+  .scene > * { position: absolute; }
+  .phone { left: 27px; top: 133px; width: 336px; height: 691px; }
+  .phone img { width: 100%; height: 100%; display: block; }
+  .fade { left: 0; right: 0; top: 462px; bottom: 0; background: linear-gradient(#0000 0, #000c 53px, #000 100px); }
+  .words { left: 24px; right: 24px; top: 566px; text-align: center; z-index: 10; }
+  .words h3 { font: 700 28px/33px -apple-system, Inter, sans-serif; letter-spacing: -.4px; color: #fff; }
+  .words p { margin-top: 12px; font: 400 14.5px/19px -apple-system, Inter, sans-serif; color: #9fb3cc; }
+  .bottom { left: 24px; right: 24px; top: 694px; text-align: center; z-index: 10; }
+  .cta { height: 56px; border-radius: 28px; background: #f2f6fc; color: #0b1020; font: 600 17px/56px -apple-system, Inter, sans-serif; }
+  .legal { margin-top: 26px; font: 400 13px/18px -apple-system, Inter, sans-serif; color: #93a0b8; }
+  .legal b { color: #e4e9f2; font-weight: 400; }
+  .top { top: 56px; right: 26px; z-index: 10; font: 500 16px -apple-system, Inter, sans-serif; color: #aab6cc; }
+  @media (max-width: 420px) { .holder { --k: .82; } }
+  @media (max-width: 360px) { .holder { --k: .7; } }
+</style>
+
+<div class="wrap">
+  <div class="left">
+    <div class="holder" id="holder" title="Click to replay">
+      <div class="screen" id="screen">
+        <div class="status"><span>9:41</span><i>●●● ▮</i></div>
+        <div class="scene">
+          <div class="phone"><img src="assets/onboarding/welcome-phone.webp" alt=""></div>
+          <div class="fade"></div>
+        </div>
+        <div class="top">Restore</div>
+        <div class="words"><h3>Your apps go to bed<br>when you do</h3><p>They wake up when you’re out of bed</p></div>
+        <div class="bottom"><div class="cta">Get started</div><div class="legal">By continuing, you agree to Locturne’s<br><b>Terms of Service</b> and <b>Privacy Policy</b></div></div>
+        <div class="sky"></div>
+        <div class="wm" id="wm"><svg class="wm-svg" viewBox="0 0 2492 428" aria-label="Locturne" role="img"><g transform="translate(0.000000,428.000000) scale(0.100000,-0.100000)" fill="currentColor"><path d="M164 4109 c-13 -14 -14 -262 -12 -1908 3 -1860 3 -1893 22 -1907 28 -20 2768 -21 2784 -1 19 23 16 741 -3 757 -12 10 -206 12 -932 12 -648 -1 -921 2 -930 10 -11 8 -13 286 -13 1519 0 1509 0 1509 -23 1524 -36 23 -871 18 -893 -6z M11318 3949 c-336 -12 -511 -28 -525 -47 -10 -12 -13 -102 -13 -372 0 -333 -1 -358 -18 -373 -16 -15 -49 -17 -251 -17 -141 0 -240 -4 -252 -10 -18 -10 -19 -24 -19 -324 0 -245 3 -316 13 -324 8 -7 98 -12 250 -13 176 -1 241 -5 254 -14 17 -13 18 -54 20 -672 4 -824 9 -880 97 -1073 50 -108 187 -261 281 -313 234 -128 363 -159 670 -160 181 0 212 2 320 26 180 40 247 61 261 83 15 22 7 123 -44 573 -9 82 -22 91 -94 68 -77 -24 -240 -40 -336 -33 -151 11 -257 90 -304 224 -23 67 -23 67 -20 666 1 398 6 603 13 612 8 9 95 13 372 13 283 1 365 4 375 15 21 21 18 627 -4 643 -12 8 -115 12 -372 13 -280 0 -360 3 -370 14 -10 10 -14 100 -18 401 -3 214 -7 392 -10 397 -3 4 -22 7 -42 6 -20 0 -126 -4 -234 -9z M8400 3243 c-575 -90 -1069 -477 -1256 -985 -151 -411 -149 -751 9 -1168 141 -376 517 -721 935 -860 193 -64 593 -94 751 -56 36 8 84 18 106 21 59 10 157 43 274 93 309 133 540 336 727 641 47 78 145 292 138 303 -9 14 -41 9 -55 -9 -44 -53 -288 -137 -459 -158 -205 -25 -340 -5 -595 89 -518 190 -813 744 -696 1306 64 309 281 601 523 704 61 26 88 50 73 64 -17 17 -391 29 -475 15z M4715 3200 c-553 -50 -951 -262 -1233 -656 -194 -272 -283 -643 -243 -1015 52 -478 304 -858 726 -1095 115 -64 124 -68 260 -117 391 -141 1015 -133 1370 19 226 96 255 112 395 213 491 355 691 1021 490 1630 -88 266 -282 542 -467 665 -21 14 -69 48 -108 76 -281 202 -775 318 -1190 280z m435 -740 c332 -112 511 -357 527 -725 5 -106 -24 -281 -57 -344 -5 -9 -20 -41 -35 -71 -61 -123 -241 -293 -345 -325 -14 -4 -30 -11 -36 -16 -63 -50 -396 -70 -534 -32 -359 101 -551 370 -552 773 0 403 234 702 597 761 100 16 363 3 435 -21z M23075 3200 c-101 -10 -290 -45 -375 -69 -359 -104 -718 -394 -879 -709 -222 -435 -227 -999 -14 -1416 220 -429 642 -711 1158 -772 432 -52 817 8 1138 175 185 98 363 252 461 402 15 22 38 57 53 79 33 51 29 56 -92 100 -49 18 -119 44 -155 57 -36 13 -77 28 -92 33 -82 26 -239 84 -275 103 -53 26 -65 21 -133 -61 -89 -108 -182 -167 -345 -220 -119 -38 -399 -38 -520 0 -218 69 -362 190 -451 378 -33 71 -56 170 -42 188 8 9 245 12 1122 12 852 0 1115 3 1124 12 30 30 9 455 -29 613 -28 115 -89 291 -111 321 -4 6 -19 32 -32 57 -146 274 -439 520 -736 620 -272 91 -512 121 -775 97z m380 -660 c226 -59 379 -195 455 -406 12 -34 20 -74 18 -90 -3 -29 -3 -29 -700 -31 -782 -3 -732 -8 -708 70 34 115 137 273 212 325 208 146 478 196 723 132z M19925 3175 c-188 -39 -271 -71 -384 -148 -69 -46 -202 -169 -260 -241 -36 -44 -42 -23 -45 164 -3 133 -7 174 -17 181 -25 16 -785 11 -798 -5 -9 -10 -11 -368 -8 -1416 3 -1338 5 -1403 22 -1416 22 -16 780 -20 805 -4 13 8 15 110 16 792 2 841 5 901 55 1013 88 201 242 323 450 359 318 55 572 -57 692 -306 54 -112 56 -154 62 -1033 5 -725 8 -811 22 -822 12 -9 114 -12 410 -10 367 2 396 3 408 20 16 22 19 892 6 1507 -11 487 -27 582 -136 802 -97 196 -329 422 -496 483 -24 9 -69 25 -99 36 -181 67 -502 87 -705 44z M17705 3170 c-267 -60 -490 -201 -602 -382 -62 -101 -69 -89 -76 135 -6 155 -10 194 -22 203 -21 16 -769 14 -785 -2 -7 -7 -10 -428 -11 -1415 0 -1324 1 -1405 18 -1417 29 -21 797 -17 815 5 11 13 13 153 13 757 0 686 1 747 19 821 45 197 170 361 336 442 152 73 260 94 475 92 88 -1 166 -1 173 0 9 1 12 83 12 374 0 350 -1 375 -18 390 -26 24 -236 21 -347 -3z M12830 3133 c-8 -3 -17 -9 -20 -14 -8 -11 -3 -1782 5 -1869 43 -483 310 -835 741 -976 196 -64 565 -70 759 -12 208 61 382 168 513 314 46 51 88 79 93 62 0 -2 3 -77 5 -168 4 -139 8 -167 22 -178 21 -16 765 -13 781 3 7 7 11 467 11 1415 1 1325 0 1405 -16 1417 -23 17 -788 14 -811 -2 -12 -9 -14 -133 -13 -791 0 -790 -3 -882 -37 -974 -88 -237 -296 -388 -560 -406 -350 -23 -583 153 -629 476 -11 74 -14 272 -14 887 0 792 0 792 -22 807 -19 14 -74 16 -408 15 -212 0 -392 -3 -400 -6z"/></g></svg></div>
+        <div class="burst" id="burst"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="ctl" id="replay">Replay</button>
+      <button class="ctl" id="slow" aria-pressed="false">Slow-mo ×3</button>
+    </div>
+    <div class="seg" role="group" aria-label="Where the black starts">
+      <button id="m-center" aria-pressed="true">From the centre</button>
+      <button id="m-crescent" aria-pressed="false">From the crescent</button>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h1>Opener: black spreads out of the logo</h1>
+    <p>The app opens on your wordmark in black, on a frosted blue sky. After a beat, black spreads out from the logo in a fast circle and covers the sky. The logo doesn’t move or zoom: the black grows out of it and swallows it. That black is the black behind the welcome, and the welcome load-in plays.</p>
+    <ol>
+      <li><span class="t">0.0 s</span> Wordmark on the sky (the launch screen should be this same picture, so nothing jumps).</li>
+      <li><span class="t">0.9 s</span> Black spreads out from the logo, starting slow and ending fast enough to clear the corners in 0.75 s.</li>
+      <li><span class="t">1.65 s</span> All black. The phone rises in, then the words and button.</li>
+      <li><span class="t">2.9 s</span> Done.</li>
+    </ol>
+    <p><b>From the centre</b> starts the circle in the middle of the logo. <b>From the crescent</b> starts it inside the moon in the “c”, so the moon is where the night comes from.</p>
+    <p class="small">Based on <a href="https://mobbin.com/flows/b0b4f93f-5637-46ec-9d77-49ecda6b991d?tab=video" target="_blank" rel="noopener">Duolingo’s launch on Mobbin</a>. The wordmark is traced from your image. Only opacity and transform move, so it runs the same way on iPhone. Click the phone to replay.</p>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const screen = $('#screen');
+const el = {
+  burst: $('#burst'), wm: $('#wm'), sky: $('.sky'), phone: $('.phone'),
+  h: $('.words h3'), p: $('.words p'), bottom: $('.bottom'), top: $('.top'),
+};
+let slow = 1;
+let mode = 'center';
+const E = 'cubic-bezier(.22,1,.36,1)';
+const R = 'rotate(-16deg)';
+// The wordmark is drawn at 16x (see .wm), so every scale is divided by 16.
+const sc = (k) => `scale(${k / 16})`;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function a(node, frames, at, ms, easing = E, fill = 'both') {
+  return node.animate(frames, { delay: at * slow, duration: ms * slow, easing, fill });
+}
+// A switch at one moment: holds the earlier state until then (no backwards fill).
+const flip = (node, from, to, at) => a(node, [{ opacity: from }, { opacity: to }], at, 1, 'linear', 'forwards');
+const rise = (node, at, px = 14, ms = 650) => a(node, [{ opacity: 0, transform: `translateY(${px}px)` }, { opacity: 1, transform: 'none' }], at, ms);
+
+function welcome(at) {
+  a(el.phone, [{ opacity: 0, transform: 'translateY(70px)' }, { opacity: 1, transform: 'none' }], at, 1050);
+  rise(el.h, at + 450); rise(el.p, at + 570); rise(el.bottom, at + 710, 10); a(el.top, [{ opacity: 0 }, { opacity: 1 }], at + 850, 500, 'ease-out');
+}
+
+function play() {
+  screen.getAnimations({ subtree: true }).forEach((x) => x.cancel());
+  if (reduced) {
+    a(el.sky, [{ opacity: 1 }, { opacity: 0 }], 700, 400, 'ease-out');
+    a(el.wm, [{ opacity: 1 }, { opacity: 0 }], 700, 400, 'ease-out');
+    return;
+  }
+  // Where the black starts: the logo's centre (195, 422) or the crescent's thickest point (146, 427).
+  const [x, y] = mode === 'center' ? [195, 422] : [146.2, 426.6];
+  // Its radius reaches the farthest corner, so the screen is covered the moment it finishes.
+  const r = Math.hypot(Math.max(x, 390 - x), Math.max(y, 844 - y)) + 2;
+  Object.assign(el.burst.style, { left: `${x - r}px`, top: `${y - r}px`, width: `${2 * r}px`, height: `${2 * r}px` });
+  // 0 → 1 in 750 ms: a quick start, then it sweeps out to the corners.
+  a(el.burst, [{ transform: 'scale(0)' }, { transform: 'scale(1)' }], 900, 750, 'cubic-bezier(.55,0,.35,1)');
+  flip(el.sky, 1, 0, 1650);
+  flip(el.wm, 1, 0, 1650);
+  flip(el.burst, 1, 0, 1651);
+  welcome(1650);
+}
+
+$('#replay').addEventListener('click', play);
+$('#holder').addEventListener('click', play);
+$('#slow').addEventListener('click', (e) => { slow = slow === 1 ? 3 : 1; e.currentTarget.setAttribute('aria-pressed', String(slow === 3)); play(); });
+for (const m of ['center', 'crescent']) {
+  $('#m-' + m).addEventListener('click', () => {
+    mode = m;
+    $('#m-center').setAttribute('aria-pressed', String(m === 'center'));
+    $('#m-crescent').setAttribute('aria-pressed', String(m === 'crescent'));
+    play();
+  });
+}
+// Hidden until the first frame is set up, so the welcome never flashes before the sky.
+Promise.all([...screen.querySelectorAll('img')].map((i) => i.decode().catch(() => {})).concat(
+  new Promise((ok) => { const i = new Image(); i.onload = i.onerror = ok; i.src = 'frost-sky.webp'; }))).then(() => {
+  // ?t=1200 freezes the stage at that moment (?m=crescent for the other start): for checking frames.
+  const q = new URLSearchParams(location.search);
+  if (q.get('m') === 'crescent') $('#m-crescent').click(); else play();
+  if (q.has('t')) screen.getAnimations({ subtree: true }).forEach((x) => { x.pause(); x.currentTime = +q.get('t'); });
+});
+</script>

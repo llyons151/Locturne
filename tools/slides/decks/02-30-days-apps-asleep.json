@@ -1,0 +1,84 @@
+{
+  "title": "what 30 days of my apps going to sleep at 11pm did to my brain",
+  "job": "save",
+  "app": "method",
+  "why": "Scrolless shape (96K, 35K saves): the hook names the habit you quit, the app shows up from slide 2 as the method.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "willpower got me to night 3. how far would you get? #dopaminedetox #screentime #phoneaddiction #sleep",
+  "sound": "slow and moody",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 1: '30 nights without tiktok in bed'. Only post after you've actually done 30 nights",
+    "slide 2: '14 times the first night'. Use your real count, from Screen Time",
+    "slide 3: 'asleep before midnight most nights'. Only if true",
+    "slide 5: the moons screenshot shows 14 moons. Say a number that matches your own"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "what 30 nights without tiktok in bed did to my brain",
+      "image": "/photos/reading-dark.jpg",
+      "aside": "(zero willpower)"
+    },
+    {
+      "layout": "point",
+      "heading": "night 1 to 3: _everything is annoying_",
+      "top": "i opened instagram 14 times the first night and got this _every single time_",
+      "text": "the urge isn't for the app\n\nit's for _not being bored_ for four seconds",
+      "phone": "/photos/renders/shield.png",
+      "bottom": "this is the part where most people quit. it passes"
+    },
+    {
+      "layout": "point",
+      "heading": "night 4 to 10: _falling asleep faster_",
+      "top": "with nothing to scroll, lying in bed gets boring _fast_",
+      "text": "boring is the point\n\ni went from \"one more video\" at 1am to _asleep before midnight_ most nights",
+      "image": "/photos/book-on-bed.jpg",
+      "imageSide": "left",
+      "bottom": ""
+    },
+    {
+      "layout": "point",
+      "heading": "day 11 to 20: _mornings start standing up_",
+      "top": "my apps stay asleep until i've _walked 200 steps_",
+      "text": "by the time instagram wakes up, i'm already _out of bed_ with the kettle on\n\nno snooze spiral because there's _nothing to snooze into_",
+      "phone": "/photos/renders/02-steps-clean.png",
+      "bottom": ""
+    },
+    {
+      "layout": "point",
+      "heading": "day 21 to 30: _the streak does the work_",
+      "top": "every morning i get up, i unlock a new moon",
+      "text": "it sounds stupid. i'm _not breaking it_\n\nthe app isn't asking me to be disciplined. it just _doesn't give me the option_ at 1am",
+      "phone": "/photos/renders/09-moons.png",
+      "imageSide": "left",
+      "bottom": ""
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/light-on-bed.jpg",
+      "question": "willpower got me to night 3. _the lock got me to night 30_",
+      "lines": [
+        "the app is locturne if you want to try it",
+        "link in bio"
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 1
+  },
+  "scoreNotes": "truth: 30 nights must be real"
+}

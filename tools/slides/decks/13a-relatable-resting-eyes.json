@@ -1,0 +1,31 @@
+{
+  "title": "my room at 1am, 'just resting my eyes'",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "13-relatable-room-2am",
+  "why": "Variant of 13: Peyt's empty-room trick with a new lie we all tell; a phone glowing in a dark room, no person, every viewer puts themselves in it.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "how long were your eyes resting? #relatable #bedtime #sleepschedule",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/phone-blue-dark.jpg",
+      "caps": [
+        {
+          "text": "my room at 1am when i said i was 'just resting my eyes' at 10",
+          "y": 24,
+          "size": 58,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "title": "is it just me or…",
+  "format": "\"Is it just me or…\" text block on a selfie",
+  "job": "comments",
+  "why": "A long, rambling admission invites \"same\" in the comments, which pushes reach.",
+  "compare": "zainfinityy-is-it-just-me",
+  "account": "face account",
+  "caption": "please tell me it's not just me #relatable #sleep",
+  "sound": "sad trending",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/hand-phone-blanket.jpg",
+      "caps": [
+        {
+          "text": "is it just me or does anyone get into bed at 11 and somehow it's 2am and i'm watching a man restore a rusty knife and i'm not even tired",
+          "y": 64,
+          "size": 42,
+          "style": "classic",
+          "w": 70
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

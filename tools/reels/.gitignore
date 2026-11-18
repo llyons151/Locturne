@@ -1,2 +1,8 @@
 node_modules/
 out/
+
+# Confession reels: hook clips are other people's videos, never commit them
+public/confession/hooks/
+src/confession/hooks/
+public/confession/broll/
+public/confession/edits/

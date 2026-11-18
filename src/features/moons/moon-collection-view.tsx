@@ -5,23 +5,26 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
+import { readLock } from '@/lib/lock-controller';
 import { getMorningsWon } from '@/lib/morning-proof';
-import { DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
-
-import { morningsLabel } from '../home/week';
+import { getStreak } from '@/lib/streak';
+import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { checkSecretMoons, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
 import { MOONS } from './moon-data';
+import type { OwnedMoon } from './moon-ladder';
+import { MoonGlow } from './moon-glow';
 import { moonSlots, slotLabel, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
+import { MoonsPills } from './moons-pills';
 
 const COLUMNS = 3;
 const GAP = Space.m;
@@ -29,6 +32,9 @@ const GAP = Space.m;
 const CLOSE = 30;
 /** Each side of the top bar, equal so the title sits in the middle. */
 const SIDE = 72;
+/** A locked moon's nudge when tapped: a small shake, transform only. */
+const NUDGE = 4;
+const NUDGE_MS = 60;
 
 /**
  * The page scrolls like any iOS page: past either end it resists and springs back. Pulled down
@@ -46,8 +52,14 @@ type Slot = MoonSlot;
  * The moon collection (docs/reports/Moon collection flow.md, decisions 2026-11-01): Moonlight,
  * then the ladder in order, the secret's "?", then rare and limited moons, shown only once
  * yours (nothing you can miss ever sits there empty). Locked moons are grey with only when they
- * come, "Morning 3"; once yours, just its name, with no line under it (user, 2026-11-02). Tap one you own to wear it:
- * the collection closes and that moon rises.
+ * come, "Morning 3" (no name till it's yours, user 2026-11-02); once yours, its name over the morning
+ * that brought it.
+ *
+ * Laid out like Cal AI's Milestones (user, 2026-11-16, tools/moons-milestones take 1): the worn moon's
+ * light comes down from the top (moon-glow.tsx), the title, "Wearing <name>", Home's pills (every
+ * morning, flipping to the streak; how many moons), then the moons as bare icons. Tap one you own
+ * and it's worn at once, no popup: its light crossfades in, and the page stays (Home's moon rises
+ * with it when the page goes). A locked one gives a tick and a small shake.
  *
  * Shown as a sheet over the screen or as its own page grown out of the tab strip (`/moon-sheet`,
  * `/moon-page`, moons-page.tsx, which closes it with its own `onClose`). Both draw one top bar: close, "Moons", the count (user, 2026-11-01).
@@ -82,18 +94,25 @@ export function MoonCollection({
   const { main: slots, extras } = moonSlots(owned);
   // Every moon you have: Moonlight, which you start with, then every one earned, rare and secret too (user, 2026-11-02).
   const count = 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
-  const countLabel = count === 1 ? '1 moon' : `${count} moons`;
-  // Every morning you got up, ever: the count the ladder's moons go by. Home's pill shows the
-  // streak; this is where the lifetime count lives (user 2026-11-16).
+  // Every moon on the page: the ladder (secrets included) and Moonlight, plus rare and limited ones once yours.
+  const total = slots.length + extras.length;
+  // Every morning you got up, ever (the count the ladder's moons go by), and the streak.
   const mornings = getMorningsWon();
+  const streak = getStreak(readLock().morningKey);
 
   const tile = Math.floor((width - Gap.gutter * 2 - GAP * (COLUMNS - 1)) / COLUMNS);
-  const press = (slot: Slot) => {
-    if (!slot.owned) return haptic.tick();
-    // Wear it and go back: the page slides away and the new moon rises behind it (user, 2026-11-01).
-    wearAndRise(slot.moon.id);
-    haptic.tap();
-    onClose();
+  /** Wears a moon you own at once and stays (user, 2026-11-16); false for a locked one, which shakes. */
+  const press = (slot: Slot): boolean => {
+    if (!slot.owned) {
+      haptic.tick();
+      return false;
+    }
+    if (slot.moon.id !== worn.id) {
+      // On the page Home's moon is already down: it's swapped, and rises as the page goes (moon-rise.ts).
+      wearAndRise(slot.moon.id);
+      haptic.tap();
+    }
+    return true;
   };
 
   // How far it's scrolled (under 0: pulled down past its top), and where it was let go to close.
@@ -124,6 +143,9 @@ export function MoonCollection({
   }));
 
   return (
+    <Animated.View style={[styles.screen, held]}>
+      {/* Behind the scroll, fixed: the light stays in the sky as the moons scroll up under it. */}
+      <MoonGlow id={worn.id} />
     <Animated.ScrollView
       // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
       bounces={as === 'page'}
@@ -132,7 +154,7 @@ export function MoonCollection({
       onScroll={onScroll}
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
-      style={[styles.screen, held]}
+      style={styles.scroll}
       contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[styles.content, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
     >
@@ -160,51 +182,73 @@ export function MoonCollection({
         <Text style={styles.title} accessibilityRole="header">
           Moons
         </Text>
-        <View style={[styles.side, styles.sideEnd]}>
-          <Text style={styles.count}>{countLabel}</Text>
-        </View>
+        <View style={styles.side} />
       </View>
-      <View style={styles.total} accessible accessibilityLabel={`${mornings} ${morningsLabel(mornings)} you got up, in all`}>
-        <SymbolView name={sym('sunrise.fill', 'wb_twilight')} size={14} tintColor={Nocturne.text2} />
-        <Text style={styles.totalText}>
-          <Text style={styles.totalNum}>{mornings}</Text> {morningsLabel(mornings)} total
-        </Text>
+      <Text style={styles.wearing}>
+        Wearing <Text style={styles.wearingName}>{worn.name}</Text>
+      </Text>
+      <View style={styles.pills}>
+        <MoonsPills mornings={mornings} streak={streak} owned={count} total={total} moonId={worn.id} />
       </View>
-      <Grid slots={slots} tile={tile} worn={worn.id} onPress={press} />
+      <Grid slots={slots} owned={owned} tile={tile} worn={worn.id} onPress={press} />
       {extras.length ? (
         <>
           <Text style={styles.group} accessibilityRole="header">
             Rare
           </Text>
-          <Grid slots={extras} tile={tile} worn={worn.id} onPress={press} />
+          <Grid slots={extras} owned={owned} tile={tile} worn={worn.id} onPress={press} />
         </>
       ) : null}
     </Animated.ScrollView>
+    </Animated.View>
   );
 }
 
-function Grid({ slots, tile, worn, onPress }: { slots: Slot[]; tile: number; worn: string; onPress: (slot: Slot) => void }) {
+function Grid({ slots, owned, tile, worn, onPress }: { slots: Slot[]; owned: Record<string, OwnedMoon>; tile: number; worn: string; onPress: (slot: Slot) => boolean }) {
   return (
     <View style={styles.grid}>
-      {slots.map((slot) => {
-        const name = slotLabel(slot);
-        return (
-          <Pressable
-            key={slot.moon.id}
-            onPress={() => onPress(slot)}
-            accessibilityRole="button"
-            accessibilityLabel={slot.owned ? name : `${name}, locked`}
-            accessibilityState={{ selected: slot.moon.id === worn, disabled: !slot.owned }}
-            style={({ pressed }) => [{ width: tile }, styles.slot, pressed && slot.owned && styles.pressed]}
-          >
-            <MoonThumb moon={slot.moon} size={tile} locked={!slot.owned} secret={slot.secret} wearing={slot.owned && slot.moon.id === worn} />
-            <Text style={[styles.name, !slot.owned && styles.lockedName]} numberOfLines={1}>
-              {name}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {slots.map((slot) => (
+        <Tile key={slot.moon.id} slot={slot} got={owned[slot.moon.id]} tile={tile} wearing={slot.owned && slot.moon.id === worn} onPress={onPress} />
+      ))}
     </View>
+  );
+}
+
+/** One moon: its icon, its name (or when it comes), and, once yours, the morning that brought it. */
+function Tile({ slot, got, tile, wearing, onPress }: { slot: Slot; got?: OwnedMoon; tile: number; wearing: boolean; onPress: (slot: Slot) => boolean }) {
+  const name = slotLabel(slot);
+  const since = slot.owned ? (slot.moon.id === DEFAULT_MOON.id ? 'You start with this' : got ? `Morning ${got.morning}` : undefined) : undefined;
+  const shake = useSharedValue(0);
+  const shaken = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
+  return (
+    <Pressable
+      onPress={() => {
+        if (onPress(slot)) return;
+        shake.value = withSequence(
+          withTiming(-NUDGE, { duration: NUDGE_MS }),
+          withTiming(NUDGE, { duration: NUDGE_MS }),
+          withTiming(0, { duration: NUDGE_MS }),
+        );
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={slot.owned ? name : `${name}, locked`}
+      accessibilityState={{ selected: wearing, disabled: !slot.owned }}
+      style={({ pressed }) => [{ width: tile }, styles.slot, pressed && slot.owned && styles.pressed]}
+    >
+      <Animated.View style={shaken}>
+        <MoonThumb moon={slot.moon} size={tile} locked={!slot.owned} secret={slot.secret} wearing={wearing} plain />
+      </Animated.View>
+      {/* The worn one's mark: a dot under its icon, no edge and no glow. */}
+      <View style={[styles.dot, !wearing && styles.dotOff]} />
+      <Text style={[styles.name, !slot.owned && styles.lockedName]} numberOfLines={1}>
+        {name}
+      </Text>
+      {since ? (
+        <Text style={styles.since} numberOfLines={1}>
+          {since}
+        </Text>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -214,7 +258,8 @@ function closeMoons() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: MOONS_BG },
+  screen: { flex: 1, backgroundColor: MOONS_BG, overflow: 'hidden' },
+  scroll: { flex: 1 },
   content: { paddingHorizontal: Gap.gutter },
   head: { flexDirection: 'row', alignItems: 'center', minHeight: CLOSE, marginBottom: Gap.block },
   close: {
@@ -225,16 +270,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Nocturne.frost,
   },
-  title: { ...DisplayFont, flex: 1, color: Nocturne.text, fontSize: 22, lineHeight: 28, textAlign: 'center' },
+  // Type.title's size (user, 2026-11-16: bigger).
+  title: { ...DisplayFont, flex: 1, color: Nocturne.text, fontSize: 28, lineHeight: 33, letterSpacing: -0.4, textAlign: 'center' },
   side: { width: SIDE },
   sideEnd: { alignItems: 'flex-end' },
-  count: { ...Type.secondary, color: Nocturne.text2, textAlign: 'right' },
-  total: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -Gap.block + Space.xs, marginBottom: Gap.block },
-  totalText: { ...Type.secondary, color: Nocturne.text2 },
-  totalNum: { ...NUMBER_FONT, fontSize: 15, color: Nocturne.text },
+  wearing: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
+  wearingName: { color: Nocturne.text, fontWeight: '600' },
+  pills: { marginTop: Space.m, marginBottom: Gap.block },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, rowGap: Space.l },
-  slot: { alignItems: 'center', gap: Space.xs },
-  name: { ...Type.secondary, color: Nocturne.text, textAlign: 'center', marginTop: Space.xs },
+  slot: { alignItems: 'center' },
+  dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: Nocturne.text, marginBottom: Space.xs },
+  dotOff: { opacity: 0 },
+  name: { ...Type.secondary, color: Nocturne.text, fontWeight: '600', textAlign: 'center' },
+  since: { ...Type.caption, color: Nocturne.text2, textAlign: 'center' },
   lockedName: { color: Nocturne.text2 },
   group: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', marginTop: Gap.section, marginBottom: Space.l },
   pressed: { opacity: 0.7 },

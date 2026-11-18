@@ -1,0 +1,73 @@
+{
+  "title": "10/10 things keeping you on your phone at night",
+  "format": "Notes listicle on white (title says 10, deck has 6), app as a confession inside point 3 with its block screen in a phone",
+  "job": "save",
+  "app": "confession",
+  "why": "Copies amayareading's 182K-like / 58K-save listicle slide for slide: white page, lowercase Inter, '10/10' title over one striking cutout image with a small right-aligned aside, then one habit per slide with a partly underlined heading, short paragraphs explaining the mechanism, one photo beside the text, and the app's block screen in a phone on slide 4 inside the 'i struggled with this until…' paragraph. Ends on content, no closer, like the ref.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "the 3am one is too real #screentime #sleep #doomscrolling #bedtime",
+  "sound": "slow moody alt rock, low volume (the ref uses deftones – shmeswon)",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 4: 'i struggled with this for years until i built…' must be true for you (founder voice; it says built, not found)",
+    "slide 4: the app's block screen is the real shield render (13-shield-night)",
+    "AI-made photos (slides 1, 2, 3, 5, 6; no faces): turn on TikTok's AI-generated label",
+    "promo: turn on TikTok's \"Your brand\" disclosure"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "10/10 things keeping you on your phone at night",
+      "image": "/photos/gen-r/r-amaya-1.png",
+      "narrow": true,
+      "aside": "(not the blue light)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "scrolling _in the dark_",
+      "top": "lights off, _brightness all the way down_, the phone a hand away from your face",
+      "text": "the room disappears, so the feed is _the only thing left_ to look at\n\nnothing in the dark tells you it's late, so _it never feels late_",
+      "bottom": "",
+      "image": "/photos/gen-r/r-amaya-2.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "checking the time _at 3am_",
+      "top": "you wake up, grab the phone to see the time, and _the notifications are right under it_",
+      "text": "one glance turns into _forty minutes_\n\nand a bright screen at arm's length is _a bad way to drift back off_",
+      "bottom": "you were asleep. now you're _awake and informed_",
+      "image": "/photos/gen-r/r-amaya-3.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "_\"after this one\"_",
+      "top": "",
+      "text": "every video is short, so stopping always feels _30 seconds away_\n\nthe feed never ends, so _you have to end it_, at the moment you're most tired\n\ni struggled with this for years until i built something that _puts my apps to sleep at bedtime_",
+      "bottom": "",
+      "phone": "/photos/renders/13-shield-night.png"
+    },
+    {
+      "layout": "point",
+      "heading": "no _ending_ to the day",
+      "top": "no dinner time, no lights out, no one telling you to go to bed anymore",
+      "text": "so the day ends _whenever your phone lets go_\n\nwhich is usually _when it dies_",
+      "bottom": "",
+      "image": "/photos/gen-r/r-amaya-5.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "charging it _next to your pillow_",
+      "top": "",
+      "text": "a phone that can't die is a night that _can't end_\n\nand it's the first thing you touch in the morning, _before your feet hit the floor_",
+      "bottom": "give the night an ending before you need willpower to find one",
+      "image": "/photos/gen-r/r-amaya-6.jpg",
+      "wide": true
+    }
+  ]
+}

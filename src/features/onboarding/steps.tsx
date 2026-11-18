@@ -3,7 +3,7 @@
 // which changes outside React: the React Compiler would cache it (#130), so it stays out here.
 
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, Keyframe, LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,7 +70,7 @@ import { RollingCount } from './rolling-count';
 import { TomorrowDemo, type NightPrelude } from './screens/tomorrow-demo';
 import { Body, Eyebrow, HoldButton, Options, page, Ready, Reply, Title, Voice } from './ui';
 import { wakeDayFor } from './wake-day';
-import { WelcomeWords } from './welcome-hero';
+import { WelcomeGate, WelcomeWords } from './welcome-hero';
 
 /** Everything a step needs from the flow: the answers so far and the ways to move on. */
 export type StepContext = {
@@ -184,7 +184,7 @@ const OPENER_LINE_MS = 150;
  * The cold open, under the real Home on a phone (welcome-hero.tsx, Jomo's welcome). Same line at
  * every hour; New Year week has its own headline (`NEW_YEAR`).
  */
-const HELLO = { head: 'Your apps go to bed\nwhen you do', sub: 'They wake up when you’re out of bed' };
+const HELLO = { head: 'Your apps go to bed\nwhen you do', sub: 'They’re up when you are' };
 
 /** `commit`: the card starts building once the title's in, and the line under it once it's built. */
 const DEAL_CARD_AT_MS = 700;
@@ -250,17 +250,25 @@ export function renderStep(ctx: StepContext): StepView {
             <WelcomeWords head={hello.head} sub={HELLO.sub} delay={OPENER_LINE_MS} />
           </View>
         ),
+        // The button and the restore wait with the words until the phone has drawn (WelcomeGate).
         footer: (
-          // No accounts, so no "Sign in" (a reviewer would ask for demo credentials): it's a restore.
-          <View>
+          <WelcomeGate>
             <Reveal delay={OPENER_LINE_MS * 3}>
               <PrimaryButton label="Get started" onPress={next} />
             </Reveal>
-            {/* Always here, under the button, never in the top bar's corner (user 2026-11-12). */}
+          </WelcomeGate>
+        ),
+        // No accounts, so no "Sign in" (a reviewer would ask for demo credentials): it's a restore. Always under the
+        // button, never in the top bar's corner (user 2026-11-12), in the link slot every page keeps there, so
+        // nothing empty sits under it (user 2026-11-17: "theres to much space here"). Quiet, as the glow lab's mockup.
+        secondary: (
+          <WelcomeGate>
             <Reveal delay={OPENER_LINE_MS * 4}>
-              <TextButton lead="Already subscribed?" label="Restore purchase" onPress={ctx.restorePurchases} />
+              <Pressable onPress={ctx.restorePurchases} accessibilityRole="button" hitSlop={10} style={styles.openerRestore}>
+                <Text style={styles.openerRestoreLabel}>Restore purchases</Text>
+              </Pressable>
             </Reveal>
-          </View>
+          </WelcomeGate>
         ),
         // No "By continuing, you agree…" line (user 2026-11-17): no accounts, and the paywall carries the
         // Terms of Use and Privacy Policy links Apple asks for (3.1.2).
@@ -994,6 +1002,8 @@ const styles = StyleSheet.create({
   // Cal AI's rhythm (user 2026-11-17: "the spacing of all of this looks off"): the headline sits close over the
   // button it leads to.
   opener: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: Space.xs },
+  openerRestore: { alignSelf: 'center', marginTop: Space.xs, paddingVertical: Space.xs },
+  openerRestoreLabel: { color: Nocturne.text2, fontSize: 14, lineHeight: 18, fontWeight: '400' },
   gap8: { height: Space.s },
   // The grey line under a page's title (Type.headingSub).
   sub: { marginTop: Space.m, color: Nocturne.text2, ...Type.headingSub },

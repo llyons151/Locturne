@@ -1,0 +1,33 @@
+{
+  "title": "us at 8am because the group chat",
+  "format": "Old hand-coloured print with a small modern outlined caption, letterboxed on black, one slide",
+  "job": "share",
+  "app": "none",
+  "why": "Copies lvnarjules' painting meme (3.7M likes) one-for-one: a single 1800s hand-coloured caricature print letterboxed across the middle of a black slide, a small white outlined sentence-case caption sitting in the upper part of the print, reposted-soft. Same 'Us \u2026 because \u2026' reaction shape and the same kind of scene (a furious schoolmaster over a classroom), our own line: a whole class asleep after the group chat ran till 4am. Reach format, no app.",
+  "compare": "lvnarjules-painting-meme",
+  "account": "@loc (Loc account)",
+  "caption": "send this to the group chat #school #relatable #sleep",
+  "sound": "a trending classical piece (the original's style of sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made print in an 1800s style (caricature figures, no real person): turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-lvnar-1.jpg",
+      "caps": [
+        {
+          "text": "Us at 8am because the group chat was still going at 4am",
+          "y": 34.5,
+          "size": 38,
+          "style": "outline",
+          "w": 34
+        }
+      ]
+    }
+  ]
+}

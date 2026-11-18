@@ -1,0 +1,99 @@
+{
+  "title": "boring things that fixed my sleep",
+  "format": "Same selfie on every slide, one tip per slide in white boxes",
+  "job": "save",
+  "why": "One photo, trust, a tip per slide, and a last slide that asks for comments. We claim no doctor; the authority is that it's boring and real.",
+  "compare": "helen-psychiatrist-hacks",
+  "account": "face account",
+  "caption": "number 4 changed everything #sleep #insomnia #sleeptips",
+  "sound": "soft upbeat",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "every tip must be something you really do",
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl.jpg",
+      "caps": [
+        {
+          "text": "some boring things that actually fixed my sleep (no melatonin)\n😴🛏️",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl.jpg",
+      "caps": [
+        {
+          "text": "my phone charges in the kitchen\n\nmy bed stopped being a cinema",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl.jpg",
+      "caps": [
+        {
+          "text": "same bedtime every night, even fridays\n\nyour body loves boring",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl.jpg",
+      "caps": [
+        {
+          "text": "lamps only after 10\n\nceiling lights tell your brain it's noon",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl.jpg",
+      "caps": [
+        {
+          "text": "my apps go to sleep at 11 (i use locturne)\n\nno willpower needed at 1am",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl.jpg",
+      "caps": [
+        {
+          "text": "what's the weirdest thing that helps you sleep?\n\ndrop it below so we all steal it 👇",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    }
+  ],
+  "app": "confession"
+}

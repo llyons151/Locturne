@@ -1,0 +1,62 @@
+{
+  "title": "one more video and it's 2am",
+  "format": "Empathy → \"so I made X for people like me\" → product screenshot with a white-box CTA",
+  "job": "promo",
+  "app": "punchline",
+  "why": "Copies charlotte's 2.0M-like disguised promo beat for beat: a dim film-still night exterior with the feeling, a dim film-still of people lying in a street with the confession, then a full-bleed screenshot of the product with one white box mid-screen. Sentence case, TikTok Classic white, centred.",
+  "compare": "charlotte-cant-sleep-playlist",
+  "account": "@locturne (founder, faceless)",
+  "caption": "for everyone who says one more video #screentime #sleep #doomscrolling",
+  "sound": "soft ambient / sleepy lo-fi (the ref uses its own playlist audio)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 2: \"it helped\" must be true for you",
+    "AI-made photos (slides 1 and 2, slide 2 shows two people): turn on TikTok's AI-generated label",
+    "promo: turn on TikTok's \"Your brand\" disclosure",
+    "slide 3 is a crop of the real Home render (01-asleep-clean); fine as is"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-charlotte-1.jpg",
+      "caps": [
+        {
+          "text": "I know that feeling when you say one more video and it's 2am",
+          "y": 50,
+          "size": 60,
+          "style": "classic",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-charlotte-2g.jpg",
+      "caps": [
+        {
+          "text": "So I made an app for people like me that puts my apps to sleep at night and it helped\n❤️🙏🥹",
+          "y": 47,
+          "size": 60,
+          "style": "classic",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/renders/r-charlotte-3.jpg",
+      "caps": [
+        {
+          "text": "Link in bio❤️🙏",
+          "y": 58,
+          "size": 62,
+          "style": "box",
+          "w": 80
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "title": "after the 4th snooze",
+  "format": "\"Me in bed every morning…\" reaction picture on black",
+  "job": "share",
+  "why": "A sleeping woman in a 1895 masterpiece, captioned like a meme: incongruity stops the scroll.",
+  "compare": "egg-me-in-bed",
+  "account": "@loc (Loc account)",
+  "caption": "she has a 9am. what time is yours? #snooze #relatable #art",
+  "sound": "morning flower alarm (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/flaming-june.jpg",
+      "caps": [
+        {
+          "text": "me after my alarm told me to wake up 4 times",
+          "y": 72,
+          "size": 54,
+          "style": "outline",
+          "w": 80
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

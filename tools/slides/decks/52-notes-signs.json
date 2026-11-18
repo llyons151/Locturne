@@ -1,0 +1,91 @@
+{
+  "title": "5 signs your phone is running your nights",
+  "format": "Notes listicle, app on one point",
+  "job": "save",
+  "why": "Self-diagnosis listicle (amayareading shape): readers count how many apply, save it, and comment their score. The app is the fix on the last sign.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "be honest in the comments #screentime #phoneaddiction #sleep",
+  "sound": "moody, low volume",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "closer: 'i had all 5'. Only if true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "5 signs your phone is the one running your nights",
+      "image": "/photos/man-in-bed.jpg",
+      "narrow": true,
+      "aside": "(be honest)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "you check the time at _1:27_",
+      "top": "you planned to sleep at 11. you _always_ plan to sleep at 11",
+      "text": "the hours don't feel like hours on a feed\n\nthey feel like _one more_",
+      "bottom": "",
+      "image": "/photos/clock-127.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "you need _something playing_",
+      "top": "silence feels _loud_ now",
+      "text": "a video to fall asleep to, a podcast to wake up to\n\nyour brain forgot how to be _bored_",
+      "bottom": "",
+      "image": "/photos/sheets.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "you unlock it and _forget why_",
+      "top": "you stare at the home screen for a second, then open instagram _anyway_",
+      "text": "your thumb knows the way before you decide anything\n\nthat's not a choice. it's a _reflex_",
+      "bottom": "",
+      "image": "/photos/book-on-bed.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "_tired all day_, wide awake at midnight",
+      "top": "the 3pm crash, then the 11pm _second wind_",
+      "text": "the second wind isn't energy\n\nit's the feed _keeping you up_",
+      "bottom": "",
+      "image": "/photos/city-night.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "mornings start _horizontal_",
+      "top": "the phone is the first thing you touch, _before your feet hit the floor_",
+      "text": "and the day starts with everyone else's lives\n\ni fixed this one by making my apps _wait until i'm walking_",
+      "bottom": "",
+      "phone": "/photos/renders/02-steps-clean.png"
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/blinds-sunrise.jpg",
+      "question": "how many did you get? be honest 👇",
+      "lines": [
+        "i had all 5",
+        "the app is locturne, link in bio"
+      ]
+    }
+  ],
+  "app": "punchline",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 1
+  }
+}

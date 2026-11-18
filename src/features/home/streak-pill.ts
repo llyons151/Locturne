@@ -11,7 +11,7 @@ import { morningsLabel } from './week';
  * 0 (user 2026-11-16: "it should always start out in streak mode"), and goes back to it when the
  * app leaves the screen.
  */
-export function useStreakPill(streak: number, mornings: number) {
+export function useStreakPill(streak: number, mornings: number, opensOn: 'streak' | 'total' = 'streak') {
   const [flipped, setFlipped] = useState(false);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -19,7 +19,8 @@ export function useStreakPill(streak: number, mornings: number) {
     });
     return () => sub.remove();
   }, []);
-  const total = flipped;
+  // The moons page opens on every morning and flips to the streak (user 2026-11-16); Home the other way.
+  const total = opensOn === 'total' ? !flipped : flipped;
   return {
     total,
     canFlip: true,

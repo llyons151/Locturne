@@ -1,0 +1,77 @@
+{
+  "title": "7/7 things quietly wrecking your mornings",
+  "format": "Notes listicle on white (title says 7, deck has 6), app as a confession inside point 3 with its morning step screen in a phone",
+  "job": "save",
+  "app": "confession",
+  "variantOf": "r-amaya-phone-at-night",
+  "why": "Second take on amayareading's 182K-like / 58K-save listicle, morning angle: white page, lowercase Inter, 'N/N' title over one striking cutout image with a small right-aligned aside, then one habit per slide with a partly underlined heading, short paragraphs on the mechanism, one candid photo beside the text, and the app's morning screen in a phone on slide 4 inside the 'i struggled with this until…' paragraph. Ends on content, no closer, like the ref.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "which one got you this morning? #morningroutine #screentime #snooze #sleep",
+  "sound": "slow moody alt rock, low volume (the ref uses deftones – shmeswon)",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 4: 'what finally fixed it: my apps now stay asleep…' must be true for you (it's your own app; the 'Your brand' disclosure covers that)",
+    "slide 4: the phone shows the real step-count Home render (02-steps-clean); 200 steps is the app's real default",
+    "slide 3: the alarm list is a drawn iOS-style screenshot (not our app); slides 3 and 5 lines are common sleep advice, kept general",
+    "AI-made photos (slides 1, 2, 3, 5, 6; no faces): turn on TikTok's AI-generated label",
+    "promo: turn on TikTok's \"Your brand\" disclosure",
+    "slide 1: the two sleep charts are drawn illustrations in the style of a sleep tracker, not anyone's real data"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "7/7 things quietly wrecking your mornings",
+      "image": "/photos/gen-r/r-amaya2-1c.png",
+      "narrow": true,
+      "aside": "(it starts the night before)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "checking your phone _before you sit up_",
+      "top": "eyes half open, thumb already on the screen: _group chats, emails_, someone's holiday",
+      "text": "your brain starts the day _reacting_ instead of waking up\n\nby the time your feet touch the floor you're _already behind_",
+      "bottom": "sit up first, then pick up the phone",
+      "image": "/photos/gen-r/r-amaya2-2.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "the _snooze_ button",
+      "top": "nine more minutes, _four times in a row_",
+      "text": "each snooze starts a sleep _you never finish_\n\nso you get up groggier than at the _first alarm_",
+      "bottom": "one alarm you get up for beats five you argue with",
+      "image": "/photos/gen-r/r-amaya2-3b.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "your apps _waking up before you_",
+      "top": "",
+      "text": "at 7am the feed is wide awake and _you aren't_\n\nso the first thing you do is whatever is _closest to your hand_\n\nwhat finally fixed it: my apps now _stay asleep until i've walked 200 steps_",
+      "bottom": "",
+      "phone": "/photos/renders/02-steps-clean.png"
+    },
+    {
+      "layout": "point",
+      "heading": "staying _in the dark_",
+      "top": "curtains shut, scrolling under the duvet _until 8:40_",
+      "text": "your body is waiting for _light_ to start the day\n\nno light, so the morning _never really starts_",
+      "bottom": "open the curtains before you open the apps",
+      "image": "/photos/gen-r/r-amaya2-5.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "a night that _ended at 2am_",
+      "top": "",
+      "text": "most bad mornings were decided _the night before_\n\nand no coffee fixes _five hours of sleep_",
+      "bottom": "fix the night first, then worry about the morning routine",
+      "image": "/photos/gen-r/r-amaya2-6.jpg",
+      "wide": true
+    }
+  ]
+}

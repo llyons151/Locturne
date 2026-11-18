@@ -1,0 +1,79 @@
+{
+  "title": "my sister bet i couldn't last a week",
+  "format": "Other person + conflict → \"so i…\"",
+  "job": "promo",
+  "app": "method",
+  "why": "Test: the conflict hook on the face account, with real faceless photos, to see whether it carries without the founder framing.",
+  "account": "face / Day-N account",
+  "caption": "she owes me dinner. who'd bet against you? #screentime #sleep #challenge",
+  "sound": "trending smug / victory sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 1: someone must have really said this. Swap 'my sister' for who did",
+    "slide 4: only if the bet and the result are real"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/hand-lit-black.jpg",
+      "caps": [
+        {
+          "text": "my sister bet i'd crack in a week. so i built this",
+          "y": 26,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/shield.png",
+      "caps": [
+        {
+          "text": "11pm: everything goes to sleep",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": [
+        {
+          "text": "7am: nothing wakes up till i've walked",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/dawn-street.jpg",
+      "caps": [
+        {
+          "text": "day 7. she owes me dinner",
+          "y": 30,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        },
+        {
+          "text": "link in bio 🌙",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

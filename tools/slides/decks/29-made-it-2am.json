@@ -1,0 +1,72 @@
+{
+  "title": "2am videos you don't even like",
+  "format": "Empathy → \"so i made X for people like me\" → product",
+  "job": "promo",
+  "why": "Same three-beat shape, a different feeling to test which pain lands.",
+  "compare": "charlotte-cant-sleep-playlist",
+  "account": "@locturne (founder)",
+  "caption": "made this for myself first. what were you watching at 2am? #doomscrolling #sleep",
+  "sound": "soft ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 2 claim must be true"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/bed-dark-streak.jpg",
+      "caps": [
+        {
+          "text": "i know that feeling when it's 2am and the videos aren't even good",
+          "y": 30,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/dark-room-window.jpg",
+      "caps": [
+        {
+          "text": "so i made my phone go to sleep at 11 for people like me",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": [
+        {
+          "text": "it's called locturne. link in bio",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78,
+          "igY": 10
+        }
+      ]
+    }
+  ],
+  "app": "punchline",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 1
+  }
+}

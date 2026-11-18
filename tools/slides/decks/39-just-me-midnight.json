@@ -1,0 +1,42 @@
+{
+  "title": "the day only feels mine at midnight",
+  "format": "\"Is it just me or…\" text block on a selfie",
+  "job": "comments",
+  "why": "Revenge bedtime procrastination said in plain words; people comment their own version.",
+  "compare": "zainfinityy-is-it-just-me",
+  "account": "face account",
+  "caption": "revenge bedtime procrastination is real #sleep #relatable",
+  "sound": "sad trending",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/hands-lit-bed.jpg",
+      "caps": [
+        {
+          "text": "is it just me or does the day only start feeling like mine at midnight, so i stay up to enjoy it, and then i hate myself at 7am",
+          "y": 44,
+          "size": 42,
+          "style": "classic",
+          "w": 70
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

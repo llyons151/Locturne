@@ -1,0 +1,42 @@
+{
+  "title": "me pointing at the alarm",
+  "format": "\"Me in bed every morning…\" reaction picture on black",
+  "job": "share",
+  "why": "Same reaction-picture shape; the point is the punchline.",
+  "compare": "egg-me-in-bed",
+  "account": "@loc (Loc account)",
+  "caption": "not today. how many snoozes? #relatable #snooze",
+  "sound": "morning flower alarm (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-point.jpg",
+      "caps": [
+        {
+          "text": "me at 7am telling the alarm i'll get up at the next one",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 74
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

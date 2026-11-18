@@ -1,0 +1,83 @@
+{
+  "title": "10/10 things quietly wrecking your mornings",
+  "job": "save",
+  "app": "confession",
+  "why": "Real tips earn the one confession slide where the app appears, exactly like ReadUp on slide 4.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "number 3 is the one nobody wants to hear. which number got you? #morningroutine #screentimehacks #phoneaddiction #sleep",
+  "sound": "something moody at low volume (the original used deftones)",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "slide 4: 'lasted 2 nights' in the kitchen. Only keep it if it's true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "10/10 things quietly wrecking your mornings",
+      "image": "/photos/clock-127.jpg",
+      "narrow": true,
+      "aside": "(niche edition)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "checking your phone _before your feet touch the floor_",
+      "top": "the first thing your brain gets every day is _other people's lives_, your inbox, and a pile of notifications",
+      "text": "you haven't decided anything yet and you're already _reacting_\n\nthen you wonder why the day feels like it's _running you_",
+      "image": "/photos/woman-in-bed.jpg",
+      "wide": true,
+      "bottom": "the first ten minutes set the mood for the next ten hours"
+    },
+    {
+      "layout": "point",
+      "heading": "the _9 more minutes_ lie",
+      "top": "snooze, doze, snooze, doze, and you get up _groggier_ than if you'd just got up the first time",
+      "text": "the alarm isn't the problem\n\n_staying horizontal_ is, because lying down with your phone in reach is how 9 minutes turns into 40",
+      "image": "/photos/man-in-bed.jpg",
+      "imageSide": "left",
+      "bottom": ""
+    },
+    {
+      "layout": "point",
+      "heading": "your phone _sleeps next to you_",
+      "top": "it's the last thing you see at night and the first thing you grab in the morning",
+      "text": "i tried leaving it in the kitchen. _lasted 2 nights_\n\nwhat actually worked: my apps _go to sleep at 11_ and don't wake up until i've _walked 500 steps_ in the morning",
+      "phone": "/photos/renders/01-asleep-clean.png",
+      "bottom": ""
+    },
+    {
+      "layout": "point",
+      "heading": "_no daylight_ for the first hour",
+      "top": "blinds shut, screen brightness up, and your body still thinks it's _the middle of the night_",
+      "text": "you feel half awake until lunch and blame your sleep\n\nopen the curtains _before_ you open instagram",
+      "image": "/photos/blinds-sunrise.jpg",
+      "bottom": ""
+    },
+    {
+      "layout": "point",
+      "heading": "a _different bedtime_ every night",
+      "top": "11pm on monday, 2am on friday, 12:30 on sunday \"to reset\"",
+      "text": "your body never knows when morning is supposed to start\n\na _boring, same every night_ bedtime does more than any supplement",
+      "image": "/photos/reading-dark.jpg",
+      "imageSide": "left",
+      "bottom": ""
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 1
+  },
+  "scoreNotes": "truth: \"lasted 2 nights\""
+}

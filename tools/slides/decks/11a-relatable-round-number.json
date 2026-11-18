@@ -1,0 +1,31 @@
+{
+  "title": "putting the phone down at a round number",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "11-relatable-sleep-math",
+  "why": "Variant of 11: the same \"me at [time]\" self-roast, a different lie we all tell ourselves; real clock at ~11:58.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "12:15 is also a round number. what's your round number? #relatable #sleep #bedtime",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/clock-midnight-black.jpg",
+      "caps": [
+        {
+          "text": "me at 11:58 deciding i'll put my phone down at a nice round number",
+          "y": 20,
+          "size": 58,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "title": "is it just me (Loc)",
+  "format": "\"Is it just me or…\" text block (Loc)",
+  "job": "comments",
+  "app": "none",
+  "why": "Test: the 2.1M / 11.5K-comment \"is it just me\" shape in Loc's voice, built on canon (court-ordered bedtime, Gerald) so the comments can play along.",
+  "compare": "zainfinityy-is-it-just-me",
+  "account": "@loc (Loc account)",
+  "caption": "gerald says this is normal #raccoon #relatable #sleep",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "Loc is the mascot speaking: post only from the Loc account"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-crossed2.jpg",
+      "caps": [
+        {
+          "text": "is it just me or does anyone else have a court-ordered bedtime and a lawyer who keeps playing dead",
+          "y": 79,
+          "size": 50,
+          "style": "outline",
+          "w": 74
+        }
+      ]
+    }
+  ]
+}

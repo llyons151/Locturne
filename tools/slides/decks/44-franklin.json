@@ -1,0 +1,57 @@
+{
+  "title": "this man changed my sleep schedule",
+  "format": "\"This man changed my mindset\" + quote",
+  "job": "save",
+  "why": "Denzel's post is bait for the audio. We use a public-domain face with a famous sleep line, then the twist.",
+  "compare": "denzel-changed-my-mindset",
+  "account": "@locturne",
+  "caption": "he would have hated tiktok. early bird or night owl? #benjaminfranklin #discipline #sleep",
+  "sound": "a calm speech or quote audio",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/art/franklin.jpg",
+      "caps": [
+        {
+          "text": "this man changed my sleep schedule",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/franklin.jpg",
+      "caps": [
+        {
+          "text": "\"early to bed and early to rise makes a man healthy, wealthy and wise.\"\n— 1735",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": [
+        {
+          "text": "he didn't have tiktok though. so i gave my phone a bedtime",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "app": "punchline"
+}

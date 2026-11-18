@@ -1,0 +1,73 @@
+{
+  "title": "the pigeons are up",
+  "format": "Photo dump with a tweet cover",
+  "job": "promo",
+  "why": "Raw dump energy; the app hides in plain sight among real night photos.",
+  "compare": "coke3xb-tweet-dump",
+  "account": "@loc (Loc account)",
+  "caption": "morning dump ☀️ team pigeon or team loc? #raccoon",
+  "sound": "trending soft song",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "tweets are Loc's real in-app lines; no fake counts"
+  ],
+  "slides": [
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "good morning to everyone except the pigeons",
+      "when": "6:58 AM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/blinds-sunrise.jpg",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/coffee.jpg",
+      "caps": []
+    },
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "get up. my sentence depends on it.",
+      "when": "7:01 AM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/03-payoff.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/unmade-bed.jpg",
+      "caps": []
+    }
+  ],
+  "app": "confession",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 1,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

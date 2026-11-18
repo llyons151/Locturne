@@ -1,0 +1,59 @@
+{
+  "title": "hi i'm luke! it's 11pm, go to sleep",
+  "format": "Creator intro (\"You've doomscrolled your way to my ___\")",
+  "job": "promo",
+  "why": "Joe's version: one friendly line on a selfie, then the work with no words at all. Ours shows the app the same way.",
+  "compare": "jwhorner-doomscrolled-intro",
+  "account": "@locturne (founder face)",
+  "caption": "i made an app that puts your apps to sleep. what time should yours sleep? #indiedev #buildinpublic #sleep",
+  "sound": "upbeat, happy",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 1 must be your real selfie, never the stand-in",
+    "renders show 200 steps; retake if your walk is 500"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/founder-selfie.jpg",
+      "caps": [
+        {
+          "text": "hi i'm luke! you've doomscrolled your way to my app. go to sleep 😴",
+          "y": 18,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/01-shield.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/03-payoff.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/09-moons.png",
+      "caps": []
+    }
+  ],
+  "app": "intro"
+}

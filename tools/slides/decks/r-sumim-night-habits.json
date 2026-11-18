@@ -1,0 +1,69 @@
+{
+  "title": "9 night habits that ruin your mornings",
+  "format": "Dark art list: a surreal painting cover with an uppercase '..' title, then one line per slide on square grey paper letterboxed on black, bold keywords",
+  "job": "save",
+  "app": "none",
+  "why": "Copies sumimxojpd0's dark art list (4.4M likes, 10 slides): a grotesque surreal painting cover with a white uppercase title ending in '..' just below the middle, then one short habit per slide in a dark-grey sans with bold keywords on a square of light-grey paper that sits in a black letterbox. Ten slides like the ref (cover + 9). New topic: night habits seen through the morning they wreck; the cover is a skeleton hugging an alarm clock with teeth.",
+  "compare": "sumimxojpd0-dark-art-list",
+  "account": "@locturne",
+  "caption": "number 3 is the one nobody quits #sleep #morningroutine #habits",
+  "sound": "slow dark ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made painting on the cover (no real person): turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-sumim-cover.jpg",
+      "caps": [
+        {
+          "text": "9 NIGHT HABITS THAT RUIN YOUR MORNINGS..",
+          "y": 60,
+          "size": 66,
+          "style": "classic",
+          "w": 100
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p1.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p2.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p3.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p4.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p5.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p6.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p7.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p8.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim-p9.jpg"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "title": "trauma",
+  "format": "\"trauma\" + an alarm sound",
+  "job": "comments",
+  "why": "The slides only frame a sound everyone has a reaction to; comments fill with shared pain.",
+  "compare": null,
+  "account": "@loc (Loc account)",
+  "caption": "you heard it in your head. which alarm is worse? #alarm #trauma #iphone",
+  "sound": "the default iPhone \"Radar\" alarm (this IS the post)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/insomnia-woman.jpg",
+      "caps": [
+        {
+          "text": "trauma",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/the-scream.jpg",
+      "caps": [
+        {
+          "text": "(sound on)",
+          "y": 50,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 1,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "title": "3 hours left / 3 hours left",
+  "format": "Split panels: the same cartoon scene twice, the anxious thought on top and the reframe below",
+  "job": "save",
+  "app": "none",
+  "why": "Copies @grindai.app's 3.2M-like / 393K-save post: 4 slides, each one identical cartoon scene stacked twice with a thin white line, only the face changes, white outlined sentence-case caption mid-panel (top 'They're judging me', bottom 'What a nice day'). Ours runs one girl's night to morning around the phone and sleep; saves come from the reframes. No app, like the ref.",
+  "compare": "grindai-split-panels",
+  "account": "@locturne",
+  "caption": "save this for the next 3am #reframe #sleep #overthinking #mentalhealth",
+  "sound": "soft lo-fi / calm piano (ref's sound not saved)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made cartoon illustrations (Codex): turn on TikTok's AI-generated label",
+    "only slide 1 of the ref is saved; slides 2-4 follow refs.json (4 split-panel slides), their look is assumed to match slide 1"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-grind-1.jpg",
+      "caps": [
+        {
+          "text": "Only 3 hours of sleep left",
+          "y": 31,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        },
+        {
+          "text": "Still 3 hours of sleep left",
+          "y": 82,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-grind-2.jpg",
+      "caps": [
+        {
+          "text": "What if I miss something",
+          "y": 31,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        },
+        {
+          "text": "It'll be there tomorrow",
+          "y": 82,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-grind-3.jpg",
+      "caps": [
+        {
+          "text": "I'll be bored without it",
+          "y": 31,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        },
+        {
+          "text": "Oh, I'm actually sleepy",
+          "y": 82,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-grind-4.jpg",
+      "caps": [
+        {
+          "text": "I'm already behind",
+          "y": 31,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        },
+        {
+          "text": "I'm up. Good start",
+          "y": 82,
+          "size": 74,
+          "style": "outline",
+          "w": 92
+        }
+      ]
+    }
+  ]
+}

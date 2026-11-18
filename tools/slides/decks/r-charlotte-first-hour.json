@@ -1,0 +1,37 @@
+{
+  "title": "your phone eats the first hour of your day",
+  "format": "Empathy → \"so I made X for people like me\" → product screenshot with a white-box CTA",
+  "job": "promo",
+  "app": "punchline",
+  "variantOf": "r-charlotte-one-more-video",
+  "why": "Second take on charlotte's 2.0M-like disguised promo, morning angle: a dim film-still of a dawn bedroom with a phone lit on the pillow carries the feeling, a film-still of two people walking away down a cobbled street at sunrise carries the confession (walking = the 200 steps), then a full-bleed screenshot of the real step-count Home with one white box mid-screen. Sentence case, TikTok Classic white, centred.",
+  "compare": "charlotte-cant-sleep-playlist",
+  "account": "@locturne (founder, faceless)",
+  "caption": "for everyone whose phone gets the first hour #screentime #morningroutine #doomscrolling",
+  "sound": "soft ambient / sleepy lo-fi (the ref uses its own playlist audio)",
+  "size": [1080, 1920],
+  "check": [
+    "slide 2: \"it helped\" must be true for you",
+    "slide 2: the walk wake-up is set to 200 steps on your phone (it is the default)",
+    "AI-made photos (slides 1 and 2, slide 2 shows two people from behind): turn on TikTok's AI-generated label",
+    "promo: turn on TikTok's \"Your brand\" disclosure",
+    "slide 3 is a crop of the real Home render (02-steps-clean); fine as is"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-charlotte2-1.jpg",
+      "caps": [{ "text": "I know that feeling when your phone eats the first hour of your day", "y": 44, "size": 60, "style": "classic", "w": 86 }]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-charlotte2-2g.jpg",
+      "caps": [{ "text": "So I made an app for people like me that locks my apps till I walk 200 steps and it helped\n❤️👏🥹", "y": 46, "size": 60, "style": "classic", "w": 88 }]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/renders/r-charlotte2-3.jpg",
+      "caps": [{ "text": "Link in bio❤️🙏", "y": 66, "size": 62, "style": "box", "w": 80 }]
+    }
+  ]
+}

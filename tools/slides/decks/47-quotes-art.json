@@ -1,0 +1,85 @@
+{
+  "title": "the night is not the enemy",
+  "format": "Moody night quotes, one line per slide",
+  "job": "share",
+  "why": "The same quote rhythm on public-domain night paintings: no faces, no AI.",
+  "compare": "nadiaaddesi-night-quotes",
+  "account": "@locturne",
+  "caption": "the night was never the enemy. what keeps you up? #nightthoughts #sleep",
+  "sound": "slow sad piano",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 5: 'my apps go to sleep at 11 now. i finally do too.' Only if true for you"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/two-men-moon.jpg",
+      "caps": [
+        {
+          "text": "the night isn't the enemy.",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/starry-night.jpg",
+      "caps": [
+        {
+          "text": "the phone just makes it last until 3.",
+          "y": 50,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/melancholia.jpg",
+      "caps": [
+        {
+          "text": "you're not lazy. you're tired from yesterday.",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/bedroom-arles.jpg",
+      "caps": [
+        {
+          "text": "let the room be boring. that's how sleep finds you.",
+          "y": 50,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": [
+        {
+          "text": "my apps go to sleep at 11 now. i finally do too.",
+          "y": 10,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "app": "punchline"
+}

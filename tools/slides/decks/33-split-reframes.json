@@ -1,0 +1,126 @@
+{
+  "title": "one more video / already asleep",
+  "format": "Split panels: the spiral on top, the fix below",
+  "job": "save",
+  "why": "An app account grew on this: the same moment, two outcomes. We use real photos and renders instead of illustrations.",
+  "compare": "grindai-split-panels",
+  "account": "@locturne",
+  "caption": "the second one is a setting. which side are you on tonight? #discipline #sleep #selfimprovement",
+  "sound": "calm piano",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/hand-phone-blanket.jpg",
+        "caps": [
+          {
+            "text": "just one more video",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/light-on-bed.jpg",
+        "caps": [
+          {
+            "text": "already asleep",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      }
+    },
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/pillow-over-head.jpg",
+        "caps": [
+          {
+            "text": "snooze #4",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/blinds-sunrise.jpg",
+        "caps": [
+          {
+            "text": "up before the alarm",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      }
+    },
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/clock-127.jpg",
+        "caps": [
+          {
+            "text": "1:27am, still scrolling",
+            "y": 30,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/light-on-bed.jpg",
+        "caps": [
+          {
+            "text": "11:30pm, apps asleep, me too",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      }
+    },
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/stars-forest.jpg",
+        "caps": [
+          {
+            "text": "the moment your phone goes to sleep first...",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/blinds-sunrise.jpg",
+        "caps": [
+          {
+            "text": "is the moment you get your mornings back.",
+            "y": 50,
+            "size": 54,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      }
+    }
+  ],
+  "app": "none"
+}

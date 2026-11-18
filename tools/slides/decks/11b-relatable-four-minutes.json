@@ -1,0 +1,31 @@
+{
+  "title": "if i fall asleep in the next 4 minutes",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "11-relatable-sleep-math",
+  "why": "Variant of 11: the sleep-maths panic made more specific (4 minutes, 5 hours), which is the bit people quote in comments.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "the math was not mathing. how many hours did you get? #sleep #relatable #insomnia",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/clock-dark-room.jpg",
+      "caps": [
+        {
+          "text": "me at 12:15: if i fall asleep in the next 4 minutes i still get 6 and a half hours",
+          "y": 20,
+          "size": 58,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

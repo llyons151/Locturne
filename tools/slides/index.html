@@ -1,0 +1,309 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Slideshow studio</title>
+<style>
+  @font-face { font-family: Inter; src: url(/fonts/Inter.woff2) format('woff2'); font-weight: 100 900; }
+  :root { --bg: #f2f2f0; --panel: #fff; --ink: #161616; --mute: #777; --line: #e2e2df; --accent: #161616; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 Inter, system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
+    padding: 14px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0 14px 0 0; }
+  .tab { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+    font: inherit; color: var(--ink); }
+  .tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .spacer { flex: 1; }
+  button.act { font: inherit; border: 0; border-radius: 8px; padding: 8px 14px; background: var(--ink); color: #fff; cursor: pointer; }
+  button.act.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  main { padding: 20px 24px 80px; display: grid; grid-template-columns: 1fr 420px; gap: 24px; align-items: start; }
+  section.rows { min-width: 0; }
+  .meta { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; }
+  .meta b { font-weight: 600; }
+  .meta .stats { color: var(--mute); }
+  .meta .note { margin-top: 4px; }
+  .row-label { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; }
+  .row-label h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+  .row-label span { color: var(--mute); }
+  .strip { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+  .cell { flex: none; position: relative; }
+  .cell .num { position: absolute; top: 6px; left: 6px; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 11px;
+    border-radius: 999px; padding: 1px 7px; z-index: 2; }
+  .ref img { display: block; border-radius: 6px; border: 1px solid var(--line); background: #fff; object-fit: cover; }
+  .ours { cursor: pointer; border-radius: 6px; outline: 2px solid transparent; outline-offset: 2px; }
+  .ours.on { outline-color: var(--accent); }
+  .frame { overflow: hidden; border-radius: 6px; border: 1px solid var(--line); background: #fff; }
+  .frame iframe { border: 0; transform-origin: 0 0; pointer-events: none; display: block; }
+  .pairs { display: grid; gap: 18px; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; }
+  .pair .gap { width: 1px; align-self: stretch; background: var(--line); }
+  .empty { display: grid; place-items: center; color: var(--mute); border: 1px dashed var(--line); border-radius: 6px; font-size: 12px; }
+  aside { position: sticky; top: 74px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+    max-height: calc(100vh - 94px); overflow: auto; }
+  aside h3 { margin: 0 0 10px; font-size: 14px; }
+  label { display: block; font-size: 12px; color: var(--mute); margin: 12px 0 4px; }
+  textarea, input, select { width: 100%; font: 13px/1.4 Inter, system-ui, sans-serif; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; background: #fcfcfb; color: var(--ink); }
+  textarea { resize: vertical; min-height: 64px; }
+  .imgfield { display: flex; gap: 8px; align-items: center; }
+  .imgfield img { width: 44px; height: 54px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); flex: none; }
+  .hint { color: var(--mute); font-size: 12px; margin-top: 8px; }
+  .msg { color: var(--mute); font-size: 12px; }
+  .files a { display: inline-block; margin: 4px 6px 0 0; color: var(--ink); }
+  .lint { font-size: 12px; margin: 3px 0; }
+  .lint.fail { color: #b3261e; } .lint.warn { color: #8a5a00; } .lint.ok { color: var(--mute); }
+  .crit { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+  .crit span { flex: 1; } .crit button { font: inherit; width: 28px; height: 26px; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; cursor: pointer; } .crit button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .idea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 12px; }
+  .idea .ev { color: var(--mute); }
+  .idea button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 3px 10px; margin: 4px 4px 0 0; cursor: pointer; text-align: left; }
+  .check { background: #fff8e8; border: 1px solid #f0dfb3; border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Slideshow studio</h1>
+  <button class="tab" id="prev">‹</button><select id="pick" style="width:auto;min-width:340px"></select><button class="tab" id="next">›</button>
+  <select id="jobf" style="width:auto"><option value="">all jobs</option><option>share</option><option>save</option><option>promo</option><option>comments</option><option>identity</option></select>
+  <span class="msg" id="count"></span>
+  <div class="spacer"></div>
+  <button class="tab" id="viewBtn">Side by side</button>
+  <span class="msg" id="msg"></span>
+  <button class="act ghost" id="saveBtn">Save</button>
+  <button class="act" id="exportBtn">Export PNGs</button>
+</header>
+<main>
+  <section class="rows" id="rows"></section>
+  <aside id="editor"></aside>
+</main>
+<datalist id="images"></datalist>
+<script>
+let S, deck, sel = 0, pairs = false, dirty = false;
+const $ = (id) => document.getElementById(id);
+const TH = 230; // thumbnail width
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const say = (t) => { $('msg').textContent = t; };
+
+let L, RUBRIC, HOOKS;
+async function load(keep) {
+  L ??= await import('/lint.mjs');
+  RUBRIC ??= await (await fetch('/rubric.json')).json();
+  HOOKS ??= await (await fetch('/hooks.json')).json();
+  S = await (await fetch('/api/state')).json();
+  $('images').innerHTML = [...S.photos, ...S.shots].map((p) => `<option value="${p}">`).join('');
+  const name = keep ?? location.hash.slice(1) ?? '';
+  deck = S.decks.find((d) => d.name === name) ?? S.decks[0];
+  draw();
+}
+
+function tabs() {
+  const job = $('jobf').value, list = S.decks.filter((d) => !job || d.job === job);
+  const groups = {};
+  for (const d of list) (groups[d.format ?? 'other'] ??= []).push(d);
+  $('pick').innerHTML = Object.entries(groups).map(([g, ds]) => `<optgroup label="${esc(g)}">${ds.map((d) =>
+    `<option value="${d.name}" ${d === deck ? 'selected' : ''}>${esc(d.name)}${L.scoreTotal(d) != null ? ' · ' + L.scoreTotal(d) + '/20' : ''}</option>`).join('')}</optgroup>`).join('');
+  $('count').textContent = `${list.length} of ${S.decks.length} slideshows`;
+}
+function go(name) {
+  if (dirty && !confirm('Unsaved changes on this deck. Switch anyway?')) { tabs(); return; }
+  dirty = false; deck = S.decks.find((d) => d.name === name) ?? deck; sel = 0; location.hash = deck.name; draw();
+}
+$('pick').onchange = (e) => go(e.target.value);
+$('jobf').onchange = () => { tabs(); const first = $('pick').value; if (first && first !== deck.name) go(first); };
+const step = (k) => { const opts = [...$('pick').options].map((o) => o.value), j = opts.indexOf(deck.name) + k; if (opts[j]) go(opts[j]); };
+$('prev').onclick = () => step(-1);
+$('next').onclick = () => step(1);
+const size = () => deck.size ?? [1080, 1350];
+function ourCell(i, w = TH) {
+  const [W, H] = size(), k = w / W;
+  return `<div class="cell ours ${i === sel ? 'on' : ''}" data-i="${i}"><span class="num">${i + 1}</span>
+    <div class="frame" style="width:${w}px;height:${Math.round(H * k)}px"><iframe data-i="${i}" width="${W}" height="${H}"
+    style="transform:scale(${k})" src="/slide.html?i=${i}&v=${Date.now()}"></iframe></div></div>`;
+}
+function refCell(dir, file, w = TH, ratio) {
+  const n = parseInt(file, 10);
+  return `<div class="cell ref"><span class="num">${n}</span><img src="/refs/${dir}/${file}" style="width:${w}px;height:${Math.round(w * ratio)}px"></div>`;
+}
+
+function draw() {
+  tabs();
+  const ref = deck.compare, files = S.refs[ref] ?? [], m = S.meta[ref] ?? {};
+  const [W, H] = size(), ratio = H / W;
+  let html = `<div class="meta">${deck.format ? `<div class="stats">${esc(deck.format)}${deck.job ? ' · job: <b>' + esc(deck.job) + '</b>' : ''}</div>` : ''}<b>${esc(deck.title)}</b>
+    ${deck.why ? `<div class="note">why: ${esc(deck.why)}</div>` : ''}<div class="stats">${esc(deck.account ?? '')} · sound: ${esc(deck.sound ?? '')}</div>
+    <div class="note">caption: ${esc(deck.caption ?? '')}</div></div>`;
+  if (ref) html += `<div class="meta"><b>Copies: ${esc(m.title ?? ref)}</b> <span class="stats">${esc(m.account ?? '')}</span>
+    <div class="stats">${esc(m.stats ?? '')}${m.sound ? ' · sound: ' + esc(m.sound) : ''}</div><div class="note">${esc(m.note ?? '')}</div></div>`;
+  if (!pairs) {
+    html += `<div class="row-label"><h2>Viral</h2><span>${esc(m.account ?? ref ?? 'none')}</span></div>
+      <div class="strip">${files.map((f) => refCell(ref, f, TH, ratio)).join('') || '<span class="msg">no reference saved</span>'}</div>
+      <div class="row-label"><h2>Ours</h2><span>click a slide to edit it</span></div>
+      <div class="strip">${deck.slides.map((_, i) => ourCell(i)).join('')}</div>`;
+  } else {
+    const big = 330;
+    html += `<div class="pairs">${deck.slides.map((_, i) => {
+      const f = files.find((x) => parseInt(x, 10) === i + 1);
+      return `<div class="pair">${f ? refCell(ref, f, big, ratio) : `<div class="empty" style="width:${big}px;height:${Math.round(big * ratio)}px">no viral slide ${i + 1}</div>`}
+        <div class="gap"></div>${ourCell(i, big)}</div>`;
+    }).join('')}</div>`;
+  }
+  $('rows').innerHTML = html;
+  $('rows').querySelectorAll('.ours').forEach((c) => (c.onclick = () => { sel = Number(c.dataset.i); draw(); }));
+  $('rows').querySelectorAll('iframe').forEach((f) => (f.onload = () => post(f)));
+  editor();
+}
+
+function post(f) { f.contentWindow.postMessage({ slide: deck.slides[Number(f.dataset.i)], size: size() }, '*'); }
+function refresh(i) { document.querySelectorAll(`iframe[data-i="${i}"]`).forEach(post); }
+
+// The editor builds a field for every key the slide has; image keys get the photo/screenshot list.
+const IMAGE_KEYS = ['image', 'phone', 'avatar', 'bg'];
+const LAYOUT_KEYS = {
+  hook: ['title', 'image', 'narrow', 'aside', 'asideRight'], point: ['heading', 'top', 'text', 'image', 'phone', 'wide', 'imageSide', 'bottom'],
+  checklist: ['heading', 'start', 'images', 'items'], demo: ['heading', 'phone', 'text', 'card'],
+  closer: ['avatar', 'question', 'lines'], photo: ['image', 'line', 'pos', 'white'], screen: ['line', 'phone', 'bg'],
+  meme: ['top', 'image', 'bottom'], pic: ['image', 'caps'], letterbox: ['image', 'caps'], split: ['top', 'bottom'],
+  paper: ['text'], notes: ['title', 'sub', 'rows'], solid: ['emoji', 'text', 'bg'], tweet: ['avatar', 'name', 'handle', 'text', 'when'], full: ['image'],
+};
+function editor() {
+  const s = deck.slides[sel];
+  if (!s) { $('editor').innerHTML = ''; return; }
+  const keys = [...new Set([...(LAYOUT_KEYS[s.layout] ?? []), ...Object.keys(s)])].filter((k) => k !== 'layout');
+  let html = `<h3>Slide ${sel + 1} of ${deck.slides.length}</h3>
+    <label>layout</label><select id="f-layout">${Object.keys(LAYOUT_KEYS).map((l) => `<option ${l === s.layout ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  for (const k of keys) {
+    const v = s[k];
+    if (IMAGE_KEYS.includes(k)) {
+      html += `<label>${k}</label><div class="imgfield">${v ? `<img src="${esc(v)}">` : ''}<input data-k="${k}" list="images" value="${esc(v ?? '')}" placeholder="pick a photo or screenshot"></div>`;
+    } else if (typeof v === 'boolean' || ['narrow', 'asideRight', 'wide', 'low', 'white'].includes(k)) {
+      html += `<label><input type="checkbox" data-k="${k}" data-type="bool" ${v ? 'checked' : ''} style="width:auto"> ${k}</label>`;
+    } else if (typeof v === 'number' || k === 'start') {
+      html += `<label>${k}</label><input data-k="${k}" data-type="num" value="${esc(v ?? '')}">`;
+    } else if ((Array.isArray(v) && v.every((x) => typeof x === 'string')) || (!v && ['items', 'lines', 'images'].includes(k))) {
+      html += `<label>${k} (one per line)</label><textarea data-k="${k}" data-type="list" rows="${Math.max(3, (v ?? []).length + 1)}">${esc((v ?? []).join('\n'))}</textarea>`;
+    } else if (v && typeof v === 'object') {
+      html += `<label>${k} (JSON)</label><textarea data-k="${k}" data-type="json">${esc(JSON.stringify(v, null, 1))}</textarea>`;
+    } else {
+      html += `<label>${k}</label><textarea data-k="${k}" rows="${Math.min(8, String(v ?? '').split('\n').length + 1)}">${esc(v ?? '')}</textarea>`;
+    }
+  }
+  html += `<div class="hint">_underline_ · *grey* · blank line = new paragraph</div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="act ghost" id="up">← Move</button><button class="act ghost" id="down">Move →</button>
+      <button class="act ghost" id="dup">Duplicate</button><button class="act ghost" id="del">Delete</button>
+      <a class="act ghost" style="text-decoration:none;padding:8px 14px;border:1px solid var(--line);border-radius:8px;color:var(--ink)"
+        href="/slide.html?deck=${deck.name}&i=${sel}" target="_blank">Full size ↗</a></div>
+    <h3 style="margin-top:22px">Deck</h3>
+    <label>caption</label><textarea data-d="caption">${esc(deck.caption ?? '')}</textarea>
+    <label>sound</label><input data-d="sound" value="${esc(deck.sound ?? '')}">
+    <label>account</label><input data-d="account" value="${esc(deck.account ?? '')}">
+    ${(deck.check ?? []).map((c) => `<div class="check">Check before posting: ${esc(c)}</div>`).join('')}
+    <div id="files" class="files"></div>
+    <h3 style="margin-top:22px">Score <span class="msg" id="total"></span></h3>
+    <label>app role</label><select data-d="app">${['', 'none', 'confession', 'method', 'punchline', 'intro'].map((r) =>
+      `<option ${r === (deck.app ?? '') ? 'selected' : ''}>${r}</option>`).join('')}</select>
+    <div id="lint" style="margin-top:8px"></div>
+    ${RUBRIC.criteria.map((c) => `<div class="crit" title="${esc(c.ask)}"><span>${esc(c.name)}</span>${[0, 1, 2].map((v) =>
+      `<button data-c="${c.key}" data-v="${v}" class="${deck.score?.[c.key] === v ? 'on' : ''}">${v}</button>`).join('')}</div>`).join('')}
+    <label>score notes</label><textarea data-d="scoreNotes">${esc(deck.scoreNotes ?? '')}</textarea>
+    <h3 style="margin-top:22px">Hook ideas <span class="msg">proven formulas for ${esc(deck.job ?? 'any job')}; click a line to put it on slide 1</span></h3>
+    ${HOOKS.formulas.filter((h) => !deck.job || h.job === deck.job || (deck.job === 'promo' && h.job !== 'identity')).map((h) =>
+      `<div class="idea"><b>${esc(h.pattern)}</b><div class="ev">${esc(h.evidence)}${h.rule ? ' · ' + esc(h.rule) : ''}</div>
+      ${(h.ours ?? []).map((o) => `<button data-hook="${esc(o)}">${esc(o)}</button>`).join('')}</div>`).join('')}
+    <h3 style="margin-top:22px">Posts <span class="msg">log every real post; numbers at 48 h</span></h3>
+    <div id="posts"></div>`;
+  $('editor').innerHTML = html;
+  lintPanel();
+  postsPanel();
+  $('editor').querySelectorAll('[data-hook]').forEach((b) => (b.onclick = () => { setHook(b.dataset.hook); sel = 0; draw(); }));
+  $('editor').querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => {
+    deck.score = { ...(deck.score ?? {}), [b.dataset.c]: Number(b.dataset.v) }; dirty = true; say('unsaved'); editor(); tabs();
+  }));
+
+  $('f-layout').onchange = (e) => { s.layout = e.target.value; changed(); editor(); };
+  $('editor').querySelectorAll('[data-k]').forEach((el) => (el.oninput = () => {
+    const k = el.dataset.k, t = el.dataset.type;
+    try {
+      s[k] = t === 'bool' ? el.checked : t === 'num' ? Number(el.value) : t === 'list' ? el.value.split('\n').filter((x) => x.trim())
+        : t === 'json' ? JSON.parse(el.value) : el.value;
+    } catch { return; }
+    if (!t && !el.value && IMAGE_KEYS.includes(k)) delete s[k];
+    changed();
+    if (IMAGE_KEYS.includes(k)) { const img = el.previousElementSibling; if (img?.tagName === 'IMG') img.src = el.value; }
+  }));
+  $('editor').querySelectorAll('[data-d]').forEach((el) => (el.oninput = () => { deck[el.dataset.d] = el.value; dirty = true; say('unsaved'); lintPanel(); }));
+  const move = (d) => { const j = sel + d; if (j < 0 || j >= deck.slides.length) return;
+    [deck.slides[sel], deck.slides[j]] = [deck.slides[j], deck.slides[sel]]; sel = j; dirty = true; say('unsaved'); draw(); };
+  $('up').onclick = () => move(-1);
+  $('down').onclick = () => move(1);
+  $('dup').onclick = () => { deck.slides.splice(sel + 1, 0, structuredClone(s)); sel++; dirty = true; say('unsaved'); draw(); };
+  $('del').onclick = () => { if (deck.slides.length < 2) return; deck.slides.splice(sel, 1); sel = Math.max(0, sel - 1); dirty = true; say('unsaved'); draw(); };
+}
+// Posts: S.posts rows for this deck. Fields: date, account, platform, url, views, likes, saves, shares, comments, taps.
+const PF = ['date', 'account', 'platform', 'url', 'views', 'likes', 'saves', 'shares', 'comments', 'taps'];
+const per1k = (r, k) => (r.views ? ((r[k] ?? 0) / r.views * 1000).toFixed(1) : '–');
+function postsPanel() {
+  const mine = S.posts.map((r, i) => [r, i]).filter(([r]) => r.deck === deck.name);
+  $('posts').innerHTML = mine.map(([r, i]) => `<div class="idea"><b>${esc(r.date)} · ${esc(r.platform)} · ${esc(r.account)}</b>
+    ${r.url ? ` <a href="${esc(r.url)}" target="_blank">open</a>` : ''}<div class="ev">${(r.views ?? 0).toLocaleString()} views ·
+    saves ${per1k(r, 'saves')}/1K · shares ${per1k(r, 'shares')}/1K · comments ${per1k(r, 'comments')}/1K · link taps ${per1k(r, 'taps')}/1K</div>
+    <button data-pdel="${i}">remove</button></div>`).join('') +
+    `<div class="idea">${PF.map((k) => `<input data-pf="${k}" placeholder="${k}" style="margin:3px 0" ${k === 'date' ? `value="${new Date().toISOString().slice(0, 10)}"` : ''}
+      ${k === 'account' ? `value="${esc(deck.account ?? '')}"` : ''} ${k === 'platform' ? 'value="tiktok"' : ''}>`).join('')}
+    <button id="padd">Add post</button></div>`;
+  $('padd').onclick = async () => {
+    const r = { deck: deck.name };
+    $('posts').querySelectorAll('[data-pf]').forEach((el) => { const v = el.value.trim(); if (v) r[el.dataset.pf] = /^(views|likes|saves|shares|comments|taps)$/.test(el.dataset.pf) ? Number(v.replace(/[,_]/g, '')) : v; });
+    S.posts.push(r); await savePosts();
+  };
+  $('posts').querySelectorAll('[data-pdel]').forEach((b) => (b.onclick = async () => { S.posts.splice(Number(b.dataset.pdel), 1); await savePosts(); }));
+}
+async function savePosts() {
+  const ok = (await fetch('/api/posts', { method: 'POST', body: JSON.stringify(S.posts) })).ok;
+  say(ok ? 'posts saved' : 'posts save failed'); postsPanel();
+}
+function changed() { dirty = true; say('unsaved'); refresh(sel); lintPanel(); }
+// Puts a hook line into slide 1's main text, whichever layout slide 1 uses.
+function setHook(t) {
+  const s = deck.slides[0];
+  if (s.layout === 'hook') s.title = t;
+  else if (s.layout === 'photo' || s.layout === 'screen') s.line = t;
+  else if (s.layout === 'meme') s.top = t;
+  else if (s.layout === 'tweet') s.text = t;
+  else if (s.layout === 'split') { const [top, bottom] = t.split(' / '); s.top.caps[0].text = top; if (bottom) s.bottom.caps[0].text = bottom; }
+  else if (s.caps?.length) s.caps[0].text = t;
+  else s.caps = [{ text: t, y: 50, size: 54, style: 'classic', w: 78 }];
+  dirty = true; say('unsaved — hook replaced, Save to keep');
+}
+function lintPanel() {
+  if (!$('lint')) return;
+  $('lint').innerHTML = L.lint(deck, S.credits, HOOKS, S.meta).map((x) => `<div class="lint ${x.level}">${x.level === 'fail' ? '✗' : x.level === 'warn' ? '!' : '✓'} ${esc(x.rule)}: ${esc(x.text)}</div>`).join('');
+  const t = L.scoreTotal(deck), n = Object.keys(deck.score ?? {}).length;
+  $('total').textContent = t == null ? 'not scored' : `${t}/20${n < RUBRIC.criteria.length ? ` (${n} of ${RUBRIC.criteria.length} scored)` : ''}`;
+}
+
+async function save() {
+  const { name, ...body } = deck;
+  const r = await fetch(`/api/decks/${name}`, { method: 'POST', body: JSON.stringify(body) });
+  if (r.ok) { dirty = false; say('saved'); } else say('save failed');
+  return r.ok;
+}
+$('saveBtn').onclick = save;
+$('exportBtn').onclick = async () => {
+  if (!(await save())) return;
+  say('exporting… (a few seconds a slide)');
+  const r = await (await fetch(`/api/export/${deck.name}`, { method: 'POST' })).json();
+  if (r.error) return say('export failed: ' + r.error);
+  say(`exported ${r.files.length} PNGs to ${r.dir}`);
+  $('files').innerHTML = '<label>exported</label>' + r.files.map((f, i) => `<a href="${f}" target="_blank">${i + 1}</a>`).join('');
+};
+$('viewBtn').onclick = () => { pairs = !pairs; $('viewBtn').classList.toggle('on', pairs); draw(); };
+addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
+addEventListener('beforeunload', (e) => { if (dirty) e.preventDefault(); });
+load();
+</script>
+</body>
+</html>

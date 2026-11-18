@@ -1,0 +1,99 @@
+{
+  "title": "you don't hate mornings",
+  "format": "Moody night quotes, one line per slide",
+  "job": "share",
+  "why": "Validation first (\"it is not your fault\"), one product beat near the end, a soft line to close.",
+  "compare": "nadiaaddesi-night-quotes",
+  "account": "@locturne",
+  "caption": "it was never the morning. what time did you sleep? #sleep #mentalhealth",
+  "sound": "slow sad piano",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/rain-car-window.jpg",
+      "caps": [
+        {
+          "text": "you don't hate mornings...",
+          "y": 70,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/moon-cloud-trees.jpg",
+      "caps": [
+        {
+          "text": "you hate how little sleep you gave yourself.",
+          "y": 42,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/rain-bokeh-night.jpg",
+      "caps": [
+        {
+          "text": "you hate waking up already behind.",
+          "y": 22,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/clock-127.jpg",
+      "caps": [
+        {
+          "text": "you hate that the night felt like the only time that was yours.",
+          "y": 17,
+          "size": 54,
+          "style": "classic",
+          "w": 78,
+          "color": "#222"
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/01-asleep-clean.png",
+      "caps": [
+        {
+          "text": "so give the night a bedtime, not yourself.",
+          "y": 10,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/blinds-sunrise.jpg",
+      "caps": [
+        {
+          "text": "mornings feel different when you meet them rested.",
+          "y": 58,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "app": "punchline"
+}

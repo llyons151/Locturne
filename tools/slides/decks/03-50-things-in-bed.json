@@ -1,0 +1,151 @@
+{
+  "title": "50 things to do instead of scrolling in bed",
+  "job": "save",
+  "app": "method",
+  "why": "Fifty items is save bait; the app is the method slide and the closer asks a question.",
+  "compare": "growing-diaries-50-things",
+  "account": "@locturne",
+  "caption": "i said \"5 more minutes\" for 3 years (then made my phone go to sleep first) #bedtimeroutine #screentime #nightroutine #phoneaddiction",
+  "sound": "soft, sleepy",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "closer: 'i'm starting with #1'. Swap in what you're actually doing"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "50 things to do\ninstead of scrolling in bed",
+      "image": "/photos/book-on-bed.jpg",
+      "narrow": true,
+      "aside": "(save this for the next time you say \"just 5 more minutes\")"
+    },
+    {
+      "layout": "checklist",
+      "heading": "wind down",
+      "start": 1,
+      "images": [
+        "/photos/tea.jpg",
+        "/photos/journal.jpg"
+      ],
+      "items": [
+        "read 10 pages of anything",
+        "write tomorrow's top 3",
+        "stretch for 5 minutes",
+        "make a caffeine-free tea",
+        "lay out tomorrow's clothes",
+        "tidy one surface, just one",
+        "do your skincare slowly",
+        "write one thing that went well",
+        "put your phone across the room",
+        "dim every light in the house"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "in bed, lights low",
+      "start": 11,
+      "images": [
+        "/photos/book-on-bed.jpg",
+        "/photos/sheets.jpg"
+      ],
+      "items": [
+        "listen to one album start to finish",
+        "plan a trip you can't afford yet",
+        "do a crossword",
+        "draw your room, badly",
+        "write a letter you'll never send",
+        "listen to a sleep story",
+        "count back from 300 in threes",
+        "journal the dumbest thing you saw today",
+        "plan your perfect day hour by hour",
+        "read a poem out loud, quietly"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "when you can't sleep",
+      "start": 21,
+      "images": [
+        "/photos/clock-127.jpg",
+        "/photos/water.jpg"
+      ],
+      "items": [
+        "sit somewhere dim for 10 minutes",
+        "read the most boring book you own",
+        "body scan from your toes up",
+        "write down what's keeping you up, then close the notebook",
+        "drink a glass of water",
+        "open the window for cold air",
+        "name an animal for every letter",
+        "flip your pillow to the cold side",
+        "listen to rain sounds",
+        "breathe in for 4, out for 8, ten times"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "the first 10 minutes",
+      "start": 31,
+      "images": [
+        "/photos/blinds-sunrise.jpg",
+        "/photos/coffee.jpg"
+      ],
+      "items": [
+        "feet on the floor before anything",
+        "open the curtains",
+        "drink a full glass of water",
+        "walk to the kitchen and back",
+        "make your bed",
+        "10 push-ups, even bad ones",
+        "stand outside for 2 minutes",
+        "shower before screens",
+        "eat something real",
+        "write one line about your dream"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "set up tomorrow night",
+      "start": 41,
+      "images": [
+        "/photos/unmade-bed.jpg",
+        "/photos/city-night.jpg"
+      ],
+      "items": [
+        "pick a bedtime and keep it",
+        "charge your phone outside the bedroom",
+        "buy a real alarm clock",
+        "pick tomorrow night's book",
+        "set your apps' bedtime",
+        "tell someone your bedtime so they can bully you",
+        "make your room colder",
+        "wash your sheets",
+        "put a notebook by the bed",
+        "decide what you'll do at 10:45"
+      ]
+    },
+    {
+      "layout": "demo",
+      "heading": "how i actually do it",
+      "phone": "/photos/renders/01-asleep-clean.png",
+      "text": "at 11, my apps _go to sleep_\n\nthey don't wake up until i've _walked 200 steps_ in the morning\n\n*(so this list is the only thing left to do in bed)*",
+      "card": {
+        "icon": "/demo/icon.png",
+        "name": "Locturne",
+        "subtitle": "Bedtime lock. Walk to unlock."
+      }
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/light-on-bed.jpg",
+      "question": "which one are you doing tonight? 👇",
+      "lines": [
+        "i'm starting with #1. 10 pages, then lights out",
+        "locturne is in my bio if you want your apps to go to sleep too"
+      ]
+    }
+  ]
+}

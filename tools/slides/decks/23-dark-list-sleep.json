@@ -1,0 +1,71 @@
+{
+  "title": "7 habits that quietly wreck your sleep",
+  "format": "Dark painting cover + one line per paper slide",
+  "job": "save",
+  "why": "One arresting image, a numbered promise, then one bold idea per slide: easy to read, easy to save. Goya's 'sleep of reason' fits the topic exactly.",
+  "compare": "sumimxojpd0-dark-art-list",
+  "account": "@locturne",
+  "caption": "which one is you? #sleep #habits #selfimprovement",
+  "sound": "slow dark ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/art/sleep-of-reason.jpg",
+      "caps": [
+        {
+          "text": "7 HABITS THAT QUIETLY WRECK YOUR SLEEP..",
+          "y": 52,
+          "size": 58,
+          "style": "outline",
+          "w": 90
+        }
+      ]
+    },
+    {
+      "layout": "paper",
+      "text": "Scrolling **in the dark** until your eyes sting."
+    },
+    {
+      "layout": "paper",
+      "text": "Checking your phone **the second** you wake up."
+    },
+    {
+      "layout": "paper",
+      "text": "Charging it **next to your pillow**."
+    },
+    {
+      "layout": "paper",
+      "text": "A **different bedtime** every night."
+    },
+    {
+      "layout": "paper",
+      "text": "\"One more\" when you are **already tired**."
+    },
+    {
+      "layout": "paper",
+      "text": "Snoozing **five times**, then rushing."
+    },
+    {
+      "layout": "paper",
+      "text": "Treating midnight as **the only time that is yours**."
+    }
+  ],
+  "app": "none",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "title": "\"just checking something quick\"",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "why": "A real photo of a wrecked bed plus a phrase people say every night.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "it was not quick. tiktok or youtube? #relatable #phoneinbed",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/unmade-bed.jpg",
+      "caps": [
+        {
+          "text": "the bed after one night of \"just checking something quick\"",
+          "y": 60,
+          "size": 62,
+          "style": "classic",
+          "w": 78,
+          "color": "#222"
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "title": "me in bed at 1am doing sleep math",
+  "format": "\"Me in bed…\" absurd object in bed, letterboxed on black, outlined caption",
+  "job": "share",
+  "app": "none",
+  "why": "Second variant of the egg post (4.6M likes, 845K shares), same structure as r-egg-potato-one-more-video: a cheap-edit photo of a deadpan object with a pasted face tucked into a real bed, letterboxed across the middle of a black slide, small white outlined sentence-case caption over the lower part of the photo. New object (a pocket calculator, because it's doing sleep math) and a new hook from hooks.json relatable-moment: the 1am 'if i fall asleep right now i still get 5 hours' count everyone has done. Reach format, no app.",
+  "compare": "egg-me-in-bed",
+  "variantOf": "r-egg-potato-one-more-video",
+  "account": "@loc (Loc account)",
+  "caption": "how many hours did you get last night? #relatable #sleep #3am",
+  "sound": "morning flower alarm (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made photo (a calculator with an edited cartoon-ish face, no real person; the '5' on its display was added in editing): turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-egg-calc-1.jpg",
+      "caps": [
+        {
+          "text": "Me in bed at 1am doing sleep math and convincing myself 5 hours is plenty",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 62
+        }
+      ]
+    }
+  ]
+}

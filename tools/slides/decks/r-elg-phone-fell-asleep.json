@@ -1,0 +1,54 @@
+{
+  "title": "why my phone fell asleep before me",
+  "format": "\"I wondered why…\" outlined text on a selfie → full-bleed screen as the answer → the partner",
+  "job": "share",
+  "app": "punchline",
+  "why": "Copies everybodylovesg's 2.3M-like / 259K-share post beat for beat: a deadpan hooded selfie with big white outlined sentence-case text centred on the face, then a full-bleed screen that answers it (theirs Minecraft's 'waiting for others to go to bed', ours the real shield 'Shh. I'm sleeping. So are they.'), then the partner as the reason. Share job: tag the partner who'd do this.",
+  "compare": "everybodylovesg-wondered-why",
+  "account": "@locturne",
+  "caption": "she says it's for his own good #couples #screentime #sleep",
+  "sound": "the original's sound (subwoofer lullaby / slowed Minecraft music)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "skit: the girlfriend setting it up is a joke premise; post it as one (no 'true story' claims in comments)",
+    "AI-made photos (slide 1 shows an AI face, slide 3 a person from behind): turn on TikTok's AI-generated label",
+    "slide 2 is a crop of the real shield render (13-shield-night); fine as is",
+    "slide 1 is an AI face, so it narrates in third person ('he'); never put 'I/me' over it (blind review 11-13)"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-elg-1.jpg",
+      "caps": [
+        {
+          "text": "He wondered why his phone kept falling asleep before him...",
+          "y": 50,
+          "size": 110,
+          "style": "strong",
+          "w": 68
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/renders/r-elg-2.jpg",
+      "caps": []
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-elg-3.jpg",
+      "caps": [
+        {
+          "text": "she set it up while he was in the shower",
+          "y": 50,
+          "size": 110,
+          "style": "strong",
+          "w": 68
+        }
+      ]
+    }
+  ]
+}

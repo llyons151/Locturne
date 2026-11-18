@@ -1,0 +1,73 @@
+{
+  "title": "gerald says hi",
+  "format": "Photo dump with a tweet cover",
+  "job": "promo",
+  "why": "Loc lore as tweets between night photos; builds the character.",
+  "compare": "coke3xb-tweet-dump",
+  "account": "@loc (Loc account)",
+  "caption": "night dump 🌙 gerald or the pigeon? #raccoon #nightdump",
+  "sound": "trending soft song",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "tweets are Loc's real in-app lines; no fake counts"
+  ],
+  "slides": [
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "gerald says he's appealing.\n\ngerald is not appealing.",
+      "when": "11:04 PM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/city-night.jpg",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/01-shield.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/tea.jpg",
+      "caps": []
+    },
+    {
+      "layout": "tweet",
+      "avatar": "/demo/icon.png",
+      "name": "loc",
+      "handle": "@locturne",
+      "text": "even gerald's asleep. gerald is always asleep.",
+      "when": "12:12 AM"
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/09-moons.png",
+      "caps": []
+    },
+    {
+      "layout": "full",
+      "image": "/photos/reading-dark.jpg",
+      "caps": []
+    }
+  ],
+  "app": "confession",
+  "score": {
+    "job": 2,
+    "hook": 1,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 1,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

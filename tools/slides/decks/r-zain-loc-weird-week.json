@@ -1,0 +1,33 @@
+{
+  "title": "is it just me or do socks in bed make you sleep better",
+  "format": "\"Is it just me or…\" one-slide admission over a dim night selfie (Loc's untouched peek silhouette as the face)",
+  "job": "comments",
+  "app": "none",
+  "why": "Copies the zainfinityy post (2.1M likes, 200K saves, 11.5K comments): one dim, grainy night shot with a long lowercase 'is it just me or…' admission in small white Classic text centred over the face. On @loc the face is Loc's peek silhouette pasted from loc-peek-source.png exactly as drawn (only position and scale changed), gripping the sharp top edge of an upholstered headboard in a dim lamp-lit bedroom (no AI person). Only the formula opener is shared with the ref. The admission is a known split (socks in bed: half say 'yes, elite', half say 'absolutely not, disgusting'), so the comments argue instead of all saying 'literally me'. Reach format, no app.",
+  "compare": "zainfinityy-is-it-just-me",
+  "account": "@loc (Loc account)",
+  "caption": "be honest, socks on or socks off? #relatable #sleep #nightowl",
+  "sound": "sad trending (pick a soft sad sound like the original)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made background (an empty lamp-lit bedroom with an upholstered headboard, no person) with Loc's silhouette pasted in unaltered: turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-zain-4.jpg",
+      "caps": [
+        {
+          "text": "is it just me or do socks in bed make you sleep so much better. like if my feet are cold i'm awake till 2am, but every time i say this people look at me like i just admitted to a crime",
+          "y": 50,
+          "size": 47,
+          "style": "classic",
+          "w": 57
+        }
+      ]
+    }
+  ]
+}

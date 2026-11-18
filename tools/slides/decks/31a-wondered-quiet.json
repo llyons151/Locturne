@@ -1,0 +1,50 @@
+{
+  "title": "why my apps went quiet at 11",
+  "format": "\"I wondered why…\" → a screenshot as the punchline",
+  "job": "share",
+  "app": "punchline",
+  "variantOf": "31-wondered-phone",
+  "why": "Variant of 31: same mystery → screenshot answer → self-roast; new hook and new real photos (hand-lit-black, pov-couch-scroll).",
+  "compare": "everybodylovesg-wondered-why",
+  "account": "@locturne",
+  "caption": "past me is a genius and a menace. what time should your apps sleep? #sleep #screentime",
+  "sound": "subwoofer lullaby (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/hand-lit-black.jpg",
+      "caps": [
+        {
+          "text": "I wondered why my apps went quiet every night at 11...",
+          "y": 50,
+          "size": 125,
+          "style": "strong",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": []
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/pov-couch-scroll.jpg",
+      "caps": [
+        {
+          "text": "it was me. i did this. on purpose.",
+          "y": 30,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

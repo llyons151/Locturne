@@ -1,0 +1,63 @@
+{
+  "title": "7 habits that make 8 hours feel like 4",
+  "format": "Dark art list: a surreal painting cover with an uppercase '..' title, then one line per slide on square grey paper letterboxed on black, bold keywords",
+  "job": "save",
+  "app": "none",
+  "why": "Copies sumimxojpd0's dark art list (4.4M likes): a grotesque surreal painting cover with a white uppercase title ending in '..' just below the middle, then one short habit per slide on light-grey paper in a black letterbox, bold keywords. Cover is a real public-domain painting (Bruegel's Dulle Griet, cropped on Mad Meg; the Bosch Hell panel was tried and dropped for its small nude figures; Wikimedia), no AI image. New topic: habits that wreck sleep quality, not hours; hook ranked first of 6 by a fresh agent.",
+  "compare": "sumimxojpd0-dark-art-list",
+  "variantOf": "r-sumim-night-habits",
+  "account": "@locturne",
+  "caption": "how many are you guilty of? #sleep #tiredallthetime #habits",
+  "sound": "slow dark ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "Sleep claims are general (snooze, late caffeine, alcohol, irregular weekends, clock-checking, screens): fine as habits, don't add stats",
+    "Cover: Pieter Bruegel the Elder, Dulle Griet (1563), public domain, Wikimedia; no AI label needed"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-sumim2-cover.jpg",
+      "caps": [
+        {
+          "text": "7 HABITS THAT MAKE 8 HOURS FEEL LIKE 4..",
+          "y": 62,
+          "size": 86,
+          "style": "classic",
+          "w": 100
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p1.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p2.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p3.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p4.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p5.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p6.jpg"
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-sumim2-p7.jpg"
+    }
+  ]
+}

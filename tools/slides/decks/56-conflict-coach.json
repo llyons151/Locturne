@@ -1,0 +1,91 @@
+{
+  "title": "my coach said i'd never make 7am training",
+  "format": "Other person + conflict → \"so i…\"",
+  "job": "promo",
+  "app": "method",
+  "why": "Conflict hook #3: a morning-side doubt, so the payoff is the walk unlock, not the bedtime shield.",
+  "account": "@locturne (founder face)",
+  "caption": "coach if you see this, i was on time. who doubted you? #morningroutine #discipline #screentime",
+  "sound": "trending hype / gym",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 1: someone must have really said this. Swap 'coach' for who did",
+    "slide 3: the time must match your real payoff screen"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/moon-crescent-trees.jpg",
+      "caps": [
+        {
+          "text": "my coach said i'd never make 7am training. so i built this",
+          "y": 28,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": [
+        {
+          "text": "my apps stay asleep until i've walked 200 steps",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/03-payoff.png",
+      "caps": [
+        {
+          "text": "no snooze spiral when there is nothing to scroll",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/dawn-street.jpg",
+      "caps": [
+        {
+          "text": "first one there all week",
+          "y": 40,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        },
+        {
+          "text": "link in bio 🌙",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 1,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 1
+  }
+}

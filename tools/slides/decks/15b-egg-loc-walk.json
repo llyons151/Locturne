@@ -1,0 +1,31 @@
+{
+  "title": "200 steps so instagram talks to me",
+  "format": "\"Me in bed every morning…\" reaction picture on black",
+  "job": "share",
+  "variantOf": "15-egg-loc-crossed",
+  "why": "Variant of 15 that winks at the product without naming it: the walk-to-unlock mechanic as a reaction picture.",
+  "compare": "egg-me-in-bed",
+  "account": "@loc (Loc account)",
+  "caption": "step 147 of 200. what's the first app you open? #raccoon #morningroutine #fyp",
+  "sound": "morning flower alarm (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-path-walk.jpg",
+      "caps": [
+        {
+          "text": "me at 7am walking 200 steps so instagram will talk to me again",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 74
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "title": "how a 5-alarm guy stopped snoozing",
+  "format": "Same selfie on every slide, one tip per slide in white boxes",
+  "job": "save",
+  "why": "The same shape aimed at mornings; the credibility is the confession.",
+  "compare": "helen-psychiatrist-hacks",
+  "account": "face account",
+  "caption": "from a chronic snoozer #morningroutine #snooze",
+  "sound": "soft upbeat",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "every tip must be true for you",
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "things that made me stop snoozing (from a 5-alarm guy)\n⏰😵",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "alarm across the room\n\nyou can't snooze lying down",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "curtains open before anything\n\nlight beats coffee",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "phone stays locked until i've walked\n\nthe app wakes up when i do",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "water by the bed, drink it first\n\nit's a 10 second win",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-guy.jpg",
+      "caps": [
+        {
+          "text": "what gets you out of bed?\n\nworst answers only 👇",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    }
+  ],
+  "app": "confession"
+}

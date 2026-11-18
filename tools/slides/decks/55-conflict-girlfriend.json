@@ -1,0 +1,92 @@
+{
+  "title": "she said i'd pick my phone over her",
+  "format": "Other person + conflict → \"so i…\"",
+  "job": "promo",
+  "app": "method",
+  "why": "Conflict hook #2 for the 3-vs-3 test against the empathy decks: the doubt comes from someone close, the app is the proof.",
+  "account": "@locturne (founder face)",
+  "caption": "she reads the comments so be nice. would yours say the same? #screentime #relationships #sleep",
+  "sound": "trending soft / romantic",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 1: someone must have really said this. Swap 'she' for who did",
+    "slide 4: only if it's true"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/scrolling-overhead.jpg",
+      "caps": [
+        {
+          "text": "she said i'd pick my phone over her. so i built this",
+          "y": 64,
+          "size": 54,
+          "style": "classic",
+          "w": 78,
+          "igY": 67
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": [
+        {
+          "text": "my phone goes to sleep at 11 now",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": [
+        {
+          "text": "and it stays asleep until i've walked in the morning",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/tea.jpg",
+      "caps": [
+        {
+          "text": "she gets the first hour now, not tiktok",
+          "y": 40,
+          "size": 54,
+          "style": "outline",
+          "w": 78
+        },
+        {
+          "text": "link in bio 🌙",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 1,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 1,
+    "comment": 1,
+    "truth": 1
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "title": "me at 2am with my brightness on the lowest setting",
+  "format": "Old hand-coloured print with a small modern outlined caption, letterboxed on black, one slide",
+  "job": "share",
+  "app": "none",
+  "why": "Second take on lvnarjules' painting meme (3.7M likes): a single 1800s hand-coloured caricature print letterboxed across the middle of a black slide, a small white outlined sentence-case caption in the upper part of the print, reposted-soft. The hook is the relatable-moment formula (egg 4.6M), written as the ref's modern-statement-over-an-old-scene clash; the print is a sly man in a nightcap hiding under a blanket tent with a candle lit under his face, the 1820s version of a phone screen in the dark. Reach format, no app.",
+  "compare": "lvnarjules-painting-meme",
+  "variantOf": "r-lvnar-first-period",
+  "account": "@loc (Loc account)",
+  "caption": "what's your brightness at right now? #relatable #sleep #nightowl",
+  "sound": "a trending classical piece (the original's style of sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made print in an 1820s style (caricature figure, no real person): turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/gen-r/r-lvnar2-1.jpg",
+      "caps": [
+        {
+          "text": "Me at 2am with my\nbrightness on the lowest\nsetting so nobody\nknows I'm awake",
+          "y": 34.4,
+          "size": 38,
+          "style": "outline",
+          "w": 50
+        }
+      ]
+    }
+  ]
+}

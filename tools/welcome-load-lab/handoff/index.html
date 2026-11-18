@@ -1,0 +1,395 @@
+<title>Welcome Hand-off</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a dark lab bench of ten real-size phones, each replaying welcome → "Which one sounds like you?" */
+:root {
+  --bg: #05070d;
+  --panel: #0b0f1a;
+  --line: rgba(159, 179, 204, 0.14);
+  --fg: #eef6fb;
+  --fg2: #9fb3cc;
+  --accent: #a8c4ff;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--bg); color: var(--fg); }
+body {
+  font-family: var(--ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; }
+header h1 { margin: 0; font-size: 26px; letter-spacing: -0.4px; font-weight: 700; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--fg2); font-size: 14px; max-width: 62ch; line-height: 1.45; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.controls button, .card button {
+  font: 600 13px var(--ui); color: var(--fg); background: rgba(159, 179, 204, 0.12);
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer;
+}
+.controls button[aria-pressed="true"] { background: var(--fg); color: #0b1428; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 28px 22px; }
+.card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.card h2 span { font: 500 12px var(--mono); color: var(--fg2); margin-right: 6px; }
+.card p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--fg2); min-height: 3.6em; }
+.card .tag { font: 500 11px var(--mono); color: var(--fg2); letter-spacing: 0.2px; }
+.card .tag b { color: var(--accent); font-weight: 500; }
+
+/* The phone screen: a 393 × 852 pt stage scaled to the card. */
+.screen {
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 393 / 852; overflow: hidden;
+  border-radius: calc(var(--s, 0.7) * 54px); background: #000; cursor: pointer;
+  outline: 1px solid var(--line); outline-offset: 4px;
+}
+.stage { position: absolute; left: 0; top: 0; width: 393px; height: 852px; transform: scale(var(--s, 0.7)); transform-origin: 0 0;
+  font-family: var(--ui); color: #f2f8fc; overflow: hidden; }
+.abs { position: absolute; }
+.fill { position: absolute; inset: 0; }
+img.abs, .fill img { display: block; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+
+/* Page 2 (the question), under everything; hidden until a take brings it in. */
+.p2 { position: absolute; inset: 0; }
+.p2 .in { opacity: 0; }
+.bar { left: 62px; top: 25px; width: 249px; height: 6px; display: flex; gap: 6px; }
+.seg { flex: 1; height: 6px; border-radius: 3px; background: rgba(120, 140, 185, 0.55); overflow: hidden; position: relative; }
+.seg i { position: absolute; inset: 0 auto 0 0; width: 40%; background: #f2f8fc; border-radius: 3px; }
+.q { left: 24px; top: 92px; width: 345px; text-align: center; font-size: 32px; line-height: 38px; font-weight: 500; letter-spacing: -0.6px; }
+.opt { left: 24px; width: 345px; height: 56px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18);
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 500; color: #fff; }
+.next { left: 24px; top: 720px; width: 345px; height: 56px; border-radius: 999px; background: rgba(255, 255, 255, 0.22);
+  display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; color: rgba(255, 255, 255, 0.6); }
+.skip { left: 0; width: 393px; top: 789px; text-align: center; font-size: 15px; font-weight: 500; color: #a8bad3; }
+
+/* Page 1 (the welcome). */
+.p1 { position: absolute; inset: 0; }
+.phone { position: absolute; inset: 0; }
+.glass { left: 93.5px; top: 79.2px; width: 205.97px; height: 446.03px; border-radius: 30.9px; overflow: hidden; background: #06070c; }
+.glass video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.disc { left: -291.5px; top: 475.5px; width: 976px; height: 976px; border-radius: 50%; background: #000; opacity: 0; }
+.head { left: 0; width: 393px; top: 592px; text-align: center; font-size: 30px; line-height: 35px; font-weight: 700; letter-spacing: -0.5px; }
+.sub { left: 0; width: 393px; top: 670px; text-align: center; font-size: 15px; line-height: 20px; color: #a8bad3; }
+.w { display: inline-block; white-space: pre; }
+.go { left: 24px; top: 718px; width: 345px; height: 56px; border-radius: 999px; background: #f2f8fc; color: #0b1428;
+  display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; }
+.go .lbl { position: absolute; }
+.restore { left: 0; width: 393px; top: 790px; text-align: center; font-size: 14px; line-height: 18px; color: #a8bad3; }
+.exit { left: 340.6px; top: 19px; font-size: 15px; font-weight: 500; color: #a8bad3; }
+.lid { left: 0; width: 393px; height: 440px; background: #000; transform: scaleY(0); }
+.lid.top { top: 0; transform-origin: 50% 0; border-radius: 0 0 50% 50% / 0 0 36px 36px; }
+.lid.bot { bottom: 0; transform-origin: 50% 100%; border-radius: 50% 50% 0 0 / 36px 36px 0 0; }
+.rim { left: -703.5px; width: 1800px; height: 1800px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid rgba(178, 202, 255, 0.85); top: 852px; opacity: 0; }
+.split { overflow: hidden; }
+.tap { position: absolute; left: 24px; top: 718px; width: 345px; height: 56px; border-radius: 999px; }
+@media (prefers-reduced-motion: reduce) { .screen { cursor: default; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Get started → the first question</h1>
+      <p>Ten ways out of the welcome, each on the real layers: the moonrise backdrop, the 3D phone playing your Home recording, and the real "Which one sounds like you?" page with its sunk moon. Tap a phone (or Play) to run it. Each one holds on the question; tap again to replay.</p>
+    </div>
+    <div class="controls">
+      <button id="playAll" type="button">Play all</button>
+      <button id="slow" type="button" aria-pressed="false">Slow motion</button>
+      <button id="resetAll" type="button">Reset all</button>
+    </div>
+  </header>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+const EASE = 'cubic-bezier(.22,1,.36,1)';      // the app's ease-out, no overshoot
+const INOUT = 'cubic-bezier(.65,0,.35,1)';
+const IN = 'cubic-bezier(.55,0,.9,.4)';
+let speed = 1;
+
+const TAKES = [
+  { key: 'sunset', name: 'Sunset', tag: 'opacity + transform',
+    text: 'The phone sets behind the planet like the sun going down. Then the moon comes up under the question.' },
+  { key: 'tuck', name: 'Tucked in', tag: 'opacity + transform (3D tilt)',
+    text: 'The phone lies back flat, like it’s getting into bed, and sinks out of view. The question rises in.' },
+  { key: 'ripple', name: 'Ripple from the tap', tag: 'needs a circle mask',
+    text: 'The next page opens in a circle from your thumb on Get started. It echoes the opener’s black spreading out from the logo.' },
+  { key: 'bar', name: 'Button becomes the bar', tag: 'opacity + transform',
+    text: 'Get started shrinks and flies up into the first progress segment. The rest of the bar draws in beside it.' },
+  { key: 'blink', name: 'Slow blink', tag: 'opacity + transform',
+    text: 'Two eyelids close over the screen, hold a beat, and open on the question. Sleepy, like nodding off.' },
+  { key: 'glass', name: 'Through the glass', tag: 'opacity + transform',
+    text: 'You fall into the phone. Its screen fills yours, and Home’s night sky becomes the question’s sky.' },
+  { key: 'deal', name: 'Dealt from the phone', tag: 'opacity + transform',
+    text: 'The four answers fly out of the phone’s screen into place, as if the phone is asking. The phone shrinks away behind them.' },
+  { key: 'split', name: 'Horizon split', tag: 'opacity + transform',
+    text: 'The screen parts along the horizon: the phone slides up and the words slide down, opening onto the question.' },
+  { key: 'nod', name: 'Words nod off', tag: 'opacity + transform',
+    text: 'The headline drops one word at a time, like it’s falling asleep. Then the question rises word by word. Get started dims into Next.' },
+  { key: 'night', name: 'Nightfall', tag: 'needs a circle mask',
+    text: 'The planet rises up the screen with its thin rim, carrying the question inside it, and settles where the moon is.' },
+];
+
+const PAIN = ['Bedtime turns into 1 AM.', 'I wake up and scroll in bed.', 'Too much phone. All day.', 'Honestly? All of it.'];
+const words = (s) => s.split(' ').map((w, i, a) => `<span class="w">${w}${i < a.length - 1 ? ' ' : ''}</span>`).join('');
+
+function stageHTML() {
+  return `
+  <div class="p2">
+    <div class="p2bg fill">
+      <img class="abs in sky" src="sky.webp" alt="" style="left:0;top:0;width:393px;height:852px">
+      <img class="abs in mglow" src="moon-glow.webp" alt="" style="left:-157.2px;top:547.8px;width:707.4px;height:707.4px">
+      <img class="abs in moon" src="moon.webp" alt="" style="left:-68.8px;top:636.2px;width:530.5px;height:530.5px">
+    </div>
+    <div class="p2fg fill">
+      <div class="abs bar in"><div class="seg"><i></i></div><div class="seg"></div><div class="seg"></div></div>
+      <div class="abs q in">${words('Which one sounds')}<br>${words('like you?')}</div>
+      ${PAIN.map((t, i) => `<div class="abs opt in" style="top:${208 + i * 68}px">${t}</div>`).join('')}
+      <div class="abs next in">Next</div>
+      <div class="abs skip in">Skip for now</div>
+    </div>
+  </div>
+  <div class="p1">
+    <img class="abs wbg" src="welcome-bg.webp" alt="" style="left:0;top:0;width:393px;height:852px">
+    <div class="phone">
+      <div class="abs glass"><video src="home.mp4" muted loop playsinline autoplay preload="auto"></video></div>
+      <img class="abs frame" src="phone-frame.webp" alt="" style="left:84.64px;top:72.02px;width:223.7px;height:460.05px">
+    </div>
+    <div class="abs disc"></div>
+    <div class="abs head">${words('Your apps go to bed')}<br>${words('when you do')}</div>
+    <div class="abs sub">${words('They wake up when you’re out of bed')}</div>
+    <div class="abs go"><span class="lbl l1">Get started</span><span class="lbl l2" style="opacity:0;color:rgba(255,255,255,.6)">Next</span></div>
+    <div class="abs restore">Restore purchases</div>
+  </div>
+  <div class="abs rim"></div>
+  <div class="abs lid top"></div><div class="abs lid bot"></div>
+  <div class="abs exit">Exit</div>`;
+}
+
+// One animation: keyframes on an element, times in ms (scaled by slow motion), held at both ends.
+function A(el, frames, dur, delay = 0, easing = EASE) {
+  if (!el) return null;
+  // Only an element's first animation fills backwards; a later one would otherwise jump it to its own start at the tap.
+  const fill = el.getAnimations().length ? 'forwards' : 'both';
+  return el.animate(frames, { duration: dur * speed, delay: delay * speed, easing, fill });
+}
+const all = (st, sel) => [...st.querySelectorAll(sel)];
+const one = (st, sel) => st.querySelector(sel);
+
+// Fade-and-rise for page 2's foreground, used by most takes.
+function riseQuestion(st, t0, { dy = 14, gap = 45 } = {}) {
+  const items = [one(st, '.bar'), one(st, '.q'), ...all(st, '.opt'), one(st, '.next'), one(st, '.skip')];
+  items.forEach((el, i) => A(el, [{ opacity: 0, transform: `translateY(${dy}px)` }, { opacity: 1, transform: 'none' }], 520, t0 + i * gap));
+}
+function showSky(st, t0, dur = 600, moonFrom = 60) {
+  A(one(st, '.sky'), [{ opacity: 0 }, { opacity: 1 }], dur, t0, 'linear');
+  [one(st, '.mglow'), one(st, '.moon')].forEach((el) =>
+    A(el, [{ opacity: 0, transform: `translateY(${moonFrom}px)` }, { opacity: 1, transform: 'none' }], dur + 300, t0, EASE));
+}
+function fadeOut(els, dur, delay = 0, extra = {}) {
+  els.forEach((el) => A(el, [{ opacity: 1, transform: 'none' }, { opacity: 0, ...extra }], dur, delay, 'ease-out'));
+}
+function welcomeWordsOut(st, delay = 0, dur = 220) {
+  fadeOut([one(st, '.head'), one(st, '.sub'), one(st, '.go'), one(st, '.restore')], dur, delay);
+}
+function press(st) { // the button's press, before any take
+  A(one(st, '.go'), [{ transform: 'scale(1)' }, { transform: 'scale(0.97)', offset: 0.4 }, { transform: 'scale(1)' }], 220, 0, 'ease-out');
+}
+
+const PLAY = {
+  // 1. The phone sets behind the planet. A black disc the planet's size (invisible over its black) rises from just under the
+  //    phone to the rim, so the phone slides behind the horizon. On iPhone: one black circle View above the phone.
+  sunset(st) {
+    press(st);
+    welcomeWordsOut(st, 60);
+    A(one(st, '.disc'), [{ opacity: 1, transform: 'translateY(58px)' }, { opacity: 1, transform: 'none' }], 380, 120, EASE);
+    A(one(st, '.phone'), [{ transform: 'none' }, { transform: 'translateY(480px)' }], 1100, 120, 'cubic-bezier(.45,0,.55,1)');
+    A(one(st, '.wbg'), [{ opacity: 1 }, { opacity: 0 }], 700, 900, 'ease-in-out');
+    A(one(st, '.phone'), [{ opacity: 1 }, { opacity: 0 }], 1, 1220, 'linear'); // fully set: gone before the disc lifts
+    A(one(st, '.disc'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'none' }], 500, 1240, 'ease-in-out');
+    showSky(st, 950, 700, 140);
+    riseQuestion(st, 1250);
+  },
+  // 2. The phone tips back flat (rotateX from its base) and sinks, as if lying down.
+  tuck(st) {
+    press(st);
+    welcomeWordsOut(st, 60);
+    const ph = one(st, '.phone');
+    ph.style.transformOrigin = '196.5px 532px';
+    A(ph, [{ transform: 'perspective(900px) rotateX(0deg)', opacity: 1 },
+           { transform: 'perspective(900px) translateY(20px) rotateX(62deg)', opacity: 1, offset: 0.55 },
+           { transform: 'perspective(900px) translateY(170px) rotateX(78deg)', opacity: 0 }], 1150, 100, 'cubic-bezier(.5,0,.3,1)');
+    A(one(st, '.wbg'), [{ opacity: 1 }, { opacity: 0 }], 700, 650, 'ease-in-out');
+    showSky(st, 650, 700, 90);
+    riseQuestion(st, 1000);
+  },
+  // 3. The question opens in a circle from the tap. On iPhone: a circle View (overflow hidden) scaling up, the page inside
+  //    scaled back the other way so it stays still.
+  ripple(st) {
+    press(st);
+    const p2 = one(st, '.p2');
+    p2.style.zIndex = 5;
+    all(st, '.p2bg .in').forEach((el) => A(el, [{ opacity: 1 }, { opacity: 1 }], 1));
+    A(p2, [{ clipPath: 'circle(0px at 196.5px 746px)' }, { clipPath: 'circle(790px at 196.5px 746px)' }], 820, 90, 'cubic-bezier(.6,0,.2,1)');
+    const fg = all(st, '.p2fg > *');
+    fg.forEach((el, i) => A(el, [{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], 520, 380 + i * 30));
+  },
+  // 4. Get started flies up into the first progress segment; the other two segments draw in after.
+  bar(st) {
+    press(st);
+    fadeOut([one(st, '.head'), one(st, '.sub'), one(st, '.restore')], 240, 40);
+    A(one(st, '.l1'), [{ opacity: 1 }, { opacity: 0 }], 140, 60, 'ease-out');
+    A(one(st, '.phone'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-30px) scale(.94)' }], 520, 80, EASE);
+    // Pill (24,718 345×56) → segment (62,25 79×6): scale about its own top-left.
+    const go = one(st, '.go');
+    go.style.transformOrigin = '0 0';
+    A(go, [{ transform: 'none', background: '#f2f8fc', borderRadius: '999px' },
+           { transform: 'translate(20px,-380px) scale(.5,.42)', background: '#f2f8fc', borderRadius: '999px', offset: 0.55 },
+           { transform: 'translate(38px,-693px) scale(0.229,0.107)', background: '#f2f8fc', borderRadius: '999px' }], 760, 160, 'cubic-bezier(.5,0,.2,1)');
+    A(go, [{ opacity: 1 }, { opacity: 0 }], 120, 920, 'linear');
+    const bar = one(st, '.bar');
+    A(bar, [{ opacity: 0 }, { opacity: 1 }], 1, 900);
+    const segs = all(st, '.seg');
+    A(segs[0].querySelector('i'), [{ width: '100%' }, { width: '40%' }], 420, 920, EASE);
+    segs.slice(1).forEach((s, i) => { s.style.transformOrigin = '0 50%';
+      A(s, [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'none', opacity: 1 }], 420, 960 + i * 90, EASE); });
+    A(one(st, '.wbg'), [{ opacity: 1 }, { opacity: 0 }], 700, 400, 'ease-in-out');
+    showSky(st, 400, 700, 80);
+    const items = [one(st, '.q'), ...all(st, '.opt'), one(st, '.next'), one(st, '.skip')];
+    items.forEach((el, i) => A(el, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], 520, 1000 + i * 45));
+  },
+  // 5. Eyelids close, hold, and open on the question.
+  blink(st) {
+    press(st);
+    const [top, bot] = [one(st, '.lid.top'), one(st, '.lid.bot')];
+    const close = [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }];
+    A(top, close, 420, 100, 'cubic-bezier(.5,0,.75,0)');
+    A(bot, close, 420, 100, 'cubic-bezier(.5,0,.75,0)');
+    A(one(st, '.p1'), [{ opacity: 1 }, { opacity: 0 }], 1, 540);
+    all(st, '.p2 .in').forEach((el) => A(el, [{ opacity: 0 }, { opacity: 1 }], 1, 540));
+    const open = [{ transform: 'scaleY(1)' }, { transform: 'scaleY(0)' }];
+    A(top, open, 640, 700, EASE);
+    A(bot, open, 640, 700, EASE);
+    const items = [one(st, '.q'), ...all(st, '.opt')];
+    items.forEach((el, i) => A(el, [{ transform: 'translateY(8px)' }, { transform: 'none' }], 640, 700 + i * 30));
+  },
+  // 6. Fall into the phone: its screen grows to fill yours, then gives way to the question's sky.
+  glass(st) {
+    press(st);
+    welcomeWordsOut(st, 40, 200);
+    const ph = one(st, '.phone');
+    ph.style.transformOrigin = '196.5px 302.2px';
+    A(ph, [{ transform: 'none' }, { transform: 'translateY(123.8px) scale(2.02)' }], 900, 120, 'cubic-bezier(.6,0,.25,1)');
+    A(one(st, '.wbg'), [{ opacity: 1 }, { opacity: 0 }], 500, 400, 'ease-in');
+    A(ph, [{ opacity: 1 }, { opacity: 0 }], 520, 820, 'ease-in-out');
+    showSky(st, 700, 500, 40);
+    riseQuestion(st, 1050);
+  },
+  // 7. The answers fly out of the phone's screen into place.
+  deal(st) {
+    press(st);
+    welcomeWordsOut(st, 40);
+    const ph = one(st, '.phone');
+    ph.style.transformOrigin = '196.5px 302px';
+    A(ph, [{ transform: 'none', opacity: 1 }, { transform: 'scale(.55)', opacity: 0 }], 900, 300, 'cubic-bezier(.4,0,.2,1)');
+    A(one(st, '.wbg'), [{ opacity: 1 }, { opacity: 0 }], 700, 400, 'ease-in-out');
+    showSky(st, 500, 700, 80);
+    all(st, '.opt').forEach((el, i) => {
+      const dy = 302 - (208 + i * 68 + 28);
+      A(el, [{ opacity: 0, transform: `translateY(${dy}px) scale(.42)` }, { opacity: 1, transform: 'none' }], 700, 340 + i * 80, 'cubic-bezier(.2,.8,.25,1)');
+    });
+    A(one(st, '.q'), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], 520, 800);
+    A(one(st, '.bar'), [{ opacity: 0 }, { opacity: 1 }], 400, 800);
+    A(one(st, '.next'), [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], 520, 900);
+    A(one(st, '.skip'), [{ opacity: 0 }, { opacity: 1 }], 520, 960);
+  },
+  // 8. The screen parts at the horizon: top half up, bottom half down.
+  split(st) {
+    press(st);
+    const p1 = one(st, '.p1');
+    // Two windows onto the welcome, cut at y = 562 (between the phone and the headline).
+    const top = p1.cloneNode(true), bot = p1.cloneNode(true);
+    [top, bot].forEach((n) => { n.classList.add('splitHalf'); st.insertBefore(n, p1.nextSibling); });
+    top.style.clipPath = 'inset(0 0 290px 0)';
+    bot.style.clipPath = 'inset(562px 0 0 0)';
+    const v = p1.querySelector('video'); [top, bot].forEach((n) => { const nv = n.querySelector('video'); nv.currentTime = v.currentTime; nv.play().catch(() => {}); });
+    p1.style.visibility = 'hidden';
+    all(st, '.p2 .in').forEach((el) => A(el, [{ opacity: 1 }, { opacity: 1 }], 1));
+    A(top, [{ transform: 'none' }, { transform: 'translateY(-580px)' }], 900, 120, 'cubic-bezier(.65,0,.3,1)');
+    A(bot, [{ transform: 'none' }, { transform: 'translateY(300px)' }], 900, 120, 'cubic-bezier(.65,0,.3,1)');
+    A(one(st, '.p2'), [{ transform: 'scale(.94)', opacity: .4 }, { transform: 'none', opacity: 1 }], 900, 120, EASE);
+  },
+  // 9. The headline drops a word at a time; the question rises a word at a time; Get started dims into Next.
+  nod(st) {
+    press(st);
+    const ws = [...all(st, '.head .w'), ...all(st, '.sub .w')];
+    ws.forEach((w, i) => A(w, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateY(26px) rotate(${i % 2 ? 4 : -4}deg)` }], 520, 60 + i * 45, IN));
+    A(one(st, '.restore'), [{ opacity: 1 }, { opacity: 0 }], 260, 60);
+    const ph = one(st, '.phone');
+    A(ph, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(60px)' }], 900, 300, 'cubic-bezier(.5,0,.5,1)');
+    A(one(st, '.wbg'), [{ opacity: 1 }, { opacity: 0 }], 800, 600, 'ease-in-out');
+    showSky(st, 600, 800, 80);
+    const go = one(st, '.go');
+    A(go, [{ background: '#f2f8fc', transform: 'none' }, { background: 'rgba(255,255,255,0.22)', transform: 'translateY(2px)' }], 600, 700, EASE);
+    A(one(st, '.l1'), [{ opacity: 1 }, { opacity: 0 }], 240, 700, 'ease-out');
+    A(one(st, '.l2'), [{ opacity: 0 }, { opacity: 1 }], 300, 900, 'ease-out');
+    A(one(st, '.q'), [{ opacity: 1 }, { opacity: 1 }], 1, 1000);
+    all(st, '.q .w').forEach((w, i) => A(w, [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], 520, 1000 + i * 70));
+    all(st, '.opt').forEach((el, i) => A(el, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], 520, 1350 + i * 60));
+    A(one(st, '.bar'), [{ opacity: 0 }, { opacity: 1 }], 400, 1100);
+    A(one(st, '.skip'), [{ opacity: 0 }, { opacity: 1 }], 400, 1500);
+  },
+  // 10. A huge planet rises up the screen, the question inside it, a thin rim on its edge.
+  night(st) {
+    press(st);
+    welcomeWordsOut(st, 60, 260);
+    A(one(st, '.phone'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-50px) scale(.96)' }], 900, 200, EASE);
+    const p2 = one(st, '.p2');
+    p2.style.zIndex = 5;
+    all(st, '.p2bg .in').forEach((el) => A(el, [{ opacity: 1 }, { opacity: 1 }], 1));
+    A(p2, [{ clipPath: 'circle(900px at 196.5px 1752px)' }, { clipPath: 'circle(900px at 196.5px 640px)' }], 1150, 120, 'cubic-bezier(.55,0,.25,1)');
+    const rim = one(st, '.rim');
+    A(rim, [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-1112px)', opacity: 1 }], 1150, 120, 'cubic-bezier(.55,0,.25,1)');
+    A(rim, [{ opacity: 1 }, { opacity: 0 }], 300, 1100, 'ease-out');
+    riseQuestion(st, 950);
+  },
+};
+
+const grid = document.getElementById('grid');
+const cards = TAKES.map((t, i) => {
+  const card = document.createElement('section');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="meta"><h2><span>${String(i + 1).padStart(2, '0')}</span>${t.name}</h2><button type="button" class="play">Play</button></div>
+    <p>${t.text}</p>
+    <div class="screen" role="button" tabindex="0" aria-label="Play ${t.name}"><div class="stage">${stageHTML()}</div></div>
+    <div class="tag">iPhone: <b>${t.tag}</b></div>`;
+  grid.appendChild(card);
+  const screen = card.querySelector('.screen');
+  const st = card.querySelector('.stage');
+  const run = () => { reset(st); requestAnimationFrame(() => PLAY[t.key](st)); };
+  card.querySelector('.play').addEventListener('click', run);
+  screen.addEventListener('click', run);
+  screen.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(); } });
+  new ResizeObserver(([e]) => screen.style.setProperty('--s', e.contentRect.width / 393)).observe(screen);
+  return { st, run };
+});
+
+function reset(st) {
+  st.querySelectorAll('.splitHalf').forEach((n) => n.remove());
+  st.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+  st.querySelectorAll('.p1, .p2, .phone, .go').forEach((n) => { n.style.visibility = ''; n.style.zIndex = ''; n.style.clipPath = ''; n.style.transformOrigin = ''; });
+  st.querySelectorAll('.seg').forEach((n) => (n.style.transformOrigin = ''));
+}
+
+document.getElementById('playAll').addEventListener('click', () => cards.forEach((c) => c.run()));
+document.getElementById('resetAll').addEventListener('click', () => cards.forEach((c) => reset(c.st)));
+const slow = document.getElementById('slow');
+slow.addEventListener('click', () => { speed = speed === 1 ? 3 : 1; slow.setAttribute('aria-pressed', String(speed !== 1)); });
+
+// Keep only the videos on screen playing.
+const io = new IntersectionObserver((es) => es.forEach((e) => e.target.querySelectorAll('video').forEach((v) => (e.isIntersecting ? v.play().catch(() => {}) : v.pause()))));
+cards.forEach((c) => io.observe(c.st));
+</script>

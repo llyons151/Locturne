@@ -1,0 +1,33 @@
+{
+  "title": "i'm a type c sleeper",
+  "format": "\"i'm a type ___ girl\" one-slide identity text block over a dim red-lit night selfie (Loc's untouched peek silhouette as the face)",
+  "job": "identity",
+  "app": "none",
+  "why": "Copies blondequeen's one-slide post (3.2M likes, 218K saves, 90K shares): a dark front-camera shot lit only by red LED light, the face filling the frame, and a centred lowercase white Classic text block of 'i can X, i can Y' contradictions. On @loc the face is Loc's peek silhouette pasted from loc-peek-source.png exactly as drawn (only position and scale changed), gripping the sharp top rail of a headboard in a busy red LED bedroom (frame filled like the ref's face) (no AI person). Loc speaks, but every contradiction is the viewer's own night and morning (exhausted all day / wide awake in bed, sleeps through 6 alarms / wakes a minute before the 7th, 'one more video' / watches 40), so a stranger can claim the type. Reach/identity, no app.",
+  "compare": "blondequeen-type-c",
+  "account": "@loc (Loc account)",
+  "caption": "be honest, which type are you? #typec #relatable #sleep",
+  "sound": "trending (the soft sped-up kind the original used)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made background (an empty red LED bedroom, no person) with Loc's silhouette pasted in unaltered: turn on TikTok's AI-generated label"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-typec-4.jpg",
+      "caps": [
+        {
+          "text": "i'm a type c sleeper\ni can be exhausted all day, i can be wide awake the second i lie down. i can sleep through 6 alarms, but wake up 1 minute before the 7th. i say \"one more video\", but always watch 40",
+          "y": 53,
+          "size": 46,
+          "style": "classic",
+          "w": 70
+        }
+      ]
+    }
+  ]
+}

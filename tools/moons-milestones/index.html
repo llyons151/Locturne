@@ -1,0 +1,391 @@
+<title>Moons Page Takes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one iPhone-width screen in the app's own Moonrise palette, ten takes switched by the chips above it. */
+:root {
+  color-scheme: dark;
+  --bg: #000000;          /* plain black (user, 2026-11-16) */
+  --bg-top: #000000;
+  --surface: #161617;     /* charcoal cards, user preference */
+  --raised: #202022;
+  --text: #F2F8FC;
+  --text2: #A8BAD3;
+  --text3: #8699B8;
+  --track: #1D2B4E;
+  --progress-track: #56698F;
+  --edge: rgba(221,240,248,0.16);
+  --line: rgba(221,240,248,0.08);
+  --glass: rgba(255,255,255,0.05);
+  --locked: #2C2C30;      /* moon-thumb.tsx LOCKED_ICON */
+  --cta: #F2F8FC;
+  --on-cta: #0B1428;
+  --page: #000000;
+  --font: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, Inter, "Helvetica Neue", Arial, sans-serif;
+  --r-card: 20px;
+  --r-control: 12px;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.picker { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 520px; }
+.picker button { font: 600 13px/1 var(--font); color: var(--text2); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 9px 13px; cursor: pointer; }
+.picker button[aria-pressed="true"] { background: var(--cta); color: var(--on-cta); border-color: transparent; }
+.picker button:focus-visible, .screen button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.about { max-width: 402px; text-align: center; color: var(--text2); font-size: 13px; line-height: 18px; text-wrap: balance; min-height: 36px; }
+.about b { color: var(--text); font-weight: 600; }
+
+.screen { position: relative; width: 100%; max-width: 402px; height: 860px; max-height: calc(100vh - 150px); min-height: 640px; border-radius: 44px; overflow: hidden; background: var(--bg); border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.sky { position: absolute; inset: 0 0 auto; height: 560px; pointer-events: none; transition: opacity .5s; }
+.content { position: relative; padding: 58px 20px 40px; display: flex; flex-direction: column; gap: 22px; }
+.bar { display: flex; justify-content: space-between; align-items: center; }
+.round { width: 44px; height: 44px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; color: var(--text); cursor: pointer; }
+.round svg { width: 19px; height: 19px; }
+.page-title { margin: 0; text-align: center; font-size: 28px; line-height: 33px; font-weight: 700; letter-spacing: -0.4px; } /* Type.title, below the buttons (user, 2026-11-16) */
+.big-title { margin: 0; font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: -0.4px; text-align: center; }
+
+
+/* The worn moon pokes in from the top with its drag, as on the morning payoff (user asked, 2026-11-16).
+   Moon art is FROST_PAD 1.5x its disc; drag box from moon-drag.ts DRAG_BOX, in disc radii. */
+.toplight { position: absolute; left: 50%; top: 0; width: 0; height: 0; pointer-events: none; }
+.toplight img { position: absolute; display: block; max-width: none; transition: opacity .4s; }
+/* Hero */
+.hero { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; margin-top: 24px; } /* clears the moon at the top */
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text2); }
+.milestone { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.milestone .m-title { font-size: 22px; line-height: 27px; font-weight: 700; letter-spacing: -0.3px; }
+.milestone .m-sub { font-size: 15px; line-height: 20px; color: var(--text2); }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--edge); font-size: 15px; font-weight: 600; }
+.pill .dim { color: var(--text2); font-weight: 500; }
+.moon-hero { position: relative; display: grid; place-items: center; }
+.moon-hero img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.moon-name { font-size: 15px; color: var(--text2); }
+.moon-name b { color: var(--text); font-weight: 600; }
+.meter { height: 6px; border-radius: 3px; background: var(--progress-track); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--text); border-radius: 3px; }
+
+/* Stats */
+.stats2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 14px; display: flex; gap: 10px; align-items: center; min-width: 0; }
+.stat-card .ic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; }
+.stat-card .ic img { width: 30px; height: 30px; }
+.stat-card .v { font-size: 17px; font-weight: 700; line-height: 22px; }
+.stat-card .k { font-size: 13px; color: var(--text2); line-height: 17px; }
+.stat-card .meter { margin-top: 6px; }
+.stats3 { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.stats3 > div { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
+.stats3 > div + div { border-left: 1px solid var(--line); }
+.stats3 .v { font-size: 28px; line-height: 33px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.4px; }
+.stats3 .k { font-size: 13px; color: var(--text2); }
+.statline { text-align: center; color: var(--text2); font-size: 15px; line-height: 22px; }
+.statline b { color: var(--text); font-weight: 600; }
+.sun { width: 16px; height: 16px; vertical-align: -2px; color: var(--text); }
+
+/* Collection */
+.section { display: flex; flex-direction: column; gap: 12px; }
+.section h2 { margin: 0; text-align: center; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 10px; }
+.grid.four { grid-template-columns: repeat(4, 1fr); gap: 14px 8px; }
+.cell { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; min-width: 0; }
+.tile { width: 100%; aspect-ratio: 1; display: grid; place-items: center; position: relative; }
+.tile.glass { background: var(--glass); border: 1px solid var(--edge); border-radius: var(--r-card); }
+.tile.wearing { border: 2px solid var(--text); }
+.tile.wearing-dot::after { content: ""; position: absolute; bottom: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
+.icon { width: 80%; aspect-ratio: 1; position: relative; }
+.icon img { width: 100%; height: 100%; display: block; }
+.icon.locked .mask { position: absolute; inset: 0; background: var(--locked); -webkit-mask: url(moons/night.png) center / contain no-repeat; mask: url(moons/night.png) center / contain no-repeat; }
+.icon .q { position: absolute; left: 51.2%; top: 46.6%; transform: translate(-50%, -50%); color: var(--text2); font-weight: 600; }
+.cell .n { font-size: 14px; font-weight: 600; line-height: 18px; }
+.cell .h { font-size: 12px; color: var(--text2); line-height: 16px; }
+.cell.is-locked .n { color: var(--text2); }
+.cell.is-locked .h { color: var(--text3); }
+.cell .meter { width: 70%; height: 4px; }
+
+.rows { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.row + .row { border-top: 1px solid var(--line); }
+.row .icon { width: 48px; flex: none; }
+.row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row .n { font-size: 16px; font-weight: 600; }
+.row .h { font-size: 13px; color: var(--text2); }
+.row.is-locked .n { color: var(--text2); }
+.row .end { font-size: 13px; color: var(--text2); flex: none; text-align: right; }
+.row .end .meter { width: 54px; height: 4px; margin-top: 4px; }
+
+.shelf { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 0 20px 4px; scrollbar-width: none; }
+.shelf::-webkit-scrollbar { display: none; }
+.shelf .cell { width: 96px; flex: none; }
+.shelf-head { display: flex; justify-content: space-between; align-items: baseline; }
+.shelf-head span { font-size: 13px; color: var(--text2); }
+
+.track { display: flex; align-items: center; justify-content: center; gap: 0; width: 100%; }
+.track .stop { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; width: 40px; }
+.track .dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--progress-track); background: var(--bg); }
+.track .stop.done .dot { background: var(--text); border-color: var(--text); }
+.track .stop.done { color: var(--text2); }
+.track .stop.next .dot { border-color: var(--text); width: 14px; height: 14px; }
+.track .stop.next { color: var(--text); font-weight: 600; }
+.track .seg { flex: 1; height: 1.5px; background: var(--progress-track); margin-bottom: 18px; max-width: 26px; }
+.track .seg.done { background: var(--text); }
+
+/* Sheet */
+.scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet { position: absolute; left: 8px; right: 8px; bottom: 8px; background: #1C1C1E; border-radius: 36px; padding: 10px 22px 22px; transform: translateY(110%); transition: transform .35s cubic-bezier(.2,.9,.25,1); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; box-shadow: 0 -4px 24px rgba(0,0,0,0.4); }
+.sheet.on { transform: none; }
+.grab { width: 36px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.25); }
+.sheet .icon { width: 150px; }
+.sheet h3 { margin: 0; font-size: 24px; line-height: 29px; font-weight: 700; letter-spacing: -0.4px; }
+.sheet .tag { font-size: 15px; color: var(--text2); margin-top: -6px; }
+.facts { width: 100%; background: var(--raised); border-radius: var(--r-card); display: flex; flex-direction: column; text-align: left; }
+.facts div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; font-size: 15px; }
+.facts div + div { border-top: 1px solid var(--line); }
+.facts span:first-child { color: var(--text2); font-weight: 600; font-size: 14px; }
+.facts span:last-child { text-align: right; }
+.facts .meter { margin: 0 16px 14px; }
+.cta { width: 100%; height: 56px; border-radius: 999px; border: 0; background: var(--cta); color: var(--on-cta); font: 600 17px var(--font); cursor: pointer; }
+.cta[disabled] { background: var(--raised); color: var(--text2); cursor: default; }
+.link { background: none; border: 0; color: var(--text2); font: 500 15px var(--font); cursor: pointer; padding: 4px; }
+
+/* Home's pills (home-content.ios.tsx): 36pt capsule, white 8%, 14 side padding, gap 6, heavy callout value + grey subheadline label. */
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.hpill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.08); border: 0; color: var(--text); font: inherit; white-space: nowrap; }
+button.hpill { cursor: pointer; }
+.hpill svg { width: 15px; height: 15px; flex: none; color: var(--text); }
+.hpill img { width: 20px; height: 20px; flex: none; }
+.hpill .pv { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hpill .pl { font-size: 15px; color: var(--text2); }
+.hpill .words { display: inline-flex; gap: 6px; align-items: center; }
+.hpill .words.flipped { animation: flipIn .3s ease; }
+@keyframes nudge { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.nudge { animation: nudge .25s ease; }
+@keyframes flipIn { from { opacity: 0; filter: blur(4px); transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .hpill .words { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .scrim, .sky { transition: none; } }
+@media (max-width: 440px) { .screen { border-radius: 28px; max-height: none; height: 820px; } }
+</style>
+
+<div class="wrap">
+  <nav class="picker" id="picker" aria-label="Takes"></nav>
+  <p class="about" id="about"></p>
+  <div class="screen" id="screen">
+    <div class="sky" id="sky"></div>
+    <div class="scroll"><div class="toplight" id="toplight"></div><div class="content" id="content"></div></div>
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></div>
+  </div>
+</div>
+
+<script>
+// ---- Example data: 16 mornings, 6 in a row (best 11), wearing Harvest. Streak moons are the study's proposal. ----
+const TODAY = { mornings: 16, streak: 6, best: 11 };
+const M = {
+  moonlight:  { name: 'Moonlight', tag: 'you start with this', sky: ['#05060A', '#1C2A55', '#2C3F78'] },
+  deepsea:    { name: 'Deep Sea', tag: 'underwater', sky: ['#020508', '#062A38', '#0E6A70'] },
+  harvest:    { name: 'Harvest Moon', tag: 'September', sky: ['#050302', '#2A1300', '#542900'] },
+  full:       { name: 'Full Moon', tag: 'as it really looks', sky: ['#030407', '#0D1422', '#283550'] },
+  twilight:   { name: 'Twilight', tag: 'blue, violet, pink', sky: ['#03040C', '#141A4A', '#5A3A8A'] },
+  ember:      { name: 'Ember', tag: 'burning low', sky: ['#040202', '#2A0604', '#8A1E08'] },
+  noir:       { name: 'Noir', tag: 'black and white', sky: ['#000000', '#0E0E0E', '#3A3A3A'] },
+  blood:      { name: 'Blood Moon', tag: 'total lunar eclipse', sky: ['#050203', '#260002', '#3A0608'] },
+  lagoon:     { name: 'Lagoon', tag: 'turquoise and sand', sky: ['#020608', '#06303A', '#0E8A90'] },
+  prism:      { name: 'Prism', tag: 'a rainbow moon', sky: ['#030306', '#12122A', '#2A2A50'] },
+  eclipse:    { name: 'Eclipse', tag: 'the rarest', sky: ['#060403', '#2A1915', '#6E4636'] },
+  aurora:     { name: 'Aurora', tag: 'the northern one', sky: ['#030605', '#0B2A20', '#2A7058'] },
+  galaxy:     { name: 'Galaxy', tag: 'purple and pink', sky: ['#040310', '#1A1050', '#5A2A90'] },
+  solstice:   { name: 'Solstice', tag: 'the longest night', sky: ['#030310', '#141050', '#7A2050'] },
+  midnightsun:{ name: 'Midnight Sun', tag: 'night and day at once', sky: ['#030612', '#0E2258', '#3A4A8A'] },
+  bluehour:   { name: 'Blue Hour', tag: 'just before sunrise', sky: ['#04070F', '#13305C', '#3E6CA8'] },
+  strawberry: { name: 'Strawberry Moon', tag: 'June', sky: ['#060305', '#2B0E1D', '#6C2B4A'] },
+  micromoon:  { name: 'Micromoon', tag: 'farthest from Earth', sky: ['#020306', '#0A0F1C', '#1E2840'] },
+  bluemoon:   { name: 'Blue Moon', tag: 'once in a blue moon', sky: ['#000103', '#020D3B', '#07277D'] },
+};
+// track: start | mornings | row | year | secret | rare. `got`: the morning it came.
+const LIST = [
+  { id: 'moonlight', track: 'start', got: { date: 'Sun 2 Nov', morning: 0 } },
+  { id: 'deepsea', track: 'mornings', at: 1, got: { date: 'Sun 2 Nov', morning: 1, how: 'Walked 200 steps' } },
+  { id: 'harvest', track: 'mornings', at: 3, got: { date: 'Tue 4 Nov', morning: 3, how: 'Walked 200 steps' } },
+  { id: 'full', track: 'mornings', at: 7, got: { date: 'Sat 8 Nov', morning: 7, how: 'Push-ups' } },
+  { id: 'twilight', track: 'mornings', at: 14, got: { date: 'Fri 14 Nov', morning: 14, how: 'Scanned the code' } },
+  { id: 'ember', track: 'mornings', at: 30 },
+  { id: 'noir', track: 'mornings', at: 50 },
+  { id: 'blood', track: 'mornings', at: 100 },
+  { id: 'lagoon', track: 'mornings', at: 150 },
+  { id: 'prism', track: 'mornings', at: 200 },
+  { id: 'eclipse', track: 'year' },
+  { id: 'aurora', track: 'row', at: 10, got: { date: 'Tue 11 Nov', morning: 10, how: '10 in a row' } },
+  { id: 'galaxy', track: 'row', at: 21 },
+  { id: 'solstice', track: 'row', at: 45 },
+  { id: 'midnightsun', track: 'row', at: 90 },
+  { id: 'bluehour', track: 'secret', got: { date: 'Wed 5 Nov', morning: 4, how: 'Up at 4:52' } },
+  { id: 'strawberry', track: 'secret' },
+  { id: 'micromoon', track: 'secret' },
+  { id: 'bluemoon', track: 'rare' },
+];
+const TOTAL = LIST.length;
+const OWNED = () => LIST.filter((m) => m.got).length;
+let wearing = 'harvest';
+
+const progressOf = (m) => m.track === 'mornings' ? TODAY.mornings / m.at : m.track === 'row' ? TODAY.streak / m.at : m.track === 'year' ? 14 / 350 : 0;
+const toGo = (m) => m.track === 'mornings' ? m.at - TODAY.mornings : m.track === 'row' ? m.at - TODAY.streak : null;
+function howLine(m) {
+  if (m.track === 'start') return 'You start with this';
+  if (m.got) return m.track === 'secret' ? `Found ${m.got.date.slice(4)}` : m.track === 'row' ? `${m.at} in a row` : `Morning ${m.got.morning}`;
+  if (m.track === 'mornings') return `${m.at} mornings`;
+  if (m.track === 'row') return `${m.at} in a row`;
+  if (m.track === 'year') return 'A year of mornings';
+  if (m.track === 'rare') return 'Rare';
+  return 'Secret';
+}
+const nameOf = (m) => (m.got || (m.track !== 'secret' && m.track !== 'rare')) ? M[m.id].name : '???';
+const nextMorning = LIST.find((m) => m.track === 'mornings' && !m.got);
+const nextRow = LIST.find((m) => m.track === 'row' && !m.got);
+
+// ---- Pieces ----
+const sunSvg = '<svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18h16M7 14a5 5 0 0 1 10 0M12 4v3M4.9 8.1l1.6 1.6M19.1 8.1l-1.6 1.6M2 14h2M20 14h2M9 21h6"/></svg>';
+function icon(m, size) {
+  const style = size ? ` style="width:${size}px"` : '';
+  if (!m.got && m.track !== 'start') {
+    const q = (m.track === 'secret' || m.track === 'rare') ? `<span class="q" style="font-size:${size ? size * 0.28 : 22}px">?</span>` : '';
+    return `<div class="icon locked"${style}><div class="mask"></div>${q}</div>`;
+  }
+  return `<div class="icon"${style}><img src="moons/${m.id}.webp" alt=""></div>`;
+}
+const meter = (p) => `<div class="meter"><i style="width:${Math.max(4, Math.min(100, p * 100)).toFixed(0)}%"></i></div>`;
+function cell(m, opts = {}) {
+  const locked = !m.got && m.track !== 'start';
+  const showMeter = opts.meters && locked && (m === nextMorning || m === nextRow);
+  const tileCls = ['tile', opts.glass ? 'glass' : '', opts.glass && m.id === wearing ? 'wearing' : '', !opts.glass && m.id === wearing ? 'wearing-dot' : ''].join(' ');
+  return `<button class="cell ${locked ? 'is-locked' : ''}" data-id="${m.id}" aria-label="${nameOf(m)}, ${howLine(m)}">
+    <div class="${tileCls}">${icon(m)}</div>
+    <div><div class="n">${nameOf(m)}</div><div class="h">${howLine(m)}</div></div>
+    ${showMeter ? meter(progressOf(m)) : ''}
+  </button>`;
+}
+function row(m) {
+  const locked = !m.got && m.track !== 'start';
+  let end = '';
+  if (m.id === wearing) end = 'Wearing';
+  else if (m.got) end = m.got.date.slice(4);
+  else if (m === nextMorning || m === nextRow) end = `${toGo(m)} to go${meter(progressOf(m))}`;
+  return `<button class="row ${locked ? 'is-locked' : ''}" data-id="${m.id}">${icon(m)}<div class="txt"><span class="n">${nameOf(m)}</span><span class="h">${howLine(m)}</span></div><div class="end">${end}</div></button>`;
+}
+const groups = () => [
+  { title: 'Mornings', items: LIST.filter((m) => m.track === 'start' || m.track === 'mornings' || m.track === 'year') },
+  { title: 'In a row', items: LIST.filter((m) => m.track === 'row') },
+  { title: 'Secret', items: LIST.filter((m) => m.track === 'secret' || m.track === 'rare') },
+];
+const label = (t) => `<h2 class="eyebrow">${t}</h2>`;
+const gridAll = (opts) => groups().map((g) => `<section class="section">${label(g.title)}<div class="grid ${opts.four ? 'four' : ''}">${g.items.map((m) => cell(m, opts)).join('')}</div></section>`).join('');
+const gridFlat = (opts) => `<div class="grid ${opts.four ? 'four' : ''}">${LIST.map((m) => cell(m, opts)).join('')}</div>`;
+
+const topBar = (title = '') => `<div class="bar"><button class="round" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>${title ? `<h1 class="page-title">${title}</h1>` : ''}<button class="round" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg></button></div>`;
+// The real moon you're wearing (as the payoff draws it), not its icon (user, 2026-11-16).
+const moonArt = (id) => `moons/${id}-moon.${id === 'moonlight' ? 'png' : 'webp'}`;
+// The centre moon was removed (user, 2026-11-16): the worn moon shows at the top instead.
+const heroMoon = () => '';
+const wornName = () => `<div class="moon-name">Wearing <b>${M[wearing].name}</b></div>`;
+// SF Symbols sunrise.fill and trophy.fill, drawn to match Home's pill.
+const sunriseFill = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.5 16a5.5 5.5 0 0 1 11 0z"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"><path d="M2.5 19.5h19M12 3.5v4M9.5 6 12 3.5 14.5 6M4.6 10.1l1.6 1.2M19.4 10.1l-1.6 1.2M2.5 16h1.6M19.9 16h1.6"/></g></svg>';
+const trophyFill = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3h10v2h3.5v2.5A4.5 4.5 0 0 1 16.6 12 5 5 0 0 1 13 14.9V18h3v3H8v-3h3v-3.1A5 5 0 0 1 7.4 12 4.5 4.5 0 0 1 3.5 7.5V5H7zm0 4H5.5v.5A2.5 2.5 0 0 0 7 9.8zm10 0v2.8a2.5 2.5 0 0 0 1.5-2.3V7z"/></svg>';
+let pillTotal = true; // the moons page opens on every morning; Home opens on the streak (user, 2026-11-16)
+let pillFlipped = false; // the morph only plays after a tap, so the page is complete at rest
+const pills = () => `<div class="pills">
+  <button class="hpill" data-flip aria-label="${pillTotal ? `${TODAY.mornings} mornings you got up, in all` : `${TODAY.streak} day streak`}">${sunriseFill}<span class="words${pillFlipped ? ' flipped' : ''}"><span class="pv">${pillTotal ? TODAY.mornings : TODAY.streak}</span><span class="pl">${pillTotal ? 'mornings' : 'day streak'}</span></span></button>
+  <span class="hpill"><img src="moons/${wearing}.webp" alt=""><span class="pv">${OWNED()}</span><span class="pl">of ${TOTAL} moons</span></span>
+</div>`;
+const statCards = () => pills();
+const stats3 = () => pills();
+// The "Next moon / Ember at 30 / 14 mornings to go" block was removed (user, 2026-11-16).
+const nextMs = () => '';
+
+// ---- The ten takes ----
+const TAKES = [
+  { name: 'Cal AI', about: '<b>Cal AI Milestones</b>, straight: your moon’s light at the top, the title and pills under it, then every moon with how to get it. Tap a moon you own to wear it.',
+    render: () => `${topBar('Moons')}<div class="hero">${nextMs()}${heroMoon(220)}${wornName()}</div>${statCards()}${gridFlat({})}` },
+  { name: 'Count', about: 'The lifetime count is the milestone: <b>16 mornings</b> above the moon, three numbers under it, moons grouped by how you get them.',
+    render: () => `${topBar()}<div class="hero"><div class="milestone"><span style="font-size:56px;line-height:60px;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums">${TODAY.mornings}</span><span class="m-sub">mornings got up</span></div>${heroMoon(230)}${wornName()}</div>${stats3()}${gridAll({})}` },
+  { name: 'Pill', about: 'Milestone as a <b>pill</b> above the moon, stats in one card, tiles in smoked glass like the app.',
+    render: () => `${topBar('Moons')}<div class="hero"><span class="pill">${M[nextMorning.id].name} at ${nextMorning.at} <span class="dim">· ${toGo(nextMorning)} to go</span></span>${heroMoon(240)}${wornName()}</div>${pills()}${gridAll({ glass: true })}` },
+  { name: 'Ring', about: 'Your moon sits in a <b>thin ring</b> that fills toward the next moon. No colour, no glow: a white line on the track.',
+    render: () => { const p = TODAY.mornings / nextMorning.at, r = 128, c = 2 * Math.PI * r;
+      return `${topBar('Moons')}<div class="hero"><div class="milestone"><span class="m-title">${toGo(nextMorning)} to ${M[nextMorning.id].name}</span><span class="m-sub">Morning ${TODAY.mornings} of ${nextMorning.at}</span></div><div class="moon-hero" style="width:270px;height:270px"><svg viewBox="0 0 270 270" style="position:absolute;inset:0" aria-hidden="true"><circle cx="135" cy="135" r="${r}" fill="none" stroke="var(--track)" stroke-width="5"/><circle cx="135" cy="135" r="${r}" fill="none" stroke="var(--text)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c * p} ${c}" transform="rotate(-90 135 135)"/></svg><div style="position:relative;display:flex;flex-direction:column;align-items:center"><span style="font-size:64px;line-height:68px;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums">${TODAY.mornings}</span><span class="m-sub" style="color:var(--text2)">of ${nextMorning.at} mornings</span></div></div>${wornName()}</div>${stats3()}${gridAll({ glass: true })}`; } },
+  { name: 'Rows', about: 'Same top, but the moons are <b>rows</b> (QUITTR, Fitbit): name, how to get it, and the date or how many to go on the right.',
+    render: () => `${topBar('Moons')}<div class="hero">${nextMs()}${heroMoon(210)}${wornName()}</div>${statCards()}${groups().map((g) => `<section class="section">${label(g.title)}<div class="rows">${g.items.map(row).join('')}</div></section>`).join('')}` },
+  { name: 'Shelves', about: 'One <b>shelf per way</b> of getting moons, scrolling sideways (Fitbit badges). The page stays short however many moons there are.',
+    render: () => `${topBar('Moons')}<div class="hero">${nextMs()}${heroMoon(230)}${wornName()}</div>${statCards()}${groups().map((g) => `<section class="section"><div class="shelf-head">${label(g.title)}<span>${g.items.filter((m) => m.got).length} of ${g.items.length}</span></div><div class="shelf">${g.items.map((m) => cell(m, { glass: true, meters: true })).join('')}</div></section>`).join('')}` },
+  { name: 'Track', about: 'The milestone above the moon is the <b>ladder itself</b>: 1 · 3 · 7 · 14 done, 30 next. Compact four-across moons below.',
+    render: () => { const stops = [1, 3, 7, 14, 30, 50, 100];
+      const t = stops.map((s, i) => `${i ? `<i class="seg ${s <= TODAY.mornings ? 'done' : ''}"></i>` : ''}<span class="stop ${s <= TODAY.mornings ? 'done' : s === nextMorning.at ? 'next' : ''}"><span class="dot"></span>${s}</span>`).join('');
+      return `${topBar('Moons')}<div class="hero"><div class="milestone"><span class="m-title">Morning ${TODAY.mornings}</span><span class="m-sub">${M[nextMorning.id].name} comes at ${nextMorning.at}</span></div><div class="track">${t}</div>${heroMoon(220)}${wornName()}</div>${statCards()}${gridAll({ four: true })}`; } },
+  { name: 'Big title', about: 'Cal AI\'s large <b>title</b> left in, centred. Milestone under it as one line, moon, then the stats as a sentence.',
+    render: () => `${topBar()}<h2 class="big-title">Moons</h2><div class="hero"><div class="m-sub" style="color:var(--text2);font-size:16px">${M[nextMorning.id].name} at morning ${nextMorning.at} · ${toGo(nextMorning)} to go</div>${heroMoon(250)}${wornName()}</div>${pills()}${gridAll({ glass: true })}` },
+  { name: 'Meters', about: 'The two <b>next</b> moons show how close they are (Stoic, Apple Games). Everything else locked stays plain.',
+    render: () => `${topBar('Moons')}<div class="hero">${nextMs()}${heroMoon(220)}${wornName()}</div>${stats3()}<div class="stats2">${[nextMorning, nextRow].map((m) => `<button class="stat-card" data-id="${m.id}" style="color:inherit;font:inherit;text-align:left;cursor:pointer"><div class="ic">${icon(m, 34)}</div><div style="flex:1;min-width:0"><div class="v" style="font-size:15px">${M[m.id].name}</div><div class="k">${toGo(m)} ${m.track === 'row' ? 'more in a row' : 'mornings'}</div>${meter(progressOf(m))}</div></button>`).join('')}</div>${gridAll({ meters: true })}` },
+  { name: 'Quiet', about: 'Nothing boxed in: the moon, a <b>small caption</b> above, numbers under, moons floating on black with their names.',
+    render: () => `${topBar()}<div class="hero" style="gap:10px;padding-top:6px"><span class="eyebrow">${toGo(nextMorning)} mornings to ${M[nextMorning.id].name}</span>${heroMoon(270)}<div style="font-size:22px;font-weight:700">${M[wearing].name}</div><div class="moon-name">${M[wearing].tag}</div></div>${stats3()}${gridAll({})}` },
+];
+
+
+// ---- The moon at the top: its real art and the payoff's drag under it ----
+const TOP = { box: 330, cy: -100 }; // raised 60pt: the light was too strong behind the title (user, 2026-11-16)
+const DRAG_BOX = { width: 8.7514, height: 13.3039, cx: 4.3757, cy: 4.3757 };
+function paintTop() {
+  const r = TOP.box / 1.5 / 2;
+  $('toplight').innerHTML =
+    `<img src="moons/${wearing}-drag.webp" alt="" style="left:${-DRAG_BOX.cx * r}px;top:${TOP.cy - DRAG_BOX.cy * r}px;width:${DRAG_BOX.width * r}px;height:${DRAG_BOX.height * r}px">`;  // the moon itself removed, its glow kept (user, 2026-11-16)
+}
+
+// ---- Wiring ----
+let take = 0;
+const $ = (id) => document.getElementById(id);
+function paint() {
+  const t = TAKES[take];
+  $('about').innerHTML = t.about;
+  $('content').innerHTML = t.render();
+  paintTop();
+  const s = M[wearing].sky;
+  $('sky').style.background = `linear-gradient(180deg, ${s[2]} 0%, ${s[1]} 40%, var(--bg) 100%)`;
+  $('sky').style.opacity = 0;
+  $('screen').style.background = 'var(--bg)';
+  [...$('picker').children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === take)));
+}
+$('picker').innerHTML = TAKES.map((t, i) => `<button type="button" data-i="${i}">${i + 1} ${t.name}</button>`).join('');
+$('picker').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; take = +b.dataset.i; history.replaceState(null, '', `#take-${take + 1}`); closeSheet(); paint(); $('screen').querySelector('.scroll').scrollTop = 0; });
+
+function openSheet(id) {
+  const m = LIST.find((x) => x.id === id); if (!m) return;
+  const locked = !m.got && m.track !== 'start';
+  const secret = locked && (m.track === 'secret' || m.track === 'rare');
+  let facts = '';
+  if (m.got && m.track !== 'start') facts = `<div><span>Got it</span><span>${m.got.date}</span></div><div><span>Morning</span><span>${m.got.morning}</span></div><div><span>How</span><span>${m.got.how}</span></div>`;
+  else if (m.track === 'start') facts = `<div><span>Got it</span><span>Your first night</span></div>`;
+  else if (secret) facts = `<div><span>How</span><span>${m.track === 'rare' ? 'Luck' : 'Nobody\'s saying'}</span></div>`;
+  else if (m.track === 'year') facts = `<div><span>How</span><span>A year of mornings</span></div>`;
+  else facts = `<div><span>How</span><span>${m.track === 'row' ? `${m.at} mornings in a row` : `Get up ${m.at} mornings`}</span></div><div><span>So far</span><span>${m.track === 'row' ? `${TODAY.streak} in a row` : `${TODAY.mornings} mornings`}</span></div>${meter(progressOf(m))}`;
+  const btn = locked ? `<button class="cta" disabled>${secret ? 'Secret' : `${toGo(m) ?? ''} to go`.trim()}</button>`
+    : m.id === wearing ? `<button class="cta" disabled>Wearing</button>` : `<button class="cta" data-wear="${m.id}">Wear ${M[m.id].name}</button>`;
+  $('sheet').innerHTML = `<div class="grab"></div>${icon(m, 150)}<h3 id="sheet-title">${nameOf(m)}</h3><div class="tag">${locked ? (secret ? 'Not found yet' : 'Locked') : M[m.id].tag}</div><div class="facts">${facts}</div>${btn}<button class="link" data-close>Close</button>`;
+  $('sheet').classList.add('on'); $('scrim').classList.add('on');
+  $('sheet').querySelector('.cta:not([disabled]), .link').focus({ preventScroll: true });
+}
+function closeSheet() { $('sheet').classList.remove('on'); $('scrim').classList.remove('on'); }
+$('content').addEventListener('click', (e) => { if (e.target.closest('[data-flip]')) { pillTotal = !pillTotal; pillFlipped = true; paint(); pillFlipped = false; return; } const c = e.target.closest('[data-id]'); if (!c) return;
+  // A tap wears an owned moon at once, no popup (user, 2026-11-16); a locked one just nudges.
+  const m = LIST.find((x) => x.id === c.dataset.id);
+  if (m && (m.got || m.track === 'start')) { if (wearing !== m.id) { wearing = m.id; paint(); } return; }
+  c.classList.remove('nudge'); void c.offsetWidth; c.classList.add('nudge');
+});
+$('scrim').addEventListener('click', closeSheet);
+$('sheet').addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) return closeSheet();
+  const w = e.target.closest('[data-wear]'); if (w) { wearing = w.dataset.wear; closeSheet(); paint(); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+function fromHash() { const n = /^#take-(\d+)$/.exec(location.hash); if (n && TAKES[n[1] - 1]) take = n[1] - 1; paint(); }
+window.addEventListener('hashchange', fromHash);
+fromHash();
+</script>

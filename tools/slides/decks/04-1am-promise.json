@@ -1,0 +1,48 @@
+{
+  "title": "me at 1:40am promising myself tomorrow i'll sleep early",
+  "job": "share",
+  "app": "punchline",
+  "why": "Relatable line on a dim photo, then one reveal slide.",
+  "compare": "zararose-phone-in-bed",
+  "account": "face / Day-N account",
+  "caption": "every single night. what time did you promise? #sleep #bed #relatable #phoneaddiction",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/lamp-nightstand-dark.jpg",
+      "caps": [
+        {
+          "text": "me at 1:40am promising myself tomorrow i'll sleep early",
+          "y": 72,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "screen",
+      "line": "so i made my phone\ngo to sleep first",
+      "phone": "/photos/renders/01-asleep-clean.png",
+      "bg": "/photos/phone-on-duvet.jpg"
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

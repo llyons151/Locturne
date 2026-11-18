@@ -1,0 +1,30 @@
+{
+  "title": "3am realisation",
+  "format": "Old painting + modern caption",
+  "job": "share",
+  "why": "Courbet's wide-eyed self-portrait is a perfect 3am face.",
+  "compare": "lvnarjules-painting-meme",
+  "account": "@loc or @locturne",
+  "caption": "i don't even like cooking. what's your 3am video? #3am #doomscrolling #art",
+  "sound": "trending sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/desperate-man.jpg",
+      "caps": [
+        {
+          "text": "me at 3am realising i just watched 2 hours of strangers cooking",
+          "y": 66,
+          "size": 46,
+          "style": "outline",
+          "w": 80
+        }
+      ]
+    }
+  ]
+}

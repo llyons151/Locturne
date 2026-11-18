@@ -1,0 +1,121 @@
+{
+  "title": "Why does bro hide his phone? / Why is bro never tired?",
+  "format": "Split panels: yellow-emoji 'bro' does a hard habit on top (cold light, grimace), calm result below (warm light, jealous onlookers)",
+  "job": "save",
+  "app": "none",
+  "why": "Copies @startnowdaily1's 1.9M-like / 393K-save post: 5 slides, each one cartoon image of a yellow emoji-head 'bro' split in two panels, a 'Why does bro [hard habit]?' caption near the bottom of the top panel and 'Why is bro [result]?' on the bottom panel, white outlined sentence-case text nearly full width. Ours swaps gym habits for night/morning phone habits; saves come from the habit list. No app, like the ref.",
+  "compare": "startnowdaily-why-bro",
+  "account": "@locturne",
+  "caption": "bro figured it out #selfimprovement #discipline #sleep #morningroutine",
+  "sound": "motivational phonk / slowed hype (ref's sound not saved)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made cartoon illustrations (Codex): turn on TikTok's AI-generated label",
+    "only slide 1 of the ref is saved; slides 2-5 follow refs.json (5 cause-and-effect split slides), their look is assumed to match slide 1"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-whybro-1.jpg",
+      "caps": [
+        {
+          "text": "Why does bro hide his phone?",
+          "y": 41,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        },
+        {
+          "text": "Why is bro never tired?",
+          "y": 81,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-whybro-2.jpg",
+      "caps": [
+        {
+          "text": "Why does bro skip snooze?",
+          "y": 41,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        },
+        {
+          "text": "Why is bro never rushed?",
+          "y": 81,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-whybro-3.jpg",
+      "caps": [
+        {
+          "text": "Why does bro read in bed?",
+          "y": 41,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        },
+        {
+          "text": "Why is bro asleep in 5 min?",
+          "y": 81,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-whybro-4.jpg",
+      "caps": [
+        {
+          "text": "Why does bro sleep at 10:30?",
+          "y": 41,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        },
+        {
+          "text": "Why is bro always early?",
+          "y": 81,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-whybro-5.jpg",
+      "caps": [
+        {
+          "text": "Why does bro walk at sunrise?",
+          "y": 41,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        },
+        {
+          "text": "Why is bro so calm at work?",
+          "y": 81,
+          "size": 68,
+          "style": "outline",
+          "w": 97
+        }
+      ]
+    }
+  ]
+}

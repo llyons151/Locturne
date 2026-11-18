@@ -19,6 +19,7 @@ const ICON_DISC = { x: 262 / 512, y: 238.5 / 512, r: 163.5 / 512 };
  * moon's own art and colours once it's yours (user, 2026-11-01). `locked`: the icon in grey, so
  * the colours stay the surprise (docs/reports/Moon collection flow.md); `secret` puts a "?" in it.
  * `round`: the moon itself, still (no rise, no halo), as the payoff shows a new one on the sky.
+ * `plain`: the icon alone, no square of glass and no edge (the moons page, user 2026-11-16).
  */
 export function MoonThumb({
   moon,
@@ -27,6 +28,7 @@ export function MoonThumb({
   secret = false,
   wearing = false,
   round = false,
+  plain = false,
 }: {
   moon: MoonDef;
   size: number;
@@ -35,12 +37,14 @@ export function MoonThumb({
   wearing?: boolean;
   /** Just the moon, no square of sky (the payoff's, on the real sky). */
   round?: boolean;
+  /** The icon with no glass square round it and no edge when worn (the page marks that itself). */
+  plain?: boolean;
 }) {
   if (!round) {
     const icon = size * ICON;
     const r = icon * ICON_DISC.r;
     return (
-      <View style={[styles.tile, styles.glassTile, { width: size, height: size, borderRadius: Radius.card }, wearing && styles.wearing]}>
+      <View style={[styles.tile, !plain && styles.glassTile, { width: size, height: size, borderRadius: Radius.card }, !plain && wearing && styles.wearing]}>
         <View style={{ width: icon, height: icon }}>
           <Image
             source={locked ? NIGHT_ICON : (MOON_ICONS[moon.id] ?? NIGHT_ICON)}

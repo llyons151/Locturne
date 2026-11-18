@@ -1,0 +1,64 @@
+{
+  "title": "why my roommate went to bed at 11",
+  "format": "\"I wondered why…\" → a screenshot as the punchline",
+  "job": "share",
+  "why": "The same reveal told about someone else, so it reads as gossip.",
+  "compare": "everybodylovesg-wondered-why",
+  "account": "@locturne",
+  "caption": "she won't tell me how to turn it off. would you let your phone do this? #roommate #sleep",
+  "sound": "subwoofer lullaby (the original's sound)",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "roommate story must be true, or post it as a joke from Loc"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/hands-lit-bed.jpg",
+      "caps": [
+        {
+          "text": "I wondered why my roommate was always in bed by 11...",
+          "y": 50,
+          "size": 125,
+          "style": "strong",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": []
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/pillow-over-head.jpg",
+      "caps": [
+        {
+          "text": "her phone makes her",
+          "y": 56,
+          "size": 54,
+          "style": "classic",
+          "w": 78,
+          "color": "#222"
+        }
+      ]
+    }
+  ],
+  "app": "punchline",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 1
+  }
+}

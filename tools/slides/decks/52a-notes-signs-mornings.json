@@ -1,0 +1,80 @@
+{
+  "title": "5 signs your mornings belong to your phone",
+  "format": "Notes listicle, app on one point",
+  "job": "save",
+  "app": "punchline",
+  "variantOf": "52-notes-signs",
+  "why": "Variant of 52: same self-diagnosis listicle, flipped to the morning side; app is the fix on the last sign.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "be honest in the comments #morningroutine #screentime",
+  "sound": "moody, low volume",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "closer: 'i had 4 of 5'. Only if true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "5 signs your mornings belong to your phone",
+      "image": "/photos/dawn-path.jpg",
+      "narrow": true,
+      "aside": "(count them)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "you read notifications _before your eyes are open_",
+      "top": "one eye, one thumb, 14 notifications",
+      "text": "you haven't said a word yet and you're already _behind_",
+      "bottom": "",
+      "image": "/photos/woman-in-bed.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "the snooze button _leads to tiktok_",
+      "top": "snooze, scroll, snooze, scroll",
+      "text": "the alarm isn't waking you up anymore\n\nthe _feed_ is",
+      "bottom": "",
+      "image": "/photos/man-in-bed.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "you're late but you've _seen 40 stories_",
+      "top": "everyone else's morning, _none of yours_",
+      "text": "and somehow you still don't know what anyone's doing",
+      "bottom": "",
+      "image": "/photos/coffee.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "you feel _behind by 9am_",
+      "top": "nothing has gone wrong yet",
+      "text": "but your head is already full of _other people_",
+      "bottom": "",
+      "image": "/photos/journal.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "the first hour is _gone_",
+      "top": "and you can't say where it went",
+      "text": "i fixed this one: my apps stay _asleep_ until i've walked",
+      "bottom": "",
+      "phone": "/photos/renders/02-steps-clean.png"
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/water.jpg",
+      "question": "how many did you get? 👇",
+      "lines": [
+        "i had 4 of 5",
+        "the app is locturne, link in bio"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "title": "the judge said lights out at 11",
+  "format": "Other person + conflict → \"so i…\"",
+  "job": "promo",
+  "app": "method",
+  "why": "Larry shape with canon stakes: the court gave Loc lights out at 11, so everyone's phone gets it too. The hook is a conflict with someone else, never the feature.",
+  "account": "@loc (Loc account)",
+  "caption": "gerald is appealing. guilty or not guilty? #raccoon #screentime #sleep",
+  "sound": "dramatic courtroom / dun dun dun",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "Loc is the mascot speaking: post only from the Loc account, with the \"Your brand\" disclosure on"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-point.jpg",
+      "caps": [
+        {
+          "text": "judge said lights out at 11. so i'm taking your phone with me",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 74
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/13-shield-night.png",
+      "caps": [
+        {
+          "text": "your apps sleep when i sleep",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": [
+        {
+          "text": "they wake up when you walk. court's orders",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-watch.jpg",
+      "caps": [
+        {
+          "text": "gerald says this is \"not legally binding\" 🙄",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 74
+        },
+        {
+          "text": "link in bio 🌙",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 1,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

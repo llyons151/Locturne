@@ -1,0 +1,20 @@
+{
+ "about": "30-day posting plan, days 1-14 (fixed). Source of truth for pack.py; mirrors the table in docs/SLIDESHOW_LOOP.md. Days 15-30 are filled after the day-14 review.",
+ "accounts": {"locturne": "@locturne (founder/brand)", "loc": "@loc (Loc)", "face": "face (Luke)"},
+ "days": [
+  {"day": 1, "locturne": "52-notes-signs", "loc": "15-egg-loc-crossed", "face": "14-relatable-unmade"},
+  {"day": 2, "locturne": "28-made-it-tired", "loc": "53-conflict-loc-judge", "face": "11-relatable-sleep-math"},
+  {"day": 3, "locturne": "54-conflict-roommate", "loc": "18-art-nightmare", "face": "13-relatable-room-2am"},
+  {"day": 4, "locturne": "01-mornings-10-things", "loc": "27-intro-loc", "face": "08-room-relatable"},
+  {"day": 5, "locturne": "31-wondered-phone", "loc": "15b-egg-loc-walk", "face": "42-past-me-routine"},
+  {"day": 6, "locturne": "29-made-it-2am", "loc": "49-dump-gerald", "face": "12-relatable-one-more"},
+  {"day": 7, "locturne": "55-conflict-girlfriend", "loc": "06-wolf-meme", "face": "10-relatable-alarm-tiktok"},
+  {"day": 8, "locturne": "50-notes-2am", "loc": "43-alarm-trauma", "face": "38-just-me-2am"},
+  {"day": 9, "locturne": "30-made-it-morning", "loc": "48-dump-pigeons", "face": "41-type-one-more-guy"},
+  {"day": 10, "locturne": "56-conflict-coach", "loc": "21-art-gypsy", "face": "04-1am-promise"},
+  {"day": 11, "locturne": "02-30-days-apps-asleep", "loc": "17-egg-flaming-june", "face": "39-just-me-midnight"},
+  {"day": 12, "locturne": "32-wondered-roommate", "loc": "09-tweet-dump", "face": "40-type-3am-girl"},
+  {"day": 13, "locturne": "23-dark-list-sleep", "loc": "45-meme-wanderer", "face": "FACE_WINNER"},
+  {"day": 14, "locturne": "51-checklist-first-hour", "loc": "LOC_WINNER", "face": "FACE_WINNER"}
+ ]
+}

@@ -1,0 +1,53 @@
+{
+  "title": "hi i'm luke! you've doomscrolled your way to my app",
+  "format": "Creator intro (\"You've doomscrolled your way to my art\")",
+  "job": "promo",
+  "app": "intro",
+  "why": "Joe's opener names what the viewer is doing right now; ours also happens to be the product.",
+  "compare": "jwhorner-doomscrolled-intro",
+  "account": "@locturne (founder face)",
+  "caption": "i made an app that puts your apps to sleep. enjoy! what time should yours sleep? #buildinpublic #screentime #indiedev #sleep",
+  "sound": "upbeat, happy",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 1 must be your own selfie. The Codex stand-in is a placeholder, never post it as you",
+    "the asleep and walk screens show 200 steps; retake them if your walk is set to 500",
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "photo",
+      "image": "/photos/founder-selfie.jpg",
+      "pos": "top",
+      "white": true,
+      "line": "hi i'm luke! you've doomscrolled your way to my app. enjoy! 😴"
+    },
+    {
+      "layout": "screen",
+      "line": "at 11, my apps go to sleep",
+      "phone": "/photos/renders/shield.png",
+      "bg": "/photos/moon-crescent-trees.jpg"
+    },
+    {
+      "layout": "screen",
+      "line": "they don't wake up until\ni'm out of bed and walking",
+      "phone": "/photos/renders/02-steps-clean.png",
+      "bg": "/photos/rain-bokeh-night.jpg"
+    },
+    {
+      "layout": "screen",
+      "line": "every morning i win, i get a moon",
+      "phone": "/photos/renders/09-moons.png",
+      "bg": "/photos/moon-cloud-trees.jpg"
+    },
+    {
+      "layout": "screen",
+      "line": "it's called locturne.\nyou can stop scrolling now",
+      "phone": "/photos/renders/01-asleep-clean.png",
+      "bg": "/photos/dark-room-window.jpg"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import { PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { CountText } from '@/components/count-text';
 import { Text } from '@/components/text';
+import { Wordmark } from '@/components/wordmark';
 import * as haptic from '@/lib/haptics';
 import { danceLine, pushupsLine, spokenRep } from '@/lib/wake/lines';
 import { DANCE } from '@/lib/wake/dance';
@@ -596,9 +597,8 @@ export function PushupsCamera({
           {/* The name over the camera, so every screen recording says what the app is (user 2026-11-16, after Erly). */}
           <CardFrame width={width} height={height} top={cardTop} />
           <View style={[styles.titleBar, { top: insets.top, height: TITLE_BAR }]} pointerEvents="none">
-            <Text style={styles.title} maxFontSizeMultiplier={1.2} accessibilityRole="header">
-              Locturne
-            </Text>
+            {/* The wordmark, crescent "c" and all (user 2026-11-17), at the old 22pt title's size. */}
+            <Wordmark height={20} />
           </View>
 
           <View
@@ -672,7 +672,6 @@ const styles = StyleSheet.create({
   scrimBottom: { position: 'absolute', bottom: 0, left: 0 },
   frame: { position: 'absolute', top: 0, left: 0 },
   titleBar: { position: 'absolute', left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#FFFFFF', fontSize: 22, lineHeight: 28, fontWeight: '700', letterSpacing: -0.3 },
   reading2: { alignItems: 'center' },
   of: { ...Type.caption, color: 'rgba(255,255,255,0.8)', fontWeight: '500', marginTop: -Space.xs },
   close: {

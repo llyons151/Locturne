@@ -1,0 +1,43 @@
+{
+  "title": "opening tiktok \"just to wake up\"",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "why": "Names a habit everyone does and nobody admits; lowercase, cream TikTok Classic at 54px like the original.",
+  "compare": "zararose-phone-in-bed",
+  "account": "face / Day-N account",
+  "caption": "every single morning. which app is first? #relatable #morning #phoneaddiction",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/pillow-over-head.jpg",
+      "caps": [
+        {
+          "text": "when the alarm goes off and i open tiktok \"just to wake up\"",
+          "y": 56,
+          "size": 54,
+          "style": "classic",
+          "w": 78,
+          "color": "#222"
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

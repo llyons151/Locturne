@@ -1,0 +1,117 @@
+[
+ {
+  "slug": "faceless-night-dark",
+  "night": true,
+  "decks": [
+   "04-1am-promise"
+  ],
+  "want": "fully faceless NIGHT shot: phone on a nightstand in the dark, dark bed lit only by a screen, no person or only a hand. 04 s1 currently a daylight phone-on-duvet (fails contrast 2.17, wrong time of day)",
+  "queries": "phone nightstand dark|dark bedroom night no people|phone screen dark bed",
+  "done": true,
+  "picked": [
+   "lamp-nightstand-dark (04 s1)",
+   "phone-blue-dark (pool)"
+  ]
+ },
+ {
+  "slug": "phone-glow-bed",
+  "night": true,
+  "decks": [
+   "29-made-it-2am",
+   "50-notes-2am"
+  ],
+  "want": "phone screen lighting a dark bed or hands, face hidden or out of frame, 2am feel",
+  "queries": "phone in bed at night|smartphone screen dark bedroom|texting in the dark|phone light in bed",
+  "done": true,
+  "picked": [
+   "phone-glow-dark (29)",
+   "phone-glow-room (50)",
+   "scrolling-overhead (55)"
+  ]
+ },
+ {
+  "slug": "couple-bed-phone",
+  "night": true,
+  "decks": [
+   "55-conflict-girlfriend"
+  ],
+  "want": "two people in bed at night, one lit by a phone, faces not the focus",
+  "queries": "couple in bed phone|couple bed night smartphone|partner on phone in bed",
+  "done": true,
+  "note": "55 now uses scrolling-overhead (faceless, iconic) instead of a couple shot"
+ },
+ {
+  "slug": "dawn-walk",
+  "night": false,
+  "decks": [
+   "56-conflict-coach",
+   "30-made-it-morning",
+   "52a-notes-signs-mornings"
+  ],
+  "want": "feet or street at sunrise, early walk, no faces",
+  "queries": "sneakers sunrise walk|morning walk street dawn|running shoes early morning|empty street sunrise",
+  "done": true,
+  "picked": [
+   "dawn-street (56 s4)",
+   "dawn-path (52a hook)"
+  ]
+ },
+ {
+  "slug": "alarm-dark",
+  "night": true,
+  "decks": [
+   "36-tips-snooze",
+   "10-relatable-alarm-tiktok"
+  ],
+  "want": "alarm clock or phone alarm in a dark room, early morning",
+  "queries": "alarm clock dark room|phone alarm morning bed|alarm clock bedside night",
+  "done": true,
+  "picked": [
+   "pillow-over-head (10, unblocked from the AI-face fail)",
+   "morning-bed-dim (pool)"
+  ]
+ },
+ {
+  "slug": "night-window-room",
+  "night": true,
+  "decks": [
+   "13-relatable-room-2am",
+   "08-room-relatable"
+  ],
+  "want": "bedroom at night, window with city lights, lamp, lived-in, no people",
+  "queries": "bedroom window city lights night|dark bedroom lamp night|bedroom at night window",
+  "done": true,
+  "picked": [
+   "bedroom-night-purple (13)",
+   "window-city-dark (08 s1 + s2 bg)"
+  ]
+ },
+ {
+  "slug": "dawn-training",
+  "night": false,
+  "decks": [
+   "56-conflict-coach"
+  ],
+  "want": "early training: track, gym or field at dawn, no faces close up",
+  "queries": "running track sunrise|empty gym early morning|football field dawn"
+ },
+ {
+  "slug": "faceless-relatable",
+  "night": true,
+  "decks": [
+   "12-relatable-one-more",
+   "04-1am-promise",
+   "38-just-me-2am",
+   "39-just-me-midnight"
+  ],
+  "want": "real, faceless (or face hidden) phone-in-bed snapshots for the face account, so these decks stop using AI people; 1 per deck, all different",
+  "queries": "phone in bed dark hand|under blanket phone light|scrolling in bed at night|bedroom night phone glow",
+  "done": true,
+  "picked": [
+   "scrolling-overhead (12)",
+   "hand-phone-blanket (38)",
+   "hands-lit-bed (39)",
+   "phone-on-duvet (04 s1, temporary)"
+  ]
+ }
+]

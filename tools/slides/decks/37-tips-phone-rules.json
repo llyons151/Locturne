@@ -1,0 +1,99 @@
+{
+  "title": "my weird rules for my phone at night",
+  "format": "Same selfie on every slide, one tip per slide in white boxes",
+  "job": "save",
+  "why": "Rules are more saveable than tips: they sound like a system.",
+  "compare": "helen-psychiatrist-hacks",
+  "account": "face account",
+  "caption": "rule 3 is non negotiable #screentime #digitaldetox",
+  "sound": "soft upbeat",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "every rule must be yours",
+    "AI-made photo: turn on TikTok's AI-generated label, or swap in your own"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl2.jpg",
+      "caps": [
+        {
+          "text": "my weird rules for my phone at night (screen time went way down)\n📵🌙",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl2.jpg",
+      "caps": [
+        {
+          "text": "no phone in bed. bed is for sleeping and crying",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl2.jpg",
+      "caps": [
+        {
+          "text": "apps go to sleep at 11. not me deciding. the phone deciding",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl2.jpg",
+      "caps": [
+        {
+          "text": "if i can't sleep, i read the most boring book i own",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl2.jpg",
+      "caps": [
+        {
+          "text": "phone stays asleep until i'm up and walking",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/day-selfie-girl2.jpg",
+      "caps": [
+        {
+          "text": "what's your rule? i need more 👇",
+          "y": 66,
+          "size": 59,
+          "style": "box",
+          "w": 86
+        }
+      ]
+    }
+  ],
+  "app": "confession"
+}

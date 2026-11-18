@@ -1,0 +1,73 @@
+{
+  "title": "exhausted but still scrolling",
+  "format": "Empathy → \"so i made X for people like me\" → product",
+  "job": "promo",
+  "why": "Slide 1 names the feeling, slide 2 confesses you built the fix, slide 3 is the product with a white-box CTA: reads as a person helping, not an ad.",
+  "compare": "charlotte-cant-sleep-playlist",
+  "account": "@locturne (founder)",
+  "caption": "for anyone who can't put it down. what time did you sleep last night? #screentime #sleep #indiedev",
+  "sound": "soft ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "slide 2: \"it actually worked\" must be true for you"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/rain-bokeh-night.jpg",
+      "caps": [
+        {
+          "text": "i know that feeling when you're exhausted but can't put your phone down",
+          "y": 24,
+          "size": 54,
+          "style": "classic",
+          "w": 78,
+          "igY": 22
+        }
+      ]
+    },
+    {
+      "layout": "pic",
+      "image": "/photos/water.jpg",
+      "caps": [
+        {
+          "text": "so i built an app for people like me and it actually worked 🥲",
+          "y": 50,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/01-asleep-clean.png",
+      "caps": [
+        {
+          "text": "link in bio 🌙",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78,
+          "igY": 10
+        }
+      ]
+    }
+  ],
+  "app": "punchline",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 1,
+    "images": 2,
+    "comment": 1,
+    "truth": 1
+  }
+}

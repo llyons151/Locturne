@@ -1,0 +1,36 @@
+{
+  "title": "saying \"night guys\" so i can watch strangers clean their ovens",
+  "format": "One-slide relatable: dim bed photo, person from behind on their phone, one cream TikTok-font caption mid-frame",
+  "job": "share",
+  "app": "none",
+  "why": "Copies zararose's one-slide post (412K likes / 42K shares): a dim, warm, real-looking bed with a white duvet, a person tucked in at the top third, and a 4-line lowercase cream caption in TikTok's own font across the middle. No app, no closer. Face hidden (back of head) so no AI face speaks as the owner. New line about the same guilty ritual: the fake goodnight in the group chat.",
+  "compare": "zararose-phone-in-bed",
+  "account": "face / Day-N account",
+  "caption": "what are you watching at 2am? be honest #relatable #phoneinbed #bedtime",
+  "sound": "trending soft/sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "AI-made photo (a person from behind, face hidden, blurred phone screen): turn on TikTok's AI-generated label, or swap in a photo of your own bed",
+    "first-person line (saying night in the group chat, watching until 2am): only post if it's true for whoever's account it is"
+  ],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/gen-r/r-zara-2.jpg",
+      "caps": [
+        {
+          "text": "me saying “night guys” in the group chat so i can lie here watching strangers clean their ovens until 2am",
+          "y": 58,
+          "size": 54,
+          "style": "classic",
+          "w": 66,
+          "color": "#f7eba8"
+        }
+      ]
+    }
+  ],
+  "parked": "PARKED 2026-11-13 at 8 (blind scorer 7.5/8/7.5/7.5). Best version kept: r-zara-2 (Codex r-zara-f). See docs/SLIDESHOW_REFINE.md log."
+}

@@ -1,0 +1,43 @@
+{
+  "title": "sleep math at 1:27am",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "why": "The 1am sleep-maths panic is universal; a real clock photo does the work, no face needed.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "if i fall asleep right now i get 5 hours and 12 minutes. what's your number tonight? #sleep #relatable",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/clock-127.jpg",
+      "caps": [
+        {
+          "text": "me at 1:27am calculating how much sleep i get if i fall asleep right now",
+          "y": 16,
+          "size": 58,
+          "style": "classic",
+          "w": 78,
+          "color": "#222"
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 1,
+    "truth": 2
+  }
+}

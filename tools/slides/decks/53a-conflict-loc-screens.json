@@ -1,0 +1,79 @@
+{
+  "title": "judge said no screens after 11",
+  "format": "Other person + conflict → \"so i…\"",
+  "job": "promo",
+  "app": "method",
+  "variantOf": "53-conflict-loc-judge",
+  "why": "Variant of 53: same conflict → shield → wake → Gerald beat, a different ruling, different Loc pose and renders.",
+  "account": "@loc (Loc account)",
+  "caption": "this is not legal advice. guilty or not guilty? #raccoon #screentime #sleep",
+  "sound": "dramatic courtroom / dun dun dun",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "Loc is the mascot speaking: post only from the Loc account, with the \"Your brand\" disclosure on"
+  ],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-crossed.jpg",
+      "caps": [
+        {
+          "text": "judge said no screens after 11. so i'm enforcing it on everyone",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 74
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/01-shield.png",
+      "caps": [
+        {
+          "text": "your apps go down with me",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "full",
+      "image": "/photos/renders/02-steps-clean.png",
+      "caps": [
+        {
+          "text": "they only wake up when you get up",
+          "y": 12,
+          "size": 54,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    },
+    {
+      "layout": "letterbox",
+      "image": "/photos/loc/loc-bed-watch.jpg",
+      "caps": [
+        {
+          "text": "gerald is playing dead again",
+          "y": 66,
+          "size": 54,
+          "style": "outline",
+          "w": 74
+        },
+        {
+          "text": "link in bio 🌙",
+          "y": 94,
+          "size": 59,
+          "style": "box",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

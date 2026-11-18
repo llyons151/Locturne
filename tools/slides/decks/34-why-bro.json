@@ -1,0 +1,101 @@
+{
+  "title": "why does bro's phone go to sleep at 11?",
+  "format": "\"Why does bro…\" cause and effect pairs",
+  "job": "save",
+  "why": "Question on top, payoff below: the habit explains the result. Viewers save the habit.",
+  "compare": "startnowdaily-why-bro",
+  "account": "@locturne",
+  "caption": "bro is onto something #discipline #selfimprovement",
+  "sound": "motivational",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [
+    "render shows 200 steps; match your setting"
+  ],
+  "slides": [
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/renders/13-shield-night.png",
+        "caps": [
+          {
+            "text": "why does bro's phone go to sleep at 11?",
+            "y": 84,
+            "size": 52,
+            "style": "classic",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/blinds-sunrise.jpg",
+        "caps": [
+          {
+            "text": "why is bro up before his alarm?",
+            "y": 84,
+            "size": 52,
+            "style": "classic",
+            "w": 78
+          }
+        ]
+      }
+    },
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/renders/02-steps-clean.png",
+        "caps": [
+          {
+            "text": "why does bro walk before opening instagram?",
+            "y": 84,
+            "size": 52,
+            "style": "classic",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/coffee.jpg",
+        "caps": [
+          {
+            "text": "why is bro never late?",
+            "y": 84,
+            "size": 52,
+            "style": "classic",
+            "w": 78
+          }
+        ]
+      }
+    },
+    {
+      "layout": "split",
+      "top": {
+        "image": "/photos/renders/09-moons.png",
+        "caps": [
+          {
+            "text": "why does bro collect moons?",
+            "y": 84,
+            "size": 52,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      },
+      "bottom": {
+        "image": "/photos/light-on-bed.jpg",
+        "caps": [
+          {
+            "text": "why does bro actually like mornings?",
+            "y": 84,
+            "size": 52,
+            "style": "outline",
+            "w": 78
+          }
+        ]
+      }
+    }
+  ],
+  "app": "none"
+}

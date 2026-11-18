@@ -1,0 +1,31 @@
+{
+  "title": "my bed after 'okay last video' 9 times",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "14-relatable-unmade",
+  "why": "Variant of 14: same wrecked-bed + the phrase we lie with, now with a count; dark real photo, so it reads as 3am.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "the 9th one was the real last one. what number are you on? #relatable #phoneinbed #sleep",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/bed-dark-streak.jpg",
+      "caps": [
+        {
+          "text": "my bed at 3am after i said 'okay last video' 9 times",
+          "y": 22,
+          "size": 58,
+          "style": "classic",
+          "w": 78
+        }
+      ]
+    }
+  ]
+}

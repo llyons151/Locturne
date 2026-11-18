@@ -1,0 +1,32 @@
+{
+  "title": "just lying down for 5 minutes",
+  "format": "One-slide relatable on a dim photo",
+  "job": "share",
+  "variantOf": "14-relatable-unmade",
+  "why": "Variant of 14: the bed as the scene, the afternoon '5 minutes' that turns into 2 hours; one leg out of the sheets is the joke.",
+  "compare": "peyt-phone-in-bed-room",
+  "account": "face / Day-N account",
+  "caption": "it has been 2 hours. how long was yours? #relatable #phoneaddiction #nap",
+  "sound": "trending sad sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/leg-out-sheets.jpg",
+      "caps": [
+        {
+          "text": "me in bed at 4pm after 'just lying down for 5 minutes' with my phone",
+          "y": 20,
+          "size": 58,
+          "style": "classic",
+          "w": 78,
+          "color": "#222"
+        }
+      ]
+    }
+  ]
+}

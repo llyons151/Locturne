@@ -49,6 +49,7 @@ function render({
   first = null as string | null,
   today = '2026-11-10',
   limited = [] as { id: string; date: string }[],
+  streak = 0,
 } = {}) {
   const calls = { back: 0, settle: 0, secret: 0, wear: [] as string[], alerts: [] as { title: string; body: string; buttons: any[] }[], seen: [] as string[][], ticks: 0 };
   const cleanups: (() => void)[] = [];
@@ -73,11 +74,13 @@ function render({
     },
     'react-native-reanimated': {
       __esModule: true,
-      default: { ScrollView: 'ScrollView' },
+      default: { ScrollView: 'ScrollView', View: 'AnimatedView' },
       runOnJS: (fn: unknown) => fn,
       useAnimatedScrollHandler: () => () => {},
       useAnimatedStyle: () => ({}),
       useSharedValue: (value: unknown) => ({ value }),
+      withSequence: (...steps: unknown[]) => steps.at(-1),
+      withTiming: (to: unknown) => to,
     },
     'expo-router': { router: { canGoBack: () => true, back: () => calls.back++, replace() {} } },
     'expo-symbols': { SymbolView: 'SymbolView' },
@@ -87,6 +90,9 @@ function render({
     '@/lib/haptics': { tap() {}, tick: () => calls.ticks++ },
     '@/lib/lock-controller': { readLock: () => ({ morningKey: today }) },
     '@/lib/morning-proof': { getMorningsWon: () => mornings, getFirstMorning: () => first },
+    '@/lib/streak': { getStreak: () => streak },
+    './moon-glow': { MoonGlow: 'MoonGlow' },
+    './moons-pills': { MoonsPills: 'MoonsPills' },
     '@/theme': { DisplayFont: {}, NUMBER_FONT: {}, Gap: { gutter: 24, block: 24, section: 32 }, Nocturne: {}, Space: { xs: 4, s: 8, m: 12, l: 16, xl: 24 }, Type: {} },
     './moon-collection': {
       checkSecretMoons: () => void calls.secret++,
@@ -123,22 +129,25 @@ function render({
   };
   walk(tree);
   const closeBtn = all.find((n) => n.type === 'Pressable' && n.props.accessibilityLabel === 'Close');
-  const tiles = all.filter((n) => n.type === 'Pressable' && n.children.some((c: Node) => c?.type === 'MoonThumb')).map((n) => {
-    const thumb = n.children.find((c: Node) => c?.type === 'MoonThumb') as Node;
+  const find = (n: any, type: string): Node | undefined => (n?.type === type ? n : (n?.children ?? []).map((c: any) => find(c, type)).find(Boolean));
+  const tiles = all.filter((n) => n.type === 'Pressable' && find({ children: n.children }, 'MoonThumb')).map((n) => {
+    const thumb = find({ children: n.children }, 'MoonThumb')!;
     const [name, status] = n.children.filter((c: Node) => c?.type === 'Text').map((t: Node) => t.children.join(''));
     return { id: thumb.props.moon.id as string, name, status, locked: thumb.props.locked as boolean, wearing: thumb.props.wearing as boolean, press: n.props.onPress as () => void, label: n.props.accessibilityLabel as string };
   });
-  const texts = all.filter((n) => n.type === 'Text').map((n) => n.children.join(''));
-  return { tiles, texts, calls, closeBtn, close: () => cleanups.forEach((c) => c()) };
+  const texts = all.filter((n) => n.type === 'Text').map((n) => n.children.map((c: any) => (typeof c === 'object' ? c.children.join('') : c)).join(''));
+  const pills = all.find((n) => n.type === 'MoonsPills')?.props as { mornings: number; streak: number; owned: number; total: number; moonId: string };
+  const glow = all.find((n) => n.type === 'MoonGlow')?.props as { id: string };
+  return { tiles, texts, pills, glow, calls, closeBtn, close: () => cleanups.forEach((c) => c()) };
 }
 
 const own = (ids: string[], extra: Partial<Owned[string]> = {}): Owned =>
   Object.fromEntries(ids.map((id, i) => [id, { id, morningKey: '2026-11-0' + (i + 1), morning: ladder.LADDER_MORNINGS[LADDER.indexOf(id)] ?? 1, at: 0, seen: true, ...extra }]));
 
 test('a new user: Moonlight worn, every ladder moon locked and named only by when it comes, the secret a "?"', () => {
-  const { tiles, texts } = render();
+  const { tiles, texts, pills } = render();
   assert.deepEqual(tiles.map((t) => t.id), ['moonlight', ...LADDER]);
-  assert.deepEqual(tiles[0], { ...tiles[0], status: undefined, locked: false, wearing: true });
+  assert.deepEqual(tiles[0], { ...tiles[0], status: 'You start with this', locked: false, wearing: true });
   assert.deepEqual(tiles.slice(1, 11).map((t) => t.name), ['Morning 1', 'Morning 3', 'Morning 7', 'Morning 14', 'Morning 30', 'Morning 50', 'Morning 100', 'Morning 150', 'Morning 200', 'Week 50']);
   assert.ok(tiles.slice(1, 11).every((t) => t.status === undefined), 'one line, no name and no countdown');
   assert.equal(tiles[1].label, 'Morning 1, locked');
@@ -146,7 +155,8 @@ test('a new user: Moonlight worn, every ladder moon locked and named only by whe
   assert.equal(tiles[11].status, undefined, 'no hint');
   assert.deepEqual(tiles.slice(11).map((t) => [t.name, t.status, t.locked]), SECRETS.map(() => ['Secret moon', undefined, true]), 'all three secrets, none named');
   assert.ok(tiles.slice(1).every((t) => t.locked));
-  assert.ok(texts.includes('1 moon'), 'Moonlight is yours from the start');
+  assert.equal(pills.owned, 1, 'Moonlight is yours from the start');
+  assert.equal(pills.total, 1 + LADDER.length);
   assert.ok(!texts.includes('Rare'), 'no Rare group before owning one');
 });
 
@@ -156,29 +166,37 @@ test('settles before the first paint and checks the secret', () => {
   assert.equal(calls.secret, 1);
 });
 
-test('a moon once yours swaps its "Morning N" for its name', () => {
+test('a moon once yours swaps its "Morning N" for its name, over the morning that brought it', () => {
   const { tiles } = render({ owned: own(['dawn', 'harvest']), mornings: 5 });
   const by = (id: string) => tiles.find((t) => t.id === id)!;
-  assert.deepEqual([by('harvest').name, by('harvest').status], ['Harvest Moon', undefined]);
+  assert.deepEqual([by('harvest').name, by('harvest').status], ['Harvest Moon', 'Morning 3']);
   assert.deepEqual([by('aurora').name, by('aurora').status], ['Morning 7', undefined]);
   assert.ok(!tiles.some((t) => t.name === 'Aurora' || /left/.test(t.status ?? '')));
 });
 
-test('an owned moon is just its name, new or worn: the worn one says so by its edge alone', () => {
+test('the worn moon: its tile is marked, its light is at the top and its name under the title', () => {
   const owned = { ...own(['dawn']), ...own(['harvest'], { seen: false }) };
-  const { tiles, texts } = render({ owned, mornings: 3, worn: 'dawn' });
+  const { tiles, texts, pills, glow } = render({ owned, mornings: 3, worn: 'dawn' });
   const by = (id: string) => tiles.find((t) => t.id === id)!;
   assert.equal(by('dawn').wearing, true);
-  assert.ok(tiles.every((t) => t.status === undefined), 'one line under every tile');
+  assert.ok(tiles.filter((t) => t.locked).every((t) => t.status === undefined), 'a locked moon has one line, no countdown');
   assert.equal(by('dawn').label, by('dawn').name);
-  assert.ok(texts.includes('3 moons'));
+  assert.equal(glow.id, 'dawn');
+  assert.ok(texts.includes('Wearing Dawn Moon'));
+  assert.equal(pills.owned, 3);
+  assert.equal(pills.moonId, 'dawn');
+});
+
+test('the pills get every morning and the streak', () => {
+  const { pills } = render({ mornings: 16, streak: 6 });
+  assert.deepEqual([pills.mornings, pills.streak], [16, 6]);
 });
 
 test('the count is Moonlight plus every moon earned, rare and secret too', () => {
   const owned = own(['dawn', 'twin-moonlet', RARE]);
   owned[RARE].morning = 40;
-  const { texts } = render({ owned, mornings: 1 });
-  assert.ok(texts.includes('4 moons'));
+  const { pills } = render({ owned, mornings: 1 });
+  assert.equal(pills.owned, 4);
 });
 
 test('the rare moon appears in its own group only once owned', () => {
@@ -187,7 +205,7 @@ test('the rare moon appears in its own group only once owned', () => {
   const { tiles, texts } = render({ owned, mornings: 4 });
   assert.ok(texts.includes('Rare'));
   assert.equal(tiles.at(-1)!.id, RARE);
-  assert.equal(tiles.at(-1)!.status, undefined);
+  assert.equal(tiles.at(-1)!.status, 'Morning 4');
 });
 
 test('a limited moon not owned is never shown, owned it joins the Rare group', () => {
@@ -195,15 +213,13 @@ test('a limited moon not owned is never shown, owned it joins the Rare group', (
   assert.ok(!render({ limited }).texts.includes('Rare'));
 });
 
-test('tapping a moon you own wears it (rising) and closes the collection; a locked one only ticks', () => {
+test('tapping a moon you own wears it at once and the page stays; the worn one does nothing; a locked one ticks', () => {
   const { tiles, calls } = render({ owned: own(['dawn']), mornings: 1 });
   tiles.find((t) => t.id === 'dawn')!.press();
   tiles.find((t) => t.id === 'moonlight')!.press();
-  const closed = calls.back;
   tiles.find((t) => t.id === 'nebula')!.press();
-  assert.deepEqual(calls.wear, ['dawn', 'moonlight']);
-  assert.equal(closed, 2);
-  assert.equal(calls.back, 2);
+  assert.deepEqual(calls.wear, ['dawn'], 'Moonlight is already worn');
+  assert.equal(calls.back, 0, 'no closing, no popup (user, 2026-11-16)');
   assert.equal(calls.ticks, 1);
 });
 

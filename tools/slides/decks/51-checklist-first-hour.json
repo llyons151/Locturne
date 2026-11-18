@@ -1,0 +1,122 @@
+{
+  "title": "30 things to do in the first hour instead of your phone",
+  "format": "Checklist + \"how i actually do it\"",
+  "job": "save",
+  "why": "A long checklist is pure save bait; the app is the method slide, and the closer asks a question.",
+  "compare": "growing-diaries-50-things",
+  "account": "@locturne",
+  "caption": "save this for tomorrow morning. which one are you starting with? #morningroutine #screentime",
+  "sound": "soft, morning",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "closer line must be true"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "30 things to do in the first hour\ninstead of your phone",
+      "image": "/photos/coffee.jpg",
+      "narrow": true,
+      "aside": "(save this for the next time you reach for it at 7am)"
+    },
+    {
+      "layout": "checklist",
+      "heading": "get up",
+      "start": 1,
+      "images": [
+        "/photos/blinds-sunrise.jpg",
+        "/photos/water.jpg"
+      ],
+      "items": [
+        "feet on the floor first",
+        "open the curtains",
+        "drink a full glass of water",
+        "make the bed",
+        "walk to the kitchen and back",
+        "step outside for 2 minutes",
+        "stretch for 5 minutes",
+        "brush your teeth slowly",
+        "put a playlist on",
+        "wash your face cold"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "wake your brain",
+      "start": 11,
+      "images": [
+        "/photos/journal.jpg",
+        "/photos/coffee.jpg"
+      ],
+      "items": [
+        "write 3 lines about yesterday",
+        "read 5 pages",
+        "make coffee by hand",
+        "plan the day on paper",
+        "do the hardest small task",
+        "text someone good morning",
+        "tidy one surface",
+        "eat something real",
+        "10 push-ups",
+        "look out the window for a minute"
+      ]
+    },
+    {
+      "layout": "checklist",
+      "heading": "protect the hour",
+      "start": 21,
+      "images": [
+        "/photos/tea.jpg",
+        "/photos/book-on-bed.jpg"
+      ],
+      "items": [
+        "charge the phone in another room",
+        "use a real alarm clock",
+        "keep apps asleep until you walk",
+        "no news before 9",
+        "no email in bed",
+        "shower before screens",
+        "lay out clothes the night before",
+        "same wake time on weekends",
+        "one podcast, not twenty videos",
+        "decide tonight what 7am looks like"
+      ]
+    },
+    {
+      "layout": "demo",
+      "heading": "how i actually do it",
+      "phone": "/photos/renders/02-steps-clean.png",
+      "text": "my apps stay _asleep_ until i've _walked_ in the morning\n\nby the time instagram wakes up, i'm already up\n\n*(the list fills the gap)*",
+      "card": {
+        "icon": "/demo/icon.png",
+        "name": "Locturne",
+        "subtitle": "Bedtime lock. Walk to unlock."
+      }
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/blinds-sunrise.jpg",
+      "question": "which one are you trying tomorrow? 👇",
+      "lines": [
+        "i'm on #3. a full glass before anything",
+        "locturne is in my bio"
+      ]
+    }
+  ],
+  "app": "method",
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 2,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}

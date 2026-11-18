@@ -1,0 +1,88 @@
+{
+  "title": "6 signs you're revenge scrolling",
+  "format": "Notes listicle, app on one point",
+  "job": "save",
+  "app": "punchline",
+  "variantOf": "52-notes-signs",
+  "why": "Variant of 52 on a named concept (revenge bedtime procrastination): naming the habit gives the hook a word people search and repeat.",
+  "compare": "amayareading-10-things",
+  "account": "@locturne",
+  "caption": "the day was not yours so the night has to be #revengebedtimeprocrastination #sleep",
+  "sound": "moody, low volume",
+  "size": [
+    1080,
+    1350
+  ],
+  "check": [
+    "closer: 'i was all 6'. Only if true for you"
+  ],
+  "slides": [
+    {
+      "layout": "hook",
+      "title": "6 signs you're revenge scrolling",
+      "image": "/photos/city-night.jpg",
+      "narrow": true,
+      "aside": "(not lazy, just robbed)",
+      "asideRight": true
+    },
+    {
+      "layout": "point",
+      "heading": "you stay up because _the day wasn't yours_",
+      "top": "work, class, everyone else's plans",
+      "text": "so midnight feels like the _only time you own_",
+      "bottom": "",
+      "image": "/photos/reading-dark.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "you know you're tired and _keep going_",
+      "top": "eyes stinging, still scrolling",
+      "text": "tiredness isn't the signal anymore\n\n_the feed ending_ is, and it never ends",
+      "bottom": "",
+      "image": "/photos/sheets.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "you're _not even enjoying it_",
+      "top": "same 6 videos, different order",
+      "text": "it's not fun. it's just _not over yet_",
+      "bottom": "",
+      "image": "/photos/unmade-bed.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "\"just checking one thing\"",
+      "top": "one thing, then _forty_",
+      "text": "the check is never the problem\n\nthe _next swipe_ is",
+      "bottom": "",
+      "image": "/photos/book-on-bed.jpg",
+      "imageSide": "left"
+    },
+    {
+      "layout": "point",
+      "heading": "you feel _worse_ after",
+      "top": "not rested, not entertained",
+      "text": "just later, and _more tired_",
+      "bottom": "",
+      "image": "/photos/clock-127.jpg"
+    },
+    {
+      "layout": "point",
+      "heading": "the night only ends when _your phone does_",
+      "top": "so i made mine end first",
+      "text": "my apps go _to sleep at 11_ now\n\nthe night is still mine. i just spend it _asleep_",
+      "bottom": "",
+      "phone": "/photos/renders/13-shield-night.png"
+    },
+    {
+      "layout": "closer",
+      "avatar": "/photos/light-on-bed.jpg",
+      "question": "how many are you? 👇",
+      "lines": [
+        "i was all 6",
+        "the app is locturne, link in bio"
+      ]
+    }
+  ]
+}

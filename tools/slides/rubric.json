@@ -1,0 +1,55 @@
+{
+  "about": "Scoring rubric for slideshows, 0-2 per criterion. Source of truth: docs/SLIDESHOW_LOOP.md (the loop revises both).",
+  "criteria": [
+    {
+      "key": "job",
+      "name": "One clear job",
+      "ask": "Does it do exactly one job: share, save, comment or identity?"
+    },
+    {
+      "key": "hook",
+      "name": "Hook at a glance",
+      "ask": "Slide 1 readable in 1.5 s, about 14 words or fewer, a number or a universal habit?"
+    },
+    {
+      "key": "proven",
+      "name": "Proven structure",
+      "ask": "Same structure as a reference with 100K+ likes?"
+    },
+    {
+      "key": "swipe",
+      "name": "Swipe pull",
+      "ask": "Does slide 1 promise something only later slides pay off?"
+    },
+    {
+      "key": "earned",
+      "name": "Every slide earns it",
+      "ask": "No filler; save decks have real content on every slide?"
+    },
+    {
+      "key": "app",
+      "name": "App placement",
+      "ask": "Reach decks: no app. Carrier decks: app as confession, method or punchline, never the hook?"
+    },
+    {
+      "key": "native",
+      "name": "Looks native",
+      "ask": "Font, size and position match the reference; reads as a person, not a brand?"
+    },
+    {
+      "key": "images",
+      "name": "Image honesty",
+      "ask": "Own, public-domain, CC or renders; AI only for dim scenes, and labelled?"
+    },
+    {
+      "key": "comment",
+      "name": "Comment pull",
+      "ask": "Something people want to answer: a closing question where the reference has one, 'same' bait, a count-your-score list, or a sound people react to?"
+    },
+    {
+      "key": "truth",
+      "name": "Truth",
+      "ask": "Every first-person claim true, or listed in the check list?"
+    }
+  ]
+}

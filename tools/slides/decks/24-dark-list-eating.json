@@ -1,0 +1,55 @@
+{
+  "title": "6 things your phone eats every day",
+  "format": "Dark painting cover + one line per paper slide",
+  "job": "save",
+  "why": "Goya's Saturn devouring his son as 'your phone' is grotesque enough to stop anyone.",
+  "compare": "sumimxojpd0-dark-art-list",
+  "account": "@locturne",
+  "caption": "number 1 is the worst. which one is yours? #phoneaddiction #screentime",
+  "sound": "slow dark ambient",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "pic",
+      "image": "/photos/art/saturn.jpg",
+      "caps": [
+        {
+          "text": "6 THINGS YOUR PHONE EATS EVERY DAY..",
+          "y": 54,
+          "size": 58,
+          "style": "classic",
+          "w": 90
+        }
+      ]
+    },
+    {
+      "layout": "paper",
+      "text": "Your **first hour** of the morning."
+    },
+    {
+      "layout": "paper",
+      "text": "Your **sleep**, twenty minutes at a time."
+    },
+    {
+      "layout": "paper",
+      "text": "Your **attention span**."
+    },
+    {
+      "layout": "paper",
+      "text": "Your **boredom**, which is where ideas come from."
+    },
+    {
+      "layout": "paper",
+      "text": "Your **evenings**."
+    },
+    {
+      "layout": "paper",
+      "text": "Your **memory** of what you actually did today."
+    }
+  ],
+  "app": "none"
+}

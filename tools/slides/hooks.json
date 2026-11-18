@@ -1,0 +1,175 @@
+{
+  "about": "Hook formulas with real evidence (docs/slideshow-refs/refs.json, reports/Slideshow hook bank 2026-11-13.md). `match` is a regex lint.mjs tests slide 1 against; `ours` are Locturne-situation lines to start from, never copies.",
+  "formulas": [
+    {
+      "key": "relatable-moment",
+      "job": "share",
+      "pattern": "me at [time] / when [trigger] / my room at 2am … [the habit nobody admits]",
+      "match": "^(me (at|in bed|lying)|when (the|i|it|you)|my (room|bed) at|the (bed|silence|noise) |\"one more)",
+      "evidence": "egg 4.6M likes / 845K shares; peyt 3.9M; zararose 412K",
+      "ours": [
+        "me in bed at 1am doing sleep math like it's a group project",
+        "me in bed every morning letting tiktok decide my mood",
+        "me at 1:40am promising tomorrow i'll sleep early",
+        "when the alarm goes off and i open tiktok \"just to wake up\"",
+        "my room at 2am when i told everyone i'd be asleep by 11",
+        "me in bed at 3am watching a man restore a rusty knife"
+      ]
+    },
+    {
+      "key": "finally-phone-time",
+      "job": "share",
+      "pattern": "when it's finally ___ time [the guilty ritual]",
+      "match": "finally .*time|the noise i make",
+      "evidence": "peyt 3.9M; zararose 412K / 42K shares",
+      "ours": [
+        "when it's finally lie-in-the-dark-and-scroll-for-3-hours time",
+        "when it's finally phone-in-the-dark-until-2am time",
+        "the noise i make when it's finally lie-in-bed-and-scroll time"
+      ]
+    },
+    {
+      "key": "number-things-ruining",
+      "job": "save",
+      "pattern": "N things quietly ruining your ___ (niche edition)",
+      "match": "^\\d+(/\\d+)? (things|habits|signs|ways|rules)|^(some )?(boring |weird )?things that (actually )?(fixed|made|helped)|^my weird (rules|hacks)|^signs (your|you)",
+      "evidence": "dark list 4.4M; amayareading 182K / 58K saves (app on slide 4)",
+      "ours": [
+        "7 things quietly wrecking your mornings",
+        "8 habits keeping you awake at 2am",
+        "7 things quietly wrecking your mornings (niche edition)",
+        "5 signs your phone is the one running your nights",
+        "10/10 habits keeping you awake at 2am",
+        "boring things that actually fixed my sleep"
+      ]
+    },
+    {
+      "key": "n-days-without",
+      "job": "save",
+      "pattern": "what N days without ___ did to my brain (receipts)",
+      "match": "^what \\d+ (days|nights|weeks) (without|of)",
+      "evidence": "Scrolless 96K likes / 35K saves (app named on slide 5), screen-time pull 2026-11-12",
+      "ours": [
+        "what 30 nights without tiktok in bed did to my brain",
+        "what 14 days of no phone before walking did to my mornings",
+        "what 7 nights of a phone curfew did to my sleep"
+      ]
+    },
+    {
+      "key": "authority-hacks",
+      "job": "save",
+      "pattern": "weird ___ [someone credible] gave me for ___ (that actually helped)",
+      "match": "(hacks|tips|rules) .*(gave me|taught me)|that actually (helped|worked)",
+      "evidence": "helen 2.5M / 974K saves (39%)",
+      "ours": [
+        "weird sleep rules my grandma swore by (that actually worked)",
+        "weird sleep tricks my nan swore by (that actually worked)"
+      ],
+      "rule": "Only real authority (a person who really said it). Never a fake doctor or expert."
+    },
+    {
+      "key": "wondered-why",
+      "job": "share",
+      "pattern": "i wondered why i couldn't ___ … → the reveal is a screenshot",
+      "match": "^i wondered why|^ever wondered why",
+      "evidence": "everybodylovesg 2.3M / 259K shares / 18.1K comments",
+      "ours": [
+        "i wondered why i couldn't sleep at night…",
+        "i wondered why i was tired every single morning…",
+        "ever wondered why 'one more video' is never one"
+      ]
+    },
+    {
+      "key": "is-it-just-me",
+      "job": "comments",
+      "pattern": "is it just me or ___",
+      "match": "^is it just me|anyone else",
+      "evidence": "zainfinityy 2.1M / 11.5K comments",
+      "ours": [
+        "is it just me or does 'one more video' mean 40 more",
+        "is it just me or is 11pm the most awake you ever feel",
+        "is it just me or do you also check the time and lie about it"
+      ]
+    },
+    {
+      "key": "type-identity",
+      "job": "identity",
+      "pattern": "i'm a type ___ girl/guy. i can ___, i can ___",
+      "match": "^i'?m a type|\\btype [a-z0-9]+ (girl|guy)",
+      "evidence": "blondequeen 3.2M / 90K shares",
+      "ours": [
+        "i'm a type 3am girl",
+        "i'm a type 'one more video' guy",
+        "i'm a type 'set 6 alarms, hear none' girl"
+      ]
+    },
+    {
+      "key": "doomscrolled-intro",
+      "job": "promo",
+      "pattern": "hi i'm ___! you've doomscrolled your way to my ___",
+      "match": "doomscrolled your way",
+      "evidence": "jwhorner 7.1M, repeated 4x over 1M",
+      "ours": [
+        "hi i'm luke, you've doomscrolled your way to my app that puts your apps to sleep",
+        "hi i'm luke! you've doomscrolled your way to my app. go to sleep 😴",
+        "hi i'm loc! you've doomscrolled your way to my bedtime"
+      ]
+    },
+    {
+      "key": "past-me",
+      "job": "share",
+      "pattern": "[year/time] me was not real + the old plan",
+      "match": "me was not real|past me",
+      "evidence": "heyitsliiv 1.5M / 70K saves",
+      "ours": [
+        "january me was not real (5am club, cold showers, no phone)",
+        "sunday night me was not real (asleep by 10, phone in the kitchen)"
+      ]
+    },
+    {
+      "key": "empathy-made-it",
+      "job": "promo",
+      "pattern": "i know that feeling when ___ → so i made ___ for people like me",
+      "match": "^i know (that|the) feeling|so i made",
+      "evidence": "charlotte 2.0M / 401K saves",
+      "ours": [
+        "i know that feeling when it's 2am and you hate yourself but keep scrolling",
+        "i know that feeling when it's 2am and the videos aren't even good",
+        "i know that feeling when your phone eats the first hour of your day",
+        "i know that feeling when you're exhausted but can't put your phone down"
+      ]
+    },
+    {
+      "key": "split-reframe",
+      "job": "save",
+      "pattern": "top / bottom: the spiral on top, the calm version below (write as \"top / bottom\")",
+      "match": " / |judging me|what a nice day",
+      "evidence": "grindai.app 3.2M (an app's own account)",
+      "ours": [
+        "just one more video / already asleep",
+        "snooze #4 / up before the alarm",
+        "1:27am, still scrolling / 11:30pm, apps asleep",
+        "i need my phone to fall asleep / asleep before i missed it"
+      ]
+    },
+    {
+      "key": "other-person-conflict",
+      "job": "promo",
+      "pattern": "[someone] said / bet ___ so i ___ (showed them)",
+      "match": "(said|told me|bet) .* so i|wouldn'?t let me",
+      "evidence": "Larry: 147K–234K vs 0.9–2.7K for self/feature hooks (operator claim, grade S)",
+      "ours": [
+        "my roommate said i'd never last a week without tiktok in bed so i made my phone do it for me",
+        "my roommate said i'd never sleep before 2am. so i built this",
+        "judge said lights out at 11. so i'm taking your phone with me",
+        "mum said i'd sleep through every alarm. so i built this"
+      ],
+      "rule": "Someone must really have said it; swap in who did."
+    }
+  ],
+  "rules": [
+    "Lowercase, plain, 3–14 words on multi-slide decks (common in every top list; no controlled study).",
+    "Hook names the viewer's habit or another person's conflict, never a feature or the app (Larry: feature/self hooks 0.9–2.7K).",
+    "A number in the hook when the job is save."
+  ]
+}

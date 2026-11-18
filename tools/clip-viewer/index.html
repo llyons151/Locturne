@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clip Viewer</title>
+<style>
+  :root {
+    --bg: #0e0f12; --panel: #17181d; --line: #262830; --ink: #ecedf0; --dim: #8b8e99; --chip: #1f2128;
+    --keep: #3fae6a; --maybe: #d0a23a; --skip: #c4554d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, "Inter", system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding: 14px 20px 10px; }
+  h1 { font-size: 17px; margin: 0 0 10px; font-weight: 650; display: flex; gap: 12px; align-items: baseline; }
+  h1 small { color: var(--dim); font-weight: 400; font-size: 13px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .bar label { color: var(--dim); font-size: 12px; width: 58px; flex: none; }
+  .chip { background: var(--chip); border: 1px solid var(--line); color: var(--ink); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
+  .chip.on { background: var(--ink); color: #111; border-color: var(--ink); }
+  .chip .n { color: var(--dim); margin-left: 4px; }
+  .chip.on .n { color: #555; }
+  select { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; }
+  main { padding: 18px 20px 60px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; }
+  .card { cursor: pointer; }
+  .thumb { position: relative; aspect-ratio: 9/16; border-radius: 10px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); }
+  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb video { position: absolute; inset: 0; }
+  .badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.72); padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .dur { left: auto; right: 6px; font-weight: 400; }
+  .markdot { position: absolute; top: 6px; right: 6px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0,0,0,.5); }
+  .failed .thumb { display: grid; place-items: center; color: var(--dim); font-size: 12px; text-align: center; padding: 10px; }
+  .meta { padding: 6px 2px 0; }
+  .meta .h { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta .f { color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #player { position: fixed; inset: 0; background: rgba(5,5,7,.94); z-index: 10; display: none; }
+  #player.open { display: flex; }
+  #player .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; min-width: 0; }
+  #player video { max-height: calc(100vh - 40px); max-width: 100%; border-radius: 12px; background: #000; }
+  #player aside { width: 400px; flex: none; background: var(--panel); border-left: 1px solid var(--line); padding: 20px; overflow-y: auto; }
+  aside h2 { margin: 0; font-size: 18px; }
+  aside .sub { color: var(--dim); font-size: 12.5px; margin: 2px 0 14px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 16px; }
+  .stat { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .stat b { display: block; font-size: 15px; }
+  .stat span { color: var(--dim); font-size: 11px; }
+  aside h3 { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin: 16px 0 6px; }
+  aside p { margin: 0; white-space: pre-wrap; }
+  .take { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .marks { display: flex; gap: 6px; }
+  .marks button { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); cursor: pointer; font-weight: 600; }
+  .marks button.on[data-m=keep] { background: var(--keep); border-color: var(--keep); color: #08140c; }
+  .marks button.on[data-m=maybe] { background: var(--maybe); border-color: var(--maybe); color: #1a1405; }
+  .marks button.on[data-m=skip] { background: var(--skip); border-color: var(--skip); color: #1b0806; }
+  textarea { width: 100%; min-height: 80px; margin-top: 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; resize: vertical; }
+  .row { display: flex; gap: 8px; margin-top: 16px; }
+  .row a, .row button { flex: 1; text-align: center; padding: 8px; border-radius: 8px; background: var(--chip); border: 1px solid var(--line); color: var(--ink); text-decoration: none; cursor: pointer; font: inherit; }
+  .keys { color: var(--dim); font-size: 11.5px; margin-top: 14px; }
+  .close { position: absolute; top: 14px; left: 18px; background: none; border: 0; color: var(--dim); font-size: 26px; cursor: pointer; }
+  .empty { grid-column: 1/-1; color: var(--dim); text-align: center; padding: 60px 0; }
+  @media (max-width: 800px) {
+    #player.open { flex-direction: column; }
+    #player aside { width: auto; max-height: 45vh; }
+    #player video { max-height: 50vh; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Clip viewer <small id="count"></small></h1>
+  <div class="bar"><label>Study</label><div id="angles" class="bar"></div></div>
+  <div class="bar"><label>Format</label><div id="formats" class="bar"></div></div>
+  <div class="bar"><label>Mine</label><div id="markf" class="bar"></div>
+    <span style="flex:1"></span>
+    <select id="sort">
+      <option value="views">Most views</option>
+      <option value="likes">Most likes</option>
+      <option value="ratio">Like rate</option>
+      <option value="date">Newest</option>
+    </select>
+  </div>
+</header>
+<main id="grid"></main>
+
+<div id="player">
+  <button class="close" title="Close (Esc)">×</button>
+  <div class="stage"><video id="vid" controls playsinline loop></video></div>
+  <aside id="side"></aside>
+</div>
+
+<script>
+const fmt = n => n == null ? '–' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K' : String(n);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const day = d => d ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : '';
+const COLORS = { keep: 'var(--keep)', maybe: 'var(--maybe)', skip: 'var(--skip)' };
+
+let items = [], takes = {}, marks = {}, shown = [], cur = -1;
+const filt = { angle: null, format: null, mark: null };
+// Researchers tag formats in free text; fold them into a few groups to filter by. First match wins.
+const GROUPS = [
+  ['Caught in the act', /pov|caught|crashing|partner|reaction|wake/i],
+  ['Push-up unlock', /unlock|push-up alarm|pushup rep/i],
+  ['Day N series', /day-?n|serial|episodic|daily/i],
+  ['Recap / transformation', /recap|transformation|results|retrospective|year|30-day|100-day|7-day|vlog|200|1000|pull-ups/i],
+  ['Talking head / story', /talking|story|storytime|founder|reply|interview|talk/i],
+  ['Physique / gym', /gym|physique|glow|abs|credibility|drop|sulek/i],
+  ['Stat / text hook', /stat|text|plug|"if this/i],
+];
+const fmtKey = it => (GROUPS.find(([, re]) => re.test(it.format || '')) || ['Other'])[0];
+const views = it => it.meta?.view_count ?? null;
+
+async function load() {
+  const r = await fetch('/api/all').then(r => r.json());
+  items = r.items; takes = r.takes; marks = r.marks;
+  chips(); render();
+  // #<clip id> in the URL opens that clip.
+  const want = location.hash.slice(1);
+  if (want) { const i = shown.findIndex(it => it.id === want); if (i >= 0) open(i); }
+}
+
+function chips() {
+  const tally = (key) => items.reduce((m, it) => (key(it).forEach(k => m[k] = (m[k] || 0) + 1), m), {});
+  const group = (el, counts, field) => {
+    el.innerHTML = '';
+    const add = (val, label, n) => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (filt[field] === val ? ' on' : '');
+      b.innerHTML = esc(label) + (n != null ? `<span class="n">${n}</span>` : '');
+      b.onclick = () => { filt[field] = filt[field] === val ? null : val; chips(); render(); };
+      el.append(b);
+    };
+    add(null, 'All');
+    Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => add(k, k, n));
+  };
+  group(angles, tally(it => it.angle.split(', ')), 'angle');
+  group(formats, tally(it => [fmtKey(it)]), 'format');
+  group(markf, tally(it => [marks[it.id]?.mark || 'unmarked']), 'mark');
+}
+
+function render() {
+  const s = sort.value;
+  shown = items.filter(it =>
+    (!filt.angle || it.angle.split(', ').includes(filt.angle)) &&
+    (!filt.format || fmtKey(it) === filt.format) &&
+    (!filt.mark || (marks[it.id]?.mark || 'unmarked') === filt.mark));
+  const key = {
+    views: it => views(it) ?? -1, likes: it => it.meta?.like_count ?? -1,
+    ratio: it => views(it) ? (it.meta.like_count ?? 0) / views(it) : -1, date: it => Number(it.meta?.upload_date ?? 0),
+  }[s];
+  shown.sort((a, b) => (b.status === 'ok') - (a.status === 'ok') || key(b) - key(a));
+  count.textContent = `${shown.length} of ${items.length} clips · ${items.filter(i => i.status !== 'ok').length} failed to download`;
+  grid.innerHTML = shown.length ? '' : '<div class="empty">Nothing here yet. Run <code>npm run clip-viewer:fetch</code>.</div>';
+  shown.forEach((it, i) => {
+    const el = document.createElement('div');
+    el.className = 'card' + (it.status !== 'ok' ? ' failed' : '');
+    const m = marks[it.id]?.mark;
+    el.innerHTML = it.status === 'ok'
+      ? `<div class="thumb">${it.cover ? `<img loading="lazy" src="/data/${it.cover}">` : ''}
+           <span class="badge">${fmt(views(it))}</span>${it.meta?.duration ? `<span class="badge dur">${Math.round(it.meta.duration)}s</span>` : ''}
+           ${m ? `<span class="markdot" style="background:${COLORS[m]}"></span>` : ''}</div>`
+      : `<div class="thumb">Couldn't download<br>${esc(it.platform)}<br><br>${esc(it.error || '')}</div>`;
+    el.innerHTML += `<div class="meta"><div class="h">${esc(it.handle || it.meta?.uploader)}</div><div class="f">${esc(it.format)}</div></div>`;
+    el.onclick = () => it.status === 'ok' ? open(i) : window.open(it.url, '_blank');
+    if (it.status === 'ok' && it.video) {
+      // Hover plays a muted preview.
+      const th = el.querySelector('.thumb');
+      el.onmouseenter = () => { const v = document.createElement('video'); v.src = '/data/' + it.video; v.muted = true; v.loop = true; v.playsInline = true; th.append(v); v.play().catch(() => {}); };
+      el.onmouseleave = () => th.querySelector('video')?.remove();
+    }
+    grid.append(el);
+  });
+}
+
+function open(i) {
+  cur = i; const it = shown[i]; if (!it) return;
+  player.classList.add('open');
+  vid.src = '/data/' + it.video; vid.play().catch(() => {});
+  const m = it.meta || {}, mk = marks[it.id] || {};
+  const rate = m.view_count ? ((m.like_count ?? 0) / m.view_count * 100).toFixed(1) + '%' : '–';
+  side.innerHTML = `
+    <h2>${esc(it.handle || m.uploader)}</h2>
+    <div class="sub">${esc(it.platform)} · ${day(m.upload_date)} · ${Math.round(m.duration || 0)}s · ${esc(it.angle)}</div>
+    <div class="stats">
+      <div class="stat"><b>${fmt(m.view_count)}</b><span>views</span></div>
+      <div class="stat"><b>${fmt(m.like_count)}</b><span>likes</span></div>
+      <div class="stat"><b>${fmt(m.comment_count)}</b><span>comments</span></div>
+      <div class="stat"><b>${rate}</b><span>like rate</span></div>
+    </div>
+    <h3>Format</h3><p>${esc(it.format)}</p>
+    <h3>Why it's here</h3><p>${esc(it.why)}</p>
+    ${takes[it.id] ? `<h3>Claude's take</h3><p class="take">${esc(takes[it.id])}</p>` : ''}
+    ${m.description || m.title ? `<h3>Caption</h3><p style="color:var(--dim)">${esc((m.description || m.title).slice(0, 500))}</p>` : ''}
+    <h3>Your call</h3>
+    <div class="marks">${['keep', 'maybe', 'skip'].map(k => `<button data-m="${k}" class="${mk.mark === k ? 'on' : ''}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+    <textarea id="note" placeholder="Notes: what to steal, what to change…">${esc(mk.note || '')}</textarea>
+    <div class="row"><a href="${esc(it.url)}" target="_blank" rel="noopener">Open original</a><button id="nextb">Next →</button></div>
+    <div class="keys">← → prev/next · K keep · M maybe · S skip · Space play/pause · Esc close</div>`;
+  side.querySelectorAll('.marks button').forEach(b => b.onclick = () => setMark(b.dataset.m));
+  note.onchange = () => save(it.id, (marks[it.id] || {}).mark, note.value);
+  nextb.onclick = () => step(1);
+}
+
+async function save(id, mark, noteText) {
+  marks[id] = { mark: mark ?? null, note: noteText ?? '' };
+  await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ id, ...marks[id] }) });
+}
+function setMark(m) {
+  const it = shown[cur]; const prev = marks[it.id] || {};
+  const next = prev.mark === m ? null : m;
+  save(it.id, next, document.getElementById('note')?.value ?? prev.note);
+  side.querySelectorAll('.marks button').forEach(b => b.classList.toggle('on', b.dataset.m === next));
+}
+function step(d) {
+  let i = cur;
+  do { i += d; } while (shown[i] && shown[i].status !== 'ok');
+  if (shown[i]) open(i);
+}
+function close() { player.classList.remove('open'); vid.pause(); vid.removeAttribute('src'); vid.load(); chips(); render(); }
+
+document.querySelector('.close').onclick = close;
+sort.onchange = render;
+document.addEventListener('keydown', e => {
+  if (!player.classList.contains('open') || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'Escape') close();
+  else if (e.key === 'ArrowRight') step(1);
+  else if (e.key === 'ArrowLeft') step(-1);
+  else if (e.key === ' ') { e.preventDefault(); vid.paused ? vid.play() : vid.pause(); }
+  else if ('kms'.includes(e.key.toLowerCase()) && e.key.length === 1) setMark({ k: 'keep', m: 'maybe', s: 'skip' }[e.key.toLowerCase()]);
+});
+load();
+</script>
+</body>
+</html>

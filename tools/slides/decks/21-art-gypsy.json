@@ -1,0 +1,42 @@
+{
+  "title": "the alarm in 2 hours",
+  "format": "Old painting + modern caption",
+  "job": "share",
+  "why": "Rousseau's sleeping woman with a lion standing over her: the lion is the alarm.",
+  "compare": "lvnarjules-painting-meme",
+  "account": "@loc or @locturne",
+  "caption": "he arrives at 6. what time is your alarm? #art #sleep #relatable",
+  "sound": "trending sound",
+  "size": [
+    1080,
+    1920
+  ],
+  "check": [],
+  "slides": [
+    {
+      "layout": "letterbox",
+      "image": "/photos/art/sleeping-gypsy.jpg",
+      "caps": [
+        {
+          "text": "me asleep at 4am with my phone still playing, and the alarm in 2 hours:",
+          "y": 66,
+          "size": 46,
+          "style": "outline",
+          "w": 80
+        }
+      ]
+    }
+  ],
+  "score": {
+    "job": 2,
+    "hook": 2,
+    "proven": 2,
+    "swipe": 1,
+    "earned": 2,
+    "app": 2,
+    "native": 2,
+    "images": 2,
+    "comment": 2,
+    "truth": 2
+  }
+}
