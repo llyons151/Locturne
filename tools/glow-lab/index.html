@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Glow lab</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0c10; --ink: #e9eef7; --dim: #8a94a8; --line: #23262f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif; }
+  header { padding: 28px 32px 8px; display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.2px; }
+  header p { margin: 4px 0 0; color: var(--dim); max-width: 640px; }
+  .controls { display: flex; gap: 8px; align-items: center; color: var(--dim); }
+  .controls button { background: #161922; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  .controls button.on { background: var(--ink); color: #000; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 28px 24px; padding: 20px 32px 60px; }
+  .take { margin: 0; }
+  .screen { position: relative; width: 100%; aspect-ratio: 390 / 844; border-radius: 34px; overflow: hidden; background: #000; cursor: zoom-in; container-type: inline-size; }
+  .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .phone { position: absolute; left: 50%; transform: translateX(-50%); top: 13.5cqw; width: 57cqw; aspect-ratio: 1080 / 2221; }
+  .phone .glass { position: absolute; overflow: hidden; background: #000; left: 3.962%; top: 1.5655%; width: 92.073%; height: 96.953%; border-radius: 15% / 7.1%; }
+  .phone video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .phone img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .words { position: absolute; left: 0; right: 0; top: 150cqw; text-align: center; font-weight: 700; font-size: 7.7cqw; line-height: 1.17; letter-spacing: -0.13cqw; color: #f2f5fb; }
+  .cta { position: absolute; left: 6cqw; right: 6cqw; bottom: 17cqw; height: 14.4cqw; border-radius: 999px; background: #f2f5fb; color: #000; font-weight: 600; font-size: 4.4cqw; display: grid; place-items: center; }
+  .restore { position: absolute; left: 0; right: 0; bottom: 9cqw; text-align: center; color: #9fb3cc; font-size: 3.6cqw; }
+  figcaption { padding: 12px 4px 0; }
+  figcaption b { font-size: 15px; }
+  figcaption .n { color: var(--dim); margin-right: 6px; }
+  figcaption p { margin: 4px 0 0; color: var(--dim); }
+  figcaption .how { margin-top: 6px; font-size: 12px; color: #6f7a8f; }
+  .full { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; place-items: center; z-index: 10; }
+  .full.on { display: grid; }
+  .full .screen { width: min(430px, 46vh); cursor: zoom-out; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Glow lab</h1>
+    <p>Eight glassy, flowing backdrops from the 2026-11-17 deep dive, each a live shader behind the real welcome phone. No grain anywhere: banding is handled by an invisible half-step dither. Real speed is slow on purpose; use 4× to see the motion. Click a screen to see it large.</p>
+  </div>
+  <div class="controls"><button data-set="arcs">Moonrise ×10</button><button data-set="all">All 8 looks</button><span style="width:16px"></span>Speed <button data-s="1" class="on">1×</button><button data-s="4">4×</button><button data-s="12">12×</button></div>
+</header>
+<main class="grid" id="grid"></main>
+<div class="full" id="full"></div>
+
+<script>
+// Shared GLSL: noise, palette, dither, and the phone's box in pixels (uPhone = x, y, w, h, top-left origin).
+const HEAD = `
+precision highp float;
+uniform vec2 uRes; uniform float uT; uniform vec4 uPhone;
+varying vec2 vUv;
+// Night palette, the app's blues.
+const vec3 NAVY = vec3(0.016, 0.035, 0.11);
+const vec3 DEEP = vec3(0.14, 0.28, 0.69);
+const vec3 COBALT = vec3(0.30, 0.50, 0.94);
+const vec3 VIOLET = vec3(0.36, 0.34, 0.88);
+const vec3 ICE = vec3(0.62, 0.74, 1.0);
+vec2 px() { return vec2(vUv.x * uRes.x, (1.0 - vUv.y) * uRes.y); }
+vec2 phoneC() { return uPhone.xy + uPhone.zw * vec2(0.5, 0.55); }
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;} vec2 mod289(vec2 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec3 permute(vec3 x){return mod289(((x*34.0)+1.0)*x);}
+float snoise(vec2 v){const vec4 C=vec4(.211324865405187,.366025403784439,-.577350269189626,.024390243902439);
+ vec2 i=floor(v+dot(v,C.yy));vec2 x0=v-i+dot(i,C.xx);vec2 i1=(x0.x>x0.y)?vec2(1.,0.):vec2(0.,1.);
+ vec4 x12=x0.xyxy+C.xxzz;x12.xy-=i1;i=mod289(i);vec3 p=permute(permute(i.y+vec3(0.,i1.y,1.))+i.x+vec3(0.,i1.x,1.));
+ vec3 m=max(.5-vec3(dot(x0,x0),dot(x12.xy,x12.xy),dot(x12.zw,x12.zw)),0.);m=m*m;m=m*m;
+ vec3 x=2.*fract(p*C.www)-1.;vec3 h=abs(x)-.5;vec3 ox=floor(x+.5);vec3 a0=x-ox;
+ m*=1.79284291400159-.85373472095314*(a0*a0+h*h);vec3 g;g.x=a0.x*x0.x+h.x*x0.y;g.yz=a0.yz*x12.xz+h.yz*x12.yw;return 130.*dot(m,g);}
+float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*snoise(p);p*=2.02;a*=.5;}return s;}
+float blob(vec2 p, vec2 c, vec2 r) { vec2 d = (p - c) / r; return exp(-dot(d, d)); }
+// Soft light falloff that never clips: 1 - e^-x.
+vec3 tone(vec3 c) { return 1.0 - exp(-c); }
+// Half a step of triangular noise: kills 8-bit banding, too small to see as grain.
+vec3 dither(vec3 c) { vec2 p = gl_FragCoord.xy; float n = hash(p) + hash(p + 17.3) - 1.0; return c + n / 255.0; }
+`;
+
+const TAKES = [
+  {
+    name: 'Today, no grain', how: 'Baseline: the four drifting pools now in the app.',
+    what: 'What ships now with the grain taken out, to compare against.',
+    frag: `void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x, H=uPhone.w; float t=uT/60.0*6.2831;
+      vec3 col=NAVY*0.0;
+      col+=DEEP*0.9*blob(p,c,vec2(W*0.75,H*0.7))*(0.94+0.06*sin(t*5.0));
+      col+=COBALT*0.6*blob(p,c+vec2(-W*0.16+W*0.07*sin(t*3.),-H*0.18+H*0.05*cos(t*3.)),vec2(W*0.42,H*0.38));
+      col+=VIOLET*0.45*blob(p,c+vec2(W*0.18-W*0.08*sin(t*2.+3.),H*0.12-H*0.06*cos(t*2.+3.)),vec2(W*0.38,H*0.34));
+      col+=ICE*0.32*blob(p,vec2(c.x,uPhone.y+uPhone.w),vec2(uPhone.z*0.8,H*0.09));
+      gl_FragColor=vec4(dither(tone(col*0.9)),1.0);}`
+  },
+  {
+    name: 'Aurora orbit', how: 'Pearl-style: four soft lights each orbiting on its own 50–80 s loop. SwiftUI blur or Metal.',
+    what: 'The documented indie recipe. Calmer, rounder, more colour mixing where lights cross.',
+    frag: `void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float T=uT*6.2831;
+      vec3 col=vec3(0.);
+      vec2 o1=vec2(cos(T/50.),sin(T/50.)), o2=vec2(cos(T/63.+2.),sin(T/63.+2.)), o3=vec2(cos(-T/71.+4.),sin(-T/71.+4.)), o4=vec2(cos(-T/80.+1.),sin(-T/80.+1.));
+      col+=DEEP*1.0*blob(p,c+o1*vec2(W*.18,H*.16),vec2(W*.6,H*.55));
+      col+=COBALT*.75*blob(p,c+vec2(-W*.15,-H*.15)+o2*vec2(W*.16,H*.14),vec2(W*.42,H*.36));
+      col+=VIOLET*.6*blob(p,c+vec2(W*.2,H*.18)+o3*vec2(W*.15,H*.12),vec2(W*.4,H*.34));
+      col+=vec3(.18,.55,.85)*.35*blob(p,c+vec2(W*.05,-H*.35)+o4*vec2(W*.2,H*.1),vec2(W*.36,H*.28));
+      gl_FragColor=vec4(dither(tone(col)),1.0);}`
+  },
+  {
+    name: 'Mesh flow', how: 'Stripe / Apple Music style: a living mesh gradient, colours folded by slow noise. Native: SwiftUI MeshGradient on a TimelineView, or Metal.',
+    what: 'Colour that moves like ink in water. The most "alive" without shapes you can track.',
+    frag: `void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float t=uT*0.045;
+      vec2 q=(p-c)/W;
+      vec2 w=vec2(snoise(q*.7+vec2(t,-t*.7)),snoise(q*.7+vec2(4.1-t*.8,1.7+t)));
+      float f=snoise(q*.6+w*.55+t*.3);
+      vec3 col=mix(DEEP,COBALT,smoothstep(-.35,.45,f));
+      col=mix(col,VIOLET,smoothstep(.1,.7,w.x)*.7);
+      col=mix(col,ICE,smoothstep(.45,.95,f)*.45);
+      float mask=blob(p,c,vec2(W*.72,H*.66));
+      col*=mask;
+      gl_FragColor=vec4(dither(tone(col*1.15)),1.0);}`
+  },
+  {
+    name: 'Fluted glass', how: 'Light behind reeded glass: the same soft lights, each 22 pt flute bends them sideways, a hairline catch-light per flute. Metal.',
+    what: 'Reads as a physical pane of glass. Very on-trend, very buildable.',
+    frag: `vec3 field(vec2 p, vec2 c, float W, float H, float T){
+      vec3 col=vec3(0.);
+      col+=DEEP*1.0*blob(p,c+vec2(sin(T/40.)*W*.1,0.),vec2(W*.55,H*.6));
+      col+=COBALT*.8*blob(p,c+vec2(-W*.12+sin(T/31.)*W*.14,-H*.12),vec2(W*.3,H*.4));
+      col+=VIOLET*.6*blob(p,c+vec2(W*.18+cos(T/47.)*W*.12,H*.16),vec2(W*.28,H*.35));
+      return col; }
+    void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float T=uT*6.2831;
+      float fw=W/17.7; float u=fract(p.x/fw); float bend=(u-.5);
+      vec2 sp=p+vec2(bend*fw*3.2,0.);
+      vec3 col=field(sp,c,W,H,T);
+      float catchL=smoothstep(.0,.06,u)*(1.-smoothstep(.06,.14,u));
+      col+=ICE*.10*catchL*length(field(p,c,W,H,T));
+      col*=.85+.3*u; // each flute darker on one side, like a lens
+      gl_FragColor=vec4(dither(tone(col)),1.0);}`
+  },
+  {
+    name: 'Liquid lens', how: 'A slow drop of Liquid Glass drifts behind the phone: bends the light inside it, bright rim where it is thickest. Metal.',
+    what: 'Ties the backdrop to the app’s own Liquid Glass. Most "iOS 26".',
+    frag: `vec3 bg(vec2 p, vec2 c, float W, float H, float t){
+      vec2 q=(p-c)/W; float f=fbm(q*1.2+vec2(t*.05,-t*.04));
+      vec3 col=mix(DEEP,VIOLET,smoothstep(-.3,.5,f))*blob(p,c,vec2(W*.8,H*.75))*1.1;
+      col+=COBALT*.5*blob(p,c+vec2(-W*.2,-H*.1),vec2(W*.35,H*.3));
+      return col; }
+    void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float t=uT;
+      vec2 a=c+vec2(sin(t*.11)*W*.22, H*.18+cos(t*.08)*H*.06);
+      vec2 b=c+vec2(cos(t*.09+1.)*W*.2, -H*.12+sin(t*.07)*H*.08);
+      float R=W*.34;
+      float fa=R*R/max(dot(p-a,p-a),1.), fb=R*R*.7/max(dot(p-b,p-b),1.);
+      float field=fa+fb; float inside=smoothstep(.95,1.05,field);
+      vec2 grad=-2.*(fa*(p-a)/max(dot(p-a,p-a),1.)+fb*(p-b)/max(dot(p-b,p-b),1.));
+      float thick=clamp(1.-1./field,0.,1.);
+      vec2 refr=p - grad*W*0.06*(1.-thick);
+      vec3 col=mix(bg(p,c,W,H,t), bg(refr,c,W,H,t)*1.25, inside);
+      vec2 n=normalize(grad+1e-5);
+      float rim=inside*(1.-smoothstep(1.,1.35,field));
+      float spec=pow(max(dot(-n,normalize(vec2(-.6,-.8))),0.),6.);
+      col+=ICE*rim*(.12+.55*spec);
+      gl_FragColor=vec4(dither(tone(col)),1.0);}`
+  },
+  {
+    name: 'Moonrise arc', how: 'After Beside’s welcome (your saved Mobbin ref): a vast soft arc of light rising behind the phone, breathing over 14 s. Metal or SVG.',
+    what: 'The most "night" of the set: a horizon, not a blob. Simplest to ship.',
+    frag: `void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float t=uT;
+      vec2 o=vec2(W*.5, uPhone.y+uPhone.w*1.95); float R=W*1.25+sin(t*.45)*W*.01;
+      float d=length(p-o)-R;
+      float band=exp(-pow(max(d,0.)/(W*.16),1.4))*step(0.,d) + exp(-pow(max(-d,0.)/(W*.035),1.2))*step(d,0.);
+      float sweep=.75+.25*sin(atan(p.x-o.x,o.y-p.y)*3.-t*.12);
+      vec3 col=mix(DEEP,COBALT,clamp(band,0.,1.))*band*1.2*sweep;
+      col+=ICE*.55*exp(-abs(d)/(W*.012))*sweep;
+      col+=VIOLET*.35*blob(p,c+vec2(0.,-H*.1),vec2(W*.6,H*.5));
+      col*=step(0.,d)*1.+step(d,0.)*.12;
+      gl_FragColor=vec4(dither(tone(col)),1.0);}`
+  },
+  {
+    name: 'Silk ribbons', how: 'Two wide ribbons of light folding slowly behind the phone, like a macOS wallpaper seen through frosted glass. Metal.',
+    what: 'Most motion and most "wallpaper". Elegant but busiest.',
+    frag: `void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float t=uT*.08;
+      vec2 q=(p-c)/W;
+      vec3 col=vec3(0.);
+      for(int i=0;i<2;i++){ float fi=float(i);
+        float y=.18*sin(q.x*2.1+t*(1.+fi*.4)+fi*2.)+.08*sin(q.x*4.3-t*1.3+fi)+ (fi-.5)*.32;
+        float w=.10+.05*sin(q.x*3.+t+fi*4.);
+        float d=(q.y-y)/w;
+        float body=exp(-d*d);
+        float edge=exp(-pow((d-.75)*4.,2.));
+        vec3 hue=mix(COBALT,VIOLET,.5+.5*sin(q.x*2.+t+fi*2.));
+        col+=hue*body*.85+ICE*edge*.25*body;
+      }
+      col+=DEEP*.6*blob(p,c,vec2(W*.7,H*.65));
+      col*=blob(p,c,vec2(W*.95,H*.9));
+      gl_FragColor=vec4(dither(tone(col)),1.0);}`
+  },
+  {
+    name: 'Pool caustics', how: 'Light through rippling water: a faint caustic web drifting in the glow, like moonlight on a pool floor. Metal (one cheap loop).',
+    what: 'Liquid without a blob. Echoes the moon-water on Home.',
+    frag: `float caustic(vec2 uv, float t){ vec2 p=mod(uv*6.2831,6.2831)-250.; vec2 i=p; float c=1.; float inten=.005;
+      for(int n=0;n<4;n++){ float tt=t*(1.-(3.5/float(n+1))); i=p+vec2(cos(tt-i.x)+sin(tt+i.y),sin(tt-i.y)+cos(tt+i.x));
+        c+=1./length(vec2(p.x/(sin(i.x+tt)/inten),p.y/(cos(i.y+tt)/inten))); }
+      c/=4.; c=1.17-pow(c,1.4); return pow(abs(c),8.); }
+    void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float t=uT*.12;
+      vec3 col=DEEP*.95*blob(p,c,vec2(W*.75,H*.7));
+      col+=VIOLET*.35*blob(p,c+vec2(W*.2,H*.15),vec2(W*.4,H*.35));
+      float k=caustic((p-c)/(W*2.4)+vec2(.3,.1), t);
+      col+=mix(COBALT,ICE,.5)*k*1.4*blob(p,c+vec2(0.,H*.1),vec2(W*.62,H*.62));
+      gl_FragColor=vec4(dither(tone(col)),1.0);}`
+  },
+];
+
+// Moonrise arc, ten takes with no purple (user 2026-11-17: "looks good but i dont like the purple").
+// One horizon function; each take is a set of numbers. crest = where the arc's top sits, in phone heights from the
+// phone's top; R = radius in screen widths; outW/inW = how far the light spreads above/below the edge (screen widths).
+const f = (n) => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+const v3 = (a) => `vec3(${a.map(f).join(',')})`;
+function arcFrag(o) {
+  const k = { crest: 0.88, R: 1.25, outW: 0.16, inW: 0.035, band: [0.14, 0.28, 0.69], mid: [0.30, 0.50, 0.94], rim: [0.62, 0.74, 1.0],
+    rimI: 0.55, rimW: 0.012, gain: 1.2, sweep: 0.25, sweepSpeed: 0.12, inside: 0.12, sky: [0.10, 0.20, 0.52], skyI: 0.35, breathe: 0.01,
+    rise: 0.0, outer: 0.0, outerGap: 0.05, glass: 0.0, ...o };
+  return `void main(){ vec2 p=px(); vec2 c=phoneC(); float W=uRes.x,H=uPhone.w; float t=uT;
+    float crest=uPhone.y+H*(${f(k.crest)} - ${f(k.rise)}*(.5+.5*sin(t*6.2831/30.)));
+    float R=W*${f(k.R)}+sin(t*.45)*W*${f(k.breathe)};
+    vec2 o=vec2(W*.5, crest+R);
+    float d=length(p-o)-R;
+    float ang=atan(p.x-o.x,o.y-p.y);
+    float sweep=${f(1 - k.sweep)}+${f(k.sweep)}*sin(ang*3.-t*${f(k.sweepSpeed)});
+    float up=exp(-pow(max(d,0.)/(W*${f(k.outW)}),1.4))*step(0.,d);
+    float dn=exp(-pow(max(-d,0.)/(W*${f(k.inW)}),1.2))*step(d,0.);
+    float band=up+dn;
+    vec3 col=mix(${v3(k.band)},${v3(k.mid)},clamp(band,0.,1.))*band*${f(k.gain)}*sweep;
+    col+=${v3(k.rim)}*${f(k.rimI)}*exp(-abs(d)/(W*${f(k.rimW)}))*sweep;
+    ${k.outer ? `float d2=d-W*${f(k.outerGap)}; col+=${v3(k.mid)}*${f(k.outer)}*exp(-abs(d2)/(W*.03))*step(0.,d);` : ''}
+    col+=${v3(k.sky)}*${f(k.skyI)}*blob(p,c+vec2(0.,-H*.1),vec2(W*.6,H*.5));
+    ${k.glass ? `
+    // Inside the horizon: a glass sphere. The glow bends into it, mirrored and squeezed, with a thin inner edge.
+    float id=-d; float g=step(0.,id);
+    vec2 n=normalize(p-o); float depth=clamp(id/(W*.5),0.,1.);
+    float refl=exp(-pow(id/(W*.10),1.3));
+    col+=g*${f(k.glass)}*(${v3(k.mid)}*refl*.6*sweep + ${v3(k.rim)}*.10*exp(-pow((id-W*.05)/(W*.012),2.)) + ${v3(k.band)}*.25*(1.-depth)*(.5+.5*sin(ang*2.+t*.05)));` : ''}
+    col*=step(0.,d)+step(d,0.)*${f(k.inside)};
+    gl_FragColor=vec4(dither(tone(col)),1.0);}`;
+}
+const ARCS = [
+  { name: 'Arc, all blue', what: 'Your pick with the purple swapped for the same deep blue.', how: 'Same arc, the haze behind the phone is navy-blue, not violet.', frag: arcFrag({}) },
+  { name: 'Cold rim', what: 'A crisp white-blue edge, like Earth from orbit. Sharper, more "space".', how: 'Thin bright rim, tighter haze above it.', frag: arcFrag({ rim: [0.78, 0.86, 1.0], rimI: 0.9, rimW: 0.006, outW: 0.11, gain: 1.0, skyI: 0.22 }) },
+  { name: 'High horizon', what: 'The horizon sits mid-phone, so the phone rises out of the light.', how: 'Crest at 55% of the phone instead of 88%.', frag: arcFrag({ crest: 0.55, R: 1.4, skyI: 0.25 }) },
+  { name: 'Wide horizon', what: 'A huge, nearly flat planet: calmer, more cinematic.', how: 'Radius 3 screens, wide soft band.', frag: arcFrag({ R: 3.0, crest: 0.9, outW: 0.22, sweep: 0.15 }) },
+  { name: 'Atmosphere', what: 'Two thin layers of air over the edge, like a real atmosphere. Most glassy.', how: 'Second faint shell 5% above the rim.', frag: arcFrag({ outer: 0.35, outerGap: 0.045, rimI: 0.7, rimW: 0.008 }) },
+  { name: 'Dawn teal', what: 'Blue that leans to teal at the edge: early-morning, fresh.', how: 'Band cobalt → teal, rim pale aqua.', frag: arcFrag({ band: [0.08, 0.30, 0.62], mid: [0.20, 0.62, 0.86], rim: [0.66, 0.92, 1.0], sky: [0.06, 0.20, 0.42] }) },
+  { name: 'Light sweep', what: 'A brighter patch of light travels slowly along the edge, like light over glass.', how: 'Stronger, faster highlight along the rim (90 s round).', frag: arcFrag({ sweep: 0.6, sweepSpeed: 0.07, rimI: 0.8 }) },
+  { name: 'Glass planet', what: 'The dark half is a glass sphere: the glow bends into it with a thin inner edge.', how: 'Refraction + inner rim inside the horizon.', frag: arcFrag({ glass: 1.0, inside: 1.0 }) },
+  { name: 'Lunar silver', what: 'Moon, not Earth: silver-blue and almost colourless. Quietest.', how: 'Desaturated band and rim.', frag: arcFrag({ band: [0.18, 0.22, 0.32], mid: [0.42, 0.50, 0.66], rim: [0.86, 0.90, 0.98], sky: [0.10, 0.13, 0.22], gain: 1.1 }) },
+  { name: 'Moonrise', what: 'The horizon itself slowly rises and sinks over 30 s: the screen breathes.', how: 'Crest moves 8% of the phone up and down.', frag: arcFrag({ rise: 0.08, crest: 0.92 }) },
+];
+const SETS = { arcs: ARCS, all: TAKES };
+
+const VERT = `attribute vec2 a; varying vec2 vUv; void main(){ vUv=a*.5+.5; gl_Position=vec4(a,0.,1.); }`;
+let speed = 1;
+const start = performance.now();
+let simT = 0, last = start;
+
+function card(take, i) {
+  const fig = document.createElement('figure');
+  fig.className = 'take';
+  fig.innerHTML = `
+    <div class="screen">
+      <canvas></canvas>
+      <div class="phone"><div class="glass"><video src="/assets/onboarding/welcome-home.mp4" muted loop playsinline autoplay></video></div>
+        <img src="/assets/onboarding/welcome-phone-frame.webp" alt="" /></div>
+      <div class="words">Your apps go to bed<br>when you do</div>
+      <div class="cta">Get started</div>
+      <div class="restore">Restore purchases</div>
+    </div>
+    <figcaption><b><span class="n">${i + 1}</span>${take.name}</b><p>${take.what}</p><p class="how">${take.how}</p></figcaption>`;
+  return fig;
+}
+
+const views = [];
+function attach(screen, take) {
+  const canvas = screen.querySelector('canvas');
+  const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false });
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(take.name, gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, HEAD + take.frag));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const v = { screen, canvas, gl, prog, u: { res: gl.getUniformLocation(prog, 'uRes'), t: gl.getUniformLocation(prog, 'uT'), phone: gl.getUniformLocation(prog, 'uPhone') } };
+  views.push(v);
+  return v;
+}
+function detach(v) { views.splice(views.indexOf(v), 1); v.gl.getExtension('WEBGL_lose_context')?.loseContext(); }
+
+function draw(now) {
+  simT += ((now - last) / 1000) * speed; last = now;
+  for (const v of views) {
+    const r = v.screen.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) continue;
+    const dpr = Math.min(devicePixelRatio, 2);
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (v.canvas.width !== w || v.canvas.height !== h) { v.canvas.width = w; v.canvas.height = h; }
+    const ph = v.screen.querySelector('.phone').getBoundingClientRect();
+    const { gl, u } = v; gl.viewport(0, 0, w, h);
+    gl.uniform2f(u.res, w, h); gl.uniform1f(u.t, simT + 20);
+    gl.uniform4f(u.phone, (ph.left - r.left) * dpr, (ph.top - r.top) * dpr, ph.width * dpr, ph.height * dpr);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+  requestAnimationFrame(draw);
+}
+
+const grid = document.getElementById('grid');
+const full = document.getElementById('full');
+let fullView = null;
+// Chrome allows ~16 WebGL canvases at once, so only one set is on the page.
+function show(set) {
+  [...views].forEach(detach); grid.innerHTML = '';
+  SETS[set].forEach((take, i) => {
+    const fig = card(take, i); grid.appendChild(fig);
+    const scr = fig.querySelector('.screen'); attach(scr, take);
+    scr.addEventListener('click', () => {
+      full.innerHTML = ''; const big = card(take, i).querySelector('.screen'); full.appendChild(big);
+      full.classList.add('on'); fullView = attach(big, take);
+    });
+  });
+  document.querySelectorAll('[data-set]').forEach((x) => x.classList.toggle('on', x.dataset.set === set));
+  try { localStorage.setItem('glow-lab-set', set); } catch {}
+}
+document.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => show(b.dataset.set)));
+let first = new URLSearchParams(location.search).get('set');
+try { first = first || localStorage.getItem('glow-lab-set'); } catch {}
+show(SETS[first] ? first : 'arcs');
+full.addEventListener('click', () => { full.classList.remove('on'); if (fullView) detach(fullView); fullView = null; full.innerHTML = ''; });
+document.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => {
+  speed = Number(b.dataset.s); document.querySelectorAll('[data-s]').forEach((x) => x.classList.toggle('on', x === b));
+}));
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

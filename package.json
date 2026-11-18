@@ -88,7 +88,8 @@
     "clip-viewer": "node tools/clip-viewer/server.mjs",
     "clip-viewer:fetch": "python3 tools/clip-viewer/fetch.py",
     "slides": "node tools/slides/server.mjs",
-    "i18n:catalogs": "node tools/i18n/build-catalogs.mjs"
+    "i18n:catalogs": "node tools/i18n/build-catalogs.mjs",
+    "glow-lab": "node tools/glow-lab/server.mjs"
   },
   "private": true,
   "reanimated": {

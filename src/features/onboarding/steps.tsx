@@ -3,7 +3,7 @@
 // which changes outside React: the React Compiler would cache it (#130), so it stays out here.
 
 import type { ReactNode } from 'react';
-import { Linking, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, Keyframe, LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,6 @@ import { Reveal } from '@/components/motion';
 import { quizContentTop } from '@/components/night-sky';
 import { TimeList } from '@/components/time-wheel';
 import type { ArmFailure, ArmResult } from '@/lib/arm';
-import { LEGAL_URLS } from '@/lib/links';
 import { type NotificationPermission } from '@/lib/notifications';
 import { type Offers, type PurchaseTarget } from '@/lib/purchases';
 import { getScanEditRefusal, type ScanCode } from '@/lib/scan';
@@ -245,8 +244,8 @@ export function renderStep(ctx: StepContext): StepView {
       const hello = ctx.newYear ? NEW_YEAR.hello : HELLO;
       return {
         body: (
-          // Jomo's welcome (user 2026-11-07, docs/WELCOME_SCREEN.md): the phone and moon are drawn
-          // behind the page by the flow (WelcomeHero); the page holds the words, just above the buttons.
+          // The welcome (docs/WELCOME_SCREEN.md): the phone is drawn behind the page by the flow
+          // (WelcomeHero); the page holds the headline and its line, just above the buttons.
           <View style={styles.opener}>
             <WelcomeWords head={hello.head} sub={HELLO.sub} delay={OPENER_LINE_MS} />
           </View>
@@ -263,14 +262,8 @@ export function renderStep(ctx: StepContext): StepView {
             </Reveal>
           </View>
         ),
-        secondary: (
-          <Reveal delay={OPENER_LINE_MS * 5}>
-            <Text style={styles.openerFine}>
-              {'By continuing, you agree to Locturne’s\n'}
-              <FineLink label="Terms of Service" url={LEGAL_URLS.terms} /> and <FineLink label="Privacy Policy" url={LEGAL_URLS.privacy} />
-            </Text>
-          </Reveal>
-        ),
+        // No "By continuing, you agree…" line (user 2026-11-17): no accounts, and the paywall carries the
+        // Terms of Use and Privacy Policy links Apple asks for (3.1.2).
       };
     }
 
@@ -993,23 +986,14 @@ const ARM_FAILURES: Record<ArmFailure, { body: string; button: string }> = {
   refused: { body: 'iOS didn’t accept tonight’s schedule. That’s usually brief.', button: 'Try again' },
 };
 
-/** A link in the opener's fine print. */
-function FineLink({ label, url }: { label: string; url: string }) {
-  return (
-    <Text accessibilityRole="link" style={styles.fineLink} onPress={() => Linking.openURL(url).catch(() => {})}>
-      {label}
-    </Text>
-  );
-}
-
 const styles = StyleSheet.create({
   askingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.s, marginTop: Space.xl },
   askingText: { opacity: 0.7 },
   // Standalone text on the quiz moon starts just under its curve, never down by the buttons.
   moonTop: { flex: 1 },
-  opener: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: Space.xxl },
-  openerFine: { color: Nocturne.text2, ...Type.legal, textAlign: 'center', paddingTop: Space.s },
-  fineLink: { color: Nocturne.text },
+  // Cal AI's rhythm (user 2026-11-17: "the spacing of all of this looks off"): the headline sits close over the
+  // button it leads to.
+  opener: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: Space.xs },
   gap8: { height: Space.s },
   // The grey line under a page's title (Type.headingSub).
   sub: { marginTop: Space.m, color: Nocturne.text2, ...Type.headingSub },
