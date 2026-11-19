@@ -21,6 +21,7 @@ import { endTestLock, getTestLock, isScreenTimeAvailable, startTestLock } from '
 import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { MOON_RENDER_STYLES, setMoonRender, useMoonRender } from '@/features/dev/moon-render/moon-render';
+import { MOONS_LOOKS, setMoonsLook, useMoonsLook } from '@/features/moons/moons-look';
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
@@ -96,6 +97,7 @@ export function DeveloperSettings() {
   const insets = useSafeAreaInsets();
   const moon = useMoon();
   const render = useMoonRender();
+  const moonsLook = useMoonsLook();
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
   const [reelFrame, setReel] = useState(getReelFrame);
@@ -274,6 +276,21 @@ export function DeveloperSettings() {
             haptic.tap();
             devForgetMoons();
             replaceProgressBackup();
+          }}
+          last
+        />
+      </Group>
+
+      {/* Dev test (user, 2026-11-19): the moons page's layout (features/moons/moons-look.ts). */}
+      <Group label="Moons page" note="Gems: today's Sleep-button gems. Picker: small squares in two boxes, like choosing an app icon. Frosted tiles: tall tiles of each moon's sky with its name on top. In both new ones the moon rises from the tile's bottom edge, and a moon still to come is a shadow that rises as you get closer.">
+        <MenuRow
+          {...icon('square.grid.2x2', 'grid_view')}
+          title="Look"
+          value={moonsLook}
+          options={MOONS_LOOKS}
+          onChange={(look) => {
+            haptic.tap();
+            setMoonsLook(look);
           }}
           last
         />

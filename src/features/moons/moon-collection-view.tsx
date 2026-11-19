@@ -24,6 +24,8 @@ import { moonSlots, slotLabel, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
+import { FrostedLook, PickerLook } from './moon-tiles';
+import { useMoonsLook } from './moons-look';
 import { MoonsPills } from './moons-pills';
 
 const COLUMNS = 3;
@@ -78,6 +80,8 @@ export function MoonCollection({
   const insets = useSafeAreaInsets();
   const owned = useOwnedMoons();
   const worn = useWornMoon();
+  // Developer → Moons page (moons-look.ts): today's gems, or one of the two tile takes.
+  const look = useMoonsLook();
 
   // Earned before the first paint, so a moon that's due never shows as "0 mornings left".
   useState(() => settleMoons());
@@ -190,8 +194,14 @@ export function MoonCollection({
       <View style={styles.pills}>
         <MoonsPills mornings={mornings} streak={streak} owned={count} total={total} moonId={worn.id} />
       </View>
-      <Grid slots={slots} owned={owned} tile={tile} worn={worn.id} onPress={press} />
-      {extras.length ? (
+      {look === 'picker' ? (
+        <PickerLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
+      ) : look === 'frosted' ? (
+        <FrostedLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
+      ) : (
+        <Grid slots={slots} owned={owned} tile={tile} worn={worn.id} onPress={press} />
+      )}
+      {look === 'gems' && extras.length ? (
         <>
           <Text style={styles.group} accessibilityRole="header">
             Rare
