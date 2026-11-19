@@ -91,10 +91,13 @@ function render({
     '@/lib/lock-controller': { readLock: () => ({ morningKey: today }) },
     '@/lib/morning-proof': { getMorningsWon: () => mornings, getFirstMorning: () => first },
     '@/lib/streak': { getStreak: () => streak },
-    './moon-glow': { MoonGlow: 'MoonGlow', SwipeGlow: 'SwipeGlow' },
+    './moon-glow': { SwipeGlow: 'SwipeGlow' },
     './moons-pills': { MoonsPills: 'MoonsPills' },
-    './moon-tiles': { PickerLook: 'PickerLook', FrostedLook: 'FrostedLook', SkyCardsLook: 'SkyCardsLook', skyCards: () => ({ all: [], step: 1 }) },
-    './moons-look': { useMoonsLook: () => 'gems' },
+    './moon-cards': {
+      SkyCards: 'SkyCards',
+      // As moon-cards.ts orders them: yours (rare included), then coming; one point per card.
+      skyCards: (main: any[], extras: any[]) => ({ all: [...main.filter((s) => s.owned), ...extras, ...main.filter((s) => !s.owned)], step: 1 }),
+    },
     '@/theme': { DisplayFont: {}, NUMBER_FONT: {}, Gap: { gutter: 24, block: 24, section: 32 }, Nocturne: {}, Space: { xs: 4, s: 8, m: 12, l: 16, xl: 24 }, Type: {} },
     './moon-collection': {
       checkSecretMoons: () => void calls.secret++,
@@ -116,7 +119,7 @@ function render({
   mocks['./moon-slots'] = slots;
   const exports: Record<string, any> = {};
   runInNewContext(code, { exports, React: react, require: (id: string) => mocks[id] ?? assert.fail(`unmocked import ${id}`), Math });
-  // Expand function components (Grid) into their output.
+  // Expand function components into their output.
   const expand = (n: any): any => {
     if (!n || typeof n !== 'object') return n;
     if (typeof n.type === 'function') return expand(n.type({ ...n.props, children: n.children }));
@@ -132,14 +135,19 @@ function render({
   walk(tree);
   const closeBtn = all.find((n) => n.type === 'Pressable' && n.props.accessibilityLabel === 'Close');
   const find = (n: any, type: string): Node | undefined => (n?.type === type ? n : (n?.children ?? []).map((c: any) => find(c, type)).find(Boolean));
-  const tiles = all.filter((n) => n.type === 'Pressable' && find({ children: n.children }, 'MoonThumb')).map((n) => {
-    const thumb = find({ children: n.children }, 'MoonThumb')!;
-    const [name, status] = n.children.filter((c: Node) => c?.type === 'Text').map((t: Node) => t.children.join(''));
-    return { id: thumb.props.moon.id as string, name, status, locked: thumb.props.locked as boolean, wearing: thumb.props.wearing as boolean, press: n.props.onPress as () => void, label: n.props.accessibilityLabel as string };
+  // The moons as the page hands them to the cards (moon-cards.tsx): ladder order, then rare ones once owned.
+  const cards = all.find((n) => n.type === 'SkyCards')!.props as { slots: any[]; extras: any[]; owned: Owned; worn: string; onPress: (slot: any) => boolean };
+  const tiles = [...cards.slots, ...cards.extras].map((slot) => {
+    const name = slots.slotLabel(slot) as string;
+    const got = cards.owned[slot.moon.id];
+    const status = slot.owned ? (slot.moon.id === 'moonlight' ? 'From the start' : got ? `Morning ${got.morning}` : undefined) : undefined;
+    return { id: slot.moon.id as string, name, status, locked: !slot.owned, wearing: slot.owned && slot.moon.id === cards.worn, press: () => void cards.onPress(slot), label: slot.owned ? name : `${name}, locked` };
   });
   const texts = all.filter((n) => n.type === 'Text').map((n) => n.children.map((c: any) => (typeof c === 'object' ? c.children.join('') : c)).join(''));
   const pills = all.find((n) => n.type === 'MoonsPills')?.props as { mornings: number; streak: number; owned: number; total: number; moonId: string };
-  const glow = all.find((n) => n.type === 'MoonGlow')?.props as { id: string };
+  // The light at the top: the card the swipe starts on (the worn moon's).
+  const swipe = all.find((n) => n.type === 'SwipeGlow')!.props as { ids: string[]; x: { value: number }; step: number };
+  const glow = { id: swipe.ids[Math.round(swipe.x.value / swipe.step)] };
   return { tiles, texts, pills, glow, calls, closeBtn, close: () => cleanups.forEach((c) => c()) };
 }
 
@@ -201,18 +209,18 @@ test('the count is Moonlight plus every moon earned, rare and secret too', () =>
   assert.equal(pills.owned, 4);
 });
 
-test('the rare moon appears in its own group only once owned', () => {
+test('the rare moon appears only once owned', () => {
+  assert.ok(!render({ mornings: 4 }).tiles.some((t) => t.id === RARE));
   const owned = own(['dawn']);
   owned[RARE] = { id: RARE, morningKey: '2026-11-05', morning: 4, at: 0, seen: true };
-  const { tiles, texts } = render({ owned, mornings: 4 });
-  assert.ok(texts.includes('Rare'));
+  const { tiles } = render({ owned, mornings: 4 });
   assert.equal(tiles.at(-1)!.id, RARE);
   assert.equal(tiles.at(-1)!.status, 'Morning 4');
 });
 
-test('a limited moon not owned is never shown, owned it joins the Rare group', () => {
+test('a limited moon not owned is never shown', () => {
   const limited = [{ id: 'harvest', date: '2027-08-02' }];
-  assert.ok(!render({ limited }).texts.includes('Rare'));
+  assert.equal(render({ limited }).tiles.filter((t) => t.id === 'harvest').length, 1, 'only its ladder slot');
 });
 
 test('tapping a moon you own wears it at once and the page stays; the worn one does nothing; a locked one ticks', () => {

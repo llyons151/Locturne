@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sym } from '@/components/grouped-list';
@@ -18,25 +18,17 @@ import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 
 import { checkSecretMoons, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
 import { MOONS } from './moon-data';
-import type { OwnedMoon } from './moon-ladder';
-import { MoonGlow, SwipeGlow } from './moon-glow';
-import { moonSlots, slotLabel, type MoonSlot } from './moon-slots';
+import { SkyCards, skyCards } from './moon-cards';
+import { SwipeGlow } from './moon-glow';
+import { moonSlots, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
-import { MoonThumb } from './moon-thumb';
-import { FrostedLook, PickerLook, SkyCardsLook, skyCards } from './moon-tiles';
-import { useMoonsLook } from './moons-look';
 import { MoonsPills } from './moons-pills';
 
-const COLUMNS = 3;
-const GAP = Space.m;
 /** The top bar's close button, as on the schedule sheet. */
 const CLOSE = 30;
 /** Each side of the top bar, equal so the title sits in the middle. */
 const SIDE = 72;
-/** A locked moon's nudge when tapped: a small shake, transform only. */
-const NUDGE = 4;
-const NUDGE_MS = 60;
 
 /**
  * The page scrolls like any iOS page: past either end it resists and springs back. Pulled down
@@ -80,8 +72,6 @@ export function MoonCollection({
   const insets = useSafeAreaInsets();
   const owned = useOwnedMoons();
   const worn = useWornMoon();
-  // Developer → Moons page (moons-look.ts): today's gems, or one of the two tile takes.
-  const look = useMoonsLook();
 
   // Earned before the first paint, so a moon that's due never shows as "0 mornings left".
   useState(() => settleMoons());
@@ -108,7 +98,6 @@ export function MoonCollection({
   const mornings = getMorningsWon();
   const streak = getStreak(readLock().morningKey);
 
-  const tile = Math.floor((width - Gap.gutter * 2 - GAP * (COLUMNS - 1)) / COLUMNS);
   /** Wears a moon you own at once and stays (user, 2026-11-16); false for a locked one, which shakes. */
   const press = (slot: Slot): boolean => {
     if (!slot.owned) {
@@ -153,11 +142,7 @@ export function MoonCollection({
   return (
     <Animated.View style={[styles.screen, held]}>
       {/* Behind the scroll, fixed: the light stays in the sky as the moons scroll up under it. */}
-      {look === 'cards' ? (
-        <SwipeGlow ids={cards.all.map((sl) => (sl.owned ? sl.moon.id : worn.id))} x={cardsX} step={cards.step} />
-      ) : (
-        <MoonGlow id={worn.id} />
-      )}
+      <SwipeGlow ids={cards.all.map((sl) => (sl.owned ? sl.moon.id : worn.id))} x={cardsX} step={cards.step} />
     <Animated.ScrollView
       // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
       bounces={as === 'page'}
@@ -168,7 +153,7 @@ export function MoonCollection({
       showsVerticalScrollIndicator={false}
       style={styles.scroll}
       contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={[styles.content, look === 'cards' && styles.fill, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
+      contentContainerStyle={[styles.content, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
     >
       {/* One row: the way out (the page slides up, so it goes back down), the title, the count. */}
       <View style={styles.head}>
@@ -202,72 +187,9 @@ export function MoonCollection({
       <View style={styles.pills}>
         <MoonsPills mornings={mornings} streak={streak} owned={count} total={total} moonId={worn.id} />
       </View>
-      {look === 'picker' ? (
-        <PickerLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
-      ) : look === 'cards' ? (
-        <SkyCardsLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} x={cardsX} />
-      ) : look === 'frosted' ? (
-        <FrostedLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
-      ) : (
-        <Grid slots={slots} owned={owned} tile={tile} worn={worn.id} onPress={press} />
-      )}
-      {look === 'gems' && extras.length ? (
-        <>
-          <Text style={styles.group} accessibilityRole="header">
-            Rare
-          </Text>
-          <Grid slots={extras} owned={owned} tile={tile} worn={worn.id} onPress={press} />
-        </>
-      ) : null}
+      <SkyCards slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} x={cardsX} />
     </Animated.ScrollView>
     </Animated.View>
-  );
-}
-
-function Grid({ slots, owned, tile, worn, onPress }: { slots: Slot[]; owned: Record<string, OwnedMoon>; tile: number; worn: string; onPress: (slot: Slot) => boolean }) {
-  return (
-    <View style={styles.grid}>
-      {slots.map((slot) => (
-        <Tile key={slot.moon.id} slot={slot} got={owned[slot.moon.id]} tile={tile} wearing={slot.owned && slot.moon.id === worn} onPress={onPress} />
-      ))}
-    </View>
-  );
-}
-
-/** One moon: its icon, its name (or when it comes), and, once yours, the morning that brought it. */
-function Tile({ slot, got, tile, wearing, onPress }: { slot: Slot; got?: OwnedMoon; tile: number; wearing: boolean; onPress: (slot: Slot) => boolean }) {
-  const name = slotLabel(slot);
-  const since = slot.owned ? (slot.moon.id === DEFAULT_MOON.id ? 'From the start' : got ? `Morning ${got.morning}` : undefined) : undefined;
-  const shake = useSharedValue(0);
-  const shaken = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
-  return (
-    <Pressable
-      onPress={() => {
-        if (onPress(slot)) return;
-        shake.value = withSequence(
-          withTiming(-NUDGE, { duration: NUDGE_MS }),
-          withTiming(NUDGE, { duration: NUDGE_MS }),
-          withTiming(0, { duration: NUDGE_MS }),
-        );
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={slot.owned ? name : `${name}, locked`}
-      accessibilityState={{ selected: wearing, disabled: !slot.owned }}
-      style={({ pressed }) => [{ width: tile }, styles.slot, pressed && slot.owned && styles.pressed]}
-    >
-      <Animated.View style={shaken}>
-        <MoonThumb moon={slot.moon} size={tile} locked={!slot.owned} secret={slot.secret} wearing={wearing} plain />
-      </Animated.View>
-      {/* Two lines: "Strawberry Moon" and "Partial Eclipse" don't fit one column. */}
-      <Text style={[styles.name, !slot.owned && styles.lockedName]} numberOfLines={2}>
-        {name}
-      </Text>
-      {since ? (
-        <Text style={styles.since} numberOfLines={1}>
-          {since}
-        </Text>
-      ) : null}
-    </Pressable>
   );
 }
 
@@ -279,9 +201,8 @@ function closeMoons() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: MOONS_BG, overflow: 'hidden' },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: Gap.gutter },
-  // Sky cards: the page fills the screen so their button sits at the bottom.
-  fill: { flexGrow: 1 },
+  // Fills the screen so the cards' button sits at the bottom.
+  content: { paddingHorizontal: Gap.gutter, flexGrow: 1 },
   head: { flexDirection: 'row', alignItems: 'center', minHeight: CLOSE, marginBottom: Gap.block },
   close: {
     width: CLOSE,
@@ -298,11 +219,5 @@ const styles = StyleSheet.create({
   wearing: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center' },
   wearingName: { color: Nocturne.text, fontWeight: '600' },
   pills: { marginTop: Space.m, marginBottom: Gap.block },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, rowGap: Space.l },
-  slot: { alignItems: 'center' },
-  name: { ...Type.secondary, color: Nocturne.text, fontWeight: '600', textAlign: 'center', marginTop: Space.m },
-  since: { ...Type.caption, color: Nocturne.text2, textAlign: 'center' },
-  lockedName: { color: Nocturne.text2 },
-  group: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', marginTop: Gap.section, marginBottom: Space.l },
   pressed: { opacity: 0.7 },
 });

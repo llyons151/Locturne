@@ -7,6 +7,8 @@ import Svg, { Path } from 'react-native-svg';
 import { Nocturne } from '@/theme';
 
 import { PANEL_RADIUS, tabStripHeight } from './app-tabs';
+import { useTabsCovered } from '@/hooks/use-tabs-covered';
+
 import { NightSky } from './night-sky';
 
 /**
@@ -29,12 +31,14 @@ export function AppBackground({
 }: PropsWithChildren<{ panel?: boolean; strip?: number; moonless?: boolean; corners?: boolean; drag?: SharedValue<number> }>) {
   const insets = useSafeAreaInsets();
   const floor = panel ? (strip ?? tabStripHeight(insets.bottom)) : 0;
+  // The tabs' sky holds still while the moons page or Settings covers it.
+  const covered = useTabsCovered();
   return (
     <View style={[styles.container, panel && styles.black]}>
       <View style={[styles.sky, panel && { bottom: floor }, panel && styles.panel]}>
         {/* The moon stays at the panel's bottom edge on every tab, Home included: the user
             asked for it there, poking up, its light rising into the black. */}
-        <NightSky floor={floor} moonless={moonless} drag={drag} />
+        <NightSky floor={floor} moonless={moonless} drag={drag} still={panel && covered} />
       </View>
       {children}
       {panel && corners ? <PanelCorners bottom={floor} /> : null}

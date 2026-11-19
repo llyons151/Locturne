@@ -30,6 +30,7 @@ import { exitTestMorning, useWakePreview } from '@/features/dev/wake-lab/wake-pr
 import { Knockable, useNavKnock } from '@/components/nav-knock';
 import { tap } from '@/lib/haptics';
 import { Nocturne, Space } from '@/theme';
+import { useTabsCovered } from '@/hooks/use-tabs-covered';
 
 type SymbolName = SymbolViewProps['name'];
 
@@ -174,6 +175,8 @@ export default function AppTabs() {
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  // The Sleep orb holds still while the moons page or Settings covers the tabs.
+  const covered = useTabsCovered();
   const height = tabStripHeight(insets.bottom);
   const preview = useWakePreview().phase !== 'real';
   const shooting = useScreenshotMode();
@@ -227,7 +230,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
           ) : null}
         </View>
         <Knockable knock={knock} index={state.routes.length}>
-          <SleepButton reduced={reduced} />
+          <SleepButton reduced={reduced} still={covered} />
         </Knockable>
       </Animated.View>
     </View>
@@ -241,7 +244,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
  * orb the user picked (2026-10-06), drawn natively with Metal (`moon-orb`). Builds without
  * that module, and web, fall back to the SVG `MoonWater`.
  */
-function SleepButton({ reduced }: { reduced: boolean }) {
+function SleepButton({ reduced, still }: { reduced: boolean; still: boolean }) {
   const press = useSharedValue(1);
   const [pressed, setPressed] = useState(false);
   const moon = useMoon();
@@ -266,7 +269,7 @@ function SleepButton({ reduced }: { reduced: boolean }) {
     >
       <Animated.View style={[styles.sleep, style]}>
         {isMoonOrbViewAvailable ? (
-          <MoonOrbView style={StyleSheet.absoluteFill} pressed={pressed} paused={reduced} colors={moon.orb} />
+          <MoonOrbView style={StyleSheet.absoluteFill} pressed={pressed} paused={reduced || still} colors={moon.orb} />
         ) : (
           <MoonWater size={BUTTON} reduced={reduced} colors={moon.orb} />
         )}

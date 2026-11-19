@@ -323,6 +323,7 @@ export function NightSky({
   riseMs = QUIZ_RISE_MS,
   arcAt,
   drag,
+  still = false,
 }: {
   opening?: boolean;
   /** How long the quiz rise (or the sink out of it) takes this time: the reveal's is slower. */
@@ -347,6 +348,8 @@ export function NightSky({
   drift?: boolean;
   /** The morning payoff: how much of the moon's drag shows under it, 0 to 1 (MoonDrag). */
   drag?: SharedValue<number>;
+  /** Hold the live sky on its last frame (a page covers it entirely). */
+  still?: boolean;
 }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -500,7 +503,7 @@ export function NightSky({
             image, which shows on the web, on older builds, and until the live one has loaded. */}
         <SkyPicture moon={moon} />
         {isMoonSkyViewAvailable ? (
-          <MoonSkyView style={StyleSheet.absoluteFill} colors={moon.skyColors} texture={SKY_LUMA} paused={reduced} />
+          <MoonSkyView style={StyleSheet.absoluteFill} colors={moon.skyColors} texture={SKY_LUMA} paused={reduced || still} />
         ) : null}
       </Animated.View>
       {/* A wrapper's opacity, since the glow's own is animated and would win. */}

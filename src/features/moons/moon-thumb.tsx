@@ -1,11 +1,6 @@
 import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { MoonOrbView, isMoonOrbViewAvailable } from 'moon-orb';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
-import { sym } from '@/components/grouped-list';
-import { MoonWater } from '@/components/moon-water';
 import { FROST_PAD, MoonPart, MoonRing } from '@/components/night-sky';
 import { Text } from '@/components/text';
 import { Nocturne, Radius } from '@/theme';
@@ -17,10 +12,6 @@ import type { MoonDef } from './moon-types';
 const DISC = 0.56;
 /** The icon's width inside its square, and its disc within it (tools/moon-lab/bake-icons.py). */
 const ICON = 0.8;
-/** The gem's width inside its column on the moons page. */
-const PLAIN_DISC = 0.72;
-/** A locked moon's gem: grey water, so its colours stay the surprise (the old moon wheel's). */
-const LOCKED_ORB: string[] = ['#060608', '#17171C', '#2C2C33', '#5A5A64'];
 const ICON_DISC = { x: 262 / 512, y: 238.5 / 512, r: 163.5 / 512 };
 
 /**
@@ -49,43 +40,6 @@ export function MoonThumb({
   /** The icon with no glass square round it and no edge when worn (the page marks that itself). */
   plain?: boolean;
 }) {
-  if (plain) {
-    // The moons page (user 2026-11-19): each moon as its Sleep-button gem, the Metal Moonwell in that
-    // moon's orb colours (MoonWater on web and older builds). Grey with a lock until it's yours.
-    const disc = size * PLAIN_DISC;
-    const lit = disc * 0.9;
-    const colors = locked ? LOCKED_ORB : moon.orb;
-    // Only the worn gem's water moves: the rest hold still.
-    const still = !wearing || locked;
-    return (
-      <View style={{ width: size, height: disc, alignItems: 'center' }}>
-        {/* The worn moon glows in its own colour (user asked, 2026-11-19). Only here. */}
-        {wearing && !locked ? (
-          <Animated.View
-            entering={FadeIn.duration(300)}
-            exiting={FadeOut.duration(300)}
-            style={[styles.wornGlow, { width: lit, height: lit, top: (disc - lit) / 2, borderRadius: lit, backgroundColor: moon.glow, boxShadow: `0 0 ${Math.round(lit * 0.4)}px ${Math.round(lit * 0.1)}px ${moon.glow}` }]}
-          />
-        ) : null}
-        <View style={{ width: disc, height: disc, borderRadius: disc / 2, overflow: 'hidden' }}>
-          {isMoonOrbViewAvailable ? (
-            <MoonOrbView style={StyleSheet.absoluteFill} paused={still} colors={colors} />
-          ) : (
-            <MoonWater size={disc} reduced={still} colors={colors} />
-          )}
-          {locked ? (
-            <View style={[StyleSheet.absoluteFill, styles.lock]}>
-              {secret ? (
-                <Text style={[styles.secret, { fontSize: disc * 0.36 }]}>?</Text>
-              ) : (
-                <SymbolView name={sym('lock.fill', 'lock')} size={Math.round(disc * 0.2)} weight="semibold" tintColor="rgba(255, 255, 255, 0.62)" />
-              )}
-            </View>
-          ) : null}
-        </View>
-      </View>
-    );
-  }
   if (!round) {
     const icon = size * ICON;
     const r = icon * ICON_DISC.r;
@@ -167,8 +121,6 @@ const styles = StyleSheet.create({
   secretSpot: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   lockedDisc: { backgroundColor: 'rgba(255, 255, 255, 0.08)', alignItems: 'center', justifyContent: 'center' },
   secret: { color: Nocturne.text2, fontWeight: '600' },
-  lock: { alignItems: 'center', justifyContent: 'center' },
-  wornGlow: { position: 'absolute', opacity: 0.85 },
   // The moon you're wearing: a plain white edge (no glow).
   wearing: { borderWidth: 2, borderColor: Nocturne.text },
 });
