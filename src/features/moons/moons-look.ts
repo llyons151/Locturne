@@ -5,7 +5,7 @@ import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 /**
  * Dev test (user, 2026-11-19): how the moons page lays out its moons, switchable from Developer →
- * Moons page so both new takes can be judged on the phone. `gems`: the Sleep-button gems (today's).
+ * Moons page. Sky cards is the default (user 2026-11-19). `gems`: the Sleep-button gems.
  * `picker`: small rounded squares in grouped boxes, like iOS's app-icon picker (draft 9 of
  * docs/moons-page-directions). `frosted`: tall tiles of each moon's sky, the name on top (draft 13).
  * `cards`: every moon as a tall card of its sky, swiped sideways one at a time (draft 5).
@@ -25,7 +25,7 @@ let look: MoonsLook | undefined;
 const listeners = new Set<() => void>();
 
 export function getMoonsLook(): MoonsLook {
-  look ??= (labsOn && (webLook() ?? sharedGet<MoonsLook>(KEY))) || 'gems';
+  look ??= (labsOn && (webLook() ?? sharedGet<MoonsLook>(KEY))) || 'cards';
   return look;
 }
 

@@ -387,6 +387,10 @@ of trial starters who complete a first morning unlock.
 - Trademark (USPTO class 9) and social handle checks.
 
 **Step 6: v1.1, only after real users (February onward)**
+
+Research 2026-11-19 (not adopted yet): docs/reports/v1.1 roadmap.md recommends leading with the alarm, the Island
+moon and a widget (one widget target, no server), then streak moons, a "still up?" check and a referral moon in v1.2.
+
 - A real alarm (AlarmKit) to lead with the morning.
 - Loc's moon in the Dynamic Island while apps are asleep (night and morning Live
   Activities, push-started; [docs/LIVE_ACTIVITY_IDEA.md](docs/LIVE_ACTIVITY_IDEA.md)) and a
