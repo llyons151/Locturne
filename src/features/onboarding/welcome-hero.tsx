@@ -33,9 +33,10 @@ import { OPENER_EXIT_EASING, OPENER_EXIT_MS, useLeaving } from './ui';
 
 /**
  * The phone: the store shots' 3D iPhone (phone3d, straight on) with its screen cut out, laid over a
- * real screen recording of Home: Loc burrowing and tearing round (the user's recording, 2026-11-17).
- * The clip is 26 s at 60 fps, its status bar blanked (so no recording dot) and its end crossfaded
- * into its start between two moments Loc is underground, so it loops without a seam.
+ * real screen recording of Home: Loc burrowing and tearing round, a 31-day streak and the week's moons
+ * filled in (the user's recording, 2026-11-18). The clip is 26.7 s at 60 fps, its status bar blanked
+ * (so no recording dot) and its end crossfaded into its start between two moments Loc is underground
+ * and the tab buttons sit in the same place, so it loops without a seam.
  */
 const FRAME = require('@/assets/onboarding/welcome-phone-frame.webp');
 const HOME_VIDEO = require('@/assets/onboarding/welcome-home.mp4');

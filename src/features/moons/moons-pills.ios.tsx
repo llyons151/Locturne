@@ -27,6 +27,7 @@ import { MOON_ICONS, NIGHT_ICON } from './moon-icons';
 /** Home's pill, exactly (home-content.ios.tsx): white 8%, 36 tall, the flip on one 0.45 s spring. */
 const PILL = 'rgba(255,255,255,0.08)';
 const FLIP_S = 0.45;
+const PILL_H = 36;
 
 /**
  * The moons page's two pills in SwiftUI, as Home draws its own: every morning got up, a tap rolls
@@ -37,13 +38,15 @@ const FLIP_S = 0.45;
 export function MoonsPills({ mornings, streak, owned, total, moonId }: { mornings: number; streak: number; owned: number; total: number; moonId: string }) {
   const pill = useStreakPill(streak, mornings, 'total');
   return (
-    <Host matchContents={{ vertical: true }} style={{ alignSelf: 'stretch' }} colorScheme="dark">
+    // A fixed height, the pills' own: measured (matchContents) it came out short on the phone and the pills
+    // spilled up over "Wearing …" (user 2026-11-19).
+    <Host style={{ alignSelf: 'stretch', height: PILL_H }} colorScheme="dark">
       <HStack spacing={8}>
         <HStack
           spacing={6}
           modifiers={[
             padding({ horizontal: 14 }),
-            frame({ minHeight: 36 }),
+            frame({ height: PILL_H }),
             background(PILL, shapes.capsule()),
             contentShape(shapes.capsule()),
             onTapGesture(pill.flip),
@@ -70,7 +73,7 @@ export function MoonsPills({ mornings, streak, owned, total, moonId }: { morning
           spacing={6}
           modifiers={[
             padding({ horizontal: 14 }),
-            frame({ minHeight: 36 }),
+            frame({ height: PILL_H }),
             background(PILL, shapes.capsule()),
             accessibilityElement('ignore'),
             accessibilityLabel(`${owned} of ${total} moons`),
