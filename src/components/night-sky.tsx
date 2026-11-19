@@ -25,7 +25,7 @@ import { MoonSkyView, isMoonSkyViewAvailable } from 'moon-sky';
 
 import { useMoonRenderFace } from '@/features/dev/moon-render/moon-render';
 import { DRAG_BOX, MOON_DRAG } from '@/features/moons/moon-drag';
-import { moonFadeMs, useMoon } from '@/features/moons/moon-theme';
+import { DEFAULT_MOON, moonFadeMs, useMoon } from '@/features/moons/moon-theme';
 import type { MoonDef } from '@/features/moons/moon-types';
 
 /**
@@ -324,6 +324,7 @@ export function NightSky({
   arcAt,
   drag,
   still = false,
+  original = false,
 }: {
   opening?: boolean;
   /** How long the quiz rise (or the sink out of it) takes this time: the reveal's is slower. */
@@ -350,6 +351,8 @@ export function NightSky({
   drag?: SharedValue<number>;
   /** Hold the live sky on its last frame (a page covers it entirely). */
   still?: boolean;
+  /** Always the original moon (Moonlight), whatever is worn: onboarding (user 2026-11-19). */
+  original?: boolean;
 }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -361,7 +364,8 @@ export function NightSky({
   // 0 = wherever the above put it, 1 = risen over the home screen. Starts low so it rises on launch.
   const homed = useSharedValue(0);
   // The moon you're wearing (features/moons): its size, how far off centre it sits, and its halo's strength.
-  const moon = useMoon();
+  const worn = useMoon();
+  const moon = original ? DEFAULT_MOON : worn;
   // A change asked to blend (`previewMoon`'s fade): the old moon's whole scene stays on top and
   // fades out over the new one, so the sky's colours run into the new ones instead of swapping.
   // Worked out while rendering, so no frame shows the new moon without the old over it.

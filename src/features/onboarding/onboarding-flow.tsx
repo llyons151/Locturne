@@ -1128,7 +1128,8 @@ export function OnboardingFlow({
           <LocStage mood="awake" share={0.5} present={false} dom={WARM_LOC_DOM} />
         </View>
       ) : null}
-      <NightSky quiz={quiz || offerMoon} arcAt={offerMoon ? OFFER_ARC_AT : undefined} drift={opening} riseMs={riseMs} />
+      {/* Always the original moon, whatever was worn before (a reinstall can bring back another, user 2026-11-19). */}
+      <NightSky quiz={quiz || offerMoon} arcAt={offerMoon ? OFFER_ARC_AT : undefined} drift={opening} riseMs={riseMs} original />
       <WelcomeHero shown={opening} />
       <RevealDark shown={dark} />
       {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} after={buildPage.held} /> : null}
