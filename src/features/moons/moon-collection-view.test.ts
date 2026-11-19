@@ -37,7 +37,7 @@ const NAMES: Record<string, string> = {
 };
 /** The app's first rare moon, whichever it is. */
 const RARE = ladder.RARE_MOONS[0];
-const MOONS = Object.entries(NAMES).map(([id, name]) => ({ id, name }));
+const MOONS = Object.entries(NAMES).map(([id, name]) => ({ id, name, glow: `glow-${id}` }));
 
 type Node = { type: unknown; props: Record<string, any>; children: Node[] };
 type Owned = Record<string, { id: string; morningKey: string; morning: number; at: number; seen?: boolean }>;
@@ -146,8 +146,8 @@ function render({
   const texts = all.filter((n) => n.type === 'Text').map((n) => n.children.map((c: any) => (typeof c === 'object' ? c.children.join('') : c)).join(''));
   const pills = all.find((n) => n.type === 'MoonsPills')?.props as { mornings: number; streak: number; owned: number; total: number; moonId: string };
   // The light at the top: the card the swipe starts on (the worn moon's).
-  const swipe = all.find((n) => n.type === 'SwipeGlow')!.props as { ids: string[]; x: { value: number }; step: number };
-  const glow = { id: swipe.ids[Math.round(swipe.x.value / swipe.step)] };
+  const swipe = all.find((n) => n.type === 'SwipeGlow')!.props as { colors: string[]; x: { value: number }; step: number };
+  const glow = { color: swipe.colors[Math.round(swipe.x.value / swipe.step)] };
   return { tiles, texts, pills, glow, calls, closeBtn, close: () => cleanups.forEach((c) => c()) };
 }
 
@@ -191,7 +191,7 @@ test('the worn moon: its tile is marked, its light is at the top and its name un
   assert.equal(by('dawn').wearing, true);
   assert.ok(tiles.filter((t) => t.locked).every((t) => t.status === undefined), 'a locked moon has one line, no countdown');
   assert.equal(by('dawn').label, by('dawn').name);
-  assert.equal(glow.id, 'dawn');
+  assert.equal(glow.color, MOONS.find((m) => m.id === 'dawn')!.glow);
   assert.ok(texts.includes('Wearing Dawn Moon'));
   assert.equal(pills.owned, 3);
   assert.equal(pills.moonId, 'dawn');

@@ -142,7 +142,7 @@ export function MoonCollection({
   return (
     <Animated.View style={[styles.screen, held]}>
       {/* Behind the scroll, fixed: the light stays in the sky as the moons scroll up under it. */}
-      <SwipeGlow ids={cards.all.map((sl) => (sl.owned ? sl.moon.id : worn.id))} x={cardsX} step={cards.step} />
+      <SwipeGlow colors={cards.all.map((sl) => (sl.owned ? sl.moon.glow : worn.glow))} x={cardsX} step={cards.step} />
     <Animated.ScrollView
       // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
       bounces={as === 'page'}

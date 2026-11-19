@@ -1,62 +1,56 @@
 import { Image } from 'expo-image';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
-import { DRAG_BOX, MOON_DRAG } from './moon-drag';
-
 /**
- * The moon's own light at the top of the moons page (user asked for it, 2026-11-16: "make the moon
- * tint poke out the top like the payoff"): the payoff's baked drag, with the moon itself left out
- * ("remove the moon keep the glow") and its centre above the screen, so only the light shows. Tuned in
- * tools/moons-milestones. Moons page only: the no-glow rule still holds everywhere else.
+ * The moon's own light at the top of the moons page (user asked for it, 2026-11-16: "make the moon tint
+ * poke out the top like the payoff"), centred above the screen so only its lower edge shows. Moons page only:
+ * the no-glow rule still holds everywhere else.
+ *
+ * It is the halo Home draws round the moon (moon-glow.png) in the moon's glow colour, the same colour as
+ * its card's halo, one shape for every moon. (It was the payoff's baked drag, whose colours don't match the
+ * cards and whose strength varies wildly: Lagoon's is peach on a teal card, the Eclipse's nearly empty, so
+ * the light lurched and cut out as you swiped, user 2026-11-19.)
+ *
+ * It follows the swipe (user 2026-11-19: "it should transition between the colors as u swipe"): the light of
+ * the card at or just behind the swipe sits fully on underneath and the next one fades in over it by the
+ * fraction travelled, so halfway between two cards it's an even mix and it never dims.
  */
-/** The moon's square, its disc 1/1.5 of it (FROST_PAD), as the payoff lays it out. */
-const BOX = 330;
-/** The moon's centre, in points above the page's top: raised till it wasn't too strong (user). */
-const CENTRE_Y = -100;
-const R = BOX / 1.5 / 2;
+const GLOW = require('@/assets/onboarding/moon-glow.png');
+/** The glow's square, as a multiple of the screen's width. */
+const SIZE = 2.2;
+/** Its centre, in points above the page's top. */
+const CENTRE_Y = -210;
+/** How strong the light is overall. */
+const STRENGTH = 1;
 
-const styles = StyleSheet.create({
-  glow: { position: 'absolute' },
-});
-
-/**
- * Sky cards (user 2026-11-19: "it should transition between the colors as u swipe"): every card's light,
- * blended by how far the swipe is between cards, following the finger. The light of the card at or
- * just behind the swipe sits fully on underneath and the next one fades in over it by the fraction
- * travelled, so halfway between two cards it's an even mix and the light never dims. `ids`: the moon
- * whose light each card shows, in card order (a coming moon shows the worn moon's).
- */
-export function SwipeGlow({ ids, x, step }: { ids: string[]; x: SharedValue<number>; step: number }) {
+/** `colors`: the glow colour each card shows, in card order (a coming moon shows the worn moon's). */
+export function SwipeGlow({ colors, x, step }: { colors: string[]; x: SharedValue<number>; step: number }) {
+  const { width } = useWindowDimensions();
+  const size = width * SIZE;
   return (
-    <>
-      {ids.map((id, i) => (
-        <SwipeLayer key={i} id={id} index={i} x={x} step={step} />
+    <View pointerEvents="none" style={[styles.glow, { left: (width - size) / 2, top: CENTRE_Y - size / 2, width: size, height: size }]}>
+      {colors.map((color, i) => (
+        <Layer key={i} color={color} index={i} x={x} step={step} size={size} />
       ))}
-    </>
+    </View>
   );
 }
 
-function SwipeLayer({ id, index, x, step }: { id: string; index: number; x: SharedValue<number>; step: number }) {
-  const { width } = useWindowDimensions();
+function Layer({ color, index, x, step, size }: { color: string; index: number; x: SharedValue<number>; step: number; size: number }) {
   const style = useAnimatedStyle(() => {
     const pos = Math.max(0, x.value / step);
     const base = Math.floor(pos);
     const t = pos - base;
     return { opacity: index === base ? 1 : index === base + 1 ? t : 0 };
   });
-  const source = MOON_DRAG[id];
-  if (!source) return null;
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.glow,
-        { left: width / 2 - DRAG_BOX.cx * R, top: CENTRE_Y - DRAG_BOX.cy * R, width: DRAG_BOX.width * R, height: DRAG_BOX.height * R },
-        style,
-      ]}
-    >
-      <Image source={source} style={StyleSheet.absoluteFill} contentFit="fill" transition={0} accessible={false} />
+    <Animated.View style={[StyleSheet.absoluteFill, style]}>
+      <Image source={GLOW} style={{ width: size, height: size }} contentFit="contain" tintColor={color} transition={0} accessible={false} />
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  glow: { position: 'absolute', opacity: STRENGTH },
+});
