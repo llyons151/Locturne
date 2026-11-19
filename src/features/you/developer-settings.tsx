@@ -282,7 +282,7 @@ export function DeveloperSettings() {
       </Group>
 
       {/* Dev test (user, 2026-11-19): the moons page's layout (features/moons/moons-look.ts). */}
-      <Group label="Moons page" note="Gems: today's Sleep-button gems. Picker: small squares in two boxes, like choosing an app icon. Frosted tiles: tall tiles of each moon's sky with its name on top. In both new ones the moon rises from the tile's bottom edge, and a moon still to come is a shadow that rises as you get closer.">
+      <Group label="Moons page" note="Gems: today's Sleep-button gems. Picker: small squares in two boxes, like choosing an app icon. Frosted tiles: tall tiles of each moon's sky with its name on top. Sky cards: one tall card per moon, swiped sideways. In both new ones the moon rises from the tile's bottom edge, and a moon still to come is a shadow that rises as you get closer.">
         <MenuRow
           {...icon('square.grid.2x2', 'grid_view')}
           title="Look"

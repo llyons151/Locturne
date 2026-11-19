@@ -8,13 +8,15 @@ import { sharedGet, sharedSet } from '@/lib/screen-time';
  * Moons page so both new takes can be judged on the phone. `gems`: the Sleep-button gems (today's).
  * `picker`: small rounded squares in grouped boxes, like iOS's app-icon picker (draft 9 of
  * docs/moons-page-directions). `frosted`: tall tiles of each moon's sky, the name on top (draft 13).
- * In both new looks the moon rises from the tile's bottom edge, cut off by it, as on Home.
+ * `cards`: every moon as a tall card of its sky, swiped sideways one at a time (draft 5).
+ * In the picker and frosted tiles the moon rises from the tile's bottom edge, cut off by it, as on Home.
  */
-export type MoonsLook = 'gems' | 'picker' | 'frosted';
+export type MoonsLook = 'gems' | 'picker' | 'frosted' | 'cards';
 export const MOONS_LOOKS: { value: MoonsLook; label: string }[] = [
   { value: 'gems', label: 'Gems' },
   { value: 'picker', label: 'Picker' },
   { value: 'frosted', label: 'Frosted tiles' },
+  { value: 'cards', label: 'Sky cards' },
 ];
 
 const KEY = 'locturne.dev.moons-look';

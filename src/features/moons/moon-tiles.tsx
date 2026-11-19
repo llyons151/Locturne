@@ -1,13 +1,33 @@
 'use no memo';
 
 import { SymbolView } from 'expo-symbols';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import Animated, {
+  Extrapolation,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  interpolate,
+  ReduceMotion,
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+  ZoomIn,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import { sym } from '@/components/grouped-list';
+import { Image } from 'expo-image';
+
 import { MOON_PADS, MoonHalo, SkyPicture } from '@/components/night-sky';
 import { Text } from '@/components/text';
+import * as haptic from '@/lib/haptics';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import type { OwnedMoon } from './moon-ladder';
@@ -27,7 +47,12 @@ import { MoonThumb } from './moon-thumb';
  */
 
 /** How much of the moon's disc shows above the tile's bottom edge once it's yours. */
+const NIGHT = require('@/assets/onboarding/night-sky-moonless.png');
 const RISEN = 0.5;
+/** The wide halo under the moon's own, as a multiple of it. */
+const WIDE = 1.7;
+/** The wash's stops from the bottom edge up: an ease-out so there is no visible line where it ends. */
+const WASH: [number, number][] = [[0, 0.34], [0.18, 0.26], [0.36, 0.15], [0.52, 0.07], [0.68, 0.02], [0.82, 0]];
 /** A coming moon's least and most showing, by how far along its mornings are. */
 const LOW = 0.1;
 const NUDGE = 4;
@@ -81,8 +106,20 @@ function RisingTile({ slot, width, height, radius, disc, wearing = false, childr
       {/* As Home draws it (night-sky.tsx): the moon's sky flipped so its light comes up from behind the
           moon, and the moon's halo in its own colour round it (user asked for Home's glow here, 2026-11-19). */}
       {slot.owned ? <SkyPicture moon={slot.moon} /> : null}
+      {/* The moon's light rising up the sky from the bottom edge, so the halo fades out instead of stopping (user 2026-11-19). */}
+      {slot.owned ? <GlowWash color={slot.moon.glow} id={`w-${slot.moon.id}-${Math.round(width)}`} /> : null}
       <Animated.View style={[styles.moon, { width: halo, height: halo, left: (width - halo) / 2, top: height - showing * disc + disc / 2 - halo / 2 }, lifted]}>
-        {slot.owned ? <MoonHalo moon={slot.moon} size={halo} /> : null}
+        {slot.owned ? (
+          <>
+            {/* A wide faint halo under the moon's own, so its edge softens into the sky. */}
+            <View style={[styles.moon, styles.wide, { width: halo * WIDE, height: halo * WIDE, left: (halo - halo * WIDE) / 2, top: (halo - halo * WIDE) / 2 }]}>
+              <MoonHalo moon={slot.moon} size={halo * WIDE} />
+            </View>
+            <View style={styles.soft}>
+              <MoonHalo moon={slot.moon} size={halo} />
+            </View>
+          </>
+        ) : null}
         <View style={[styles.moon, { left: (halo - disc) / 2, top: (halo - disc) / 2 }, !slot.owned && styles.shadow]}>
           <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
         </View>
@@ -94,6 +131,22 @@ function RisingTile({ slot, width, height, radius, disc, wearing = false, childr
       ) : null}
       {children}
     </View>
+  );
+}
+
+/** The moon's glow colour washed up from the bottom edge, fading out on an eased curve by about two thirds up. */
+function GlowWash({ color, id }: { color: string; id: string }) {
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none">
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="1" x2="0" y2="0">
+          {WASH.map(([at, a]) => (
+            <Stop key={at} offset={at} stopColor={color} stopOpacity={a} />
+          ))}
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
   );
 }
 
@@ -213,6 +266,126 @@ export function FrostedLook({ slots, extras, owned, worn, width, onPress }: Prop
   );
 }
 
+/** One sky card: the moon's sky with the moon and its halo high in it, the name and when at the bottom. Shrinks and dims off-centre. */
+function SkyCard({ slot, index, step, w, h, x, got }: { slot: MoonSlot; index: number; step: number; w: number; h: number; x: SharedValue<number>; got?: OwnedMoon }) {
+  const off = useAnimatedStyle(() => {
+    const d = Math.abs(x.value / step - index);
+    return { opacity: interpolate(d, [0, 1], [1, 0.45], Extrapolation.CLAMP), transform: [{ scale: interpolate(d, [0, 1], [1, 0.86], Extrapolation.CLAMP) }] };
+  });
+  const disc = w * 0.5;
+  const halo = disc * MOON_PADS.glow;
+  const sub = subline(slot, got);
+  return (
+    <Animated.View style={[{ width: w, height: h, borderRadius: CARD_R, overflow: 'hidden' }, !slot.owned && styles.comingTile, off]}>
+      {slot.owned ? (
+        <Image source={slot.moon.sky ?? NIGHT} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" accessible={false} />
+      ) : null}
+      <View style={[styles.moon, { width: halo, height: halo, left: (w - halo) / 2, top: h * 0.3 - halo / 2 }]}>
+        {slot.owned ? (
+          <>
+            <View style={[styles.moon, styles.wide, { width: halo * WIDE, height: halo * WIDE, left: (halo - halo * WIDE) / 2, top: (halo - halo * WIDE) / 2 }]}>
+              <MoonHalo moon={slot.moon} size={halo * WIDE} />
+            </View>
+            <View style={styles.soft}>
+              <MoonHalo moon={slot.moon} size={halo} />
+            </View>
+          </>
+        ) : null}
+        <View style={[styles.moon, { left: (halo - disc) / 2, top: (halo - disc) / 2 }, !slot.owned && styles.shadow]}>
+          <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
+        </View>
+        {slot.secret ? (
+          <View style={[StyleSheet.absoluteFill, styles.center]}>
+            <Text style={[styles.secret, { fontSize: Math.round(disc * 0.42) }]}>?</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.cardWords}>
+        <Text style={[styles.cardName, !slot.owned && styles.dim]} numberOfLines={1}>
+          {slotLabel(slot)}
+        </Text>
+        {sub ? <Text style={styles.cardSub}>{sub}</Text> : null}
+      </View>
+    </Animated.View>
+  );
+}
+
+/**
+ * Draft 5 (user 2026-11-19): every moon as a tall card of its own sky, swiped sideways one at a time,
+ * the one in the middle full size and its neighbours smaller and dimmer. Opens on the worn moon. The
+ * button under it wears the moon in the middle, or says how long till it comes.
+ */
+export function SkyCardsLook({ slots, extras, owned, worn, width, onPress }: Props) {
+  const { yours, coming } = split(slots, extras);
+  const all = [...yours, ...coming];
+  const w = Math.round(width * 0.62);
+  const h = Math.round(w * 1.62);
+  const step = w + CARD_GAP;
+  const start = Math.max(0, all.findIndex((sl) => sl.moon.id === worn));
+  const [at, setAt] = useState(start);
+  const list = useRef<Animated.ScrollView>(null);
+  const x = useSharedValue(start * step);
+  const last = useSharedValue(start);
+  const settle = (i: number) => {
+    setAt(i);
+    haptic.tap();
+  };
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      x.value = e.contentOffset.x;
+      // A tick each time a new card reaches the middle, as a picker wheel does.
+      const i = Math.max(0, Math.min(all.length - 1, Math.round(e.contentOffset.x / step)));
+      if (i !== last.value) {
+        last.value = i;
+        runOnJS(settle)(i);
+      }
+    },
+  });
+  const slot = all[at] ?? all[0];
+  const wearing = slot.owned && slot.moon.id === worn;
+  const sub = subline(slot);
+  return (
+    <View style={styles.cardsPage}>
+      <Animated.ScrollView
+        ref={list}
+        // Opens on the worn moon (contentOffset alone isn't honoured on the web).
+        onLayout={() => list.current?.scrollTo({ x: start * step, animated: false })}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={step}
+        decelerationRate="fast"
+        disableIntervalMomentum
+        contentOffset={{ x: start * step, y: 0 }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        style={styles.cardsRow}
+        contentContainerStyle={{ paddingHorizontal: (width - w) / 2, gap: CARD_GAP, alignItems: 'center' }}
+      >
+        {all.map((sl, i) => (
+          <SkyCard key={sl.moon.id} slot={sl} index={i} step={step} w={w} h={h} x={x} got={owned[sl.moon.id]} />
+        ))}
+      </Animated.ScrollView>
+      <Text style={styles.cardCount}>
+        {at + 1} of {all.length}
+      </Text>
+      <Pressable
+        onPress={() => {
+          if (slot.owned && !wearing) onPress(slot);
+        }}
+        disabled={!slot.owned || wearing}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.cardBtn, (!slot.owned || wearing) && styles.cardBtnQuiet, pressed && styles.cardBtnPressed]}
+      >
+        <Text style={[styles.cardBtnText, (!slot.owned || wearing) && styles.cardBtnTextQuiet]}>
+          {wearing ? 'Wearing' : slot.owned ? `Wear ${slot.moon.name}` : slot.secret ? 'A secret' : (sub ?? 'Coming')}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const CARD_GAP = Space.m;
+const CARD_R = 26;
 const PICK_COLS = 4;
 const PICK_PAD = Space.m;
 const PICK_GAP = Space.s;
@@ -224,6 +397,8 @@ const styles = StyleSheet.create({
   tile: { overflow: 'hidden', backgroundColor: Nocturne.bg },
   comingTile: { backgroundColor: '#11131B' },
   moon: { position: 'absolute' },
+  wide: { opacity: 0.45 },
+  soft: { opacity: 0.85 },
   // A moon still to come: its shape in shadow, no colour given away.
   shadow: { opacity: 0.22 },
   center: { alignItems: 'center', justifyContent: 'center' },
@@ -243,4 +418,16 @@ const styles = StyleSheet.create({
   frostName: { fontSize: 13, lineHeight: 16, fontWeight: '600', color: Nocturne.text, textAlign: 'center' },
   frostSub: { fontSize: 11, lineHeight: 14, color: 'rgba(235, 240, 250, 0.72)', textAlign: 'center' },
   wornEdge: { borderWidth: 2, borderColor: Nocturne.text },
+  cardsPage: { alignSelf: 'stretch', alignItems: 'center', gap: Space.l },
+  // As wide as the screen: the page's gutter is taken back so the cards run to the edges.
+  cardsRow: { alignSelf: 'stretch', marginHorizontal: -Gap.gutter, flexGrow: 0 },
+  cardWords: { position: 'absolute', left: Space.m, right: Space.m, bottom: Space.xl, alignItems: 'center', gap: 2 },
+  cardName: { fontSize: 19, lineHeight: 24, fontWeight: '700', color: Nocturne.text, textAlign: 'center' },
+  cardSub: { fontSize: 13, lineHeight: 17, color: 'rgba(235, 240, 250, 0.75)', textAlign: 'center' },
+  cardCount: { ...Type.caption, color: Nocturne.text2, fontVariant: ['tabular-nums'] },
+  cardBtn: { alignSelf: 'stretch', minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: Nocturne.cta },
+  cardBtnQuiet: { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+  cardBtnPressed: { opacity: 0.8 },
+  cardBtnText: { fontSize: 16, fontWeight: '700', color: Nocturne.onCta },
+  cardBtnTextQuiet: { color: Nocturne.text },
 });

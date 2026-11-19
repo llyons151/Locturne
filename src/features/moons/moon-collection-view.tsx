@@ -24,7 +24,7 @@ import { moonSlots, slotLabel, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
-import { FrostedLook, PickerLook } from './moon-tiles';
+import { FrostedLook, PickerLook, SkyCardsLook } from './moon-tiles';
 import { useMoonsLook } from './moons-look';
 import { MoonsPills } from './moons-pills';
 
@@ -196,6 +196,8 @@ export function MoonCollection({
       </View>
       {look === 'picker' ? (
         <PickerLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
+      ) : look === 'cards' ? (
+        <SkyCardsLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
       ) : look === 'frosted' ? (
         <FrostedLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
       ) : (
