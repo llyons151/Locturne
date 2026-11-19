@@ -321,9 +321,14 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing }: { slot: MoonSlot;
  * the one in the middle full size and its neighbours smaller and dimmer. Opens on the worn moon. The
  * button under it wears the moon in the middle, or says how long till it comes.
  */
-export function SkyCardsLook({ slots, extras, owned, worn, width, onPress, onCentre }: Props & { onCentre?: (id: string) => void }) {
+/** The Sky cards' order (yours, then coming) and the swipe's distance from one card to the next. */
+export function skyCards(slots: MoonSlot[], extras: MoonSlot[], width: number) {
   const { yours, coming } = split(slots, extras);
-  const all = [...yours, ...coming];
+  return { all: [...yours, ...coming], step: Math.round(width * 0.66) + CARD_GAP };
+}
+
+export function SkyCardsLook({ slots, extras, owned, worn, width, onPress, x }: Props & { x: SharedValue<number> }) {
+  const { all } = skyCards(slots, extras, width);
   const { height: screenH } = useWindowDimensions();
   const w = Math.round(width * 0.66);
   // Tall, but never so tall the button is pushed off the screen: the header and button take about CARDS_CHROME.
@@ -332,18 +337,13 @@ export function SkyCardsLook({ slots, extras, owned, worn, width, onPress, onCen
   const start = Math.max(0, all.findIndex((sl) => sl.moon.id === worn));
   const [at, setAt] = useState(start);
   const list = useRef<Animated.ScrollView>(null);
-  const x = useSharedValue(start * step);
+  // The swipe's position `x` is the page's (it blends the light at the top), started there on the worn moon.
   const last = useSharedValue(start);
   // A tap each time a new card reaches the middle, as a picker wheel does; nothing re-renders mid-swipe.
   const tick = () => haptic.tap();
-  // Once the swipe comes to rest: the count, the button and the page's light take the card in the middle
-  // (a coming moon keeps the worn moon's light). Updating these on every crossing re-rendered the page
-  // and restarted the light's crossfade mid-swipe (user 2026-11-19: the glow glitched).
-  const settle = (i: number) => {
-    setAt(i);
-    const mid = all[i];
-    onCentre?.(mid?.owned ? mid.moon.id : worn);
-  };
+  // Once the swipe comes to rest, the count and the button take the card in the middle (on every
+  // crossing they re-rendered the page mid-swipe). The light at the top follows the finger itself (SwipeGlow).
+  const settle = (i: number) => setAt(i);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
       x.value = e.contentOffset.x;

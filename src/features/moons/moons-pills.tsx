@@ -9,8 +9,8 @@ import { Nocturne, NUMBER_FONT, Type } from '@/theme';
 import { useStreakPill } from '../home/streak-pill';
 
 /**
- * The moons page's two pills, as Home draws its own (home-top.tsx; iOS: moons-pills.ios.tsx in
- * SwiftUI): every morning got up, which a tap flips to the streak (the page opens on mornings, Home
+ * The moons page's two pills, as Home draws its own (home-top.tsx), on every platform: the SwiftUI
+ * version overlapped "Wearing …" and cut "mornings" short on iPhone (user 2026-11-19), so it's gone: every morning got up, which a tap flips to the streak (the page opens on mornings, Home
  * on the streak, user 2026-11-16), and how many moons are yours (no icon, user 2026-11-19).
  */
 export function MoonsPills({ mornings, streak, owned, total, moonId }: { mornings: number; streak: number; owned: number; total: number; moonId: string }) {

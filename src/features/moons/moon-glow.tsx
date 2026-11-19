@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
-import Animated, { Easing, ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { DRAG_BOX, MOON_DRAG } from './moon-drag';
 
@@ -82,3 +82,44 @@ function GlowLayer({ id, fade, onShown }: { id: string; fade: boolean; onShown: 
 const styles = StyleSheet.create({
   glow: { position: 'absolute' },
 });
+
+/**
+ * Sky cards (user 2026-11-19: "it should transition between the colors as u swipe"): every card's light,
+ * blended by how far the swipe is between cards, following the finger. The light of the card at or
+ * just behind the swipe sits fully on underneath and the next one fades in over it by the fraction
+ * travelled, so halfway between two cards it's an even mix and the light never dims. `ids`: the moon
+ * whose light each card shows, in card order (a coming moon shows the worn moon's).
+ */
+export function SwipeGlow({ ids, x, step }: { ids: string[]; x: SharedValue<number>; step: number }) {
+  return (
+    <>
+      {ids.map((id, i) => (
+        <SwipeLayer key={i} id={id} index={i} x={x} step={step} />
+      ))}
+    </>
+  );
+}
+
+function SwipeLayer({ id, index, x, step }: { id: string; index: number; x: SharedValue<number>; step: number }) {
+  const { width } = useWindowDimensions();
+  const style = useAnimatedStyle(() => {
+    const pos = Math.max(0, x.value / step);
+    const base = Math.floor(pos);
+    const t = pos - base;
+    return { opacity: index === base ? 1 : index === base + 1 ? t : 0 };
+  });
+  const source = MOON_DRAG[id];
+  if (!source) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.glow,
+        { left: width / 2 - DRAG_BOX.cx * R, top: CENTRE_Y - DRAG_BOX.cy * R, width: DRAG_BOX.width * R, height: DRAG_BOX.height * R },
+        style,
+      ]}
+    >
+      <Image source={source} style={StyleSheet.absoluteFill} contentFit="fill" transition={0} accessible={false} />
+    </Animated.View>
+  );
+}

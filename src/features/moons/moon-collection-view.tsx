@@ -19,12 +19,12 @@ import { DisplayFont, Gap, Nocturne, Space, Type } from '@/theme';
 import { checkSecretMoons, markSeen, MOONS_BG, settleMoons, useOwnedMoons } from './moon-collection';
 import { MOONS } from './moon-data';
 import type { OwnedMoon } from './moon-ladder';
-import { MoonGlow } from './moon-glow';
+import { MoonGlow, SwipeGlow } from './moon-glow';
 import { moonSlots, slotLabel, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
-import { FrostedLook, PickerLook, SkyCardsLook } from './moon-tiles';
+import { FrostedLook, PickerLook, SkyCardsLook, skyCards } from './moon-tiles';
 import { useMoonsLook } from './moons-look';
 import { MoonsPills } from './moons-pills';
 
@@ -82,8 +82,6 @@ export function MoonCollection({
   const worn = useWornMoon();
   // Developer → Moons page (moons-look.ts): today's gems, or one of the two tile takes.
   const look = useMoonsLook();
-  // Sky cards: the moon in the middle of the swipe, whose light shows at the top of the page.
-  const [centred, setCentred] = useState<string | null>(null);
 
   // Earned before the first paint, so a moon that's due never shows as "0 mornings left".
   useState(() => settleMoons());
@@ -98,6 +96,10 @@ export function MoonCollection({
   useEffect(() => () => markSeen(Object.keys(ownedNow.current)), []);
 
   const { main: slots, extras } = moonSlots(owned);
+  // Sky cards: how far they're swiped, which blends the light at the top from card to card as you go.
+  // Starts on the worn moon's card, where the cards open.
+  const cards = skyCards(slots, extras, width);
+  const cardsX = useSharedValue(Math.max(0, cards.all.findIndex((sl) => sl.moon.id === worn.id)) * cards.step);
   // Every moon you have: Moonlight, which you start with, then every one earned, rare and secret too (user, 2026-11-02).
   const count = 1 + MOONS.filter((m) => m.id !== DEFAULT_MOON.id && owned[m.id]).length;
   // Every moon on the page: the ladder (secrets included) and Moonlight, plus rare and limited ones once yours.
@@ -151,7 +153,11 @@ export function MoonCollection({
   return (
     <Animated.View style={[styles.screen, held]}>
       {/* Behind the scroll, fixed: the light stays in the sky as the moons scroll up under it. */}
-      <MoonGlow id={look === 'cards' && centred ? centred : worn.id} />
+      {look === 'cards' ? (
+        <SwipeGlow ids={cards.all.map((sl) => (sl.owned ? sl.moon.id : worn.id))} x={cardsX} step={cards.step} />
+      ) : (
+        <MoonGlow id={worn.id} />
+      )}
     <Animated.ScrollView
       // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
       bounces={as === 'page'}
@@ -199,7 +205,7 @@ export function MoonCollection({
       {look === 'picker' ? (
         <PickerLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
       ) : look === 'cards' ? (
-        <SkyCardsLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} onCentre={setCentred} />
+        <SkyCardsLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} x={cardsX} />
       ) : look === 'frosted' ? (
         <FrostedLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
       ) : (

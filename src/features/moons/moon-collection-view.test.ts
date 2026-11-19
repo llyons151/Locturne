@@ -91,9 +91,9 @@ function render({
     '@/lib/lock-controller': { readLock: () => ({ morningKey: today }) },
     '@/lib/morning-proof': { getMorningsWon: () => mornings, getFirstMorning: () => first },
     '@/lib/streak': { getStreak: () => streak },
-    './moon-glow': { MoonGlow: 'MoonGlow' },
+    './moon-glow': { MoonGlow: 'MoonGlow', SwipeGlow: 'SwipeGlow' },
     './moons-pills': { MoonsPills: 'MoonsPills' },
-    './moon-tiles': { PickerLook: 'PickerLook', FrostedLook: 'FrostedLook', SkyCardsLook: 'SkyCardsLook' },
+    './moon-tiles': { PickerLook: 'PickerLook', FrostedLook: 'FrostedLook', SkyCardsLook: 'SkyCardsLook', skyCards: () => ({ all: [], step: 1 }) },
     './moons-look': { useMoonsLook: () => 'gems' },
     '@/theme': { DisplayFont: {}, NUMBER_FONT: {}, Gap: { gutter: 24, block: 24, section: 32 }, Nocturne: {}, Space: { xs: 4, s: 8, m: 12, l: 16, xl: 24 }, Type: {} },
     './moon-collection': {
