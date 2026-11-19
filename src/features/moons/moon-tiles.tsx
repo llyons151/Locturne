@@ -334,22 +334,27 @@ export function SkyCardsLook({ slots, extras, owned, worn, width, onPress, onCen
   const list = useRef<Animated.ScrollView>(null);
   const x = useSharedValue(start * step);
   const last = useSharedValue(start);
+  // A tap each time a new card reaches the middle, as a picker wheel does; nothing re-renders mid-swipe.
+  const tick = () => haptic.tap();
+  // Once the swipe comes to rest: the count, the button and the page's light take the card in the middle
+  // (a coming moon keeps the worn moon's light). Updating these on every crossing re-rendered the page
+  // and restarted the light's crossfade mid-swipe (user 2026-11-19: the glow glitched).
   const settle = (i: number) => {
     setAt(i);
-    haptic.tap();
-    // The page's light at the top takes the colour of the moon in the middle (a coming one keeps the worn moon's).
     const mid = all[i];
     onCentre?.(mid?.owned ? mid.moon.id : worn);
   };
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
       x.value = e.contentOffset.x;
-      // A tick each time a new card reaches the middle, as a picker wheel does.
       const i = Math.max(0, Math.min(all.length - 1, Math.round(e.contentOffset.x / step)));
       if (i !== last.value) {
         last.value = i;
-        runOnJS(settle)(i);
+        runOnJS(tick)();
       }
+    },
+    onMomentumEnd: (e) => {
+      runOnJS(settle)(Math.max(0, Math.min(all.length - 1, Math.round(e.contentOffset.x / step))));
     },
   });
   const slot = all[at] ?? all[0];

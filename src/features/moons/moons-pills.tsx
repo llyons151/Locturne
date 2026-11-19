@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, FadeIn, LinearTransition } from 'react-native-reanimated';
@@ -8,12 +7,11 @@ import { Text } from '@/components/text';
 import { Nocturne, NUMBER_FONT, Type } from '@/theme';
 
 import { useStreakPill } from '../home/streak-pill';
-import { MOON_ICONS, NIGHT_ICON } from './moon-icons';
 
 /**
  * The moons page's two pills, as Home draws its own (home-top.tsx; iOS: moons-pills.ios.tsx in
  * SwiftUI): every morning got up, which a tap flips to the streak (the page opens on mornings, Home
- * on the streak, user 2026-11-16), and how many moons are yours, with the worn one's icon.
+ * on the streak, user 2026-11-16), and how many moons are yours (no icon, user 2026-11-19).
  */
 export function MoonsPills({ mornings, streak, owned, total, moonId }: { mornings: number; streak: number; owned: number; total: number; moonId: string }) {
   const pill = useStreakPill(streak, mornings, 'total');
@@ -29,7 +27,6 @@ export function MoonsPills({ mornings, streak, owned, total, moonId }: { morning
         </Animated.View>
       </Pressable>
       <View style={styles.pill} accessible accessibilityLabel={`${owned} of ${total} moons`}>
-        <Image source={MOON_ICONS[moonId] ?? NIGHT_ICON} style={styles.icon} contentFit="contain" accessible={false} />
         <Text style={styles.value}>{owned}</Text>
         <Text style={styles.label}>of {total} moons</Text>
       </View>
@@ -44,7 +41,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
   words: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  icon: { width: 20, height: 20 },
   value: { ...NUMBER_FONT, fontSize: 16, color: Nocturne.text },
   label: { ...Type.secondary, color: Nocturne.text2 },
 });
