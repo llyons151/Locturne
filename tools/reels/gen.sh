@@ -2,7 +2,7 @@
 # Generate one image with GPT image generation via the Codex CLI (uses the ChatGPT login).
 # usage: gen.sh <out.png> "<prompt>" [reference images...]
 set -euo pipefail
-out="$1"; prompt="$2"; shift 2
+out=$(realpath -m "$1"); prompt="$2"; shift 2
 refs=(); for r in "$@"; do refs+=(--image "$r"); done
 note=""; [ ${#refs[@]} -gt 0 ] && note="The attached image(s) are references."
 work=$(mktemp -d)
