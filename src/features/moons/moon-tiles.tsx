@@ -1,12 +1,12 @@
 'use no memo';
 
-import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
 
 import { sym } from '@/components/grouped-list';
+import { MOON_PADS, MoonHalo, SkyPicture } from '@/components/night-sky';
 import { Text } from '@/components/text';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
@@ -27,9 +27,9 @@ import { MoonThumb } from './moon-thumb';
  */
 
 /** How much of the moon's disc shows above the tile's bottom edge once it's yours. */
-const RISEN = 0.62;
+const RISEN = 0.5;
 /** A coming moon's least and most showing, by how far along its mornings are. */
-const LOW = 0.14;
+const LOW = 0.1;
 const NUDGE = 4;
 const NUDGE_MS = 60;
 /** How much higher the worn moon rises, as a share of its disc. */
@@ -38,7 +38,6 @@ const RISE_SPRING = { damping: 14, stiffness: 140, reduceMotion: ReduceMotion.Sy
 const PRESS_SPRING = { damping: 18, stiffness: 420, reduceMotion: ReduceMotion.System };
 /** The gap between each tile's entrance as the page opens. */
 const STAGGER_MS = 28;
-const NIGHT = require('@/assets/onboarding/night-sky-moonless.png');
 
 type Props = {
   slots: MoonSlot[];
@@ -75,11 +74,18 @@ function RisingTile({ slot, width, height, radius, disc, wearing = false, childr
     lift.value = withSpring(wearing ? -LIFT * disc : 0, RISE_SPRING);
   }, [wearing, disc, lift]);
   const lifted = useAnimatedStyle(() => ({ transform: [{ translateY: lift.value }] }));
+  // The halo's square is centred on the moon's middle: the disc's top sits `showing` of a disc above the tile's bottom edge.
+  const halo = disc * MOON_PADS.glow;
   return (
     <View style={[styles.tile, { width, height, borderRadius: radius }, !slot.owned && styles.comingTile]}>
-      {slot.owned ? <Image source={slot.moon.sky ?? NIGHT} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" accessible={false} /> : null}
-      <Animated.View style={[styles.moon, { left: (width - disc) / 2, top: height - showing * disc }, !slot.owned && styles.shadow, lifted]}>
-        <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
+      {/* As Home draws it (night-sky.tsx): the moon's sky flipped so its light comes up from behind the
+          moon, and the moon's halo in its own colour round it (user asked for Home's glow here, 2026-11-19). */}
+      {slot.owned ? <SkyPicture moon={slot.moon} /> : null}
+      <Animated.View style={[styles.moon, { width: halo, height: halo, left: (width - halo) / 2, top: height - showing * disc + disc / 2 - halo / 2 }, lifted]}>
+        {slot.owned ? <MoonHalo moon={slot.moon} size={halo} /> : null}
+        <View style={[styles.moon, { left: (halo - disc) / 2, top: (halo - disc) / 2 }, !slot.owned && styles.shadow]}>
+          <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
+        </View>
       </Animated.View>
       {slot.secret ? (
         <View style={[StyleSheet.absoluteFill, styles.center]}>
@@ -141,7 +147,7 @@ export function PickerLook({ slots, extras, owned, worn, width, onPress }: Props
             <Cell slot={slot} index={i + offset} onPress={onPress}>
               <View style={styles.cellCol}>
                 <View style={styles.ring}>
-                  <RisingTile slot={slot} width={tile} height={tile} radius={tile * 0.26} disc={tile * 0.7} wearing={wearing} />
+                  <RisingTile slot={slot} width={tile} height={tile} radius={tile * 0.26} disc={tile * 0.92} wearing={wearing} />
                   {/* The worn one's white edge springs in. */}
                   {wearing ? <Animated.View entering={ZoomIn.springify().damping(14)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, styles.ringOn, { borderRadius: tile * 0.26 + RING }]} /> : null}
                 </View>
@@ -191,7 +197,7 @@ export function FrostedLook({ slots, extras, owned, worn, width, onPress }: Prop
         const sub = subline(slot, owned[slot.moon.id]);
         return (
           <Cell key={slot.moon.id} slot={slot} index={i} onPress={onPress}>
-            <RisingTile slot={slot} width={w} height={h} radius={Math.round(w * 0.16)} disc={w * 0.66} wearing={wearing}>
+            <RisingTile slot={slot} width={w} height={h} radius={Math.round(w * 0.16)} disc={w * 0.92} wearing={wearing}>
               <View style={styles.frostWords}>
                 <Text style={[styles.frostName, !slot.owned && styles.dim]} numberOfLines={2}>
                   {slotLabel(slot)}
