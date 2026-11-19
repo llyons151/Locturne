@@ -82,6 +82,8 @@ export function MoonCollection({
   const worn = useWornMoon();
   // Developer → Moons page (moons-look.ts): today's gems, or one of the two tile takes.
   const look = useMoonsLook();
+  // Sky cards: the moon in the middle of the swipe, whose light shows at the top of the page.
+  const [centred, setCentred] = useState<string | null>(null);
 
   // Earned before the first paint, so a moon that's due never shows as "0 mornings left".
   useState(() => settleMoons());
@@ -149,7 +151,7 @@ export function MoonCollection({
   return (
     <Animated.View style={[styles.screen, held]}>
       {/* Behind the scroll, fixed: the light stays in the sky as the moons scroll up under it. */}
-      <MoonGlow id={worn.id} />
+      <MoonGlow id={look === 'cards' && centred ? centred : worn.id} />
     <Animated.ScrollView
       // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
       bounces={as === 'page'}
@@ -160,7 +162,7 @@ export function MoonCollection({
       showsVerticalScrollIndicator={false}
       style={styles.scroll}
       contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={[styles.content, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
+      contentContainerStyle={[styles.content, look === 'cards' && styles.fill, { paddingTop: (as === 'page' ? insets.top : 0) + Space.xl, paddingBottom: insets.bottom + Gap.section }]}
     >
       {/* One row: the way out (the page slides up, so it goes back down), the title, the count. */}
       <View style={styles.head}>
@@ -197,7 +199,7 @@ export function MoonCollection({
       {look === 'picker' ? (
         <PickerLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
       ) : look === 'cards' ? (
-        <SkyCardsLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
+        <SkyCardsLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} onCentre={setCentred} />
       ) : look === 'frosted' ? (
         <FrostedLook slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} />
       ) : (
@@ -272,6 +274,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: MOONS_BG, overflow: 'hidden' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: Gap.gutter },
+  // Sky cards: the page fills the screen so their button sits at the bottom.
+  fill: { flexGrow: 1 },
   head: { flexDirection: 'row', alignItems: 'center', minHeight: CLOSE, marginBottom: Gap.block },
   close: {
     width: CLOSE,
