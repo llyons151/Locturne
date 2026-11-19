@@ -147,7 +147,7 @@ const own = (ids: string[], extra: Partial<Owned[string]> = {}): Owned =>
 test('a new user: Moonlight worn, every ladder moon locked and named only by when it comes, the secret a "?"', () => {
   const { tiles, texts, pills } = render();
   assert.deepEqual(tiles.map((t) => t.id), ['moonlight', ...LADDER]);
-  assert.deepEqual(tiles[0], { ...tiles[0], status: 'You start with this', locked: false, wearing: true });
+  assert.deepEqual(tiles[0], { ...tiles[0], status: 'From the start', locked: false, wearing: true });
   assert.deepEqual(tiles.slice(1, 11).map((t) => t.name), ['Morning 1', 'Morning 3', 'Morning 7', 'Morning 14', 'Morning 30', 'Morning 50', 'Morning 100', 'Morning 150', 'Morning 200', 'Week 50']);
   assert.ok(tiles.slice(1, 11).every((t) => t.status === undefined), 'one line, no name and no countdown');
   assert.equal(tiles[1].label, 'Morning 1, locked');

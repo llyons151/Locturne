@@ -217,7 +217,7 @@ function Grid({ slots, owned, tile, worn, onPress }: { slots: Slot[]; owned: Rec
 /** One moon: its icon, its name (or when it comes), and, once yours, the morning that brought it. */
 function Tile({ slot, got, tile, wearing, onPress }: { slot: Slot; got?: OwnedMoon; tile: number; wearing: boolean; onPress: (slot: Slot) => boolean }) {
   const name = slotLabel(slot);
-  const since = slot.owned ? (slot.moon.id === DEFAULT_MOON.id ? 'You start with this' : got ? `Morning ${got.morning}` : undefined) : undefined;
+  const since = slot.owned ? (slot.moon.id === DEFAULT_MOON.id ? 'From the start' : got ? `Morning ${got.morning}` : undefined) : undefined;
   const shake = useSharedValue(0);
   const shaken = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
   return (
@@ -238,9 +238,8 @@ function Tile({ slot, got, tile, wearing, onPress }: { slot: Slot; got?: OwnedMo
       <Animated.View style={shaken}>
         <MoonThumb moon={slot.moon} size={tile} locked={!slot.owned} secret={slot.secret} wearing={wearing} plain />
       </Animated.View>
-      {/* The worn one's mark: a dot under its icon, no edge and no glow. */}
-      <View style={[styles.dot, !wearing && styles.dotOff]} />
-      <Text style={[styles.name, !slot.owned && styles.lockedName]} numberOfLines={1}>
+      {/* Two lines: "Strawberry Moon" and "Partial Eclipse" don't fit one column. */}
+      <Text style={[styles.name, !slot.owned && styles.lockedName]} numberOfLines={2}>
         {name}
       </Text>
       {since ? (
@@ -279,9 +278,7 @@ const styles = StyleSheet.create({
   pills: { marginTop: Space.m, marginBottom: Gap.block },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, rowGap: Space.l },
   slot: { alignItems: 'center' },
-  dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: Nocturne.text, marginBottom: Space.xs },
-  dotOff: { opacity: 0 },
-  name: { ...Type.secondary, color: Nocturne.text, fontWeight: '600', textAlign: 'center' },
+  name: { ...Type.secondary, color: Nocturne.text, fontWeight: '600', textAlign: 'center', marginTop: Space.m },
   since: { ...Type.caption, color: Nocturne.text2, textAlign: 'center' },
   lockedName: { color: Nocturne.text2 },
   group: { ...Type.secondary, color: Nocturne.text2, textAlign: 'center', marginTop: Gap.section, marginBottom: Space.l },
