@@ -272,9 +272,14 @@ export function HomeScreen() {
       : undefined;
   const own = morningHere && !walkingInstead;
   const place = useMorningPlace(own && method === 'place', walked, routine.stepGoal);
-  const pushups = useMorningPushups(own && method === 'pushups', pushupGoalOf(routine), lock.morningKey);
+  // A test morning (Test the lock, Rehearse a night, the wake preview) keeps its reps under its own
+  // key: under the real date, the first test's finished set made every later test that day open
+  // "done" (user 2026-11-20).
+  const preview = useWakePreview();
+  const repsKey = preview.phase === 'morning' ? `test-${preview.since}` : lock.morningKey;
+  const pushups = useMorningPushups(own && method === 'pushups', pushupGoalOf(routine), repsKey);
   // The same camera, front-on, timed (wake/dance.ts).
-  const dance = useMorningPushups(own && method === 'dance', danceGoalOf(routine), lock.morningKey, 'dance');
+  const dance = useMorningPushups(own && method === 'dance', danceGoalOf(routine), repsKey, 'dance');
   // A few steps, then the countdown to when the apps wake (wake/downtime.ts).
   const downtime = useMorningDowntime(own && method === 'downtime', routine);
   const morningHero = place ?? pushups?.morning ?? dance?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : null);

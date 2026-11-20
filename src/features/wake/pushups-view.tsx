@@ -16,7 +16,7 @@ import { danceLine, pushupsLine, spokenRep } from '@/lib/wake/lines';
 import { DANCE } from '@/lib/wake/dance';
 import { danceSceneFor } from '@/lib/wake/pose-demo';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
-import { isTimed, repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
+import { frontRule, isTimed, repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 import { CTA_HEIGHT, Gap, Nocturne, Space, Type } from '@/theme';
 
@@ -295,6 +295,8 @@ function TuningReadout({ session, pose }: { session: PushupsSession | null; pose
   // What the iPhone handed over: the picture's size, how Vision read it, and how sure it was.
   const info = pose?.info;
   if (info) lines.push(`${info.w}×${info.h} ${info.upright ? 'stood up' : 'old table'} · read ${info.read} · seen ${info.score.toFixed(2)}/4`);
+  // Push-ups facing the camera: which front-on check turns this frame away, if one does.
+  if (!d && pose && session.view === 'front') lines.push(`front: ${frontRule(pose.joints) ?? 'plank ok'}`);
   return (
     <View style={styles.tuning} pointerEvents="none">
       {lines.map((l) => (

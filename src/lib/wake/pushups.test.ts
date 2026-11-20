@@ -485,3 +485,55 @@ describe('the wake lab preview scenes (pose-demo.ts scenePose)', () => {
     for (const state of ['noBody', 'notPlank', 'counting', 'shallow', 'quick', 'met']) assert.ok(shown.has(state), state);
   });
 });
+
+/*
+ * Facing the camera on an iPhone (user 2026-11-20: front-on push-ups said "standing"). The hips are hidden
+ * behind the shoulders, and Apple Vision, trained on people standing, guesses them where a standing body's
+ * would be, a torso below, sure of it or not. Its shoulders also read narrower than MediaPipe's, so the
+ * spread lands between side-on and front-on.
+ */
+describe('front-on on Apple Vision', () => {
+  const WIDTH = 70;
+  /** A front-on body, shoulders `dip` px below the top, elbows flaring `flare` px; hips (and knees) guessed below at `hipC`. */
+  function front(dip: number, flare: number, hipC: number): PoseFrame['joints'] {
+    const sy = 400 + dip;
+    const lx = 200 - WIDTH / 2;
+    const rx = 200 + WIDTH / 2;
+    const wy = 550;
+    const ey = (sy + wy) / 2;
+    return {
+      nose: p(200, sy - 40),
+      leftShoulder: p(lx, sy),
+      rightShoulder: p(rx, sy),
+      leftElbow: p(lx - flare, ey),
+      rightElbow: p(rx + flare, ey),
+      leftWrist: p(lx, wy),
+      rightWrist: p(rx, wy),
+      leftHip: p(lx + 5, sy + 1.5 * WIDTH, hipC),
+      rightHip: p(rx - 5, sy + 1.5 * WIDTH, hipC),
+      leftKnee: p(lx + 5, sy + 2.8 * WIDTH, Math.min(0.8, hipC)),
+      rightKnee: p(rx - 5, sy + 2.8 * WIDTH, Math.min(0.8, hipC)),
+    };
+  }
+  /** Ten slow reps: down 100 px with the elbows out, and back up. */
+  const reps = (hipC: number) => {
+    let s = startPushups(0, 10);
+    s = run(s, 0, 30_000, (ms) => {
+      const k = 0.5 - 0.5 * Math.cos((ms / 2_400) * 2 * Math.PI);
+      return front(100 * k, 70 * k, hipC);
+    });
+    return s;
+  };
+
+  test('guessed hips below the shoulders still count the reps', () => {
+    const s = reps(0.3);
+    assert.equal(s.view, 'front');
+    assert.ok(s.reps >= 10, `counted ${s.reps}`);
+  });
+
+  test('a body really standing there, hips in plain sight, is still turned away', () => {
+    const s = reps(0.9);
+    assert.equal(s.reps, 0);
+    assert.equal(s.hint, 'notPlank');
+  });
+});

@@ -86,6 +86,12 @@ export const FRONT = {
   /** Hips, when the camera finds them, at most this many shoulder widths below the shoulders. A front-on plank reads
    * −0.6 to 0.55; standing, they're a torso (about 1.5 widths) down. */
   maxHipDrop: 0.9,
+  /**
+   * Hips count against a plank only seen this surely. Facing the camera they're hidden behind the shoulders, and
+   * Apple Vision, trained on people standing, guesses hidden hips where a standing body's would be: a torso below.
+   * Standing up, they're in plain sight. (User 2026-11-20: front-on push-ups on the phone said "standing".)
+   */
+  hipSure: 0.5,
   /** An arm (shoulder to wrist, the two bones) shorter or longer than this many shoulder widths is the camera guessing. */
   armToWidth: [0.5, 4],
   /**
@@ -397,7 +403,43 @@ export function viewOf(joints: PoseFrame['joints'], was: View | null): View {
   const spread = dist(parts.left, parts.right) / arm;
   if (spread >= FRONT.spreadIn) return 'front';
   if (spread <= FRONT.spreadOut) return 'side';
+  // Between the two, a torso steeper than a side-on plank's can only be facing the camera (or standing,
+  // which the front-on check turns away): read side-on, it was "standing" every frame.
+  if (torsoSteep(joints, parts.left, parts.right)) return 'front';
   return was ?? (spread >= (FRONT.spreadIn + FRONT.spreadOut) / 2 ? 'front' : 'side');
+}
+
+/** The torso (shoulders' middle to hips' middle, hips seen at all) further from horizontal than a side-on plank allows. */
+function torsoSteep(joints: PoseFrame['joints'], left: JointPoint, right: JointPoint): boolean {
+  const hips = [joints.leftHip, joints.rightHip].filter((h): h is JointPoint => !!h && h.c >= PUSHUPS.minConfidence);
+  if (!hips.length) return false;
+  const hx = hips.reduce((sum, h) => sum + h.x, 0) / hips.length;
+  const hy = hips.reduce((sum, h) => sum + h.y, 0) / hips.length;
+  const dx = Math.abs(hx - (left.x + right.x) / 2);
+  const dy = Math.abs(hy - (left.y + right.y) / 2);
+  return (Math.atan2(dy, dx) * 180) / Math.PI > PUSHUPS.maxTorsoDeg;
+}
+
+/**
+ * Which front-on rule turned a frame away, for the wake lab's tuning readout, or null when it reads as a plank.
+ * The same checks as `readFront`, in its order.
+ */
+export function frontRule(joints: PoseFrame['joints']): string | null {
+  const parts = frontParts(joints);
+  if (!parts) return 'no shoulders + arm';
+  const { left, right, arms } = parts;
+  const width = dist(left, right);
+  const [least, most] = FRONT.armToWidth;
+  const ratio = arms.map((a) => armLength(a) / width);
+  if (!(width > 0) || ratio.some((r) => r < least || r > most)) return `arm ${ratio.map((r) => r.toFixed(1)).join('/')} widths`;
+  if (arms.some((a) => a.wrist.y < a.shoulder.y - armLength(a) * PUSHUPS.wristSlack)) return 'wrists above shoulders';
+  const shoulderY = (left.y + right.y) / 2;
+  const hips = [joints.leftHip, joints.rightHip].filter((h): h is JointPoint => !!h && h.c >= FRONT.hipSure);
+  const hipDrop = hips.length ? (hips.reduce((sum, h) => sum + h.y, 0) / hips.length - shoulderY) / width : null;
+  if (hipDrop !== null && hipDrop > FRONT.maxHipDrop) return `hips ${hipDrop.toFixed(2)} widths down`;
+  const knees = [joints.leftKnee, joints.rightKnee];
+  if (knees.every((k) => !!k && k.c >= FRONT.kneesSeen)) return 'both knees seen';
+  return null;
 }
 
 /**
@@ -415,7 +457,7 @@ export function readFront(joints: PoseFrame['joints']): { elbow: number; shoulde
   const [least, most] = FRONT.armToWidth;
   if (!(width > 0) || arms.some((a) => armLength(a) < width * least || armLength(a) > width * most)) return { hint: 'noBody' };
   if (arms.some((a) => a.wrist.y < a.shoulder.y - armLength(a) * PUSHUPS.wristSlack)) return { hint: 'notPlank' };
-  const hips = [joints.leftHip, joints.rightHip].filter((h): h is JointPoint => !!h && h.c >= PUSHUPS.minConfidence);
+  const hips = [joints.leftHip, joints.rightHip].filter((h): h is JointPoint => !!h && h.c >= FRONT.hipSure);
   if (hips.length && hips.reduce((sum, h) => sum + h.y, 0) / hips.length - shoulderY > width * FRONT.maxHipDrop) return { hint: 'notPlank' };
   const knees = [joints.leftKnee, joints.rightKnee];
   if (knees.every((k) => !!k && k.c >= FRONT.kneesSeen)) return { hint: 'notPlank' };
