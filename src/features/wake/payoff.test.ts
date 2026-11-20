@@ -2,9 +2,9 @@
 
 /** The morning payoff's words (payoff.ts). */
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 
-import { clockParts, lateWords, payoffBrag, payoffKicker, payoffLine, shareText } from './payoff.ts';
+import { clockParts, lateWords, payoffBrag, payoffKicker, payoffLine, shareText, TEST_START, testUpAt } from './payoff.ts';
 
 const nb = (s: string) => s.replace(/(\d) (am|pm)/g, '$1\u00a0$2');
 
@@ -49,4 +49,15 @@ test('the brag only ever flatters today', () => {
   assert.equal(payoffBrag(424, 420, 412, 3), nb('Up right on time for 7:00 am'));
   // A 23:30 start, up at 23:33.
   assert.equal(payoffBrag(23 * 60 + 33, 23 * 60 + 30, 0, 1), nb('Up right on time for 11:30 pm'));
+});
+
+describe('a test morning reads 7-something am (user 2026-11-20)', () => {
+  test('any hour of the day lands between 7:00 and 7:59 am, the minute kept', () => {
+    for (const [h, m] of [[0, 0], [3, 41], [15, 7], [23, 59]]) {
+      const up = testUpAt(new Date(2026, 10, 20, h, m));
+      assert.equal(up, 7 * 60 + m);
+      assert.ok(up >= 7 * 60 && up < 8 * 60);
+    }
+    assert.equal(lateWords(testUpAt(new Date(2026, 10, 20, 15, 12)), TEST_START), '12 min after 7:00 am');
+  });
 });

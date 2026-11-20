@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 
-import { readLock, routineAt } from '@/lib/lock-controller';
+import { readLock } from '@/lib/lock-controller';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import type { WakeMethod } from '@/lib/routine';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { getWakePreview } from '../dev/wake-lab/wake-preview';
+import { TEST_START, testUpAt } from './payoff';
 import { markLocSaid } from '../home/loc';
 
 /** The morning key whose payoff was last shown: each morning's opens once. */
@@ -89,17 +90,15 @@ export function openPretendPayoff(how: How = 'push'): boolean {
   const { won } = getWakePreview();
   if (!won || pretendShown === won.at) return false;
   pretendShown = won.at;
-  const at = new Date(won.at);
-  const upAt = at.getHours() * 60 + at.getMinutes();
-  // A pretend morning runs at any hour: past three hours after the real morning start, call it on time.
-  const start = routineAt(at).morningStart;
+  // A pretend morning runs at any hour; its payoff always reads 7-something am (`testUpAt`).
+  const upAt = testUpAt(new Date(won.at));
   router[how]({
     pathname: '/morning-won',
     params: {
       demo: '1',
       method: won.method satisfies WakeMethod,
       at: String(upAt),
-      start: String(upAt >= start && upAt - start <= 180 ? start : upAt),
+      start: String(TEST_START),
       mornings: String(getMorningsWon() + 1),
       ...(how === 'replace' ? { cut: '1' } : {}),
     },

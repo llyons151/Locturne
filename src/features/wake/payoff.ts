@@ -84,6 +84,14 @@ export function payoffBrag(upAt: number, start: number, earliest: number, week: 
   return null;
 }
 
+/**
+ * A test morning's wake-up time on the payoff (You → Test the lock, Rehearse a night, the wake
+ * preview): always 7-something am, the real minute kept, so test footage looks like an early
+ * morning at any hour (user 2026-11-20). Its morning start is 7:00 am.
+ */
+export const TEST_START = 7 * 60;
+export const testUpAt = (at: Date) => TEST_START + at.getMinutes();
+
 /** What the Share button sends: the morning in one line, no stats a stranger can't read. */
 export function shareText(mornings: number, upAt: number): string {
   return `Up at ${clock(upAt)}. ${mornings === 1 ? 'My first morning' : `Morning ${mornings}`} out of bed with Locturne.`;
