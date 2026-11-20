@@ -662,31 +662,22 @@ export const LIMIT_SHIELD = 'locturne-limit';
 /** The worn moon's icon in the app group's folder, once copied there (features/moons/shield-moon.ts). */
 export const SHIELD_MOON_KEY = 'locturne.shieldMoon';
 
-function shieldConfig({ title, subtitle, button, ring }: ShieldText) {
-  const moonIcon = sharedGet<string>(SHIELD_MOON_KEY);
+function shieldConfig({ title, subtitle, button }: ShieldText) {
   return {
     title,
     subtitle,
     primaryButtonLabel: button,
-    // The moon ring (user, 2026-11-05, shield looks take 7): the extension draws a ring round
-    // the moon and puts the time left ahead of the subtitle while the block is under way.
-    ...(ring ? { ringFromMinutes: ring.from, ringUntilMinutes: ring.until } : {}),
-    // iOS's lightest dark frost over the app you tried to open, so it shows through, with
-    // white text and a see-through white pill (user, 2026-11-05).
-    // UIBlurEffectStyle.systemUltraThinMaterialDark, as a number: the tests fake the library.
-    backgroundBlurStyle: 16 as const,
-    // A black wash over the frost, so white text still reads over a white app (user, 2026-11-08).
-    // Neutral darkening, not a glow. Tune between ~0.35 and 0.45 on the phone.
-    backgroundColor: { red: 0, green: 0, blue: 0, alpha: 0.4 },
-    // The worn moon's icon; the extension falls back to the symbol if the file can't be read.
-    // The tint is for the symbol only (ShieldConfigurationExtension.swift's `resolveIcon`).
+    // Shield lab's "1 · Today" (user 2026-11-20): Apple's moon on solid near-black, white pill. No
+    // frost, no moon ring and no worn moon on it: the blur over the app made the shield lag.
+    // The ring's drawing is still in the extension (LocturneShieldRing.swift); it only runs when
+    // `ringFromMinutes` is sent.
+    backgroundColor: { red: 11, green: 11, blue: 12 },
     iconSystemName: 'moon.zzz.fill',
-    ...(moonIcon ? { iconAppGroupRelativePath: moonIcon } : {}),
     iconTint: { red: 255, green: 255, blue: 255 },
     titleColor: { red: 255, green: 255, blue: 255 },
-    subtitleColor: { red: 255, green: 255, blue: 255, alpha: 0.7 },
-    primaryButtonLabelColor: { red: 255, green: 255, blue: 255 },
-    primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255, alpha: 0.2 },
+    subtitleColor: { red: 161, green: 161, blue: 166 },
+    primaryButtonLabelColor: { red: 11, green: 11, blue: 12 },
+    primaryButtonBackgroundColor: { red: 255, green: 255, blue: 255 },
   };
 }
 
