@@ -414,16 +414,20 @@ describe('push-up lines', () => {
     assert.equal(pushupsLine('finding', 4, 10, null, 'noBody'), 'Where did you go. Come back.');
   });
 
-  test('the same rep gets the same line, and the end is near', () => {
-    assert.equal(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 2, 10, null));
-    assert.notEqual(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 3, 10, null));
+  test('three lines to a whole set at most, not one a rep (user 2026-11-20)', () => {
+    for (const goal of [3, 10, 25]) {
+      const said = new Set(Array.from({ length: goal }, (_, reps) => pushupsLine('counting', reps, goal, null)));
+      assert.ok(said.size <= 3, `${goal}: ${[...said].join(' | ')}`);
+    }
+    assert.equal(pushupsLine('counting', 2, 10, null), pushupsLine('counting', 6, 10, null));
     assert.match(pushupsLine('counting', 9, 10, null), /Almost/);
   });
 
-  test('filming (dev and preview builds): only the reel lines while counting, the usual ones out of frame', () => {
-    const said = [1, 2, 3, 4, 5, 6, 9].map((reps) => pushupsLine('counting', reps, 10, null, null, true));
-    assert.deepEqual(said, [...FILMING_LINES, FILMING_LINES[0], FILMING_LINES[3]]);
-    assert.equal(pushupsLine('counting', 3, 10, 'shallow', null, true), FILMING_LINES[2]);
+  test('filming (dev and preview builds): only the reel lines while counting, still three to a set, the usual ones out of frame', () => {
+    const said = new Set(Array.from({ length: 10 }, (_, reps) => pushupsLine('counting', reps, 10, null, null, true)));
+    assert.ok(said.size <= 3, [...said].join(' | '));
+    for (const line of said) assert.ok(line === 'Arms straight. Now go down.' || (FILMING_LINES as readonly string[]).includes(line), line);
+    assert.equal(pushupsLine('counting', 3, 10, 'shallow', null, true), pushupsLine('counting', 4, 10, null, null, true));
     assert.equal(pushupsLine('finding', 4, 10, null, 'noBody', true), 'Where did you go. Come back.');
     assert.equal(pushupsLine('counting', 0, 10, null, null, true), 'Arms straight. Now go down.');
   });

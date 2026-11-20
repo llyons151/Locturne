@@ -36,7 +36,7 @@ const DURING = [
 
 /**
  * Dev and preview builds only (`filming`; user, 2026-11-16, for the reels): while you're in frame
- * and counting, these and nothing else, one a rep, round again after five. Not in frame, he says
+ * and counting, these and nothing else, two to a set like the usual lines. Not in frame, he says
  * the usual lines.
  */
 export const FILMING_LINES = [
@@ -61,13 +61,17 @@ export function pushupsLine(
     case 'finding':
       if (hint === 'notPlank') return "On the floor. I don't count standing.";
       return reps > 0 ? 'Where did you go. Come back.' : "I can't see you. Back up.";
-    case 'counting':
-      if (filming && reps > 0) return FILMING_LINES[(reps - 1) % FILMING_LINES.length];
+    case 'counting': {
+      // Three lines to a set at most: the start, one held through the middle, one near the end. A new
+      // line every rep was far too much talking (user 2026-11-20). A missed rep still says why.
+      const nearEnd = goal - reps <= 2;
+      if (filming && reps > 0) return FILMING_LINES[(goal + (nearEnd ? 1 : 0)) % FILMING_LINES.length];
       if (miss === 'shallow') return 'That was a nod. Lower.';
       if (miss === 'quick') return 'Slower. Bears count slow.';
       if (reps === 0) return 'Arms straight. Now go down.';
-      if (goal - reps <= 2) return 'Almost. I’m *furious* about it.';
-      return DURING[(reps - 1) % DURING.length];
+      if (nearEnd) return 'Almost. I’m *furious* about it.';
+      return DURING[goal % DURING.length];
+    }
     case 'met':
       return "I'm up. Don't talk to me yet.";
     case 'timedOut':
