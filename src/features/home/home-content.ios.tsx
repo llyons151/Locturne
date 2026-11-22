@@ -302,9 +302,12 @@ export function HomeContent(props: HomeContentProps) {
                 foregroundStyle(Nocturne.text),
                 multilineTextAlignment('center'),
                 accessibilityAddTraits(['isHeader']),
-                // The countdown rolls its digits as the minutes change.
-                contentTransition('numericText', { countsDown: true }),
-                animation(Animation.spring({ duration: 0.5, bounce: 0 }), rollKey),
+                // The countdown rolls its digits as the minutes change. Only a headline with digits:
+                // on a plain one ("Go touch grass") the roll key flipping after the launch catch-up
+                // replayed the transition, and the headline blurred in half a second after the rest.
+                ...(/\d/.test(hero.title)
+                  ? [contentTransition('numericText', { countsDown: true }), animation(Animation.spring({ duration: 0.5, bounce: 0 }), rollKey)]
+                  : []),
                 ...enter(3),
               ]}
             >
