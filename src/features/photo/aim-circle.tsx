@@ -47,6 +47,7 @@ export function AimCircle({ size, mode, width, height, top }: { size: number; mo
 
   const clock = useSharedValue(0);
   const scanOn = useSharedValue(0);
+  const passOn = useSharedValue(0);
   const close = useSharedValue(0);
   const draw = useSharedValue(0);
 
@@ -58,31 +59,32 @@ export function AimCircle({ size, mode, width, height, top }: { size: number; mo
       clock.set(withRepeat(withTiming(CLOCK, { duration: CLOCK * 1000, easing: Easing.linear }), -1, false));
     } else cancelAnimation(clock);
     const passed = mode === 'pass';
+    passOn.set(passed ? 1 : 0);
     close.set(passed ? withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }) : 0);
     draw.set(passed ? withDelay(300, withTiming(1, { duration: 300, easing: Easing.out(Easing.quad) })) : 0);
-  }, [mode, clock, scanOn, close, draw]);
+  }, [mode, clock, scanOn, passOn, close, draw]);
 
-  // The arc: its head races ahead, then its tail catches up, while the whole thing turns.
-  const arcProps = useAnimatedProps(() => {
-    const t = clock.get();
+  // The arc: its head races ahead, then its tail catches up, while the whole thing turns. Only the dash
+  // offset animates (a fixed `C C` pattern, so the dash shows C - offset from the circle's start) and the
+  // turn is a rotation: animating strokeDasharray itself crashed the app on iPhone (2026-11-22).
+  const arcLen = (t: number) => {
+    'worklet';
     const io = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
     const clamp = (x: number) => Math.max(0, Math.min(1, x));
     const p = (t % CYCLE) / CYCLE;
     const n = Math.floor(t / CYCLE);
     const head = io(clamp(p / 0.6)) * 1.5 * Math.PI;
     const tail = io(clamp((p - 0.35) / 0.65)) * 1.5 * Math.PI;
-    const start = t * 2.2 + n * 1.5 * Math.PI + tail;
-    const sweep = Math.max(head, tail + 0.12) - tail;
-    const len = sweep * r;
-    const at = (((start * r) % C) + C) % C;
-    return { strokeDasharray: [len, C], strokeDashoffset: -at };
-  });
+    return { start: t * 2.2 + n * 1.5 * Math.PI + tail, sweep: Math.max(head, tail + 0.12) - tail };
+  };
+  const arcProps = useAnimatedProps(() => ({ strokeDashoffset: C - arcLen(clock.get()).sweep * r }));
+  const arcTurn = useAnimatedStyle(() => ({ opacity: scanOn.get(), transform: [{ rotate: `${arcLen(clock.get()).start}rad` }] }));
 
-  // Closing: the arc runs clockwise from twelve o'clock to a full ring (dash starts at three, so -C/4).
-  const closeProps = useAnimatedProps(() => ({ strokeDasharray: [C * close.get(), C], strokeDashoffset: C / 4 }));
+  // Closing: the arc runs clockwise from twelve o'clock (the circle starts at three, so the view turns -90°).
+  const closeProps = useAnimatedProps(() => ({ strokeDashoffset: C * (1 - close.get()) }));
   const tickProps = useAnimatedProps(() => ({ strokeDashoffset: tickLen * (1 - draw.get()) }));
-  const edgeStyle = useAnimatedStyle(() => ({ opacity: mode === 'pass' ? 0 : 0.9 * (1 - scanOn.get()) }));
-  const spinStyle = useAnimatedStyle(() => ({ opacity: scanOn.get() }));
+  const edgeStyle = useAnimatedStyle(() => ({ opacity: 0.9 * (1 - scanOn.get()) * (1 - passOn.get()) }));
+  const trackStyle = useAnimatedStyle(() => ({ opacity: scanOn.get() }));
 
   const left = (width - size) / 2;
   const cx = left + R;
@@ -101,9 +103,13 @@ export function AimCircle({ size, mode, width, height, top }: { size: number; mo
             <Circle cx={R} cy={R} r={R - 0.75} stroke="#FFFFFF" strokeWidth={1.5} fill="none" />
           </Svg>
         </Animated.View>
-        <Animated.View style={[StyleSheet.absoluteFill, spinStyle]}>
+        <Animated.View style={[StyleSheet.absoluteFill, trackStyle]}>
           <Svg width={size} height={size}>
             <Circle cx={R} cy={R} r={r} stroke="rgba(255,255,255,0.18)" strokeWidth={stroke} fill="none" />
+          </Svg>
+        </Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, arcTurn]}>
+          <Svg width={size} height={size}>
             <AnimatedCircle
               cx={R}
               cy={R}
@@ -112,13 +118,30 @@ export function AimCircle({ size, mode, width, height, top }: { size: number; mo
               strokeWidth={stroke}
               strokeLinecap="round"
               fill="none"
+              strokeDasharray={`${C} ${C}`}
               animatedProps={arcProps}
             />
           </Svg>
         </Animated.View>
         {mode === 'pass' ? (
+          <View style={[StyleSheet.absoluteFill, styles.fromTop]}>
+            <Svg width={size} height={size}>
+              <AnimatedCircle
+                cx={R}
+                cy={R}
+                r={r}
+                stroke="#FFFFFF"
+                strokeWidth={stroke}
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray={`${C} ${C}`}
+                animatedProps={closeProps}
+              />
+            </Svg>
+          </View>
+        ) : null}
+        {mode === 'pass' ? (
           <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-            <AnimatedCircle cx={R} cy={R} r={r} stroke="#FFFFFF" strokeWidth={stroke} strokeLinecap="round" fill="none" animatedProps={closeProps} />
             <AnimatedPath
               d={tickD}
               stroke="#FFFFFF"
@@ -126,7 +149,7 @@ export function AimCircle({ size, mode, width, height, top }: { size: number; mo
               strokeLinecap="round"
               strokeLinejoin="round"
               fill="none"
-              strokeDasharray={[tickLen, tickLen]}
+              strokeDasharray={`${tickLen} ${tickLen}`}
               animatedProps={tickProps}
             />
           </Svg>
@@ -151,6 +174,7 @@ export function CameraGlass({ style, children }: { style: StyleProp<ViewStyle>; 
 
 const styles = StyleSheet.create({
   ring: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  fromTop: { transform: [{ rotate: '-90deg' }] },
   smoke: { backgroundColor: 'rgba(0, 0, 0, 0.45)' },
   round: { borderRadius: 999 },
 });
