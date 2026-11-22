@@ -1,3 +1,7 @@
+'use no memo';
+// The React Compiler hoists small capture-free helpers out of worklets into plain functions, which
+// then throw on the UI thread and abort the app (crash report, 2026-11-22). Off for this file.
+
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -29,6 +33,26 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 const CYCLE = 1.5;
 /** The clock runs this long before it wraps; a scan is a second or two, so the wrap never shows. */
 const CLOCK = 60;
+
+function easeInOut(x: number) {
+  'worklet';
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+function clamp01(x: number) {
+  'worklet';
+  return Math.max(0, Math.min(1, x));
+}
+
+/** The spinner at `t` seconds: where the arc starts (radians) and how far it runs. */
+function arcAt(t: number) {
+  'worklet';
+  const p = (t % CYCLE) / CYCLE;
+  const n = Math.floor(t / CYCLE);
+  const head = easeInOut(clamp01(p / 0.6)) * 1.5 * Math.PI;
+  const tail = easeInOut(clamp01((p - 0.35) / 0.65)) * 1.5 * Math.PI;
+  return { start: t * 2.2 + n * 1.5 * Math.PI + tail, sweep: Math.max(head, tail + 0.12) - tail };
+}
 
 export function AimCircle({ size, mode, width, height, top }: { size: number; mode: AimMode; width: number; height: number; top: number }) {
   const R = size / 2;
@@ -67,18 +91,8 @@ export function AimCircle({ size, mode, width, height, top }: { size: number; mo
   // The arc: its head races ahead, then its tail catches up, while the whole thing turns. Only the dash
   // offset animates (a fixed `C C` pattern, so the dash shows C - offset from the circle's start) and the
   // turn is a rotation: animating strokeDasharray itself crashed the app on iPhone (2026-11-22).
-  const arcLen = (t: number) => {
-    'worklet';
-    const io = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-    const clamp = (x: number) => Math.max(0, Math.min(1, x));
-    const p = (t % CYCLE) / CYCLE;
-    const n = Math.floor(t / CYCLE);
-    const head = io(clamp(p / 0.6)) * 1.5 * Math.PI;
-    const tail = io(clamp((p - 0.35) / 0.65)) * 1.5 * Math.PI;
-    return { start: t * 2.2 + n * 1.5 * Math.PI + tail, sweep: Math.max(head, tail + 0.12) - tail };
-  };
-  const arcProps = useAnimatedProps(() => ({ strokeDashoffset: C - arcLen(clock.get()).sweep * r }));
-  const arcTurn = useAnimatedStyle(() => ({ opacity: scanOn.get(), transform: [{ rotate: `${arcLen(clock.get()).start}rad` }] }));
+  const arcProps = useAnimatedProps(() => ({ strokeDashoffset: C - arcAt(clock.get()).sweep * r }));
+  const arcTurn = useAnimatedStyle(() => ({ opacity: scanOn.get(), transform: [{ rotate: `${arcAt(clock.get()).start}rad` }] }));
 
   // Closing: the arc runs clockwise from twelve o'clock (the circle starts at three, so the view turns -90°).
   const closeProps = useAnimatedProps(() => ({ strokeDashoffset: C * (1 - close.get()) }));
