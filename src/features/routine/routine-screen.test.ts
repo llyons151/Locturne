@@ -106,6 +106,8 @@ function screen(initial: Stored, now?: Date) {
     '@/lib/routine': {
       getRoutine: () => stored,
       pushupGoalOf: (r: { pushupGoal?: number }) => r.pushupGoal ?? 10,
+      pullupGoalOf: (r: { pullupGoal?: number }) => r.pullupGoal ?? 5,
+      benchGoalOf: (r: { benchGoal?: number }) => r.benchGoal ?? 10,
       downtimeStepsOf: (r: { downtimeSteps?: number }) => r.downtimeSteps ?? 50,
       downtimeMinutesOf: (r: { downtimeMinutes?: number }) => r.downtimeMinutes ?? 60,
       getPendingRoutine: () => null,
@@ -126,6 +128,7 @@ function screen(initial: Stored, now?: Date) {
       methodOptions: () =>
         ['steps', 'dance', 'scan', 'place', 'pushups'].map((value) => ({ value, icon: '', title: value, detail: '' })),
     },
+    './method-offered': { methodOffered: () => true },
     './method-picker': { MethodPicker: 'MethodPicker' },
     './night-dial': { NightDial: 'NightDial' },
     './nights': { fromWeekday, nightsToWeekdays, weekdaysToNights },

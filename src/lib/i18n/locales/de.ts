@@ -122,6 +122,10 @@ export const de: Translation = {
     proofScan: 'Öffne Locturne und scanne deinen Code.',
     proofPlace: 'Geh zu deinem Ort und check in Locturne ein.',
     proofPushups: 'Öffne Locturne für deine Liegestütze.',
+    proofPullups: 'Öffne Locturne für deine Klimmzüge.',
+    proofBench: 'Öffne Locturne für dein Bankdrücken.',
+    proofGrass: 'Geh Gras anfassen. Dann öffne Locturne.',
+    proofSun: 'Geh die Sonne suchen. Dann öffne Locturne.',
     proofDowntime: 'Geh {steps} Schritte und tippe dann auf Ich bin auf. Der Timer startet mit deinen Schritten.',
     tapTitle: 'Schon wach?',
     tapBody: 'Tippe hier und beweis es. Dann wachen sie auf.',
@@ -166,7 +170,7 @@ export const de: Translation = {
   },
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturne nutzt die Kamera morgens, um deinen Weck-Code zu scannen oder deine Liegestütze oder deinen Tanz zu sehen. Alles passiert auf diesem iPhone; nichts wird aufgenommen oder gespeichert.',
+      'Locturne nutzt die Kamera morgens, um deinen Weck-Code zu scannen oder deine Liegestütze, Klimmzüge, dein Bankdrücken oder deinen Tanz zu sehen. Alles passiert auf diesem iPhone; nichts wird aufgenommen oder gespeichert.',
     NSLocationWhenInUseUsageDescription:
       'Solange Locturne offen ist, zeigt es dich auf der Karte und prüft, ob du den Ort für deine Morgen erreicht hast. Im Hintergrund nutzt es deinen Standort nie.',
     NSMotionUsageDescription: 'Locturne prüft jeden Morgen deine Schritte, um deine Apps zu wecken. Nur dafür nutzt es Bewegungsdaten.',

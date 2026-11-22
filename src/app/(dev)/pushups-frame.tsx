@@ -7,6 +7,7 @@ import { LeaveRoute } from '@/components/leave-route';
 import { PREVIEW_PHONES, type PushupsPreview } from '@/features/dev/wake-lab/pushups-preview';
 import { PushupsCamera } from '@/features/wake/pushups-view';
 import type { DemoScene } from '@/lib/wake/pose-demo';
+import { EXERCISES, type Exercise } from '@/lib/wake/pushups';
 
 type Phone = keyof typeof PREVIEW_PHONES;
 
@@ -16,11 +17,13 @@ const AGAIN_MS = 2500;
 /**
  * Dev tool: the push-up camera screen on its own, with the pretend body, for the push-ups
  * preview's phone frames (features/dev/pushups-preview). `?phone=upright|sideways|sidewaysOther`,
- * `&scene=pushups|nobody|standing|shallow|quick`, `&goal=10`, `&insets=59,34`. The frame's page
+ * `&scene=pushups|nobody|standing|shallow|quick` (or any drawn scene), `&goal=10`, `&insets=59,34`,
+ * `&exercise=pushups|dance|pullups|bench` (a push-up scene plays as its twin). The frame's page
  * turns the phone by posting `{ pushupsPhone }`, as the accelerometer would. Silent unless `&sound=1`.
  */
 export default function PushupsFrame() {
-  const params = useLocalSearchParams<{ phone?: string; scene?: string; goal?: string; insets?: string; sound?: string }>();
+  const params = useLocalSearchParams<{ phone?: string; scene?: string; goal?: string; insets?: string; sound?: string; exercise?: string }>();
+  const exercise: Exercise = EXERCISES.includes(params.exercise as Exercise) ? (params.exercise as Exercise) : 'pushups';
   const [phone, setPhone] = useState<Phone>(params.phone && params.phone in PREVIEW_PHONES ? (params.phone as Phone) : 'sideways');
   const [run, setRun] = useState(0);
 
@@ -49,7 +52,7 @@ export default function PushupsFrame() {
   return (
     <SafeAreaInsetsContext.Provider value={{ top, bottom, left: 0, right: 0 }}>
       <View style={{ flex: 1, backgroundColor: '#000000' }}>
-        <PushupsCamera key={run} target={Number(params.goal) || 10} preview={preview} onMet={again} onClose={again} onError={() => {}} />
+        <PushupsCamera key={run} target={Number(params.goal) || 10} preview={preview} exercise={exercise} onMet={again} onClose={again} onError={() => {}} />
       </View>
     </SafeAreaInsetsContext.Provider>
   );

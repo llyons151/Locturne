@@ -88,6 +88,46 @@ export const methodOptions = ({ place, steps, wake, downtime = DEFAULT_DOWNTIME 
     recommended: false,
   },
   {
+    // Hanging from a bar, the phone standing a few steps off (wake/pullups.ts; 2026-11-21).
+    value: 'pullups',
+    sf: 'figure.climbing',
+    icon: sym('figure.climbing', 'sports_gymnastics'),
+    title: 'Do pull-ups',
+    detail: 'The camera counts them',
+    action: 'Do pull-ups where the camera can see you',
+    recommended: false,
+  },
+  {
+    // 2026-11-21, in squats' place: counted side-on, the phone on the floor by the bench (wake/bench.ts).
+    value: 'bench',
+    sf: 'figure.strengthtraining.traditional',
+    icon: sym('figure.strengthtraining.traditional', 'exercise'),
+    title: 'Bench press',
+    detail: 'The camera counts them',
+    action: 'Bench where the camera can see you',
+    recommended: false,
+  },
+  {
+    // A photo of real grass, outside, read on the phone (wake/photo.ts; 2026-11-21).
+    value: 'grass',
+    sf: 'leaf',
+    icon: sym('leaf', 'grass'),
+    title: 'Touch grass',
+    detail: 'Take a photo of grass',
+    action: 'Go outside and take a photo of grass',
+    recommended: false,
+  },
+  {
+    // A photo of the sun (or a daylight sky when it's overcast), outside (wake/photo.ts; 2026-11-21).
+    value: 'sun',
+    sf: 'sun.max',
+    icon: sym('sun.max', 'wb_sunny'),
+    title: 'Sunlight',
+    detail: 'Take a photo of the sun',
+    action: 'Go outside and take a photo of the sun',
+    recommended: false,
+  },
+  {
     // A few steps, then time away (wake/downtime.ts; 2026-11-05, the grid's sixth in place of squats).
     value: 'downtime',
     sf: 'hourglass',

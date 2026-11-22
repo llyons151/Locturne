@@ -31,6 +31,8 @@ export default function WakeRoute() {
     }
     const routine = routineAt(new Date());
     if (method !== 'steps' && routine.method === 'scan' && shownScanCode()) return router.replace('/scan?mode=morning');
+    // Touch grass and Sunlight: straight to the camera, from a shield or notification tap.
+    if (method !== 'steps' && (routine.method === 'grass' || routine.method === 'sun')) return router.replace(`/${routine.method}`);
     // A scan routine with no code saved can only be walked.
     if (method === 'steps' || (routine.method === 'scan' && !shownScanCode())) askWalk(readLock().morningKey);
     leaveLab();

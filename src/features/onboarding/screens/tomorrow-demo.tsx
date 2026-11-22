@@ -22,8 +22,8 @@ import { useCompact } from '@/hooks/use-compact';
 import * as haptic from '@/lib/haptics';
 import { DEFAULT_DANCE_GOAL, type WakeMethod } from '@/lib/routine';
 import { shieldCopy, shieldTap } from '@/lib/shield-copy';
-import { danceLine, downtimeLine, PHASE_LINES, pushupsLine, stepsLine } from '@/lib/wake/lines';
-import { DEMO_REP_MS, demoPose, frontPose } from '@/lib/wake/pose-demo';
+import { benchLine, danceLine, downtimeLine, PHASE_LINES, pullupsLine, pushupsLine, stepsLine } from '@/lib/wake/lines';
+import { benchPose, DEMO_REP_MS, demoPose, frontPose, hangPose } from '@/lib/wake/pose-demo';
 import { PUSHUPS, type Joint, type PoseFrame } from '@/lib/wake/pushups';
 import { DisplayFont, Nocturne, NUMBER_FONT } from '@/theme';
 
@@ -157,8 +157,14 @@ function methodDemo(method: WakeMethod, reps: number): MethodDemo {
       return { ms: 3600, beat: (t) => (t < PLACE_WALK_MS ? [0, 'tick'] : t < PLACE_TAP_MS ? [1, 'tick'] : [2, 'tick']) };
     case 'scan':
       return { ms: 2600, start: 'Scan my code', beat: (t) => [t < SCAN_FIND_MS ? 0 : 1, 'tick'] };
+    // Touch grass and Sunlight aren't in onboarding's question (Routine only): the scan's beat if one is ever shown.
+    case 'grass':
+    case 'sun':
+      return { ms: 2600, start: 'Take the photo', beat: (t) => [t < SCAN_FIND_MS ? 0 : 1, 'tick'] };
     case 'pushups':
-      return { ms: reps * repMs(reps), start: 'Start push-ups', beat: (t) => [Math.floor(t / repMs(reps)), 'thud'] };
+    case 'pullups':
+    case 'bench':
+      return { ms: reps * repMs(reps), start: method === 'pushups' ? 'Start push-ups' : method === 'pullups' ? 'Start pull-ups' : 'Start benching', beat: (t) => [Math.floor(t / repMs(reps)), 'thud'] };
     case 'downtime':
       // The few steps, fast, then the hour run down in a couple of seconds.
       return {
@@ -782,6 +788,10 @@ function MethodApp({
           </AppPage>
         );
       return <ScanCamera k={k} found={going ? easeInOut(Math.min(1, t / SCAN_FIND_MS)) : 0} done={done} />;
+    // Routine only (wake/photo.ts): no drawn camera of their own, just the ask.
+    case 'grass':
+    case 'sun':
+      return <AppPage k={k} line={method === 'grass' ? 'Go touch grass. Real grass, outside.' : 'Go find the sun. Lamps don’t count.'} button={done ? undefined : demo.start} press={start} />;
     case 'downtime': {
       const walking = !going || t < AWAY_WALK_MS;
       const steps = going ? awayStepsAt(t) : 0;
@@ -803,14 +813,18 @@ function MethodApp({
         />
       );
     }
-    case 'pushups': {
-      const lineFor = pushupsLine;
+    case 'pushups':
+    case 'pullups':
+    case 'bench': {
+      // Pull-ups and the bench press (2026-11-21) play the push-ups' demo with their own body and words.
+      const lineFor = method === 'pullups' ? pullupsLine : method === 'bench' ? benchLine : pushupsLine;
+      const noun = method === 'pushups' ? 'push-ups' : method === 'pullups' ? 'pull-ups' : 'bench reps';
       if (!started)
         return (
           <AppPage
             k={k}
             line={lineFor('idle', 0, reps, null).replace(/\*/g, '')}
-            meter={{ value: '0', unit: ` / ${reps} push-ups`, progress: 0 }}
+            meter={{ value: '0', unit: ` / ${reps} ${noun}`, progress: 0 }}
             button={demo.start}
             press={start}
           />
@@ -821,7 +835,12 @@ function MethodApp({
         <PushupsCamera
           k={k}
           // The pretend body's own clock (pose-demo.ts), sped up so a rep takes `each`.
-          joints={demoPose(going && !done ? (t / each) * DEMO_REP_MS : 0, SCREEN_PT.width, SCREEN_PT.height)}
+          joints={
+            method === 'pushups'
+              ? demoPose(going && !done ? (t / each) * DEMO_REP_MS : 0, SCREEN_PT.width, SCREEN_PT.height)
+              : (method === 'pullups' ? hangPose : benchPose)(SCREEN_PT.width, SCREEN_PT.height, going && !done ? 0.5 - 0.5 * Math.cos((t / each) * 2 * Math.PI) : 0)
+          }
+          bones={method === 'pushups' ? undefined : FRONT_BONES}
           count={count}
           goal={reps}
           line={done ? PHASE_LINES.day : lineFor('counting', count, reps, null).replace(/\*/g, '')}

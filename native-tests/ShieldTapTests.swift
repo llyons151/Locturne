@@ -29,6 +29,8 @@ let proofLine = [
   "steps": "Walk 200 steps and I’ll wake them.", "dance": "Dance and I’ll wake them.",
   "scan": "Scan your code and I’ll wake them.", "place": "Get to your place and I’ll wake them.",
   "pushups": "Do your push-ups and I’ll wake them.",
+  "pullups": "Do your pull-ups and I’ll wake them.", "bench": "Bench your set and I’ll wake them.",
+  "grass": "Go touch grass. Then open Locturne.", "sun": "Go find the sun. Then open Locturne.",
 ]
 
 /// What `applyShieldText` leaves at the evening's last sync, the app then closed till morning:
@@ -312,7 +314,7 @@ func registerShieldTapTests() {
     expectEqual(drawn("tiktok").subtitle, "This one’s in Locturne. Open it and I’ll wake them.")
   }
 
-  // MARK: Scan, place, push-ups, dance: the shield can't do them, so the tap opens Locturne
+  // MARK: Scan, place, push-ups, dance, pull-ups, bench press: the shield can't do them, so the tap opens Locturne
 
   for method in ["scan", "place"] {
     test("shield tap, \(method) with nothing set up yet: it's a walk, and 200 steps wake them") {
@@ -329,7 +331,7 @@ func registerShieldTapTests() {
     if method == "place" { set("locturne.morningPlace", ["name": "Gym", "latitude": 1.0, "longitude": 1.0, "radius": 100]) }
   }
 
-  for method in ["scan", "place", "pushups", "dance"] {
+  for method in ["scan", "place", "pushups", "dance", "pullups", "bench", "grass", "sun"] {
     test("shield tap, \(method): the tap opens Locturne and wakes nothing") {
       setUpMethod(method)
       closedNight(method: method)

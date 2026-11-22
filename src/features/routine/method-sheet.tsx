@@ -12,6 +12,7 @@ import { DisplayFont, Nocturne, Space, Type } from '@/theme';
 
 import { getSetRoutine } from './apply-edit';
 import { methodOptions, type MethodOption } from './method-options';
+import { methodOffered } from './method-offered';
 import { methodSettings, pickMethod } from './method-pick';
 
 /**
@@ -35,7 +36,7 @@ export function MethodSheet() {
     place: place?.name ?? null,
     steps: set.stepGoal,
     wake: set.morningStart,
-  });
+  }).filter((o) => methodOffered(o.value, set.method));
 
   const pick = (value: WakeMethod) => {
     haptic.tap();

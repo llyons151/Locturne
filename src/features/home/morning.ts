@@ -32,3 +32,23 @@ export function scanMorning(): HomeMorning {
     alt: WALK_INSTEAD,
   };
 }
+
+/**
+ * Touch grass and Sunlight on Home (wake/photo.ts): like the scan, the photo needs the whole
+ * screen, so the button opens the camera (`/grass`, `/sun`) and a photo that passes closes it again.
+ */
+export function photoMorning(kind: 'grass' | 'sun'): HomeMorning {
+  return kind === 'grass'
+    ? {
+        icon: { ios: 'leaf', android: 'grass' },
+        hero: { title: 'Go touch grass', body: 'Real grass, outside. Take a photo of it and your apps wake up.' },
+        action: { label: 'Take the photo', onPress: () => router.push('/grass'), opens: true },
+        alt: WALK_INSTEAD,
+      }
+    : {
+        icon: { ios: 'sun.max', android: 'wb_sunny' },
+        hero: { title: 'Go find the sun', body: 'Step outside and take a photo of the sun, or the brightest bit of sky.' },
+        action: { label: 'Take the photo', onPress: () => router.push('/sun'), opens: true },
+        alt: WALK_INSTEAD,
+      };
+}

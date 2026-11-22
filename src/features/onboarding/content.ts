@@ -432,6 +432,45 @@ export const METHOD_COPY: Record<
     offer: '10 push-ups. I’ll count every one, disappointed.',
     morning: { line: 'Open me and do 10 push-ups where I can see you.' },
   },
+  // Pull-ups and the bench press (2026-11-21) aren't offered in onboarding's method question, only in Routine;
+  // these read if one is picked there and the plans are opened again. Written for the defaults.
+  pullups: {
+    echo: '5 pull-ups. I’ll count. I can’t do one.',
+    short: 'Pull-ups',
+    check: 'Awake again after 5 pull-ups',
+    until: 'you’ve done 5 pull-ups',
+    commit: '5 pull-ups to wake them.',
+    offer: '5 pull-ups. I’ll count every one, jealous.',
+    morning: { line: 'Open me and do 5 pull-ups where I can see you.' },
+  },
+  bench: {
+    echo: '10 bench reps. I’ll count. I can’t lift the bar.',
+    short: 'Bench press',
+    check: 'Awake again after 10 bench reps',
+    until: 'you’ve benched 10 reps',
+    commit: '10 bench reps to wake them.',
+    offer: '10 bench reps. I’ll count every one, from the floor.',
+    morning: { line: 'Open me and bench 10 reps where I can see you.' },
+  },
+  // Touch grass and Sunlight (wake/photo.ts, 2026-11-21): Routine only, like pull-ups and the bench press.
+  grass: {
+    echo: 'Touch grass. The internet finally said something useful.',
+    short: 'Touch grass',
+    check: 'Awake again once you photo real grass',
+    until: 'you’ve touched grass',
+    commit: 'Outside to touch grass.',
+    offer: 'One photo of real grass. Fake plants get reported.',
+    morning: { line: 'Go outside and take a photo of grass to wake your apps.' },
+  },
+  sun: {
+    echo: 'The sun. Big, bright, ignored by you since 2019.',
+    short: 'Sunlight',
+    check: 'Awake again once you photo the sun',
+    until: 'you’ve found the sun',
+    commit: 'Outside to find the sun.',
+    offer: 'One photo of the sun. Lamps don’t count. I checked.',
+    morning: { line: 'Go outside and take a photo of the sun to wake your apps.' },
+  },
   // Step away (wake/downtime.ts): written for the defaults, 30 steps and 1 h (`methodCopyFor` swaps in others).
   downtime: {
     echo: 'An hour of nothing. I was born for this.',

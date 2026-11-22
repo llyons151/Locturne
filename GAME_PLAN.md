@@ -2,7 +2,7 @@
 
 Updated October 1, 2026 (wake-up methods, daytime controls, build status and the
 launch timeline); v1 wake-up methods widened to five on October 9, 2026, and set at six on
-November 5, 2026 (squats out, Step away in); Go downstairs replaced by Dance on November 7, 2026 (Dance worked on the phone the same day). This is the source of truth for product direction. It
+November 5, 2026 (squats out, Step away in); Go downstairs replaced by Dance on November 7, 2026 (Dance worked on the phone the same day); Pull-ups and Bench press added on November 21, 2026 (both need a new iOS build; squats came back that day and went again the same day). This is the source of truth for product direction. It
 replaces the September 21 plan, which is archived at
 [docs/archive/GAME_PLAN_2026-09-21.md](docs/archive/GAME_PLAN_2026-09-21.md). The
 reasoning behind it is in [docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md),
@@ -66,7 +66,7 @@ Rules carried over from the previous plan:
   either (decided 2026-10-01). The always-blocked list still applies.
 - The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
 
-## Wake-up methods (decided 2026-10-01; six for v1 since 2026-11-05)
+## Wake-up methods (decided 2026-10-01; six for v1 since 2026-11-05, eight since 2026-11-21)
 
 The promise stays "your apps don't wake up until you get up". The methods are only
 different ways to prove it, each with its own lines from Loc. Details in
@@ -80,11 +80,15 @@ different ways to prove it, each with its own lines from Loc. Details in
 | **Scan your code** | A per-user QR or a registered product barcode kept in another room | Alternative; the leading candidate for the accessible option |
 | **Leave the house** | An in-app "I'm out" check reads location once: at least ~150 m from the saved home spot, or at a saved place (gym, campus, café). When-In-Use permission only, no background geofence. Optional light check: the camera's exposure value (brightness only, never the picture) confirms daylight; before sunrise it's location only. | Alternative; the "get outside / see the sky" morning |
 | **Push-ups** | Phone leaning on the floor two steps away, side-on; the front camera counts the reps (Apple Vision body pose, on the phone, nothing recorded). Loc peeks over the bottom strip, reacting, and says the count out loud. | Alternative; the effort option and a strong video ("my alarm watches me do push-ups") |
+| **Pull-ups** (2026-11-21) | Phone stood up on the floor a few steps from a bar, looking up at it; the same camera screen as push-ups counts each rep at the top (chin to the bar), and the next needs arms straight again. The top is measured against where the hands hung (the bar), not the wrists' live reading, which the camera gets worst at the top. Facing the camera, back to it or side-on. Default 5, wheel 1–30. Rules in `src/lib/wake/pullups.ts`; tuned on 44 real clips (docs/PULLUP_TESTS.md). Not yet on a phone. | Alternative; for people with a bar at home. Not offered in onboarding's method question. |
+| **Bench press** (`bench`, 2026-11-21) | Phone on its side on the floor a few steps from the bench, side-on, all of you in view, feet too; the same camera screen as push-ups counts a rep when the bar comes down to the chest and you lock out again. Measured as the wrists' height above the shoulders against your own lockout, so distance doesn't matter. Lying flat with the legs out (pressing air in bed, or on the floor) doesn't count: on a bench the feet are on the floor, well below the hips. Standing or seated presses and push-ups don't read as a bench. The weight can't be seen. Default 10, wheel 1–50. Rules in `src/lib/wake/bench.ts`. Not yet on a phone. | Alternative; for people with a bench at home or who go to the gym first thing. Took squats' place on 2026-11-21. Not offered in onboarding's method question. |
 | **Step away** (`downtime`) | A few steps on `CMPedometer` since the morning start (default 50), then a timer the person picks (15 min to 2 h, default 1 h) with the apps still asleep. The timer runs from when the steps were really reached, found in the pedometer history, not from when the app was opened. | Alternative (2026-11-05); "an hour without your phone from the time you actually get out of bed" |
 
-Squats (camera, standing; added 2026-11-03) were **removed on 2026-11-05**. A routine saved
-with squats reads as Walk it off, the default, and is saved back so the extensions read it too
-(`normalizeRoutine` in `src/lib/routine.ts`); the native extensions walk a `squats` routine too.
+Squats (camera, standing; added 2026-11-03) were removed on 2026-11-05. They came back on
+2026-11-21 in a dev build only and were **removed again the same day**, the Bench press in their
+place; a routine saved with them still walks. Pull-ups and the Bench press are only offered on a
+build whose shield and monitor extensions know them (`knownExercises` in the pose-camera module):
+older extensions take an unknown method for a walk, so a JS update alone must not offer them.
 Go downstairs (barometer) was **removed on 2026-11-07** and replaced by Dance: a routine saved
 with `downstairs` reads as `dance` (same function; the extensions map it too). Its code is in git
 history before that date.

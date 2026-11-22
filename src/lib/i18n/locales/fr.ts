@@ -122,6 +122,10 @@ export const fr: Translation = {
     proofScan: 'Ouvre Locturne et scanne ton code.',
     proofPlace: 'Va à ton endroit et pointe depuis Locturne.',
     proofPushups: 'Ouvre Locturne pour tes pompes.',
+    proofPullups: 'Ouvre Locturne pour tes tractions.',
+    proofBench: 'Ouvre Locturne pour ton développé couché.',
+    proofGrass: 'Va toucher l’herbe. Puis ouvre Locturne.',
+    proofSun: 'Va trouver le soleil. Puis ouvre Locturne.',
     proofDowntime: 'Fais {steps} pas, puis touche Je suis debout. Le minuteur démarre avec tes pas.',
     tapTitle: 'Déjà debout ?',
     tapBody: 'Touche ici et prouve-le. Puis elles se réveillent.',
@@ -166,7 +170,7 @@ export const fr: Translation = {
   },
   infoPlist: {
     NSCameraUsageDescription:
-      'Le matin, Locturne utilise l’appareil photo pour scanner ton code de réveil, ou regarder tes pompes ou ta danse. Tout se passe sur ce téléphone ; rien n’est enregistré ni conservé.',
+      'Le matin, Locturne utilise l’appareil photo pour scanner ton code de réveil, ou regarder tes pompes, tractions, développé couché ou ta danse. Tout se passe sur ce téléphone ; rien n’est enregistré ni conservé.',
     NSLocationWhenInUseUsageDescription:
       'Quand Locturne est ouvert, il te montre sur la carte et vérifie que tu as atteint l’endroit choisi pour tes matins. Il n’utilise jamais ta position en arrière-plan.',
     NSMotionUsageDescription: 'Locturne vérifie tes pas chaque matin pour réveiller tes apps. C’est tout ce qu’il fait des données de mouvement.',

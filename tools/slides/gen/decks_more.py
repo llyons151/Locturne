@@ -340,16 +340,16 @@ deck('51-checklist-first-hour', format='Checklist + "how i actually do it"', job
     {'layout': 'closer', 'avatar': P+'blinds-sunrise.jpg', 'question': 'which one are you trying tomorrow? 👇',
      'lines': ["i'm on #3. a full glass before anything", 'locturne is in my bio']}])
 deck('52-notes-signs', **NL, title='5 signs your phone is running your nights',
-  check=["closer: 'i had all 5'. Only if true for you"],
+  check=["closer: 'i had all 5'. Only if true for you", 'slide 1 photo is AI-made (HeyGen gpt-image-2.6): turn ON the AI label'],
   why='Self-diagnosis listicle (amayareading shape): readers count how many apply, save it, and comment their score. The app is the fix on the last sign.',
   caption='be honest in the comments #screentime #phoneaddiction #sleep', sound='moody, low volume',
-  slides=[{'layout': 'hook', 'title': '5 signs your phone is the one running your nights', 'image': P+'man-in-bed.jpg', 'narrow': True, 'aside': '(be honest)', 'asideRight': True},
+  slides=[{'layout': 'hook', 'title': '5 signs your phone is the one running your nights', 'image': P+'man-in-bed-ai.jpg', 'narrow': True, 'aside': '(be honest)', 'asideRight': True},
     pt('you check the time at _1:27_', 'you planned to sleep at 11. you _always_ plan to sleep at 11', "the hours don't feel like hours on a feed\n\nthey feel like _one more_", P+'clock-127.jpg'),
     pt('you need _something playing_', 'silence feels _loud_ now', "a video to fall asleep to, a podcast to wake up to\n\nyour brain forgot how to be _bored_", P+'sheets.jpg', side='left'),
     pt('you unlock it and _forget why_', 'you stare at the home screen for a second, then open instagram _anyway_', "your thumb knows the way before you decide anything\n\nthat's not a choice. it's a _reflex_", P+'book-on-bed.jpg'),
     pt('_tired all day_, wide awake at midnight', 'the 3pm crash, then the 11pm _second wind_', "the second wind isn't energy\n\nit's the feed _keeping you up_", P+'city-night.jpg', side='left'),
     pt('mornings start _horizontal_', 'the phone is the first thing you touch, _before your feet hit the floor_', "and the day starts with everyone else's lives\n\ni fixed this one by making my apps _wait until i'm walking_", phone=R+'02-steps-clean.png'),
-    {'layout': 'closer', 'avatar': P+'blinds-sunrise.jpg', 'question': 'how many did you get? be honest 👇', 'lines': ['i had all 5', 'the app is locturne, link in bio']}])
+    {'layout': 'closer', 'avatar': P+'locturne-icon.png', 'question': 'how many did you get? be honest 👇', 'lines': ['i had all 5', 'the app is locturne, link in bio']}])
 
 # ---------- promo: other person + conflict → "so i…" (Larry's best operator result, home decor: 147–234K views vs
 # 0.9–2.7K for feature/self hooks; grade S, no saved reference). Experiment: test against the empathy decks 28–30. ----------

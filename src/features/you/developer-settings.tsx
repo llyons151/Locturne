@@ -52,6 +52,10 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
   place: sym('mappin.and.ellipse', 'location_on'),
   pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
   downtime: sym('hourglass', 'hourglass_empty'),
+  pullups: sym('figure.climbing', 'sports_gymnastics'),
+  bench: sym('figure.strengthtraining.traditional', 'exercise'),
+  grass: sym('leaf', 'grass'),
+  sun: sym('sun.max', 'wb_sunny'),
 };
 
 /**

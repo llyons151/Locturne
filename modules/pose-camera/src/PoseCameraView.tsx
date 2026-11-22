@@ -9,6 +9,9 @@ import type { PoseCameraViewProps } from './PoseCameraView.types';
 /** On web there's always something to show: the webcam, or the demo body. */
 export const isPoseCameraAvailable = true;
 
+/** On web the screen draws the tracing (pose-overlay.tsx). */
+export const tracesItself = false;
+
 /**
  * MediaPipe's pose model, loaded from the CDN at runtime so it's never in the app's bundle:
  * this is the web preview's stand-in for Apple Vision, so the screen can be tried on a laptop
@@ -79,7 +82,7 @@ const wantsDemo = () =>
  * front camera, read by MediaPipe. With `?demo=1` it's a dark frame and the demo body instead.
  */
 // `turn` and `upright` are left out: a laptop's webcam is always the right way up.
-export function PoseCameraView({ active, onPose, onCameraError, style, turn: _turn, upright: _upright, ...props }: PoseCameraViewProps) {
+export function PoseCameraView({ active, onPose, onCameraError, style, turn: _turn, upright: _upright, trace: _trace, ...props }: PoseCameraViewProps) {
   const box = useRef<View>(null);
   const video = useRef<HTMLVideoElement>(null);
   const onPoseRef = useRef(onPose);

@@ -4,6 +4,8 @@
  * Squats went on 2026-11-05. A routine saved with them (as the active one, a waiting edit or the
  * one before) is read as Walk it off, the default, and saved back so the extensions read it too:
  * nobody is left on a morning no screen can prove. Step away, the sixth way, joins the list.
+ * (Squats were back for a day on 2026-11-21, in a dev build only, then the bench press took
+ * their place: a squats routine still walks.)
  */
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
@@ -14,16 +16,27 @@ const fake = fakeDeviceActivity();
 mock.module('react-native-device-activity', { namedExports: fake.exports });
 
 const rt = await import('./routine.ts');
-const { getRoutine, getPendingRoutine, getRoutineChange, normalizeRoutine, normalizeStored, DEFAULT_ROUTINE, WAKE_METHODS, isWakeMethod } = rt;
+const { getRoutine, getPendingRoutine, getRoutineChange, normalizeRoutine, normalizeStored, DEFAULT_ROUTINE, WAKE_METHODS, isWakeMethod, benchGoalOf, pullupGoalOf, cameraGoalOf } = rt;
 const { shieldCopy } = await import('./shield-copy.ts');
 
 const KEY = 'locturne.routine';
 const squats = { ...DEFAULT_ROUTINE, method: 'squats', squatGoal: 25 } as unknown as typeof DEFAULT_ROUTINE;
 
-test('six ways, squats not among them, Step away in', () => {
-  assert.deepEqual([...WAKE_METHODS].sort(), ['dance', 'downtime', 'place', 'pushups', 'scan', 'steps']);
+test('squats not among the ways; Step away, pull-ups and the bench press in', () => {
+  assert.deepEqual([...WAKE_METHODS].sort(), ['bench', 'dance', 'downtime', 'grass', 'place', 'pullups', 'pushups', 'scan', 'steps', 'sun']);
   assert.equal(isWakeMethod('squats'), false);
   assert.equal(isWakeMethod('downtime'), true);
+  assert.equal(isWakeMethod('bench'), true);
+});
+
+test('the bench press and pull-up counts, and their defaults', () => {
+  assert.equal(benchGoalOf(DEFAULT_ROUTINE), 10);
+  assert.equal(benchGoalOf({ ...DEFAULT_ROUTINE, benchGoal: 25 }), 25);
+  assert.equal(cameraGoalOf({ ...DEFAULT_ROUTINE, method: 'bench', benchGoal: 12 }), 12);
+  assert.equal(pullupGoalOf(DEFAULT_ROUTINE), 5);
+  assert.equal(cameraGoalOf(DEFAULT_ROUTINE), null, 'a walk is not a camera count');
+  const bench = { ...DEFAULT_ROUTINE, method: 'bench' as const, benchGoal: 8 };
+  assert.equal(normalizeRoutine(bench), bench, 'a bench routine needs nothing');
 });
 
 test('a squats routine walks, and its count goes', () => {
@@ -72,4 +85,8 @@ test('the morning shield of a migrated routine asks for the walk', () => {
 test('a squats routine nobody has opened since still gets words, not a crash', () => {
   // An old routine read straight (the extension's copy, before the app migrates it).
   assert.match(shieldCopy('morning', squats).subtitle, /Walk 200 steps/);
+});
+
+test('the morning shield sends a bench press morning to Locturne, not a walk', () => {
+  assert.equal(shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'bench' }).subtitle, 'Open Locturne for your bench press.');
 });

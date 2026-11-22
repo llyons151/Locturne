@@ -769,7 +769,9 @@ func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int)
   // A goal of 0 or less (never saved by the app) mustn't wake on no steps at all.
   // A method this extension doesn't know (a newer app's) still takes a walk, so nobody is stuck.
   // Step away (`downtime`) is steps and then its timer: walking further never skips the timer.
-  let walks = !["dance", "scan", "place", "pushups", "downtime"].contains(method)
+  // Pull-ups and the bench press (2026-11-21) are counted by the camera in Locturne, like push-ups.
+  // Touch grass and Sunlight (2026-11-21) are a photo taken in Locturne: never a walk either.
+  let walks = !["dance", "scan", "place", "pushups", "downtime", "pullups", "bench", "grass", "sun"].contains(method)
   if walks && steps >= max(stepGoal, 1) { return "steps" }
   return nil
 }

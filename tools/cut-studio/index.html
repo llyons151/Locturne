@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cut Studio</title>
+<style>
+  :root {
+    --bg: #111214; --panel: #1a1b1f; --line: #2a2c31; --text: #e8e8ea; --dim: #8b8d94;
+    --seg: #3d6fd6; --seg-fast: #c9792e; --seg-slow: #3aa57a; --sel: #ffffff; --danger: #d65151;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; }
+  select, button, input { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; }
+  button { cursor: pointer; }
+  button:hover { border-color: #4a4d55; }
+  button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+  button.primary { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+  button.danger { color: var(--danger); }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  main { display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 16px; padding: 16px; }
+  .stage { position: relative; background: #000; border-radius: 10px; overflow: hidden; align-self: start; }
+  .stage video { display: block; width: 100%; max-height: 78vh; object-fit: contain; }
+  .crop { position: absolute; left: 0; right: 0; top: 0; background: repeating-linear-gradient(45deg, rgba(214,81,81,.55) 0 6px, rgba(0,0,0,.55) 6px 12px); pointer-events: none; }
+  .stage .badge { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.7); padding: 2px 7px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+  .side { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 0 0 8px; }
+  .timeline { position: relative; height: 92px; border-radius: 8px; overflow: hidden; background: #000 center/100% 100% no-repeat; cursor: pointer; user-select: none; }
+  .timeline .shade { position: absolute; inset: 0; background: rgba(0,0,0,.6); pointer-events: none; }
+  .seg { position: absolute; top: 0; bottom: 0; border: 2px solid var(--seg); background: rgba(61,111,214,.12); border-radius: 4px; }
+  .seg.fast { border-color: var(--seg-fast); background: rgba(201,121,46,.14); }
+  .seg.slow { border-color: var(--seg-slow); background: rgba(58,165,122,.14); }
+  .seg.sel { border-color: var(--sel); }
+  .seg .lbl { position: absolute; left: 4px; top: 2px; font-size: 11px; font-weight: 700; background: rgba(0,0,0,.65); padding: 0 4px; border-radius: 3px; white-space: nowrap; pointer-events: none; }
+  .seg .h { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; }
+  .seg .h.l { left: -6px; } .seg .h.r { right: -6px; }
+  .seg .h::after { content: ''; position: absolute; top: 30%; bottom: 30%; left: 4px; width: 2px; background: currentColor; border-radius: 2px; }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; pointer-events: none; }
+  .ticks { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 5px 4px; text-align: left; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+  tr.sel td { background: #24262b; }
+  td input { width: 72px; padding: 3px 6px; }
+  td input.label { width: 110px; }
+  .speeds button { padding: 3px 7px; }
+  textarea { width: 100%; min-height: 64px; font: inherit; color: var(--text); background: #131417; border: 1px solid var(--line); border-radius: 6px; padding: 8px; resize: vertical; }
+  .dim { color: var(--dim); }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; flex: 1; min-width: 80px; }
+  .bar > div { height: 100%; background: var(--text); width: 0; }
+  kbd { background: #26282d; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 11px; }
+  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #2a2c31; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cut Studio</h1>
+  <select id="project"></select>
+  <div class="tabs" id="clips"></div>
+</header>
+<main>
+  <div>
+    <div class="stage" id="stage">
+      <video id="video" playsinline preload="auto"></video>
+      <div class="crop" id="crop"></div>
+      <div class="badge" id="badge">0.00</div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="viewSource" class="on">Edit (source)</button>
+      <button id="viewRendered">Rendered</button>
+      <span class="dim" id="renderedAt"></span>
+    </div>
+  </div>
+  <div class="side">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0">Timeline <span class="dim" id="lengths"></span></h2>
+        <div class="row">
+          <button id="playEdit" class="primary">▶ Play edit</button>
+          <button id="playSrc">▶ Source</button>
+        </div>
+      </div>
+      <div class="timeline" id="timeline"><div class="shade"></div><div class="playhead" id="playhead"></div></div>
+      <div class="ticks" id="ticks"></div>
+      <div class="row" style="margin-top:10px">
+        <button id="split" title="S">Split here</button>
+        <button id="setIn" title="I">Set start</button>
+        <button id="setOut" title="O">Set end</button>
+        <button id="addSeg" title="A">Add piece here</button>
+        <button id="delSeg" class="danger" title="Delete">Delete piece</button>
+        <span class="dim">Top crop</span>
+        <input id="cropTop" type="number" min="0" step="2" style="width:70px"> <span class="dim">px</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Pieces</h2>
+      <table>
+        <thead><tr><th>#</th><th>Start</th><th>End</th><th>Speed</th><th>Plays for</th><th>Label</th></tr></thead>
+        <tbody id="segs"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Notes for Claude</h2>
+      <textarea id="note" placeholder="e.g. speed up reps 3–8 to 2x, keep the last rep real speed"></textarea>
+      <div class="dim" style="margin-top:6px">Saved to edits.json. Claude can change this clip too, and the page picks it up.</div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <button id="render" class="primary">Render this clip</button>
+        <button id="renderAll">Render all</button>
+        <div class="bar"><div id="prog"></div></div>
+        <span class="dim" id="renderState"></span>
+      </div>
+    </div>
+    <div class="dim">
+      <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> 1 frame (<kbd>Shift</kbd> 1 s) · <kbd>S</kbd> split · <kbd>I</kbd>/<kbd>O</kbd> start/end ·
+      <kbd>1</kbd>–<kbd>6</kbd> speed 1×/1.5×/2×/3×/4×/0.5× · <kbd>P</kbd> play edit
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const video = $('video');
+const SPEEDS = [1, 1.5, 2, 3, 4, 0.5];
+let project, edits, info, clipName, sel = 0, mode = 'source', lastSaved = '', saveTimer, editPlay = null;
+
+const clip = () => edits.clips[clipName];
+const dur = () => info[clipName].duration;
+const fmt = (t) => t.toFixed(2);
+const sorted = () => clip().segments.slice().sort((a, b) => a.in - b.in);
+const toast = (t) => { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 1600); };
+
+async function api(path, opts) {
+  const r = await fetch('/api/' + path, opts);
+  if (!r.ok) throw new Error((await r.json()).error);
+  return r.json();
+}
+
+async function loadProjects() {
+  const list = await api('projects');
+  $('project').innerHTML = list.map((p) => `<option>${p}</option>`).join('');
+  const want = new URLSearchParams(location.search).get('p');
+  if (want && list.includes(want)) $('project').value = want;
+  await loadProject($('project').value);
+}
+
+async function loadProject(p) {
+  project = p;
+  const r = await api('edits/' + encodeURIComponent(p));
+  edits = r.edits; info = r.info; lastSaved = JSON.stringify(edits);
+  const names = Object.keys(edits.clips);
+  const want = new URLSearchParams(location.search).get('c');
+  clipName = names.includes(want) ? want : names[0];
+  renderTabs(); openClip(clipName);
+}
+
+function renderTabs() {
+  $('clips').innerHTML = Object.keys(edits.clips).map((n) => `<button data-c="${n}" class="${n === clipName ? 'on' : ''}">${n}</button>`).join('');
+}
+
+function openClip(n) {
+  stopEdit();
+  clipName = n; sel = 0;
+  history.replaceState(null, '', `?p=${encodeURIComponent(project)}&c=${encodeURIComponent(n)}`);
+  renderTabs();
+  $('timeline').style.backgroundImage = `url(/api/proxy/${encodeURIComponent(project)}/${encodeURIComponent(n)}/strip)`;
+  setMode('source');
+  video.addEventListener('loadedmetadata', () => { video.currentTime = sorted()[0]?.in ?? 0; }, { once: true });
+  drawAll();
+  pollRender();
+}
+
+function setMode(m) {
+  mode = m; stopEdit();
+  $('viewSource').classList.toggle('on', m === 'source');
+  $('viewRendered').classList.toggle('on', m === 'rendered');
+  const base = encodeURIComponent(project) + '/' + encodeURIComponent(clipName);
+  if (m === 'source') {
+    video.src = `/api/proxy/${base}`; video.controls = false;
+  } else {
+    if (!info[clipName].rendered) { toast('Not rendered yet'); return setMode('source'); }
+    video.src = `/api/rendered/${base}?t=${info[clipName].rendered}`; video.controls = true;
+  }
+  drawCrop();
+}
+
+function drawCrop() {
+  const h = info[clipName].height;
+  $('crop').style.display = mode === 'source' && clip().cropTop ? 'block' : 'none';
+  $('crop').style.height = (clip().cropTop / h * 100) + '%';
+  $('cropTop').value = clip().cropTop || 0;
+}
+
+function drawAll() {
+  const segs = clip().segments;
+  const tl = $('timeline');
+  tl.querySelectorAll('.seg').forEach((e) => e.remove());
+  segs.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'seg' + (s.speed > 1 ? ' fast' : s.speed < 1 ? ' slow' : '') + (i === sel ? ' sel' : '');
+    el.style.left = (s.in / dur() * 100) + '%';
+    el.style.width = ((s.out - s.in) / dur() * 100) + '%';
+    el.innerHTML = `<span class="lbl">${i + 1} · ${s.speed}×${s.label ? ' · ' + s.label : ''}</span><div class="h l"></div><div class="h r"></div>`;
+    el.dataset.i = i;
+    tl.insertBefore(el, $('playhead'));
+  });
+  const n = 6, d = dur();
+  $('ticks').innerHTML = Array.from({ length: n + 1 }, (_, i) => `<span>${(d * i / n).toFixed(1)}s</span>`).join('');
+  const out = segs.reduce((t, s) => t + (s.out - s.in) / s.speed, 0);
+  $('lengths').textContent = `· source ${d.toFixed(1)}s → edit ${out.toFixed(1)}s`;
+  $('segs').innerHTML = segs.map((s, i) => `
+    <tr data-i="${i}" class="${i === sel ? 'sel' : ''}">
+      <td>${i + 1}</td>
+      <td><input type="number" step="0.05" data-f="in" value="${fmt(s.in)}"></td>
+      <td><input type="number" step="0.05" data-f="out" value="${fmt(s.out)}"></td>
+      <td class="speeds">${[0.5, 1, 1.5, 2, 3, 4].map((v) => `<button data-speed="${v}" class="${s.speed === v ? 'on' : ''}">${v}×</button>`).join(' ')}
+        <input type="number" step="0.1" min="0.25" max="16" data-f="speed" value="${s.speed}" style="width:56px"></td>
+      <td>${((s.out - s.in) / s.speed).toFixed(2)}s</td>
+      <td><input class="label" data-f="label" value="${s.label ?? ''}"></td>
+    </tr>`).join('');
+  if (document.activeElement !== $('note')) $('note').value = clip().note || '';
+  drawCrop();
+  $('renderedAt').textContent = info[clipName].rendered ? 'rendered ' + new Date(info[clipName].rendered).toLocaleTimeString() : 'not rendered';
+}
+
+function changed() {
+  drawAll();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 300);
+}
+async function save() {
+  const s = JSON.stringify(edits);
+  if (s === lastSaved) return;
+  await api('edits/' + encodeURIComponent(project), { method: 'PUT', body: s });
+  lastSaved = s;
+}
+
+// Pick up edits Claude makes to edits.json while the page is open.
+setInterval(async () => {
+  if (!project || saveTimer && JSON.stringify(edits) !== lastSaved) return;
+  try {
+    const r = await api('edits/' + encodeURIComponent(project));
+    const s = JSON.stringify(r.edits);
+    info = r.info;
+    if (s !== lastSaved) {
+      edits = r.edits; lastSaved = s;
+      if (!edits.clips[clipName]) clipName = Object.keys(edits.clips)[0];
+      sel = Math.min(sel, clip().segments.length - 1);
+      renderTabs(); drawAll(); toast('Updated from edits.json');
+    } else drawAll();
+  } catch {}
+}, 2500);
+
+// ---------- playback ----------
+
+function tick() {
+  const t = video.currentTime;
+  if (mode === 'source') $('playhead').style.left = (t / dur() * 100) + '%';
+  $('badge').textContent = fmt(t) + (video.playbackRate !== 1 ? `  ${video.playbackRate}×` : '');
+  if (editPlay) {
+    const segs = editPlay;
+    const cur = segs[editPlay.idx];
+    if (t >= cur.out - 0.01) {
+      editPlay.idx++;
+      if (editPlay.idx >= segs.length) { stopEdit(); video.pause(); }
+      else { const n = segs[editPlay.idx]; video.currentTime = n.in; video.playbackRate = n.speed; }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function playEdit() {
+  if (mode !== 'source') setMode('source');
+  const segs = sorted();
+  if (!segs.length) return;
+  editPlay = segs; editPlay.idx = 0;
+  video.currentTime = segs[0].in; video.playbackRate = segs[0].speed; video.play();
+  $('playEdit').textContent = '■ Stop';
+}
+function stopEdit() {
+  if (!editPlay) return;
+  editPlay = null; video.playbackRate = 1; $('playEdit').textContent = '▶ Play edit';
+}
+
+// ---------- timeline interaction ----------
+
+const timeAt = (x) => {
+  const r = $('timeline').getBoundingClientRect();
+  return Math.max(0, Math.min(dur(), (x - r.left) / r.width * dur()));
+};
+
+$('timeline').addEventListener('pointerdown', (e) => {
+  if (mode !== 'source') setMode('source');
+  stopEdit();
+  const segEl = e.target.closest('.seg');
+  const handle = e.target.classList.contains('h') ? (e.target.classList.contains('l') ? 'in' : 'out') : null;
+  if (segEl) { sel = +segEl.dataset.i; drawAll(); }
+  const s = clip().segments[sel];
+  const move = (ev) => {
+    const t = +timeAt(ev.clientX).toFixed(3);
+    if (handle) {
+      if (handle === 'in') s.in = Math.min(t, s.out - 0.1); else s.out = Math.max(t, s.in + 0.1);
+      video.currentTime = s[handle];
+      drawAll();
+    } else video.currentTime = t;
+  };
+  move(e);
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); if (handle) changed(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+
+// ---------- editing ----------
+
+function segAt(t) { return clip().segments.findIndex((s) => t > s.in && t < s.out); }
+function split() {
+  const t = +video.currentTime.toFixed(3), i = segAt(t);
+  if (i < 0) return toast('Playhead is not inside a piece');
+  const s = clip().segments[i];
+  clip().segments.splice(i + 1, 0, { ...s, in: t });
+  s.out = t; sel = i + 1; changed();
+}
+function setEdge(f) {
+  const s = clip().segments[sel]; if (!s) return;
+  const t = +video.currentTime.toFixed(3);
+  if (f === 'in' && t < s.out) s.in = t; else if (f === 'out' && t > s.in) s.out = t; else return toast('That would make the piece empty');
+  changed();
+}
+function addSeg() {
+  const t = +video.currentTime.toFixed(3);
+  clip().segments.push({ in: t, out: Math.min(dur(), t + 2), speed: 1, label: '' });
+  clip().segments.sort((a, b) => a.in - b.in);
+  sel = clip().segments.findIndex((s) => s.in === t); changed();
+}
+function delSeg() {
+  if (clip().segments.length <= 1) return toast('Keep at least one piece');
+  clip().segments.splice(sel, 1); sel = Math.max(0, sel - 1); changed();
+}
+function setSpeed(v) { const s = clip().segments[sel]; if (s) { s.speed = v; changed(); } }
+
+$('split').onclick = split;
+$('setIn').onclick = () => setEdge('in');
+$('setOut').onclick = () => setEdge('out');
+$('addSeg').onclick = addSeg;
+$('delSeg').onclick = delSeg;
+$('playEdit').onclick = () => (editPlay ? (stopEdit(), video.pause()) : playEdit());
+$('playSrc').onclick = () => { stopEdit(); if (mode !== 'source') setMode('source'); video.paused ? video.play() : video.pause(); };
+$('viewSource').onclick = () => setMode('source');
+$('viewRendered').onclick = () => setMode('rendered');
+$('cropTop').onchange = (e) => { clip().cropTop = Math.max(0, Math.round(+e.target.value / 2) * 2); changed(); };
+$('note').oninput = (e) => { clip().note = e.target.value; clearTimeout(saveTimer); saveTimer = setTimeout(save, 500); };
+$('project').onchange = (e) => loadProject(e.target.value);
+$('clips').onclick = (e) => { const b = e.target.closest('button'); if (b) openClip(b.dataset.c); };
+
+$('segs').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr'); if (!tr) return;
+  const i = +tr.dataset.i;
+  if (e.target.dataset.speed) { sel = i; return setSpeed(+e.target.dataset.speed); }
+  if (sel !== i) { sel = i; drawAll(); }
+  if (e.target.tagName !== 'INPUT') { video.currentTime = clip().segments[i].in; }
+});
+$('segs').addEventListener('change', (e) => {
+  const tr = e.target.closest('tr'), f = e.target.dataset.f; if (!tr || !f) return;
+  const s = clip().segments[+tr.dataset.i];
+  if (f === 'label') s.label = e.target.value;
+  else {
+    const v = +e.target.value;
+    if (f === 'speed') s.speed = Math.max(0.25, Math.min(16, v || 1));
+    if (f === 'in') s.in = Math.max(0, Math.min(v, s.out - 0.1));
+    if (f === 'out') s.out = Math.min(dur(), Math.max(v, s.in + 0.1));
+    if (f !== 'speed') video.currentTime = s[f];
+  }
+  changed();
+});
+
+addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, select')) return;
+  const k = e.key;
+  if (k === ' ') { e.preventDefault(); if (editPlay) { stopEdit(); video.pause(); } else video.paused ? video.play() : video.pause(); }
+  else if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    e.preventDefault(); video.pause(); stopEdit();
+    video.currentTime = Math.max(0, Math.min(dur(), video.currentTime + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 1 : 1 / 60)));
+  }
+  else if (k === 's' || k === 'S') split();
+  else if (k === 'i' || k === 'I') setEdge('in');
+  else if (k === 'o' || k === 'O') setEdge('out');
+  else if (k === 'a' || k === 'A') addSeg();
+  else if (k === 'p' || k === 'P') editPlay ? (stopEdit(), video.pause()) : playEdit();
+  else if (k === 'Delete' || k === 'Backspace') delSeg();
+  else if (/^[1-6]$/.test(k)) setSpeed(SPEEDS[+k - 1]);
+});
+
+// ---------- render ----------
+
+async function startRender(name) {
+  await save();
+  await api(`render/${encodeURIComponent(project)}/${encodeURIComponent(name)}`, { method: 'POST' });
+}
+let pollT;
+async function pollRender() {
+  clearTimeout(pollT);
+  const name = clipName;
+  const r = await api(`render/${encodeURIComponent(project)}/${encodeURIComponent(name)}`);
+  if (name !== clipName) return;
+  $('prog').style.width = ((r.progress || 0) * 100) + '%';
+  $('renderState').textContent = r.state === 'rendering' ? Math.round(r.progress * 100) + '%' : r.state === 'error' ? 'failed: ' + r.error.slice(0, 120) : r.state === 'done' ? 'done' : '';
+  if (r.state === 'rendering') pollT = setTimeout(pollRender, 700);
+  else if (r.state === 'done' && r.at > (info[name].rendered || 0)) {
+    const e = await api('edits/' + encodeURIComponent(project)); info = e.info; drawAll();
+    toast('Render finished'); setMode('rendered');
+  }
+}
+$('render').onclick = async () => { await startRender(clipName); pollRender(); };
+$('renderAll').onclick = async () => {
+  await save();
+  for (const n of Object.keys(edits.clips)) await startRender(n);
+  toast('Rendering every clip'); pollRender();
+};
+
+loadProjects().catch((e) => toast(e.message));
+</script>
+</body>
+</html>

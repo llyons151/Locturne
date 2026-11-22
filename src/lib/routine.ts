@@ -16,12 +16,18 @@ import { EXTENSION_SLACK_MS } from './wake/arming.ts';
  * "Leave the house": get to a place picked in the day (place.ts). `pushups`: ten on the floor,
  * counted by the front camera (wake/pushups.ts). `downtime`, "Step away": a few steps to show
  * you're up, then a stretch of time with the apps still asleep (wake/downtime.ts; 2026-11-05,
- * in place of squats, which went the same day).
+ * in place of squats, which went the same day). `pullups` (wake/pullups.ts) and `bench`, the bench
+ * press (wake/bench.ts): counted by the camera like push-ups (2026-11-21).
  */
-export type WakeMethod = 'dance' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime';
+export type WakeMethod = 'dance' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime' | 'pullups' | 'bench' | 'grass' | 'sun';
 
 /** Every method, for checking a saved one (`normalizeRoutine`). */
-export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'dance', 'scan', 'place', 'pushups', 'downtime'];
+export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'dance', 'scan', 'place', 'pushups', 'downtime', 'pullups', 'bench', 'grass', 'sun'];
+
+/** The methods the camera counts (wake/pushups.ts's machine), with the exercise each counts. */
+export const CAMERA_METHODS = ['pushups', 'dance', 'pullups', 'bench'] as const;
+export type CameraMethod = (typeof CAMERA_METHODS)[number];
+export const isCameraMethod = (method: WakeMethod): method is CameraMethod => (CAMERA_METHODS as readonly string[]).includes(method);
 
 export const isWakeMethod = (value: unknown): value is WakeMethod => WAKE_METHODS.includes(value as WakeMethod);
 
@@ -36,6 +42,10 @@ export type Routine = {
   pushupGoal?: number;
   /** Dance: seconds straight a morning takes (`DANCE_RANGE`). Missing: `DEFAULT_DANCE_GOAL`. */
   danceGoal?: number;
+  /** Pull-ups a morning takes (`PULLUP_RANGE`). Missing: `DEFAULT_PULLUP_GOAL`. */
+  pullupGoal?: number;
+  /** Bench press reps a morning takes (`BENCH_RANGE`). Missing: `DEFAULT_BENCH_GOAL`. */
+  benchGoal?: number;
   /** Step away's steps: no longer read, fixed at `DOWNTIME_STEPS` (30) since 2026-11-05. Kept so old saves parse. */
   downtimeSteps?: number;
   /** Step away: minutes the apps stay asleep after those steps (`DOWNTIME_MINUTES_RANGE`). Missing: 60. */
@@ -58,6 +68,32 @@ export const DEFAULT_DANCE_GOAL = 10;
 
 export const danceGoalOf = (routine: Pick<Routine, 'danceGoal'>) => routine.danceGoal ?? DEFAULT_DANCE_GOAL;
 
+/** Pull-ups on the wheel: one is a real morning for most people; thirty is a lot of them. */
+export const PULLUP_RANGE = { min: 1, max: 30, by: 1 };
+export const DEFAULT_PULLUP_GOAL = 5;
+export const pullupGoalOf = (routine: Pick<Routine, 'pullupGoal'>) => routine.pullupGoal ?? DEFAULT_PULLUP_GOAL;
+
+/** Bench press reps on the wheel: one set of ten by default, any weight (the camera can't see it). */
+export const BENCH_RANGE = { min: 1, max: 50, by: 1 };
+export const DEFAULT_BENCH_GOAL = 10;
+export const benchGoalOf = (routine: Pick<Routine, 'benchGoal'>) => routine.benchGoal ?? DEFAULT_BENCH_GOAL;
+
+/** The camera count a routine asks of its method, or null for a method that isn't counted. */
+export function cameraGoalOf(routine: Routine, method: WakeMethod = routine.method): number | null {
+  switch (method) {
+    case 'pushups':
+      return pushupGoalOf(routine);
+    case 'dance':
+      return danceGoalOf(routine);
+    case 'pullups':
+      return pullupGoalOf(routine);
+    case 'bench':
+      return benchGoalOf(routine);
+    default:
+      return null;
+  }
+}
+
 // Step away's numbers live with its rules (wake/downtime.ts, which has no imports), so the
 // pure modules (shield-copy.ts) can read them; re-exported here with the routine's other counts.
 export {
@@ -70,11 +106,12 @@ export {
 } from './wake/downtime.ts';
 
 /**
- * Pure: a saved routine as this build can run it. Squats went on 2026-11-05: a routine saved
- * with them (or with any method this build doesn't know) walks, the default, so nobody is left
- * with a morning no screen can prove. Their count goes too. Go downstairs went on 2026-11-07,
- * replaced by dance: a downstairs routine dances. Returns the same object when nothing needed
- * changing.
+ * Pure: a saved routine as this build can run it. Squats went on 2026-11-05 (and again on
+ * 2026-11-21, back for a day in a dev build only, before the bench press took their place): a
+ * routine saved with them (or with any method this build doesn't know) walks, the default, so
+ * nobody is left with a morning no screen can prove. Their count goes too. Go downstairs went on
+ * 2026-11-07, replaced by dance: a downstairs routine dances. Returns the same object when
+ * nothing needed changing.
  */
 export function normalizeRoutine<R extends Routine>(routine: R): R {
   const legacy = routine as R & { squatGoal?: number };

@@ -23,6 +23,11 @@ export type PoseCameraViewProps = ViewProps & {
   turn?: PhoneTurn;
   /** The accelerometer says upright right now: when the iPhone learns which way its front camera sits. */
   upright?: boolean;
+  /**
+   * How strong the white tracing over you is, 0–1 (0 hides it). The iPhone draws it itself, with
+   * each frame (`tracesItself`); on web the screen draws it (pose-overlay.tsx) and this is ignored.
+   */
+  trace?: number;
   /** About fifteen times a second: the joints found, in this view's own points, y down. */
   onPose: (pose: PoseEvent) => void;
   onCameraError?: (reason: PoseCameraError) => void;

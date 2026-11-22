@@ -29,9 +29,14 @@
  * The machine is written against `RepRules` (a working joint, a part that drops, a yardstick),
  * so another counted exercise could share it. Squats did, from 2026-11-03 until they were taken
  * out on 2026-11-05. Dance (2026-11-07) shares the session but reads frames its own way
- * (wake/dance.ts): it's timed, so `reps` holds the seconds danced straight.
+ * (wake/dance.ts): it's timed, so `reps` holds the seconds danced straight. Pull-ups and the bench
+ * press (2026-11-21) share it too, on the travel machine (wake/travel.ts): the body measured against
+ * itself, not one joint's angle.
  */
+import { BENCH, BENCH_RULES } from './bench.ts';
 import { addDancePose, DANCE, tickDance, type DanceState } from './dance.ts';
+import { PULLUP_RULES, PULLUPS } from './pullups.ts';
+import { addTravelPose, tickTravel, type TravelRules, type TravelState } from './travel.ts';
 
 export const PUSHUPS = {
   /** The default target; the routine's `pushupGoal` sets the real one. */
@@ -138,7 +143,7 @@ export type PoseFrame = {
   joints: Partial<Record<Joint, JointPoint>>;
   /** From the iPhone, for the wake lab's readout: the picture's size, which quarter turn Vision
    * read it at, whether the camera stood it up, and the best side's summed confidence (0–4). */
-  info?: { w: number; h: number; read: string; upright: boolean; score: number };
+  info?: { w: number; h: number; read: string; upright: boolean; score: number; trackMs?: number };
 };
 
 export type PushupsStatus =
@@ -150,12 +155,22 @@ export type PushupsStatus =
 
 /**
  * Why he can't count right now: nobody in the picture, or somebody who isn't in a plank. Dance:
- * not standing, standing still, or only the arms going.
+ * not standing, standing still, or only the arms going. Pull-ups: the hands aren't up on a bar.
+ * Bench press: not lying on a bench with the arms up (`notBench`), or the feet out of the picture.
  */
-export type Hint = 'noBody' | 'notPlank' | 'notStanding' | 'still' | 'legs';
+export type Hint = 'noBody' | 'notPlank' | 'notStanding' | 'still' | 'legs' | 'notHanging' | 'noFeet' | 'notBench';
 
 /** What the camera counts. Dance is timed: its "reps" are seconds danced straight. */
-export type Exercise = 'pushups' | 'dance';
+export type Exercise = 'pushups' | 'dance' | 'pullups' | 'bench';
+
+/** Every exercise, for checking a saved count's key. */
+export const EXERCISES: readonly Exercise[] = ['pushups', 'dance', 'pullups', 'bench'];
+
+/** The exercises on the travel machine (wake/travel.ts), with their rules. */
+const TRAVEL: Partial<Record<Exercise, TravelRules<any>>> = { pullups: PULLUP_RULES, bench: BENCH_RULES };
+
+/** Does the phone stand upright for this one? Not for push-ups or the bench press: a body lying down is long, so the phone lies on its side. */
+export const standsUp = (exercise: Exercise) => exercise !== 'pushups' && exercise !== 'bench';
 
 /** Is this exercise counted in seconds (dance) rather than reps? */
 export const isTimed = (exercise: Exercise) => exercise === 'dance';
@@ -184,8 +199,13 @@ export type RepRules = {
   read: (joints: PoseFrame['joints'], view: View | null, hold: boolean) => { angle: number; y: number; scale: number; view: View } | { hint: Hint };
 };
 
-/** Why the last dip didn't count, so Loc can say so. Dance: `broke`, stopped and back to zero. */
-export type Miss = 'shallow' | 'quick' | 'broke';
+/**
+ * Why the last dip didn't count, so Loc can say so. Dance: `broke`, stopped and back to zero.
+ * Pull-ups and the bench press: `rest`, not all the way back (arms straight) before the next;
+ * `bar`, the hands moved and not the body; `feet`, the feet stayed on the floor; `bed`, pressing
+ * lying flat with the legs out, not on a bench.
+ */
+export type Miss = 'shallow' | 'quick' | 'broke' | 'rest' | 'bar' | 'feet' | 'bed';
 
 export type PushupsSession = {
   /** Which rules count (`rulesFor`). */
@@ -225,6 +245,8 @@ export type PushupsSession = {
   view: View | null;
   /** Dance only: its frame reader's state (wake/dance.ts). */
   dance?: DanceState;
+  /** Pull-ups and the bench press: the travel machine's state (wake/travel.ts). */
+  travel?: TravelState;
 };
 
 /** The rules a session counts by. Dance doesn't count reps; only its defaults are read (`defaultsFor`). */
@@ -234,7 +256,7 @@ export function rulesFor(_exercise: Exercise): RepRules {
 
 /** The default goal and timeout of an exercise. */
 export const defaultsFor = (exercise: Exercise): { reps: number; timeoutMs: number; lostMs: number } =>
-  exercise === 'dance' ? DANCE : PUSHUPS;
+  exercise === 'dance' ? DANCE : exercise === 'pullups' ? PULLUPS : exercise === 'bench' ? BENCH : PUSHUPS;
 
 const PUSHUP_RULES: RepRules = {
   ...PUSHUPS,
@@ -471,6 +493,8 @@ export function readFront(joints: PoseFrame['joints']): { elbow: number; shoulde
 export function addPose(s: PushupsSession, frame: PoseFrame): PushupsSession {
   if (isOver(s)) return s;
   if (s.exercise === 'dance') return addDancePose(s, frame);
+  const travel = TRAVEL[s.exercise];
+  if (travel) return addTravelPose(s, frame, travel);
   const at = frame.at;
   const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, at) };
@@ -603,6 +627,8 @@ function top(next: PushupsSession, at: number, y: number, R: RepRules): PushupsS
 export function tick(s: PushupsSession, now: number): PushupsSession {
   if (isOver(s)) return s;
   if (s.exercise === 'dance') return tickDance(s, now);
+  const travel = TRAVEL[s.exercise];
+  if (travel) return tickTravel(s, now, travel);
   const R = rulesFor(s.exercise);
   const next = { ...s, now: Math.max(s.now, now) };
   if (next.status === 'counting' && next.seenAt !== null && next.now - next.seenAt >= R.lostMs) {
@@ -620,6 +646,7 @@ export const repProgress = (s: PushupsSession) => Math.min(1, s.reps / s.goal);
 /** 0–1 of the way down the current rep, for the meter: 0 at the top, 1 at `downDeg`. */
 export function depthOf(s: PushupsSession): number {
   if (s.exercise === 'dance') return Math.min(1, (s.dance?.energy ?? 0) / DANCE.move);
+  if (TRAVEL[s.exercise]) return s.travel?.depth ?? 0;
   const R = rulesFor(s.exercise);
   return s.elbow === null ? 0 : Math.min(1, Math.max(0, (R.upDeg - s.elbow) / (R.upDeg - R.downDeg)));
 }

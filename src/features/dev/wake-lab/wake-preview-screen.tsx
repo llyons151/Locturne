@@ -54,9 +54,13 @@ const PAYOFF_METHOD: MenuOption<string>[] = [
   { value: 'steps', label: 'Steps' },
   { value: 'dance', label: 'Dance' },
   { value: 'pushups', label: 'Push-ups' },
+  { value: 'pullups', label: 'Pull-ups' },
+  { value: 'bench', label: 'Bench press' },
   { value: 'downtime', label: 'Step away' },
   { value: 'scan', label: 'Scan' },
   { value: 'place', label: 'Place' },
+  { value: 'grass', label: 'Touch grass' },
+  { value: 'sun', label: 'Sunlight' },
 ];
 
 const PAYOFF_MORNINGS: MenuOption<string>[] = [
@@ -147,6 +151,22 @@ export function WakePreviewScreen() {
       </Card>
 
       <Card
+        icon={sym('figure.climbing', 'sports_gymnastics')}
+        title="Pull-ups"
+        footer="The push-up camera, standing up under a bar (src/lib/wake/pullups.ts). The push-up rows above set it up; a drawn push-up scene plays as its pull-up twin (good reps, dead hang, half reps, air pull-downs, the tour)."
+      >
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'pullups')} last />
+      </Card>
+
+      <Card
+        icon={sym('figure.cross.training', 'accessibility_new')}
+        title="Bench press"
+        footer="The push-up camera, on its side (src/lib/wake/bench.ts), side-on to the bench. The push-up rows above set it up; a drawn push-up scene plays as its bench twin (good reps, holding the bar up, half reps, pressing air in bed, the tour)."
+      >
+        <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'bench')} last />
+      </Card>
+
+      <Card
         icon={sym('barcode.viewfinder', 'barcode_scanner')}
         title="Scan a code"
         footer="Fake replaces the camera (expo-camera) with two buttons: the right code, a wrong one. Home: src/features/home/morning.ts; the camera: src/features/scan/scan-screen.tsx, camera box: scanner.tsx"
@@ -155,6 +175,17 @@ export function WakePreviewScreen() {
         <ValueRow title="Open the morning (Home)" value="" onPress={() => open('/', 'scan')} />
         <ValueRow title="Open the camera" value="" onPress={() => open('/scan?mode=morning')} />
         <ValueRow title="Open setup" value="" onPress={() => router.push('/code')} last />
+      </Card>
+
+      <Card
+        icon={sym('leaf', 'grass')}
+        title="Touch grass and Sunlight"
+        footer="A photo, read on the phone (modules/photo-check, judged in src/lib/wake/photo.ts). The Scan card's Camera setting fakes this camera too: two buttons, the real thing or not. In a pretend morning a miss shows the reading's numbers, for tuning on a real lawn. Home: src/features/home/morning.ts; the camera: src/features/photo/photo-screen.tsx"
+      >
+        <ValueRow title="Grass: open the morning (Home)" value="" onPress={() => open('/', 'grass')} />
+        <ValueRow title="Grass: open the camera" value="" onPress={() => open('/grass', 'grass')} />
+        <ValueRow title="Sun: open the morning (Home)" value="" onPress={() => open('/', 'sun')} />
+        <ValueRow title="Sun: open the camera" value="" onPress={() => open('/sun', 'sun')} last />
       </Card>
 
       <Card

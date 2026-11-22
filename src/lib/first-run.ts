@@ -58,6 +58,10 @@ const VERB: Record<WakeMethod, (goal: number) => string> = {
   scan: () => 'scan your code',
   place: () => 'get to your place',
   pushups: () => 'do your push-ups',
+  pullups: () => 'do your pull-ups',
+  bench: () => 'bench your set',
+  grass: () => 'go outside and touch grass',
+  sun: () => 'go outside and find the sun',
   downtime: () => 'get up and let your timer run out',
 };
 
@@ -68,6 +72,10 @@ const FALLBACK: Record<WakeMethod, (goal: number) => string> = {
   scan: (goal) => `Can’t find the code? Walk ${goal} steps instead.`,
   place: (goal) => `Not going out today? Walk ${goal} steps instead.`,
   pushups: (goal) => `Arms not working today? Walk ${goal} steps instead.`,
+  pullups: (goal) => `No bar nearby? Walk ${goal} steps instead.`,
+  bench: (goal) => `No bench nearby? Walk ${goal} steps instead.`,
+  grass: (goal) => `No grass in sight? Walk ${goal} steps instead.`,
+  sun: (goal) => `Sun not up yet? Walk ${goal} steps instead.`,
   downtime: () => 'Steps from before you opened me count. The timer starts from them, not from now.',
 };
 

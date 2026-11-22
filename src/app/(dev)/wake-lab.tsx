@@ -7,7 +7,7 @@ import { setPushupsPreview, type PushupsPreview } from '@/features/dev/wake-lab/
 import { LAB_METHODS, WakeLab } from '@/features/dev/wake-lab/wake-lab';
 
 /**
- * Dev tool: test one wake-up method at any hour, at /wake-lab?method=dance|steps|scan|place|pushups|downtime.
+ * Dev tool: test one wake-up method at any hour, at /wake-lab?method=dance|steps|scan|place|pushups|pullups|bench|downtime.
  * `&scene=danceTour` (any drawn-body scene) picks the camera's pretend body, as Wake preview does.
  * `&lock=1` runs it against a real test lock on the bedtime apps (You → Test the lock).
  * Nothing it does records a proof, but it stays out of the App Store build like the other labs.

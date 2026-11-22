@@ -85,7 +85,23 @@ export type DemoScene =
   | 'danceStill'
   | 'danceArms'
   | 'danceSitting'
-  | 'danceTour';
+  | 'danceTour'
+  // Pull-ups, facing the camera (wake/pullups.ts): good reps, a dead hang, half reps, air
+  // pull-downs standing (the hands move, not the body), squatting under the bar (the feet stay
+  // on the floor), and all of them in a row ending in good reps.
+  | 'pullups'
+  | 'pullHang'
+  | 'pullHalf'
+  | 'pullAir'
+  | 'pullSquat'
+  | 'pullTour'
+  // The bench press, side-on (wake/bench.ts): good reps, holding the bar locked out, half reps
+  // that never reach the chest, pressing air lying in bed (the legs flat), and the tour.
+  | 'bench'
+  | 'benchHold'
+  | 'benchHalf'
+  | 'benchBed'
+  | 'benchTour';
 
 /** One bounce, down and up, in ms. */
 export const DEMO_BOUNCE_MS = 600;
@@ -219,9 +235,10 @@ const TOUR: [Exclude<DemoScene, 'tour'>, number][] = [
 
 /** `scene`'s joints `ms` into it, in a `width` × `height` view. Every scene but `nobody` starts with a beat of empty room, like stepping back. */
 export function scenePose(scene: DemoScene, ms: number, width: number, height: number): PoseFrame['joints'] {
-  if (scene === 'tour' || scene === 'danceTour') {
+  if (scene === 'tour' || scene === 'danceTour' || scene === 'pullTour' || scene === 'benchTour') {
     let from = 0;
-    for (const [part, length] of scene === 'tour' ? TOUR : DANCE_TOUR) {
+    const tour = scene === 'tour' ? TOUR : scene === 'danceTour' ? DANCE_TOUR : scene === 'pullTour' ? PULL_TOUR : BENCH_TOUR;
+    for (const [part, length] of tour) {
       if (ms < from + length) return scenePose(part, ms - from + (part === 'nobody' ? 0 : SCENE_LEAD_MS), width, height);
       from += length;
     }
@@ -243,8 +260,13 @@ export function scenePose(scene: DemoScene, ms: number, width: number, height: n
       return plankIn(162 + 2 * Math.sin(t / 400), width, height);
     case 'standing':
       return standingPose(t, width, height);
-    default:
+    case 'dance':
+    case 'danceStill':
+    case 'danceArms':
+    case 'danceSitting':
       return danceScene(scene, t, width, height);
+    default:
+      return travelScene(scene, t, width, height);
   }
 }
 
@@ -259,6 +281,182 @@ export function danceSceneFor(scene: DemoScene): DemoScene {
     tour: 'danceTour',
   };
   return twin[scene] ?? scene;
+}
+
+/** One demo pull-up, up and down, in ms; one bench press. */
+export const DEMO_PULL_MS = 2_400;
+export const DEMO_BENCH_MS = 2_000;
+
+/** The elbow between `shoulder` and `wrist`, bent out to the side (`out` is -1 left, 1 right). */
+function elbowOut(shoulder: Point, wrist: Point, upper: number, fore: number, out: number): Point {
+  const dx = wrist.x - shoulder.x, dy = wrist.y - shoulder.y;
+  const d = Math.max(1e-6, Math.min(upper + fore - 1e-6, Math.hypot(dx, dy)));
+  const a = (upper * upper - fore * fore + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, upper * upper - a * a));
+  const px = -dy / d, py = dx / d;
+  const sign = px * out >= 0 ? 1 : -1;
+  return { x: shoulder.x + (a * dx) / d + sign * h * px, y: shoulder.y + (a * dy) / d + sign * h * py };
+}
+
+/**
+ * Hanging from a bar facing the camera, in a `width` × `height` view, `pull` 0 (dead hang) to 1
+ * (chin over the bar). The hands stay on the bar and the body rises under them, legs and all.
+ * `handsDown` moves the hands down instead, the body still (air pull-downs standing up);
+ * `feetDown` keeps the feet on the floor, the knees bending (squatting under a bar).
+ */
+export function hangPose(
+  width: number,
+  height: number,
+  pull: number,
+  { handsDown = false, feetDown = false, grip = 1 }: { handsDown?: boolean; feetDown?: boolean; grip?: number } = {},
+  c = 0.9,
+): PoseFrame['joints'] {
+  // Sized and placed as the phone sees you from a few steps, tilted up: the bar a third down, the feet above the ledge.
+  const u = Math.min(width * 0.75, height * 0.4);
+  const cx = width / 2;
+  const torso = u * 0.36;
+  const upper = torso * 0.62;
+  const fore = torso * 0.56;
+  const barY = height * 0.3;
+  const shoulderHalf = torso * 0.42;
+  const gripHalf = shoulderHalf * (1 + 0.5 * grip);
+  // How far below the hands the shoulders hang: arms all but straight, to the chin at the bar.
+  const hangDrop = Math.sqrt(Math.max(0, (upper + fore) ** 2 * 0.985 - (gripHalf - shoulderHalf) ** 2));
+  const topDrop = (upper + fore) * 0.22;
+  const p = Math.min(1, Math.max(0, pull));
+  const drop = hangDrop - (hangDrop - topDrop) * p;
+  // Air pull-downs: the body stays at the hang's height, and the hands come down toward it.
+  const sy = handsDown ? barY + hangDrop : barY + drop;
+  const handY = handsDown ? sy - drop : barY;
+  const hy = sy + torso;
+  const legLen = torso * 1.6;
+  const floorAnkle = barY + hangDrop + torso + legLen;
+  const at = (x: number, y: number, sure = c): JointPoint => ({ x, y, c: sure });
+  const joints: Partial<Record<Joint, JointPoint>> = { nose: at(cx, sy - torso * 0.3) };
+  for (const [side, dir] of [['left', -1], ['right', 1]] as const) {
+    const shoulder = { x: cx + dir * shoulderHalf, y: sy };
+    const wrist = { x: cx + dir * gripHalf, y: handY };
+    const elbow = elbowOut(shoulder, wrist, upper, fore, dir);
+    joints[`${side}Shoulder`] = at(shoulder.x, shoulder.y);
+    joints[`${side}Elbow`] = at(elbow.x, elbow.y);
+    joints[`${side}Wrist`] = at(wrist.x, wrist.y);
+    joints[`${side}Hip`] = at(cx + dir * torso * 0.24, hy);
+    if (feetDown) {
+      // The feet planted where a hang's would be; the knees take up the difference, out to the side.
+      const kneeY = hy + (floorAnkle - hy) / 2;
+      const spare = Math.max(0, legLen - (floorAnkle - hy));
+      joints[`${side}Knee`] = at(cx + dir * (torso * 0.24 + spare * 0.6), kneeY);
+      joints[`${side}Ankle`] = at(cx + dir * torso * 0.22, floorAnkle);
+    } else {
+      joints[`${side}Knee`] = at(cx + dir * torso * 0.22, hy + legLen * 0.5);
+      joints[`${side}Ankle`] = at(cx + dir * torso * 0.2, hy + legLen);
+    }
+  }
+  return joints;
+}
+
+/**
+ * Lying on a bench side-on to the phone (the phone on its side, so `width` is the long way),
+ * `down` 0 (arms locked out, the bar over the shoulders) to 1 (the bar on the chest). The head is
+ * to the left; the feet are on the floor past the bench's end. `bed` lies flat instead, the legs
+ * out straight, the feet as high as the hips (pressing air in bed).
+ */
+export function benchPose(width: number, height: number, down: number, { bed = false }: { bed?: boolean } = {}, c = 0.9): PoseFrame['joints'] {
+  const torso = Math.min(width * 0.2, height * 0.27);
+  const upper = torso * 0.6;
+  const fore = torso * 0.55;
+  const thigh = torso * 0.85;
+  const shin = torso * 0.8;
+  const d = Math.min(1, Math.max(0, down));
+  const cx = width / 2;
+  // The body clear of the bubble and the ledge.
+  const lieY = height * 0.44;
+  const shoulder = { x: cx - torso * 0.7, y: lieY };
+  const hip = { x: shoulder.x + torso, y: lieY + torso * 0.04 };
+  // The bar comes down to the chest, a little toward the hips, from straight over the shoulders.
+  const reach = (upper + fore) * (0.995 - 0.72 * d);
+  const wrist = { x: shoulder.x + torso * (0.05 + 0.25 * d), y: shoulder.y - reach };
+  // The elbow: where the two bones meet, on the side toward the floor (it drops below the bench at the bottom).
+  const dx = wrist.x - shoulder.x, dy = wrist.y - shoulder.y;
+  const dist = Math.max(1e-6, Math.min(upper + fore - 1e-6, Math.hypot(dx, dy)));
+  const along = (upper * upper - fore * fore + dist * dist) / (2 * dist);
+  const off = Math.sqrt(Math.max(0, upper * upper - along * along));
+  const ex = shoulder.x + (along * dx) / dist, ey = shoulder.y + (along * dy) / dist;
+  const elbow = [{ x: ex - (off * dy) / dist, y: ey + (off * dx) / dist }, { x: ex + (off * dy) / dist, y: ey - (off * dx) / dist }].sort((p, q) => q.y - p.y)[0];
+  const knee = bed ? { x: hip.x + thigh, y: hip.y } : { x: hip.x + thigh * 0.85, y: hip.y + thigh * 0.5 };
+  const ankle = bed ? { x: knee.x + shin, y: knee.y } : { x: knee.x + shin * 0.15, y: knee.y + shin * 0.98 };
+  const at = (p: { x: number; y: number }, sure = c): JointPoint => ({ x: p.x, y: p.y, c: sure });
+  const joints: Partial<Record<Joint, JointPoint>> = { nose: at({ x: shoulder.x - torso * 0.3, y: shoulder.y - torso * 0.12 }) };
+  for (const s of ['left', 'right'] as const) {
+    // The far side is the camera's guess.
+    const sure = s === 'left' ? c : c * 0.7;
+    joints[`${s}Shoulder`] = at(shoulder, sure);
+    joints[`${s}Elbow`] = at(elbow, sure);
+    joints[`${s}Wrist`] = at(wrist, sure);
+    joints[`${s}Hip`] = at(hip, sure);
+    joints[`${s}Knee`] = at(knee, sure);
+    joints[`${s}Ankle`] = at(ankle, sure);
+  }
+  return joints;
+}
+
+/** One press, 0 (locked out) to 1 (the chest), with a beat at the lockout as a lifter takes. */
+const pressWave = (ms: number) => Math.max(0, (wave(ms, DEMO_BENCH_MS) - 0.15) / 0.85);
+
+/** The pull-up and bench press scenes' joints `ms` in. */
+function travelScene(scene: DemoScene, ms: number, width: number, height: number): PoseFrame['joints'] {
+  switch (scene) {
+    case 'pullups':
+      return hangPose(width, height, wave(ms, DEMO_PULL_MS));
+    case 'pullHang':
+      return hangPose(width, height, 0.03 * wave(ms, 3_000));
+    case 'pullHalf':
+      return hangPose(width, height, 0.5 * wave(ms, DEMO_PULL_MS));
+    case 'pullAir':
+      return hangPose(width, height, wave(ms, DEMO_PULL_MS), { handsDown: true });
+    case 'pullSquat':
+      return hangPose(width, height, wave(ms, DEMO_PULL_MS), { feetDown: true });
+    case 'bench':
+      return benchPose(width, height, pressWave(ms));
+    case 'benchHold':
+      return benchPose(width, height, 0.04 * wave(ms, 3_000));
+    case 'benchHalf':
+      return benchPose(width, height, 0.45 * pressWave(ms));
+    case 'benchBed':
+      return benchPose(width, height, pressWave(ms), { bed: true });
+    default:
+      return {};
+  }
+}
+
+const PULL_TOUR: [DemoScene, number][] = [
+  ['nobody', 2_000],
+  ['pullAir', 2 * DEMO_PULL_MS],
+  ['pullHang', 2_500],
+  ['pullups', 2 * DEMO_PULL_MS],
+  ['pullHalf', 2 * DEMO_PULL_MS],
+  ['pullSquat', 2 * DEMO_PULL_MS],
+  ['pullups', Infinity],
+];
+
+const BENCH_TOUR: [DemoScene, number][] = [
+  ['nobody', 2_000],
+  ['benchBed', 2 * DEMO_BENCH_MS],
+  ['benchHold', 2_500],
+  ['bench', 2 * DEMO_BENCH_MS],
+  ['benchHalf', 2 * DEMO_BENCH_MS],
+  ['bench', Infinity],
+];
+
+/** A push-up scene's pull-up or bench press twin, so the wake lab's one scene picker works for every exercise. */
+export function sceneFor(exercise: 'pushups' | 'dance' | 'pullups' | 'bench', scene: DemoScene): DemoScene {
+  if (exercise === 'dance') return danceSceneFor(scene);
+  if (exercise === 'pushups') return scene;
+  const twins: Record<'pullups' | 'bench', Partial<Record<DemoScene, DemoScene>>> = {
+    pullups: { pushups: 'pullups', quick: 'pullups', hold: 'pullHang', shallow: 'pullHalf', standing: 'pullAir', tour: 'pullTour' },
+    bench: { pushups: 'bench', quick: 'bench', hold: 'benchHold', shallow: 'benchHalf', standing: 'benchBed', tour: 'benchTour' },
+  };
+  return twins[exercise][scene] ?? scene;
 }
 
 /** The empty beat before a scene's body appears. */

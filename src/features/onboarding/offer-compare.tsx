@@ -24,6 +24,10 @@ const WAKE_ROW: Record<WakeMethod, string> = {
   place: 'Your place wakes them',
   pushups: '10 push-ups wake them',
   downtime: 'Up an hour wakes them',
+  pullups: '5 pull-ups wake them',
+  bench: '10 bench reps wake them',
+  grass: 'Touching grass wakes them',
+  sun: 'The sun wakes them',
 };
 
 /** A cell: a tick, a dash, or a few words. */

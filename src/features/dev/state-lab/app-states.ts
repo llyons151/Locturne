@@ -723,6 +723,22 @@ export const APP_STATES: AppState[] = [
     facts: (d, now) => morning(d, now, 'dance'),
   },
   {
+    id: 'morning-pullups',
+    group: 'Morning',
+    label: 'Pull-ups',
+    note: 'Pull-ups on Home: Start opens the camera (Wake preview’s push-up rows set its drawn body).',
+    morning: { method: 'pullups' },
+    facts: (d, now) => morning(d, now, 'pullups'),
+  },
+  {
+    id: 'morning-bench',
+    group: 'Morning',
+    label: 'Bench press',
+    note: 'Bench press on Home: Start opens the camera (Wake preview’s push-up rows set its drawn body).',
+    morning: { method: 'bench' },
+    facts: (d, now) => morning(d, now, 'bench'),
+  },
+  {
     id: 'morning-scan',
     group: 'Morning',
     label: 'Scan a code',

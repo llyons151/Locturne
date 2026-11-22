@@ -18,7 +18,7 @@ import type { Health } from '@/lib/health';
 import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getStreak } from '@/lib/streak';
-import { danceGoalOf, getRoutineChange, nextNightOn, nightAt, nightWasOn, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
+import { benchGoalOf, danceGoalOf, getRoutineChange, nextNightOn, nightAt, nightWasOn, pullupGoalOf, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
 import { morningMethod } from '@/lib/scan-code';
 import {
   bedtimeAppCount,
@@ -51,7 +51,7 @@ import { MoonTap } from '../moons/moon-tap';
 import { moonTapped } from '../moons/moon-collection';
 import { isMoonSimArmed, playArmedMoonSim } from '../moons/moon-sim';
 import { useCatchingUp } from './catch-up';
-import { scanMorning, WALK_INSTEAD } from './morning';
+import { photoMorning, scanMorning, WALK_INSTEAD } from './morning';
 import { useMorningDowntime } from './use-morning-downtime';
 import { useMorningPlace } from './use-morning-place';
 import { useMorningPushups } from './use-morning-pushups';
@@ -83,7 +83,7 @@ const MOCK_WEEK = false as boolean;
  * The evening button names tomorrow's wake-up, the part of the night that's still to come, in
  * Routine's words (steps and push-ups carry their counts where it's built).
  */
-const METHOD_NAME = { dance: 'Dance', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away' } as const;
+const METHOD_NAME = { dance: 'Dance', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away', pullups: 'Pull-ups', bench: 'Bench press', grass: 'Touch grass', sun: 'Sunlight' } as const;
 
 /** `pauseWording`'s answer: the paused night's words. */
 type PauseWords = ReturnType<typeof pauseWording>;
@@ -280,9 +280,12 @@ export function HomeScreen() {
   const pushups = useMorningPushups(own && method === 'pushups', pushupGoalOf(routine), repsKey);
   // The same camera, front-on, timed (wake/dance.ts).
   const dance = useMorningPushups(own && method === 'dance', danceGoalOf(routine), repsKey, 'dance');
+  // Pull-ups and the bench press: the same camera (wake/pullups.ts, wake/bench.ts).
+  const pullups = useMorningPushups(own && method === 'pullups', pullupGoalOf(routine), repsKey, 'pullups');
+  const bench = useMorningPushups(own && method === 'bench', benchGoalOf(routine), repsKey, 'bench');
   // A few steps, then the countdown to when the apps wake (wake/downtime.ts).
   const downtime = useMorningDowntime(own && method === 'downtime', routine);
-  const morningHero = place ?? pushups?.morning ?? dance?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : null);
+  const morningHero = place ?? pushups?.morning ?? dance?.morning ?? pullups?.morning ?? bench?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : own && (method === 'grass' || method === 'sun') ? photoMorning(method) : null);
   // The method's "walk instead" placeholder, made real; never the passes (they stay in You).
   const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));
   const here = morningHero && { ...morningHero, action: made(morningHero.action) ?? null, alt: made(morningHero.alt) };
@@ -382,7 +385,11 @@ export function HomeScreen() {
           ? `${pushupGoalOf(routine)} push-ups`
           : method === 'dance'
             ? `Dance ${danceGoalOf(routine)} seconds`
-            : METHOD_NAME[method];
+            : method === 'pullups'
+              ? `${pullupGoalOf(routine)} pull-ups`
+              : method === 'bench'
+                ? `${benchGoalOf(routine)} bench reps`
+                : METHOD_NAME[method];
     // A day sleeper's "morning" is in the afternoon: "Later today", as onboarding says it (wake-day.ts).
     const thisOne = routine.morningStart >= 12 * 60 ? 'Later today' : 'This morning';
     if (today && phase === 'night' && minutes !== null && minutes <= 60) return `${thisOne}: ${name}`;
@@ -528,6 +535,8 @@ export function HomeScreen() {
       {focused && here?.keepAwake ? <StayAwake /> : null}
       {pushups?.camera}
       {dance?.camera}
+      {pullups?.camera}
+      {bench?.camera}
       {mock ? <MockBar label={mock.label} top={insets.top + Space.l + 148} /> : null}
     </View>
   );
@@ -541,6 +550,10 @@ const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
   scan: 'Scan my code instead',
   place: 'Check in instead',
   pushups: 'Do push-ups instead',
+  pullups: 'Do pull-ups instead',
+  bench: 'Bench instead',
+  grass: 'Touch grass instead',
+  sun: 'Find the sun instead',
   // Never shown: Step away has no walk instead (above).
   downtime: 'Step away instead',
 };
@@ -555,6 +568,10 @@ const DONE_WORDS: Record<WakeMethod, string> = {
   place: 'Out the door',
   pushups: 'Push-ups done',
   downtime: 'Stepped away',
+  pullups: 'Pull-ups done',
+  bench: 'Bench press done',
+  grass: 'Grass touched',
+  sun: 'Sun found',
 };
 
 const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };

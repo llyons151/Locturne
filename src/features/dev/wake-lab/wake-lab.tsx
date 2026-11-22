@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import * as haptic from '@/lib/haptics';
 import { getMorningPlace, judgeFix } from '@/lib/place';
-import { downtimeMinutesOf, downtimeStepsOf, danceGoalOf, getRoutine, pushupGoalOf, type WakeMethod } from '@/lib/routine';
+import { cameraGoalOf, downtimeMinutesOf, downtimeStepsOf, getRoutine, isCameraMethod, type WakeMethod } from '@/lib/routine';
 import { getScanCode, matches } from '@/lib/scan';
 import { endTestLock, getTestLock, startTestLock } from '@/lib/screen-time';
 import { downtimeLine } from '@/lib/wake/lines';
@@ -29,6 +29,8 @@ export const LAB_METHODS: { value: WakeMethod; title: string }[] = [
   { value: 'scan', title: 'Scan a code' },
   { value: 'place', title: 'Get to a place' },
   { value: 'pushups', title: 'Push-ups' },
+  { value: 'pullups', title: 'Pull-ups' },
+  { value: 'bench', title: 'Bench press' },
   { value: 'downtime', title: 'Step away' },
 ];
 
@@ -94,13 +96,13 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
         </View>
       </Animated.View>
     );
-  } else if (method === 'pushups' || method === 'dance')
+  } else if (isCameraMethod(method))
     content = (
       <PushupsView
         key={`${method}${run}`}
         exercise={method}
         goal={routine.stepGoal}
-        target={preview.goal || (method === 'dance' ? danceGoalOf(routine) : pushupGoalOf(routine))}
+        target={preview.goal || (cameraGoalOf(routine, method) ?? 10)}
         onMet={onMet}
         onSteps={toSteps}
         preview={preview}

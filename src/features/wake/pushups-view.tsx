@@ -12,15 +12,15 @@ import { CountText } from '@/components/count-text';
 import { Text } from '@/components/text';
 import { Wordmark } from '@/components/wordmark';
 import * as haptic from '@/lib/haptics';
-import { danceLine, pushupsLine, spokenRep } from '@/lib/wake/lines';
+import { benchLine, danceLine, pullupsLine, pushupsLine, spokenRep } from '@/lib/wake/lines';
 import { DANCE } from '@/lib/wake/dance';
-import { danceSceneFor } from '@/lib/wake/pose-demo';
+import { sceneFor } from '@/lib/wake/pose-demo';
 import { TURN_DEG, type PhoneHint, type PhoneTurn } from '@/lib/wake/phone-hint';
-import { frontRule, isTimed, repProgress, rulesFor, type Exercise, type PoseFrame, type PushupsSession } from '@/lib/wake/pushups';
+import { frontRule, isTimed, repProgress, rulesFor, standsUp, type Exercise, type Hint, type Miss, type PoseFrame, type PushupsSession, type PushupsStatus } from '@/lib/wake/pushups';
 import { getRepsDone } from '@/lib/wake/pushups-done';
 import { CTA_HEIGHT, Gap, Nocturne, Space, Type } from '@/theme';
 
-import { hush, isPoseCameraAvailable, PoseCameraView, say, type PoseCameraError } from '../../../modules/pose-camera';
+import { hush, isPoseCameraAvailable, PoseCameraView, say, tracesItself, type PoseCameraError } from '../../../modules/pose-camera';
 import { LocBubble } from '../home/loc-bubble';
 import { CameraBar } from './dance-timer';
 import { LOC_VIEW, type LocMood } from '../home/loc-rig';
@@ -50,6 +50,9 @@ const AGAIN = CTA_HEIGHT + Space.l;
 const MET_BEAT_MS = 1_600;
 /** Out of sight at least this long before he says "Go on." again on finding you. */
 const GO_AGAIN_MS = 8_000;
+/** The tracing over you: full strength in a plank, faint otherwise (as pose-overlay.tsx). */
+const TRACE_COUNTING = 0.95;
+const TRACE_IDLE = 0.5;
 
 /** Dev and preview builds: the reel lines while counting (lines.ts `FILMING_LINES`), never in the App Store build. */
 const FILMING = __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
@@ -148,20 +151,20 @@ export function PushupsView({
   return (
     <View style={styles.page}>
       <View style={styles.top}>
-        <Voice text={denied ? 'I need the camera for this.' : timed ? danceLine('idle', 0, target, null) : pushupsLine('idle', 0, target, null)} />
+        <Voice text={denied ? 'I need the camera for this.' : LINES[exercise]('idle', 0, target, null)} />
         <Body>
           {denied
             ? `Camera access is off for Locturne, so I can’t count ${noun}. Turn it on in Settings.`
             : timed
               ? `Stand me up facing you, about four steps back, so I can see all of you, head to feet. Then dance for ${target} seconds straight. Stop, and it’s back to zero.`
-              : `Lean me against something on the floor, two steps away, facing you or side-on. Then ${
+              : `${SETUP_LONG[exercise]} Then ${
                 done > 0 ? `${Math.max(0, target - done)} more ${noun}; you've done ${done}` : `${target} ${noun}`
               }. I count out loud.`}
         </Body>
       </View>
 
       <View style={styles.flex} />
-      {denied || timed ? null : <SetupSketch />}
+      {denied || standsUp(exercise) ? null : <SetupSketch />}
       <View style={styles.flex} />
 
       <View style={styles.bottom}>
@@ -281,7 +284,14 @@ function TuningReadout({ session, pose }: { session: PushupsSession | null; pose
   const n = (v: number | null, digits = 0) => (v === null ? '–' : v.toFixed(digits));
   const R = rulesFor(session.exercise);
   const d = session.dance;
-  const lines = d
+  const tr = session.travel;
+  const lines = tr
+    ? [
+        `${session.exercise} · ${session.status}${session.hint ? ` / ${session.hint}` : ''} · ${tr.phase}${session.miss ? ` · miss ${session.miss}` : ''}`,
+        tr.info || '–',
+        `depth ${tr.depth.toFixed(2)}  best ${tr.best.toFixed(2)}  rest ${tr.restRun}  work ${tr.workRun}  cheat ${tr.cheatRun}`,
+      ]
+    : d
     ? [
         `dance · ${session.status}${session.hint ? ` / ${session.hint}` : ''}${session.miss ? ` · ${session.miss}` : ''}`,
         `energy ${d.energy.toFixed(2)}  (need ${DANCE.move})  legs ${d.leg.toFixed(2)}  (need ${DANCE.legMove})`,
@@ -292,11 +302,13 @@ function TuningReadout({ session, pose }: { session: PushupsSession | null; pose
     `elbow ${n(session.elbow)}°  (down ≤${R.downDeg}, up ≥${R.upDeg})`,
     `drop ${n(session.drop, 2)}  (need ${R.minDrop}, or ${R.deepDrop} held)  low frames ${session.lowFrames}`,
       ];
-  // What the iPhone handed over: the picture's size, how Vision read it, and how sure it was.
+  // What the iPhone handed over: the picture's size, how it was read (and how long MediaPipe takes a
+  // frame), and how sure it was.
   const info = pose?.info;
-  if (info) lines.push(`${info.w}×${info.h} ${info.upright ? 'stood up' : 'old table'} · read ${info.read} · seen ${info.score.toFixed(2)}/4`);
+  const took = info?.trackMs ? ` ${info.trackMs}ms` : '';
+  if (info) lines.push(`${info.w}×${info.h} ${info.upright ? 'stood up' : 'old table'} · read ${info.read}${took} · seen ${info.score.toFixed(2)}/4`);
   // Push-ups facing the camera: which front-on check turns this frame away, if one does.
-  if (!d && pose && session.view === 'front') lines.push(`front: ${frontRule(pose.joints) ?? 'plank ok'}`);
+  if (!d && !tr && pose && session.view === 'front') lines.push(`front: ${frontRule(pose.joints) ?? 'plank ok'}`);
   return (
     <View style={styles.tuning} pointerEvents="none">
       {lines.map((l) => (
@@ -397,7 +409,23 @@ function CardFrame({ width, height, top }: { width: number; height: number; top:
 }
 
 /** What the count says it's counting. */
-export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups', dance: 'seconds' };
+export const EXERCISE_NOUN: Record<Exercise, string> = { pushups: 'push-ups', dance: 'seconds', pullups: 'pull-ups', bench: 'bench reps' };
+
+/** His lines for each exercise (lib/wake/lines.ts). */
+const LINES: Record<Exercise, (status: PushupsStatus | 'idle', reps: number, goal: number, miss: Miss | null, hint?: Hint | null) => string> = {
+  pushups: pushupsLine,
+  dance: danceLine,
+  pullups: pullupsLine,
+  bench: benchLine,
+};
+
+/** Where the phone goes, before Start. Dance says its own (timed). */
+const SETUP_LONG: Record<Exercise, string> = {
+  pushups: 'Lean me against something on the floor, two steps away, facing you or side-on.',
+  dance: 'Stand me up facing you, about four steps back.',
+  pullups: 'Stand me up on the floor a few steps from the bar, tilted back so I can see your hands on it and all of you under it.',
+  bench: 'Lay me on my side on the floor a few steps from the bench, side-on to you, so I can see all of you, feet on the floor too.',
+};
 
 /**
  * The set itself, full screen: the front camera, you traced in white over it, the count big at
@@ -424,14 +452,21 @@ export function PushupsCamera({
 }) {
   const safe = useSafeAreaInsets();
   const screen = useWindowDimensions();
-  const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning, exercise);
+  const drawn = !!preview && (preview.scene !== 'camera' || !!fails(preview));
+  // The iPhone traces you itself, with each frame (PoseCameraModule.swift); the screen only draws it
+  // for the web preview and the drawn demo bodies. Then the joints needn't reach the screen at all,
+  // which spares a re-render of everything on it fifteen times a second.
+  const screenTraces = drawn || !tracesItself;
+  const { session, pose, start, cancel, onPose } = usePushups(target, preview?.fastTimeout ? FAST_TIMEOUT_MS : undefined, morning, exercise, {
+    keepPose: screenTraces || !!preview?.readout,
+  });
 
   const status = session?.status ?? 'finding';
   const timedOut = status === 'timedOut';
   // The phone on its side (the main way for push-ups) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, preview, isTimed(exercise));
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, preview, standsUp(exercise));
   const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
@@ -537,11 +572,11 @@ export function PushupsCamera({
   // His bubble is the only words on the picture: the setup is on Home, before Start.
   const line = phone
     ? PHONE_LINES[phone]
-    : isTimed(exercise)
-      ? danceLine(status, reps, target, session?.miss ?? null, session?.hint ?? null)
-      : pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null, FILMING);
+    : exercise === 'pushups'
+      ? pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null, FILMING)
+      : LINES[exercise](status, reps, target, session?.miss ?? null, session?.hint ?? null);
   const locH = Math.round((LOC_PT * LOC_VIEW.height) / LOC_VIEW.width);
-  // The same object between renders: the camera re-renders this about 30 times a second, and
+  // The same object between renders: the camera can re-render this often (the web preview), and
   // Loc's DOM view would otherwise be handed new props every time. The whole width, as on Home,
   // so the covers he runs in under bend up the ledge's corners at the screen's edges.
   const dom = useMemo(
@@ -566,13 +601,30 @@ export function PushupsCamera({
   const ground = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - flood.get()) * (height - ledge) }] }));
   // The meter goes first as the black comes up, and comes back last.
   const ledgeIn = useAnimatedStyle(() => ({ opacity: Math.max(0, 1 - flood.get() * 3) }));
-  const drawn = !!preview && (preview.scene !== 'camera' || !!fails(preview));
 
   return (
-    <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={close} statusBarTranslucent>
+    // Fades in; but once the set's met it goes in a cut: its fade out flashed white, and the payoff
+    // can't come up until it's gone, so Home sat there between (user's recordings, 2026-11-21).
+    <Modal
+      visible
+      animationType={met ? 'none' : 'fade'}
+      presentationStyle="fullScreen"
+      onRequestClose={close}
+      statusBarTranslucent
+    >
       <View style={styles.camera}>
         {drawn ? null : (
-          <PoseCameraView style={StyleSheet.absoluteFill} active={!met && !timedOut} turn={turn} upright={upright} onPose={onPose} onCameraError={onError} />
+          <PoseCameraView
+            style={StyleSheet.absoluteFill}
+            // Still live through the beat after the last rep: off, the picture froze on its last frame
+            // there, which read as the app hanging (user, 2026-11-21). The count's over either way.
+            active={!timedOut}
+            turn={turn}
+            upright={upright}
+            trace={counting ? TRACE_COUNTING : TRACE_IDLE}
+            onPose={onPose}
+            onCameraError={onError}
+          />
         )}
         {/* Everything over the picture, turned to stand up with the phone. */}
         <View
@@ -585,15 +637,15 @@ export function PushupsCamera({
           {drawn ? (
             <DemoCamera
               style={StyleSheet.absoluteFill}
-              scene={preview!.scene === 'camera' ? 'nobody' : isTimed(exercise) ? danceSceneFor(preview!.scene) : preview!.scene}
+              scene={preview!.scene === 'camera' ? 'nobody' : sceneFor(exercise, preview!.scene)}
               fail={fails(preview!)}
-              active={!met && !timedOut}
+              active={!timedOut}
               onPose={onPose}
               onCameraError={onError}
               tagTop={insets.top + (side ? 96 : 180)}
             />
           ) : null}
-          <PoseOverlay pose={pose} counting={counting} />
+          {screenTraces ? <PoseOverlay pose={pose} counting={counting} /> : null}
           <Scrim width={width} height={cardTop + (side ? 110 : 170)} />
           <Scrim width={width} height={ledge + Space.xxxl} flip />
           {/* The name over the camera, so every screen recording says what the app is (user 2026-11-16, after Erly). */}

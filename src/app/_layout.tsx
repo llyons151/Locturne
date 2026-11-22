@@ -116,6 +116,23 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: 'transparent' },
             }}
           />
+          {/* Pull-ups and the bench press, the same way. */}
+          <Stack.Screen
+            name="pullups"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          <Stack.Screen
+            name="bench"
+            options={{
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
           {/* Dance's seconds, the same way. */}
           <Stack.Screen
             name="dance"
@@ -179,6 +196,9 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
+          {/* Touch grass and Sunlight: the camera for the morning's photo (features/photo). */}
+          <Stack.Screen name="grass" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="sun" options={{ presentation: 'fullScreenModal' }} />
           {/* Picking the morning place: a full-screen map, like Google Maps (a sheet would drag
               away under the map's own drags). */}
           <Stack.Screen

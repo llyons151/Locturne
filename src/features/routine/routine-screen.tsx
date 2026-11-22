@@ -33,6 +33,8 @@ import {
   downtimeStepsOf,
   pushupGoalOf,
   danceGoalOf,
+  pullupGoalOf,
+  benchGoalOf,
   toLockSettings,
   type Routine as StoredRoutine,
   type WakeMethod,
@@ -51,6 +53,7 @@ import {
   Type,
 } from '@/theme';
 
+import { methodOffered } from './method-offered';
 import { methodOptions } from './method-options';
 import { MethodPicker } from './method-picker';
 import { NightDial } from './night-dial';
@@ -92,6 +95,8 @@ type Routine = {
   stepGoal: number;
   pushupGoal?: number;
   danceGoal?: number;
+  pullupGoal?: number;
+  benchGoal?: number;
   downtimeSteps?: number;
   downtimeMinutes?: number;
 };
@@ -142,6 +147,8 @@ const same = (a: Routine, b: Routine) =>
   a.stepGoal === b.stepGoal &&
   pushupGoalOf(a) === pushupGoalOf(b) &&
   danceGoalOf(a) === danceGoalOf(b) &&
+  pullupGoalOf(a) === pullupGoalOf(b) &&
+  benchGoalOf(a) === benchGoalOf(b) &&
   downtimeStepsOf(a) === downtimeStepsOf(b) &&
   downtimeMinutesOf(a) === downtimeMinutesOf(b) &&
   a.nights.join() === b.nights.join();
@@ -236,7 +243,7 @@ export function RoutineScreen() {
     steps: saved.stepGoal,
     wake: saved.morningStart,
     downtime: { steps: downtimeStepsOf(saved), minutes: downtimeMinutesOf(saved) },
-  });
+  }).filter((o) => methodOffered(o.value, saved.method));
   const current = options.find((o) => o.value === saved.method) ?? options[0];
   // A scan with no code, or a place with none picked, wakes with steps until it's set up (as
   // Home's "Tomorrow" says), so the picked row says so rather than looking like it's in force.
@@ -245,6 +252,9 @@ export function RoutineScreen() {
   const offerReps = saved.method === 'pushups';
   // Dance picked: how many seconds straight, the same wheel.
   const offerDance = saved.method === 'dance';
+  // Pull-ups or the bench press picked: how many, the same wheel.
+  const offerPullups = saved.method === 'pullups';
+  const offerBench = saved.method === 'bench';
   // Step away picked: its timer and its steps, each a row of its own.
   const offerDowntime = saved.method === 'downtime';
   // Walk picked, or another way not set up yet (it walks for now): how many steps.
@@ -253,7 +263,7 @@ export function RoutineScreen() {
   const offerCodeSetup = saved.method === 'scan' && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
   const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
-  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerDowntime || offerSteps;
+  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerDance || offerPullups || offerBench || offerDowntime || offerSteps;
   const now = new Date();
   // While the apps are asleep the routine is locked (`routineEditRefusal`).
   const asleep = routineEditRefusal(now) !== null;
@@ -375,6 +385,8 @@ export function RoutineScreen() {
         {offerDance ? (
           <ValueRow title="Seconds straight" value={`${danceGoalOf(saved)}`} onPress={() => router.push('/dance')} last />
         ) : null}
+        {offerPullups ? <ValueRow title="Pull-ups" value={`${pullupGoalOf(saved)}`} onPress={() => router.push('/pullups')} last /> : null}
+        {offerBench ? <ValueRow title="Bench press" value={`${benchGoalOf(saved)}`} onPress={() => router.push('/bench')} last /> : null}
         {offerDowntime ? (
           <>
             {/* The steps first are fixed (wake/downtime.ts), so only the timer is a setting. */}

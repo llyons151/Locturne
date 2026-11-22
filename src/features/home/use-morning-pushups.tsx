@@ -19,12 +19,19 @@ import { WALK_INSTEAD } from './morning';
 const ICONS = {
   pushups: { ios: 'figure.strengthtraining.functional', android: 'fitness_center' },
   dance: { ios: 'figure.dance', android: 'taunt' },
+  pullups: { ios: 'figure.climbing', android: 'sports_gymnastics' },
+  bench: { ios: 'figure.strengthtraining.traditional', android: 'exercise' },
 } as const satisfies Record<Exercise, { ios: string; android: string }>;
 
-/** How he asks for the setup: push-ups, the phone on its side on the floor; dance, standing up facing you. */
+/**
+ * How he asks for the setup: push-ups, the phone on the floor; dance, standing up facing you;
+ * pull-ups, standing up under the bar looking up at it; the bench press, on its side by the bench.
+ */
 const SETUP: Record<Exercise, string> = {
   pushups: 'Lean me on the floor, facing you or side-on.',
   dance: 'Stand me up facing you, about four steps back, so I can see all of you.',
+  pullups: 'Stand me up a few steps from the bar, so I see your hands on it.',
+  bench: 'Lay me on my side by the bench, so I see you side-on.',
 };
 
 /**

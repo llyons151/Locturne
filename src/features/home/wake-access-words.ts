@@ -2,7 +2,7 @@ import type { WakeMethod } from '../../lib/routine.ts';
 
 /**
  * The iOS permission a wake-up can't work without: Motion & Fitness for the walk and Step away,
- * the camera for a scan, push-ups or dance, location for getting to your place.
+ * the camera for a scan, push-ups, dance, pull-ups or the bench press, location for getting to your place.
  */
 export type WakeNeed = 'motion' | 'camera' | 'location';
 
@@ -32,6 +32,10 @@ const CANT: Record<WakeMethod, string> = {
   scan: 'I can’t see your code',
   pushups: 'I can’t see your push-ups',
   dance: 'I can’t see you dance',
+  pullups: 'I can’t see your pull-ups',
+  bench: 'I can’t see your bench press',
+  grass: 'I can’t see your grass',
+  sun: 'I can’t see the sun',
 };
 
 /**

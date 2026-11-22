@@ -106,7 +106,7 @@ function home({
     '@/lib/morning-proof': { getMorningsWon: () => 0, getProofs: () => [] },
     '@/lib/streak': { getStreak: () => 0 },
     '@/lib/purchases': { manageSubscriptions: async () => true },
-    '@/lib/routine': { pushupGoalOf: () => 20, danceGoalOf: () => 10, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
+    '@/lib/routine': { pushupGoalOf: () => 20, danceGoalOf: () => 10, pullupGoalOf: () => 5, benchGoalOf: () => 10, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
     '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m },
     '@/lib/screen-time': {
       sharedGet: () => undefined,

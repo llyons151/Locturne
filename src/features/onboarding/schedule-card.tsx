@@ -64,6 +64,10 @@ const METHOD_GLYPH: Record<WakeMethod, SymbolViewProps['name']> = {
   place: { ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' },
   pushups: { ios: 'figure.strengthtraining.functional', android: 'fitness_center', web: 'fitness_center' },
   downtime: { ios: 'hourglass', android: 'hourglass_empty', web: 'hourglass_empty' },
+  pullups: { ios: 'figure.climbing', android: 'sports_gymnastics', web: 'sports_gymnastics' },
+  bench: { ios: 'figure.strengthtraining.traditional', android: 'exercise', web: 'exercise' },
+  grass: { ios: 'leaf', android: 'grass', web: 'grass' },
+  sun: { ios: 'sun.max', android: 'wb_sunny', web: 'wb_sunny' },
 };
 
 /**

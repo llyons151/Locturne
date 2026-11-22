@@ -17,6 +17,17 @@ const SCENES: MenuOption<PushupsPreview['scene']>[] = [
   { value: 'danceStill', label: 'Fake standing still' },
   { value: 'danceArms', label: 'Fake arms only' },
   { value: 'danceSitting', label: 'Fake sitting on the bed' },
+  { value: 'pullTour', label: 'Fake pull-up tour' },
+  { value: 'pullups', label: 'Fake pull-ups' },
+  { value: 'pullHang', label: 'Fake dead hang' },
+  { value: 'pullHalf', label: 'Fake half pull-ups' },
+  { value: 'pullAir', label: 'Fake air pull-downs' },
+  { value: 'pullSquat', label: 'Fake squatting under the bar' },
+  { value: 'benchTour', label: 'Fake bench press tour' },
+  { value: 'bench', label: 'Fake bench press' },
+  { value: 'benchHold', label: 'Fake holding the bar up' },
+  { value: 'benchHalf', label: 'Fake half bench reps' },
+  { value: 'benchBed', label: 'Fake pressing air in bed' },
 ];
 
 const PHONES: MenuOption<PushupsPreview['phone']>[] = [

@@ -114,6 +114,76 @@ export function danceLine(status: PushupsStatus | 'idle', seconds: number, goal:
 }
 
 /**
+ * Pull-ups (wake/pullups.ts), before Start and while the camera watches. Like push-ups: three
+ * lines a set at most while it goes well, and a miss says why first, plainly enough to fix.
+ * Every line fits the camera's one-line bubble (33 characters at most, tested).
+ */
+const DURING_PULLUPS = [
+  'Chin over. Like you mean it.',
+  'Your form is giving gym teacher.',
+  'I climbed three fences. Show-off.',
+  'This is going on my story.',
+  'Hanging around. Very me.',
+] as const;
+
+export function pullupsLine(status: PushupsStatus | 'idle', reps: number, goal: number, miss: Miss | null, hint: Hint | null = null): string {
+  switch (status) {
+    case 'idle':
+      return 'Pull-ups. Then your apps.';
+    case 'finding':
+      if (hint === 'notHanging') return 'Hands on the bar. I’ll wait.';
+      return reps > 0 ? 'Where did you go. Come back.' : 'Back up. Bar, hands, all of you.';
+    case 'counting': {
+      if (miss === 'shallow') return 'Chin over the bar. Not near it.';
+      if (miss === 'rest') return 'All the way down first.';
+      if (miss === 'bar') return 'The bar stays still. You move.';
+      if (miss === 'feet') return 'Feet off the floor. I see them.';
+      if (miss === 'quick') return 'Slower. I’m counting with paws.';
+      if (reps === 0) return 'Hang. Arms straight. Now pull.';
+      if (goal - reps <= 1) return 'One more. I’m *furious* about it.';
+      return DURING_PULLUPS[goal % DURING_PULLUPS.length];
+    }
+    case 'met':
+      return "I'm up. Don't talk to me yet.";
+    case 'timedOut':
+      return reps > 0 ? `Ten quiet minutes. ${Math.max(0, goal - reps)} left. Keep going.` : 'Ten minutes and no pull-ups. Start again.';
+  }
+}
+
+/** The bench press (wake/bench.ts), the same way. */
+const DURING_BENCH = [
+  'Touch the chest. Not a rumour.',
+  'Your form is giving gym bro.',
+  'This is going on my story.',
+  'Gerald benched once. Allegedly.',
+  'Very bear of you. Lying down.',
+] as const;
+
+export function benchLine(status: PushupsStatus | 'idle', reps: number, goal: number, miss: Miss | null, hint: Hint | null = null): string {
+  switch (status) {
+    case 'idle':
+      return 'Bench press. Then your apps.';
+    case 'finding':
+      if (hint === 'noFeet') return 'I need your feet. Move me back.';
+      if (hint === 'notBench') return 'On the bench. Arms up. Side-on.';
+      return reps > 0 ? 'Where did you go. Come back.' : 'Side-on to me. Feet too.';
+    case 'counting': {
+      if (miss === 'shallow') return 'Bar to your chest. All the way.';
+      if (miss === 'rest') return 'Lock it out first.';
+      if (miss === 'bed') return 'Feet on the floor. That’s a bed.';
+      if (miss === 'quick') return 'Slower. No bouncing.';
+      if (reps === 0) return 'Arms locked. Now down to chest.';
+      if (goal - reps <= 1) return 'One more. I’m *furious* about it.';
+      return DURING_BENCH[goal % DURING_BENCH.length];
+    }
+    case 'met':
+      return "I'm up. Don't talk to me yet.";
+    case 'timedOut':
+      return reps > 0 ? `Ten quiet minutes. ${Math.max(0, goal - reps)} left. Keep going.` : 'Ten minutes and no bench. Start again.';
+  }
+}
+
+/**
  * Step away (wake/downtime.ts): a few steps, then the timer with the apps still asleep. He's
  * delighted about the second part, in his way: it's more lying around.
  */
