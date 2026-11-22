@@ -6,7 +6,7 @@ import { File } from 'expo-file-system';
 import { SymbolView } from 'expo-symbols';
 import { useNavigation, useRouter, useIsFocused } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, Linking, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +23,7 @@ import { judgePhoto, missWords, type PhotoKind, type PhotoReading } from '@/lib/
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import { photoCheckAvailable, readPhoto } from '../../../modules/photo-check';
+import { AimCircle, CameraGlass, type AimMode } from './aim-circle';
 import { FAKE_COLOR, FakeTag } from '../dev/wake-lab/fake-tag';
 import { pretendPhase, pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { Voice } from '../exits/voice';
@@ -37,8 +38,8 @@ import { announceWoke } from '../wake/use-prove-morning';
  * read on the phone (modules/photo-check) and thrown away; a pass wakes the apps and opens the
  * payoff, as a matched scan does. Only a photo taken here counts, never one from the library.
  *
- * In the wake preview's pretend morning (dev only) it runs at any hour, records nothing, and shows
- * the reading's numbers under a miss, for tuning on a real lawn. The preview's fake camera (the
+ * In the wake preview's pretend morning (dev only) it runs at any hour, records nothing, and logs
+ * the reading's numbers on a miss, for tuning on a real lawn. The preview's fake camera (the
  * scan camera's setting) swaps the camera for two buttons: the real thing, or not.
  */
 
@@ -48,19 +49,20 @@ export const PHOTO_WORDS: Record<PhotoKind, { aim: string; line: string; body: s
     title: 'Touch grass',
     line: 'Go touch grass.',
     body: 'Real grass, outside. Take a photo of it and your apps wake up.',
-    aim: 'Fill the frame with grass',
+    aim: 'Put grass in the circle',
   },
   sun: {
     title: 'Sunlight',
     line: 'Go find the sun.',
     body: 'Step outside and take a photo of the sun, or the brightest bit of sky. Your apps wake up.',
-    aim: 'Point at the sun. Don’t stare',
+    aim: 'Put the sun in the circle',
   },
 };
 
 type Stage =
-  | { kind: 'camera'; miss?: { line: string; body: string; numbers?: string } }
+  | { kind: 'camera'; miss?: { line: string; body: string } }
   | { kind: 'checking' }
+  | { kind: 'passed' }
   | { kind: 'notYet' }
   | { kind: 'awake' }
   | { kind: 'notMethod' }
@@ -90,11 +92,18 @@ const fakeReading = (kind: PhotoKind, right: boolean): PhotoReading =>
       : { labels: [{ id: 'blue_sky', confidence: 0.8 }], green: 0, sky: 0.6, blob: 0.01, blobFill: 0.7, mean: 0.7, brightness: 11 }
     : { labels: [{ id: 'bed', confidence: 0.7 }], green: 0.02, sky: 0.1, blob: 0, blobFill: 0, mean: 0.3, brightness: 2 };
 
+/** The reading's numbers, logged (not shown) in a pretend morning, for tuning on a real lawn. */
 const numbersOf = (r: PhotoReading) =>
   [
     r.labels.slice(0, 4).map((l) => `${l.id} ${l.confidence.toFixed(2)}`).join(', ') || 'no labels',
     `green ${r.green.toFixed(2)} · sky ${r.sky.toFixed(2)} · blob ${r.blob.toFixed(4)}/${r.blobFill.toFixed(2)} · BV ${r.brightness?.toFixed(1) ?? '—'}`,
-  ].join('\n');
+  ].join(' | ');
+
+/** The shortest the spinner ring runs, in ms. */
+const MIN_SCAN = 1500;
+
+/** How long the closed ring and tick hold before the payoff opens. */
+const PASS_HOLD = 1000;
 
 /** The apps are up already: when the next photo is wanted (the scan's `awakeBody`, in photo words). */
 function awakeWords(morning: ReturnType<typeof nextLockedMorning>): string {
@@ -116,7 +125,11 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
   const [stage, setStage] = useState<Stage>(() => firstStage(kind, fake, !!lab));
   const camera = useRef<CameraView>(null);
   const [ready, setReady] = useState(false);
+  const [missKey, setMissKey] = useState(0);
   const words = PHOTO_WORDS[kind];
+  const { width, height } = useWindowDimensions();
+  const size = Math.min(width * 0.74, 320);
+  const circleTop = Math.round(height * 0.43 - size / 2);
 
   const close = () => (lab ? lab.onClose() : router.canGoBack() ? router.back() : router.replace('/'));
   const walkInstead = () => {
@@ -128,9 +141,18 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
     const verdict = judgePhoto(kind, reading);
     const pretend = !!lab || pretendPhase() !== null;
     if (!verdict.ok) {
-      haptic.thud();
-      return setStage({ kind: 'camera', miss: { ...missWords(kind, verdict.miss), numbers: pretend ? numbersOf(reading) : undefined } });
+      haptic.nope();
+      if (pretend) console.log(`[photo] ${kind} miss ${verdict.miss}: ${numbersOf(reading)}`);
+      camera.current?.resumePreview().catch(() => {});
+      setMissKey((k) => k + 1);
+      return setStage({ kind: 'camera', miss: missWords(kind, verdict.miss) });
     }
+    haptic.done();
+    setStage({ kind: 'passed' });
+    setTimeout(() => wake(pretend), PASS_HOLD);
+  };
+
+  const wake = (pretend: boolean) => {
     if (lab) return lab.onMet();
     const result = pretend ? 'unlocked' : submitPhoto(kind);
     if (result === 'notMorning') return setStage(readLock().phase === 'night' ? { kind: 'notYet' } : { kind: 'awake' });
@@ -138,7 +160,6 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
     // Straight to the payoff, the camera gone without sliding (as the scan: Home mustn't flash first).
     navigation.setOptions({ animation: 'none' });
     if (pretend) {
-      haptic.done();
       pretendWoke(kind);
       if (openPretendPayoff('replace')) return;
     } else {
@@ -152,11 +173,14 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
     if (stage.kind !== 'camera' || !camera.current) return;
     haptic.tap();
     setStage({ kind: 'checking' });
+    const started = Date.now();
     try {
       // exif: true keeps the photo's metadata. Without it expo-camera re-encodes a bare JPEG, and the
       // camera's light reading (BrightnessValue), which tells outdoors from a lamp, is lost.
       const photo = await camera.current.takePictureAsync({ quality: 0.7, exif: true, skipProcessing: false });
       if (!photo?.uri) throw new Error('no photo');
+      // The frame holds still while it's read, so the scan runs over the photo that was taken.
+      camera.current?.pausePreview().catch(() => {});
       const shot = photo.exif?.BrightnessValue;
       let reading: PhotoReading;
       try {
@@ -167,13 +191,18 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
           new File(photo.uri).delete();
         } catch {}
       }
+      // The ring gets at least one full grow-and-shrink, so a fast read still looks like a look.
+      const left = MIN_SCAN - (Date.now() - started);
+      if (left > 0) await new Promise((done) => setTimeout(done, left));
       judge(reading);
     } catch {
-      setStage({ kind: 'camera', miss: { line: 'That didn’t take.', body: 'Try the photo again.' } });
+      camera.current?.resumePreview().catch(() => {});
+      setMissKey((k) => k + 1);
+      setStage({ kind: 'camera', miss: { line: 'That didn’t take.', body: 'Try again.' } });
     }
   };
 
-  if (stage.kind !== 'camera' && stage.kind !== 'checking') {
+  if (stage.kind !== 'camera' && stage.kind !== 'checking' && stage.kind !== 'passed') {
     const { line, body } =
       stage.kind === 'notYet'
         ? { line: 'Shh. Still bedtime.', body: `This works from ${formatPreset(routineAt(new Date()).morningStart)}. Bedtime wins until then.` }
@@ -198,7 +227,10 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
   }
 
   const checking = stage.kind === 'checking';
+  const passed = stage.kind === 'passed';
   const miss = stage.kind === 'camera' ? stage.miss : undefined;
+  const mode: AimMode = checking ? 'scan' : passed ? 'pass' : miss ? 'miss' : 'aim';
+  const under = circleTop + size + Space.xl;
   return (
     <View style={styles.camera}>
       <PhotoCamera
@@ -206,37 +238,43 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
         fake={fake}
         active={focused}
         onReady={() => setReady(true)}
-        onFake={(right) => judge(fakeReading(kind, right))}
+        onFake={(right) => {
+          setStage({ kind: 'checking' });
+          setTimeout(() => judge(fakeReading(kind, right)), MIN_SCAN);
+        }}
         denied={<TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} />}
       />
 
-      <View pointerEvents="none" style={[styles.aimPill, { top: insets.top + Space.s + 6 }]}>
-        <Text style={styles.aim}>{words.aim}</Text>
-      </View>
+      <AimCircle size={size} mode={mode} width={width} height={height} top={circleTop} />
 
-      {miss ? (
-        <Animated.View key={miss.line + (miss.numbers ?? '')} entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.missCard} pointerEvents="none">
-          <Text style={styles.missLine}>{miss.line}</Text>
-          <Text style={styles.missBody}>{miss.body}</Text>
-          {miss.numbers ? <Text style={styles.numbers}>{miss.numbers}</Text> : null}
+      {checking || passed ? null : (
+        <Animated.View
+          key={miss ? `miss${missKey}` : 'aim'}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(120)}
+          pointerEvents="none"
+          style={[styles.capsuleRow, { top: under }]}
+        >
+          <CameraGlass style={styles.capsule}>
+            {miss ? (
+              <Text style={styles.capsuleText}>
+                <Text style={styles.capsuleStrong}>{miss.line}</Text> {miss.body}
+              </Text>
+            ) : (
+              <Text style={[styles.capsuleText, styles.capsuleStrong]}>{words.aim}</Text>
+            )}
+          </CameraGlass>
         </Animated.View>
-      ) : null}
-
-      {checking ? (
-        <Animated.View entering={FadeIn.duration(150)} style={styles.checking} pointerEvents="none">
-          <SearchingOrb />
-          <Text style={styles.checkingText}>Looking…</Text>
-        </Animated.View>
-      ) : null}
+      )}
 
       {fake === 'real' ? (
         <View style={[styles.shutterRow, { bottom: insets.bottom + 40 }]}>
           <Pressable
             onPress={snap}
-            disabled={checking || !ready}
+            disabled={checking || passed || !ready}
             accessibilityRole="button"
             accessibilityLabel="Take the photo"
-            style={({ pressed }) => [styles.shutter, (checking || !ready) && styles.off, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.shutter, (checking || passed || !ready) && styles.off, pressed && styles.pressed]}
           >
             <View style={styles.shutterInner} />
           </Pressable>
@@ -248,9 +286,11 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
         hitSlop={12}
         accessibilityRole="button"
         accessibilityLabel="Close"
-        style={[styles.x, { top: insets.top + Space.s }]}
+        style={({ pressed }) => [styles.xSpot, { top: insets.top + Space.s }, pressed && styles.pressed]}
       >
-        <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor="#FFFFFF" />
+        <CameraGlass style={styles.x}>
+          <SymbolView name={sym('xmark', 'close')} size={17} weight="semibold" tintColor="#FFFFFF" />
+        </CameraGlass>
       </Pressable>
     </View>
   );
@@ -345,32 +385,10 @@ const styles = StyleSheet.create({
   bottom: { gap: Space.l },
 
   camera: { flex: 1, backgroundColor: '#000000' },
-  aimPill: {
-    position: 'absolute',
-    alignSelf: 'center',
-    paddingHorizontal: Space.l,
-    paddingVertical: Space.s,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  },
-  aim: { ...Type.secondary, color: '#FFFFFF', fontWeight: '600' },
-  missCard: {
-    position: 'absolute',
-    left: Gap.gutter,
-    right: Gap.gutter,
-    bottom: 200,
-    alignItems: 'center',
-    gap: Space.xs,
-    paddingHorizontal: Space.l,
-    paddingVertical: Space.m,
-    borderRadius: 22,
-    borderCurve: 'continuous',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  missLine: { ...Type.body, color: '#FFFFFF', fontWeight: '700', textAlign: 'center' },
-  missBody: { ...Type.secondary, color: 'rgba(255, 255, 255, 0.85)', textAlign: 'center' },
-  numbers: { ...Type.secondary, fontSize: 11, lineHeight: 14, color: 'rgba(255, 255, 255, 0.6)', textAlign: 'center', marginTop: Space.xs },
-  checking: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: Space.s, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
+  capsuleRow: { position: 'absolute', left: Gap.gutter, right: Gap.gutter, alignItems: 'center' },
+  capsule: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999, borderCurve: 'continuous' },
+  capsuleText: { ...Type.secondary, color: 'rgba(255, 255, 255, 0.85)', textAlign: 'center' },
+  capsuleStrong: { color: '#FFFFFF', fontWeight: '600' },
   checkingText: { ...Type.secondary, color: '#FFFFFF', fontWeight: '600' },
   shutterRow: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   // The system camera's shutter: a white disc in a white ring.
@@ -378,16 +396,8 @@ const styles = StyleSheet.create({
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
   pressed: { transform: [{ scale: 0.94 }] },
   off: { opacity: 0.4 },
-  x: {
-    position: 'absolute',
-    left: Gap.gutter,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  },
+  xSpot: { position: 'absolute', left: Gap.gutter },
+  x: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.s },
   ask: { justifyContent: 'center', padding: Space.xl, gap: Space.l, backgroundColor: Nocturne.bg },
   fake: { backgroundColor: '#0b0b0d', justifyContent: 'center', padding: Space.l, gap: Space.m },

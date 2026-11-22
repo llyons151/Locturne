@@ -10,4 +10,6 @@ const run = (fn: () => Promise<void>) => {
 export const tap = () => run(() => Haptics.selectionAsync());
 export const tick = () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 export const thud = () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+/** The system's error buzz: a photo that didn't count. */
+export const nope = () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
 export const done = () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));

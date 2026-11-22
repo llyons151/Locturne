@@ -138,14 +138,14 @@ export const judgePhoto = (kind: PhotoKind, r: PhotoReading): PhotoVerdict => (k
 export function missWords(kind: PhotoKind, miss: PhotoMiss): { line: string; body: string } {
   switch (miss) {
     case 'screen':
-      return { line: 'That’s a screen.', body: kind === 'grass' ? 'Real grass. Outside. It’s free.' : 'The real one. It’s up there.' };
+      return { line: 'That’s a screen.', body: kind === 'grass' ? 'Real grass, outside.' : 'The real sun, outside.' };
     case 'indoors':
-      return { line: 'You’re inside.', body: kind === 'grass' ? 'Houseplants don’t count. Go outside.' : 'That’s a lamp. Go outside.' };
+      return kind === 'grass' ? { line: 'That’s not outside.', body: 'Go find real grass.' } : { line: 'That’s a lamp.', body: 'Go outside.' };
     case 'tooDark':
-      return { line: 'I can’t see a thing.', body: 'Take the thumb off the lens and try again.' };
+      return { line: 'Too dark.', body: 'Take a clearer pic.' };
     case 'notGrass':
-      return { line: 'That’s not grass.', body: 'Get close. Fill the frame with it.' };
+      return { line: 'That’s not grass.', body: 'Take a clearer pic.' };
     case 'noSun':
-      return { line: 'Where’s the sun?', body: 'Point at it, or the brightest bit of sky. Don’t stare.' };
+      return { line: 'That’s not the sun.', body: 'Take a clearer pic.' };
   }
 }
