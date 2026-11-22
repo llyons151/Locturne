@@ -1,4 +1,6 @@
 import '@/global.css';
+// Dev, browser only: `?awake=1` moves the clock before anything reads it (dev-awake.web.ts).
+import '@/lib/dev-awake';
 
 import { denyAppRemoval, readDeviceClock } from 'blocked-apps';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';

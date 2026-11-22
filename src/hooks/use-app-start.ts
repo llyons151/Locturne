@@ -24,6 +24,7 @@ import {
 } from '@/lib/notifications';
 import { takePendingApproval } from '@/lib/pending-purchase';
 import { currentTrialEnd, isEntitled, isPurchasing, onEntitled } from '@/lib/purchases';
+import { devAwake } from '@/lib/dev-awake';
 import { DEFAULT_ROUTINE, hasRoutine, saveRoutine } from '@/lib/routine';
 import { getAccess, getArmedNight, isScreenTimeAvailable, shownSelection } from '@/lib/screen-time';
 import { getSites } from '@/lib/websites';
@@ -119,6 +120,9 @@ export function useAppStart(): void {
     shown.current = { pathname, mode };
   }, [pathname, mode]);
   useEffect(() => {
+    // Dev, in a browser: `?awake=1` skips onboarding with the default routine, on a clock moved to
+    // the afternoon (dev-awake.web.ts). The browser keeps nothing between loads.
+    if (!hasRoutine() && devAwake) saveRoutine(DEFAULT_ROUTINE);
     if (!hasRoutine()) {
       // Not when a link already opened it (`/onboarding?…` on a fresh install): a second copy
       // would be pushed on top, and finishing one would land on the other.

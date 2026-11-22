@@ -518,11 +518,14 @@ export function OnboardingFlow({
     : PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer ? () => go('declined') : exit;
   // A first run has no Exit until it's paid (user 2026-11-11: the paywall is a hard one, and an Exit
   // on it read as a testing leftover). It can be left once bought, or while a purchase waits for a
-  // parent's approval (nothing more to do here). A rerun (See plans, Redo setup) came from the
-  // app, so it can always be left. Dev builds can always leave too, to get between onboarding and
-  // the tabs while working on either.
+  // parent's approval (nothing more to do here). Dev builds can always leave too, to get between
+  // onboarding and the tabs while working on either.
   // Free-testing builds (preview, dev) keep the paywall's Exit: it's how they get in with nothing bought (`skipForTesting`).
-  const canLeave = __DEV__ || rerun || finished || awaitingApproval || (onMoneyStep && canSkipPaywall());
+  // Store builds: no Exit until they've paid (user 2026-11-21: "it should never show exit"). A rerun
+  // used to count, and reopening at the paywall after closing the app reads as one (the setup was
+  // saved), which let a real unpaid TikTok install straight into the app. Subscribed reruns (See
+  // plans, Redo setup) still leave via `entitled`.
+  const canLeave = __DEV__ || finished || entitled || awaitingApproval || (onMoneyStep && canSkipPaywall());
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
