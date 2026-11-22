@@ -169,7 +169,7 @@ export const ja: Translation = {
   },
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturneは朝、起床用コードのスキャンや、腕立て伏せ・懸垂・ベンチプレス・ダンスの確認にカメラを使います。処理はこのiPhone内だけで、録画も保存もしません。',
+      'Locturneは朝、起床用コードのスキャン、芝生や日の光の写真、腕立て伏せ・懸垂・ベンチプレス・ダンスの確認にカメラを使います。処理はこのiPhone内だけで、録画も保存もしません。',
     NSLocationWhenInUseUsageDescription:
       'Locturneを開いている間、地図上に現在地を表示し、朝の場所に着いたかを確認します。バックグラウンドで位置情報を使うことはありません。',
     NSMotionUsageDescription: 'Locturneは毎朝、アプリを起こすために歩数を確認します。モーションの使い道はそれだけです。',

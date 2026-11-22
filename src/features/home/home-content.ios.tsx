@@ -104,10 +104,10 @@ export function HomeContent(props: HomeContentProps) {
   const on = shown && !hidden;
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
   const { content, visible } = useHeroSwap(props, props.catchingUp);
-  const { hero, heroKey, meter, icon, searching, action, alt, look } = content;
+  const { hero, heroKey, meter, icon, searching, action, alt, look, keepTop } = content;
   const weight = actionWeight(look, action);
-  // Dim at night, gone for a problem (`topLevel`).
-  const top = topLevel(look);
+  // Dim at night, gone for a problem (`topLevel`), unless that problem keeps it.
+  const top = topLevel(look, keepTop);
   // Held still while catching up after the background, so the digits change without rolling
   // from hours-old numbers.
   const rollKey = props.catchingUp ? -1 : heroKey;

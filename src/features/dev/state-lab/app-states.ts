@@ -739,6 +739,22 @@ export const APP_STATES: AppState[] = [
     facts: (d, now) => morning(d, now, 'bench'),
   },
   {
+    id: 'morning-grass',
+    group: 'Morning',
+    label: 'Touch grass',
+    note: 'Touch grass on Home: the button opens the photo camera (the fake one: real thing or not).',
+    morning: { method: 'grass', fakes: { scan: 'fake' } },
+    facts: (d, now) => morning(d, now, 'grass'),
+  },
+  {
+    id: 'morning-sun',
+    group: 'Morning',
+    label: 'Sunlight',
+    note: 'Sunlight on Home: the button opens the photo camera (the fake one: real thing or not).',
+    morning: { method: 'sun', fakes: { scan: 'fake' } },
+    facts: (d, now) => morning(d, now, 'sun'),
+  },
+  {
     id: 'morning-scan',
     group: 'Morning',
     label: 'Scan a code',

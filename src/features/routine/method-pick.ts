@@ -5,6 +5,7 @@ import { type WakeMethod } from '@/lib/routine';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 
 import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from './apply-edit';
+import { methodOffered } from './method-offered';
 
 /**
  * Picks how you get up, from the grid of ways (method-picker, method-sheet). Saved at once, like
@@ -17,6 +18,8 @@ import { applyRoutineEdit, getSetRoutine, refuseWhileAsleep } from './apply-edit
 export function pickMethod(value: WakeMethod): { then?: Href } | null {
   if (refuseWhileAsleep()) return null;
   const current = getSetRoutine();
+  // A backstop for the grid's filter: a way this build's extensions don't know would wake on a walk.
+  if (!methodOffered(value, current.method)) return {};
   if (value === 'place' && current.method !== 'place' && !getMorningPlace() && !getPlaceEditRefusal())
     return { then: { pathname: '/place-pick', params: { select: '1' } } };
   if (current.method !== value) applyRoutineEdit({ ...current, method: value });

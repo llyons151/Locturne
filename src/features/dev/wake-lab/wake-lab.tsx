@@ -19,6 +19,7 @@ import { Gap, Nocturne, Space, Type } from '@/theme';
 import { readFix } from '../../place/locate';
 import { Scanner, type Scan } from '../../scan/scanner';
 import { Body, TopBar, Voice } from '../../wake/parts';
+import { PhotoScreen } from '../../photo/photo-screen';
 import { PushupsView } from '../../wake/pushups-view';
 import { StepsView } from '../../wake/steps-view';
 import { usePushupsPreview } from './pushups-preview';
@@ -31,6 +32,8 @@ export const LAB_METHODS: { value: WakeMethod; title: string }[] = [
   { value: 'pushups', title: 'Push-ups' },
   { value: 'pullups', title: 'Pull-ups' },
   { value: 'bench', title: 'Bench press' },
+  { value: 'grass', title: 'Touch grass' },
+  { value: 'sun', title: 'Sunlight' },
   { value: 'downtime', title: 'Step away' },
 ];
 
@@ -113,6 +116,15 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
   else if (method === 'scan') content = <ScanTest key={run} onMet={onMet} />;
   else if (method === 'place') content = <PlaceTest key={run} onMet={onMet} />;
   else content = <StepsView key={run} goal={routine.stepGoal} morningStart={startedAt} onMet={onMet} />;
+
+  // Touch grass and Sunlight: the real camera screen, edge to edge (it has its own X), until it passes.
+  if (!passed && (method === 'grass' || method === 'sun'))
+    return (
+      <>
+        <StayAwake />
+        <PhotoScreen key={run} kind={method} lab={{ onMet, onClose: close }} />
+      </>
+    );
 
   return (
     <ScrollView

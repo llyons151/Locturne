@@ -138,6 +138,7 @@ export function pullupsLine(status: PushupsStatus | 'idle', reps: number, goal: 
       if (miss === 'rest') return 'All the way down first.';
       if (miss === 'bar') return 'The bar stays still. You move.';
       if (miss === 'feet') return 'Feet off the floor. I see them.';
+      if (miss === 'noLegs') return 'I need your legs too. Move me back.';
       if (miss === 'quick') return 'Slower. I’m counting with paws.';
       if (reps === 0) return 'Hang. Arms straight. Now pull.';
       if (goal - reps <= 1) return 'One more. I’m *furious* about it.';

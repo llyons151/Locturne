@@ -29,6 +29,8 @@ export type HomeContentProps = {
   hero: { title: string; body: string; aside?: string };
   /** Changes when the headline's countdown does (minutes left), to roll its digits. */
   heroKey: number;
+  /** A problem look that keeps the top (the mornings and screen time pills): `topLevel`. */
+  keepTop?: boolean;
   /** Just back from the background (`useCatchingUp`): changes land in place, unanimated. */
   catchingUp?: boolean;
   /**
@@ -97,9 +99,9 @@ export function HomeContent(props: HomeContentProps) {
   const { group, piece: enter } = useEntrance();
   // A change of state (Screen Time turned on, bedtime starting) fades the middle out and back in.
   const { content, visible } = useHeroSwap(props, props.catchingUp);
-  const { hero, meter, icon, searching, action, alt, look } = content;
+  const { hero, meter, icon, searching, action, alt, look, keepTop } = content;
   const weight = actionWeight(look, action);
-  const top = topLevel(look);
+  const top = topLevel(look, keepTop);
   const swap = useAnimatedStyle(() => ({
     opacity: withTiming(visible ? 1 : 0, visible ? { duration: SWAP_IN * 1000, easing: Easing.out(Easing.quad) } : { duration: SWAP_OUT * 1000, easing: Easing.in(Easing.quad) }),
   }));

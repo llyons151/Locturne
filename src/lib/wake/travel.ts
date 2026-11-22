@@ -36,8 +36,9 @@ export type Reading =
 /**
  * What gave a cheat away. `bar`: the hands moved, not the body. `feet`: the feet stayed on the
  * floor. `bed`: pressing lying flat, legs out (bench press: on a bench the feet are on the floor).
+ * `noLegs`: the legs weren't seen (pull-ups: kneeling up in bed under a duvet looks like a rep).
  */
-export type Cheat = 'bar' | 'feet' | 'bed';
+export type Cheat = 'bar' | 'feet' | 'bed' | 'noLegs';
 
 export type TravelRules<M> = {
   reps: number;

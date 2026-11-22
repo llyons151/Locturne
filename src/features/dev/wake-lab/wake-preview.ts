@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import type { WakeMethod } from '@/lib/routine';
+import { isWakeMethod, type WakeMethod } from '@/lib/routine';
 import { nextBedtime, syncLock } from '@/lib/lock-controller';
 import { armRehearsalTimerEnd, endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, sharedGet, sharedSet, winRehearsal } from '@/lib/screen-time';
 
@@ -188,7 +188,7 @@ export function resumeTestLock(now = new Date()) {
     if (current.phase === 'morning') setWakePreview({ phase: 'real', won: null });
     return;
   }
-  if (current.phase === 'real') setWakePreview({ phase: 'morning', method: lock.method as WakeMethod, since: lock.since, won: null });
+  if (current.phase === 'real') setWakePreview({ phase: 'morning', method: isWakeMethod(lock.method) ? lock.method : 'steps', since: lock.since, won: null });
 }
 
 /** A rehearsal won from the shield: Home leaves its night or morning for the made-up payoff. */

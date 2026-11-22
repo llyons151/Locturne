@@ -519,6 +519,8 @@ export function HomeScreen() {
         revision={visit}
         hero={shown}
         look={look}
+        // The wake-up's access off leaves the streak and screen time true: they stay (user 2026-11-21).
+        keepTop={look === 'problem' && wakeRefused && !unprotected}
         catchingUp={catchingUp}
         heroKey={walk?.kind === 'counting' ? (walk.steps ?? 0) : here?.meter ? Number.parseFloat(here.meter.value) || 0 : (minutes ?? 0)}
         meter={walk?.kind === 'counting' ? walkMeter(walk) : (here?.meter ?? face)}
@@ -551,7 +553,7 @@ const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
   place: 'Check in instead',
   pushups: 'Do push-ups instead',
   pullups: 'Do pull-ups instead',
-  bench: 'Bench instead',
+  bench: 'Bench press instead',
   grass: 'Touch grass instead',
   sun: 'Find the sun instead',
   // Never shown: Step away has no walk instead (above).

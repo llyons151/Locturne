@@ -2,6 +2,7 @@
 // Reads the lock and routine during render, which change outside React (as scan-screen.tsx).
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { File } from 'expo-file-system';
 import { SymbolView } from 'expo-symbols';
 import { useNavigation, useRouter, useIsFocused } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -65,9 +66,10 @@ type Stage =
   | { kind: 'notMethod' }
   | { kind: 'oldBuild' };
 
-/** Night, day, or another way's morning refuse the camera before it opens. */
-function firstStage(kind: PhotoKind, fake: Fake): Stage {
+/** Night, day, or another way's morning refuse the camera before it opens. The wake lab's test runs at any hour. */
+function firstStage(kind: PhotoKind, fake: Fake, lab: boolean): Stage {
   if (!photoCheckAvailable() && fake === 'real') return { kind: 'oldBuild' };
+  if (lab) return { kind: 'camera' };
   const pretend = pretendPhase();
   if (pretend) return pretend === 'morning' ? { kind: 'camera' } : pretend === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   const phase = readLock().phase;
@@ -101,18 +103,22 @@ function awakeWords(morning: ReturnType<typeof nextLockedMorning>): string {
   return `Nothing to photo until ${morningName(morning, new Date())}.`;
 }
 
-export function PhotoScreen({ kind }: { kind: PhotoKind }) {
+/**
+ * `lab` (dev: the wake lab, You → Test the lock, Rehearse a night's lab runs): any hour, nothing
+ * recorded; a pass calls `onMet` and the X calls `onClose` (which wakes a test lock).
+ */
+export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () => void; onClose: () => void } }) {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const fake = useWakePreview().scan;
-  const [stage, setStage] = useState<Stage>(() => firstStage(kind, fake));
+  const [stage, setStage] = useState<Stage>(() => firstStage(kind, fake, !!lab));
   const camera = useRef<CameraView>(null);
   const [ready, setReady] = useState(false);
   const words = PHOTO_WORDS[kind];
 
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const close = () => (lab ? lab.onClose() : router.canGoBack() ? router.back() : router.replace('/'));
   const walkInstead = () => {
     askWalk(readLock().morningKey);
     close();
@@ -120,11 +126,12 @@ export function PhotoScreen({ kind }: { kind: PhotoKind }) {
 
   const judge = (reading: PhotoReading) => {
     const verdict = judgePhoto(kind, reading);
-    const pretend = pretendPhase() !== null;
+    const pretend = !!lab || pretendPhase() !== null;
     if (!verdict.ok) {
       haptic.thud();
       return setStage({ kind: 'camera', miss: { ...missWords(kind, verdict.miss), numbers: pretend ? numbersOf(reading) : undefined } });
     }
+    if (lab) return lab.onMet();
     const result = pretend ? 'unlocked' : submitPhoto(kind);
     if (result === 'notMorning') return setStage(readLock().phase === 'night' ? { kind: 'notYet' } : { kind: 'awake' });
     if (result === 'notMethod') return setStage({ kind: 'notMethod' });
@@ -146,9 +153,21 @@ export function PhotoScreen({ kind }: { kind: PhotoKind }) {
     haptic.tap();
     setStage({ kind: 'checking' });
     try {
-      const photo = await camera.current.takePictureAsync({ quality: 0.7, exif: false, skipProcessing: false });
+      // exif: true keeps the photo's metadata. Without it expo-camera re-encodes a bare JPEG, and the
+      // camera's light reading (BrightnessValue), which tells outdoors from a lamp, is lost.
+      const photo = await camera.current.takePictureAsync({ quality: 0.7, exif: true, skipProcessing: false });
       if (!photo?.uri) throw new Error('no photo');
-      judge(await readPhoto(photo.uri));
+      const shot = photo.exif?.BrightnessValue;
+      let reading: PhotoReading;
+      try {
+        reading = await readPhoto(photo.uri, typeof shot === 'number' ? shot : null);
+      } finally {
+        // Read and thrown away: the camera permission promises nothing is saved.
+        try {
+          new File(photo.uri).delete();
+        } catch {}
+      }
+      judge(reading);
     } catch {
       setStage({ kind: 'camera', miss: { line: 'That didn’t take.', body: 'Try the photo again.' } });
     }

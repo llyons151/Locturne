@@ -170,7 +170,7 @@ export const de: Translation = {
   },
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturne nutzt die Kamera morgens, um deinen Weck-Code zu scannen oder deine Liegestütze, Klimmzüge, dein Bankdrücken oder deinen Tanz zu sehen. Alles passiert auf diesem iPhone; nichts wird aufgenommen oder gespeichert.',
+      'Locturne nutzt die Kamera morgens, um deinen Weck-Code zu scannen, dein Gras- oder Sonnenfoto zu machen oder deine Liegestütze, Klimmzüge, dein Bankdrücken oder deinen Tanz zu sehen. Alles passiert auf diesem iPhone; nichts wird aufgenommen oder gespeichert.',
     NSLocationWhenInUseUsageDescription:
       'Solange Locturne offen ist, zeigt es dich auf der Karte und prüft, ob du den Ort für deine Morgen erreicht hast. Im Hintergrund nutzt es deinen Standort nie.',
     NSMotionUsageDescription: 'Locturne prüft jeden Morgen deine Schritte, um deine Apps zu wecken. Nur dafür nutzt es Bewegungsdaten.',

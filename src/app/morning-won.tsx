@@ -101,7 +101,8 @@ function realFacts(key?: string): PayoffFacts | null {
   // Any moon this morning brought (features/moons); earning is safe to repeat.
   settleMoons();
   return {
-    method: proof.kind,
+    // A proof from a way since removed (squats) reads as a walk, never "undefined".
+    method: isWakeMethod(proof.kind) ? proof.kind : 'steps',
     upAt: at.getHours() * 60 + at.getMinutes(),
     start: routineAt(now).morningStart,
     mornings: Math.max(1, getMorningsWon()),

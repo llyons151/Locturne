@@ -189,7 +189,7 @@ export const en = {
   /** iOS's permission prompts (Info.plist), for prebuild's InfoPlist.strings. English stays in app.json. */
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturne uses the camera to scan your wake-up code, or to watch your push-ups, pull-ups, bench press or dancing, in the morning. It looks on this phone; nothing is recorded or saved.',
+      'Locturne uses the camera to scan your wake-up code, take your grass or sunlight photo, or watch your push-ups, pull-ups, bench press or dancing, in the morning. It looks on this phone; nothing is recorded or saved.',
     NSLocationWhenInUseUsageDescription:
       'While Locturne is open, it shows you on the map and checks you’ve reached the place you picked for your mornings. It never uses your location in the background.',
     NSMotionUsageDescription: 'Locturne checks your steps each morning to wake your apps. That’s all it uses motion for.',

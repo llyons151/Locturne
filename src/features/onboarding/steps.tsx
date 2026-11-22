@@ -562,7 +562,7 @@ export function renderStep(ctx: StepContext): StepView {
             // Night people see their half first: the reach at bedtime, the night shield, then the morning.
             night={pain === 'night' ? nightPrelude(answers.bedtime, numbers.phoneDown, answers.wake) : undefined}
             method={answers.method ?? 'steps'}
-            reps={goals.reps}
+            reps={answers.method === 'pullups' ? goals.pullups : answers.method === 'bench' ? goals.bench : goals.reps}
             onPayoff={ctx.onPayoff}
           />
         ),

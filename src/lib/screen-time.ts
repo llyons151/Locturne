@@ -426,9 +426,22 @@ export function getTestLock(): TestLock | null {
 }
 
 /** Shields a copy of the bedtime picks. False with no bedtime picks to copy, or no access. */
+/**
+ * The bedtime picks to copy for a test: the live list, or, while a pass or an edit waiting for
+ * bedtime holds them aside (`pauseNightUntil`), the picks waiting there. A pass empties the live
+ * list until the next bedtime, which read as "no bedtime apps" (user 2026-11-21).
+ */
+function bedtimePicksForTest(): SelectionId | null {
+  if (selectionSize('night') > 0) return 'night';
+  const pending = getPendingLists().night;
+  if (pending && !pending.empty && selectionSize(draftId('night')) > 0) return draftId('night');
+  return null;
+}
+
 export function startTestLock(method: string, now = new Date()): boolean {
-  if (!isAvailable() || getAccess() !== 'approved' || selectionSize('night') === 0) return false;
-  copySelection('night', TEST_LOCK);
+  const picks = isAvailable() && getAccess() === 'approved' ? bedtimePicksForTest() : null;
+  if (!picks) return false;
+  copySelection(picks, TEST_LOCK);
   sharedSet(TEST_LOCK_KEY, { method, since: now.getTime() } satisfies TestLock);
   shield(TEST_LOCK);
   return true;
@@ -537,7 +550,8 @@ export async function startRehearsal(opts: {
   const { minutes = NAP_SHORTEST, quick = false, now = new Date() } = opts;
   if (!isAvailable()) throw new Error('A rehearsal needs Screen Time, so run it on the phone.');
   if (getAccess() !== 'approved') throw new Error('Allow Screen Time first.');
-  if (selectionSize('night') === 0) throw new Error('Pick some bedtime apps in Apps first. The rehearsal puts those to sleep.');
+  const picks = bedtimePicksForTest();
+  if (!picks) throw new Error('Pick some bedtime apps in Apps first. The rehearsal puts those to sleep.');
   if (isStoodDown()) throw new Error('Nothing locks without a subscription, so a rehearsal wouldn’t either.');
   if (rehearsalHeld(getRehearsal())) throw new Error('A rehearsal is already under way.');
   const start = quick ? now.getTime() : Math.ceil((now.getTime() + 60_000) / 60_000) * 60_000;
@@ -549,7 +563,7 @@ export async function startRehearsal(opts: {
   }
   // Whatever an earlier one left.
   if (getRehearsal()) finishRehearsal();
-  copySelection('night', REHEARSAL);
+  copySelection(picks, REHEARSAL);
   updateShieldWithId(shieldConfig(opts.night(new Date(end))), shieldActions(null), REHEARSAL_NIGHT_SHIELD);
   updateShieldWithId(
     shieldConfig(opts.morning(new Date(end))),

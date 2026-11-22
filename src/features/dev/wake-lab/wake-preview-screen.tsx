@@ -159,7 +159,7 @@ export function WakePreviewScreen() {
       </Card>
 
       <Card
-        icon={sym('figure.cross.training', 'accessibility_new')}
+        icon={sym('figure.strengthtraining.traditional', 'exercise')}
         title="Bench press"
         footer="The push-up camera, on its side (src/lib/wake/bench.ts), side-on to the bench. The push-up rows above set it up; a drawn push-up scene plays as its bench twin (good reps, holding the bar up, half reps, pressing air in bed, the tour)."
       >

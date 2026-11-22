@@ -21,7 +21,9 @@
  * - Jumping up with the arms raised: the hands move with the body (the same check).
  * - Holding a bar or a door frame and squatting under it: the shoulders rise and the hands stay,
  *   but the feet don't leave the floor. When the knees or ankles are seen at both the hang and
- *   the top, they must rise at least `legRise` of what the shoulders did.
+ *   the top, they must have moved at least `legStill` arms.
+ * - Kneeling up in bed under the covers: the legs are hidden. A rep needs the legs seen at the
+ *   hang and the top (`noLegs`).
  * - Standing with the arms down, sitting, lying: the hands aren't above the head (`notHanging`).
  *
  * Starting numbers from the geometry of a hang and real clips (docs/PULLUP_TESTS.md); they're JS,
@@ -148,7 +150,8 @@ export function readPullup(joints: PoseFrame['joints'], mem: PullMem, phase: str
   const bones = mean(arms.map((a) => distance(a.shoulder, a.elbow) + distance(a.elbow, a.wrist)));
   const torso = distance(shoulder, hips);
   const [least, most] = P.armToTorso;
-  if (!(torso > 0) || bones < torso * least || bones > torso * most) return { reading: { hint: 'noBody' }, mem };
+  // Number.isFinite: one NaN joint would otherwise slip past these checks and stick in the smoothed arm.
+  if (!(torso > 0) || !Number.isFinite(bones) || bones < torso * least || bones > torso * most) return { reading: { hint: 'noBody' }, mem };
   // Upright: lying down, the torso is flat; doubled over, it isn't a hang.
   if (hips.y <= shoulder.y || tiltFromUpright(shoulder, hips) > P.maxLeanDeg) return { reading: { hint: 'notHanging' }, mem };
 
@@ -203,7 +206,10 @@ export function readPullup(joints: PoseFrame['joints'], mem: PullMem, phase: str
     const rise = (hang.shoulderY - shoulder.y) / arm;
     const drift = Math.abs(handY - hang.handY) / arm;
     if (rise < P.minRise || (handsSure && drift > P.maxBarDrift)) cheat = 'bar';
-    else if (legPt && hang.leg && distance(legPt, hang.leg) < P.legStill * arm) cheat = 'feet';
+    // The legs must be seen at the hang and the top: hidden (under a duvet, kneeling up in bed),
+    // nothing tells a pull-up from rising onto the knees. Every real rep in the clips shows them.
+    else if (!legPt || !hang.leg) cheat = 'noLegs';
+    else if (distance(legPt, hang.leg) < P.legStill * arm) cheat = 'feet';
   } else if (atWork) cheat = 'bar';
 
   const info = `reach ${reach.toFixed(2)} to bar ${toBar.toFixed(2)} (hang ≥${restReach.toFixed(2)}, top ≤${P.topReach}${noseUp ? ', nose up' : ''})${

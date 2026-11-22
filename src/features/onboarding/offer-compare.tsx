@@ -13,11 +13,13 @@ import { focusIn, Reveal, useEntranceDelay } from '@/components/motion';
 import { Text } from '@/components/text';
 import type { WakeMethod } from '@/lib/routine';
 
+import { morningGoals } from './content';
+
 /** Where the moon's curve sits on the offer, as a share of the screen's height. */
 export const OFFER_ARC_AT = 0.7;
 
 /** What wakes their apps, as a row label. */
-const WAKE_ROW: Record<WakeMethod, string> = {
+const WAKE_ROW_DEFAULTS: Record<WakeMethod, string> = {
   dance: 'Dancing wakes them',
   steps: '200 steps wake them',
   scan: 'Your code wakes them',
@@ -30,6 +32,33 @@ const WAKE_ROW: Record<WakeMethod, string> = {
   sun: 'The sun wakes them',
 };
 
+/** The row, with the counts set in Routine (written above for the defaults). */
+function wakeRow(method: WakeMethod): string {
+  const goals = morningGoals();
+  switch (method) {
+    case 'steps':
+      return `${goals.steps} steps wake them`;
+    case 'pushups':
+      return `${goals.reps} push-ups wake them`;
+    case 'pullups':
+      return `${goals.pullups} pull-ups wake them`;
+    case 'bench':
+      return `${goals.bench} bench reps wake them`;
+    default:
+      return WAKE_ROW_DEFAULTS[method];
+  }
+}
+
+/** The row's icon: the way's own where it has one, as in the Routine grid (method-options.ts). */
+const WAKE_ICON: Partial<Record<WakeMethod, ReturnType<typeof sym>>> = {
+  dance: sym('figure.dance', 'taunt'),
+  pushups: sym('figure.strengthtraining.functional', 'fitness_center'),
+  pullups: sym('figure.climbing', 'sports_gymnastics'),
+  bench: sym('figure.strengthtraining.traditional', 'exercise'),
+  grass: sym('leaf', 'grass'),
+  sun: sym('sun.max', 'wb_sunny'),
+};
+
 /** A cell: a tick, a dash, or a few words. */
 type Cell = 'yes' | 'no' | string;
 type Row = { icon: ReturnType<typeof sym>; label: string; apple: Cell; ours: Cell };
@@ -39,7 +68,7 @@ function rowsFor(method: WakeMethod, compact: boolean): Row[] {
     { icon: sym('moon.zzz.fill', 'bedtime'), label: 'Apps sleep at bedtime', apple: 'yes', ours: 'yes' },
     { icon: sym('hand.tap.fill', 'do_not_touch'), label: 'No “Ignore limit” button', apple: 'no', ours: 'yes' },
     { icon: sym('sunrise.fill', 'wb_twilight'), label: 'Asleep till you’re up', apple: 'no', ours: 'yes' },
-    { icon: method === 'dance' ? sym('figure.dance', 'taunt') : sym('figure.walk', 'directions_walk'), label: WAKE_ROW[method], apple: 'no', ours: 'yes' },
+    { icon: WAKE_ICON[method] ?? sym('figure.walk', 'directions_walk'), label: wakeRow(method), apple: 'no', ours: 'yes' },
     { icon: sym('ticket.fill', 'confirmation_number'), label: 'Ways out early', apple: '∞', ours: '2/mo.' },
   ];
   // Short phones: the table has to end above the moon.

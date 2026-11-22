@@ -9,7 +9,8 @@
  * - Sun: the sun itself (a small clipped-white blob, or a sun label) in an outdoor sky. A sky in
  *   full daylight counts too, so an overcast morning isn't a lost morning: the point is daylight.
  * - Both: the camera's light reading (EXIF BrightnessValue) has to look like outdoors, which a
- *   photo of a screen or a ceiling light doesn't. Missing on some photos; then labels decide.
+ *   photo of a screen or a ceiling light doesn't. Missing on some photos; then labels decide (for
+ *   the sun, the classifier must call it sky: pale pixels alone could be a ceiling).
  * - Either way a photo whose top label is a screen is refused: a picture of a picture.
  */
 
@@ -119,7 +120,9 @@ export function judgeSun(r: PhotoReading): PhotoVerdict {
   const skyLabel = labelScore(r.labels, SKY);
   const sunLabel = labelScore(r.labels, SUN);
   const outdoors = r.brightness === null || r.brightness >= PHOTO.sunBrightness;
-  const inSky = skyLabel >= PHOTO.label || r.sky >= PHOTO.sky;
+  // Without the light reading, sky-coloured pixels alone don't prove a sky (a white ceiling round a
+  // ceiling light reads as pale sky): then the classifier has to call it sky too.
+  const inSky = skyLabel >= PHOTO.label || (r.brightness !== null && r.sky >= PHOTO.sky);
   const disc = r.blob >= PHOTO.blobMin && r.blob <= PHOTO.blobMax && r.blobFill >= PHOTO.blobFill;
   if (!outdoors) return { ok: false, miss: (disc || sunLabel >= PHOTO.label) ? 'indoors' : 'noSun' };
   if (inSky && (disc || sunLabel >= PHOTO.label)) return { ok: true, why: disc ? 'sun disc in sky' : 'sun label in sky' };

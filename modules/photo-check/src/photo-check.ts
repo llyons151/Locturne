@@ -10,9 +10,13 @@ const Native = requireOptionalNativeModule<{ read?(uri: string): Promise<Raw> }>
 /** Can this build read a wake-up photo? False on web and on older builds. */
 export const photoCheckAvailable = (): boolean => !!Native?.read;
 
-/** Reads a photo file on the phone (modules/photo-check/ios). Throws when it can't. */
-export async function readPhoto(uri: string): Promise<PhotoReading> {
+/**
+ * Reads a photo file on the phone (modules/photo-check/ios). Throws when it can't. `shotBrightness`:
+ * the camera's own EXIF light reading, from takePictureAsync, for when the file's is missing.
+ */
+export async function readPhoto(uri: string, shotBrightness: number | null = null): Promise<PhotoReading> {
   if (!Native?.read) throw new Error('PhotoCheck is not in this build');
   const raw = await Native.read(uri);
-  return { ...raw, labels: raw.labels ?? [], brightness: typeof raw.brightness === 'number' ? raw.brightness : null };
+  const brightness = typeof raw.brightness === 'number' && Number.isFinite(raw.brightness) ? raw.brightness : shotBrightness;
+  return { ...raw, labels: raw.labels ?? [], brightness };
 }

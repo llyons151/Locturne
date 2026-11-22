@@ -1,5 +1,5 @@
 import { readLock, syncLock } from '@/lib/lock-controller';
-import { getRoutine, type WakeMethod } from '@/lib/routine';
+import { getRoutine, isWakeMethod, type WakeMethod } from '@/lib/routine';
 import { methodInUse } from '@/lib/scan-code';
 import {
   finishRehearsal,
@@ -14,6 +14,9 @@ import { shieldCopy, shieldTap } from '@/lib/shield-copy';
 import { DOWNTIME_STEPS } from '@/lib/wake/downtime';
 
 import { endRehearsal, getWakePreview, rehearsalWonOnShield, rehearseTheMorning, rehearseTheNight } from '../wake-lab/wake-preview';
+
+/** A stored way, a removed one (squats) read as a walk. */
+const asMethod = (m: string): WakeMethod => (isWakeMethod(m) ? m : 'steps');
 
 /**
  * You → Rehearse a night (dev and preview builds): a whole night in about 17 minutes on the real
@@ -75,7 +78,7 @@ export function resumeRehearsal(now = new Date()): void {
   if (r.wonAt !== undefined) {
     finishRehearsal(now);
     syncLock(now);
-    if (r.wonBy === 'shield') rehearsalWonOnShield(r.method as WakeMethod, r.wonAt);
+    if (r.wonBy === 'shield') rehearsalWonOnShield(asMethod(r.method), r.wonAt);
     return;
   }
   if (!rehearsalHeld(r)) {
@@ -93,9 +96,9 @@ export function resumeRehearsal(now = new Date()): void {
   }
   const preview = getWakePreview();
   if (now.getTime() < r.end) {
-    if (preview.phase !== 'night' || preview.since !== r.end) rehearseTheNight(r.method as WakeMethod, r.end);
+    if (preview.phase !== 'night' || preview.since !== r.end) rehearseTheNight(asMethod(r.method), r.end);
     return;
   }
   rehearsalMorningIfDue(now);
-  if (preview.phase !== 'morning' || preview.since !== r.end) rehearseTheMorning(r.method as WakeMethod, r.end);
+  if (preview.phase !== 'morning' || preview.since !== r.end) rehearseTheMorning(asMethod(r.method), r.end);
 }

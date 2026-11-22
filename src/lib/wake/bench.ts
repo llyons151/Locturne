@@ -73,6 +73,12 @@ export const BENCH = {
   topGrow: 0.5,
   /** A lockout frame is at least this share of the lockout height learned so far. */
   topNear: 0.92,
+  /**
+   * Arms straight and pointing up this many frames in a row, yet under `topNear`: the learned
+   * lockout is too high (one glitch frame read the wrists high and grew it), so it eases down to
+   * them. Without this one bad frame could lock the count out for the whole set.
+   */
+  relearnFrames: 8,
   /** An arm (shoulder–elbow–wrist bones) against the torso outside this is the camera guessing. Folded at the chest, side-on, it looks short. */
   armToTorso: [0.35, 2.6],
   /** A turn back up from past this depth without reaching the chest is a half rep, said so (less is the bar wobbling at the top). */
@@ -93,9 +99,11 @@ export type BenchMem = {
   top: number | null;
   /** How far the feet are below the hips, in torsos, smoothed, or null before they're seen. */
   feet: number | null;
+  /** Frames in a row with the arms straight up but under the learned lockout (`relearnFrames`). */
+  lowRun?: number;
 };
 
-const newMem = (): BenchMem => ({ top: null, feet: null });
+const newMem = (): BenchMem => ({ top: null, feet: null, lowRun: 0 });
 
 /** The angle at `b` between `a` and `c`, in degrees (as push-ups' `angleAt`; here so the two files don't import each other). */
 function angleAt(a: Pt, b: Pt, c: Pt): number {
@@ -150,9 +158,12 @@ export function readBench(joints: PoseFrame['joints'], mem: BenchMem, _phase: st
   const straight = angle >= B.topElbowDeg;
   const upright = reach > 0 && tiltFromUpright(wrist, shoulder) <= B.maxArmLeanDeg;
   // A lockout frame refreshes the yardstick: arms straight and pointing up, and near the lockout already learned.
-  const locked = straight && upright && reach >= arm * B.firstTopReach && (mem.top === null || reach >= mem.top * B.topNear);
+  const armsUp = straight && upright && reach >= arm * B.firstTopReach;
+  const locked = armsUp && (mem.top === null || reach >= mem.top * B.topNear);
   const next: BenchMem = { ...mem };
-  if (locked) next.top = mem.top === null ? reach : mem.top + (reach - mem.top) * (reach > mem.top ? B.topGrow : B.topEase);
+  next.lowRun = armsUp && !locked ? (mem.lowRun ?? 0) + 1 : 0;
+  if (locked || next.lowRun >= B.relearnFrames)
+    next.top = mem.top === null ? reach : mem.top + (reach - mem.top) * (reach > mem.top ? B.topGrow : B.topEase);
   if (next.top === null) return { reading: { hint: 'notBench' }, mem: next };
 
   const r = reach / next.top;

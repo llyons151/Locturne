@@ -129,6 +129,14 @@ describe('pull-ups: counting', () => {
     assert.deepEqual(misses, ['feet']);
   });
 
+  test('good pull-ups with the legs hidden (kneeling up in bed under a duvet) count nothing', () => {
+    const hideLegs = (j: PoseFrame['joints']) =>
+      Object.fromEntries(Object.entries(j).filter(([k]) => !/Knee|Ankle/.test(k))) as PoseFrame['joints'];
+    const { s, misses } = run('pullups', 'pullups', pulls(5), { mess: hideLegs });
+    assert.equal(s.reps, 0);
+    assert.deepEqual(misses, ['noLegs']);
+  });
+
   test('pumping the arms lying in bed counts nothing', () => {
     const r1 = run('pullups', (t) => lyingDown(scenePose('pullAir', t, W, H)), pulls(5));
     const r2 = run('pullups', (t) => lyingDown(scenePose('pullups', t, W, H)), pulls(5));
@@ -225,6 +233,20 @@ describe('bench press: counting', () => {
     const { s, misses } = run('bench', 'bench', presses(5));
     assert.equal(s.reps, 5);
     assert.deepEqual(misses, []);
+  });
+
+  test('a learned lockout read too high (one glitch frame) relearns down instead of locking the count out', () => {
+    const j = benchPose(BW, BH, 0);
+    const first = readBench(j, { top: null, feet: null }, 'none').mem;
+    // As if one frame had read the wrists high and grown the lockout 15%.
+    let mem: typeof first = { ...first, top: first.top! * 1.15 };
+    let rest = false;
+    for (let i = 0; i < 12; i++) {
+      const out = readBench(j, mem, 'none');
+      mem = out.mem;
+      rest = 'atRest' in out.reading && out.reading.atRest;
+    }
+    assert.equal(rest, true);
   });
 
   test('the count lands at the lockout, not on the chest', () => {

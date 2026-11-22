@@ -21,7 +21,11 @@ export function actionWeight(look: HomeLook, action: HomeAction | null): 'primar
   return 'pill';
 }
 
-/** How bright the top (mornings, screen time, the week) is: dim at night, gone for a problem. */
-export function topLevel(look: HomeLook): number {
-  return look === 'problem' ? 0 : look === 'night' ? 0.35 : 1;
+/**
+ * How bright the top (mornings, screen time, the week) is: dim at night, gone for a problem.
+ * `keepTop`: a problem that leaves the rest true keeps it (the wake-up's camera or motion access
+ * off: the streak and screen time still stand, user 2026-11-21).
+ */
+export function topLevel(look: HomeLook, keepTop = false): number {
+  return look === 'problem' ? (keepTop ? 1 : 0) : look === 'night' ? 0.35 : 1;
 }

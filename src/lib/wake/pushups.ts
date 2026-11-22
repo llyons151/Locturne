@@ -205,7 +205,7 @@ export type RepRules = {
  * `bar`, the hands moved and not the body; `feet`, the feet stayed on the floor; `bed`, pressing
  * lying flat with the legs out, not on a bench.
  */
-export type Miss = 'shallow' | 'quick' | 'broke' | 'rest' | 'bar' | 'feet' | 'bed';
+export type Miss = 'shallow' | 'quick' | 'broke' | 'rest' | 'bar' | 'feet' | 'bed' | 'noLegs';
 
 export type PushupsSession = {
   /** Which rules count (`rulesFor`). */

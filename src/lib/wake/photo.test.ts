@@ -65,6 +65,12 @@ describe('Sunlight', () => {
   test('a pale wall indoors is not an overcast sky', () => {
     assert.deepEqual(judgeSun(read({ sky: 0.7, brightness: 3 })), { ok: false, miss: 'noSun' });
   });
+  test('with no light reading, a ceiling light in pale pixels is not the sun', () => {
+    assert.deepEqual(judgeSun(read({ sky: 0.5, blob: 0.01, blobFill: 0.8, brightness: null })), { ok: false, miss: 'noSun' });
+  });
+  test('with no light reading, the sun in a sky the classifier calls sky still passes', () => {
+    assert.equal(judgeSun(read({ ...sunny, brightness: null, labels: [{ id: 'blue_sky', confidence: 0.7 }] })).ok, true);
+  });
   test('a sky photo on a screen is refused', () => {
     const labels = [{ id: 'screen', confidence: 0.7 }, { id: 'sky', confidence: 0.6 }];
     assert.deepEqual(judgeSun(read({ ...sunny, labels })), { ok: false, miss: 'screen' });

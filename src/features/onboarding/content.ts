@@ -14,6 +14,10 @@ import {
   getRoutine,
   hasRoutine,
   pushupGoalOf,
+  pullupGoalOf,
+  benchGoalOf,
+  DEFAULT_PULLUP_GOAL,
+  DEFAULT_BENCH_GOAL,
   type WakeMethod,
 } from '@/lib/routine';
 import { minutesLabel } from '@/lib/wake/downtime';
@@ -528,11 +532,13 @@ const WAITING_MORNING = {
  * routine tomorrow runs on, a Routine edit waiting for bedtime included (`saveSetup`), or the
  * defaults on a first run.
  */
-export function morningGoals(): { steps: number; reps: number; downtimeSteps: number; downtimeMinutes: number } {
+export function morningGoals(): { steps: number; reps: number; pullups: number; bench: number; downtimeSteps: number; downtimeMinutes: number } {
   const next = hasRoutine() ? (getPendingRoutine()?.routine ?? getRoutine()) : null;
   return {
     steps: next?.stepGoal ?? 200,
     reps: next ? pushupGoalOf(next) : DEFAULT_PUSHUP_GOAL,
+    pullups: next ? pullupGoalOf(next) : DEFAULT_PULLUP_GOAL,
+    bench: next ? benchGoalOf(next) : DEFAULT_BENCH_GOAL,
     downtimeSteps: next ? downtimeStepsOf(next) : DEFAULT_DOWNTIME_STEPS,
     downtimeMinutes: next ? downtimeMinutesOf(next) : DEFAULT_DOWNTIME_MINUTES,
   };
@@ -556,9 +562,15 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
           : saved;
   // Written for the default 200 steps, 10 push-ups and Step away's 30 steps and 1 h; a rerun keeps
   // the ones set in Routine. Step away's numbers are only in its own copy.
-  const { steps: goal, reps, downtimeSteps, downtimeMinutes } = morningGoals();
+  const { steps: goal, reps, pullups, bench, downtimeSteps, downtimeMinutes } = morningGoals();
   const away = method === 'downtime';
-  if (goal === 200 && reps === DEFAULT_PUSHUP_GOAL && (!away || (downtimeSteps === DEFAULT_DOWNTIME_STEPS && downtimeMinutes === DEFAULT_DOWNTIME_MINUTES)))
+  if (
+    goal === 200 &&
+    reps === DEFAULT_PUSHUP_GOAL &&
+    pullups === DEFAULT_PULLUP_GOAL &&
+    bench === DEFAULT_BENCH_GOAL &&
+    (!away || (downtimeSteps === DEFAULT_DOWNTIME_STEPS && downtimeMinutes === DEFAULT_DOWNTIME_MINUTES))
+  )
     return copy;
   const swap = <T,>(value: T): T => {
     if (typeof value === 'string') {
@@ -570,7 +582,10 @@ function methodCopyFor(method: WakeMethod, codeWaits: boolean): MethodCopy {
           .replace(/^An hour\b/, minutesLabel(downtimeMinutes)) as T;
       return value
         .replace(/\b200\b/g, String(goal))
-        .replace(/\b10 push-ups\b/g, `${reps} push-ups`) as T;
+        .replace(/\b10 push-ups\b/g, `${reps} push-ups`)
+        .replace(/\b5 pull-ups\b/g, `${pullups} pull-ups`)
+        .replace(/\b10 bench reps\b/g, `${bench} bench reps`)
+        .replace(/\b(bench|benched) 10 reps\b/g, `$1 ${bench} reps`) as T;
     }
     if (Array.isArray(value)) return value.map(swap) as T;
     if (value && typeof value === 'object')
