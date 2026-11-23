@@ -76,7 +76,7 @@ export const PHOTO_WORDS: Record<ShotKind, { aim: string; line: string; body: st
 };
 
 /** Make your bed's setup photo: the spot it's taken from is the one every morning's photo is held to. */
-const SETUP_AIM = 'Made, from your usual spot';
+const SETUP_AIM = 'This will be your reference photo';
 
 type Stage =
   | { kind: 'camera'; miss?: { line: string; body: string } }
@@ -87,8 +87,7 @@ type Stage =
   | { kind: 'notMethod' }
   | { kind: 'oldBuild' }
   | { kind: 'noSetup' }
-  | { kind: 'asleep' }
-  | { kind: 'saved' };
+  | { kind: 'asleep' };
 
 const available = (kind: ShotKind) =>
   kind === 'pet' ? petCheckAvailable() : kind === 'bed' ? bedCheckAvailable() : photoCheckAvailable();
@@ -224,7 +223,8 @@ export function PhotoScreen({
     if (setup && kept === 'asleep') return setStage({ kind: 'asleep' });
     haptic.done();
     setStage({ kind: 'passed' });
-    setTimeout(() => (setup ? setStage({ kind: 'saved' }) : wake(pretend)), PASS_HOLD);
+    // The setup photo just closes once it's kept: the camera said what it's for.
+    setTimeout(() => (setup ? close() : wake(pretend)), PASS_HOLD);
   };
 
   const wake = (pretend: boolean) => {
@@ -301,15 +301,7 @@ export function PhotoScreen({
                     line: 'Not from bed.',
                     body: 'You can set up or change your bed photo in the day, once you’re up. Otherwise I’d let you photo the floor.',
                   }
-                : stage.kind === 'saved'
-                  ? {
-                      line: 'That’s the bar now.',
-                      body:
-                        fake === 'real'
-                          ? 'Every morning: make it like this, then a photo from the same spot.'
-                          : 'Pretend camera: nothing was saved.',
-                    }
-                  : { line: 'Not on this version.', body: 'Update Locturne from the App Store to use this. Your walk still works.' };
+                : { line: 'Not on this version.', body: 'Update Locturne from the App Store to use this. Your walk still works.' };
     return (
       <View style={[styles.screen, { paddingTop: insets.top + Space.m, paddingBottom: insets.bottom + Space.xxl }]}>
         <Animated.View entering={FadeIn.duration(300)} style={styles.top}>
@@ -318,7 +310,7 @@ export function PhotoScreen({
         </Animated.View>
         <View style={styles.flex} />
         <View style={styles.bottom}>
-          <PrimaryButton label={stage.kind === 'saved' ? 'Done' : 'Okay'} onPress={close} />
+          <PrimaryButton label="Okay" onPress={close} />
           {stage.kind === 'oldBuild' || stage.kind === 'noSetup' ? <TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} /> : null}
         </View>
       </View>

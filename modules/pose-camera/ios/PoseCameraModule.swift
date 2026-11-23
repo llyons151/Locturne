@@ -627,12 +627,17 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     // read to every third frame; 50 ms splits the 33 ms and 67 ms gaps cleanly.
     let now = frame.stamp.isFinite ? frame.stamp : CACurrentMediaTime()
     lock.lock()
-    let resting = model != nil && eased && now - lastModelRead < Self.easedGap
+    let easing = model != nil && eased
+    let resting = easing && now - lastModelRead < Self.easedGap
     let held = lastTraced
     lock.unlock()
     if resting { return hand(sampleBuffer, held) }
 
-    if let model, !late {
+    // Eased, frames never wait for their tracing: with every other one held ~20 ms for its read and
+    // the ones between shown at once, they came out 17 ms then 50 ms apart (measured on the user's
+    // 1:47 pm recording, 2026-11-23; some seconds only 15 a second), and the recordings juddered. Every frame goes up the moment it comes, a frame ahead
+    // of its lines, as when behind.
+    if let model, !late, !easing {
       // Keeping up: each frame waits for its own tracing and they're shown together, so the lines
       // can't trail the body.
       lock.lock()
@@ -641,7 +646,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
       let traced = trackQueue.sync { read(frame, with: model) }
       return hand(sampleBuffer, traced)
     }
-    // Behind (an older iPhone, or one hot or in Low Power Mode), or Vision (slower, and reading up to
+    // Behind (an older iPhone, or one hot or in Low Power Mode), eased, or Vision (slower, and reading up to
     // four turns of a frame when it struggles): the frame is shown at once with the last finished
     // tracing, never held up, and the reader takes the next frame whenever it's free. The lines
     // trail the body by a frame or so; the picture stays smooth.

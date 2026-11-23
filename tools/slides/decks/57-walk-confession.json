@@ -1,0 +1,100 @@
+{
+ "title": "my phone won't open tiktok until i walk 200 steps",
+ "format": "Caption-on-photo confession story; every slide after the hook is the app doing its weird thing",
+ "job": "comment",
+ "app": "confession",
+ "why": "Built to make people ask 'what app?'. The 52 listicles show the app as a fix on one slide, which reads as an ad, and got zero installs. Here the strange mechanic (apps sleep, 200 steps to wake them, a raccoon judges you) is the hook itself, told as a confession, with real app screens on 3 of 7 slides (Erly shape: forced moment, physical act, app gives in). The name only appears as a throwaway last line plus a pinned comment, so the post still feels native.",
+ "compare": "zararose-phone-in-bed",
+ "account": "@locturne",
+ "caption": "the raccoon is honestly the worst part. would you make it to 200? #screentime #phoneaddiction #morningroutine #sleep",
+ "sound": "trending funny/chaotic sound, low volume",
+ "size": [
+  1080,
+  1920
+ ],
+ "check": [
+  "PIN this comment right after posting: it's Locturne on the App Store 🌙 (nocturne with an L)",
+  "reply to every 'what app' comment, ideally with a video reply of you walking the 200 steps",
+  "slide 7 '12 mornings in a row': change the number to your real count (render shows 12)",
+  "promo: turn on TikTok's \"Your brand\" disclosure"
+ ],
+ "slides": [
+  {
+   "layout": "pic",
+   "image": "/photos/pov-bed-phone.jpg",
+   "caps": [
+    {
+     "text": "my phone won't open tiktok in the morning until i walk 200 steps",
+     "y": 66,
+     "size": 56,
+     "style": "outline",
+     "w": 80
+    }
+   ]
+  },
+  {
+   "layout": "screen",
+   "line": "it starts at night. 11:30\nmy apps just go to sleep",
+   "phone": "/photos/renders/13-shield-night.png",
+   "bg": "/photos/phone-on-duvet.jpg"
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/morning-bed-dim.jpg",
+   "caps": [
+    {
+     "text": "7am. i reach for my phone like i always do",
+     "y": 66,
+     "size": 56,
+     "style": "outline",
+     "w": 78
+    }
+   ]
+  },
+  {
+   "layout": "screen",
+   "line": "and it just starts counting my steps",
+   "phone": "/photos/renders/02-steps-clean.png",
+   "bg": "/photos/blinds-sunrise.jpg"
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/bed-blind-shadows.jpg",
+   "caps": [
+    {
+     "text": "so every morning i'm doing laps of my apartment like a zoo animal so i can check my notifications",
+     "y": 62,
+     "size": 54,
+     "style": "outline",
+     "w": 80
+    }
+   ]
+  },
+  {
+   "layout": "screen",
+   "line": "and at 200 a raccoon\ncalls me unsettling",
+   "phone": "/photos/renders/03-payoff.png",
+   "bg": "/photos/blinds-sunrise.jpg"
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/coffee.jpg",
+   "caps": [
+    {
+     "text": "12 mornings in a row now\nhaven't scrolled in bed once",
+     "y": 40,
+     "size": 58,
+     "style": "outline",
+     "w": 80
+    },
+    {
+     "text": "(it's called locturne if you're also unwell)",
+     "y": 74,
+     "size": 42,
+     "style": "outline",
+     "w": 80
+    }
+   ]
+  }
+ ]
+}
