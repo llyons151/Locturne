@@ -14,13 +14,14 @@
   1350
  ],
  "check": [
-  "closer: 'i was 5/5'. Only if true for you"
+  "closer: 'i was 5/5'. Only if true for you",
+  "slide 1 photo (dark-closeup-girl2) is AI-made: turn ON the AI label"
  ],
  "slides": [
   {
    "layout": "hook",
    "title": "5 signs your phone is why you're always tired",
-   "image": "/photos/pillow-over-head.jpg",
+   "image": "/photos/dark-closeup-girl2.jpg",
    "narrow": true,
    "aside": "(it's not the coffee)",
    "asideRight": true

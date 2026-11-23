@@ -1,0 +1,20 @@
+- CLI commands + examples: `references/cli.md`
+- API parameter quick reference: `references/image-api.md`
+- Network approvals / sandbox settings for CLI mode: `references/codex-network.md`
+
+## Reference map
+- `references/prompting.md`: shared prompting principles for both modes.
+- `references/sample-prompts.md`: shared copy/paste prompt recipes for both modes.
+- `references/cli.md`: fallback-only CLI usage via `scripts/image_gen.py`.
+- `references/image-api.md`: fallback-only API/CLI parameter reference.
+- `references/codex-network.md`: fallback-only network/sandbox troubleshooting for CLI mode.
+- `scripts/image_gen.py`: fallback-only CLI implementation. Use only when the user explicitly chooses or confirms CLI mode.
+
+exec
+/usr/bin/bash -lc 'mkdir -p public/cooked/v2 && cp /home/mokey/.codex/generated_images/01a1f4b5-2e56-79f2-93ec-97bce4f7c7fa/exec-57be43e1-6b8c-4dcf-a69b-e2f96eecbccb.png public/cooked/v2/c.png' in /tmp/tmp.DmAubYWvfk
+ succeeded in 0ms:
+codex
+public/cooked/v2/c.png
+tokens used
+14,588
+public/cooked/v2/c.png
