@@ -8,9 +8,11 @@
  * - Grass: a grass-like label, or a plant-like label with most of the photo grass-green.
  * - Sun: the sun itself (a small clipped-white blob, or a sun label) in an outdoor sky. A sky in
  *   full daylight counts too, so an overcast morning isn't a lost morning: the point is daylight.
- * - Both: the camera's light reading (EXIF BrightnessValue) has to look like outdoors, which a
- *   photo of a screen or a ceiling light doesn't. Missing on some photos; then labels decide (for
- *   the sun, the classifier must call it sky: pale pixels alone could be a ceiling).
+ * - Sun: the camera's light reading (EXIF BrightnessValue) has to look like daylight, which a
+ *   ceiling light doesn't. Missing on some photos; then the classifier must call it sky (pale
+ *   pixels alone could be a ceiling).
+ * - Grass has no light check (2026-11-22): outdoors before sunrise reads darker than any room, so
+ *   a dark reading refused real lawns as "not outside". The grass labels + green do the work.
  * - Either way a photo whose top label is a screen is refused: a picture of a picture.
  */
 
@@ -59,8 +61,6 @@ export const PHOTO = {
   weakGrass: 0.1,
   /** A screen label this sure refuses the photo. */
   screen: 0.35,
-  /** Below this light reading, grass is indoors (or a screen). Dawn under trees is about 1 to 2. */
-  grassBrightness: 1,
   /** Below this, it's not daylight (or it's a lamp). */
   sunBrightness: 4,
   /** The sun's blob: a speck at the least, never most of the frame, roughly round. */
@@ -109,7 +109,6 @@ export function judgeGrass(r: PhotoReading): PhotoVerdict {
           ? 'weak grass label + green'
           : null;
   if (!looks) return { ok: false, miss: 'notGrass' };
-  if (r.brightness !== null && r.brightness < PHOTO.grassBrightness) return { ok: false, miss: 'indoors' };
   return { ok: true, why: looks };
 }
 

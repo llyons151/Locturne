@@ -27,8 +27,8 @@ describe('Touch grass', () => {
   test('green alone (a green towel) is not grass', () => {
     assert.deepEqual(judgeGrass(read({ labels: [{ id: 'textile', confidence: 0.8 }], green: 0.9, brightness: 3 })), { ok: false, miss: 'notGrass' });
   });
-  test('a houseplant in a dark room is indoors', () => {
-    assert.deepEqual(judgeGrass(read({ labels: [{ id: 'grass', confidence: 0.6 }], green: 0.5, brightness: -1 })), { ok: false, miss: 'indoors' });
+  test('grass outside in the dark (before sunrise) still passes', () => {
+    assert.equal(judgeGrass(read({ labels: [{ id: 'grass', confidence: 0.6 }], green: 0.5, brightness: -3 })).ok, true);
   });
   test('grass on a screen is refused', () => {
     const labels = [{ id: 'computer_monitor', confidence: 0.8 }, { id: 'grass', confidence: 0.5 }];
