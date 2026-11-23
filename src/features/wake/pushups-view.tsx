@@ -261,6 +261,7 @@ function useTurn(
   live: boolean,
   preview?: PushupsPreview,
   standing = false,
+  long = false,
 ): { turn: PhoneTurn; hint: ViewHint | null; upright: boolean } {
   const sensed = usePhone(live);
   // Dance stands the phone up: the preview's sideways default (push-ups') doesn't apply to it.
@@ -270,9 +271,12 @@ function useTurn(
   const hint = forced ? (live ? forced.hint : null) : sensed.hint;
   // `upright` is the accelerometer's alone, never a preview's pretend turn: the camera learns its angle from it.
   const upright = sensed.turn === 'portrait' && sensed.hint !== 'flat';
-  // Never nudged to turn it: dance stands it up (a standing body is tall), and push-ups count
-  // facing the camera too (2026-11-16), where upright sees all of you.
-  return { turn, hint: hint === 'tall' ? null : hint, upright };
+  // Nudged to turn it only for the bench press (`long`): lying on a bench you're as long as the
+  // picture is wide, and upright the feet fall off the edge, and they're how a bench is told
+  // from a bed (the user's set, 2026-11-22: phone upright and close, every rep lost). Dance
+  // stands it up (a standing body is tall), and push-ups count facing the camera too
+  // (2026-11-16), where upright sees all of you.
+  return { turn, hint: hint === 'tall' && !long ? null : hint, upright };
 }
 
 /**
@@ -466,7 +470,7 @@ export function PushupsCamera({
   // The phone on its side (the main way for push-ups) or upright. The app stays portrait; this screen turns its
   // own contents to stand up with the phone, as the Camera app turns its icons, and the camera is
   // told the same, so the joints come back in the turned screen's points (PoseCameraModule.swift).
-  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, preview, standsUp(exercise));
+  const { turn: sensed, hint: phone, upright } = useTurn(status !== 'met' && !timedOut, preview, standsUp(exercise), exercise === 'bench');
   const { shown: turn, flood } = useFlood(sensed);
   const side = turn !== 'portrait';
   const width = side ? screen.height : screen.width;
@@ -570,8 +574,10 @@ export function PushupsCamera({
 
   // The phone lying flat, upside down or upright: say that first, it's why he can't see (all of) you.
   // His bubble is the only words on the picture: the setup is on Home, before Start.
-  const line = phone
-    ? PHONE_LINES[phone]
+  // Bench upright: only until it's counting with the feet seen. Far enough back, upright sees them too.
+  const nudge = phone === 'tall' && status === 'counting' ? null : phone;
+  const line = nudge
+    ? PHONE_LINES[nudge]
     : exercise === 'pushups'
       ? pushupsLine(status, reps, target, session?.miss ?? null, session?.hint ?? null, FILMING)
       : LINES[exercise](status, reps, target, session?.miss ?? null, session?.hint ?? null);

@@ -29,6 +29,11 @@ export type Reading =
       atWork: boolean;
       /** At work, why it doesn't count (the anti-cheat checks), or null when it's fair. */
       cheat: Cheat | null;
+      /**
+       * At work so clearly that one frame is enough (bench press: the bar right on the chest, the
+       * elbow folded). A touch-and-go bottom lasts about a third of a second, one or two readings.
+       */
+      deep?: boolean;
       /** For the readout: the exercise's own numbers this frame. */
       info: string;
     };
@@ -55,6 +60,11 @@ export type TravelRules<M> = {
   reArmDepth: number;
   /** When the rep counts: on reaching work (pull-ups) or back at rest after it (bench press). */
   countAt: 'work' | 'rest';
+  /**
+   * `countAt: 'rest'`: frames at rest, back from work, that count the rep (default `restFrames`).
+   * Back up from the chest is the rep; a lifter who re-grips half locked out gives one or two.
+   */
+  backFrames?: number;
   /** A bottom (bench press) seen before the body was lost still counts if rest comes back within this long. */
   regainMs: number;
   /** On the way from rest to work longer than this, and it's not a rep in progress: rest is needed again. */
@@ -175,7 +185,7 @@ export function addTravelPose<M>(s: PushupsSession, frame: PoseFrame, R: TravelR
   if (t.phase === 'rest' || t.phase === 'going') {
     if (t.phase === 'rest' && !reading.atRest) t.phase = 'going';
     if (t.phase === 'going') t.best = Math.max(t.best, reading.depth);
-    if (t.workRun >= R.workFrames) {
+    if (t.workRun >= R.workFrames || (fair && reading.deep)) {
       t.phase = 'work';
       t.dipped = false;
       if (R.countAt === 'work') count(next, at, R as TravelRules<unknown>);
@@ -194,7 +204,7 @@ export function addTravelPose<M>(s: PushupsSession, frame: PoseFrame, R: TravelR
   }
 
   // At work: waiting for rest.
-  if (t.restRun >= R.restFrames) {
+  if (t.restRun >= (R.backFrames ?? R.restFrames)) {
     if (R.countAt === 'rest') count(next, at, R as TravelRules<unknown>);
     t.phase = 'rest';
     t.best = 0;

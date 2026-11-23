@@ -40,6 +40,8 @@ export const BENCH = {
   minConfidence: 0.2,
   restFrames: 2,
   workFrames: 2,
+  /** Back up from the chest, one locked-out frame counts it: touch-and-go sets barely pause at the top (the user's set, 2026-11-22). */
+  backFrames: 1,
   /** Locked out: the wrists at least this share of the lockout height above the shoulders… */
   topR: 0.88,
   /** …with the elbows (where readable) at least this straight. */
@@ -48,6 +50,16 @@ export const BENCH = {
   firstTopReach: 0.7,
   /** At the chest: the wrists at most this share of the lockout height above the shoulders (the bar on the chest is about 0.3). */
   downR: 0.45,
+  /**
+   * So deep that one frame is enough: the bar down to `deepR` with the elbow folded to at most
+   * `deepElbowDeg`, or right down (`lowR`) with it at most `downElbowDeg`. Touch-and-go reps sit
+   * at the chest about a third of a second, often one reading at the camera's ~10 a second; those
+   * single readings were r 0.17–0.34 at 64–66° (the user's own set, 2026-11-22). A jittery half
+   * rep's lowest reads about 0.45 at 70–79°, so two frames are still needed there.
+   */
+  deepR: 0.4,
+  deepElbowDeg: 70,
+  lowR: 0.3,
   /** Or an elbow at most this bent, with the bar down at least to `elbowR`. */
   downElbowDeg: 90,
   elbowR: 0.5,
@@ -68,6 +80,17 @@ export const BENCH = {
    */
   minFeetDrop: 0.33,
   feetEase: 0.1,
+  /**
+   * An ankle is only a foot this surely. Out of the picture MediaPipe still guesses where the
+   * ankles are, at 0.3–0.53 (the user's set 2026-11-22: phone close, legs off the edge, every guess
+   * level with the hips, so every rep was called a bed). Seen ankles mostly read 0.55–1 (real clips).
+   */
+  feetSure: 0.6,
+  /**
+   * The feet, once seen on a bench, carry through frames where they aren't (a leg slides out of
+   * the picture, a plate in the way); after this long without a body they must be seen again.
+   */
+  forgetFeetMs: 4_000,
   /** The lockout height's smoothing on each lockout frame: down slowly, up faster. */
   topEase: 0.2,
   topGrow: 0.5,
@@ -101,6 +124,8 @@ export type BenchMem = {
   feet: number | null;
   /** Frames in a row with the arms straight up but under the learned lockout (`relearnFrames`). */
   lowRun?: number;
+  /** When a body was last read (`forgetFeetMs`). */
+  bodyAt?: number;
 };
 
 const newMem = (): BenchMem => ({ top: null, feet: null, lowRun: 0 });
@@ -134,8 +159,10 @@ function bestSide(joints: PoseFrame['joints']): Side | null {
   return best;
 }
 
-export function readBench(joints: PoseFrame['joints'], mem: BenchMem, _phase: string, _at = 0): { reading: Reading; mem: BenchMem } {
+export function readBench(joints: PoseFrame['joints'], mem0: BenchMem, _phase: string, at = 0): { reading: Reading; mem: BenchMem } {
   const B = BENCH;
+  // Gone a while (off the bench, out of the picture): the feet have to be seen again.
+  const mem = mem0.bodyAt !== undefined && at - mem0.bodyAt > B.forgetFeetMs ? { ...mem0, feet: null } : mem0;
   const arm0 = bestSide(joints);
   const hip = arm0?.hip ?? midOf(joints, 'Hip', B.minConfidence);
   if (!arm0 || !hip) return { reading: { hint: 'noBody' }, mem };
@@ -147,10 +174,10 @@ export function readBench(joints: PoseFrame['joints'], mem: BenchMem, _phase: st
   // Standing or sitting up (an overhead press, a shoulder press): not on the bench.
   if (tiltFromUpright(shoulder, hip) < B.minLieDeg) return { reading: { hint: 'notBench' }, mem };
   // Not the knees: on a bench they're about level with the hips (a bench is about a shin high), as in bed.
-  const ankle = midOf(joints, 'Ankle', B.minConfidence);
+  const ankle = midOf(joints, 'Ankle', B.feetSure);
   const hips = midOf(joints, 'Hip', B.minConfidence) ?? hip;
-  // The feet out of the picture: say so, they're how he tells a bench from a bed.
-  if (!ankle) return { reading: { hint: 'noFeet' }, mem };
+  // The feet never seen: say so, they're how he tells a bench from a bed. Seen once, they carry.
+  if (!ankle && mem.feet === null) return { reading: { hint: 'noFeet' }, mem: { ...mem, bodyAt: at } };
 
   // Up in the picture is up in the room: how far the bar is above the shoulders.
   const reach = shoulder.y - wrist.y;
@@ -160,7 +187,7 @@ export function readBench(joints: PoseFrame['joints'], mem: BenchMem, _phase: st
   // A lockout frame refreshes the yardstick: arms straight and pointing up, and near the lockout already learned.
   const armsUp = straight && upright && reach >= arm * B.firstTopReach;
   const locked = armsUp && (mem.top === null || reach >= mem.top * B.topNear);
-  const next: BenchMem = { ...mem };
+  const next: BenchMem = { ...mem, bodyAt: at };
   next.lowRun = armsUp && !locked ? (mem.lowRun ?? 0) + 1 : 0;
   if (locked || next.lowRun >= B.relearnFrames)
     next.top = mem.top === null ? reach : mem.top + (reach - mem.top) * (reach > mem.top ? B.topGrow : B.topEase);
@@ -171,14 +198,18 @@ export function readBench(joints: PoseFrame['joints'], mem: BenchMem, _phase: st
   const atRest = r >= B.topR && straight && upright;
   // Both the bar and the elbow say so: a wrist misread low with the elbow nearly straight is the camera, not a rep.
   const atWork = angle <= B.maxDownElbowDeg && (r <= B.downR || (angle <= B.downElbowDeg && r <= B.elbowR));
+  const deep = atWork && ((r <= B.deepR && angle <= B.deepElbowDeg) || (r <= B.lowR && angle <= B.downElbowDeg));
   // In bed (or on the floor) the legs lie flat: the ankles about level with the hips, all the time.
-  const feetDrop = (ankle.y - hips.y) / torso;
-  // Clamped: a misread ankle up by the head mustn't drag the average for seconds.
-  const drop = Math.min(1.5, Math.max(-0.5, feetDrop));
-  next.feet = mem.feet === null ? drop : mem.feet + (drop - mem.feet) * B.feetEase;
-  const cheat: Cheat | null = atWork && next.feet < B.minFeetDrop ? 'bed' : null;
-  const info = `r ${r.toFixed(2)} (top ≥${B.topR}, chest ≤${B.downR})  elbow ${Math.round(angle)}°  feet ${feetDrop.toFixed(2)} (avg ${next.feet.toFixed(2)} ≥${B.minFeetDrop})`;
-  return { reading: { depth, atRest, atWork, cheat, info }, mem: next };
+  const feetDrop = ankle ? (ankle.y - hips.y) / torso : null;
+  if (feetDrop !== null) {
+    // Clamped: a misread ankle up by the head mustn't drag the average for seconds.
+    const drop = Math.min(1.5, Math.max(-0.5, feetDrop));
+    next.feet = mem.feet === null ? drop : mem.feet + (drop - mem.feet) * B.feetEase;
+  }
+  const feet = next.feet ?? 0;
+  const cheat: Cheat | null = atWork && feet < B.minFeetDrop ? 'bed' : null;
+  const info = `r ${r.toFixed(2)} (top ≥${B.topR}, chest ≤${B.downR})  elbow ${Math.round(angle)}°  feet ${feetDrop === null ? 'unseen' : feetDrop.toFixed(2)} (avg ${feet.toFixed(2)} ≥${B.minFeetDrop})`;
+  return { reading: { depth, atRest, atWork, cheat, deep, info }, mem: next };
 }
 
 export const BENCH_RULES: TravelRules<BenchMem> = {
