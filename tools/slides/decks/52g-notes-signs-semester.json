@@ -1,0 +1,81 @@
+{
+ "title": "5 signs your phone is wrecking your semester",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "finals week, be honest: how many? #college #studytok #finals",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'all 5'. Only if true for you",
+  "slide 1 photo (hoodie-guy) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your phone is wrecking your semester",
+   "image": "/photos/hoodie-guy.jpg",
+   "narrow": true,
+   "aside": "(finals week edition)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "you \"study\" with _tiktok open_",
+   "top": "one page, _six videos_",
+   "text": "the chapter took 3 hours\n\nthe reading took _20 minutes_",
+   "bottom": "",
+   "image": "/photos/journal.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you start the essay _at midnight_",
+   "top": "it's due at 9. you had _two weeks_",
+   "text": "and the first hour is still _scrolling_",
+   "bottom": "",
+   "image": "/photos/window-city-dark.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you miss your 8am _from your bed_",
+   "top": "awake, phone in hand, _watching the time pass_",
+   "text": "you weren't asleep\n\nyou just _couldn't get up_",
+   "bottom": "",
+   "image": "/photos/morning-bed-dim.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you're _tired in every lecture_",
+   "top": "running on 5 hours and _an energy drink_",
+   "text": "the 2am scroll is a loan\n\nyou pay it back _at 10am_",
+   "bottom": "",
+   "image": "/photos/bed-white-rumpled.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "your feed _doesn't know you have finals_",
+   "top": "it doesn't care _what's due tomorrow_",
+   "text": "so my apps _go to sleep at bedtime_ now\n\nand in the morning they stay asleep _till i do 10 push-ups_",
+   "bottom": "",
+   "phone": "/photos/renders/06-pushups.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "how many apply this semester? 👇",
+   "lines": [
+    "all 5. it's finals week",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

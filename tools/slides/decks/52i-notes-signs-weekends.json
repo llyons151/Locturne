@@ -1,0 +1,81 @@
+{
+ "title": "5 signs your weekends belong to your phone",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "what time did you sleep friday? #weekend #sleepschedule #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'every single weekend'. Only if true for you",
+  "slide 1 photo (bed-b) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your weekends belong to your phone",
+   "image": "/photos/bed-b.jpg",
+   "narrow": true,
+   "aside": "(saturday edition)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "friday night _ends at 4am_",
+   "top": "nothing happened. _you were just scrolling_",
+   "text": "and saturday starts _at 1pm_",
+   "bottom": "",
+   "image": "/photos/bedroom-night-purple.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you wake up at noon and _stay in bed till 2_",
+   "top": "the first 2 hours of your day are _a feed_",
+   "text": "half the weekend is gone _before breakfast_",
+   "bottom": "",
+   "image": "/photos/blinds-sunrise.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "your sunday is _one long scroll_",
+   "top": "plans? maybe. _after this video_",
+   "text": "then it's dark and you _didn't go anywhere_",
+   "bottom": "",
+   "image": "/photos/rain-bokeh-night.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "monday hits _like a truck_",
+   "top": "two late nights _broke your sleep_",
+   "text": "you slept in all weekend\n\nand _still_ feel jet-lagged",
+   "bottom": "",
+   "image": "/photos/woman-in-bed.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "weekends need _a bedtime too_",
+   "top": "_\"it's saturday\"_ is how 1am turns into 4am",
+   "text": "my apps sleep at the same time _every night_ now, weekends too\n\nand every morning i get up, _i collect a moon_",
+   "bottom": "",
+   "phone": "/photos/renders/09-moons.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "what time did you go to bed friday? 👇",
+   "lines": [
+    "every single weekend",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

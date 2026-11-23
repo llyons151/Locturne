@@ -1,0 +1,81 @@
+{
+ "title": "5 signs you sleep 8 hours and still wake up wrecked",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "which number are you? #sleep #tired #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer + 'actually rested'. Only if true for you",
+  "slide 1 photo (hoodie-girl) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs you sleep 8 hours and still wake up wrecked",
+   "image": "/photos/hoodie-girl.jpg",
+   "narrow": true,
+   "aside": "(it's not the mattress)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "your 8 hours _start at 2am_",
+   "top": "in bed at 11, _asleep at 2_",
+   "text": "time in bed isn't _time asleep_",
+   "bottom": "",
+   "image": "/photos/leg-out-sheets.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "the last thing you see is _a bright screen_",
+   "top": "inches from your face, _in the dark_",
+   "text": "then you wonder why your brain\n\nis _still wide awake_",
+   "bottom": "",
+   "image": "/photos/red-glow-figure.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you wake up _at 3am and check it_",
+   "top": "\"just the time\". _then 20 minutes of reels_",
+   "text": "one check _restarts the whole night_",
+   "bottom": "",
+   "image": "/photos/clock-dark-room.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you dream about _the videos_",
+   "top": "your brain is _still sorting the feed_",
+   "text": "it never got _a quiet hour_ to wind down",
+   "bottom": "",
+   "image": "/photos/moon-cloud-trees.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "the fix was _the hour before bed_",
+   "top": "not a new pillow. _not melatonin_",
+   "text": "my apps _switch off at bedtime_ so the last hour is quiet\n\nand i wake up _actually rested_",
+   "bottom": "",
+   "phone": "/photos/renders/01-asleep-clean.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "which number are you? 👇",
+   "lines": [
+    "all of them, every night",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

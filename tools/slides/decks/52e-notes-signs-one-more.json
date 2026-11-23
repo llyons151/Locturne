@@ -1,0 +1,80 @@
+{
+ "title": "5 signs you're a \"one more video\" person",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "be honest, how many \"one mores\" last night? #doomscrolling #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'way too many'. Only if true for you"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs you're a \"one more video\" person",
+   "image": "/photos/scrolling-overhead.jpg",
+   "narrow": true,
+   "aside": "(you know who you are)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "_\"one more\"_ is never one",
+   "top": "it's one more, _then 40 more_",
+   "text": "the feed knows the next one is better\n\nthat's _its whole job_",
+   "bottom": "",
+   "image": "/photos/phone-blue-dark.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you skip videos _you'd actually like_",
+   "top": "too slow, _swipe_. too long, _swipe_",
+   "text": "you're not watching anymore\n\nyou're _hunting_",
+   "bottom": "",
+   "image": "/photos/hand-lit-black.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you can't remember _a single one_",
+   "top": "2 hours of videos and _nothing stayed_",
+   "text": "if someone asked what you watched\n\nyou'd say _\"stuff\"_",
+   "bottom": "",
+   "image": "/photos/reading-dark.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "lights off... _screen back on_",
+   "top": "you put it down. 30 seconds. _you pick it up again_",
+   "text": "the ending never feels like _the end_",
+   "bottom": "",
+   "image": "/photos/dark-room-window.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you need _a hard stop_, not a better feed",
+   "top": "no feed will ever say _\"that's enough\"_",
+   "text": "so when i'm stuck i put my apps _to sleep early_\n\none hold and they're _gone_ for as long as i pick",
+   "bottom": "",
+   "phone": "/photos/renders/10-block-now-clean.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "how many \"one mores\" did you do last night? 👇",
+   "lines": [
+    "way too many",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

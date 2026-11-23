@@ -1,0 +1,81 @@
+{
+ "title": "5 signs you need a phone curfew",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "screen time today? be honest #screentime #digitaldetox",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: '5/5'. Only if true for you",
+  "slide 1 photo (bed-c) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs you need a phone curfew",
+   "image": "/photos/bed-c.jpg",
+   "narrow": true,
+   "aside": "(not a lecture)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "you've watched _the sunrise_ from your bed",
+   "top": "not on purpose. _you just never stopped_",
+   "text": "the birds start up and you're _still on reels_",
+   "bottom": "",
+   "image": "/photos/stars-forest.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "screen time _over 7 hours_",
+   "top": "and you _turned off the weekly report_",
+   "text": "if you don't look\n\nit's _not real_",
+   "bottom": "",
+   "image": "/photos/hand-lit-black.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you deleted tiktok and _reinstalled it that night_",
+   "top": "_twice_",
+   "text": "deleting doesn't work when reinstalling is _one tap away_",
+   "bottom": "",
+   "image": "/photos/phone-on-duvet.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "screen time limit? you hit _\"ignore\"_",
+   "top": "_\"15 more minutes\"_ every 15 minutes",
+   "text": "a limit you can skip\n\nis just _a suggestion_",
+   "bottom": "",
+   "image": "/photos/hands-lit-bed.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you need a curfew _you can't skip_",
+   "top": "no _\"ignore for today\"_ button",
+   "text": "at bedtime my apps go to sleep and wake up _when i get up_\n\nthe only way out is _2 passes a month_",
+   "bottom": "",
+   "phone": "/photos/renders/shield.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "how many hours was your screen time today? 👇",
+   "lines": [
+    "5/5. hence the curfew",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

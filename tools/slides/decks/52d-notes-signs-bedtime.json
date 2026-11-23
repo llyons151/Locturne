@@ -1,0 +1,80 @@
+{
+ "title": "5 signs your bedtime is just a suggestion",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "what time did you actually fall asleep last night? #bedtime #sleepschedule #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'guilty of all 5'. Only if true for you"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your bedtime is just a suggestion",
+   "image": "/photos/bed-dark-streak.jpg",
+   "narrow": true,
+   "aside": "(no judgement)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "you say _\"i'll sleep at 11\"_ every night",
+   "top": "and every night it's _somehow 1:40_",
+   "text": "you're not setting a bedtime\n\nyou're setting a _starting point_",
+   "bottom": "",
+   "image": "/photos/clock-midnight-black.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you get in bed _to scroll_, not to sleep",
+   "top": "bed is just the _comfiest place_ to be on your phone",
+   "text": "your brain now thinks bed means _feed_",
+   "bottom": "",
+   "image": "/photos/pov-bed-phone.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "your alarm math _keeps shrinking_",
+   "top": "\"if i sleep now i get 7 hours\"... _6 and a half_... _6_",
+   "text": "you've done this math _three times tonight_",
+   "bottom": "",
+   "image": "/photos/lamp-nightstand-dark.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "your charger lives _next to your pillow_",
+   "top": "the phone sleeps _closer to you_ than anyone",
+   "text": "and it's _never_ the one that falls asleep first",
+   "bottom": "",
+   "image": "/photos/phone-on-duvet.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "bedtime has to _actually mean something_",
+   "top": "a reminder at 11 is _easy to swipe away_",
+   "text": "so i made mine a lock. at bedtime my apps _shut off_\n\nthey open again in the morning, _once i'm up and walking_",
+   "bottom": "",
+   "phone": "/photos/renders/01-asleep-clean.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "what time did you actually sleep last night? 👇",
+   "lines": [
+    "guilty of all 5",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

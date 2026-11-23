@@ -1,0 +1,82 @@
+{
+ "title": "5 signs you and your partner go to bed together but not really",
+ "format": "Notes listicle, app on one point",
+ "job": "share",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "tag the one who scrolls next to you. who falls asleep first? #couples #relationships #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'we were 5/5' + 'we talk again'. Only if true for you",
+  "point 5: bedtime at 11pm matches the 01-shield render",
+  "slide 4 photo (lamp-room) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs you and your partner go to bed together but not really",
+   "image": "/photos/unmade-bed.jpg",
+   "narrow": true,
+   "aside": "(send this to them)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "same bed, _different apps_",
+   "top": "two screens, _zero conversation_",
+   "text": "you used to talk before falling asleep\n\nnow you _send each other reels_ from 2 feet away",
+   "bottom": "",
+   "image": "/photos/phone-glow-room.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "\"night\" happens _45 minutes_ before sleep",
+   "top": "you say goodnight, then _both keep scrolling_",
+   "text": "goodnight became _a formality_",
+   "bottom": "",
+   "image": "/photos/bed-blind-shadows.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "one of you _always_ falls asleep first",
+   "top": "the other is still lit up _like a nightlight_",
+   "text": "and you both swear _you were about to put it down_",
+   "bottom": "",
+   "image": "/photos/lamp-room.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "your best talks happen _over text_",
+   "top": "_in the same room_",
+   "text": "nobody put the phone between you on purpose\n\nit's just _always there_",
+   "bottom": "",
+   "image": "/photos/hand-phone-blanket.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "someone has to _go first_",
+   "top": "the person who quits scrolling _first_ wins",
+   "text": "so i set a bedtime lock. my apps _shut off at 11_\n\nturns out it's hard to scroll alone. _we talk again_",
+   "bottom": "",
+   "phone": "/photos/renders/01-shield.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "send this to the person next to you 👀 who falls asleep first?",
+   "lines": [
+    "we were 5/5",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

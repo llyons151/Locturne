@@ -1,0 +1,80 @@
+{
+ "title": "5 signs you haven't actually rested in months",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "which one hit hardest? #burnout #rest #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: '3 and 4, every week' + 'feeling like i slept'. Only if true for you"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs you haven't actually rested in months",
+   "image": "/photos/man-in-bed.jpg",
+   "narrow": true,
+   "aside": "(read this slowly)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "your \"break\" is _another screen_",
+   "top": "work on the laptop, rest on _the phone_",
+   "text": "your eyes haven't had a day off\n\n_in months_",
+   "bottom": "",
+   "image": "/photos/pov-couch-scroll.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you can't sit still _without reaching for it_",
+   "top": "red light, queue, _microwave_",
+   "text": "30 seconds of nothing feels _impossible_ now",
+   "bottom": "",
+   "image": "/photos/tea.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you lie down and your brain _keeps scrolling_",
+   "top": "phone off, but the feed _keeps playing_ in your head",
+   "text": "that's not rest\n\nthat's _buffering_",
+   "bottom": "",
+   "image": "/photos/light-on-bed.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "a whole weekend and you're _still drained_",
+   "top": "you did nothing. _somehow that's tiring_",
+   "text": "doing nothing on your phone\n\nisn't _doing nothing_",
+   "bottom": "",
+   "image": "/photos/bed-white-bright.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "rest has to _start at night_",
+   "top": "the last hour before bed _decides the next day_",
+   "text": "so my apps _switch off at bedtime_ now\n\nand i finally wake up _feeling like i slept_",
+   "bottom": "",
+   "phone": "/photos/renders/03-payoff.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "which one hit hardest? 👇",
+   "lines": [
+    "3 and 4, every week",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

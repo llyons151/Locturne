@@ -5,7 +5,7 @@
   "app": "method",
   "why": "Larry shape for the founder: someone else's doubt is the hook, the app is how you proved them wrong. Template: use whoever really said it.",
   "account": "@locturne (founder face)",
-  "caption": "he owes me a coffee. who'd bet against you? #screentime #sleep #buildinpublic",
+  "caption": "he owes me a coffee ☕ the app is called Locturne, it's on the App Store. who'd bet against you? #screentime #sleep #buildinpublic",
   "sound": "trending smug / victory sound",
   "size": [
     1080,
@@ -22,9 +22,9 @@
       "caps": [
         {
           "text": "my roommate said i'd never sleep before 2am. so i built this",
-          "y": 40,
-          "size": 54,
-          "style": "outline",
+          "y": 36,
+          "size": 58,
+          "style": "box",
           "w": 78
         }
       ]
@@ -35,7 +35,7 @@
       "caps": [
         {
           "text": "my apps go to sleep at 11 now",
-          "y": 12,
+          "y": 14,
           "size": 54,
           "style": "classic",
           "w": 78
@@ -48,7 +48,7 @@
       "caps": [
         {
           "text": "and they don't wake up until i've walked",
-          "y": 12,
+          "y": 14,
           "size": 54,
           "style": "classic",
           "w": 78
@@ -61,14 +61,14 @@
       "caps": [
         {
           "text": "day 12. he owes me a coffee",
-          "y": 64,
-          "size": 54,
+          "y": 46,
+          "size": 62,
           "style": "outline",
           "w": 78
         },
         {
-          "text": "link in bio 🌙",
-          "y": 94,
+          "text": "search Locturne on the App Store 🌙",
+          "y": 60,
           "size": 59,
           "style": "box",
           "w": 78

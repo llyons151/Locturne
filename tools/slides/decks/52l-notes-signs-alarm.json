@@ -1,0 +1,81 @@
+{
+ "title": "5 signs your alarm isn't the problem",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "how many alarms do you set? #morning #alarm #sleep",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: '5/5 and 6 alarms'. Only if true for you",
+  "slide 1 photo (bed-a) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your alarm isn't the problem",
+   "image": "/photos/bed-a.jpg",
+   "narrow": true,
+   "aside": "(it's what you do before it)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "you set _6 alarms_",
+   "top": "6:30, 6:35, 6:40... _7:15_",
+   "text": "the alarms work fine\n\n_you_ just went to sleep at 2",
+   "bottom": "",
+   "image": "/photos/lamp-nightstand-dark.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you sleep through _all of them_",
+   "top": "you didn't hear _a single one_",
+   "text": "a body on 4 hours of sleep\n\n_doesn't want to hear it_",
+   "bottom": "",
+   "image": "/photos/unmade-bed.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you turn it off _without waking up_",
+   "top": "and have _zero memory_ of it",
+   "text": "your thumb knows where the button is\n\nlike it knows _where tiktok is_",
+   "bottom": "",
+   "image": "/photos/hand-lit-black.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "the first thing you do _is scroll_",
+   "top": "you're awake. _technically_",
+   "text": "30 minutes later you're _still in bed_",
+   "bottom": "",
+   "image": "/photos/morning-bed-dim.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you need a reason _to stand up_",
+   "top": "a louder alarm _won't fix it_",
+   "text": "my apps stay asleep in the morning _until i walk 200 steps_\n\nhard to scroll when _you're already up_",
+   "bottom": "",
+   "phone": "/photos/renders/02-steps-clean.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "how many alarms do you set? 👇",
+   "lines": [
+    "5/5 and 6 alarms",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "title": "5 signs your phone is why you're always tired",
+ "format": "Notes listicle, app on one point",
+ "job": "save",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Variant of 52 (1K views): same self-diagnosis listicle, new angle; app is the fix on the last sign.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "which one got you? #sleep #screentime #tired",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'i was 5/5'. Only if true for you"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your phone is why you're always tired",
+   "image": "/photos/pillow-over-head.jpg",
+   "narrow": true,
+   "aside": "(it's not the coffee)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "you wake up _already tired_",
+   "top": "8 hours in bed, maybe _5 of them asleep_",
+   "text": "the rest went to _\"just checking\"_\n\nyour body was in bed. your brain was _on tiktok_",
+   "bottom": "",
+   "image": "/photos/clock-dark-room.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you need _3 coffees_ to feel normal",
+   "top": "one to wake up, one to function, one _because it's 3pm_",
+   "text": "caffeine isn't fixing a sleep problem\n\nit's _covering_ one",
+   "bottom": "",
+   "image": "/photos/coffee.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you fall asleep _mid-video_",
+   "top": "phone on your face, _still playing_",
+   "text": "that's not falling asleep\n\nthat's _passing out_",
+   "bottom": "",
+   "image": "/photos/phone-glow-dark.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "your eyes _sting_ when you put it down",
+   "top": "you finally lock it and the room is _darker than you remember_",
+   "text": "you stared at a light for 3 hours\n\nand wonder why sleep _won't come_",
+   "bottom": "",
+   "image": "/photos/hands-lit-bed.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you _know_ all this and still scroll",
+   "top": "willpower at midnight is _basically zero_",
+   "text": "so i stopped relying on it\n\nmy apps _go to sleep at bedtime_ now and don't open till morning",
+   "bottom": "",
+   "phone": "/photos/renders/13-shield-night.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "how many are you? 👇",
+   "lines": [
+    "i was 5/5",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}
