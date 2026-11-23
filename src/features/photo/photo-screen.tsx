@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ASKING_APPLE, PrimaryButton, TextButton } from '@/components/buttons';
 import { sym } from '@/components/grouped-list';
 import { Text } from '@/components/text';
+import { Wordmark } from '@/components/wordmark';
 import { SearchingOrb } from '@/components/thinking-orb';
 import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
@@ -373,6 +374,11 @@ export function PhotoScreen({
         </View>
       ) : null}
 
+      {/* The name over the camera, as push-ups has it, so every screen recording says what the app is. */}
+      <View pointerEvents="none" style={[styles.titleBar, { top: insets.top + Space.s }]}>
+        <Wordmark height={20} />
+      </View>
+
       <Pressable
         onPress={close}
         hitSlop={12}
@@ -488,6 +494,7 @@ const styles = StyleSheet.create({
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
   pressed: { transform: [{ scale: 0.94 }] },
   off: { opacity: 0.4 },
+  titleBar: { position: 'absolute', left: 0, right: 0, height: 44, alignItems: 'center', justifyContent: 'center' },
   xSpot: { position: 'absolute', left: Gap.gutter },
   x: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.s },

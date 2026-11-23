@@ -7,6 +7,8 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { canChooseTrackingEngine, getTrackingEngine, setTrackingEngine } from '../../../modules/pose-camera';
+
 import { MenuRow, SwitchRow } from '@/components/controls';
 import { sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
@@ -106,6 +108,7 @@ export function DeveloperSettings() {
   const [testRun, setTestRun] = useState(getTestLock);
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
   const [reelFrame, setReel] = useState(getReelFrame);
+  const [tracking, setTracking] = useState(getTrackingEngine);
   // The Reel frame's measured safe areas (modules/reel-frame), shown under the switch.
   const [measured, setMeasured] = useState<string | null>(null);
   // Only so the row's "On next open" shows straight away.
@@ -155,6 +158,35 @@ export function DeveloperSettings() {
           <ValueRow {...icon('arrow.uturn.backward', 'undo')} title="Back to the real app" value="" onPress={backToRealApp} last />
         </Group>
       </Fold>
+
+      <Group
+        label="Camera tracking"
+        note={canChooseTrackingEngine
+          ? `Selected: ${tracking === 'mediapipe' ? 'Google MediaPipe' : 'Apple Vision'}. Switch off to compare Apple Vision with MediaPipe when recording. Applies to all camera exercises on the next camera open and stays saved after closing the app. Apple Vision may lose the body during push-ups.`
+          : 'Switching between Google MediaPipe and Apple Vision needs a new iOS build. The web preview uses MediaPipe.'}
+      >
+        {canChooseTrackingEngine ? (
+          <SwitchRow
+            {...icon('camera', 'photo_camera')}
+            title="Use MediaPipe"
+            value={tracking === 'mediapipe'}
+            onChange={(on) => {
+              const next = on ? 'mediapipe' : 'vision';
+              if (setTrackingEngine(next)) setTracking(getTrackingEngine());
+              else Alert.alert('Couldn’t change tracking', 'Your previous tracking choice is still selected. Try again.');
+            }}
+            last
+          />
+        ) : (
+          <ValueRow
+            {...icon('camera', 'photo_camera')}
+            title="Tracking engine"
+            value="Unavailable"
+            onPress={() => Alert.alert('New iOS build needed', 'Install a build with the tracking switch to compare MediaPipe and Apple Vision.')}
+            last
+          />
+        )}
+      </Group>
 
       {/* Recording Reels: the whole app in a 9:16 box, so a screen recording fills a Reel uncropped (lib/reel-frame.ts). */}
       <Group

@@ -54,6 +54,17 @@ public class PoseCameraModule: Module {
       ["pushups", "dance", "pullups", "bench", "grass", "sun", "pet", "bed"]
     }
 
+    /// Developer comparison: read on the next camera open, with the same preview for both engines.
+    Function("trackingEngine") { () -> String in
+      PoseReader.trackingEngine
+    }
+
+    Function("setTrackingEngine") { (engine: String) -> Bool in
+      guard engine == "mediapipe" || engine == "vision" else { return false }
+      UserDefaults.standard.set(engine, forKey: PoseReader.trackingEngineKey)
+      return true
+    }
+
     OnDestroy {
       DispatchQueue.main.async {
         self.speaker.hush()
@@ -94,10 +105,9 @@ public class PoseCameraModule: Module {
  it in white, and the joints reported in the view's own points: `onPose` sends
  `{ at, joints: { leftShoulder: { x, y, c }, … } }`, with no joints when nobody's there.
 
- Each frame is shown together with its own tracing (2026-11-21): the picture is the very frame the
- joints were found in, put up in the same screen update, so the lines never trail the body. The
- old way (Apple's live preview, with the lines drawn by JS a beat later from a 15-a-second reading)
- lagged and stepped behind you.
+ Camera frames are shown on arrival; pose reading never blocks their delivery. The native tracing
+ uses the latest finished reading, so it can trail the picture slightly during movement. Waiting
+ for a frame's own reading could let an occasional slow model pass freeze the picture.
  */
 final class PoseCameraView: ExpoView {
   let onPose = EventDispatcher()
@@ -214,6 +224,11 @@ final class PoseCameraView: ExpoView {
  A plain NSObject rather than part of the view, so none of it is tied to the main actor.
  */
 final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+  static let trackingEngineKey = "poseCamera.trackingEngine"
+  static var trackingEngine: String {
+    UserDefaults.standard.string(forKey: trackingEngineKey) == "vision" ? "vision" : "mediapipe"
+  }
+
   var onPose: (([String: Any]) -> Void)?
   var onError: ((String) -> Void)?
   /// Every frame, on the main thread: the frame to show and the joints to trace on it, in the
@@ -259,21 +274,19 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var configured = false
   /// The last time joints went to JS, on `trackQueue`.
   private var lastRead: CFTimeInterval = 0
-  /// Reading happens here, one frame at a time, so all the reading state above has one owner
-  /// whether a frame waits for it (`videoQueue` calls in and waits) or not (handed over to run).
-  private let trackQueue = DispatchQueue(label: "com.lukelyons.locturne.pose.track", qos: .userInteractive)
+  /// Reading happens here, one frame at a time, without making `videoQueue` wait.
+  private let trackQueue = DispatchQueue(label: "com.lukelyons.locturne.pose.track", qos: .userInitiated)
   /// How long MediaPipe takes a frame, a running average in seconds, and how many it's timed (`trackQueue`).
   private var trackCost: CFTimeInterval = 0
   private var timedFrames = 0
-  /// MediaPipe can't keep up with the camera on this phone right now: frames are shown without
-  /// waiting for their own tracing (`captureOutput`). Under `lock`.
+  /// MediaPipe is slow enough to need the longer minimum start interval. Under `lock`.
   private var behind = true
   /// The first timed frames have said whether this phone keeps up (`trackQueue`).
   private var decided = false
   private var firstCosts: [CFTimeInterval] = []
   /// When frames were last dropped for coming while one was still being read, under `lock`.
   private var lateDrops: [CFTimeInterval] = []
-  /// A frame is being read while behind, under `lock`.
+  /// A frame is being read, under `lock`.
   private var trackBusy = false
   /// The last finished tracing, for frames shown ahead of their own. Under `lock`.
   private var lastTraced: [String: CGPoint]?
@@ -296,6 +309,12 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   /// whole phone lagged (user, 2026-11-23). Both under `lock`.
   private var eased = false
   private var lastModelRead: CFTimeInterval = 0
+  /// After an async read, leave at least its processing time idle. Skipping busy frames alone
+  /// still runs the model back-to-back when a read takes longer than the frame interval.
+  /// Host clock (not capture timestamps), under `lock`.
+  private var restUntil: CFTimeInterval = 0
+  /// Diagnostics on `videoQueue`; gaps also include time spent with the session paused.
+  private var lastCapture: CFTimeInterval = 0
   private let lock = NSLock()
 
   /// The upright angle learned on an earlier run, for a run that starts with the phone already
@@ -324,10 +343,9 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private static let traceHideBelow = 0.1
   /// How long the last tracing stays up when a frame finds nobody, in seconds.
   private static let holdTracing: CFTimeInterval = 0.12
-  /// Frames wait for their own tracing while MediaPipe averages under this: with the copy, the hop
-  /// to the main thread and the drawing, still inside one 30 fps frame (33 ms), so none is dropped.
+  /// Slow reading switches to the longer start interval, with hysteresis below.
   private static let fallBehindAbove: CFTimeInterval = 0.028
-  /// ...and only go back to waiting once it's well under, so it doesn't flip back and forth.
+  /// Resume the shorter interval only once well under, so it doesn't flip back and forth.
   private static let catchUpBelow: CFTimeInterval = 0.020
   /// MediaPipe's first frames are slow while it warms up; they're not timed.
   private static let warmUpFrames = 5
@@ -451,7 +469,11 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
           if let reason = configure() { return report(reason) }
           configured = true
           // Before the first frame, so none waits on the model loading.
-          let model = Self.makeLandmarker()
+          // A Vision comparison must not load MediaPipe in the background: its startup and
+          // processing cost are exactly what this switch is meant to isolate.
+          let engine = Self.trackingEngine
+          let model = engine == "mediapipe" ? Self.makeLandmarker() : nil
+          NSLog("[PoseCamera] requested %@, using %@", engine, model == nil ? "vision" : "mediapipe")
           lock.lock()
           landmarker = model
           lock.unlock()
@@ -599,6 +621,11 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let model = landmarker
     let late = behind
     lock.unlock()
+    let arrived = CACurrentMediaTime()
+    if lastCapture > 0, arrived - lastCapture > 0.25 {
+      NSLog("[PoseCamera] camera delivery gap %.0f ms (includes session pauses)", (arrived - lastCapture) * 1000)
+    }
+    lastCapture = arrived
 
     // The picture as the screen shows it with the phone upright, mirrored like the screen, in
     // Core Image's space (origin bottom-left, like Vision's points).
@@ -628,28 +655,15 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let now = frame.stamp.isFinite ? frame.stamp : CACurrentMediaTime()
     lock.lock()
     let easing = model != nil && eased
-    let resting = easing && now - lastModelRead < Self.easedGap
+    let paced = easing || late || model == nil
+    let resting = (paced && now - lastModelRead < Self.easedGap) || arrived < restUntil
     let held = lastTraced
     lock.unlock()
     if resting { return hand(sampleBuffer, held) }
 
-    // Eased, frames never wait for their tracing: with every other one held ~20 ms for its read and
-    // the ones between shown at once, they came out 17 ms then 50 ms apart (measured on the user's
-    // 1:47 pm recording, 2026-11-23; some seconds only 15 a second), and the recordings juddered. Every frame goes up the moment it comes, a frame ahead
-    // of its lines, as when behind.
-    if let model, !late, !easing {
-      // Keeping up: each frame waits for its own tracing and they're shown together, so the lines
-      // can't trail the body.
-      lock.lock()
-      lastModelRead = now
-      lock.unlock()
-      let traced = trackQueue.sync { read(frame, with: model) }
-      return hand(sampleBuffer, traced)
-    }
-    // Behind (an older iPhone, or one hot or in Low Power Mode), eased, or Vision (slower, and reading up to
-    // four turns of a frame when it struggles): the frame is shown at once with the last finished
-    // tracing, never held up, and the reader takes the next frame whenever it's free. The lines
-    // trail the body by a frame or so; the picture stays smooth.
+    // Always show the newest picture before starting pose work. Even a normally fast model can
+    // stall for one pass: an average latency threshold cannot protect against that freeze.
+    // There is only one read in flight, followed by recovery time; no queued camera frames.
     lock.lock()
     let start = !trackBusy
     if start {
@@ -661,8 +675,14 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     hand(sampleBuffer, traced)
     guard start else { return }
     trackQueue.async { [self] in
-      _ = read(frame, with: model)
+      let began = CACurrentMediaTime()
+      autoreleasepool { _ = read(frame, with: model) }
+      let ended = CACurrentMediaTime()
+      if ended - began > 0.25 {
+        NSLog("[PoseCamera] pose read took %.0f ms", (ended - began) * 1000)
+      }
       lock.lock()
+      restUntil = ended + (ended - began)
       trackBusy = false
       lock.unlock()
     }
@@ -679,8 +699,13 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     toShow = (frame, traced)
     lock.unlock()
     guard idle else { return }
+    let queued = CACurrentMediaTime()
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
+      let waited = CACurrentMediaTime() - queued
+      if waited > 0.25 {
+        NSLog("[PoseCamera] display waited for main thread %.0f ms", waited * 1000)
+      }
       self.lock.lock()
       let next = self.toShow
       self.toShow = nil
@@ -701,8 +726,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
   /**
    Reads one frame: the joints for its tracing (view points; nil when nobody's there), and about
-   fifteen times a second the joints for JS. Times MediaPipe, and falls behind (see `captureOutput`)
-   or catches up. On `trackQueue`.
+   fifteen times a second the joints for JS. Times MediaPipe to adjust pacing. On `trackQueue`.
    */
   private func read(_ frame: Frame, with model: PoseLandmarker?) -> [String: CGPoint]? {
     let now = CACurrentMediaTime()
@@ -790,10 +814,9 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     return shown
   }
 
-  /// Keeps a running average of how long MediaPipe takes a frame, and decides from it whether frames
-  /// wait for their own tracing. A gap between the two bars keeps it from flipping back and forth.
+  /// Keeps a running average of MediaPipe latency for pacing and the tuning readout.
   private func timeTracking(_ took: CFTimeInterval) {
-    // It starts behind, so the first, slow frames (the model warming up) never hold the picture.
+    // Start with conservative pacing while the model warms up.
     timedFrames += 1
     guard timedFrames > Self.warmUpFrames else { return }
     if !decided {
@@ -810,7 +833,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     trackCost = trackCost * 0.9 + took * 0.1
     lock.lock()
     // Frames dropped for coming while one was still being read: an average under the bar can still
-    // spike over a frame's time, and each spike is a hitch. Two close together and it falls behind,
+    // spike over a frame's time. Two close drops call for more conservative pacing,
     // and the average has to come down from the bar to catch up again.
     let now = CACurrentMediaTime()
     lateDrops.removeAll { now - $0 > 3 }
@@ -827,8 +850,7 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     lock.unlock()
   }
 
-  /// A frame the camera dropped. Only ones dropped for coming while the last was still being read
-  /// count (not running out of buffers, say): they're the picture hitching while frames wait.
+  /// Late camera frames also call for more conservative pacing.
   func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
     guard
       let reason = CMGetAttachment(sampleBuffer, key: kCMSampleBufferAttachmentKey_DroppedFrameReason, attachmentModeOut: nil) as? String,
