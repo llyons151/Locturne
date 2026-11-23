@@ -120,6 +120,22 @@ final class PoseCameraView: ExpoView {
     reader.onPose = { [weak self] pose in self?.onPose(pose) }
     reader.onError = { [weak self] reason in self?.onCameraError(["reason": reason]) }
     reader.onFrame = { [weak self] frame, joints in self?.show(frame, joints) }
+    // Screen recording (or mirroring) and heat both ease the reading: see `PoseReader.setEased`.
+    registerForTraitChanges([UITraitSceneCaptureState.self]) { (view: PoseCameraView, _: UITraitCollection) in
+      view.updateEase()
+    }
+    thermalWatch = NotificationCenter.default.addObserver(
+      forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main
+    ) { [weak self] _ in self?.updateEase() }
+  }
+
+  private var thermalWatch: NSObjectProtocol?
+
+  /// Main thread. The screen being recorded, or the phone hot, lets MediaPipe read every other frame.
+  private func updateEase() {
+    let recording = traitCollection.sceneCaptureState == .active
+    let hot = ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
+    reader.setEased(recording || hot)
   }
 
   /// Main thread: the frame and its tracing in one screen update.
@@ -157,6 +173,7 @@ final class PoseCameraView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
+    updateEase()
     update()
   }
 
@@ -186,6 +203,7 @@ final class PoseCameraView: ExpoView {
   }
 
   deinit {
+    if let thermalWatch { NotificationCenter.default.removeObserver(thermalWatch) }
     reader.setRunning(false)
   }
 }
@@ -271,6 +289,13 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var viewSize: CGSize = .zero
   /// Which way the phone stands, written on main and read on `videoQueue`, under `lock`.
   private var turn = "portrait"
+  /// The screen's being recorded or the phone's hot: MediaPipe reads at most every `easedGap`
+  /// (every other frame, the fifteen a second the rules were tuned at) rather than every frame, and
+  /// the frames between are shown with the last tracing, a frame behind. Every frame, plus the
+  /// back-to-back reads when behind, kept a core flat out, and with a screen recording on top the
+  /// whole phone lagged (user, 2026-11-23). Both under `lock`.
+  private var eased = false
+  private var lastModelRead: CFTimeInterval = 0
   private let lock = NSLock()
 
   /// The upright angle learned on an earlier run, for a run that starts with the phone already
@@ -287,6 +312,8 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   /// of timing jitter and sent every third frame, about 10 a second. Vision, the fallback, also
   /// only reads this often: it's slower, and reads up to four turns of a frame.
   private static let readInterval: CFTimeInterval = 0.06
+  /// Eased (see `eased`), the shortest gap between two frames MediaPipe reads: every other frame.
+  private static let easedGap: CFTimeInterval = 0.05
   /// MediaPipe reads the picture this many pixels on its long side (540 × 960 from the camera's
   /// 720 × 1280): about what it was tested at on the user's recordings, where it kept a far, side-on
   /// body. It crops round the body and shrinks that to 256 square itself, so more is only copying.
@@ -372,6 +399,15 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     lock.lock()
     turn = next
     lock.unlock()
+  }
+
+  /// Main thread. See `eased`.
+  func setEased(_ next: Bool) {
+    lock.lock()
+    let changed = eased != next
+    eased = next
+    lock.unlock()
+    if changed { NSLog("[PoseCamera] reading %@", next ? "every other frame (recording or hot)" : "every frame") }
   }
 
   /// Main thread.
@@ -586,9 +622,22 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
     }
 
+    // Eased (see `eased`): a frame too soon after the last read is shown with the last tracing, unread.
+    // Timed by capture (the host clock, like CACurrentMediaTime), so callback jitter can't push a
+    // read to every third frame; 50 ms splits the 33 ms and 67 ms gaps cleanly.
+    let now = frame.stamp.isFinite ? frame.stamp : CACurrentMediaTime()
+    lock.lock()
+    let resting = model != nil && eased && now - lastModelRead < Self.easedGap
+    let held = lastTraced
+    lock.unlock()
+    if resting { return hand(sampleBuffer, held) }
+
     if let model, !late {
       // Keeping up: each frame waits for its own tracing and they're shown together, so the lines
       // can't trail the body.
+      lock.lock()
+      lastModelRead = now
+      lock.unlock()
       let traced = trackQueue.sync { read(frame, with: model) }
       return hand(sampleBuffer, traced)
     }
@@ -598,7 +647,10 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     // trail the body by a frame or so; the picture stays smooth.
     lock.lock()
     let start = !trackBusy
-    if start { trackBusy = true }
+    if start {
+      trackBusy = true
+      lastModelRead = now
+    }
     let traced = lastTraced
     lock.unlock()
     hand(sampleBuffer, traced)
@@ -649,7 +701,11 @@ final class PoseReader: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
    */
   private func read(_ frame: Frame, with model: PoseLandmarker?) -> [String: CGPoint]? {
     let now = CACurrentMediaTime()
-    let due = now - lastRead >= Self.readInterval
+    lock.lock()
+    let easing = eased && model != nil
+    lock.unlock()
+    // Eased, MediaPipe only reads every other frame already: each of those goes to JS.
+    let due = easing || now - lastRead >= Self.readInterval
     if due { lastRead = now }
     let (picture, view, turn) = (frame.picture, frame.view, frame.turn)
 
