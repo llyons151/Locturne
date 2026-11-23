@@ -27,13 +27,14 @@ public class PoseCameraModule: Module {
     Name("PoseCamera")
 
     /// Says a short line out loud, over whatever else is playing, which dips meanwhile.
+    /// Not on the main thread: audio session calls block, and the main thread draws the camera.
     AsyncFunction("say") { (text: String) in
       self.speaker.say(text)
-    }.runOnQueue(.main)
+    }
 
     AsyncFunction("hush") {
       self.speaker.hush()
-    }.runOnQueue(.main)
+    }
 
     /// `authorized`, `notDetermined`, `denied` or `restricted` (Screen Time or a profile, which
     /// Settings can't turn on): expo-camera reports the last two alike.
@@ -66,9 +67,7 @@ public class PoseCameraModule: Module {
     }
 
     OnDestroy {
-      DispatchQueue.main.async {
-        self.speaker.hush()
-      }
+      self.speaker.hush()
     }
 
     View(PoseCameraView.self) {
@@ -1159,12 +1158,25 @@ private extension CIImage {
 }
 
 /**
- The spoken count. It takes the audio session only while talking, and hands it back (and lets
- any music come back up) once the last line is said.
+ The spoken count. It takes the audio session while talking, and hands it back (and lets any
+ music come back up) once he's been quiet a while.
+
+ Everything runs on its own queue, never the main thread: `setCategory` and `setActive` block
+ while the audio server answers, worse during a screen recording, and the main thread draws the
+ camera. The old way took and handed back the session around every number, on the main thread:
+ dancing, that was twice a second, and the picture froze ~0.6 s every second or so (user's
+ screen recording, 2026-11-23). Now it's taken once and kept while the numbers keep coming.
  */
 final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
   private let voice = AVSpeechSynthesizer()
+  private let queue = DispatchQueue(label: "com.lukelyons.locturne.pose.speaker", qos: .userInitiated)
+  /// The category before he took the session; nil when he doesn't hold it. On `queue`.
   private var prior: (AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)?
+  /// Bumped by every line, so a pending hand-back only runs if nothing was said since. On `queue`.
+  private var said = 0
+  /// Quiet this long after a line before the session goes back: longer than the gap between
+  /// counted seconds or reps, so a set holds it the whole way through.
+  private static let handBackAfter: TimeInterval = 2.5
 
   override init() {
     super.init()
@@ -1172,47 +1184,50 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
   }
 
   func say(_ text: String) {
-    let session = AVAudioSession.sharedInstance()
-    if prior == nil {
-      prior = (session.category, session.mode, session.categoryOptions)
-      // Playback, so the count is heard with the ring switch on silent: you're looking at the
-      // floor, and this is how you know a rep counted.
-      try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .mixWithOthers])
-      try? session.setActive(true)
+    queue.async { [self] in
+      said += 1
+      let session = AVAudioSession.sharedInstance()
+      if prior == nil {
+        prior = (session.category, session.mode, session.categoryOptions)
+        // Playback, so the count is heard with the ring switch on silent: you're looking at the
+        // floor, and this is how you know a rep counted.
+        try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .mixWithOthers])
+        try? session.setActive(true)
+      }
+      // A new rep cuts the last number off rather than queueing behind it.
+      if voice.isSpeaking { voice.stopSpeaking(at: .immediate) }
+      let utterance = AVSpeechUtterance(string: text)
+      utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.05
+      voice.speak(utterance)
     }
-    // A new rep cuts the last number off rather than queueing behind it.
-    voice.stopSpeaking(at: .immediate)
-    let utterance = AVSpeechUtterance(string: text)
-    utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.05
-    voice.speak(utterance)
   }
 
   func hush() {
-    voice.stopSpeaking(at: .immediate)
-    restore()
-  }
-
-  /// Not always called on the main thread, where `say` and `hush` run; hop there first.
-  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-    DispatchQueue.main.async {
-      if !self.voice.isSpeaking { self.restore() }
+    queue.async { [self] in
+      said += 1
+      voice.stopSpeaking(at: .immediate)
+      restore(after: 0.3, line: said)
     }
   }
 
-  /// Hands the audio back: deactivate (which lets music come back up), then the old category.
-  /// Deactivating while the voice's audio is still draining fails as "busy", so it waits a beat
-  /// and tries again a few times, and only puts the category back once it has let go.
-  private func restore(attempt: Int = 0) {
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    queue.async { [self] in restore(after: Self.handBackAfter, line: said) }
+  }
+
+  /// Hands the audio back if nothing's been said since `line`: deactivate (which lets music come
+  /// back up), then the old category. Deactivating while the voice's audio is still draining
+  /// fails as "busy", so it waits a beat and tries again a few times. On `queue`.
+  private func restore(after delay: TimeInterval, line: Int, attempt: Int = 0) {
     guard prior != nil else { return }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-      guard let (category, mode, options) = self.prior, !self.voice.isSpeaking else { return }
+    queue.asyncAfter(deadline: .now() + delay) { [self] in
+      guard line == said, let (category, mode, options) = prior, !voice.isSpeaking else { return }
       let session = AVAudioSession.sharedInstance()
       do {
         try session.setActive(false, options: .notifyOthersOnDeactivation)
         try? session.setCategory(category, mode: mode, options: options)
-        self.prior = nil
+        prior = nil
       } catch {
-        if attempt < 4 { self.restore(attempt: attempt + 1) }
+        if attempt < 4 { restore(after: 0.3, line: line, attempt: attempt + 1) }
       }
     }
   }
