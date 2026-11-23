@@ -53,6 +53,12 @@ describe('Sunlight', () => {
   test('a lamp in a room is indoors', () => {
     assert.deepEqual(judgeSun(read({ sky: 0.02, blob: 0.01, blobFill: 0.8, brightness: 2 })), { ok: false, miss: 'indoors' });
   });
+  test('a light bulb on a white ceiling is not the sun, even with a daylight-looking reading', () => {
+    // The camera meters on the bulb (bright reading); the ceiling counts as pale sky pixels.
+    assert.deepEqual(judgeSun(read({ sky: 0.6, blob: 0.01, blobFill: 0.8, brightness: 7 })), { ok: false, miss: 'noSun' });
+    const labels = [{ id: 'lamp', confidence: 0.6 }, { id: 'sky', confidence: 0.3 }];
+    assert.deepEqual(judgeSun(read({ sky: 0.6, blob: 0.01, blobFill: 0.8, brightness: 7, labels })), { ok: false, miss: 'indoors' });
+  });
   test('a bright disc with no sky around it is not the sun', () => {
     assert.deepEqual(judgeSun(read({ sky: 0.02, blob: 0.01, blobFill: 0.8, brightness: 6 })), { ok: false, miss: 'noSun' });
   });
@@ -64,6 +70,7 @@ describe('Sunlight', () => {
   });
   test('a pale wall indoors is not an overcast sky', () => {
     assert.deepEqual(judgeSun(read({ sky: 0.7, brightness: 3 })), { ok: false, miss: 'noSun' });
+    assert.deepEqual(judgeSun(read({ sky: 0.7, brightness: 8 })), { ok: false, miss: 'noSun' });
   });
   test('with no light reading, a ceiling light in pale pixels is not the sun', () => {
     assert.deepEqual(judgeSun(read({ sky: 0.5, blob: 0.01, blobFill: 0.8, brightness: null })), { ok: false, miss: 'noSun' });

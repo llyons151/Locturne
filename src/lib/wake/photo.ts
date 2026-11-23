@@ -8,9 +8,11 @@
  * - Grass: a grass-like label, or a plant-like label with most of the photo grass-green.
  * - Sun: the sun itself (a small clipped-white blob, or a sun label) in an outdoor sky. A sky in
  *   full daylight counts too, so an overcast morning isn't a lost morning: the point is daylight.
- * - Sun: the camera's light reading (EXIF BrightnessValue) has to look like daylight, which a
- *   ceiling light doesn't. Missing on some photos; then the classifier must call it sky (pale
- *   pixels alone could be a ceiling).
+ * - Sun: the classifier has to call it sky (2026-11-23). A light bulb passed before: the camera
+ *   meters on the bulb so the light reading (EXIF BrightnessValue) looks like daylight, the white
+ *   ceiling round it counts as pale "sky" pixels, and the bulb is a round clipped-white disc. Only
+ *   the classifier tells a ceiling from a sky. A lamp/ceiling/room label it's surer of than sky
+ *   refuses the photo, and the light reading still has to look like daylight when there is one.
  * - Grass has no light check (2026-11-22): outdoors before sunrise reads darker than any room, so
  *   a dark reading refused real lawns as "not outside". The grass labels + green do the work.
  * - Either way a photo whose top label is a screen is refused: a picture of a picture.
@@ -46,6 +48,8 @@ const GRASS = ['grass', 'lawn', 'meadow', 'turf', 'field', 'pasture', 'moss', 'g
 const PLANT = ['plant', 'foliage', 'leaf', 'vegetation', 'garden', 'park', 'shrub', 'bush', 'forest', 'tree', 'clover', 'weed'];
 const SKY = ['sky', 'blue_sky', 'cloudy', 'clouds', 'cloud', 'sunset_sunrise', 'sun', 'sunlight', 'daytime', 'overcast'];
 const SUN = ['sun', 'sunset_sunrise', 'sunlight', 'sunbeam', 'sunburst'];
+/** Indoor light and rooms: a bulb against a ceiling looks like a sun in a pale sky to the pixel counts. */
+const INDOOR = ['lamp', 'lightbulb', 'light_bulb', 'bulb', 'chandelier', 'ceiling', 'lighting', 'light_fixture', 'interior', 'interior_room', 'room', 'indoor', 'indoors', 'candle', 'flashlight'];
 const SCREEN = ['screen', 'monitor', 'television', 'computer', 'laptop', 'display', 'computer_monitor', 'tv', 'smartphone', 'cellphone'];
 
 /** Thresholds, named so the lab and the tests read them. */
@@ -67,11 +71,8 @@ export const PHOTO = {
   blobMin: 0.0003,
   blobMax: 0.2,
   blobFill: 0.45,
-  /** Sky share needed around the sun. */
-  sky: 0.15,
   /** A whole sky this bright counts without the disc (overcast daylight). */
   daylightBrightness: 7,
-  daylightSky: 0.4,
   /** A frame darker than this is a covered lens or night. */
   dark: 0.06,
 } as const;
@@ -118,16 +119,19 @@ export function judgeSun(r: PhotoReading): PhotoVerdict {
   if (ofAScreen(r)) return { ok: false, miss: 'screen' };
   const skyLabel = labelScore(r.labels, SKY);
   const sunLabel = labelScore(r.labels, SUN);
-  const outdoors = r.brightness === null || r.brightness >= PHOTO.sunBrightness;
-  // Without the light reading, sky-coloured pixels alone don't prove a sky (a white ceiling round a
-  // ceiling light reads as pale sky): then the classifier has to call it sky too.
-  const inSky = skyLabel >= PHOTO.label || (r.brightness !== null && r.sky >= PHOTO.sky);
   const disc = r.blob >= PHOTO.blobMin && r.blob <= PHOTO.blobMax && r.blobFill >= PHOTO.blobFill;
-  if (!outdoors) return { ok: false, miss: (disc || sunLabel >= PHOTO.label) ? 'indoors' : 'noSun' };
-  if (inSky && (disc || sunLabel >= PHOTO.label)) return { ok: true, why: disc ? 'sun disc in sky' : 'sun label in sky' };
+  const sunLike = disc || sunLabel >= PHOTO.label;
+  const outdoors = r.brightness === null || r.brightness >= PHOTO.sunBrightness;
+  // A lamp or a room the classifier is at least as sure of as any sky: a bulb, not the sun.
+  const indoor = labelScore(r.labels, INDOOR);
+  if (!outdoors || (indoor >= PHOTO.label && indoor >= skyLabel)) return { ok: false, miss: sunLike ? 'indoors' : 'noSun' };
+  // Pale pixels never prove a sky on their own (a white ceiling round a bulb reads as pale sky,
+  // and the camera metering on the bulb makes the light reading look like daylight).
+  const inSky = skyLabel >= PHOTO.label;
+  if (!inSky) return { ok: false, miss: 'noSun' };
+  if (sunLike) return { ok: true, why: disc ? 'sun disc in sky' : 'sun label in sky' };
   // Overcast: no disc, but a big bright sky in daylight. Needs the light reading: a white wall has none of it.
-  if (r.brightness !== null && r.brightness >= PHOTO.daylightBrightness && (r.sky >= PHOTO.daylightSky || skyLabel >= PHOTO.label))
-    return { ok: true, why: 'daylight sky' };
+  if (r.brightness !== null && r.brightness >= PHOTO.daylightBrightness) return { ok: true, why: 'daylight sky' };
   return { ok: false, miss: 'noSun' };
 }
 
