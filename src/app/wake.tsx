@@ -7,6 +7,8 @@ import { useEffect } from 'react';
 
 import { leaveLab } from '@/components/leave-route';
 import { readLock, routineAt } from '@/lib/lock-controller';
+import { methodInUse } from '@/lib/scan-code';
+import { isShotKind } from '@/lib/wake/shot';
 import { shownScanCode } from '@/features/dev/wake-lab/stand-ins';
 import { askWalk } from '@/features/home/walk-request';
 import { resumeRehearsal } from '@/features/dev/rehearsal/rehearsal';
@@ -31,8 +33,9 @@ export default function WakeRoute() {
     }
     const routine = routineAt(new Date());
     if (method !== 'steps' && routine.method === 'scan' && shownScanCode()) return router.replace('/scan?mode=morning');
-    // Touch grass and Sunlight: straight to the camera, from a shield or notification tap.
-    if (method !== 'steps' && (routine.method === 'grass' || routine.method === 'sun')) return router.replace(`/${routine.method}`);
+    // The photo ways: straight to the camera, from a shield or notification tap (a bed with no setup photo walks).
+    const used = methodInUse(routine.method);
+    if (method !== 'steps' && isShotKind(used)) return router.replace(`/${used}`);
     // A scan routine with no code saved can only be walked.
     if (method === 'steps' || (routine.method === 'scan' && !shownScanCode())) askWalk(readLock().morningKey);
     leaveLab();

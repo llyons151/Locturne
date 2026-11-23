@@ -68,6 +68,8 @@ const METHOD_GLYPH: Record<WakeMethod, SymbolViewProps['name']> = {
   bench: { ios: 'figure.strengthtraining.traditional', android: 'exercise', web: 'exercise' },
   grass: { ios: 'leaf', android: 'grass', web: 'grass' },
   sun: { ios: 'sun.max', android: 'wb_sunny', web: 'wb_sunny' },
+  pet: { ios: 'pawprint', android: 'pets', web: 'pets' },
+  bed: { ios: 'bed.double', android: 'bed', web: 'bed' },
 };
 
 /**

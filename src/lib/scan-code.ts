@@ -1,3 +1,4 @@
+import { getBedPhoto } from './bed-photo-saved.ts';
 import type { WakeMethod } from './routine.ts';
 import { getMorningPlace } from './place-spot.ts';
 import { sharedGet } from './screen-time.ts';
@@ -41,11 +42,12 @@ export function scanCodeChanged(): void {
 }
 
 /**
- * The method the morning really asks for: a scan morning with no code set up yet, or a place
- * morning with no place picked yet, falls back to steps.
+ * The method the morning really asks for: a scan morning with no code set up yet, a place
+ * morning with no place picked yet, or a bed morning with no photo of the made bed yet, falls back to steps.
  */
 export function methodInUse(method: WakeMethod): WakeMethod {
   if (method === 'scan' && !getScanCode()) return 'steps';
+  if (method === 'bed' && !getBedPhoto()) return 'steps';
   if (method === 'place' && !getMorningPlace()) return 'steps';
   return method;
 }

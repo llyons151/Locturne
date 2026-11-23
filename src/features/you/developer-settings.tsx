@@ -56,6 +56,8 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
   bench: sym('figure.strengthtraining.traditional', 'exercise'),
   grass: sym('leaf', 'grass'),
   sun: sym('sun.max', 'wb_sunny'),
+  pet: sym('pawprint', 'pets'),
+  bed: sym('bed.double', 'bed'),
 };
 
 /**
@@ -67,15 +69,16 @@ function testLock(method: WakeMethod) {
   // Tests the real thing (user 2026-10-29): with no code or place set up, the test morning fell
   // back on a made-up one that can never be reached.
   if (methodInUse(method) !== method) {
-    const scan = method === 'scan';
-    return Alert.alert(
-      scan ? 'No code yet' : 'No place yet',
-      scan ? 'The test scans your real code, so set one up first.' : 'The test checks you in at your real place, so pick one first.',
-      [
-        { text: 'Not now', style: 'cancel' },
-        { text: scan ? 'Set up a code' : 'Pick a place', onPress: () => router.push(scan ? '/code' : '/place-pick') },
-      ],
-    );
+    const ask =
+      method === 'scan'
+        ? { title: 'No code yet', body: 'The test scans your real code, so set one up first.', button: 'Set up a code', to: '/code' as const }
+        : method === 'bed'
+          ? { title: 'No bed photo yet', body: 'The test checks your real bed, so set up its photo first.', button: 'Set up the photo', to: '/bed-setup' as const }
+          : { title: 'No place yet', body: 'The test checks you in at your real place, so pick one first.', button: 'Pick a place', to: '/place-pick' as const };
+    return Alert.alert(ask.title, ask.body, [
+      { text: 'Not now', style: 'cancel' },
+      { text: ask.button, onPress: () => router.push(ask.to) },
+    ]);
   }
   if (!startTestLock(method)) {
     return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');

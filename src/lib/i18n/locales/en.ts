@@ -141,6 +141,8 @@ export const en = {
     proofBench: 'Open Locturne for your bench press.',
     proofGrass: 'Go touch grass. Then open Locturne.',
     proofSun: 'Go find the sun. Then open Locturne.',
+    proofPet: 'Go pet your pet. Then open Locturne.',
+    proofBed: 'Go make your bed. Then open Locturne.',
     proofDowntime: 'Walk {steps} steps, then tap I’m up. The timer starts from your steps.',
     tapTitle: 'Up already?',
     tapBody: 'Tap here and prove it. Then they wake.',
@@ -189,7 +191,7 @@ export const en = {
   /** iOS's permission prompts (Info.plist), for prebuild's InfoPlist.strings. English stays in app.json. */
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturne uses the camera to scan your wake-up code, take your grass or sunlight photo, or watch your push-ups, pull-ups, bench press or dancing, in the morning. It looks on this phone; nothing is recorded or saved.',
+      'Locturne uses the camera to scan your wake-up code, take your grass, sunlight, pet or bed photo, or watch your push-ups, pull-ups, bench press or dancing, in the morning. It looks on this phone; nothing is recorded, and the one photo of your made bed stays on this phone.',
     NSLocationWhenInUseUsageDescription:
       'While Locturne is open, it shows you on the map and checks you’ve reached the place you picked for your mornings. It never uses your location in the background.',
     NSMotionUsageDescription: 'Locturne checks your steps each morning to wake your apps. That’s all it uses motion for.',

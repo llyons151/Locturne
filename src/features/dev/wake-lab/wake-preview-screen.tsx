@@ -61,6 +61,8 @@ const PAYOFF_METHOD: MenuOption<string>[] = [
   { value: 'place', label: 'Place' },
   { value: 'grass', label: 'Touch grass' },
   { value: 'sun', label: 'Sunlight' },
+  { value: 'pet', label: 'Pet your pet' },
+  { value: 'bed', label: 'Make your bed' },
 ];
 
 const PAYOFF_MORNINGS: MenuOption<string>[] = [
@@ -179,13 +181,18 @@ export function WakePreviewScreen() {
 
       <Card
         icon={sym('leaf', 'grass')}
-        title="Touch grass and Sunlight"
-        footer="A photo, read on the phone (modules/photo-check, judged in src/lib/wake/photo.ts). The Scan card's Camera setting fakes this camera too: two buttons, the real thing or not. In a pretend morning a miss shows the reading's numbers, for tuning on a real lawn. Home: src/features/home/morning.ts; the camera: src/features/photo/photo-screen.tsx"
+        title="The photo ways"
+        footer="A photo, read on the phone (modules/photo-check, judged in src/lib/wake/photo.ts, pet.ts and bed.ts). The Scan card's Camera setting fakes this camera too: two buttons, the real thing or not. In a pretend morning a miss shows the reading's numbers, for tuning on a real lawn. Home: src/features/home/morning.ts; the camera: src/features/photo/photo-screen.tsx"
       >
         <ValueRow title="Grass: open the morning (Home)" value="" onPress={() => open('/', 'grass')} />
         <ValueRow title="Grass: open the camera" value="" onPress={() => open('/grass', 'grass')} />
         <ValueRow title="Sun: open the morning (Home)" value="" onPress={() => open('/', 'sun')} />
-        <ValueRow title="Sun: open the camera" value="" onPress={() => open('/sun', 'sun')} last />
+        <ValueRow title="Sun: open the camera" value="" onPress={() => open('/sun', 'sun')} />
+        <ValueRow title="Pet: open the morning (Home)" value="" onPress={() => open('/', 'pet')} />
+        <ValueRow title="Pet: open the camera" value="" onPress={() => open('/pet', 'pet')} />
+        <ValueRow title="Bed: open the morning (Home)" value="" onPress={() => open('/', 'bed')} />
+        <ValueRow title="Bed: open the camera" value="" onPress={() => open('/bed', 'bed')} />
+        <ValueRow title="Bed: take the setup photo" value="" onPress={() => router.push('/bed-setup')} last />
       </Card>
 
       <Card

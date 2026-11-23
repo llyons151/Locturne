@@ -62,6 +62,8 @@ const VERB: Record<WakeMethod, (goal: number) => string> = {
   bench: () => 'bench your set',
   grass: () => 'go outside and touch grass',
   sun: () => 'go outside and find the sun',
+  pet: () => 'get up and pet your pet',
+  bed: () => 'get up and make your bed',
   downtime: () => 'get up and let your timer run out',
 };
 
@@ -76,6 +78,8 @@ const FALLBACK: Record<WakeMethod, (goal: number) => string> = {
   bench: (goal) => `No bench nearby? Walk ${goal} steps instead.`,
   grass: (goal) => `No grass in sight? Walk ${goal} steps instead.`,
   sun: (goal) => `Sun not up yet? Walk ${goal} steps instead.`,
+  pet: (goal) => `Pet hiding? Walk ${goal} steps instead.`,
+  bed: (goal) => `Not your bed this morning? Walk ${goal} steps instead.`,
   downtime: () => 'Steps from before you opened me count. The timer starts from them, not from now.',
 };
 

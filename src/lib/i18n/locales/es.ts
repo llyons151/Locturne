@@ -126,6 +126,8 @@ export const es: Translation = {
     proofBench: 'Abre Locturne para tu press de banca.',
     proofGrass: 'Sal a tocar césped. Luego abre Locturne.',
     proofSun: 'Sal a buscar el sol. Luego abre Locturne.',
+    proofPet: 'Ve a acariciar a tu mascota. Luego abre Locturne.',
+    proofBed: 'Ve a hacer tu cama. Luego abre Locturne.',
     proofDowntime: 'Camina {steps} pasos y luego toca Ya estoy de pie. El temporizador empieza con tus pasos.',
     tapTitle: '¿Ya despierto?',
     tapBody: 'Toca aquí y demuéstralo. Luego se despiertan.',
@@ -170,7 +172,7 @@ export const es: Translation = {
   },
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturne usa la cámara por la mañana para escanear tu código de despertar, hacer tu foto del césped o del sol, o ver tus flexiones, dominadas, press de banca o tu baile. Todo ocurre en este teléfono; no se graba ni se guarda nada.',
+      'Locturne usa la cámara por la mañana para escanear tu código de despertar, hacer tu foto del césped, del sol, de tu mascota o de tu cama, o ver tus flexiones, dominadas, press de banca o tu baile. Todo ocurre en este teléfono; no se graba nada, y la única foto de tu cama hecha se queda en este teléfono.',
     NSLocationWhenInUseUsageDescription:
       'Con Locturne abierto, te muestra en el mapa y comprueba que llegaste al sitio que elegiste para tus mañanas. Nunca usa tu ubicación en segundo plano.',
     NSMotionUsageDescription: 'Locturne revisa tus pasos cada mañana para despertar tus apps. Solo para eso usa el movimiento.',

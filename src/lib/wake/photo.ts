@@ -88,7 +88,7 @@ export function labelScore(labels: PhotoLabel[], words: readonly string[]): numb
 }
 
 /** Pure: is this a photo of a screen? Only when a screen is what the classifier is surest of. */
-function ofAScreen(r: PhotoReading): boolean {
+export function ofAScreen(r: PhotoReading): boolean {
   const screen = labelScore(r.labels, SCREEN);
   if (screen < PHOTO.screen) return false;
   const top = r.labels.reduce((m, l) => Math.max(m, l.confidence), 0);

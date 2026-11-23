@@ -3,7 +3,7 @@ import type { WakeMethod } from '@/lib/routine';
 import { formatWhen } from '../estimate';
 
 /** Minutes from the alarm to proof, by how they prove it. A walk is about three. */
-const UP_AFTER: Record<WakeMethod, number> = { dance: 2, steps: 3, scan: 2, place: 15, pushups: 2, downtime: 2, pullups: 3, bench: 3, grass: 4, sun: 4 };
+const UP_AFTER: Record<WakeMethod, number> = { dance: 2, steps: 3, scan: 2, place: 15, pushups: 2, downtime: 2, pullups: 3, bench: 3, grass: 4, sun: 4, pet: 2, bed: 3 };
 
 export type CompareRow = { label: string; usual: string; withMe: string };
 

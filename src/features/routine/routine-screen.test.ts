@@ -121,6 +121,7 @@ function screen(initial: Stored, now?: Date) {
     '@/lib/screen-time': { getArmedNight: () => ({}), isScreenTimeAvailable: () => true, sharedGet: () => null, sharedSet() {} },
     '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m },
     '@/lib/scan': { getScanCode: () => null, getScanEditRefusal: () => null },
+    '@/lib/bed-photo': { getBedPhoto: () => null, getBedEditRefusal: () => null },
     '@/lib/place': { getMorningPlace: () => null, getPlaceEditRefusal: () => null },
     '@/lib/text': { noOrphan: (s: string) => s, formatPreset: () => '' },
     '@/theme': { DisplayFont: {}, Gap: {}, italicOverhang: () => ({}), Nocturne: {}, Radius: {}, Space: {}, Type: {}, VoiceSize: { aside: 0 } },

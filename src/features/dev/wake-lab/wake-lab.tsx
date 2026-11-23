@@ -34,6 +34,8 @@ export const LAB_METHODS: { value: WakeMethod; title: string }[] = [
   { value: 'bench', title: 'Bench press' },
   { value: 'grass', title: 'Touch grass' },
   { value: 'sun', title: 'Sunlight' },
+  { value: 'pet', title: 'Pet your pet' },
+  { value: 'bed', title: 'Make your bed' },
   { value: 'downtime', title: 'Step away' },
 ];
 
@@ -117,8 +119,8 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
   else if (method === 'place') content = <PlaceTest key={run} onMet={onMet} />;
   else content = <StepsView key={run} goal={routine.stepGoal} morningStart={startedAt} onMet={onMet} />;
 
-  // Touch grass and Sunlight: the real camera screen, edge to edge (it has its own X), until it passes.
-  if (!passed && (method === 'grass' || method === 'sun'))
+  // The photo ways: the real camera screen, edge to edge (it has its own X), until it passes.
+  if (!passed && (method === 'grass' || method === 'sun' || method === 'pet' || method === 'bed'))
     return (
       <>
         <StayAwake />

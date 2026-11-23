@@ -83,7 +83,7 @@ const MOCK_WEEK = false as boolean;
  * The evening button names tomorrow's wake-up, the part of the night that's still to come, in
  * Routine's words (steps and push-ups carry their counts where it's built).
  */
-const METHOD_NAME = { dance: 'Dance', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away', pullups: 'Pull-ups', bench: 'Bench press', grass: 'Touch grass', sun: 'Sunlight' } as const;
+const METHOD_NAME = { dance: 'Dance', steps: '200 steps', scan: 'Scan your code', place: 'Get to your place', pushups: 'Push-ups', downtime: 'Step away', pullups: 'Pull-ups', bench: 'Bench press', grass: 'Touch grass', sun: 'Sunlight', pet: 'Pet your pet', bed: 'Make your bed' } as const;
 
 /** `pauseWording`'s answer: the paused night's words. */
 type PauseWords = ReturnType<typeof pauseWording>;
@@ -285,7 +285,7 @@ export function HomeScreen() {
   const bench = useMorningPushups(own && method === 'bench', benchGoalOf(routine), repsKey, 'bench');
   // A few steps, then the countdown to when the apps wake (wake/downtime.ts).
   const downtime = useMorningDowntime(own && method === 'downtime', routine);
-  const morningHero = place ?? pushups?.morning ?? dance?.morning ?? pullups?.morning ?? bench?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : own && (method === 'grass' || method === 'sun') ? photoMorning(method) : null);
+  const morningHero = place ?? pushups?.morning ?? dance?.morning ?? pullups?.morning ?? bench?.morning ?? downtime ?? (own && method === 'scan' ? scanMorning() : own && (method === 'grass' || method === 'sun' || method === 'pet' || method === 'bed') ? photoMorning(method) : null);
   // The method's "walk instead" placeholder, made real; never the passes (they stay in You).
   const made = (a: HomeAction | null | undefined) => (a === WALK_INSTEAD ? walkInstead : (a ?? undefined));
   const here = morningHero && { ...morningHero, action: made(morningHero.action) ?? null, alt: made(morningHero.alt) };
@@ -556,6 +556,8 @@ const BACK_TO_OWN: Record<Exclude<WakeMethod, 'steps'>, string> = {
   bench: 'Bench press instead',
   grass: 'Touch grass instead',
   sun: 'Find the sun instead',
+  pet: 'Pet my pet instead',
+  bed: 'Make my bed instead',
   // Never shown: Step away has no walk instead (above).
   downtime: 'Step away instead',
 };
@@ -574,6 +576,8 @@ const DONE_WORDS: Record<WakeMethod, string> = {
   bench: 'Bench press done',
   grass: 'Grass touched',
   sun: 'Sun found',
+  pet: 'Pet petted',
+  bed: 'Bed made',
 };
 
 const WALK_ICON = { ios: 'figure.walk', android: 'directions_walk' };

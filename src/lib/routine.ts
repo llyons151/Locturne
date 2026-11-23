@@ -17,12 +17,14 @@ import { EXTENSION_SLACK_MS } from './wake/arming.ts';
  * counted by the front camera (wake/pushups.ts). `downtime`, "Step away": a few steps to show
  * you're up, then a stretch of time with the apps still asleep (wake/downtime.ts; 2026-11-05,
  * in place of squats, which went the same day). `pullups` (wake/pullups.ts) and `bench`, the bench
- * press (wake/bench.ts): counted by the camera like push-ups (2026-11-21).
+ * press (wake/bench.ts): counted by the camera like push-ups (2026-11-21). `grass`, `sun` and `pet`
+ * (2026-11-23, your hand on your cat or dog, wake/pet.ts) are a photo read on the phone, and so is `bed`
+ * (2026-11-23, Make your bed: wake/bed.ts, against a photo of it made taken at setup, bed-photo.ts).
  */
-export type WakeMethod = 'dance' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime' | 'pullups' | 'bench' | 'grass' | 'sun';
+export type WakeMethod = 'dance' | 'steps' | 'scan' | 'place' | 'pushups' | 'downtime' | 'pullups' | 'bench' | 'grass' | 'sun' | 'pet' | 'bed';
 
 /** Every method, for checking a saved one (`normalizeRoutine`). */
-export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'dance', 'scan', 'place', 'pushups', 'downtime', 'pullups', 'bench', 'grass', 'sun'];
+export const WAKE_METHODS: readonly WakeMethod[] = ['steps', 'dance', 'scan', 'place', 'pushups', 'downtime', 'pullups', 'bench', 'grass', 'sun', 'pet', 'bed'];
 
 /** The methods the camera counts (wake/pushups.ts's machine), with the exercise each counts. */
 export const CAMERA_METHODS = ['pushups', 'dance', 'pullups', 'bench'] as const;

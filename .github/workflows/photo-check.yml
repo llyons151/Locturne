@@ -1,0 +1,49 @@
+# The photo wake-ups (src/lib/wake/pet.ts, bed.ts): runs the app's own photo reading (modules/photo-check/ios)
+# on a Mac over the real photos listed in tools/photo-check, and keeps what Apple's Vision saw as artifacts.
+# Not an app build: no signing, no secrets. tools/photo-check/README.md says how to judge the readings.
+name: Photo check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pet-check]
+
+jobs:
+  read:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the photos
+        run: |
+          mkdir -p pets beds
+          grep -v '^#' tools/photo-check/pet-photos.txt | while read -r name _ url; do
+            curl -sfL -A "photo-check-test/1.0 (research)" -o "pets/$name.jpg" "$url" || echo "missed $name"
+            sleep 1
+          done
+          grep -v '^#' tools/photo-check/bed-photos.txt | while read -r name url; do
+            curl -sfL -A "photo-check-test/1.0 (research)" -o "beds/$name.jpg" "$url" || echo "missed $name"
+            sleep 1
+          done
+          ls pets | wc -l; ls beds | wc -l
+
+      - name: Make the re-takes (each reference shot again, a little off)
+        run: |
+          python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet pillow
+          /tmp/venv/bin/python tools/photo-check/retake.py beds
+
+      - name: Read them with Vision
+        run: |
+          swiftc -O modules/photo-check/ios/PhotoMeasure.swift modules/photo-check/ios/PetReading.swift \
+            modules/photo-check/ios/BedReading.swift tools/photo-check/main.swift -o photo-check
+          ./photo-check pet pets > pet-readings.json
+          ./photo-check bed beds tools/photo-check/bed-pairs.txt > bed-readings.json
+          wc -c pet-readings.json bed-readings.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: photo-readings
+          path: |
+            pet-readings.json
+            bed-readings.json

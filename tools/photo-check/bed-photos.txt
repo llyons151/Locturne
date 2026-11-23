@@ -1,0 +1,21 @@
+# name, Wikimedia Commons URL. Made beds (made-*, hotel-*) are the references; looked at by eye 2026-11-23.
+# hotel-2 and hotel-5 are the same bed from two angles. hotel-6 is half made. unmade-8 was filed as made but is rumpled.
+hotel-1 https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fe/Bed_in_hotel_room.jpg/1280px-Bed_in_hotel_room.jpg
+hotel-2 https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Bed_in_hotel_room_2.jpg/1280px-Bed_in_hotel_room_2.jpg
+hotel-3 https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2b/Bed_in_hotel_room_3.jpg/1280px-Bed_in_hotel_room_3.jpg
+hotel-4 https://thumb.wikimedia.org/wikipedia/commons/thumb/0/06/Bed_in_hotel_room_4.jpg/1280px-Bed_in_hotel_room_4.jpg
+hotel-5 https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4f/Bed_in_hotel_room_5.jpg/1280px-Bed_in_hotel_room_5.jpg
+hotel-6 https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Bed_in_hotel_room_6.jpg/1280px-Bed_in_hotel_room_6.jpg
+made-1 https://thumb.wikimedia.org/wikipedia/commons/thumb/5/58/Bedroom_large_double_bed.jpg/1280px-Bedroom_large_double_bed.jpg
+made-2 https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Cozy_bedroom_with_a_large_bed_and_simple_decor_in_a_modern_home.jpg/1280px-Cozy_bedroom_with_a_large_bed_and_simple_decor_in_a_modern_home.jpg
+made-3 https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Modern_double_bed_in_a_decorated_hotel_room.jpg/1280px-Modern_double_bed_in_a_decorated_hotel_room.jpg
+made-4 https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Hotel_Room_Bed_%2840144499253%29.jpg/1280px-Hotel_Room_Bed_%2840144499253%29.jpg
+made-6 https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c1/Bed_at_Tianhe_Hotel_in_Shenzhen.jpg/1280px-Bed_at_Tianhe_Hotel_in_Shenzhen.jpg
+unmade-1 https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Unmade_bed.jpg/1280px-Unmade_bed.jpg
+unmade-2 https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b6/Untidy_and_unkempt_bed.jpg/1280px-Untidy_and_unkempt_bed.jpg
+unmade-3 https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3f/Messy_Bed_%286827707428%29.jpg/1280px-Messy_Bed_%286827707428%29.jpg
+unmade-4 https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/Messy_bed_and_closed_blinds_%28Unsplash%29.jpg/1280px-Messy_bed_and_closed_blinds_%28Unsplash%29.jpg
+unmade-5 https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f4/Messy_hotel_bed_inside_an_airbnb.jpg/1280px-Messy_hotel_bed_inside_an_airbnb.jpg
+unmade-6 https://upload.wikimedia.org/wikipedia/commons/1/13/Unmade_bed_seen_from_desk%2C_Comfort_Inn%2C_Waynesboro%2C_Virginia.jpg
+unmade-7 https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8b/2_cats_sitting_on_unmade_bed.jpg/1280px-2_cats_sitting_on_unmade_bed.jpg
+unmade-8 https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3c/Bed_at_hotel_room_at_Hotel_Palace_Tallinn.jpg/1280px-Bed_at_hotel_room_at_Hotel_Palace_Tallinn.jpg

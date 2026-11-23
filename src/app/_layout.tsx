@@ -198,9 +198,12 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
-          {/* Touch grass and Sunlight: the camera for the morning's photo (features/photo). */}
+          {/* The photo ways: the camera for the morning's photo (features/photo), and Make your bed's setup photo. */}
           <Stack.Screen name="grass" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="sun" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="pet" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="bed" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="bed-setup" options={{ presentation: 'fullScreenModal' }} />
           {/* Picking the morning place: a full-screen map, like Google Maps (a sheet would drag
               away under the map's own drags). */}
           <Stack.Screen

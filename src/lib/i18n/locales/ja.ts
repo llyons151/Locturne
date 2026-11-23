@@ -125,6 +125,8 @@ export const ja: Translation = {
     proofBench: 'Locturneを開いてベンチプレス。',
     proofGrass: '外で芝生に触れて。それからLocturneを開いて。',
     proofSun: '外で太陽を見つけて。それからLocturneを開いて。',
+    proofPet: 'ペットをなでに行って。それからLocturneを開いて。',
+    proofBed: 'ベッドを整えて。それからLocturneを開いて。',
     proofDowntime: '{steps}歩歩いてから「起きた」をタップ。タイマーは歩いたら始まる。',
     tapTitle: 'もう起きた？',
     tapBody: 'ここをタップして証明しろ。そしたら起きる。',
@@ -169,7 +171,7 @@ export const ja: Translation = {
   },
   infoPlist: {
     NSCameraUsageDescription:
-      'Locturneは朝、起床用コードのスキャン、芝生や日の光の写真、腕立て伏せ・懸垂・ベンチプレス・ダンスの確認にカメラを使います。処理はこのiPhone内だけで、録画も保存もしません。',
+      'Locturneは朝、起床用コードのスキャン、芝生・日の光・ペット・ベッドの写真、腕立て伏せ・懸垂・ベンチプレス・ダンスの確認にカメラを使います。処理はこのiPhone内だけで、録画はしません。整えたベッドの写真1枚だけがこのiPhoneに残ります。',
     NSLocationWhenInUseUsageDescription:
       'Locturneを開いている間、地図上に現在地を表示し、朝の場所に着いたかを確認します。バックグラウンドで位置情報を使うことはありません。',
     NSMotionUsageDescription: 'Locturneは毎朝、アプリを起こすために歩数を確認します。モーションの使い道はそれだけです。',

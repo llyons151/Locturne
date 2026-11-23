@@ -160,6 +160,8 @@ function methodDemo(method: WakeMethod, reps: number): MethodDemo {
     // Touch grass and Sunlight aren't in onboarding's question (Routine only): the scan's beat if one is ever shown.
     case 'grass':
     case 'sun':
+    case 'pet':
+    case 'bed':
       return { ms: 2600, start: 'Take the photo', beat: (t) => [t < SCAN_FIND_MS ? 0 : 1, 'tick'] };
     case 'pushups':
     case 'pullups':
@@ -791,7 +793,24 @@ function MethodApp({
     // Routine only (wake/photo.ts): no drawn camera of their own, just the ask.
     case 'grass':
     case 'sun':
-      return <AppPage k={k} line={method === 'grass' ? 'Go touch grass. Real grass, outside.' : 'Go find the sun. Lamps don’t count.'} button={done ? undefined : demo.start} press={start} />;
+    case 'pet':
+    case 'bed':
+      return (
+        <AppPage
+          k={k}
+          line={
+            method === 'grass'
+              ? 'Go touch grass. Real grass, outside.'
+              : method === 'sun'
+                ? 'Go find the sun. Lamps don’t count.'
+                : method === 'pet'
+                  ? 'Go pet your pet. Out of bed.'
+                  : 'Make your bed. Then show me.'
+          }
+          button={done ? undefined : demo.start}
+          press={start}
+        />
+      );
     case 'downtime': {
       const walking = !going || t < AWAY_WALK_MS;
       const steps = going ? awayStepsAt(t) : 0;

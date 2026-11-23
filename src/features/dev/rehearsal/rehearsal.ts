@@ -38,7 +38,9 @@ export async function rehearse(method: WakeMethod, quick = false, now = new Date
     throw new Error(
       method === 'scan'
         ? 'No code saved yet, so a scan morning would be a walk. Set one up in Routine first.'
-        : 'No place picked yet, so a place morning would be a walk. Pick one in Routine first.',
+        : method === 'bed'
+          ? 'No bed photo saved yet, so a bed morning would be a walk. Set one up in Routine first.'
+          : 'No place picked yet, so a place morning would be a walk. Pick one in Routine first.',
     );
   }
   // The real lock's night or morning, now or before this one's over, would hold the same apps.

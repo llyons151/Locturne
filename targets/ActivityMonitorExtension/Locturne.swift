@@ -770,17 +770,19 @@ func locturneMotionProof(method: String, stepGoal: Int, steps: Int, floors: Int)
   // A method this extension doesn't know (a newer app's) still takes a walk, so nobody is stuck.
   // Step away (`downtime`) is steps and then its timer: walking further never skips the timer.
   // Pull-ups and the bench press (2026-11-21) are counted by the camera in Locturne, like push-ups.
-  // Touch grass and Sunlight (2026-11-21) are a photo taken in Locturne: never a walk either.
-  let walks = !["dance", "scan", "place", "pushups", "downtime", "pullups", "bench", "grass", "sun"].contains(method)
+  // Touch grass, Sunlight (2026-11-21), Pet your pet and Make your bed (2026-11-23) are a photo taken in Locturne: never a walk either.
+  let walks = !["dance", "scan", "place", "pushups", "downtime", "pullups", "bench", "grass", "sun", "pet", "bed"].contains(method)
   if walks && steps >= max(stepGoal, 1) { return "steps" }
   return nil
 }
 
 /// The method the morning really asks for, as `methodInUse` in src/lib/scan-code.ts: a scan
-/// morning with no code set up yet, or a place morning with no place picked, is a walk.
+/// morning with no code set up yet, a place morning with no place picked, or a Make your bed
+/// morning with no photo of it made (2026-11-23), is a walk.
 func locturneMethodInUse(_ method: String) -> String {
   if method == "scan" && userDefaults?.object(forKey: "locturne.scanCode") == nil { return "steps" }
   if method == "place" && userDefaults?.object(forKey: "locturne.morningPlace") == nil { return "steps" }
+  if method == "bed" && userDefaults?.object(forKey: "locturne.bedPhoto") == nil { return "steps" }
   // Squats went on 2026-11-05 (`normalizeRoutine` in src/lib/routine.ts): a routine saved with
   // them, not yet opened in the new app, walks.
   if method == "squats" { return "steps" }

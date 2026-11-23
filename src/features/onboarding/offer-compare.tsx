@@ -30,6 +30,8 @@ const WAKE_ROW_DEFAULTS: Record<WakeMethod, string> = {
   bench: '10 bench reps wake them',
   grass: 'Touching grass wakes them',
   sun: 'The sun wakes them',
+  pet: 'Petting your pet wakes them',
+  bed: 'Making your bed wakes them',
 };
 
 /** The row, with the counts set in Routine (written above for the defaults). */
@@ -57,6 +59,8 @@ const WAKE_ICON: Partial<Record<WakeMethod, ReturnType<typeof sym>>> = {
   bench: sym('figure.strengthtraining.traditional', 'exercise'),
   grass: sym('leaf', 'grass'),
   sun: sym('sun.max', 'wb_sunny'),
+  pet: sym('pawprint', 'pets'),
+  bed: sym('bed.double', 'bed'),
 };
 
 /** A cell: a tick, a dash, or a few words. */

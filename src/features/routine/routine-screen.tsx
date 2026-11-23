@@ -40,6 +40,7 @@ import {
   type WakeMethod,
 } from '@/lib/routine';
 import { getMorningPlace, getPlaceEditRefusal } from '@/lib/place';
+import { getBedEditRefusal, getBedPhoto } from '@/lib/bed-photo';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
 import { methodInUse } from '@/lib/scan-code';
 import { minutesLabel } from '@/lib/wake/downtime';
@@ -263,7 +264,9 @@ export function RoutineScreen() {
   const offerCodeSetup = saved.method === 'scan' && !getScanEditRefusal();
   // Place picked: pick one, or change it, only while it's allowed (not from bed).
   const offerPlaceSetup = saved.method === 'place' && !getPlaceEditRefusal();
-  const setupRow = offerCodeSetup || offerPlaceSetup || offerReps || offerDance || offerPullups || offerBench || offerDowntime || offerSteps;
+  // Make your bed picked: photo it made, or again, only while it's allowed (not from bed).
+  const offerBedSetup = saved.method === 'bed' && !getBedEditRefusal();
+  const setupRow = offerCodeSetup || offerPlaceSetup || offerBedSetup || offerReps || offerDance || offerPullups || offerBench || offerDowntime || offerSteps;
   const now = new Date();
   // While the apps are asleep the routine is locked (`routineEditRefusal`).
   const asleep = routineEditRefusal(now) !== null;
@@ -378,6 +381,9 @@ export function RoutineScreen() {
             last
           />
         ) : null}
+        {offerBedSetup ? (
+          <ValueRow title={getBedPhoto() ? 'Change your bed photo' : 'Set up your bed photo'} value="" onPress={() => router.push('/bed-setup')} last />
+        ) : null}
         {offerReps ? (
           // A wheel in the floating sheet: any count, not a short menu (user's ask, 2026-10-10).
           <ValueRow title="Push-ups" value={`${reps}`} onPress={() => router.push('/pushups')} last />
@@ -393,7 +399,7 @@ export function RoutineScreen() {
             <ValueRow title="Apps asleep for" value={minutesLabel(downtimeMinutesOf(saved))} onPress={() => router.push('/downtime')} last />
           </>
         ) : null}
-        {offerSteps && !offerCodeSetup && !offerPlaceSetup ? (
+        {offerSteps && !offerCodeSetup && !offerPlaceSetup && !offerBedSetup ? (
           // The same wheel, in fifties (user 2026-10-28).
           <ValueRow title="Steps" value={`${saved.stepGoal}`} onPress={() => router.push('/steps')} last />
         ) : null}

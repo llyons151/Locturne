@@ -3,7 +3,7 @@ import { type WakeMethod } from '@/lib/routine';
 import { buildKnowsExercise } from '../../../modules/pose-camera';
 
 /** The ways a JS update can't offer alone: their build has to know them. */
-const NEEDS_BUILD: readonly WakeMethod[] = ['pullups', 'bench', 'grass', 'sun'];
+const NEEDS_BUILD: readonly WakeMethod[] = ['pullups', 'bench', 'grass', 'sun', 'pet', 'bed'];
 
 /**
  * Is this way offered in the grid on this build? Pull-ups and the bench press (2026-11-21) need the build

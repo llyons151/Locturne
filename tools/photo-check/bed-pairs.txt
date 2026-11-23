@@ -1,0 +1,27 @@
+# reference (the made bed at setup), this morning's photo, what it should be (pass / fail / any).
+# `<name>-retake` is the reference shot again: turned 3°, moved, a little darker (made in the workflow).
+made-1 made-1-retake pass
+made-2 made-2-retake pass
+made-3 made-3-retake pass
+made-6 made-6-retake pass
+hotel-2 hotel-2-retake pass
+hotel-3 hotel-3-retake pass
+hotel-4 hotel-4-retake pass
+hotel-2 hotel-5 any
+hotel-5 hotel-2 any
+made-1 made-2 fail
+made-2 made-6 fail
+hotel-3 hotel-4 fail
+made-6 hotel-2 fail
+hotel-2 made-6 fail
+made-3 hotel-3 fail
+hotel-3 hotel-6 any
+hotel-2 unmade-6 fail
+hotel-5 unmade-6 fail
+made-6 unmade-3 fail
+made-2 unmade-5 fail
+made-1 unmade-4 fail
+made-6 unmade-8 fail
+hotel-3 unmade-1 fail
+hotel-4 unmade-2 fail
+hotel-2 unmade-7 fail

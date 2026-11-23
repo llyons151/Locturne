@@ -128,6 +128,26 @@ export const methodOptions = ({ place, steps, wake, downtime = DEFAULT_DOWNTIME 
     recommended: false,
   },
   {
+    // A photo of your hand on your cat or dog, out of bed (wake/pet.ts; 2026-11-23).
+    value: 'pet',
+    sf: 'pawprint',
+    icon: sym('pawprint', 'pets'),
+    title: 'Pet your pet',
+    detail: 'Take a photo petting them',
+    action: 'Get up and take a photo of your hand on your cat or dog',
+    recommended: false,
+  },
+  {
+    // A photo of your bed made, against one taken at setup (wake/bed.ts; 2026-11-23).
+    value: 'bed',
+    sf: 'bed.double',
+    icon: sym('bed.double', 'bed'),
+    title: 'Make your bed',
+    detail: 'Take a photo of it made',
+    action: 'Make your bed and take a photo of it',
+    recommended: false,
+  },
+  {
     // A few steps, then time away (wake/downtime.ts; 2026-11-05, the grid's sixth in place of squats).
     value: 'downtime',
     sf: 'hourglass',

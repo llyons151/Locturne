@@ -144,6 +144,8 @@ const METHOD_LABEL: Record<WakeMethod, string> = {
   bench: 'Bench press',
   grass: 'Touch grass',
   sun: 'Sunlight',
+  pet: 'Pet your pet',
+  bed: 'Make your bed',
 };
 
 /** Bedtime an hour ago, waking in six: onboarding inside their own night. */

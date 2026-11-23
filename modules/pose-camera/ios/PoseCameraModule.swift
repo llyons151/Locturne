@@ -49,9 +49,9 @@ public class PoseCameraModule: Module {
     /// The camera exercises this build's extensions know (2026-11-21). The shield and the monitor
     /// read the routine's method: one they don't know is taken as a walk, so a JS update must not
     /// offer pull-ups or the bench press on a build whose extensions would let 200 steps wake them.
-    /// Touch grass and Sunlight (photos, modules/photo-check) are listed here for the same reason.
+    /// Touch grass, Sunlight, Pet your pet and Make your bed (photos, modules/photo-check) are listed here for the same reason.
     Function("knownExercises") { () -> [String] in
-      ["pushups", "dance", "pullups", "bench", "grass", "sun"]
+      ["pushups", "dance", "pullups", "bench", "grass", "sun", "pet", "bed"]
     }
 
     OnDestroy {

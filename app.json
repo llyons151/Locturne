@@ -145,7 +145,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Locturne uses the camera to scan your wake-up code, take your grass or sunlight photo, or watch your push-ups, pull-ups, bench press or dancing, in the morning. It looks on this phone; nothing is recorded or saved.",
+          "cameraPermission": "Locturne uses the camera to scan your wake-up code, take your grass, sunlight, pet or bed photo, or watch your push-ups, pull-ups, bench press or dancing, in the morning. It looks on this phone; nothing is recorded, and the one photo of your made bed stays on this phone.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

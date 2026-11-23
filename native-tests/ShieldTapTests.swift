@@ -31,6 +31,7 @@ let proofLine = [
   "pushups": "Do your push-ups and I’ll wake them.",
   "pullups": "Do your pull-ups and I’ll wake them.", "bench": "Bench your set and I’ll wake them.",
   "grass": "Go touch grass. Then open Locturne.", "sun": "Go find the sun. Then open Locturne.",
+  "pet": "Go pet your pet. Then open Locturne.", "bed": "Go make your bed. Then open Locturne.",
 ]
 
 /// What `applyShieldText` leaves at the evening's last sync, the app then closed till morning:
@@ -316,7 +317,7 @@ func registerShieldTapTests() {
 
   // MARK: Scan, place, push-ups, dance, pull-ups, bench press: the shield can't do them, so the tap opens Locturne
 
-  for method in ["scan", "place"] {
+  for method in ["scan", "place", "bed"] {
     test("shield tap, \(method) with nothing set up yet: it's a walk, and 200 steps wake them") {
       closedNight(method: method)
       at("2026-10-06 07:15")
@@ -325,13 +326,14 @@ func registerShieldTapTests() {
     }
   }
 
-  /// A scan or place morning with its code or place set up (without one it's a walk: `locturneMethodInUse`).
+  /// A scan, place or bed morning with its code, place or bed photo set up (without one it’s a walk: `locturneMethodInUse`).
   func setUpMethod(_ method: String) {
     if method == "scan" { set("locturne.scanCode", ["kind": "barcode", "data": "5012345678900", "registeredAt": 0]) }
     if method == "place" { set("locturne.morningPlace", ["name": "Gym", "latitude": 1.0, "longitude": 1.0, "radius": 100]) }
+    if method == "bed" { set("locturne.bedPhoto", ["savedAt": 0]) }
   }
 
-  for method in ["scan", "place", "pushups", "dance", "pullups", "bench", "grass", "sun"] {
+  for method in ["scan", "place", "pushups", "dance", "pullups", "bench", "grass", "sun", "pet", "bed"] {
     test("shield tap, \(method): the tap opens Locturne and wakes nothing") {
       setUpMethod(method)
       closedNight(method: method)

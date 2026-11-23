@@ -1,5 +1,6 @@
 import { type Href } from 'expo-router';
 
+import { getBedEditRefusal, getBedPhoto } from '@/lib/bed-photo';
 import { getMorningPlace, getPlaceEditRefusal } from '@/lib/place';
 import { type WakeMethod } from '@/lib/routine';
 import { getScanCode, getScanEditRefusal } from '@/lib/scan';
@@ -24,6 +25,8 @@ export function pickMethod(value: WakeMethod): { then?: Href } | null {
     return { then: { pathname: '/place-pick', params: { select: '1' } } };
   if (current.method !== value) applyRoutineEdit({ ...current, method: value });
   if (value === 'scan' && current.method !== 'scan' && !getScanCode() && !getScanEditRefusal()) return { then: '/code' };
+  // Make your bed with no photo of it made yet: the setup camera, while it can be set (not from bed).
+  if (value === 'bed' && current.method !== 'bed' && !getBedPhoto() && !getBedEditRefusal()) return { then: '/bed-setup' };
   return {};
 }
 
@@ -50,6 +53,8 @@ export function methodSettings(value: WakeMethod): Href | null {
       return getScanEditRefusal() ? null : '/code';
     case 'place':
       return getPlaceEditRefusal() ? null : '/place-pick';
+    case 'bed':
+      return getBedEditRefusal() ? null : '/bed-setup';
     default:
       return null;
   }

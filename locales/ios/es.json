@@ -1,6 +1,6 @@
 {
   "ios": {
-    "NSCameraUsageDescription": "Locturne usa la cámara por la mañana para escanear tu código de despertar, hacer tu foto del césped o del sol, o ver tus flexiones, dominadas, press de banca o tu baile. Todo ocurre en este teléfono; no se graba ni se guarda nada.",
+    "NSCameraUsageDescription": "Locturne usa la cámara por la mañana para escanear tu código de despertar, hacer tu foto del césped, del sol, de tu mascota o de tu cama, o ver tus flexiones, dominadas, press de banca o tu baile. Todo ocurre en este teléfono; no se graba nada, y la única foto de tu cama hecha se queda en este teléfono.",
     "NSLocationWhenInUseUsageDescription": "Con Locturne abierto, te muestra en el mapa y comprueba que llegaste al sitio que elegiste para tus mañanas. Nunca usa tu ubicación en segundo plano.",
     "NSMotionUsageDescription": "Locturne revisa tus pasos cada mañana para despertar tus apps. Solo para eso usa el movimiento.",
     "NSPhotoLibraryAddUsageDescription": "Locturne guarda tu tarjeta de la mañana en Fotos cuando eliges Guardar imagen."

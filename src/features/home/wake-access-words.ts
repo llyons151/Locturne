@@ -36,6 +36,8 @@ const CANT: Record<WakeMethod, string> = {
   bench: 'I can’t see your bench press',
   grass: 'I can’t see your grass',
   sun: 'I can’t see the sun',
+  pet: 'I can’t see your pet',
+  bed: 'I can’t see your bed',
 };
 
 /**

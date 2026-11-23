@@ -18,12 +18,14 @@ import { heldPhase } from '@/lib/emergency';
 import * as haptic from '@/lib/haptics';
 import { readLock, routineAt } from '@/lib/lock-controller';
 import { submitPhoto } from '@/lib/photo-proof';
+import { getBedEditRefusal } from '@/lib/bed-photo';
 import { formatPreset } from '@/lib/text';
-import { judgePhoto, missWords, type PhotoKind, type PhotoReading } from '@/lib/wake/photo';
+import { judgeShot, type ShotKind, type ShotReading } from '@/lib/wake/shot';
 import { Gap, Nocturne, Space, Type } from '@/theme';
 
-import { photoCheckAvailable, readPhoto } from '../../../modules/photo-check';
+import { bedCheckAvailable, petCheckAvailable, photoCheckAvailable, readBedPhoto, readPetPhoto, readPhoto } from '../../../modules/photo-check';
 import { AimCircle, CameraGlass, type AimMode } from './aim-circle';
+import { bedReferenceUri, keepBedPhoto } from './bed-reference';
 import { FAKE_COLOR, FakeTag } from '../dev/wake-lab/fake-tag';
 import { pretendPhase, pretendWoke, useWakePreview } from '../dev/wake-lab/wake-preview';
 import { Voice } from '../exits/voice';
@@ -34,9 +36,11 @@ import { openPayoffNow, openPretendPayoff } from '../wake/open-payoff';
 import { announceWoke } from '../wake/use-prove-morning';
 
 /**
- * Touch grass and Sunlight (wake/photo.ts): the camera, a shutter, and Loc's verdict. The photo is
- * read on the phone (modules/photo-check) and thrown away; a pass wakes the apps and opens the
- * payoff, as a matched scan does. Only a photo taken here counts, never one from the library.
+ * The photo ways (wake/shot.ts: Touch grass, Sunlight, Pet your pet, Make your bed): the camera, a
+ * shutter, and Loc's verdict. The photo is read on the phone (modules/photo-check) and thrown away;
+ * a pass wakes the apps and opens the payoff, as a matched scan does. Only a photo taken here counts,
+ * never one from the library. `setup` (Make your bed only, /bed-setup): the photo of the bed made,
+ * kept on the phone (bed-reference.ts) for the mornings to be read against; only while awake.
  *
  * In the wake preview's pretend morning (dev only) it runs at any hour, records nothing, and logs
  * the reading's numbers on a miss, for tuning on a real lawn. The preview's fake camera (the
@@ -44,7 +48,7 @@ import { announceWoke } from '../wake/use-prove-morning';
  */
 
 /** The words for each way. */
-export const PHOTO_WORDS: Record<PhotoKind, { aim: string; line: string; body: string; title: string }> = {
+export const PHOTO_WORDS: Record<ShotKind, { aim: string; line: string; body: string; title: string }> = {
   grass: {
     title: 'Touch grass',
     line: 'Go touch grass.',
@@ -57,7 +61,22 @@ export const PHOTO_WORDS: Record<PhotoKind, { aim: string; line: string; body: s
     body: 'Step outside and take a photo of the sun, or the brightest bit of sky. Your apps wake up.',
     aim: 'Put the sun in the circle',
   },
+  pet: {
+    title: 'Pet your pet',
+    line: 'Go pet your pet.',
+    body: 'Out of bed. Find your cat or dog and take a photo of your hand on them.',
+    aim: 'Put your hand on them',
+  },
+  bed: {
+    title: 'Make your bed',
+    line: 'Make your bed.',
+    body: 'Covers up, pillows on. Then a photo of it from your usual spot, and your apps wake up.',
+    aim: 'Your whole bed, in view',
+  },
 };
+
+/** Make your bed's setup photo: the spot it's taken from is the one every morning's photo is held to. */
+const SETUP_AIM = 'Made, from your usual spot';
 
 type Stage =
   | { kind: 'camera'; miss?: { line: string; body: string } }
@@ -66,37 +85,81 @@ type Stage =
   | { kind: 'notYet' }
   | { kind: 'awake' }
   | { kind: 'notMethod' }
-  | { kind: 'oldBuild' };
+  | { kind: 'oldBuild' }
+  | { kind: 'noSetup' }
+  | { kind: 'asleep' }
+  | { kind: 'saved' };
 
-/** Night, day, or another way's morning refuse the camera before it opens. The wake lab's test runs at any hour. */
-function firstStage(kind: PhotoKind, fake: Fake, lab: boolean): Stage {
-  if (!photoCheckAvailable() && fake === 'real') return { kind: 'oldBuild' };
-  if (lab) return { kind: 'camera' };
+const available = (kind: ShotKind) =>
+  kind === 'pet' ? petCheckAvailable() : kind === 'bed' ? bedCheckAvailable() : photoCheckAvailable();
+
+/**
+ * Night, day, or another way's morning refuse the camera before it opens. The wake lab's test runs at any
+ * hour. A bed morning needs its setup photo; the setup photo itself is only taken while awake.
+ */
+function firstStage(kind: ShotKind, fake: Fake, lab: boolean, setup: boolean): Stage {
+  if (!available(kind) && fake === 'real') return { kind: 'oldBuild' };
+  if (setup) return getBedEditRefusal() && !lab ? { kind: 'asleep' } : { kind: 'camera' };
+  // A bed morning needs the made bed's photo to compare with (the fake camera doesn't read one).
+  const ready: Stage = kind === 'bed' && fake === 'real' && !bedReferenceUri() ? { kind: 'noSetup' } : { kind: 'camera' };
+  if (lab) return ready;
   const pretend = pretendPhase();
-  if (pretend) return pretend === 'morning' ? { kind: 'camera' } : pretend === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
+  if (pretend) return pretend === 'morning' ? ready : pretend === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   const phase = readLock().phase;
   if (phase === 'night') return heldPhase('night') === 'night' ? { kind: 'notYet' } : { kind: 'awake' };
   if (phase !== 'morning' || heldPhase('morning') !== 'morning') return { kind: 'awake' };
   if (routineAt(new Date()).method !== kind) return { kind: 'notMethod' };
-  return { kind: 'camera' };
+  return ready;
 }
 
 // The scan camera's fake setting (wake preview) covers this camera too: both are expo-camera.
 type Fake = 'real' | 'fake' | 'ask' | 'denied';
 
 /** A made-up reading for the fake camera's buttons. */
-const fakeReading = (kind: PhotoKind, right: boolean): PhotoReading =>
-  right
+const fakeReading = (kind: ShotKind, right: boolean): ShotReading =>
+  kind === 'bed'
+    ? {
+        labels: [{ id: right ? 'bed' : 'floor', confidence: 0.8 }],
+        green: 0,
+        sky: 0.1,
+        blob: 0,
+        blobFill: 0,
+        mean: 0.4,
+        brightness: 2,
+        match: right ? 0.3 : 0.9,
+        texture: 0.03,
+        refTexture: 0.03,
+        people: 0,
+      }
+    : kind === 'pet'
+    ? {
+        labels: [{ id: right ? 'cat' : 'bed', confidence: 0.8 }],
+        green: 0,
+        sky: 0,
+        blob: 0,
+        blobFill: 0,
+        mean: 0.35,
+        brightness: 2,
+        animals: right ? [{ label: 'cat', confidence: 0.9, box: [0.2, 0.3, 0.6, 0.5] }] : [],
+        hands: right ? [{ confidence: 0.9, points: [[0.35, 0.4, 0.9], [0.5, 0.38, 0.9], [0.55, 0.55, 0.9], [0.4, 0.55, 0.9]] }] : [],
+      }
+    : right
     ? kind === 'grass'
       ? { labels: [{ id: 'grass', confidence: 0.8 }], green: 0.6, sky: 0.05, blob: 0, blobFill: 0, mean: 0.35, brightness: 6 }
       : { labels: [{ id: 'blue_sky', confidence: 0.8 }], green: 0, sky: 0.6, blob: 0.01, blobFill: 0.7, mean: 0.7, brightness: 11 }
     : { labels: [{ id: 'bed', confidence: 0.7 }], green: 0.02, sky: 0.1, blob: 0, blobFill: 0, mean: 0.3, brightness: 2 };
 
 /** The reading's numbers, logged (not shown) in a pretend morning, for tuning on a real lawn. */
-const numbersOf = (r: PhotoReading) =>
+const numbersOf = (r: ShotReading) =>
   [
     r.labels.slice(0, 4).map((l) => `${l.id} ${l.confidence.toFixed(2)}`).join(', ') || 'no labels',
     `green ${r.green.toFixed(2)} · sky ${r.sky.toFixed(2)} · blob ${r.blob.toFixed(4)}/${r.blobFill.toFixed(2)} · BV ${r.brightness?.toFixed(1) ?? '—'}`,
+    ...('animals' in r
+      ? [`animals ${r.animals.map((a) => `${a.label} ${a.confidence.toFixed(2)}`).join(', ') || 'none'} · hands ${r.hands.map((h) => h.points.length).join('/') || 'none'}`]
+      : []),
+    ...('texture' in r
+      ? [`match ${r.match?.toFixed(3) ?? '—'} · texture ${r.texture.toFixed(4)} vs ${r.refTexture?.toFixed(4) ?? '—'} · people ${r.people}`]
+      : []),
   ].join(' | ');
 
 /** The shortest the spinner ring runs, in ms. */
@@ -114,15 +177,24 @@ function awakeWords(morning: ReturnType<typeof nextLockedMorning>): string {
 
 /**
  * `lab` (dev: the wake lab, You → Test the lock, Rehearse a night's lab runs): any hour, nothing
- * recorded; a pass calls `onMet` and the X calls `onClose` (which wakes a test lock).
+ * recorded; a pass calls `onMet` and the X calls `onClose` (which wakes a test lock). `setup`: Make
+ * your bed's setup photo (/bed-setup), kept rather than waking anything.
  */
-export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () => void; onClose: () => void } }) {
+export function PhotoScreen({
+  kind,
+  lab,
+  setup = false,
+}: {
+  kind: ShotKind;
+  lab?: { onMet: () => void; onClose: () => void };
+  setup?: boolean;
+}) {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const fake = useWakePreview().scan;
-  const [stage, setStage] = useState<Stage>(() => firstStage(kind, fake, !!lab));
+  const [stage, setStage] = useState<Stage>(() => firstStage(kind, fake, !!lab, setup));
   const camera = useRef<CameraView>(null);
   const [ready, setReady] = useState(false);
   const [missKey, setMissKey] = useState(0);
@@ -133,23 +205,26 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
 
   const close = () => (lab ? lab.onClose() : router.canGoBack() ? router.back() : router.replace('/'));
   const walkInstead = () => {
-    askWalk(readLock().morningKey);
+    // The wake lab's test isn't the real morning: it never switches the real Home to the walk.
+    if (!lab) askWalk(readLock().morningKey);
     close();
   };
 
-  const judge = (reading: PhotoReading) => {
-    const verdict = judgePhoto(kind, reading);
+  /** `kept`: the setup photo's save (`keepBedPhoto`), 'asleep' when it was refused. */
+  const judge = (reading: ShotReading, kept: 'asleep' | null = null) => {
+    const verdict = judgeShot(kind, reading, setup);
     const pretend = !!lab || pretendPhase() !== null;
     if (!verdict.ok) {
       haptic.nope();
-      if (pretend) console.log(`[photo] ${kind} miss ${verdict.miss}: ${numbersOf(reading)}`);
+      if (pretend || setup) console.log(`[photo] ${kind}${setup ? ' setup' : ''} miss ${verdict.miss}: ${numbersOf(reading)}`);
       camera.current?.resumePreview().catch(() => {});
       setMissKey((k) => k + 1);
-      return setStage({ kind: 'camera', miss: missWords(kind, verdict.miss) });
+      return setStage({ kind: 'camera', miss: verdict.words });
     }
+    if (setup && kept === 'asleep') return setStage({ kind: 'asleep' });
     haptic.done();
     setStage({ kind: 'passed' });
-    setTimeout(() => wake(pretend), PASS_HOLD);
+    setTimeout(() => (setup ? setStage({ kind: 'saved' }) : wake(pretend)), PASS_HOLD);
   };
 
   const wake = (pretend: boolean) => {
@@ -182,11 +257,20 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
       // The frame holds still while it's read, so the scan runs over the photo that was taken.
       camera.current?.pausePreview().catch(() => {});
       const shot = photo.exif?.BrightnessValue;
-      let reading: PhotoReading;
+      let reading: ShotReading;
+      let kept: 'asleep' | null = null;
       try {
-        reading = await readPhoto(photo.uri, typeof shot === 'number' ? shot : null);
+        const brightness = typeof shot === 'number' ? shot : null;
+        reading =
+          kind === 'pet'
+            ? await readPetPhoto(photo.uri, brightness)
+            : kind === 'bed'
+              ? await readBedPhoto(photo.uri, setup ? null : bedReferenceUri(), brightness)
+              : await readPhoto(photo.uri, brightness);
+        // The made bed's setup photo is the one photo kept (on the phone), and only one that passes.
+        if (setup && judgeShot(kind, reading, true).ok) kept = await keepBedPhoto(photo.uri);
       } finally {
-        // Read and thrown away: the camera permission promises nothing is saved.
+        // Read and thrown away (the kept setup photo is a copy): the camera permission says so.
         try {
           new File(photo.uri).delete();
         } catch {}
@@ -194,7 +278,7 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
       // The ring gets at least one full grow-and-shrink, so a fast read still looks like a look.
       const left = MIN_SCAN - (Date.now() - started);
       if (left > 0) await new Promise((done) => setTimeout(done, left));
-      judge(reading);
+      judge(reading, kept);
     } catch {
       camera.current?.resumePreview().catch(() => {});
       setMissKey((k) => k + 1);
@@ -210,7 +294,22 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
           ? { line: "They're already up.", body: awakeWords(nextLockedMorning(new Date())) }
           : stage.kind === 'notMethod'
             ? { line: 'Nice try.', body: `${words.title} only counts on mornings you wake with it. Do your usual morning.` }
-            : { line: 'Not on this version.', body: 'Update Locturne from the App Store to use this. Your walk still works.' };
+            : stage.kind === 'noSetup'
+              ? { line: 'There is no bed photo.', body: 'You can take one in the day, once you’re up. This morning, walk.' }
+              : stage.kind === 'asleep'
+                ? {
+                    line: 'Not from bed.',
+                    body: 'You can set up or change your bed photo in the day, once you’re up. Otherwise I’d let you photo the floor.',
+                  }
+                : stage.kind === 'saved'
+                  ? {
+                      line: 'That’s the bar now.',
+                      body:
+                        fake === 'real'
+                          ? 'Every morning: make it like this, then a photo from the same spot.'
+                          : 'Pretend camera: nothing was saved.',
+                    }
+                  : { line: 'Not on this version.', body: 'Update Locturne from the App Store to use this. Your walk still works.' };
     return (
       <View style={[styles.screen, { paddingTop: insets.top + Space.m, paddingBottom: insets.bottom + Space.xxl }]}>
         <Animated.View entering={FadeIn.duration(300)} style={styles.top}>
@@ -219,8 +318,8 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
         </Animated.View>
         <View style={styles.flex} />
         <View style={styles.bottom}>
-          <PrimaryButton label="Okay" onPress={close} />
-          {stage.kind === 'oldBuild' ? <TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} /> : null}
+          <PrimaryButton label={stage.kind === 'saved' ? 'Done' : 'Okay'} onPress={close} />
+          {stage.kind === 'oldBuild' || stage.kind === 'noSetup' ? <TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} /> : null}
         </View>
       </View>
     );
@@ -242,7 +341,8 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
           setStage({ kind: 'checking' });
           setTimeout(() => judge(fakeReading(kind, right)), MIN_SCAN);
         }}
-        denied={<TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} />}
+        // The setup photo is taken in the day: there's no morning to walk instead.
+        denied={setup ? null : <TextButton label={`Walk ${routineAt(new Date()).stepGoal} steps instead`} onPress={walkInstead} />}
       />
 
       <AimCircle size={size} mode={mode} width={width} height={height} top={circleTop} />
@@ -261,7 +361,7 @@ export function PhotoScreen({ kind, lab }: { kind: PhotoKind; lab?: { onMet: () 
                 <Text style={styles.capsuleStrong}>{miss.line}</Text> {miss.body}
               </Text>
             ) : (
-              <Text style={[styles.capsuleText, styles.capsuleStrong]}>{words.aim}</Text>
+              <Text style={[styles.capsuleText, styles.capsuleStrong]}>{setup ? SETUP_AIM : words.aim}</Text>
             )}
           </CameraGlass>
         </Animated.View>

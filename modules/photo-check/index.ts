@@ -1,1 +1,1 @@
-export { photoCheckAvailable, readPhoto } from './src/photo-check';
+export { bedCheckAvailable, petCheckAvailable, photoCheckAvailable, readBedPhoto, readPetPhoto, readPhoto } from './src/photo-check';

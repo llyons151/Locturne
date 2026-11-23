@@ -34,10 +34,25 @@ export function scanMorning(): HomeMorning {
 }
 
 /**
- * Touch grass and Sunlight on Home (wake/photo.ts): like the scan, the photo needs the whole
- * screen, so the button opens the camera (`/grass`, `/sun`) and a photo that passes closes it again.
+ * Touch grass, Sunlight, Pet your pet and Make your bed on Home (wake/photo.ts, pet.ts, bed.ts): like
+ * the scan, the photo needs the whole screen, so the button opens the camera (`/grass`, `/sun`, `/pet`,
+ * `/bed`) and a photo that passes closes it again. A bed morning with no setup photo walks (`methodInUse`).
  */
-export function photoMorning(kind: 'grass' | 'sun'): HomeMorning {
+export function photoMorning(kind: 'grass' | 'sun' | 'pet' | 'bed'): HomeMorning {
+  if (kind === 'bed')
+    return {
+      icon: { ios: 'bed.double', android: 'bed' },
+      hero: { title: 'Make your bed', body: 'Covers up, pillows on. Then a photo of it from your usual spot, and your apps wake up.' },
+      action: { label: 'Take the photo', onPress: () => router.push('/bed'), opens: true },
+      alt: WALK_INSTEAD,
+    };
+  if (kind === 'pet')
+    return {
+      icon: { ios: 'pawprint', android: 'pets' },
+      hero: { title: 'Go pet your pet', body: 'Out of bed. Find your cat or dog and take a photo of your hand on them.' },
+      action: { label: 'Take the photo', onPress: () => router.push('/pet'), opens: true },
+      alt: WALK_INSTEAD,
+    };
   return kind === 'grass'
     ? {
         icon: { ios: 'leaf', android: 'grass' },

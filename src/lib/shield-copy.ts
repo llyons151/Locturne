@@ -75,6 +75,8 @@ const PROOF: Record<WakeMethod, (routine: ProofRoutine) => string> = {
   bench: () => t('shield.proofBench'),
   grass: () => t('shield.proofGrass'),
   sun: () => t('shield.proofSun'),
+  pet: () => t('shield.proofPet'),
+  bed: () => t('shield.proofBed'),
   downtime: (r) => t('shield.proofDowntime', { steps: downtimeStepsOf(r) }),
 };
 

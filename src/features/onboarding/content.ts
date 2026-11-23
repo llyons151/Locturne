@@ -475,6 +475,26 @@ export const METHOD_COPY: Record<
     offer: 'One photo of the sun. Lamps don’t count. I checked.',
     morning: { line: 'Go outside and take a photo of the sun to wake your apps.' },
   },
+  // Pet your pet (wake/pet.ts, 2026-11-23): a photo of your hand on your cat or dog. Routine only.
+  pet: {
+    echo: 'Your pet gets a morning pat. Finally, someone in this house gets affection.',
+    short: 'Pet your pet',
+    check: 'Awake again once you photo your hand on your pet',
+    until: 'you’ve petted your pet',
+    commit: 'Up to pet your pet.',
+    offer: 'One photo of you petting them. Out of bed. Stuffed ones get reported.',
+    morning: { line: 'Get up and take a photo of your hand on your cat or dog to wake your apps.' },
+  },
+  // Make your bed (wake/bed.ts, 2026-11-23): a photo of it made, against the one from setup. Routine only.
+  bed: {
+    echo: 'Make your bed. Your mother has been saying it for years. Now I am.',
+    short: 'Make your bed',
+    check: 'Awake again once you photo your bed, made',
+    until: 'you’ve made your bed',
+    commit: 'Up to make your bed.',
+    offer: 'One photo of your bed, made. Lumps get reported.',
+    morning: { line: 'Make your bed, then take a photo of it to wake your apps.', note: 'Set it up in Routine today. Until then, 200 steps works.' },
+  },
   // Step away (wake/downtime.ts): written for the defaults, 30 steps and 1 h (`methodCopyFor` swaps in others).
   downtime: {
     echo: 'An hour of nothing. I was born for this.',

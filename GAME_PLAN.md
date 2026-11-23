@@ -2,7 +2,7 @@
 
 Updated October 1, 2026 (wake-up methods, daytime controls, build status and the
 launch timeline); v1 wake-up methods widened to five on October 9, 2026, and set at six on
-November 5, 2026 (squats out, Step away in); Go downstairs replaced by Dance on November 7, 2026 (Dance worked on the phone the same day); Pull-ups and Bench press added on November 21, 2026 (both need a new iOS build; squats came back that day and went again the same day). This is the source of truth for product direction. It
+November 5, 2026 (squats out, Step away in); Go downstairs replaced by Dance on November 7, 2026 (Dance worked on the phone the same day); Pull-ups and Bench press added on November 21, 2026 (both need a new iOS build; squats came back that day and went again the same day); Pet your pet and Make your bed added on November 23, 2026 (new iOS build needed). This is the source of truth for product direction. It
 replaces the September 21 plan, which is archived at
 [docs/archive/GAME_PLAN_2026-09-21.md](docs/archive/GAME_PLAN_2026-09-21.md). The
 reasoning behind it is in [docs/IDEA_SCORECARD.md](docs/IDEA_SCORECARD.md),
@@ -66,7 +66,7 @@ Rules carried over from the previous plan:
   either (decided 2026-10-01). The always-blocked list still applies.
 - The rules live in `src/lib/lock-state.ts` (tests: `npm test`).
 
-## Wake-up methods (decided 2026-10-01; six for v1 since 2026-11-05, eight since 2026-11-21)
+## Wake-up methods (decided 2026-10-01; six for v1 since 2026-11-05, eight since 2026-11-21, twelve with the photo ways since 2026-11-23)
 
 The promise stays "your apps don't wake up until you get up". The methods are only
 different ways to prove it, each with its own lines from Loc. Details in
@@ -82,6 +82,8 @@ different ways to prove it, each with its own lines from Loc. Details in
 | **Push-ups** | Phone leaning on the floor two steps away, side-on; the front camera counts the reps (Apple Vision body pose, on the phone, nothing recorded). Loc peeks over the bottom strip, reacting, and says the count out loud. | Alternative; the effort option and a strong video ("my alarm watches me do push-ups") |
 | **Pull-ups** (2026-11-21) | Phone stood up on the floor a few steps from a bar, looking up at it; the same camera screen as push-ups counts each rep at the top (chin to the bar), and the next needs arms straight again. The top is measured against where the hands hung (the bar), not the wrists' live reading, which the camera gets worst at the top. Facing the camera, back to it or side-on. Default 5, wheel 1–30. Rules in `src/lib/wake/pullups.ts`; tuned on 44 real clips (docs/PULLUP_TESTS.md). Not yet on a phone. | Alternative; for people with a bar at home. Not offered in onboarding's method question. |
 | **Bench press** (`bench`, 2026-11-21) | Phone on its side on the floor a few steps from the bench, side-on, all of you in view, feet too; the same camera screen as push-ups counts a rep when the bar comes down to the chest and you lock out again. Measured as the wrists' height above the shoulders against your own lockout, so distance doesn't matter. Lying flat with the legs out (pressing air in bed, or on the floor) doesn't count: on a bench the feet are on the floor, well below the hips. Standing or seated presses and push-ups don't read as a bench. The weight can't be seen. Default 10, wheel 1–50. Rules in `src/lib/wake/bench.ts`. Not yet on a phone. | Alternative; for people with a bench at home or who go to the gym first thing. Took squats' place on 2026-11-21. Not offered in onboarding's method question. |
+| **Pet your pet** (`pet`, 2026-11-23) | A photo, taken in Locturne's camera, of your own hand on your cat or dog. Apple Vision on the phone finds the animal and the hand (looked for again, closer, round the animal when fur hides it); the hand has to be close (yours) and on the animal. Refused: no hand, a soft toy, a screen, and a photo the classifier calls a bed (a weak guard: a close-up on a duvet often reads as plain "textile"). The photo is read and deleted. Rules in `src/lib/wake/pet.ts`, tuned on real photos with `tools/photo-check`. Not yet on a phone. | Alternative, mainly for marketing (pet videos). Not offered in onboarding's method question. |
+| **Make your bed** (`bed`, 2026-11-23) | At setup (only while the apps are awake) a photo of the bed made, from where you'll stand; it's the one photo kept, on the phone. Each morning a photo has to be the same bed from about the same spot (Apple's image fingerprint), no busier than it was made (edge strength), and empty (nobody in it). Until a setup photo is saved it walks. Rules in `src/lib/wake/bed.ts`, tuned with `tools/photo-check`. Not yet on a phone. | Alternative; can't be done from bed by design, and the most relatable marketing hook. Not offered in onboarding's method question. |
 | **Step away** (`downtime`) | A few steps on `CMPedometer` since the morning start (default 50), then a timer the person picks (15 min to 2 h, default 1 h) with the apps still asleep. The timer runs from when the steps were really reached, found in the pedometer history, not from when the app was opened. | Alternative (2026-11-05); "an hour without your phone from the time you actually get out of bed" |
 
 Squats (camera, standing; added 2026-11-03) were removed on 2026-11-05. They came back on
