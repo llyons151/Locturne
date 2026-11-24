@@ -11,6 +11,7 @@ import { settleMoons, unpresented } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
 import { settleShinyNow } from '@/features/moons/shiny-settle';
 import { unpresentedShiny } from '@/features/moons/shiny-store';
+import { clearShinyPayoff, peekShinyPayoff } from '@/features/moons/shiny-dev';
 import { markPayoffShown, wonProof } from '@/features/wake/open-payoff';
 import { PayoffLab } from '@/features/wake/payoff-lab';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
@@ -52,6 +53,11 @@ export default function MorningWonRoute() {
   useEffect(() => {
     if (shownKey) markPayoffShown(shownKey);
   }, [shownKey]);
+  // The dev shiny flag is used once this payoff is up.
+  const usedShiny = !!facts?.newShiny;
+  useEffect(() => {
+    if (usedShiny && labs) clearShinyPayoff();
+  }, [usedShiny, labs]);
   // Opened at launch under the launch screen (`openDuePayoff`): lift it now the payoff is drawn.
   // A no-op once the app is showing (revealApp runs once).
   useLayoutEffect(() => {
@@ -92,6 +98,8 @@ export default function MorningWonRoute() {
 /** Home's own entrance finishes before the payoff goes over it. */
 const OVER_HOME_MS = 1500;
 
+const labsOn = () => __DEV__ || process.env.EXPO_PUBLIC_DEV_LABS === '1';
+
 /** `key`: the morning Home opened it for (open-payoff.ts), maybe an earlier one; else this morning's. */
 function realFacts(key?: string): PayoffFacts | null {
   const proof = key ? wonProof(key) : currentProof(new Date());
@@ -115,7 +123,8 @@ function realFacts(key?: string): PayoffFacts | null {
     free: freeThisWeek(proof.morningKey, new Set(ups.map((p) => p.morningKey)), now),
     sayKey: '',
     newMoons: unpresented(proof.morningKey).map((m) => m.id),
-    newShiny: unpresentedShiny(proof.morningKey),
+    // Dev: "shiny next payoff" (shiny-dev.ts) shows the worn moon's shiny when nothing real was caught.
+    newShiny: unpresentedShiny(proof.morningKey) ?? (labsOn() ? peekShinyPayoff() : null),
   };
 }
 
@@ -142,7 +151,9 @@ function demoFacts(p: Record<string, string>): PayoffFacts {
     // `newMoon=<id>`: a made-up new moon (the wake preview). Not `moon`, which the web uses to wear one.
     newMoons: p.newMoon && MOONS.some((m) => m.id === p.newMoon) ? [p.newMoon] : [],
     // `newShiny=<id>`: a made-up shiny catch (the wake preview).
-    newShiny: p.newShiny && MOONS.some((m) => m.id === p.newShiny) ? p.newShiny : null,
+    newShiny: p.newShiny && MOONS.some((m) => m.id === p.newShiny) ? p.newShiny : peekShinyPayoff(),
+    // `fx=1..10`: which shiny reveal draft plays (shiny-reveal.tsx).
+    shinyFx: Number(p.fx) || undefined,
   };
 }
 

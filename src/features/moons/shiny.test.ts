@@ -3,9 +3,7 @@ import { test } from 'node:test';
 
 import {
   CHARM_STREAK,
-  FIRST_SHINY_BY,
-  FIRST_SHINY_FROM,
-  firstShinyAt,
+  FIRST_SHINY_MORNING,
   freshShiny,
   mergeShiny,
   parseShiny,
@@ -34,30 +32,32 @@ function hunt(seed: number, days: number, worn = 'harvest', streak = 0) {
   return { state, catches };
 }
 
-test('no roll on the first morning', () => {
-  const r = settleShiny({ owned: true, state: freshShiny(1), worn: 'harvest', mornings: 1, latest: key(1), streak: 0, now: 0 });
-  assert.equal(r.caught, null);
-  assert.equal(r.state.rolled, null);
+test('no roll before the first shiny\'s morning', () => {
+  let state = freshShiny(1);
+  for (let m = 1; m < FIRST_SHINY_MORNING; m++) {
+    const r = settleShiny({ owned: true, state, worn: 'harvest', mornings: m, latest: key(m), streak: 9, now: m });
+    assert.equal(r.caught, null);
+    state = r.state;
+  }
+  assert.deepEqual(state.caught, {});
+  assert.deepEqual(state.hunt, {});
 });
 
 test('each morning rolls once: settling again the same morning changes nothing', () => {
   const s = freshShiny(7);
-  const a = settleShiny({ owned: true, state: s, worn: 'harvest', mornings: 2, latest: key(2), streak: 0, now: 0 });
-  const b = settleShiny({ owned: true, state: a.state, worn: 'harvest', mornings: 2, latest: key(2), streak: 0, now: 1 });
+  const a = settleShiny({ owned: true, state: s, worn: 'harvest', mornings: 7, latest: key(7), streak: 0, now: 0 });
+  const b = settleShiny({ owned: true, state: a.state, worn: 'harvest', mornings: 7, latest: key(7), streak: 0, now: 1 });
   assert.equal(b.state, a.state);
   assert.equal(b.caught, null);
   // Wearing another moon later that morning doesn't roll again either.
-  const c = settleShiny({ owned: true, state: a.state, worn: 'blood', mornings: 2, latest: key(2), streak: 0, now: 1 });
+  const c = settleShiny({ owned: true, state: a.state, worn: 'blood', mornings: 7, latest: key(7), streak: 0, now: 1 });
   assert.equal(c.state, a.state);
 });
 
-test('the first shiny is certain by its morning, for every install', () => {
+test('the first shiny comes on exactly morning 6, for every install', () => {
   for (let seed = 0; seed < 300; seed++) {
-    const at = firstShinyAt(seed);
-    assert.ok(at >= FIRST_SHINY_FROM && at <= FIRST_SHINY_BY);
-    const { catches } = hunt(seed, FIRST_SHINY_BY);
-    assert.ok(catches.length >= 1, `seed ${seed} caught nothing by morning ${FIRST_SHINY_BY}`);
-    assert.ok(catches[0].morning <= at);
+    const { catches } = hunt(seed, FIRST_SHINY_MORNING);
+    assert.deepEqual(catches, [{ id: 'harvest', morning: FIRST_SHINY_MORNING }], `seed ${seed}`);
   }
 });
 
@@ -66,16 +66,16 @@ test('the hunt counts the mornings rolled for the worn moon, and a catch keeps t
   const c = state.caught.harvest;
   assert.ok(c);
   assert.equal(catches[0].id, 'harvest');
-  // Morning 1 doesn't roll, so a catch on morning n took n - 1 mornings.
-  assert.equal(c.hunted, c.morning - 1);
+  // Rolls start on the first shiny's morning, so a catch on morning n took n - FIRST_SHINY_MORNING + 1 mornings.
+  assert.equal(c.hunted, c.morning - FIRST_SHINY_MORNING + 1);
   assert.equal(state.hunt.harvest, undefined);
 });
 
 test('a moon whose shiny you have is not hunted', () => {
-  let { state } = hunt(99, FIRST_SHINY_BY, 'harvest');
+  let { state } = hunt(99, FIRST_SHINY_MORNING, 'harvest');
   assert.ok(state.caught.harvest);
   const before = state.caught.harvest;
-  for (let m = FIRST_SHINY_BY + 1; m < FIRST_SHINY_BY + 30; m++) {
+  for (let m = FIRST_SHINY_MORNING + 1; m < FIRST_SHINY_MORNING + 30; m++) {
     state = settleShiny({ owned: true, state, worn: 'harvest', mornings: m, latest: key(m), streak: 0, now: m }).state;
   }
   assert.deepEqual(state.caught.harvest, before);
@@ -93,8 +93,8 @@ test('after the first, catches come at about the odds', () => {
   let rolls = 0;
   let hits = 0;
   for (let seed = 0; seed < 200; seed++) {
-    let state = hunt(seed, FIRST_SHINY_BY).state;
-    for (let m = FIRST_SHINY_BY + 1; m < 400; m++) {
+    let state = hunt(seed, FIRST_SHINY_MORNING).state;
+    for (let m = FIRST_SHINY_MORNING + 1; m < 400; m++) {
       const r = settleShiny({ owned: true, state, worn: `moon${m}`, mornings: m, latest: key(m), streak: 0, now: m });
       state = r.state;
       rolls++;

@@ -9,7 +9,7 @@ import { AppBackground } from '@/components/app-background';
 import { PANEL_RADIUS, tabStripHeight } from '@/components/app-tabs';
 import { PrimaryButton, TextButton } from '@/components/buttons';
 import { FOCUS_MS, FOCUS_STEP_MS, focusIn } from '@/components/motion';
-import { moonScale, moonSink, moonSinkForCentre, restingMoonDisc } from '@/components/night-sky';
+import { MOON_GONE, moonScale, moonSink, moonSinkForCentre, restingMoonDisc } from '@/components/night-sky';
 import { PressScale } from '@/components/press-scale';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
@@ -39,6 +39,7 @@ import { WeekStrip } from '../home/week-strip';
 import { clockParts, payoffKicker, payoffMoment, shareText } from './payoff';
 import { ShareCard, type CardFacts } from './share-card';
 import { FloorRipple } from './floor-ripple';
+import { FX_FADE_MS, FX_TAPS, moonMove, nudgeScale, ShinyReveal } from './shiny-reveal';
 import { LocClip, locClipExit, locClipSize, pickLocClip } from './loc-clip';
 
 /** Everything the payoff shows. The route reads it from the stores, or the wake preview makes it up. */
@@ -62,6 +63,8 @@ export type PayoffFacts = {
   newMoons: string[];
   /** The shiny this morning caught (features/moons/shiny.ts), not yet shown on a payoff, or null. */
   newShiny?: string | null;
+  /** Which shiny reveal draft plays (shiny-reveal.tsx, 1..10); the wake preview's `fx`. */
+  shinyFx?: number;
 };
 
 /** The new moon beside its name, under the headline; smaller on an SE. */
@@ -334,6 +337,8 @@ export function PayoffScreen({
     moonScale.set(reduced ? to.scale : withTiming(to.scale, rise));
     drag.set(reduced ? 1 : withTiming(1, rise));
     setTimeout(() => setShown(true), reduced ? 0 : payoffTuning.pageAtMs);
+    // A shiny morning: the reveal once the moon has settled at the top.
+    if (shinyMoon) setTimeout(reveal, reduced ? 0 : payoffTuning.riseMs + 300);
     setTimeout(() => setSnaps(1), SNAP_MS);
   }, [reduced, drag]);
   // Risen already and moved (the payoff studio's moon nudge): straight there.
@@ -356,11 +361,39 @@ export function PayoffScreen({
   // it's yours and switched on. Not designed yet (user, 2026-11-23): the rise and one line, no effects.
   const [newShiny] = useState(facts.newShiny ?? null);
   const shinyMoon = newShiny ? (MOONS.find((m) => m.id === newShiny) ?? null) : null;
-  useEffect(() => {
-    if (!shown || sayKey === null || !newShiny) return;
-    markShinyPresented(newShiny);
-    setShinyOn(newShiny, true);
-  }, [shown, sayKey, newShiny]);
+  // The reveal (shiny-reveal.tsx): once the plain moon has risen and settled, it turns shiny with the draft's
+  // marks, the phone buzzes, and the line under the time names it. Then it's yours and switched on.
+  const fx = facts.shinyFx ?? 1;
+  const [revealed, setRevealed] = useState(false);
+  const [revealPlay, setRevealPlay] = useState(0);
+  const reveal = () => {
+    if (!shinyMoon || leaving.current) return;
+    const to = moonTo.current;
+    const done = () => {
+      setRevealed(true);
+      setRevealPlay((n) => n + 1);
+      haptic.done();
+      for (const ms of FX_TAPS[fx] ?? []) setTimeout(() => !leaving.current && haptic.tap(), ms);
+      if (sayKey !== null) {
+        markShinyPresented(shinyMoon.id);
+        setShinyOn(shinyMoon.id, true);
+      }
+    };
+    if (moonMove(fx) === 'dip' && !reduced) {
+      // Back down below the edge, swapped while out of sight, and up again shiny.
+      moonSink.set(withTiming(MOON_GONE, { duration: 480, easing: Easing.in(Easing.cubic) }));
+      setTimeout(() => {
+        if (leaving.current) return;
+        previewMoon(shinyMoon.id, 0, true);
+        moonSink.set(withTiming(to.sink, { duration: 1100, easing: Easing.bezier(0.22, 1, 0.36, 1) }));
+        setTimeout(done, 900);
+      }, 500);
+      return;
+    }
+    previewMoon(shinyMoon.id, reduced ? 0 : FX_FADE_MS[fx] ?? 500, true);
+    if (moonMove(fx) === 'nudge' && !reduced) nudgeScale(moonScale, to.scale);
+    done();
+  };
   // The new moon rises (user, 2026-11-02: "when you unlock a new moon, the new moon should rise"): its
   // colours run in as the strip starts up (the entrance below), before he yells, so the moon that comes
   // up is the new one. Shown, not worn: Apply wears it, and Done without Apply goes back to the worn
@@ -370,7 +403,6 @@ export function PayoffScreen({
     if (firstShown.current || leaving.current) return;
     firstShown.current = true;
     if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, reduced ? 0 : payoffTuning.moonFadeMs);
-    else if (shinyMoon && !newMoon) previewMoon(shinyMoon.id, reduced ? 0 : payoffTuning.moonFadeMs, true);
   };
   // Whatever happens, nothing stays on show once the payoff is gone.
   useEffect(() => () => previewMoon(null), []);
@@ -592,6 +624,12 @@ export function PayoffScreen({
     <Animated.View style={[styles.screen, screenStyle]}>
     {/* Its own corners ride the band below: the background's would sit across Done. */}
     <AppBackground panel strip={homeStrip} corners={false} drag={drag}>
+      {/* The shiny reveal's marks, over the risen moon (shiny-reveal.tsx). */}
+      {shinyMoon ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <ShinyReveal fx={fx} cx={width / 2} cy={moonTop + moonSize / 2} r={moonSize / 2} play={revealPlay} />
+        </View>
+      ) : null}
       {/* Everything here fades on Done (`pageStyle`) but the week, which flies up onto Home's. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* Under the moon: the time (user, 2026-11-02, in the headline's place), then this week. */}
@@ -617,7 +655,7 @@ export function PayoffScreen({
               {up.unit}
             </Text>
           </View>
-          <Text style={styles.kicker}>{shinyMoon ? shinyKicker(shinyMoon, sayKey === null ? null : caughtShiny(shinyMoon.id)?.hunted) : payoffKicker(mornings)}</Text>
+          <Text style={styles.kicker}>{shinyMoon && revealed ? shinyKicker(shinyMoon, sayKey === null ? null : caughtShiny(shinyMoon.id)?.hunted) : payoffKicker(mornings)}</Text>
         </In>
         {/* The new moon's Apply pill, where its card used to be (user, 2026-11-02). A surprise taps open here first. */}
         {newMoon ? (

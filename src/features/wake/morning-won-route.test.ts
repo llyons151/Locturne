@@ -52,6 +52,7 @@ function route({ params = {} as Record<string, string>, proof = { morningKey: '2
     '@/features/moons/moon-data': { MOONS: [{ id: 'harvest' }, { id: 'ringed' }] },
     '@/features/moons/shiny-settle': { settleShinyNow: () => null },
     '@/features/moons/shiny-store': { unpresentedShiny: () => null },
+    '@/features/moons/shiny-dev': { peekShinyPayoff: () => null, clearShinyPayoff: () => {} },
   };
   const exports: Record<string, any> = {};
   runInNewContext(code, { exports, React, require: (id: string) => mocks[id] ?? assert.fail(`unmocked import ${id}`), Math, Date, Number, Set, process: { env: {} }, __DEV__: true, setTimeout });

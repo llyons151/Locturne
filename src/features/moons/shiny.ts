@@ -15,14 +15,14 @@ export const SHINY_ODDS = 64;
 /** The odds while on a run of `CHARM_STREAK` mornings or more: getting up every day hunts faster. */
 export const SHINY_ODDS_CHARM = 32;
 export const CHARM_STREAK = 7;
-/** No roll on your first morning, which already brings your first moon. */
-export const SHINY_FROM_MORNING = 2;
 /**
- * Your first shiny is certain by a morning between these (fixed per install), so everyone sees one
- * early, inside the trial, and knows they exist. Only the first: after it, it's the odds alone.
+ * Your first shiny comes on exactly this morning (user, 2026-11-23: a set day inside the trial, so it can be
+ * promised up front and gives a reason to keep going). No roll before it, so it's always this one; after
+ * it, it's the odds alone.
  */
-export const FIRST_SHINY_FROM = 5;
-export const FIRST_SHINY_BY = 10;
+export const FIRST_SHINY_MORNING = 6;
+/** Rolls start on the first shiny's morning. */
+export const SHINY_FROM_MORNING = FIRST_SHINY_MORNING;
 
 /** A shiny you caught: the morning that brought it, and how many mornings you'd hunted it. */
 export type CaughtShiny = {
@@ -49,12 +49,6 @@ export type ShinyState = {
 
 export function freshShiny(seed: number): ShinyState {
   return { seed, rolled: null, caught: {}, hunt: {} };
-}
-
-/** The morning your first shiny is certain by, from the install's seed. */
-export function firstShinyAt(seed: number): number {
-  const span = FIRST_SHINY_BY - FIRST_SHINY_FROM + 1;
-  return FIRST_SHINY_FROM + Math.floor(rollFor(seed, 'shiny:first') * span);
 }
 
 /** The chance a morning's roll hits, for a run of `streak` mornings. */
@@ -89,7 +83,7 @@ export function settleShiny(f: ShinyFacts): { state: ShinyState; caught: string 
   // A moon not yours (a dev or preview pick) or one whose shiny you have: the morning is used, nothing is hunted.
   if (!owned || next.caught[worn]) return { state: next, caught: null };
   const hunted = (next.hunt[worn] ?? 0) + 1;
-  const first = Object.keys(next.caught).length === 0 && mornings >= firstShinyAt(state.seed);
+  const first = Object.keys(next.caught).length === 0;
   const hit = first || rollFor(state.seed, `shiny:${latest}`) < shinyOdds(streak);
   if (!hit) {
     next.hunt[worn] = hunted;

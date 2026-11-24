@@ -32,6 +32,7 @@ import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { DEFAULT_MOON, getWornMoon, useMoon } from '@/features/moons/moon-theme';
 import { replaceProgressBackup } from '@/features/moons/progress-backup';
 import { devCatchAllShinies, devCatchShiny, devResetShiny } from '@/features/moons/shiny-store';
+import { setShinyNext, shinyNextOn } from '@/features/moons/shiny-dev';
 import { MOONS } from '@/features/moons/moon-data';
 import { getMorningsWon } from '@/lib/morning-proof';
 
@@ -112,6 +113,12 @@ export function DeveloperSettings() {
   const [moonsAsPage, setAsPage] = useState(getMoonsAsPage);
   const [reelFrame, setReel] = useState(getReelFrame);
   const [tracking, setTracking] = useState(getTrackingEngine);
+  const [shinyNext, setShinyNextState] = useState(shinyNextOn);
+  const flipShiny = (part: 'payoff' | 'onOpen') => {
+    haptic.tap();
+    setShinyNext({ [part]: !shinyNextOn()[part] });
+    setShinyNextState(shinyNextOn());
+  };
   // The Reel frame's measured safe areas (modules/reel-frame), shown under the switch.
   const [measured, setMeasured] = useState<string | null>(null);
   // Only so the row's "On next open" shows straight away.
@@ -355,6 +362,12 @@ export function DeveloperSettings() {
         />
       </Group>
 
+      {/* Shown only, nothing caught (shiny-dev.ts): the payoff's shiny reveal on demand. */}
+      <Group label="Shiny reveal" note="Plays the payoff's shiny reveal with the moon you're wearing. Nothing is caught or switched on, and each switch turns itself off once it has played.">
+        <ValueRow {...icon('sparkles', 'auto_awesome')} title="Shiny on next open" value={shinyNext.onOpen ? 'On' : 'Off'} onPress={() => flipShiny('onOpen')} last />
+        <ValueRow {...icon('sparkles', 'auto_awesome')} title="Shiny on next payoff" value={shinyNext.payoff ? 'On' : 'Off'} onPress={() => flipShiny('payoff')} last />
+      </Group>
+
       {/* Dev test (user, 2026-11-07): the Blender moon renders on the phone (features/dev/moon-render). */}
       <Group
         label="Moon render test"
@@ -411,6 +424,28 @@ export function DeveloperSettings() {
           ))}
         </Group>
       )}
+      {!testRun ? (
+        <Group
+          label="Morning unlocks with a shiny"
+          note="The same test lock, and when you win it the payoff reveals your worn moon's shiny. Nothing is caught."
+        >
+          {LAB_METHODS.map((m) => (
+            <ValueRow
+              key={`shiny-${m.value}`}
+              iconTint={Nocturne.text}
+              icon={METHOD_ICONS[m.value]}
+              title={`${m.title} ✨`}
+              value=""
+              onPress={() => {
+                setShinyNext({ payoff: true });
+                setShinyNextState(shinyNextOn());
+                testLock(m.value);
+              }}
+              last
+            />
+          ))}
+        </Group>
+      ) : null}
 
       {/* A real night of minutes from iOS, run with Locturne closed (features/dev/rehearsal). */}
       <View style={styles.divider} />
