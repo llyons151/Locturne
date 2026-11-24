@@ -1,6 +1,6 @@
 'use no memo';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
@@ -134,7 +134,7 @@ function GlowWash({ color, id }: { color: string; id: string }) {
 }
 
 /** The card's picture: the moon's sky (or a dark one, still to come) with the moon rising from its bottom edge. */
-function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot; w: number; h: number; disc: number; wearing: boolean; away: SharedValue<number>; children?: ReactNode }) {
+function CardSky({ slot, w, h, disc, wearing, caught, on, away, children }: { slot: MoonSlot; w: number; h: number; disc: number; wearing: boolean; caught: boolean; on: boolean; away: SharedValue<number>; children?: ReactNode }) {
   const showing = slot.owned || slot.secret ? RISEN : LOW + (RISEN - LOW) * progress(slot);
   // The worn moon rises a little higher on a spring; it sinks back when another is worn.
   const lift = useSharedValue(wearing ? -LIFT * disc : 0);
@@ -146,10 +146,8 @@ function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot
   }));
   // The halo's square is centred on the moon's middle: the disc's top sits `showing` of a disc above the bottom edge.
   const halo = disc * MOON_PADS.glow;
-  // Its shiny, when caught and switched on (shiny.ts): the colours only, for now. Switching fades one into the
-  // other (user, 2026-11-23): the shiny's sky, wash and halos sit over the plain ones and fade in or out.
-  const caught = slot.owned && !!caughtShiny(slot.moon.id);
-  const on = caught && isShinyOn(slot.moon.id);
+  // Its shiny, when caught and switched on (shiny.ts; read by `SkyCards`): the colours only, for now. Switching
+  // fades one into the other (user, 2026-11-23): the shiny's sky, wash and halos sit over the plain ones and fade in or out.
   const shinyLook = caught ? shinyOf(slot.moon) : null;
   const shown = useSharedValue(on ? 1 : 0);
   useEffect(() => {
@@ -201,8 +199,33 @@ function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot
   );
 }
 
-/** One card in its slot of the row: shrinks, dims and sinks its moon as it leaves the middle. */
-function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: MoonSlot; index: number; step: number; w: number; h: number; x: SharedValue<number>; got?: OwnedMoon; wearing: boolean; shiny: ShinyState }) {
+/**
+ * One card in its slot of the row: shrinks, dims and sinks its moon as it leaves the middle. Memoised, with
+ * its shiny passed in as two booleans, so the Shiny switch re-renders only the card it changed.
+ */
+const SkyCard = memo(function SkyCard({
+  slot,
+  index,
+  step,
+  w,
+  h,
+  x,
+  got,
+  wearing,
+  caught,
+  shinyOn,
+}: {
+  slot: MoonSlot;
+  index: number;
+  step: number;
+  w: number;
+  h: number;
+  x: SharedValue<number>;
+  got?: OwnedMoon;
+  wearing: boolean;
+  caught: boolean;
+  shinyOn: boolean;
+}) {
   const away = useDerivedValue(() => Math.min(1, Math.abs(x.value / step - index)));
   const card = useAnimatedStyle(() => ({
     opacity: interpolate(away.value, [0, 1], [1, 0.5]),
@@ -216,7 +239,7 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: Mo
   return (
     <View style={[styles.slot, { width: step }]}>
       <Animated.View style={card}>
-        <CardSky slot={slot} w={w} h={h} disc={w * 0.92} wearing={wearing} away={away}>
+        <CardSky slot={slot} w={w} h={h} disc={w * 0.92} wearing={wearing} caught={caught} on={shinyOn} away={away}>
           <Animated.View style={[styles.words, words]}>
             <Text style={[styles.name, !slot.owned && styles.dim]} numberOfLines={1}>
               {slotLabel(slot)}
@@ -227,7 +250,7 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: Mo
       </Animated.View>
     </View>
   );
-}
+});
 
 /**
  * The count and the button. Their own component, told which card is in the middle the moment it gets
@@ -300,6 +323,32 @@ export function SkyCards({
     haptic.tap();
     setFooter.current(i);
   };
+  // Which shinies are switched on, as a key: a toggle changes only this (not `shiny`, which holds the
+  // catches), and the cards must be drawn again to see it. In-memory reads (shiny-store.ts).
+  const onKey = all.map((sl) => (sl.owned && isShinyOn(sl.moon.id) ? '1' : '0')).join('');
+  // Stable between renders, so the list re-renders its cards only when something they show changed.
+  const renderItem = useCallback(
+    ({ item, index }: { item: MoonSlot; index: number }) => {
+      const caught = item.owned && !!caughtShiny(item.moon.id);
+      return (
+        <SkyCard
+          slot={item}
+          index={index}
+          step={step}
+          w={w}
+          h={h}
+          x={x}
+          got={owned[item.moon.id]}
+          wearing={item.owned && item.moon.id === worn}
+          caught={caught}
+          shinyOn={caught && isShinyOn(item.moon.id)}
+        />
+      );
+    },
+    // `shiny` and `onKey` stand for the shiny reads inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [step, w, h, x, owned, worn, shiny, onKey],
+  );
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
       x.value = e.contentOffset.x;
@@ -318,9 +367,7 @@ export function SkyCards({
         data={all}
         keyExtractor={(sl) => sl.moon.id}
         extraData={shiny}
-        renderItem={({ item, index }) => (
-          <SkyCard slot={item} index={index} step={step} w={w} h={h} x={x} got={owned[item.moon.id]} wearing={item.owned && item.moon.id === worn} shiny={shiny} />
-        )}
+        renderItem={renderItem}
         // Only the cards near the middle are drawn: each is a sky, a wash, two halos and a moon.
         initialNumToRender={3}
         maxToRenderPerBatch={2}
