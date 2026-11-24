@@ -27,8 +27,10 @@ export function useMorningWalk(enabled: boolean, routine: Routine, proves = true
   // Counted under every method, for "Walk 200 steps instead"; it only wakes the apps when the
   // walk is the morning's way or they chose it instead (`proves`, user 2026-10-28).
   const walked = enabled && proves && status === 'counting' && steps >= goal;
-  // Shown a step at a time between the pedometer's batches; proved on the raw count above.
-  const shown = useSmoothSteps(enabled && status === 'counting' ? Math.min(steps, goal) : null);
+  // Shown a step at a time between the pedometer's batches; proved on the raw count above. Only
+  // while the walk is the morning on screen (`proves`): under another method every shown step
+  // re-rendered all of Home for a count nobody sees, and the walk starts on the raw count.
+  const shown = useSmoothSteps(enabled && proves && status === 'counting' ? Math.min(steps, goal) : null);
 
   useEffect(() => {
     if (walked) prove('steps');
