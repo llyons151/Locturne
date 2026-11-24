@@ -27,6 +27,7 @@ import { useMoonRenderFace } from '@/features/dev/moon-render/moon-render';
 import { DRAG_BOX, MOON_DRAG } from '@/features/moons/moon-drag';
 import { DEFAULT_MOON, moonFadeMs, useMoon } from '@/features/moons/moon-theme';
 import type { MoonDef } from '@/features/moons/moon-types';
+import { lookKey } from '@/features/moons/shiny-look';
 
 /**
  * Every onboarding screen sits under the same night sky: blue light from the
@@ -373,7 +374,7 @@ export function NightSky({
   const [going, setGoing] = useState<{ moon: MoonDef; ms: number } | null>(null);
   if (shown !== moon) {
     const ms = reduced ? 0 : moonFadeMs();
-    setGoing(ms > 0 && shown.id !== moon.id ? { moon: shown, ms } : null);
+    setGoing(ms > 0 && lookKey(shown) !== lookKey(moon) ? { moon: shown, ms } : null);
     setShown(moon);
   }
   const lookScale = useSharedValue(moon.scale);
@@ -518,8 +519,8 @@ export function NightSky({
               source={require('@/assets/onboarding/moon-glow.png')}
               style={StyleSheet.absoluteFill}
               contentFit="contain"
-              // Another moon's halo is today's, filled with its colour.
-              tintColor={moon.sky ? moon.glow : undefined}
+              // Another moon's halo (or a shiny's) is today's, filled with its colour.
+              tintColor={moon.sky || moon.shiny ? moon.glow : undefined}
               accessible={false}
             />
           </Animated.View>
@@ -538,10 +539,10 @@ export function NightSky({
       {/* The moon on show, and over it the one it's blending from, fading out. One keyed list, so
           the scene that was on show carries on as the fading one. */}
       {[
-        <SkyScene key={moon.id}>{scene(moon)}</SkyScene>,
-        ...(going && going.moon.id !== moon.id
+        <SkyScene key={lookKey(moon)}>{scene(moon)}</SkyScene>,
+        ...(going && lookKey(going.moon) !== lookKey(moon)
           ? [
-              <SkyScene key={going.moon.id} fadeMs={going.ms} onGone={() => setGoing(null)}>
+              <SkyScene key={lookKey(going.moon)} fadeMs={going.ms} onGone={() => setGoing(null)}>
                 {scene(going.moon)}
               </SkyScene>,
             ]
@@ -591,7 +592,7 @@ export function MoonHalo({ moon, size }: { moon: MoonDef; size: number }) {
       source={require('@/assets/onboarding/moon-glow.png')}
       style={{ width: size, height: size, opacity: moon.glowOpacity }}
       contentFit="contain"
-      tintColor={moon.sky ? moon.glow : undefined}
+      tintColor={moon.sky || moon.shiny ? moon.glow : undefined}
       accessible={false}
     />
   );

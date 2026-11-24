@@ -25,6 +25,10 @@ import type { OwnedMoon } from './moon-ladder';
 import { slotLabel, type MoonSlot } from './moon-slots';
 import { DEFAULT_MOON } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
+import type { ShinyState } from './shiny';
+import { shinyOf } from './shiny-look';
+import { isShinyOn, setShinyOn } from './shiny-store';
+import { ShinyToggle } from './shiny-toggle';
 
 /**
  * The moons page (user 2026-11-19, draft 5 of docs/moons-page-directions): every moon as a tall card of
@@ -74,6 +78,19 @@ function subline(slot: MoonSlot, got?: OwnedMoon): string | undefined {
   return `${slot.left} ${unit}${slot.left === 1 ? '' : 's'} to go`;
 }
 
+/**
+ * The card's shiny line (shiny.ts): caught, and on which morning; or, on the moon you're wearing, how
+ * many mornings you've hunted it. Nothing for a moon still to come or one you're not hunting.
+ */
+function shinyLine(slot: MoonSlot, wearing: boolean, shiny: ShinyState): string | undefined {
+  if (!slot.owned) return undefined;
+  const caught = shiny.caught[slot.moon.id];
+  if (caught) return `Shiny caught · Morning ${caught.morning}`;
+  if (!wearing) return undefined;
+  const n = shiny.hunt[slot.moon.id] ?? 0;
+  return n ? `Hunting its shiny · ${n} morning${n === 1 ? '' : 's'}` : 'Hunting its shiny';
+}
+
 /** The cards' order (yours, rare ones included, then coming) and the swipe's distance from one card to the next. */
 export function skyCards(slots: MoonSlot[], extras: MoonSlot[], width: number) {
   const all = [...slots.filter((s) => s.owned), ...extras, ...slots.filter((s) => !s.owned)];
@@ -109,20 +126,22 @@ function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot
   }));
   // The halo's square is centred on the moon's middle: the disc's top sits `showing` of a disc above the bottom edge.
   const halo = disc * MOON_PADS.glow;
+  // Its shiny, when caught and switched on (shiny.ts): the colours only, for now.
+  const look = slot.owned && isShinyOn(slot.moon.id) ? shinyOf(slot.moon) : slot.moon;
   return (
     <View style={[styles.card, { width: w, height: h }, !slot.owned && styles.coming]}>
       {/* As Home draws it (night-sky.tsx): the sky flipped so its light comes up from behind the moon, the
           moon's light washed up from the bottom, and its halo (user asked for Home's glow here, 2026-11-19). */}
-      {slot.owned ? <SkyPicture moon={slot.moon} /> : null}
-      {slot.owned ? <GlowWash color={slot.moon.glow} id={`w-${slot.moon.id}-${Math.round(w)}`} /> : null}
+      {slot.owned ? <SkyPicture moon={look} /> : null}
+      {slot.owned ? <GlowWash color={look.glow} id={`w-${look.id}${look.shiny ? '-s' : ''}-${Math.round(w)}`} /> : null}
       <Animated.View style={[styles.abs, { width: halo, height: halo, left: (w - halo) / 2, top: h - showing * disc + disc / 2 - halo / 2 }, lifted]}>
         {slot.owned ? (
           <>
             <View style={[styles.abs, styles.wide, { width: halo * WIDE, height: halo * WIDE, left: (halo - halo * WIDE) / 2, top: (halo - halo * WIDE) / 2 }]}>
-              <MoonHalo moon={slot.moon} size={halo * WIDE} />
+              <MoonHalo moon={look} size={halo * WIDE} />
             </View>
             <View style={styles.soft}>
-              <MoonHalo moon={slot.moon} size={halo} />
+              <MoonHalo moon={look} size={halo} />
             </View>
           </>
         ) : null}
@@ -141,7 +160,7 @@ function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot
 }
 
 /** One card in its slot of the row: shrinks, dims and sinks its moon as it leaves the middle. */
-function SkyCard({ slot, index, step, w, h, x, got, wearing }: { slot: MoonSlot; index: number; step: number; w: number; h: number; x: SharedValue<number>; got?: OwnedMoon; wearing: boolean }) {
+function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: MoonSlot; index: number; step: number; w: number; h: number; x: SharedValue<number>; got?: OwnedMoon; wearing: boolean; shiny: ShinyState }) {
   const away = useDerivedValue(() => Math.min(1, Math.abs(x.value / step - index)));
   const card = useAnimatedStyle(() => ({
     opacity: interpolate(away.value, [0, 1], [1, 0.5]),
@@ -152,6 +171,7 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing }: { slot: MoonSlot;
     transform: [{ translateY: interpolate(away.value, [0, 1], [0, -10]) }],
   }));
   const sub = subline(slot, got);
+  const hunt = shinyLine(slot, wearing, shiny);
   return (
     <View style={[styles.slot, { width: step }]}>
       <Animated.View style={card}>
@@ -161,6 +181,7 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing }: { slot: MoonSlot;
               {slotLabel(slot)}
             </Text>
             {sub ? <Text style={styles.sub}>{sub}</Text> : null}
+            {hunt ? <Text style={styles.sub}>{hunt}</Text> : null}
           </Animated.View>
         </CardSky>
       </Animated.View>
@@ -172,15 +193,17 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing }: { slot: MoonSlot;
  * The count and the button. Their own component, told which card is in the middle the moment it gets
  * there, so they change with the swipe without re-rendering the cards (user 2026-11-19: the button lagged).
  */
-function CardsFooter({ all, start, worn, register, onPress }: { all: MoonSlot[]; start: number; worn: string; register: (set: (i: number) => void) => void; onPress: (slot: MoonSlot) => boolean }) {
+function CardsFooter({ all, start, worn, register, onPress, shiny }: { all: MoonSlot[]; start: number; worn: string; register: (set: (i: number) => void) => void; onPress: (slot: MoonSlot) => boolean; shiny: ShinyState }) {
   const [at, setAt] = useState(start);
   useEffect(() => register(setAt), [register]);
   const slot = all[at] ?? all[0];
   if (!slot) return null;
   const wearing = slot.owned && slot.moon.id === worn;
   const quiet = !slot.owned || wearing;
+  const caught = slot.owned && !!shiny.caught[slot.moon.id];
   return (
     <>
+      {caught ? <ShinyToggle value={isShinyOn(slot.moon.id)} onChange={(v) => setShinyOn(slot.moon.id, v)} /> : null}
       <Text style={styles.count}>
         {at + 1} of {all.length}
       </Text>
@@ -209,6 +232,7 @@ export function SkyCards({
   width,
   onPress,
   x,
+  shiny,
 }: {
   slots: MoonSlot[];
   extras: MoonSlot[];
@@ -218,6 +242,8 @@ export function SkyCards({
   onPress: (slot: MoonSlot) => boolean;
   /** The swipe's position, the page's: it also blends the light at the top (SwipeGlow). Starts on the worn moon. */
   x: SharedValue<number>;
+  /** The shinies caught and hunted (shiny-store.ts `useShinyState`): a new one re-renders the cards. */
+  shiny: ShinyState;
 }) {
   const { all, step } = skyCards(slots, extras, width);
   const { height: screenH } = useWindowDimensions();
@@ -252,8 +278,9 @@ export function SkyCards({
       <Animated.FlatList
         data={all}
         keyExtractor={(sl) => sl.moon.id}
+        extraData={shiny}
         renderItem={({ item, index }) => (
-          <SkyCard slot={item} index={index} step={step} w={w} h={h} x={x} got={owned[item.moon.id]} wearing={item.owned && item.moon.id === worn} />
+          <SkyCard slot={item} index={index} step={step} w={w} h={h} x={x} got={owned[item.moon.id]} wearing={item.owned && item.moon.id === worn} shiny={shiny} />
         )}
         // Only the cards near the middle are drawn: each is a sky, a wash, two halos and a moon.
         initialNumToRender={3}
@@ -271,7 +298,7 @@ export function SkyCards({
         style={styles.row}
         contentContainerStyle={{ paddingHorizontal: (width - step) / 2 }}
       />
-      <CardsFooter all={all} start={start} worn={worn} register={register} onPress={onPress} />
+      <CardsFooter all={all} start={start} worn={worn} register={register} onPress={onPress} shiny={shiny} />
     </View>
   );
 }

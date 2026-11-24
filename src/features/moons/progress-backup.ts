@@ -5,6 +5,7 @@ import { getSavedMornings, onProofChange, restoreMornings } from '@/lib/morning-
 import { createProgressSync, type Progress } from '@/lib/progress-sync';
 
 import { getSavedMoons, onOwnedChange, restoreMoons } from './moon-collection';
+import { getShinyState, onShinyChange, restoreShiny } from './shiny-store';
 
 /**
  * Keeps your mornings and moons outside the App Group, so deleting and reinstalling the app gets
@@ -17,13 +18,14 @@ import { getSavedMoons, onOwnedChange, restoreMoons } from './moon-collection';
 function readLocal(): Progress {
   const { won, first, proofs, streak } = getSavedMornings();
   const { owned, rare } = getSavedMoons();
-  return { won, first, proofs, owned, rare, streak };
+  return { won, first, proofs, owned, rare, streak, shiny: getShinyState() };
 }
 
 function applyLocal(p: Progress) {
   // Moons first: the mornings' change settles the ladder, which must see the moons already back,
   // or it would earn them again dated today.
   restoreMoons(p.owned, p.rare);
+  restoreShiny(p.shiny ?? null);
   restoreMornings({ won: p.won, first: p.first, proofs: p.proofs, streak: p.streak });
 }
 
@@ -64,6 +66,7 @@ export function startProgressBackup() {
   }
   onProofChange(saveSoon);
   onOwnedChange(saveSoon);
+  onShinyChange(saveSoon);
   onCloudChange(() => {
     try {
       sync.restore();

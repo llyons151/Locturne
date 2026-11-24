@@ -27,10 +27,12 @@ import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
 import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
-import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, getMoonsAsPage, setMoonsAsPage } from '@/features/moons/moon-collection';
+import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, getMoonsAsPage, ownsMoon, setMoonsAsPage } from '@/features/moons/moon-collection';
 import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
-import { useMoon } from '@/features/moons/moon-theme';
+import { DEFAULT_MOON, getWornMoon, useMoon } from '@/features/moons/moon-theme';
 import { replaceProgressBackup } from '@/features/moons/progress-backup';
+import { devCatchShiny, devResetShiny } from '@/features/moons/shiny-store';
+import { getMorningsWon } from '@/lib/morning-proof';
 
 import { SETTINGS_BG } from './settings-actions';
 
@@ -312,6 +314,28 @@ export function DeveloperSettings() {
           onPress={() => {
             haptic.tap();
             devForgetMoons();
+            replaceProgressBackup();
+          }}
+          last
+        />
+        <ValueRow
+          {...icon('sparkle', 'auto_awesome')}
+          title="Catch the worn moon's shiny"
+          value=""
+          onPress={() => {
+            haptic.done();
+            const id = getWornMoon().id;
+            devCatchShiny(id, new Date().toISOString().slice(0, 10), Math.max(1, getMorningsWon()), id === DEFAULT_MOON.id || ownsMoon(id));
+          }}
+          last
+        />
+        <ValueRow
+          {...icon('arrow.counterclockwise', 'replay')}
+          title="Forget my shinies"
+          value=""
+          onPress={() => {
+            haptic.tap();
+            devResetShiny();
             replaceProgressBackup();
           }}
           last

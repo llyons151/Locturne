@@ -24,6 +24,8 @@ import { moonSlots, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonsPills } from './moons-pills';
+import { useShinyState } from './shiny-store';
+import { settleShinyNow } from './shiny-settle';
 
 /** The top bar's close button, as on the schedule sheet. */
 const CLOSE = 30;
@@ -72,9 +74,13 @@ export function MoonCollection({
   const insets = useSafeAreaInsets();
   const owned = useOwnedMoons();
   const worn = useWornMoon();
+  const shiny = useShinyState();
 
   // Earned before the first paint, so a moon that's due never shows as "0 mornings left".
-  useState(() => settleMoons());
+  useState(() => {
+    settleMoons();
+    settleShinyNow();
+  });
   useEffect(() => {
     checkSecretMoons();
   }, []);
@@ -187,7 +193,7 @@ export function MoonCollection({
       <View style={styles.pills}>
         <MoonsPills mornings={mornings} streak={streak} owned={count} total={total} moonId={worn.id} />
       </View>
-      <SkyCards slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} x={cardsX} />
+      <SkyCards slots={slots} extras={extras} owned={owned} worn={worn.id} width={width} onPress={press} x={cardsX} shiny={shiny} />
     </Animated.ScrollView>
     </Animated.View>
   );

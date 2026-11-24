@@ -23,6 +23,7 @@ import { startStreak } from '@/features/home/streak-start';
 import { checkStepCounter } from '@/lib/step-counter';
 import { MOONS_BG } from '@/features/moons/moon-collection';
 import { startProgressBackup } from '@/features/moons/progress-backup';
+import { startShinyHunt } from '@/features/moons/shiny-settle';
 import { useShieldMoon } from '@/features/moons/shield-moon';
 import { payoffTuning } from '@/features/wake/payoff-tuning';
 import { Nocturne } from '@/theme';
@@ -44,6 +45,8 @@ applyReelFrame();
 checkStepCounter({ isIOS: Platform.OS === 'ios', isAvailable: () => Pedometer.isAvailableAsync() });
 // Mornings and moons back after a reinstall, before any screen reads them; then kept backed up (progress-backup.ts).
 startProgressBackup();
+// After the backup: a reinstall's shinies are back before the first roll.
+startShinyHunt();
 // The morning streak, saved past the proofs list's 30 (lib/streak.ts). After the backup brought its copy back.
 startStreak();
 

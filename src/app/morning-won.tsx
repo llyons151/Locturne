@@ -9,6 +9,8 @@ import { Platform } from 'react-native';
 import { LeaveRoute } from '@/components/leave-route';
 import { settleMoons, unpresented } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
+import { settleShinyNow } from '@/features/moons/shiny-settle';
+import { unpresentedShiny } from '@/features/moons/shiny-store';
 import { markPayoffShown, wonProof } from '@/features/wake/open-payoff';
 import { PayoffLab } from '@/features/wake/payoff-lab';
 import { PayoffScreen, type PayoffFacts } from '@/features/wake/payoff-screen';
@@ -100,6 +102,7 @@ function realFacts(key?: string): PayoffFacts | null {
   const ups = getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency');
   // Any moon this morning brought (features/moons); earning is safe to repeat.
   settleMoons();
+  settleShinyNow();
   return {
     // A proof from a way since removed (squats) reads as a walk, never "undefined".
     method: isWakeMethod(proof.kind) ? proof.kind : 'steps',
@@ -112,6 +115,7 @@ function realFacts(key?: string): PayoffFacts | null {
     free: freeThisWeek(proof.morningKey, new Set(ups.map((p) => p.morningKey)), now),
     sayKey: '',
     newMoons: unpresented(proof.morningKey).map((m) => m.id),
+    newShiny: unpresentedShiny(proof.morningKey),
   };
 }
 
@@ -137,6 +141,8 @@ function demoFacts(p: Record<string, string>): PayoffFacts {
     sayKey: null,
     // `newMoon=<id>`: a made-up new moon (the wake preview). Not `moon`, which the web uses to wear one.
     newMoons: p.newMoon && MOONS.some((m) => m.id === p.newMoon) ? [p.newMoon] : [],
+    // `newShiny=<id>`: a made-up shiny catch (the wake preview).
+    newShiny: p.newShiny && MOONS.some((m) => m.id === p.newShiny) ? p.newShiny : null,
   };
 }
 

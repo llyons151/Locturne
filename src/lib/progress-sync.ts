@@ -12,6 +12,7 @@
  * the phone's mornings or moons).
  */
 import type { OwnedMoon, RareState } from '../features/moons/moon-ladder.ts';
+import { mergeShiny, parseShiny, type ShinyState } from '../features/moons/shiny.ts';
 import type { MorningProof, Streak } from './morning-proof.ts';
 
 export type Progress = {
@@ -26,6 +27,8 @@ export type Progress = {
   rare: RareState | null;
   /** The morning streak's run (lib/streak.ts), or null before one. Missing on copies saved before it. */
   streak: Streak | null;
+  /** The shiny moons caught and hunted (features/moons/shiny.ts), or null. Missing on copies saved before them. */
+  shiny?: ShinyState | null;
 };
 
 /** What's saved: the progress, its shape's version and when it was written. */
@@ -34,7 +37,7 @@ export type SavedProgress = Progress & { v: 1; savedAt: number };
 /** The same as morning-proof.ts keeps. */
 export const KEEP_PROOFS = 30;
 
-export const EMPTY: Progress = { won: 0, first: null, proofs: [], owned: {}, rare: null, streak: null };
+export const EMPTY: Progress = { won: 0, first: null, proofs: [], owned: {}, rare: null, streak: null, shiny: null };
 
 const isWin = (p: MorningProof) => p.kind !== 'pass' && p.kind !== 'emergency';
 
@@ -69,6 +72,7 @@ export function parseProgress(json: string | null | undefined): Progress | null 
       owned,
       rare,
       streak,
+      shiny: parseShiny(raw.shiny),
     };
   } catch {
     return null;
@@ -143,6 +147,7 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
     owned,
     rare: mergeRare(a.rare, b.rare),
     streak: mergeStreak(a.streak, b.streak),
+    shiny: mergeShiny(a.shiny ?? null, b.shiny ?? null),
   };
 }
 
@@ -159,6 +164,7 @@ export function sameProgress(a: Progress, b: Progress): boolean {
     if (!y || x.at !== y.at || x.morningKey !== y.morningKey || !!x.presented !== !!y.presented || !!x.seen !== !!y.seen) return false;
   }
   if (a.streak?.key !== b.streak?.key || a.streak?.count !== b.streak?.count || a.streak?.checked !== b.streak?.checked) return false;
+  if (JSON.stringify(a.shiny ?? null) !== JSON.stringify(b.shiny ?? null)) return false;
   return JSON.stringify(a.rare) === JSON.stringify(b.rare);
 }
 

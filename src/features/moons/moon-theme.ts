@@ -5,6 +5,8 @@ import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER, MOONS } from './moon-data';
 import type { MoonDef } from './moon-types';
+import { shinyOf } from './shiny-look';
+import { isShinyOn, onShinyChange } from './shiny-store';
 
 /**
  * The moon you're wearing: it recolours the sky, the moon, its halo and the Sleep orb
@@ -39,11 +41,28 @@ export function getMoon(): MoonDef {
   return preview ?? getWornMoon();
 }
 
-/** The moon you chose to wear (saved), whatever is on show. */
+/** The moon you chose to wear (saved), whatever is on show: its shiny when that's caught and switched on. */
 export function getWornMoon(): MoonDef {
-  current ??= BY_ID.get(sharedGet<string>(KEY) ?? webMoon() ?? '') ?? DEFAULT_MOON;
+  if (!current) {
+    const base = BY_ID.get(sharedGet<string>(KEY) ?? webMoon() ?? '') ?? DEFAULT_MOON;
+    current = isShinyOn(base.id) ? shinyOf(base) : base;
+  }
   return current;
 }
+
+/** Switching a shiny on or off blends the sky across, as a new moon does. */
+const SHINY_FADE_MS = 600;
+
+// A shiny caught or switched on or off: the worn moon is worked out again (same id, new colours).
+onShinyChange(() => {
+  if (!current) return;
+  const base = BY_ID.get(current.id) ?? DEFAULT_MOON;
+  const next = isShinyOn(base.id) ? shinyOf(base) : base;
+  if (next === current) return;
+  current = next;
+  fadeMs = SHINY_FADE_MS;
+  listeners.forEach((listener) => listener());
+});
 
 /** On the web, where nothing is saved between loads, `?moon=<id>` starts with that moon (for screenshots). */
 function webMoon(): string | undefined {
@@ -52,7 +71,8 @@ function webMoon(): string | undefined {
 }
 
 export function setMoon(id: string) {
-  const next = BY_ID.get(id) ?? DEFAULT_MOON;
+  const base = BY_ID.get(id) ?? DEFAULT_MOON;
+  const next = isShinyOn(base.id) ? shinyOf(base) : base;
   if (next === getWornMoon()) return;
   current = next;
   fadeMs = 0;
@@ -65,8 +85,9 @@ export function setMoon(id: string) {
  * the worn one. Nothing is saved: `setMoon` wears it. `fade` blends the sky, moon and halo into it
  * over that many ms instead of swapping them (user, 2026-11-02: Done without Apply "glitches" back).
  */
-export function previewMoon(id: string | null, fade = 0) {
-  const next = id ? BY_ID.get(id) : undefined;
+export function previewMoon(id: string | null, fade = 0, shiny = false) {
+  const base = id ? BY_ID.get(id) : undefined;
+  const next = base && shiny ? shinyOf(base) : base;
   if (next === preview) return;
   preview = next;
   fadeMs = fade;

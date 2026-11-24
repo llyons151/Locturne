@@ -29,4 +29,8 @@ export type MoonDef = {
   /** A second moon, placed in moon-widths from the main moon's centre. */
   twin?: ImageSourcePropType;
   twinAt?: { x: number; y: number; size: number; glow: string; glowOpacity: number; front: boolean };
+  /** This is the moon's shiny version (shiny-look.ts `shinyOf`), not the moon itself. */
+  shiny?: boolean;
+  /** The shiny's own colours, once designed in the moon studio; without them shiny-look.ts makes placeholders. */
+  shinyColors?: { glow: string; orb: [string, string, string, string]; skyColors: [string, string, string, string] };
 };

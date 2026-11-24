@@ -19,6 +19,7 @@ import Svg, { Path } from 'react-native-svg';
 import { CTA_HEIGHT, DISPLAY_MAX_SCALE, DisplayFont, Gap, Nocturne, NUMBER_FONT, Space, Type } from '@/theme';
 
 import { markPresented } from '../moons/moon-collection';
+import { caughtShiny, markShinyPresented, setShinyOn } from '../moons/shiny-store';
 import { MOONS } from '../moons/moon-data';
 import { payoffMoon } from '../moons/payoff-moon';
 import { previewMoon, setMoon, useWornMoon } from '../moons/moon-theme';
@@ -59,9 +60,17 @@ export type PayoffFacts = {
   sayKey: string | null;
   /** Moons this morning brought, not yet shown on a payoff, the ladder's first (features/moons). */
   newMoons: string[];
+  /** The shiny this morning caught (features/moons/shiny.ts), not yet shown on a payoff, or null. */
+  newShiny?: string | null;
 };
 
 /** The new moon beside its name, under the headline; smaller on an SE. */
+
+/** The line under the time on a shiny morning: what was caught and how long it took. */
+function shinyKicker(moon: MoonDef, hunted: number | null | undefined): string {
+  const took = hunted ? ` · ${hunted} morning${hunted === 1 ? '' : 's'} hunting` : '';
+  return `Shiny ${moon.name}${took}`;
+}
 
 /** Loc's width as a share of the screen: Home's. */
 const LOC_SHARE = 0.27;
@@ -343,6 +352,15 @@ export function PayoffScreen({
   useEffect(() => {
     if (shown && sayKey !== null && newMoons.length) markPresented(newMoons);
   }, [shown, sayKey, newMoons]);
+  // A shiny caught this morning (shiny.ts): it rises like a new moon (below), and once the page is in
+  // it's yours and switched on. Not designed yet (user, 2026-11-23): the rise and one line, no effects.
+  const [newShiny] = useState(facts.newShiny ?? null);
+  const shinyMoon = newShiny ? (MOONS.find((m) => m.id === newShiny) ?? null) : null;
+  useEffect(() => {
+    if (!shown || sayKey === null || !newShiny) return;
+    markShinyPresented(newShiny);
+    setShinyOn(newShiny, true);
+  }, [shown, sayKey, newShiny]);
   // The new moon rises (user, 2026-11-02: "when you unlock a new moon, the new moon should rise"): its
   // colours run in as the strip starts up (the entrance below), before he yells, so the moon that comes
   // up is the new one. Shown, not worn: Apply wears it, and Done without Apply goes back to the worn
@@ -352,6 +370,7 @@ export function PayoffScreen({
     if (firstShown.current || leaving.current) return;
     firstShown.current = true;
     if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, reduced ? 0 : payoffTuning.moonFadeMs);
+    else if (shinyMoon && !newMoon) previewMoon(shinyMoon.id, reduced ? 0 : payoffTuning.moonFadeMs, true);
   };
   // Whatever happens, nothing stays on show once the payoff is gone.
   useEffect(() => () => previewMoon(null), []);
@@ -598,7 +617,7 @@ export function PayoffScreen({
               {up.unit}
             </Text>
           </View>
-          <Text style={styles.kicker}>{payoffKicker(mornings)}</Text>
+          <Text style={styles.kicker}>{shinyMoon ? shinyKicker(shinyMoon, sayKey === null ? null : caughtShiny(shinyMoon.id)?.hunted) : payoffKicker(mornings)}</Text>
         </In>
         {/* The new moon's Apply pill, where its card used to be (user, 2026-11-02). A surprise taps open here first. */}
         {newMoon ? (
