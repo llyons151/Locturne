@@ -44,14 +44,13 @@ final class DayDotsView: ExpoView {
   private var observers: [NSObjectProtocol] = []
 
   required init(appContext: AppContext? = nil) {
-    let device = MTLCreateSystemDefaultDevice()
-    metalView = MTKView(frame: .zero, device: device)
-    renderer = device.flatMap { DayDotsRenderer(device: $0, pixelFormat: .bgra8Unorm) }
+    metalView = MTKView(frame: .zero, device: DayDotsShared.shared.device)
+    renderer = DayDotsRenderer(shared: DayDotsShared.shared)
     super.init(appContext: appContext)
 
     backgroundColor = .clear
     isUserInteractionEnabled = false
-    metalView.colorPixelFormat = .bgra8Unorm
+    metalView.colorPixelFormat = DayDotsShared.pixelFormat
     metalView.isOpaque = false
     metalView.layer.isOpaque = false
     metalView.backgroundColor = .clear
@@ -124,6 +123,35 @@ private struct DayDotsUniforms {
   var still: Float
 }
 
+/// What every day-dots view shares: the device, one command queue, and the pipeline compiled once, so
+/// the reveal doesn't compile the shader on the main thread as it opens. As MistDotShared (modules/mist-dot).
+private final class DayDotsShared {
+  static let shared = DayDotsShared()
+  static let pixelFormat = MTLPixelFormat.bgra8Unorm
+  let device: MTLDevice?
+  let queue: MTLCommandQueue?
+  let pipeline: MTLRenderPipelineState?
+
+  private init() {
+    device = MTLCreateSystemDefaultDevice()
+    queue = device?.makeCommandQueue()
+    guard
+      let device,
+      let library = try? device.makeLibrary(source: dayDotsShaderSource, options: nil),
+      let vertex = library.makeFunction(name: "day_dots_vertex"),
+      let fragment = library.makeFunction(name: "day_dots_fragment")
+    else {
+      pipeline = nil
+      return
+    }
+    let descriptor = MTLRenderPipelineDescriptor()
+    descriptor.vertexFunction = vertex
+    descriptor.fragmentFunction = fragment
+    descriptor.colorAttachments[0].pixelFormat = DayDotsShared.pixelFormat
+    pipeline = try? device.makeRenderPipelineState(descriptor: descriptor)
+  }
+}
+
 final class DayDotsRenderer: NSObject, MTKViewDelegate {
   private let queue: MTLCommandQueue
   private let pipeline: MTLRenderPipelineState
@@ -142,18 +170,9 @@ final class DayDotsRenderer: NSObject, MTKViewDelegate {
   var fallDistance: Float = 600
   var still = false
 
-  init?(device: MTLDevice, pixelFormat: MTLPixelFormat) {
-    guard
-      let queue = device.makeCommandQueue(),
-      let library = try? device.makeLibrary(source: dayDotsShaderSource, options: nil),
-      let vertex = library.makeFunction(name: "day_dots_vertex"),
-      let fragment = library.makeFunction(name: "day_dots_fragment")
-    else { return nil }
-    let descriptor = MTLRenderPipelineDescriptor()
-    descriptor.vertexFunction = vertex
-    descriptor.fragmentFunction = fragment
-    descriptor.colorAttachments[0].pixelFormat = pixelFormat
-    guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor) else { return nil }
+  /// Nil without Metal or if the shared pipeline didn't compile.
+  fileprivate init?(shared: DayDotsShared) {
+    guard let queue = shared.queue, let pipeline = shared.pipeline else { return nil }
     self.queue = queue
     self.pipeline = pipeline
   }
