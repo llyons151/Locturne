@@ -1,5 +1,6 @@
 // Clip viewer: watch every reference clip a study pulled (docs/reel-refs/clip-study/), with stats,
 // why it was picked, Claude's take, and your own keep/skip marks + notes (saved to marks.json there).
+// /top10.html (`npm run top10`) = the 10 formats to recreate (top10.json), clips copied into docs/reel-refs/top10/.
 // Fill it with `npm run clip-viewer:fetch`, then `npm run clip-viewer` and open http://localhost:5182.
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
@@ -9,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const DATA = join(HERE, '..', '..', 'docs', 'reel-refs', 'clip-study');
+const TOP10 = join(HERE, '..', '..', 'docs', 'reel-refs', 'top10');
 const PORT = Number(process.env.PORT ?? 5182);
 
 const TYPES = {
@@ -19,6 +21,7 @@ const TYPES = {
 function resolve(urlPath) {
   const p = normalize(decodeURIComponent(urlPath)).replace(/^(\.\.[/\\])+/, '');
   if (p.startsWith('/data/')) return join(DATA, p.slice('/data/'.length));
+  if (p.startsWith('/top10/')) return join(TOP10, p.slice('/top10/'.length));
   return join(HERE, p === '/' ? 'index.html' : p);
 }
 
@@ -69,4 +72,4 @@ createServer(async (req, res) => {
     res.writeHead(404, { 'content-type': 'text/plain' });
     res.end('not found');
   }
-}).listen(PORT, () => console.log(`Clip viewer on http://localhost:${PORT}`));
+}).listen(PORT, () => console.log(`Clip viewer on http://localhost:${PORT}  ·  top 10 to recreate: http://localhost:${PORT}/top10.html`));

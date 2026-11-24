@@ -1,0 +1,320 @@
+{
+  "date": "2026-11-23",
+  "basis": "THE main reels to recreate (user, 2026-11-23). Picked from the 93 clips in docs/reel-refs/clip-study and the 913-post scout sweep (docs/reel-refs/scout/SCOUT.md), weighed against the lessons in docs/REEL_RESULTS.md (lock or push-ups in the first frame, sends need a line about someone else, installs over reach).",
+  "formats": [
+    {
+      "n": 1,
+      "name": "Caught doing the task",
+      "short": "Creator account films their own morning task: groggy, annoyed, doing it anyway.",
+      "evidence": "Strongest evidence in the whole set. Wayk and Erly creator accounts with a few thousand followers hit 34.3M, 28.6M, 15.8M, 11.3M, 9.4M, 6.1M. Same creator's calm version got 1.6K: it's a lottery, so volume matters.",
+      "locturne": "A '…wakesup' style account. Phone propped on the floor at 7am, you doing the push-ups or the dance while half asleep. Caption: \"my apps won't open until I do 20 push-ups 😭\". End on TikTok opening. Locturne named in caption + pinned comment.",
+      "beats": [
+        "Groggy in bed, alarm / shield on screen",
+        "Get up, do the push-ups or dance on camera",
+        "Phone unlocks, flop back down"
+      ],
+      "fit": "Push-ups + dance cameras already exist. This is the Erly shape your notes call best-evidenced.",
+      "clips": [
+        {
+          "src": "/top10/01-caught-doing-the-task-mad1wakeup-34.3M.mp4",
+          "handle": "@mad1wakeup",
+          "views": "34.3M",
+          "note": "\"hate that it works lol\""
+        },
+        {
+          "src": "/top10/01-caught-doing-the-task-sav_get.up-28.6M.mp4",
+          "handle": "@sav_get.up",
+          "views": "28.6M",
+          "note": "dancer, \"my alarm said GET UP and meant it\""
+        },
+        {
+          "src": "/top10/01-caught-doing-the-task-biancawakesup-15.8M.mp4",
+          "handle": "@biancawakesup",
+          "views": "15.8M",
+          "note": "2.5K-follower account"
+        },
+        {
+          "src": "/top10/01-caught-doing-the-task-marsbarz00-6.1M.mp4",
+          "handle": "@marsbarz00",
+          "views": "6.1M",
+          "note": "\"can't scroll in bed anymore\": closest angle to Locturne"
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "name": "Witness POV",
+      "short": "Someone else films you: partner, roommate, mum. They're the narrator.",
+      "evidence": "Wayk \"just found out the hard way how she wakes up\" 4.6M; @grindlocker0 \"he says it's annoying but it works\" 450K. A third person makes it feel caught, not staged.",
+      "locturne": "Roommate films you doing push-ups on the floor at 6:58 in the dark. Caption: \"he's not allowed TikTok until he gets out of bed\". This is the line about someone else your results say sends need, and this time the reel actually shows him.",
+      "beats": [
+        "Camera person whispers / caption sets the rule",
+        "You doing the task, annoyed",
+        "Phone shows the app finally open"
+      ],
+      "fit": "Fixes the car-9 lesson: a third-person line only gets sends when the reel shows the person.",
+      "clips": [
+        {
+          "src": "/top10/02-witness-pov-wayk.app-4.6M.mp4",
+          "handle": "@wayk.app",
+          "views": "4.6M",
+          "note": "partner films from bed, then setup screens"
+        },
+        {
+          "src": "/top10/02-witness-pov-grindlocker0-450K.mp4",
+          "handle": "@grindlocker0",
+          "views": "450K",
+          "note": "partner films push-up lock"
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "name": "Crashing out + the counter",
+      "short": "Dark bedroom, Snapchat-style caption, then a screen recording of the rep counter to the win screen.",
+      "evidence": "Wayk \"crashing out\" caught-at-night 3.2M; PushClock in bed + rep counter 137K on an app account. Closest existing thing to your push-up camera.",
+      "locturne": "Groggy face → lock screen 6:58 with the shield → screen recording of the push-up camera with Loc yelling the count → moonrise + Loc's yell. Copy PushClock's beat order exactly, your camera screen is the better version of theirs.",
+      "beats": [
+        "Face + caption \"crashing out bc my apps won't open until…\"",
+        "Shield at 6:58",
+        "Counter 0 → 20",
+        "Moonrise / Loc yell"
+      ],
+      "fit": "Lock in the first second, no face-then-demo cliff if the shield is in frame from the start.",
+      "clips": [
+        {
+          "src": "/top10/03-crashing-out-the-counter-wayk.app-3.2M.mp4",
+          "handle": "@wayk.app",
+          "views": "3.2M",
+          "note": "dark bedroom, flop out of bed"
+        },
+        {
+          "src": "/top10/03-crashing-out-the-counter-pushclock.app-137K.mp4",
+          "handle": "@pushclock.app",
+          "views": "137K",
+          "note": "lock screen 5:47 → counter → \"Morning Conquered\""
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "name": "\"No push-ups, no scroll\" rule",
+      "short": "10–18 s: the rule on screen, a rep set, the app opens. Built to be sent.",
+      "evidence": "@the.pushupperson 9.6M (\"share this with someone who needs it\"), 1.4M; @skyirezumi 344K. Account median is ~1.7K, so again volume.",
+      "locturne": "\"My phone won't let me open TikTok until I do 20 push-ups\". One rep set with Loc counting, TikTok opens. Caption ends \"send this to someone who needs it\".",
+      "beats": [
+        "Rule as text over the shield",
+        "Fast rep set",
+        "App opens"
+      ],
+      "fit": "Shortest format here; fits the 12–15 s install-focused cut you're testing.",
+      "clips": [
+        {
+          "src": "/top10/04-no-push-ups-no-scroll-rule-the.pushupperson-9.6M.mp4",
+          "handle": "@the.pushupperson",
+          "views": "9.6M",
+          "note": "10 s, \"share with someone who needs it\""
+        },
+        {
+          "src": "/top10/04-no-push-ups-no-scroll-rule-the.pushupperson-1.4M.mp4",
+          "handle": "@the.pushupperson",
+          "views": "1.4M",
+          "note": "says what the app does in one line"
+        },
+        {
+          "src": "/top10/04-no-push-ups-no-scroll-rule-skyirezumi-344K.mp4",
+          "handle": "@skyirezumi",
+          "views": "344K",
+          "note": "\"pushups before you can scroll\""
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "name": "Day N series → the recap",
+      "short": "\"Day 1 of …\" daily posts; the long-run recap is the real hit.",
+      "evidence": "@jay.coull Day 1 39.3M (days 2–4: 5.5M/3.6M/1.5M); @365ili Day 719 recap 38.2M on a 2K-median account; @ellysejay \"Day 232 of reclaiming my time\" 1.7M. Counter-evidence: many day-N serials die at under 200 views.",
+      "locturne": "\"Morning 1 of my apps sleeping until I get out of bed.\" Film the shield + the method each day; the in-app Morning N count is the label. Recap at 30 and 100 with a grid of the week dots / moons.",
+      "beats": [
+        "\"Day N\" text + today's shield",
+        "Today's task (3 s)",
+        "Morning N on the payoff"
+      ],
+      "fit": "Matches the face account's Day-N role. Your never-reset morning count is made for it.",
+      "clips": [
+        {
+          "src": "/top10/05-day-n-series-the-recap-jay.coull-39.3M.mp4",
+          "handle": "@jay.coull",
+          "views": "39.3M",
+          "note": "Day 1 of +1 push-up a day"
+        },
+        {
+          "src": "/top10/05-day-n-series-the-recap-365ili_official-38.2M.mp4",
+          "handle": "@365ili_official",
+          "views": "38.2M",
+          "note": "Day 719 before/after"
+        },
+        {
+          "src": "/top10/05-day-n-series-the-recap-ellysejay-1.7M.mp4",
+          "handle": "@ellysejay",
+          "views": "1.7M",
+          "note": "\"Day 232 of reclaiming my time\""
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "name": "Three people, one challenge",
+      "short": "Ensemble comparison: same rule, different people, who did best.",
+      "evidence": "@Browney \"3 guys do 200 push-ups a day for 30 days\" 15.8M, pull-ups version 10.5M. Long YouTube, but the premise works as a Short.",
+      "locturne": "Three friends, three wake methods (push-ups, dance, walk), same 7am lock. \"Who gets TikTok back first?\" Split screen, timer, winner. Also works as \"3 roommates, 1 week of Locturne\".",
+      "beats": [
+        "Three faces + the rule",
+        "Split-screen race",
+        "Winner's app opens first"
+      ],
+      "fit": "Uses the method grid, built-in competition, people tag friends.",
+      "clips": [
+        {
+          "src": "/top10/06-three-people-one-challenge-Browney-15.8M.mp4",
+          "handle": "@Browney",
+          "views": "15.8M",
+          "note": "3 guys, 200 push-ups/day (long)"
+        },
+        {
+          "src": "/top10/06-three-people-one-challenge-Browney-10.5M.mp4",
+          "handle": "@Browney",
+          "views": "10.5M",
+          "note": "pull-ups version (long)"
+        }
+      ]
+    },
+    {
+      "n": 7,
+      "name": "\"Did y'all know…\" discovery",
+      "short": "Shocked face or text: a hidden feature people didn't know existed.",
+      "evidence": "The autoscroll wave: @thestarrdestiny 9.5M (in bed, in the dark), @grifftomaino 2.9M, @tsltempo 828K with 94K shares (text over gameplay). Discovery posts get shared.",
+      "locturne": "\"Did y'all know your iPhone can put your apps to sleep until you get out of bed??\" Keep the shield on screen from frame one (tsltempo's text-over-footage layout) so there's no face→demo cut.",
+      "beats": [
+        "\"did y'all know…\" text over the shield",
+        "Show the walk / push-ups wake it",
+        "\"it's called Locturne\""
+      ],
+      "fit": "Screen Time lock is something most people don't know an app can do. That's the surprise.",
+      "clips": [
+        {
+          "src": "/top10/07-did-y-all-know-discovery-thestarrdestiny-9.5M.mp4",
+          "handle": "@thestarrdestiny",
+          "views": "9.5M",
+          "note": "face in bed, \"TikTok has auto scroll\""
+        },
+        {
+          "src": "/top10/07-did-y-all-know-discovery-tsltempo-828K.mp4",
+          "handle": "@tsltempo",
+          "views": "828K",
+          "note": "text over footage, 94K shares"
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "name": "3am relatable text",
+      "short": "One line of text over a dark bed scene. No talking.",
+      "evidence": "@nobodysausage \"me scrolling dance videos at 3am\" 22.3M; @princessmilyy \"nightly doom scroll\" 2.3M; @lajiq8 \"sacrificing sleep for free time\" 2M; @happydadloves 6 s 9.7M. The top of the scout list is almost all this.",
+      "locturne": "Loc account: \"me at 3am: one more video\" over a dark bed shot, then the shield drops: \"Shh. I'm sleeping. So are they.\" The punchline is the lock, so the reveal is the demo.",
+      "beats": [
+        "Text over dark bed scroll",
+        "Tap TikTok",
+        "Shield + Loc line"
+      ],
+      "fit": "Loc's role on the three-account split. Cheap to make in volume.",
+      "clips": [
+        {
+          "src": "/top10/08-3am-relatable-text-nobodysausage-22.3M.mp4",
+          "handle": "@nobodysausage",
+          "views": "22.3M",
+          "note": "3D character, 3am scroll"
+        },
+        {
+          "src": "/top10/08-3am-relatable-text-princessmilyy-2.3M.mp4",
+          "handle": "@princessmilyy",
+          "views": "2.3M",
+          "note": "text over dark bed"
+        },
+        {
+          "src": "/top10/08-3am-relatable-text-lajiq8-2.0M.mp4",
+          "handle": "@lajiq8",
+          "views": "2.0M",
+          "note": "cinematic, revenge bedtime"
+        },
+        {
+          "src": "/top10/08-3am-relatable-text-happydadloves-9.7M.mp4",
+          "handle": "@happydadloves",
+          "views": "9.7M",
+          "note": "6 s skit"
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "name": "Screen-time reaction",
+      "short": "React to someone's screen time number, or confess your own.",
+      "evidence": "@uncltrd \"18 hours in Crossy Road\" 7.7M; @mrleeo9 \"me with 12h of screen time when I see kids on phones\" 5.3M; @dmntrahloww reacting to viewers' screen times 2M.",
+      "locturne": "\"Send me your screen time, Loc rates it.\" React to followers' screenshots, then show yours with the night block. Comments become the next video's material.",
+      "beats": [
+        "Screenshot + shocked reaction",
+        "Loc's verdict line",
+        "\"mine since Locturne\" screenshot"
+      ],
+      "fit": "Gives people something to comment, the gap your results flagged (0 comments on describe-the-app captions).",
+      "clips": [
+        {
+          "src": "/top10/09-screen-time-reaction-uncltrd-7.7M.mp4",
+          "handle": "@uncltrd",
+          "views": "7.7M",
+          "note": "\"18 hours in Crossy Road!\""
+        },
+        {
+          "src": "/top10/09-screen-time-reaction-mrleeo9-5.3M.mp4",
+          "handle": "@mrleeo9",
+          "views": "5.3M",
+          "note": "hypocrisy confession"
+        },
+        {
+          "src": "/top10/09-screen-time-reaction-dmntrahloww-2.0M.mp4",
+          "handle": "@dmntrahloww",
+          "views": "2.0M",
+          "note": "reacting to viewers' screen times"
+        }
+      ]
+    },
+    {
+      "n": 10,
+      "name": "The big number",
+      "short": "One shocking stat, 13 s, done.",
+      "evidence": "Opal \"15 years looking down at your phone\" 4.4M, reposted for 1.8M more; BePresent \"534,323 parents…\" 1.4M.",
+      "locturne": "Use your onboarding reveal: \"You'll spend 2 years of your life in bed on your phone\" with the one-square-per-week grid filling. Last 2 s: the shield.",
+      "beats": [
+        "Number appears",
+        "Grid fills",
+        "Shield: what you can do about it"
+      ],
+      "fit": "You already built the reveal screen; it's a ready-made visual.",
+      "clips": [
+        {
+          "src": "/top10/10-the-big-number-opal-4.4M.mp4",
+          "handle": "@opal",
+          "views": "4.4M",
+          "note": "13 s stat hook"
+        },
+        {
+          "src": "/top10/10-the-big-number-bepresent.app-1.4M.mp4",
+          "handle": "@bepresent.app",
+          "views": "1.4M",
+          "note": "number + social proof"
+        }
+      ]
+    }
+  ],
+  "left_out": "Storytime talking head (unrot 4.2M) and face-hook skits: your own posts lost 19–27 pts at the face→demo cut four times. Produced montage (BePresent 7.7M): one-off, expensive. Founder story / big-creator sponsor: low views or paid."
+}
