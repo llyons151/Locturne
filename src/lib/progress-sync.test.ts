@@ -189,3 +189,69 @@ test('a broken copy beside a good one: the good one wins', () => {
   assert.equal(state.local.won, 40);
   assert.equal(parseProgress(state.cloud)?.won, 40, 'and the broken copy is rewritten');
 });
+
+/** A phone whose copies count their reads. */
+function countedPhone(local: Progress, cloud: string | null = null, keychain: string | null = null) {
+  const state = { local, cloud, keychain, writes: 0, reads: 0, failWrites: false };
+  const sync = createProgressSync({
+    readLocal: () => state.local,
+    applyLocal: (p) => void (state.local = p),
+    readStores: () => {
+      state.reads++;
+      return { cloud: state.cloud, keychain: state.keychain };
+    },
+    writeStores: (json) => {
+      state.writes++;
+      if (state.failWrites) return;
+      state.cloud = json;
+      state.keychain = json;
+    },
+    now: () => 1_800_000_000_000,
+  });
+  return { state, sync };
+}
+
+test('a save with the phone unchanged since the copies last matched reads neither copy', () => {
+  const saved = serializeProgress(lived, 1);
+  const { state, sync } = countedPhone(lived, saved, saved);
+  sync.restore();
+  assert.equal(state.reads, 1);
+  sync.save();
+  sync.save();
+  assert.equal(state.reads, 1, 'nothing changed: no Keychain or iCloud read');
+  assert.equal(state.writes, 0);
+  // A new morning: read, merged and saved, then quiet again once the copies hold it.
+  state.local = { ...lived, won: 41, proofs: [proof('2026-10-11'), ...lived.proofs] };
+  sync.save();
+  assert.equal(state.writes, 1);
+  assert.equal(parseProgress(state.cloud)?.won, 41);
+  sync.save();
+  assert.equal(state.reads, 3, 'the save after a write checks it landed');
+  sync.save();
+  assert.equal(state.reads, 3);
+});
+
+test('a write that did not land is tried again on the next save, as before', () => {
+  const { state, sync } = countedPhone(lived);
+  state.failWrites = true;
+  sync.restore();
+  sync.save();
+  sync.save();
+  assert.equal(state.writes, 3, 'restore and each save try again while the copies are missing');
+  state.failWrites = false;
+  sync.save();
+  assert.equal(parseProgress(state.keychain)?.won, 40);
+});
+
+test('an iCloud change (restore) makes the next save look at the copies again', () => {
+  const saved = serializeProgress(lived, 1);
+  const { state, sync } = countedPhone(lived, saved, saved);
+  sync.restore();
+  const other: Progress = { ...lived, owned: { ...lived.owned, aurora: moon('aurora', '2026-09-07') } };
+  state.cloud = serializeProgress(other, 1);
+  sync.restore();
+  assert.ok(state.local.owned.aurora);
+  const reads = state.reads;
+  sync.save();
+  assert.equal(state.reads, reads + 1);
+});

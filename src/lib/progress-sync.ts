@@ -197,15 +197,22 @@ export function createProgressSync(deps: SyncDeps): ProgressSync {
   // Nothing is saved before the first restore has read the copies: a fresh install's empty
   // progress, saved first, would be merged over nothing and then look like the truth.
   let restored = false;
+  // The phone's progress (as JSON) the last time both copies were read and already held all of
+  // it: until it changes, a save would read the Keychain (an IPC to securityd) and iCloud, merge
+  // and write nothing. Cleared whenever a write went out, so the next save checks it landed (a
+  // failed write is retried, as before). iCloud changes from elsewhere come in through `restore`.
+  let inSync: string | null = null;
 
   const both = ({ cloud, keychain }: { cloud: string | null; keychain: string | null }): Progress =>
     mergeProgress(parseProgress(cloud) ?? EMPTY, parseProgress(keychain) ?? EMPTY);
 
+  /** Saves `p` unless both copies hold it already. Whether it wrote. */
   const write = (p: Progress, { cloud, keychain }: { cloud: string | null; keychain: string | null }) => {
     const a = parseProgress(cloud);
     const b = parseProgress(keychain);
-    if (a && b && sameProgress(a, p) && sameProgress(b, p)) return;
+    if (a && b && sameProgress(a, p) && sameProgress(b, p)) return false;
     deps.writeStores(serializeProgress(p, deps.now()));
+    return true;
   };
 
   return {
@@ -218,18 +225,24 @@ export function createProgressSync(deps: SyncDeps): ProgressSync {
         moons: Object.keys(merged.owned).length - Object.keys(local.owned).length,
         proofs: merged.proofs.length - local.proofs.length,
       };
-      if (!sameProgress(merged, local)) deps.applyLocal(merged);
+      const applied = !sameProgress(merged, local);
+      if (applied) deps.applyLocal(merged);
       restored = true;
-      write(merged, raw);
+      const wrote = write(merged, raw);
+      inSync = applied || wrote ? null : JSON.stringify(local);
       return back;
     },
     save() {
       if (!restored) return;
+      const local = deps.readLocal();
+      const key = JSON.stringify(local);
+      if (key === inSync) return;
       const raw = deps.readStores();
-      write(mergeProgress(deps.readLocal(), both(raw)), raw);
+      inSync = write(mergeProgress(local, both(raw)), raw) ? null : key;
     },
     replace() {
       restored = true;
+      inSync = null;
       deps.writeStores(serializeProgress(deps.readLocal(), deps.now()));
     },
   };
