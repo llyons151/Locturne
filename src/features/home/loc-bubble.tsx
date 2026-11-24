@@ -59,7 +59,13 @@ export function LocBubble({
   return (
     <Animated.View entering={BREATHE_IN} exiting={FadeOut.duration(150)} style={styles.wrap}>
       <Pressable onPress={onDismiss} accessibilityRole="text" accessibilityLabel={`Loc: ${line}`} accessibilityHint="Dismisses">
-        <View style={[styles.bubble, !glass && (smoked ? styles.smoke : styles.pane), wider ? { maxWidth: Math.max(MAX_WIDTH, wide) } : null]}>
+        <View
+          style={[
+            styles.bubble,
+            glass ? styles.lift : smoked ? [styles.smoke, styles.smokeLift] : [styles.pane, styles.paneLift],
+            wider ? { maxWidth: Math.max(MAX_WIDTH, wide) } : null,
+          ]}
+        >
           {glass ? <GlassView glassEffectStyle="regular" style={styles.glass} /> : null}
           <Text
             style={styles.line}
@@ -92,12 +98,14 @@ const styles = StyleSheet.create({
     paddingVertical: PAD_V,
     borderRadius: CAPSULE,
     borderCurve: 'continuous',
-    // Neutral lift off the sky, never a tint (CLAUDE.md: no glow).
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
   },
+  // Neutral lift off the sky, never a tint (CLAUDE.md: no glow). On glass a `boxShadow`, which iOS
+  // draws from the capsule's outline; plain `shadow*` there has no path (no opaque background), so it
+  // was worked out from the glass's pixels on every frame of the breathe-in. RN halves the blur into
+  // the layer's shadowRadius, so 28px is the old radius of 14.
+  lift: { boxShadow: '0 10px 28px rgba(0,0,0,0.35)' },
+  // The pane fallback keeps the old shadow: it follows the 10% pane and the words, so it's fainter.
+  paneLift: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 10 } },
   pane: {
     backgroundColor: PANE,
     borderWidth: StyleSheet.hairlineWidth,
@@ -105,6 +113,8 @@ const styles = StyleSheet.create({
     ...Platform.select({ web: { backdropFilter: 'blur(10px) saturate(180%)' } as ViewStyle }),
   },
   smoke: { backgroundColor: 'rgba(10,10,12,0.66)', borderWidth: StyleSheet.hairlineWidth, borderColor: EDGE },
+  // Over the camera: the old pixel shadow followed the 66% pane, so about two thirds as dark.
+  smokeLift: { boxShadow: '0 10px 28px rgba(0,0,0,0.23)' },
   glass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: CAPSULE, overflow: 'hidden' },
   line: { color: '#FFFFFF', fontSize: FONT, lineHeight: LINE, fontWeight: '600', letterSpacing: -0.16, textAlign: 'center' },
 });

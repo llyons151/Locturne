@@ -168,11 +168,12 @@ const styles = StyleSheet.create({
     // One even, faint edge all round, like iOS's glass sheets.
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.16)',
-    // A neutral lift off the page, never a tinted glow.
-    shadowColor: '#000000',
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
+    // A neutral lift off the page, never a tinted glow. Web only: on iOS `overflow: 'hidden'` clips a
+    // layer's own shadow away, so it never showed there, yet with no opaque background iOS still worked
+    // it out from the glass's pixels on every frame the card moved.
+    ...Platform.select({
+      web: { shadowColor: '#000000', shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } },
+    }),
     overflow: 'hidden',
   },
   grabber: {
