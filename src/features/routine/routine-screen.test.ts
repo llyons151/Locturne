@@ -72,7 +72,7 @@ function screen(initial: Stored, now?: Date) {
       withDelay: () => 0,
       withTiming: () => 0,
     },
-    '@/hooks/use-tab-selected': { useTabSelected: () => true },
+    '@/hooks/use-tab-selected': { useTabSelected: () => true, useTabShown: () => () => true },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@/components/app-tabs': { useTabBarInset: () => 0 },
     '@/components/control-types': { nightsLabel: () => '' },
