@@ -43,16 +43,16 @@ final class MoonSkyView: ExpoView {
   private var observers: [NSObjectProtocol] = []
 
   required init(appContext: AppContext? = nil) {
-    let device = MTLCreateSystemDefaultDevice()
+    let device = MoonSkyShared.shared.device
     metalView = MTKView(frame: .zero, device: device)
-    renderer = device.flatMap { MoonSkyRenderer(device: $0, pixelFormat: .bgr10_xr) }
+    renderer = MoonSkyRenderer(shared: MoonSkyShared.shared)
     loader = device.map { MTKTextureLoader(device: $0) }
     super.init(appContext: appContext)
 
     backgroundColor = .clear
     clipsToBounds = true
     // 10-bit: four times the steps of 8-bit, so the sky's dark gradients stay smooth.
-    metalView.colorPixelFormat = .bgr10_xr
+    metalView.colorPixelFormat = MoonSkyShared.pixelFormat
     metalView.isOpaque = true
     metalView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
     metalView.framebufferOnly = true
@@ -174,6 +174,37 @@ private func skyColor(_ hex: String) -> SIMD4<Float>? {
   return SIMD4(Float((value >> 16) & 0xFF) / 255, Float((value >> 8) & 0xFF) / 255, Float(value & 0xFF) / 255, 1)
 }
 
+/// What every sky shares: the device, one command queue, and the pipeline compiled once, so a new sky
+/// (each tabs mount, each moon change's crossfade, the payoff) doesn't compile the shader on the main
+/// thread just as it opens. As MistDotShared (modules/mist-dot).
+private final class MoonSkyShared {
+  static let shared = MoonSkyShared()
+  /// 10-bit colour, the MTKView's and so the pipeline's.
+  static let pixelFormat = MTLPixelFormat.bgr10_xr
+  let device: MTLDevice?
+  let queue: MTLCommandQueue?
+  let pipeline: MTLRenderPipelineState?
+
+  private init() {
+    device = MTLCreateSystemDefaultDevice()
+    queue = device?.makeCommandQueue()
+    guard
+      let device,
+      let library = try? device.makeLibrary(source: moonSkyShaderSource, options: nil),
+      let vertex = library.makeFunction(name: "moon_sky_vertex"),
+      let fragment = library.makeFunction(name: "moon_sky_fragment")
+    else {
+      pipeline = nil
+      return
+    }
+    let descriptor = MTLRenderPipelineDescriptor()
+    descriptor.vertexFunction = vertex
+    descriptor.fragmentFunction = fragment
+    descriptor.colorAttachments[0].pixelFormat = MoonSkyShared.pixelFormat
+    pipeline = try? device.makeRenderPipelineState(descriptor: descriptor)
+  }
+}
+
 final class MoonSkyRenderer: NSObject, MTKViewDelegate {
   private let queue: MTLCommandQueue
   private let pipeline: MTLRenderPipelineState
@@ -183,18 +214,9 @@ final class MoonSkyRenderer: NSObject, MTKViewDelegate {
   var colors = moonlightSky
   var luma: MTLTexture?
 
-  init?(device: MTLDevice, pixelFormat: MTLPixelFormat) {
-    guard
-      let queue = device.makeCommandQueue(),
-      let library = try? device.makeLibrary(source: moonSkyShaderSource, options: nil),
-      let vertex = library.makeFunction(name: "moon_sky_vertex"),
-      let fragment = library.makeFunction(name: "moon_sky_fragment")
-    else { return nil }
-    let descriptor = MTLRenderPipelineDescriptor()
-    descriptor.vertexFunction = vertex
-    descriptor.fragmentFunction = fragment
-    descriptor.colorAttachments[0].pixelFormat = pixelFormat
-    guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor) else { return nil }
+  /// Nil without Metal or if the shared pipeline didn't compile: the baked sky under it stays in view.
+  fileprivate init?(shared: MoonSkyShared) {
+    guard let queue = shared.queue, let pipeline = shared.pipeline else { return nil }
     self.queue = queue
     self.pipeline = pipeline
   }
