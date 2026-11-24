@@ -37,14 +37,13 @@ final class MoonOrbView: ExpoView {
   private var observers: [NSObjectProtocol] = []
 
   required init(appContext: AppContext? = nil) {
-    let device = MTLCreateSystemDefaultDevice()
-    metalView = MTKView(frame: .zero, device: device)
-    renderer = device.flatMap { MoonOrbRenderer(device: $0, pixelFormat: .bgra8Unorm) }
+    metalView = MTKView(frame: .zero, device: MoonOrbShared.shared.device)
+    renderer = MoonOrbRenderer(shared: MoonOrbShared.shared)
     super.init(appContext: appContext)
 
     backgroundColor = .clear
     clipsToBounds = true
-    metalView.colorPixelFormat = .bgra8Unorm
+    metalView.colorPixelFormat = MoonOrbShared.pixelFormat
     metalView.isOpaque = false
     metalView.layer.isOpaque = false
     metalView.backgroundColor = .clear
@@ -138,6 +137,35 @@ private func moonOrbColor(_ hex: String) -> SIMD4<Float>? {
   return SIMD4(Float((value >> 16) & 0xFF) / 255, Float((value >> 8) & 0xFF) / 255, Float(value & 0xFF) / 255, 1)
 }
 
+/// What every orb shares: the device, one command queue, and the pipeline compiled once, so a new orb
+/// (each tabs mount) doesn't compile the shader on the main thread as it opens. As MistDotShared (modules/mist-dot).
+private final class MoonOrbShared {
+  static let shared = MoonOrbShared()
+  static let pixelFormat = MTLPixelFormat.bgra8Unorm
+  let device: MTLDevice?
+  let queue: MTLCommandQueue?
+  let pipeline: MTLRenderPipelineState?
+
+  private init() {
+    device = MTLCreateSystemDefaultDevice()
+    queue = device?.makeCommandQueue()
+    guard
+      let device,
+      let library = try? device.makeLibrary(source: moonOrbShaderSource, options: nil),
+      let vertex = library.makeFunction(name: "moon_orb_vertex"),
+      let fragment = library.makeFunction(name: "moon_orb_fragment")
+    else {
+      pipeline = nil
+      return
+    }
+    let descriptor = MTLRenderPipelineDescriptor()
+    descriptor.vertexFunction = vertex
+    descriptor.fragmentFunction = fragment
+    descriptor.colorAttachments[0].pixelFormat = MoonOrbShared.pixelFormat
+    pipeline = try? device.makeRenderPipelineState(descriptor: descriptor)
+  }
+}
+
 final class MoonOrbRenderer: NSObject, MTKViewDelegate {
   private let queue: MTLCommandQueue
   private let pipeline: MTLRenderPipelineState
@@ -149,18 +177,9 @@ final class MoonOrbRenderer: NSObject, MTKViewDelegate {
   var moving = true
   var colors = moonwellColors
 
-  init?(device: MTLDevice, pixelFormat: MTLPixelFormat) {
-    guard
-      let queue = device.makeCommandQueue(),
-      let library = try? device.makeLibrary(source: moonOrbShaderSource, options: nil),
-      let vertex = library.makeFunction(name: "moon_orb_vertex"),
-      let fragment = library.makeFunction(name: "moon_orb_fragment")
-    else { return nil }
-    let descriptor = MTLRenderPipelineDescriptor()
-    descriptor.vertexFunction = vertex
-    descriptor.fragmentFunction = fragment
-    descriptor.colorAttachments[0].pixelFormat = pixelFormat
-    guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor) else { return nil }
+  /// Nil without Metal or if the shared pipeline didn't compile.
+  fileprivate init?(shared: MoonOrbShared) {
+    guard let queue = shared.queue, let pipeline = shared.pipeline else { return nil }
     self.queue = queue
     self.pipeline = pipeline
   }
