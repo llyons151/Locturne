@@ -19,9 +19,9 @@ const ACCENT = Nocturne.accent ?? Nocturne.text;
 const GLASS = 'rgba(255, 255, 255, 0.07)';
 
 /** `compact` is a shorter row for the top of a tab (the Apps switcher); the nap sheet keeps the full one. */
-export function Split({ label, compact, children }: { label?: string; compact?: boolean; children: ReactNode }) {
+export function Split({ label, compact, round, children }: { label?: string; compact?: boolean; round?: boolean; children: ReactNode }) {
   return (
-    <View style={[styles.split, compact && styles.splitCompact]} accessibilityRole="radiogroup" accessibilityLabel={label}>
+    <View style={[styles.split, compact && styles.splitCompact, round && styles.round]} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {children}
     </View>
   );
@@ -37,6 +37,7 @@ export function SplitHalf({
   detail,
   selected,
   compact,
+  round,
   onPress,
 }: {
   icon?: Symbol;
@@ -44,6 +45,8 @@ export function SplitHalf({
   detail?: string;
   selected: boolean;
   compact?: boolean;
+  /** Fully rounded ends, like Home's pills (the moon page's shiny switch). */
+  round?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -59,6 +62,7 @@ export function SplitHalf({
         styles.half,
         compact && styles.halfCompact,
         !icon && !detail && styles.halfWord,
+        round && styles.round,
         selected && styles.halfOn,
         pressed && styles.pressed,
       ]}
@@ -100,6 +104,7 @@ const styles = StyleSheet.create({
   halfCompact: { paddingVertical: Space.xs + 2, borderRadius: 14 },
   // A word alone: 44pt tall, so the corners match the nap sheet's without turning into a pill.
   halfWord: { paddingVertical: Space.m, borderRadius: 14 },
+  round: { borderRadius: 999 },
   halfOn: { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
   pressed: { opacity: 0.7 },
   icon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: GLASS },

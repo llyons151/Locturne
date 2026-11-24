@@ -94,13 +94,14 @@ function ShinySwitch({ id, shiny, width }: { id: string; shiny: ShinyState; widt
   const on = caught && isShinyOn(id);
   return (
     <View style={{ width }}>
-      <Split label="Moon style" compact>
-        <SplitHalf icon={sym('moon.fill', 'dark_mode')} title="Default" selected={!on} compact onPress={() => setShinyOn(id, false)} />
+      <Split label="Moon style" compact round>
+        <SplitHalf icon={sym('moon.fill', 'dark_mode')} title="Default" selected={!on} compact round onPress={() => setShinyOn(id, false)} />
         <SplitHalf
           icon={caught ? sym('sparkles', 'auto_awesome') : sym('lock.fill', 'lock')}
           title="Shiny"
           selected={on}
           compact
+          round
           onPress={() => {
             if (caught) setShinyOn(id, true);
           }}
