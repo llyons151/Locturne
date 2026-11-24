@@ -496,6 +496,10 @@ export function NightSky({
       lookGlow.value,
   }));
 
+  // The wash only ever shows on the quiz, so it's drawn once a quiz has been, never in the tabs' or the
+  // payoff's sky: it's a full-screen SVG rasterised on the main thread as it mounts. Kept after, for the sink.
+  const [washed, setWashed] = useState(quiz);
+  if (quiz && !washed) setWashed(true);
   const washStyle = useAnimatedStyle(() => ({
     opacity: interpolate(risen.value, [WASH_FROM, 1], [0, 1], Extrapolation.CLAMP) * washOn.value,
   }));
@@ -548,9 +552,11 @@ export function NightSky({
             ]
           : []),
       ]}
-      <Animated.View style={[StyleSheet.absoluteFill, washStyle]}>
-        <QuizWash width={width} height={height} />
-      </Animated.View>
+      {washed ? (
+        <Animated.View style={[StyleSheet.absoluteFill, washStyle]}>
+          <QuizWash width={width} height={height} />
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
