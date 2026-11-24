@@ -142,7 +142,9 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
   // Mornings you got up: a wake-up method's proof. Passes and emergencies neither count nor
   // subtract (HOME_10.md #7). The store keeps the last 30 proofs, enough for this week's dots;
   // the lifetime count is its own counter (`getMorningsWon`).
-  const won = new Set(getProofs().filter((p) => p.kind !== 'pass' && p.kind !== 'emergency').map((p) => p.morningKey));
+  // Read once for the week's dots and the streak (each read is a native call).
+  const proofs = getProofs();
+  const won = new Set(proofs.filter((p) => p.kind !== 'pass' && p.kind !== 'emergency').map((p) => p.morningKey));
   // MOCK (dev only, remove when done looking): Sunday through today's date count as got up, so
   // the week strip shows the mist dots without real mornings. By the calendar, not
   // `morningKey`, which is already tomorrow at night. Days still to come stay plain.
@@ -157,7 +159,8 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
   );
   // The next night that will really sleep: not `lock.nextChange`, which is the end of the
   // window during an unheld night, and the start of a night that's switched off by day.
-  const next = nextNightOn(pause ?? nextBedtime(now), now);
+  const bedtime = nextBedtime(now);
+  const next = nextNightOn(pause ?? bedtime, now);
   const sleepsAt = next && pause && next < pause ? pause : next;
   // The bedtime list as it stands at the next bedtime (or now, during a night under way): a
   // change that lands first counts, as `rescheduleNotifications` judges it. With it empty,
@@ -178,9 +181,9 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
     won,
     free,
     mornings: MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon(),
-    streak: MOCK_WEEK ? won.size : getStreak(lock.morningKey),
+    streak: MOCK_WEEK ? won.size : getStreak(lock.morningKey, proofs),
     sleepsAt,
-    tonightOn: nightAt(nextBedtime(now), now).on,
+    tonightOn: nightAt(bedtime, now).on,
     listChanges,
     bedtimeApps: !isScreenTimeAvailable() || (listChanges ? nightPickCountAfterChange() : nightPickCount()) > 0,
     armed: nightLockArmed(),

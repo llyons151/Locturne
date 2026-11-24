@@ -81,9 +81,11 @@ function phoneExcuses(proofs: MorningProof[]): (key: string) => boolean {
     gaps.some((gap) => key > gap.after && nightInto(key, routine).start.getTime() < gap.until);
 }
 
-/** The streak on morning `today`, counting wake-ups not saved into it yet (from the shield, say). */
-export function getStreak(today: string): number {
-  const proofs = getProofs();
+/**
+ * The streak on morning `today`, counting wake-ups not saved into it yet (from the shield, say).
+ * `proofs`: the list a caller has just read (Home reads it once per render for both).
+ */
+export function getStreak(today: string, proofs = getProofs()): number {
   return settleStreak(getSavedStreak(), proofs, today, phoneExcuses(proofs))?.count ?? 0;
 }
 
