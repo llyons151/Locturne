@@ -625,7 +625,12 @@ const SKY_FADE = Easing.inOut(Easing.cubic);
 function SkyScene({ children, fadeMs = 0, onGone }: { children: ReactNode; fadeMs?: number; onGone?: () => void }) {
   const opacity = useSharedValue(1);
   useEffect(() => {
-    if (!fadeMs) return;
+    // Back on show before its fade-out finished (a shiny switched off and on again quickly): it keeps its key, so
+    // it's this same scene again and must come back to full, or the sky and moon stay invisible.
+    if (!fadeMs) {
+      opacity.set(1);
+      return;
+    }
     opacity.set(withTiming(0, { duration: fadeMs, easing: SKY_FADE }, (done) => {
       if (done && onGone) runOnJS(onGone)();
     }));

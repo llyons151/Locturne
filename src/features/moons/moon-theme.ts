@@ -51,7 +51,7 @@ export function getWornMoon(): MoonDef {
 }
 
 /** Switching a shiny on or off blends the sky across, as a new moon does. */
-const SHINY_FADE_MS = 600;
+export const SHINY_FADE_MS = 600;
 
 // A shiny caught or switched on or off: the worn moon is worked out again (same id, new colours).
 onShinyChange(() => {

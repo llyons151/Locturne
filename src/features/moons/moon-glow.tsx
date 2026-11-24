@@ -1,6 +1,9 @@
 import { Image } from 'expo-image';
+import { useEffect, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+
+import { SHINY_FADE_MS } from './moon-theme';
 
 /**
  * The moon's own light at the top of the moons page (user asked for it, 2026-11-16: "make the moon tint
@@ -44,9 +47,26 @@ function Layer({ color, index, x, step, size }: { color: string; index: number; 
     const t = pos - base;
     return { opacity: index === base ? 1 : index === base + 1 ? t : 0 };
   });
+  // A card's colour changing in place (its shiny switched on or off): the new light fades in over the old.
+  const [shown, setShown] = useState(color);
+  const [old, setOld] = useState<string | null>(null);
+  const fresh = useSharedValue(1);
+  if (color !== shown) {
+    setOld(shown);
+    setShown(color);
+  }
+  useEffect(() => {
+    if (!old) return;
+    fresh.value = 0;
+    fresh.value = withTiming(1, { duration: SHINY_FADE_MS, easing: Easing.inOut(Easing.cubic) });
+  }, [old, fresh]);
+  const freshStyle = useAnimatedStyle(() => ({ opacity: fresh.value }));
   return (
     <Animated.View style={[StyleSheet.absoluteFill, style]}>
-      <Image source={GLOW} style={{ width: size, height: size }} contentFit="contain" tintColor={color} transition={0} accessible={false} />
+      {old ? <Image source={GLOW} style={[StyleSheet.absoluteFill, { width: size, height: size }]} contentFit="contain" tintColor={old} transition={0} accessible={false} /> : null}
+      <Animated.View style={[StyleSheet.absoluteFill, freshStyle]}>
+        <Image source={GLOW} style={{ width: size, height: size }} contentFit="contain" tintColor={shown} transition={0} accessible={false} />
+      </Animated.View>
     </Animated.View>
   );
 }

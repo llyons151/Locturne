@@ -31,7 +31,8 @@ import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, getMoonsAsPage
 import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { DEFAULT_MOON, getWornMoon, useMoon } from '@/features/moons/moon-theme';
 import { replaceProgressBackup } from '@/features/moons/progress-backup';
-import { devCatchShiny, devResetShiny } from '@/features/moons/shiny-store';
+import { devCatchAllShinies, devCatchShiny, devResetShiny } from '@/features/moons/shiny-store';
+import { MOONS } from '@/features/moons/moon-data';
 import { getMorningsWon } from '@/lib/morning-proof';
 
 import { SETTINGS_BG } from './settings-actions';
@@ -326,6 +327,18 @@ export function DeveloperSettings() {
             haptic.done();
             const id = getWornMoon().id;
             devCatchShiny(id, new Date().toISOString().slice(0, 10), Math.max(1, getMorningsWon()), id === DEFAULT_MOON.id || ownsMoon(id));
+          }}
+          last
+        />
+        <ValueRow
+          {...icon('sparkles', 'auto_awesome')}
+          title="Unlock every shiny"
+          value=""
+          onPress={() => {
+            haptic.done();
+            // Every moon you have (Moonlight always): a locked moon can't have its shiny.
+            const ids = MOONS.filter((m) => m.id === DEFAULT_MOON.id || ownsMoon(m.id)).map((m) => m.id);
+            devCatchAllShinies(ids, new Date().toISOString().slice(0, 10), Math.max(1, getMorningsWon()));
           }}
           last
         />

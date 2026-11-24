@@ -113,7 +113,8 @@ function render({
     './moon-rise': { wearAndRise: (id: string) => calls.wear.push(id) },
     './moon-theme': { DEFAULT_MOON: MOONS[0], useMoon: () => MOONS.find((m) => m.id === worn), useWornMoon: () => MOONS.find((m) => m.id === worn) },
     './moon-thumb': { MoonThumb: 'MoonThumb' },
-    './shiny-store': { useShinyState: () => ({ seed: 1, rolled: null, caught: {}, hunt: {} }) },
+    './shiny-store': { useShinyState: () => ({ seed: 1, rolled: null, caught: {}, hunt: {} }), isShinyOn: () => false },
+    './shiny-look': { shinyOf: (m: any) => m },
     './shiny-settle': { settleShinyNow: () => null },
   };
   const slots: Record<string, any> = {};

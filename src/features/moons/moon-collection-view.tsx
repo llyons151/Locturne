@@ -24,7 +24,8 @@ import { moonSlots, type MoonSlot } from './moon-slots';
 import { wearAndRise } from './moon-rise';
 import { DEFAULT_MOON, useWornMoon } from './moon-theme';
 import { MoonsPills } from './moons-pills';
-import { useShinyState } from './shiny-store';
+import { isShinyOn, useShinyState } from './shiny-store';
+import { shinyOf } from './shiny-look';
 import { settleShinyNow } from './shiny-settle';
 
 /** The top bar's close button, as on the schedule sheet. */
@@ -148,7 +149,7 @@ export function MoonCollection({
   return (
     <Animated.View style={[styles.screen, held]}>
       {/* Behind the scroll, fixed: the light stays in the sky as the moons scroll up under it. */}
-      <SwipeGlow colors={cards.all.map((sl) => (sl.owned ? sl.moon.glow : worn.glow))} x={cardsX} step={cards.step} />
+      <SwipeGlow colors={cards.all.map((sl) => (sl.owned ? (isShinyOn(sl.moon.id) ? shinyOf(sl.moon).glow : sl.moon.glow) : worn.glow))} x={cardsX} step={cards.step} />
     <Animated.ScrollView
       // The page bounces at both ends, even when every moon fits on the screen; the sheet has iOS's own pull.
       bounces={as === 'page'}

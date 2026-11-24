@@ -96,6 +96,19 @@ export function devCatchShiny(id: string, morningKey: string, morning: number, o
   setShinyOn(id, true);
 }
 
+/** Dev and preview builds: catch the shiny of every moon in `ids` (the ones you've unlocked), and switch none on. */
+export function devCatchAllShinies(ids: string[], morningKey: string, morning: number) {
+  const s = getShinyState();
+  const caught = { ...s.caught };
+  const hunt = { ...s.hunt };
+  for (const id of ids) {
+    if (caught[id]) continue;
+    caught[id] = { id, morningKey, morning, at: Date.now(), hunted: hunt[id] ?? 0 };
+    delete hunt[id];
+  }
+  save({ ...s, caught, hunt });
+}
+
 /** Dev and preview builds: forget every shiny, the hunts and the toggles (a fresh seed too). */
 export function devResetShiny() {
   on = {};

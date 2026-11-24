@@ -13,6 +13,8 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   withSpring,
+  withTiming,
+  Easing,
   type SharedValue,
 } from 'react-native-reanimated';
 
@@ -23,12 +25,14 @@ import { Gap, Nocturne, Space, Type } from '@/theme';
 
 import type { OwnedMoon } from './moon-ladder';
 import { slotLabel, type MoonSlot } from './moon-slots';
-import { DEFAULT_MOON } from './moon-theme';
+import { DEFAULT_MOON, SHINY_FADE_MS } from './moon-theme';
 import { MoonThumb } from './moon-thumb';
 import type { ShinyState } from './shiny';
 import { shinyOf } from './shiny-look';
-import { isShinyOn, setShinyOn } from './shiny-store';
-import { ShinyToggle } from './shiny-toggle';
+import { caughtShiny, isShinyOn, setShinyOn } from './shiny-store';
+import type { MoonDef } from './moon-types';
+import { Split, SplitHalf } from '@/components/split-choice';
+import { sym } from '@/components/grouped-list';
 
 /**
  * The moons page (user 2026-11-19, draft 5 of docs/moons-page-directions): every moon as a tall card of
@@ -57,6 +61,8 @@ const RISE_SPRING = { damping: 14, stiffness: 140, reduceMotion: ReduceMotion.Sy
 const SINK = 0.35;
 const CARD_GAP = Space.m;
 const CARD_R = 26;
+/** The shiny switch's width as a share of the card's (user, 2026-11-23: narrower than the card). */
+const SWITCH_W = 0.92;
 /** The card's width as a share of the screen's. */
 const CARD_W = 0.66;
 /** Points above and below the cards: the page's header and pills, the count, the button and its clearance. */
@@ -79,16 +85,29 @@ function subline(slot: MoonSlot, got?: OwnedMoon): string | undefined {
 }
 
 /**
- * The card's shiny line (shiny.ts): caught, and on which morning; or, on the moon you're wearing, how
- * many mornings you've hunted it. Nothing for a moon still to come or one you're not hunting.
+ * Default or shiny, under a moon you own (user, 2026-11-23: like the nap sheet's Bedtime apps / Pick apps
+ * row, two words, narrower than the card): the moon on the left; on the right its shiny, with a lock until
+ * it's caught, a sparkle once it is. A locked shiny can't be picked.
  */
-function shinyLine(slot: MoonSlot, wearing: boolean, shiny: ShinyState): string | undefined {
-  if (!slot.owned) return undefined;
-  const caught = shiny.caught[slot.moon.id];
-  if (caught) return `Shiny caught · Morning ${caught.morning}`;
-  if (!wearing) return undefined;
-  const n = shiny.hunt[slot.moon.id] ?? 0;
-  return n ? `Hunting its shiny · ${n} morning${n === 1 ? '' : 's'}` : 'Hunting its shiny';
+function ShinySwitch({ id, shiny, width }: { id: string; shiny: ShinyState; width: number }) {
+  const caught = !!shiny.caught[id];
+  const on = caught && isShinyOn(id);
+  return (
+    <View style={{ width }}>
+      <Split label="Moon style" compact>
+        <SplitHalf icon={sym('moon.fill', 'dark_mode')} title="Default" selected={!on} compact onPress={() => setShinyOn(id, false)} />
+        <SplitHalf
+          icon={caught ? sym('sparkles', 'auto_awesome') : sym('lock.fill', 'lock')}
+          title="Shiny"
+          selected={on}
+          compact
+          onPress={() => {
+            if (caught) setShinyOn(id, true);
+          }}
+        />
+      </Split>
+    </View>
+  );
 }
 
 /** The cards' order (yours, rare ones included, then coming) and the swipe's distance from one card to the next. */
@@ -126,25 +145,41 @@ function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot
   }));
   // The halo's square is centred on the moon's middle: the disc's top sits `showing` of a disc above the bottom edge.
   const halo = disc * MOON_PADS.glow;
-  // Its shiny, when caught and switched on (shiny.ts): the colours only, for now.
-  const look = slot.owned && isShinyOn(slot.moon.id) ? shinyOf(slot.moon) : slot.moon;
+  // Its shiny, when caught and switched on (shiny.ts): the colours only, for now. Switching fades one into the
+  // other (user, 2026-11-23): the shiny's sky, wash and halos sit over the plain ones and fade in or out.
+  const caught = slot.owned && !!caughtShiny(slot.moon.id);
+  const on = caught && isShinyOn(slot.moon.id);
+  const shinyLook = caught ? shinyOf(slot.moon) : null;
+  const shown = useSharedValue(on ? 1 : 0);
+  useEffect(() => {
+    shown.value = withTiming(on ? 1 : 0, { duration: SHINY_FADE_MS, easing: Easing.inOut(Easing.cubic) });
+  }, [on, shown]);
+  const shinyFade = useAnimatedStyle(() => ({ opacity: shown.value }));
+  const halos = (moon: MoonDef) => (
+    <>
+      <View style={[styles.abs, styles.wide, { width: halo * WIDE, height: halo * WIDE, left: (halo - halo * WIDE) / 2, top: (halo - halo * WIDE) / 2 }]}>
+        <MoonHalo moon={moon} size={halo * WIDE} />
+      </View>
+      <View style={styles.soft}>
+        <MoonHalo moon={moon} size={halo} />
+      </View>
+    </>
+  );
   return (
     <View style={[styles.card, { width: w, height: h }, !slot.owned && styles.coming]}>
       {/* As Home draws it (night-sky.tsx): the sky flipped so its light comes up from behind the moon, the
           moon's light washed up from the bottom, and its halo (user asked for Home's glow here, 2026-11-19). */}
-      {slot.owned ? <SkyPicture moon={look} /> : null}
-      {slot.owned ? <GlowWash color={look.glow} id={`w-${look.id}${look.shiny ? '-s' : ''}-${Math.round(w)}`} /> : null}
+      {slot.owned ? <SkyPicture moon={slot.moon} /> : null}
+      {slot.owned ? <GlowWash color={slot.moon.glow} id={`w-${slot.moon.id}-${Math.round(w)}`} /> : null}
+      {shinyLook ? (
+        <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>
+          <SkyPicture moon={shinyLook} />
+          <GlowWash color={shinyLook.glow} id={`w-${slot.moon.id}-s-${Math.round(w)}`} />
+        </Animated.View>
+      ) : null}
       <Animated.View style={[styles.abs, { width: halo, height: halo, left: (w - halo) / 2, top: h - showing * disc + disc / 2 - halo / 2 }, lifted]}>
-        {slot.owned ? (
-          <>
-            <View style={[styles.abs, styles.wide, { width: halo * WIDE, height: halo * WIDE, left: (halo - halo * WIDE) / 2, top: (halo - halo * WIDE) / 2 }]}>
-              <MoonHalo moon={look} size={halo * WIDE} />
-            </View>
-            <View style={styles.soft}>
-              <MoonHalo moon={look} size={halo} />
-            </View>
-          </>
-        ) : null}
+        {slot.owned ? halos(slot.moon) : null}
+        {shinyLook ? <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>{halos(shinyLook)}</Animated.View> : null}
         <View style={[styles.abs, { left: (halo - disc) / 2, top: (halo - disc) / 2 }, !slot.owned && styles.shadow]}>
           <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
         </View>
@@ -171,7 +206,6 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: Mo
     transform: [{ translateY: interpolate(away.value, [0, 1], [0, -10]) }],
   }));
   const sub = subline(slot, got);
-  const hunt = shinyLine(slot, wearing, shiny);
   return (
     <View style={[styles.slot, { width: step }]}>
       <Animated.View style={card}>
@@ -181,7 +215,6 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: Mo
               {slotLabel(slot)}
             </Text>
             {sub ? <Text style={styles.sub}>{sub}</Text> : null}
-            {hunt ? <Text style={styles.sub}>{hunt}</Text> : null}
           </Animated.View>
         </CardSky>
       </Animated.View>
@@ -193,17 +226,16 @@ function SkyCard({ slot, index, step, w, h, x, got, wearing, shiny }: { slot: Mo
  * The count and the button. Their own component, told which card is in the middle the moment it gets
  * there, so they change with the swipe without re-rendering the cards (user 2026-11-19: the button lagged).
  */
-function CardsFooter({ all, start, worn, register, onPress, shiny }: { all: MoonSlot[]; start: number; worn: string; register: (set: (i: number) => void) => void; onPress: (slot: MoonSlot) => boolean; shiny: ShinyState }) {
+function CardsFooter({ all, start, worn, register, onPress, shiny, cardW }: { all: MoonSlot[]; start: number; worn: string; register: (set: (i: number) => void) => void; onPress: (slot: MoonSlot) => boolean; shiny: ShinyState; cardW: number }) {
   const [at, setAt] = useState(start);
   useEffect(() => register(setAt), [register]);
   const slot = all[at] ?? all[0];
   if (!slot) return null;
   const wearing = slot.owned && slot.moon.id === worn;
   const quiet = !slot.owned || wearing;
-  const caught = slot.owned && !!shiny.caught[slot.moon.id];
   return (
     <>
-      {caught ? <ShinyToggle value={isShinyOn(slot.moon.id)} onChange={(v) => setShinyOn(slot.moon.id, v)} /> : null}
+      {slot.owned ? <ShinySwitch id={slot.moon.id} shiny={shiny} width={Math.round(cardW * SWITCH_W)} /> : null}
       <Text style={styles.count}>
         {at + 1} of {all.length}
       </Text>
@@ -298,7 +330,7 @@ export function SkyCards({
         style={styles.row}
         contentContainerStyle={{ paddingHorizontal: (width - step) / 2 }}
       />
-      <CardsFooter all={all} start={start} worn={worn} register={register} onPress={onPress} shiny={shiny} />
+      <CardsFooter all={all} start={start} worn={worn} register={register} onPress={onPress} shiny={shiny} cardW={w} />
     </View>
   );
 }
