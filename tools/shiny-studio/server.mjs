@@ -17,7 +17,7 @@ createServer(async (req, res) => {
   const path = new URL(req.url, 'http://x').pathname;
   try {
     if (path === '/api/moons') {
-      const moons = await run(['-c', 'import json; from shinylib import moons; print(json.dumps(moons()))']);
+      const moons = await run(['-c', 'import json; from shinylib import used; print(json.dumps(used()))']);
       const params = JSON.parse(await readFile(join(HERE, 'shiny.json'), 'utf8'));
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({ moons: JSON.parse(moons), params }));

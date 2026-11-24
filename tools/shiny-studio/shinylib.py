@@ -63,3 +63,15 @@ def default_params(glow, i=0):
         if s < 0.18 or min(d(a), d(b)) > 45:
             break
     return {'a': a, 'b': b if b > a else b + 360, 'sweep': 70, 'sat': 1.1, 'min': 0.45}
+
+
+def used():
+    """The moons the app can actually give you (user 2026-11-24: the studio shows only these): Moonlight, the
+    ladder (its secret slots included) and the rare moons, read from the app's own lists, in that order."""
+    src = ROOT / 'src' / 'features' / 'moons'
+    ladder = json.loads(re.search(r'export const LADDER[^=]*=\s*(\[.*?\]);', (src / 'moon-data.ts').read_text()).group(1))
+    rare = re.findall(r"'([\w-]+)'", re.search(r'export const RARE_MOONS[^=]*=\s*\[(.*?)\]', (src / 'moon-ladder.ts').read_text()).group(1))
+    limited = re.findall(r"id:\s*'([\w-]+)'", re.search(r'export const LIMITED[^=]*=\s*\[(.*?)\];', (src / 'moon-collection.ts').read_text(), re.S).group(1))
+    order = ['moonlight'] + [m for m in ladder if m] + rare + limited
+    by_id = {m['id']: m for m in moons()}
+    return [by_id[i] for i in dict.fromkeys(order) if i in by_id]

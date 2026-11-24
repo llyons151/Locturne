@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
   CHARM_STREAK,
+  FIRST_SHINY,
   FIRST_SHINY_MORNING,
   freshShiny,
   mergeShiny,
@@ -54,32 +55,49 @@ test('each morning rolls once: settling again the same morning changes nothing',
   assert.equal(c.state, a.state);
 });
 
-test('the first shiny comes on exactly morning 6, for every install', () => {
+test('the first shiny is Moonlight’s, on exactly morning 6, for every install and whatever is worn', () => {
+  assert.equal(FIRST_SHINY, 'moonlight');
   for (let seed = 0; seed < 300; seed++) {
-    const { catches } = hunt(seed, FIRST_SHINY_MORNING);
-    assert.deepEqual(catches, [{ id: 'harvest', morning: FIRST_SHINY_MORNING }], `seed ${seed}`);
+    for (const worn of ['moonlight', 'harvest', 'deepsea']) {
+      const { catches } = hunt(seed, FIRST_SHINY_MORNING, worn);
+      assert.deepEqual(catches, [{ id: 'moonlight', morning: FIRST_SHINY_MORNING }], `seed ${seed}, ${worn}`);
+    }
   }
 });
 
+test('morning 6 missed (the app not opened), Moonlight’s shiny comes on the next morning settled', () => {
+  let state = freshShiny(4);
+  for (let m = 1; m < FIRST_SHINY_MORNING; m++) state = settleShiny({ owned: true, state, worn: 'harvest', mornings: m, latest: key(m), streak: 0, now: m }).state;
+  const r = settleShiny({ owned: true, state, worn: 'harvest', mornings: 9, latest: key(9), streak: 0, now: 9 });
+  assert.equal(r.caught, 'moonlight');
+  assert.equal(r.state.caught.moonlight.morning, 9);
+});
+
+test('another shiny caught first (a dev catch) doesn’t take Moonlight’s away', () => {
+  const state: ShinyState = { ...freshShiny(8), caught: { blood: { id: 'blood', morningKey: key(2), morning: 2, at: 2, hunted: 1 } } };
+  const r = settleShiny({ owned: true, state, worn: 'blood', mornings: 6, latest: key(6), streak: 0, now: 6 });
+  assert.equal(r.caught, 'moonlight');
+});
+
 test('the hunt counts the mornings rolled for the worn moon, and a catch keeps the count', () => {
-  const { state, catches } = hunt(12345, 40, 'harvest');
+  const { state, catches } = hunt(12345, 400, 'harvest');
   const c = state.caught.harvest;
   assert.ok(c);
-  assert.equal(catches[0].id, 'harvest');
-  // Rolls start on the first shiny's morning, so a catch on morning n took n - FIRST_SHINY_MORNING + 1 mornings.
-  assert.equal(c.hunted, c.morning - FIRST_SHINY_MORNING + 1);
+  assert.equal(catches[1].id, 'harvest');
+  // Morning 6 is Moonlight's, so the rolls for harvest start the morning after: a catch on morning n took n - 6 mornings.
+  assert.equal(c.hunted, c.morning - FIRST_SHINY_MORNING);
   assert.equal(state.hunt.harvest, undefined);
 });
 
 test('a moon whose shiny you have is not hunted', () => {
-  let { state } = hunt(99, FIRST_SHINY_MORNING, 'harvest');
-  assert.ok(state.caught.harvest);
-  const before = state.caught.harvest;
+  let { state } = hunt(99, FIRST_SHINY_MORNING, 'moonlight');
+  assert.ok(state.caught.moonlight);
+  const before = state.caught.moonlight;
   for (let m = FIRST_SHINY_MORNING + 1; m < FIRST_SHINY_MORNING + 30; m++) {
-    state = settleShiny({ owned: true, state, worn: 'harvest', mornings: m, latest: key(m), streak: 0, now: m }).state;
+    state = settleShiny({ owned: true, state, worn: 'moonlight', mornings: m, latest: key(m), streak: 0, now: m }).state;
   }
-  assert.deepEqual(state.caught.harvest, before);
-  assert.equal(state.hunt.harvest, undefined);
+  assert.deepEqual(state.caught.moonlight, before);
+  assert.equal(state.hunt.moonlight, undefined);
 });
 
 test('the odds: 1 in 64, 1 in 32 on a run of a week', () => {
@@ -137,10 +155,11 @@ test('only a moon you have unlocked can have its shiny caught', () => {
   let state = freshShiny(5);
   for (let m = 1; m <= 60; m++) {
     const r = settleShiny({ state, worn: 'locked', owned: false, mornings: m, latest: key(m), streak: 9, now: m });
-    assert.equal(r.caught, null);
+    // Moonlight's, on morning 6, is everyone's: never the locked one's.
+    assert.equal(r.caught, m === FIRST_SHINY_MORNING ? 'moonlight' : null);
     state = r.state;
   }
-  assert.deepEqual(state.caught, {});
+  assert.deepEqual(Object.keys(state.caught), ['moonlight']);
   assert.deepEqual(state.hunt, {});
   // The morning still counts as rolled: wearing an owned moon later that morning doesn't roll it again.
   const again = settleShiny({ state, worn: 'harvest', owned: true, mornings: 60, latest: key(60), streak: 9, now: 61 });

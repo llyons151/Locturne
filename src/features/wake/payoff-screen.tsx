@@ -361,6 +361,11 @@ export function PayoffScreen({
   // it's yours and switched on. Not designed yet (user, 2026-11-23): the rise and one line, no effects.
   const [newShiny] = useState(facts.newShiny ?? null);
   const shinyMoon = newShiny ? (MOONS.find((m) => m.id === newShiny) ?? null) : null;
+  // A shiny of a moon not worn (morning 6's Moonlight, everyone's: shiny.ts `FIRST_SHINY`): it rises plain like a
+  // new moon, turns shiny, and Apply wears it. Done without Apply goes back to the worn moon.
+  const shinyElsewhere = shinyMoon && !newMoon && shinyMoon.id !== worn.id ? shinyMoon : null;
+  const riseMoon = newMoon ?? shinyElsewhere;
+  const wearMoon = toWear ?? shinyElsewhere;
   // The reveal (shiny-reveal.tsx): once the plain moon has risen and settled, it turns shiny with the draft's
   // marks, the phone buzzes, and the line under the time names it. Then it's yours and switched on.
   const fx = facts.shinyFx ?? 1;
@@ -402,16 +407,16 @@ export function PayoffScreen({
   const showNewMoon = () => {
     if (firstShown.current || leaving.current) return;
     firstShown.current = true;
-    if (newMoon && newMoon.id !== worn.id) previewMoon(newMoon.id, reduced ? 0 : payoffTuning.moonFadeMs);
+    if (riseMoon && riseMoon.id !== worn.id) previewMoon(riseMoon.id, reduced ? 0 : payoffTuning.moonFadeMs);
   };
   // Whatever happens, nothing stays on show once the payoff is gone.
   useEffect(() => () => previewMoon(null), []);
   // Applied here: the button stays, as "Applied", so the page doesn't jump.
   const [applied, setApplied] = useState(false);
   const wear = () => {
-    if (!toWear) return;
+    if (!wearMoon) return;
     haptic.done();
-    setMoon(toWear.id);
+    setMoon(wearMoon.id);
     setApplied(true);
   };
   // His line once the page is in (user, 2026-10-27: Loc's voice instead of a log line), said once:
@@ -521,7 +526,7 @@ export function PayoffScreen({
       else router.replace('/');
     };
     // Left without Apply: the worn moon comes back (below).
-    const backToWorn = firstShown.current && newMoon !== null && newMoon.id !== worn.id && !applied;
+    const backToWorn = firstShown.current && riseMoon !== null && riseMoon.id !== worn.id && !applied;
     if (reduced) {
       if (backToWorn) previewMoon(null);
       moonSink.set(HOME_SINK);
@@ -578,7 +583,7 @@ export function PayoffScreen({
   const [cards, setCards] = useState(0);
   const card: CardFacts = {
     // The moon this payoff rose: the new one, or the one worn.
-    moon: newMoon ?? worn,
+    moon: riseMoon ?? worn,
     value: up.value,
     unit: up.unit,
     kicker: payoffKicker(mornings),
@@ -658,9 +663,9 @@ export function PayoffScreen({
           <Text style={styles.kicker}>{shinyMoon && revealed ? shinyKicker(shinyMoon, sayKey === null ? null : caughtShiny(shinyMoon.id)?.hunted) : payoffKicker(mornings)}</Text>
         </In>
         {/* The new moon's Apply pill, where its card used to be (user, 2026-11-02). A surprise taps open here first. */}
-        {newMoon ? (
+        {riseMoon ? (
           <In shown={shown} step={1} testID="payoff-apply" style={[styles.apply, short && styles.applyShort, moved(nudge.applyY)]}>
-            <ApplyPill moon={newMoon} applied={applied || worn.id === newMoon.id} onPress={wear} />
+            <ApplyPill moon={riseMoon} applied={applied || worn.id === riseMoon.id} onPress={wear} />
           </In>
         ) : null}
         </Animated.View>
@@ -671,7 +676,7 @@ export function PayoffScreen({
           style={[styles.week, short && styles.weekShort, moved(nudge.weekY)]}
         >
           {/* An SE has no room for both the new moon and the label. */}
-          {short && newMoon ? null : <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>}
+          {short && riseMoon ? null : <Animated.Text style={[styles.weekLabel, pageStyle]}>This week</Animated.Text>}
           {/* Home's week dots, the mist ones on iPhone (week-strip.ios.tsx; user, 2026-10-28). */}
           <Animated.View ref={weekRef} style={[flyStyle, weekOutStyle]}>
             <WeekStrip days={days} reduced={reduced} />

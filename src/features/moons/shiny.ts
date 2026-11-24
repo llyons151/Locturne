@@ -21,6 +21,12 @@ export const CHARM_STREAK = 7;
  * it, it's the odds alone.
  */
 export const FIRST_SHINY_MORNING = 6;
+/**
+ * And it's always Moonlight's shiny, whatever moon is worn (user 2026-11-24: "everyone should get that, no
+ * matter what"). Moonlight is the moon everyone starts with. Not caught by then (the app not opened on
+ * morning 6), it comes on the next morning settled.
+ */
+export const FIRST_SHINY = 'moonlight';
 /** Rolls start on the first shiny's morning. */
 export const SHINY_FROM_MORNING = FIRST_SHINY_MORNING;
 
@@ -80,11 +86,17 @@ export function settleShiny(f: ShinyFacts): { state: ShinyState; caught: string 
   const { state, worn, owned, mornings, latest, streak, now } = f;
   if (!latest || mornings < SHINY_FROM_MORNING || state.rolled === latest) return { state, caught: null };
   const next: ShinyState = { ...state, rolled: latest, caught: { ...state.caught }, hunt: { ...state.hunt } };
+  // The guaranteed one first: that morning is Moonlight's, and no other moon is rolled for.
+  if (!next.caught[FIRST_SHINY]) {
+    // Not hunted (0): the payoff's line says just "Shiny Moonlight".
+    next.caught[FIRST_SHINY] = { id: FIRST_SHINY, morningKey: latest, morning: mornings, at: now, hunted: 0 };
+    delete next.hunt[FIRST_SHINY];
+    return { state: next, caught: FIRST_SHINY };
+  }
   // A moon not yours (a dev or preview pick) or one whose shiny you have: the morning is used, nothing is hunted.
   if (!owned || next.caught[worn]) return { state: next, caught: null };
   const hunted = (next.hunt[worn] ?? 0) + 1;
-  const first = Object.keys(next.caught).length === 0;
-  const hit = first || rollFor(state.seed, `shiny:${latest}`) < shinyOdds(streak);
+  const hit = rollFor(state.seed, `shiny:${latest}`) < shinyOdds(streak);
   if (!hit) {
     next.hunt[worn] = hunted;
     return { state: next, caught: null };
