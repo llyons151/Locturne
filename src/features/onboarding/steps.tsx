@@ -552,8 +552,10 @@ export function renderStep(ctx: StepContext): StepView {
       };
 
     case 'tomorrow': {
-      // A scan code or a place still to set up gets its page next (user, 2026-10-26).
-      const setUp = answers.method !== undefined && methodInUse(answers.method) !== answers.method;
+      // A place still to set up gets its map next (user, 2026-10-26). A scan code doesn't any more:
+      // printing or hunting a barcode mid-onboarding lost people before the price (user 2026-11-24),
+      // so it's set up from Home's "Code not set up" once they're in. Until then the morning walks.
+      const setUp = answers.method === 'place' && methodInUse('place') !== 'place';
       return {
         body: (
           <TomorrowDemo

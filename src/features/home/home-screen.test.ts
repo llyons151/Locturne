@@ -53,6 +53,8 @@ type Setup = {
   method?: string;
   /** That wake-up's permission is off (`useWakeAccess`). */
   wakeRefused?: boolean;
+  /** Scan a code picked with no code saved. */
+  noCode?: boolean;
 };
 
 /** Renders Home once and returns what it hands HomeContent. */
@@ -73,6 +75,7 @@ function home({
   proof = null,
   nextChange,
   wakeRefused = false,
+  noCode = false,
 }: Setup) {
   const react = {
     createElement: (type: unknown, props: Record<string, any>, ...children: Tree[]) => ({ type, props: props ?? {}, children }),
@@ -107,7 +110,8 @@ function home({
     '@/lib/streak': { getStreak: () => 0 },
     '@/lib/purchases': { manageSubscriptions: async () => true },
     '@/lib/routine': { pushupGoalOf: () => 20, danceGoalOf: () => 10, pullupGoalOf: () => 5, benchGoalOf: () => 10, getRoutineChange: () => null, nightWasOn: () => true, nextNightOn: (d: Date) => (nextOn === undefined ? d : nextOn), nightAt: () => ({ on: tonightOn }) },
-    '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m },
+    '@/lib/scan-code': { methodInUse: (m: string) => m, morningMethod: (m: string) => m, getScanCode: () => (noCode ? null : { kind: 'qr' }), onScanCodeChange: () => () => {} },
+    '@/lib/scan': { getScanEditRefusal: () => (phase === 'day' ? null : 'asleep') },
     '@/lib/screen-time': {
       sharedGet: () => undefined,
       sharedSet() {},
@@ -512,5 +516,28 @@ describe('Home with the wake-up’s permission refused', () => {
   test('nothing scheduled: no warning about a morning that won’t lock', () => {
     const { hero } = home({ now: new Date(2026, 9, 9, 14), armed: false, wakeRefused: true });
     assert.notEqual(hero.title, 'steps access off');
+  });
+});
+
+describe('Home with a scan morning and no code yet', () => {
+  // Onboarding no longer sets the code up (user 2026-11-24): Home asks for it once they're in.
+  test('by day it says so and its button opens the code setup', () => {
+    const { hero, action, alt, look } = home({ now: new Date(2026, 9, 9, 14), method: 'scan', noCode: true });
+    assert.equal(hero.title, 'Code not set up.');
+    assert.equal(hero.body, 'Until it is, 200 steps wakes your apps.');
+    assert.equal(action.label, 'Set up your code');
+    assert.equal(alt?.label, 'Change wake-up');
+    assert.equal(look, 'problem');
+  });
+
+  test('not at night, when a code can’t be saved, nor once one is', () => {
+    assert.notEqual(home({ now: new Date(2026, 9, 9, 23, 30), phase: 'night', method: 'scan', noCode: true }).hero.title, 'Code not set up.');
+    assert.notEqual(home({ now: new Date(2026, 9, 9, 14), method: 'scan' }).hero.title, 'Code not set up.');
+  });
+
+  test('a refused permission or Screen Time off still leads', () => {
+    assert.equal(home({ now: new Date(2026, 9, 9, 14), method: 'scan', noCode: true, wakeRefused: true }).hero.title, 'scan access off');
+    const off = home({ now: new Date(2026, 9, 9, 14), method: 'scan', noCode: true, health: { protection: 'off', title: 'Screen Time access is off.' } });
+    assert.equal(off.hero.title, 'Screen Time access is off.');
   });
 });

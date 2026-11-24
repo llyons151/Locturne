@@ -416,7 +416,7 @@ export const METHOD_COPY: Record<
     until: 'you’ve scanned your code',
     commit: 'Up to scan your code.',
     offer: 'One walk to your code. I’ll complain the whole way.',
-    morning: { line: 'Scan your code to wake your apps.', note: 'Set it up in Routine today, in another room. Until then, 200 steps works.' },
+    morning: { line: 'Scan your code to wake your apps.', note: 'Set it up from Home once you’re in, in another room. Until then, 200 steps works.' },
   },
   place: {
     echo: 'Outside. In the morning. Bold.',
@@ -543,7 +543,7 @@ const SET_UP_MORNING = {
 
 /** Setup finished at night, with no code or place yet: it waits for the day after. */
 const WAITING_MORNING = {
-  scan: { line: 'No code yet, so 200 steps wakes them.', note: 'Set up your code in Routine during the day.' },
+  scan: { line: 'No code yet, so 200 steps wakes them.', note: 'Set up your code from Home during the day.' },
   place: { line: 'No place yet, so 200 steps wakes them.', note: 'Pick your place in Routine during the day.' },
 };
 

@@ -19,7 +19,8 @@ import { dateKey, type LockState, type Phase } from '@/lib/lock-state';
 import { getMorningsWon, getProofs, type MorningProof } from '@/lib/morning-proof';
 import { getStreak } from '@/lib/streak';
 import { benchGoalOf, danceGoalOf, getRoutineChange, nextNightOn, nightAt, nightWasOn, pullupGoalOf, pushupGoalOf, type Routine, type WakeMethod } from '@/lib/routine';
-import { morningMethod } from '@/lib/scan-code';
+import { getScanCode, morningMethod, onScanCodeChange } from '@/lib/scan-code';
+import { getScanEditRefusal } from '@/lib/scan';
 import {
   bedtimeAppCount,
   isScreenTimeAvailable,
@@ -131,6 +132,8 @@ export type HomeFacts = {
   websites: number | null;
   /** Dev only (app-states lab): the wake-up's permission refused, as `useWakeAccessRefused` reads it for real. */
   wakeRefused?: boolean;
+  /** Scan a code picked, no code saved yet: the morning walks until one is (`methodInUse`). */
+  codeMissing?: boolean;
   /** Put before Loc's moment keys, so a made-up state never uses up a real night's line. */
   sayKey: string;
 };
@@ -178,6 +181,7 @@ function readHomeFacts(now: Date, { lock, routine, proof }: ReturnType<typeof us
     pauseWords: pause ? pauseWording(pause, now) : null,
     // The wake preview (dev) can put any method's morning on Home.
     method: pretendMethod() ?? morningMethod(routine.method),
+    codeMissing: routine.method === 'scan' && !getScanCode(),
     won,
     free,
     mornings: MOCK_WEEK ? Math.max(getMorningsWon(), won.size) : getMorningsWon(),
@@ -224,6 +228,9 @@ export function HomeScreen() {
   // today's screen time redraws.
   const visit = useVisit(dateKey(now));
   const focused = useIsFocused();
+  // Saving the code in its sheet redraws Home, so "Code not set up" goes the moment it's saved.
+  const [, setCodeSaves] = useState(0);
+  useEffect(() => onScanCodeChange(() => setCodeSaves((n) => n + 1)), []);
 
   // Honest status (health.ts): access off or never given replaces everything. Also keeps the
   // notifications in line when protection changes while Home is open.
@@ -322,11 +329,24 @@ export function HomeScreen() {
     !(attention && health.needsSubscription) &&
     armed &&
     !stoodDown;
+  // Scan a code picked with no code saved: onboarding no longer sets it up (people stalled there
+  // before the price, user 2026-11-24), so Home says so by day and its button opens the code
+  // sheet. Not while the apps are asleep (a code can't be saved then) or a problem that comes first.
+  const codeMissing =
+    !!facts.codeMissing &&
+    !unprotected &&
+    !wakeRefused &&
+    !(attention && health.needsSubscription) &&
+    !stoodDown &&
+    (phase === 'day' || phase === 'off') &&
+    (mock ? true : getScanEditRefusal(now) === null);
   // The trial's last days change nothing here (user 2026-11-11): the notification reminds, Settings manages.
   const hero = unprotected
     ? { title: health.title, body: health.detail }
     : wakeRefused
       ? wakeAccessHero(method)
+    : codeMissing
+      ? { title: 'Code not set up.', body: method === 'downtime' ? 'Until it is, your mornings are Step away.' : `Until it is, ${routine.stepGoal} steps wakes your apps.` }
     : pause && lock.phase === 'night' && !napping && facts.pauseWords
       ? pausedHero(facts.pauseWords)
       : (phase === 'day' || phase === 'off') && napping
@@ -403,6 +423,8 @@ export function HomeScreen() {
     ? { label: 'Continue', onPress: turnAccessOn, busy: askingAccess ? ASKING_APPLE : undefined }
     : wakeRefused
       ? { label: wakeFixLabel(mock ? false : wakeAccess.settings), onPress: wakeAccess.fix, busy: wakeAccess.asking ? ASKING_APPLE : undefined }
+    : codeMissing
+      ? { label: 'Set up your code', onPress: () => router.push('/code') }
     : attention && health.needsSubscription
       ? { label: 'See plans', onPress: () => router.push('/onboarding?resume=paywall') }
       : walkSettings
@@ -420,7 +442,7 @@ export function HomeScreen() {
               : { label: 'Edit schedule', onPress: () => router.push('/routine') };
 
   // Each state's look (`HomeLook`), so they differ by more than their words.
-  const problem = unprotected || wakeRefused || (attention && health.needsSubscription) || (attention && !napping);
+  const problem = unprotected || wakeRefused || codeMissing || (attention && health.needsSubscription) || (attention && !napping);
   // The morning just won with a wake-up (not a pass), for three hours after. Never in the last
   // three hours before bedtime: a morning won late in the day hands over to "Bedtime in" there
   // (user 2026-11-15: "Up at 7:26 pm" hid the countdown all evening).
@@ -522,15 +544,15 @@ export function HomeScreen() {
         revision={visit}
         hero={shown}
         look={look}
-        // The wake-up's access off leaves the streak and screen time true: they stay (user 2026-11-21).
-        keepTop={look === 'problem' && wakeRefused && !unprotected}
+        // The wake-up's access off (or its code not set up) leaves the streak and screen time true: they stay (user 2026-11-21).
+        keepTop={look === 'problem' && (wakeRefused || codeMissing) && !unprotected}
         catchingUp={catchingUp}
         heroKey={walk?.kind === 'counting' ? (walk.steps ?? 0) : here?.meter ? Number.parseFloat(here.meter.value) || 0 : (minutes ?? 0)}
         meter={walk?.kind === 'counting' ? walkMeter(walk) : (here?.meter ?? face)}
         icon={walk ? WALK_ICON : here?.icon}
         searching={!walk && here?.searching}
         action={action}
-        alt={wakeRefused ? { label: 'Change wake-up', onPress: () => router.push('/routine') } : backToOwn ?? (here && action === here.action && here.alt !== here.action ? here.alt : undefined)}
+        alt={wakeRefused || codeMissing ? { label: 'Change wake-up', onPress: () => router.push('/routine') } : backToOwn ?? (here && action === here.action && here.alt !== here.action ? here.alt : undefined)}
       />
       {/* Loc's bubble keeps under the space held for the moon, so it never reaches the button. */}
       <LocCue mood={mood} wary={mind.wary} moment={moment} floor={tabInset + moonArc} />
