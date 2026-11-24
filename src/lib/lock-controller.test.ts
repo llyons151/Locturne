@@ -809,3 +809,23 @@ describe('a subscription that ends', () => {
     assert.equal(subscriptionEnded(), false);
   });
 });
+
+describe('requestSyncLock (one sync per return to the front)', () => {
+  test('callers in the same task share one sync, on the next macrotask', async () => {
+    const { requestSyncLock, onLockChange } = await import('./lock-controller.ts');
+    let syncs = 0;
+    const stop = onLockChange(() => (syncs += 1));
+    requestSyncLock();
+    requestSyncLock();
+    await Promise.resolve();
+    requestSyncLock();
+    assert.equal(syncs, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(syncs, 1);
+    // Asked again after it ran: a fresh sync.
+    requestSyncLock();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(syncs, 2);
+    stop();
+  });
+});

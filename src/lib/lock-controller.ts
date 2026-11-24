@@ -270,6 +270,23 @@ export function onLockChange(listener: (state: LockState) => void): () => void {
   return () => listeners.delete(listener);
 }
 
+let syncRequested = false;
+
+/**
+ * One `syncLock` on the next macrotask, however many callers ask before it runs. A return to
+ * the front used to sync three times in a row (`useLock`, `useStandingBlocks`, the shield
+ * moon), each ~100 native calls with shield writes and a re-render of every listening screen.
+ * For callers that don't need the state back; `proveMorning` and the like call `syncLock`.
+ */
+export function requestSyncLock(): void {
+  if (syncRequested) return;
+  syncRequested = true;
+  setTimeout(() => {
+    syncRequested = false;
+    syncLock();
+  }, 0);
+}
+
 /**
  * Applies the state. Safe to call any time, as often as you like:
  * - `day` or `off` with the night still held: wakes the bedtime apps (a proof came in, or a

@@ -3,7 +3,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { syncLock } from '@/lib/lock-controller';
+import { requestSyncLock } from '@/lib/lock-controller';
 import { isScreenTimeAvailable, sharedGet, sharedSet, SHIELD_MOON_KEY } from '@/lib/screen-time';
 
 import { MOON_ICONS } from './moon-icons';
@@ -38,8 +38,8 @@ async function copyShieldMoon(id: string): Promise<void> {
   }
   if (sharedGet<string>(SHIELD_MOON_KEY) === name) return;
   sharedSet(SHIELD_MOON_KEY, name);
-  // Rewrites every shield's words and look with the new icon.
-  syncLock();
+  // Rewrites every shield's words and look with the new icon (with any other sync asked for now).
+  requestSyncLock();
 }
 
 /** At launch and on each moon change, puts the worn moon's icon on the block screen. */

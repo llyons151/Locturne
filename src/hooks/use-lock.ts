@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import type { LockState } from '@/lib/lock-state';
-import { armRetryAt, onLockChange, readLock, syncLock } from '@/lib/lock-controller';
+import { armRetryAt, onLockChange, readLock, requestSyncLock, syncLock } from '@/lib/lock-controller';
 import { onProofChange } from '@/lib/morning-proof';
 import { useWakePreview } from '@/features/dev/wake-lab/wake-preview';
 
@@ -27,7 +27,8 @@ export function useLock(): LockState {
     const stopLock = onLockChange(setState);
     syncLock();
     const stopProof = onProofChange(() => syncLock());
-    const sub = AppState.addEventListener('change', (next) => next === 'active' && syncLock());
+    // Coalesced with `useStandingBlocks`' sync on the same return to the front.
+    const sub = AppState.addEventListener('change', (next) => next === 'active' && requestSyncLock());
     return () => {
       stopLock();
       stopProof();
