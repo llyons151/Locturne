@@ -279,7 +279,7 @@ export function plansHeadline(amount: string): string {
 export const FOUND: Choice<string>[] = [
   { label: 'TikTok', value: 'tiktok' },
   { label: 'Instagram', value: 'instagram' },
-  { label: 'A friend', value: 'friend' },
+  { label: 'YouTube', value: 'youtube' },
   { label: 'Somewhere else', value: 'else' },
 ];
 
