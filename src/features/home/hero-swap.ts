@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { HomeContentProps } from './home-content';
 
@@ -28,18 +28,28 @@ export function sceneKey({ hero, meter, icon, action, look }: Middle) {
  * everything passes straight through.
  */
 export function useHeroSwap<T extends Middle>(content: T, instant = false): { content: T; visible: boolean } {
+  // Reads a ref during render (the held content), which the compiler can't memoise around.
+  'use no memo';
   const key = sceneKey(content);
-  // The last content of the state on screen: kept up to date within it, held while it fades out.
-  const [shown, setShown] = useState({ key, content });
+  // The state on screen, by key only. Home's props are a new object every render, so keeping
+  // them in state set it during every render, and React threw each first pass of HomeContent
+  // away and rendered it again.
+  const [shownKey, setShownKey] = useState(key);
   // Catching up after the background (`useCatchingUp`, catch-up.ts): straight to the new state, no fade.
-  const live = key === shown.key || instant;
-  if (live && (shown.content !== content || shown.key !== key)) setShown({ key, content });
+  const live = key === shownKey || instant;
+  if (live && shownKey !== key) setShownKey(key);
+  // The last content of the state on screen, as committed: held while it fades out.
+  const last = useRef(content);
+  useEffect(() => {
+    if (live) last.current = content;
+  });
 
   useEffect(() => {
     if (live) return;
-    const swap = setTimeout(() => setShown((s) => ({ key, content: s.content })), SWAP_OUT * 1000);
+    const swap = setTimeout(() => setShownKey(key), SWAP_OUT * 1000);
     return () => clearTimeout(swap);
   }, [live, key]);
 
-  return live ? { content, visible: true } : { content: shown.content, visible: false };
+  // eslint-disable-next-line react-hooks/refs -- the old state must keep its last props while it fades out
+  return live ? { content, visible: true } : { content: last.current, visible: false };
 }
