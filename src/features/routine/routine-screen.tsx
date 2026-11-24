@@ -21,7 +21,7 @@ import { nightsLabel } from '@/components/control-types';
 import { DayStrip } from '@/components/day-strip';
 import { GlassCard } from '@/components/glass-card';
 import { Card, sym, ValueRow } from '@/components/grouped-list';
-import { useTabSelected } from '@/hooks/use-tab-selected';
+import { useTabSelected, useTabShown } from '@/hooks/use-tab-selected';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import * as haptic from '@/lib/haptics';
 import { onLockChange } from '@/lib/lock-controller';
@@ -180,11 +180,13 @@ export function RoutineScreen() {
   const [titleWidth, setTitleWidth] = useState(0);
   useFocusEffect(useCallback(() => setVisit((n) => n + 1), []));
   // Home keeps the boundary timer alive while this tab is open: reload when it settles edits.
-  useEffect(() => onLockChange(() => setLoaded(load())), []);
+  // Not while another tab is picked: the focus reload above catches it up on the way back.
+  const tabShown = useTabShown();
+  useEffect(() => onLockChange(() => tabShown() && setLoaded(load())), [tabShown]);
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && setLoaded(load()));
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && tabShown() && setLoaded(load()));
     return () => sub.remove();
-  }, []);
+  }, [tabShown]);
 
   // Bumped to put the dial back where the routine is, after a change that was turned down.
   const [dialKey, setDialKey] = useState(0);

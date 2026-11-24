@@ -10,6 +10,7 @@ import { removePick, type RemovedPick } from 'blocked-apps';
 import { ScreenTimePicker } from '@/components/screen-time-picker';
 import { armIfPaid } from '@/hooks/use-app-start';
 import { useProtection } from '@/hooks/use-protection';
+import { useTabShown } from '@/hooks/use-tab-selected';
 import { editLimit, freeLimitId, isLimitId, keepName, limitLabel, renameLimit, type DailyLimit, type LimitId } from '@/lib/daily-limits';
 import { restoreBlocks } from '@/lib/ask-access';
 import * as haptic from '@/lib/haptics';
@@ -77,11 +78,13 @@ export function useListActions() {
   useFocusEffect(refresh);
   // And after each sync: settling limits on return awaits iOS per limit, so the rows read on
   // `active` can be one step behind (a used-up mark not yet forgotten, or a re-fire just in).
-  useEffect(() => onLockChange(() => refresh()), [refresh]);
+  // Neither while another tab is picked: the focus refresh above catches it up on the way back.
+  const shown = useTabShown();
+  useEffect(() => onLockChange(() => shown() && refresh()), [refresh, shown]);
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && shown() && refresh());
     return () => sub.remove();
-  }, [refresh]);
+  }, [refresh, shown]);
 
   const saveAndArm = async (next: DailyLimit[], arm?: DailyLimit) => {
     setLimitError(null);

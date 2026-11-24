@@ -31,6 +31,7 @@ import { appsMoonRoom } from '@/components/night-sky';
 import { RaisedMoonTap } from '@/features/moons/moon-tap';
 import { SearchingOrb } from '@/components/thinking-orb';
 import { sym } from '@/components/grouped-list';
+import { useTabShown } from '@/hooks/use-tab-selected';
 import { useTopOnLeave } from '@/hooks/use-top-on-leave';
 import { freeLimitId, limitLabel, MAX_LIMITS, type DailyLimit } from '@/lib/daily-limits';
 import { getNightPause, heldPhase, pauseWording } from '@/lib/emergency';
@@ -92,7 +93,9 @@ const MOON_ROOM_TILES = 2;
  */
 function useMoonRoom(tab: Tab, limits: number, alwaysTile: boolean) {
   const [, redraw] = useState(0);
-  useEffect(() => onLockChange(() => redraw((n) => n + 1)), []);
+  // Not while another tab is picked: the focus refresh (`useListActions`) redraws the page on the way back.
+  const shown = useTabShown();
+  useEffect(() => onLockChange(() => shown() && redraw((n) => n + 1)), [shown]);
   const tiles = tab === 'bedtime' ? 1 + (alwaysTile ? 1 : 0) + getSchedules(new Date()).length : limits;
   const room = tiles <= MOON_ROOM_TILES;
   useEffect(() => appsMoonRoom.set(room), [room]);
@@ -627,8 +630,10 @@ function ScheduleTiles({
 }) {
   void revision;
   // A schedule is saved as its sheet goes (`saveSchedule`), which syncs the lock: redraw then.
+  // Not while another tab is picked: the focus refresh bumps `revision` on the way back.
   const [, redraw] = useState(0);
-  useEffect(() => onLockChange(() => redraw((n) => n + 1)), []);
+  const shown = useTabShown();
+  useEffect(() => onLockChange(() => shown() && redraw((n) => n + 1)), [shown]);
   const now = new Date();
   const schedules = [...getSchedules(now)].sort((a, b) => a.id.localeCompare(b.id));
   const free = schedules.length < MAX_SCHEDULES ? newScheduleId(now) : null;
