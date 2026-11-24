@@ -64,6 +64,8 @@ export function MoonThumb({
   }
   const disc = size * (round ? 1 : DISC);
   const box = disc * FROST_PAD;
+  // The moon's art, centred in `box` at its own size (a Supermoon's is bigger).
+  const art = box * moon.scale;
   return (
     <View
       style={[
@@ -93,9 +95,11 @@ export function MoonThumb({
           {moon.twin && moon.twinAt && !moon.twinAt.front ? <MoonPart source={moon.twin} box={box} x={moon.twinAt.x} y={moon.twinAt.y} size={moon.twinAt.size * FROST_PAD} /> : null}
           {/* A Saturn ring behind the moon's frosted edge, as on Home (night-sky.tsx). */}
           {moon.ringLine?.kind === 'saturn' ? <MoonRing line={moon.ringLine} box={box} /> : null}
+          {/* Sized up rather than scaled: expo-image decodes to the view's frame, so a transform
+              stretched an already shrunk bitmap (the Supermoon read soft, fuzzy-moons.md cause 5). */}
           <Image
             source={moon.moon ?? require('@/assets/onboarding/moon-frosted.png')}
-            style={[StyleSheet.absoluteFill, { transform: [{ scale: moon.scale }] }]}
+            style={[styles.moon, { width: art, height: art, left: (box - art) / 2, top: (box - art) / 2 }]}
             contentFit="contain"
             accessible={false}
           />
@@ -119,6 +123,7 @@ const styles = StyleSheet.create({
   lockedTile: { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: Nocturne.edge },
   glassTile: { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: Nocturne.edge },
   secretSpot: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  moon: { position: 'absolute' },
   lockedDisc: { backgroundColor: 'rgba(255, 255, 255, 0.08)', alignItems: 'center', justifyContent: 'center' },
   secret: { color: Nocturne.text2, fontWeight: '600' },
   // The moon you're wearing: a plain white edge (no glow).
