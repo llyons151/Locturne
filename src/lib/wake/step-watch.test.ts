@@ -134,6 +134,24 @@ describe('step watch', () => {
     assert.equal(HISTORY_EVERY_MS, 10_000);
   });
 
+  test('a poll or update that leaves the count where it was reports nothing (no re-render)', async () => {
+    const t = setup();
+    await settle();
+    t.walk(10, 5);
+    const reported = t.world.counts.length;
+    // The history agrees with the live steps: the same 60.
+    t.world.history = 60;
+    t.world.clock += HISTORY_EVERY_MS;
+    t.poll();
+    await settle();
+    t.walk(10, 1);
+    assert.equal(t.world.counts.length, reported);
+    // A step more is reported, on top of what the quiet updates kept.
+    t.walk(11, 1);
+    assert.equal(t.world.counts.length, reported + 1);
+    assert.equal(t.steps(), 61);
+  });
+
   test('a failed history read is shrugged off; live steps carry on', async () => {
     const t = setup();
     await settle();

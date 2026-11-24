@@ -13,7 +13,7 @@
  *   denied screen's Open Settings starts counting without reopening the screen.
  * - Stopped: everything is removed, and nothing reports after that, even a read in flight.
  */
-import { addHistory, addLive, restartLive, startCount, type StepCount } from './steps.ts';
+import { addHistory, addLive, restartLive, startCount, stepsOf, type StepCount } from './steps.ts';
 
 /**
  * - `starting`: asking for Motion & Fitness and reading this morning's history.
@@ -78,8 +78,11 @@ export function watchSteps(deps: StepWatchDeps, options: StepWatchOptions): () =
   let rechecking = false;
 
   const update = (next: StepCount) => {
+    const before = count;
     count = next;
-    if (!stopped) options.onCount(next);
+    // Only a count that moved: the 10 s history poll mostly agrees with the live steps, and each
+    // report re-renders the screen showing it. Its own `count` above stays the latest.
+    if (!stopped && (!before || stepsOf(before) !== stepsOf(next))) options.onCount(next);
   };
   const status = (next: StepStatus) => {
     if (!stopped) options.onStatus(next);
