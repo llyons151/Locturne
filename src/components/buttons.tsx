@@ -93,7 +93,11 @@ export function ProgressButton({ label, onPress, ms, ready }: { label: string; o
         : withTiming(0.97, { duration: ms, easing: Easing.linear, reduceMotion: ReduceMotion.Never }),
     );
   }, [ready, ms, fill]);
-  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+  // The fill is the pill's width and slides in from the left, its label sliding back the other way so the
+  // words stay put: transforms, so the bar runs on the UI thread instead of laying out every frame.
+  const wide = useSharedValue(0);
+  const fillStyle = useAnimatedStyle(() => ({ transform: [{ translateX: (fill.value - 1) * wide.value }] }));
+  const labelStyle = useAnimatedStyle(() => ({ transform: [{ translateX: (1 - fill.value) * wide.value }] }));
   return (
     <PressScale
       onPress={() => {
@@ -103,18 +107,21 @@ export function ProgressButton({ label, onPress, ms, ready }: { label: string; o
       disabled={!ready}
       accessibilityRole="button"
       accessibilityState={{ disabled: !ready }}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => {
+        setWidth(e.nativeEvent.layout.width);
+        wide.set(e.nativeEvent.layout.width);
+      }}
       style={[styles.cta, styles.progress, !ready && (sky ? styles.ctaDisabledSky : styles.ctaDisabled)]}
     >
       <Text style={[styles.ctaLabel, sky ? styles.ctaLabelDisabledSky : styles.ctaLabelDisabled]} numberOfLines={1}>
         {label}
       </Text>
-      <Animated.View style={[styles.progressFill, fillStyle]} pointerEvents="none">
-        <View style={[styles.progressLabel, { width }]}>
+      <Animated.View style={[styles.progressFill, { width }, fillStyle]} pointerEvents="none">
+        <Animated.View style={[styles.progressLabel, { width }, labelStyle]}>
           <Text style={styles.ctaLabel} numberOfLines={1}>
             {label}
           </Text>
-        </View>
+        </Animated.View>
       </Animated.View>
     </PressScale>
   );

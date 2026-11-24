@@ -210,7 +210,8 @@ export function NapClock({
   const stageStyle = useAnimatedStyle(() => ({ opacity: stage.value }));
   const moonStyle = useAnimatedStyle(() => {
     const m = at(moonAt.value);
-    return { left: m.x - image / 2, top: m.y - image / 2 };
+    // Moved, not laid out: a transform skips React's commit on every frame of the 1.5 s glide.
+    return { transform: [{ translateX: m.x - image / 2 }, { translateY: m.y - image / 2 }] };
   });
   const dimStyle = useAnimatedStyle(() => ({ opacity: contentIn.value * dim.value }));
   const readoutStyle = useAnimatedStyle(() => ({
@@ -282,7 +283,7 @@ export function NapClock({
 const styles = StyleSheet.create({
   black: { ...StyleSheet.absoluteFill, backgroundColor: '#000' },
   stage: { position: 'absolute' },
-  moon: { position: 'absolute' },
+  moon: { position: 'absolute', left: 0, top: 0 },
   sky: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
   readout: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   time: { ...NUMBER_FONT, color: Nocturne.text, fontVariant: ['tabular-nums'] },

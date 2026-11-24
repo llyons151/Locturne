@@ -117,6 +117,7 @@ const styles = StyleSheet.create({
   number: { ...NUMBER_FONT, color: Nocturne.text, fontVariant: ['tabular-nums'] },
   track: { height: 6, borderRadius: 3, backgroundColor: RING_TRACK, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: RING },
+  full: { width: '100%' },
 });
 
 /**
@@ -131,10 +132,16 @@ export function CameraBar({ progress }: { progress: number }) {
     const back = target < fill.get() - 0.02;
     fill.set(reduced ? target : withTiming(target, { duration: back ? REFILL_MS : 200, easing: Easing.out(Easing.cubic) }));
   }, [target, reduced, fill]);
-  const width = useAnimatedStyle(() => ({ width: `${fill.get() * 100}%` }));
+  // A full-width fill slid in from the left: a transform, so it runs on the UI thread over the camera
+  // instead of laying out every frame. Hidden until the track is measured.
+  const wide = useSharedValue(0);
+  const slide = useAnimatedStyle(() => ({
+    opacity: wide.get() > 0 ? 1 : 0,
+    transform: [{ translateX: (fill.get() - 1) * wide.get() }],
+  }));
   return (
-    <View style={styles.track}>
-      <Animated.View style={[styles.fill, width]} />
+    <View style={styles.track} onLayout={(e) => wide.set(e.nativeEvent.layout.width)}>
+      <Animated.View style={[styles.fill, styles.full, slide]} />
     </View>
   );
 }
