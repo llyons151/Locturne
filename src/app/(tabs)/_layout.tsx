@@ -11,7 +11,7 @@ export default function TabsLayout() {
   return (
     // The page shrinks back a little behind the Sleep sheet; the sky stays put behind it, so
     // the edges show the sky rather than black.
-    <AppBackground panel>
+    <AppBackground panel tabs>
       <Recede>
         <AppTabs />
         {/* His lump tearing round the whole screen, in the ultra zoomies. */}

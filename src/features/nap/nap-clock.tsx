@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '@/components/text';
+import { useCoverTabs } from '@/hooks/use-tabs-covered';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -97,6 +98,8 @@ export function NapClock({
   // Stays up after the phone turns upright, until the clock has faded out.
   const [visible, setVisible] = useState(false);
   if (side !== null && !visible) setVisible(true);
+  // Its black hides the tabs under it, so their sky and Sleep orb hold still while it's up.
+  useCoverTabs(visible);
   // Which way the clock faces. Kept while it fades out, so it doesn't flip as it goes.
   const [turn, setTurn] = useState<90 | -90>(90);
   if (side !== null && side !== turn) setTurn(side);

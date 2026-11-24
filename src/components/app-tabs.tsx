@@ -175,7 +175,7 @@ export default function AppTabs() {
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  // The Sleep orb holds still while the moons page or Settings covers the tabs.
+  // The Sleep orb holds still while the moons page, Settings, the payoff or the nap clock covers the tabs.
   const covered = useTabsCovered();
   const height = tabStripHeight(insets.bottom);
   const preview = useWakePreview().phase !== 'real';

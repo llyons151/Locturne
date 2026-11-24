@@ -19,7 +19,8 @@ import { NightSky } from './night-sky';
  * that holds the tab buttons, as in the user's nav reference. `strip` sets that strip's height
  * where it holds something else (the morning payoff's Done). `corners={false}` leaves the panel's
  * corner pieces off, for a screen that draws its own edge over the strip (the payoff's). `drag` shows the
- * moon's drag under it (the payoff's; NightSky's MoonDrag).
+ * moon's drag under it (the payoff's; NightSky's MoonDrag). `tabs`: this is the tabs' own sky, which holds
+ * still while a page covers them (the payoff's sky is a second one, on top, and has to keep moving).
  */
 export function AppBackground({
   children,
@@ -28,17 +29,25 @@ export function AppBackground({
   moonless,
   corners = true,
   drag,
-}: PropsWithChildren<{ panel?: boolean; strip?: number; moonless?: boolean; corners?: boolean; drag?: SharedValue<number> }>) {
+  tabs,
+}: PropsWithChildren<{
+  panel?: boolean;
+  strip?: number;
+  moonless?: boolean;
+  corners?: boolean;
+  drag?: SharedValue<number>;
+  tabs?: boolean;
+}>) {
   const insets = useSafeAreaInsets();
   const floor = panel ? (strip ?? tabStripHeight(insets.bottom)) : 0;
-  // The tabs' sky holds still while the moons page or Settings covers it.
+  // The tabs' sky holds still while the moons page, Settings, the payoff or the nap clock covers it.
   const covered = useTabsCovered();
   return (
     <View style={[styles.container, panel && styles.black]}>
       <View style={[styles.sky, panel && { bottom: floor }, panel && styles.panel]}>
         {/* The moon stays at the panel's bottom edge on every tab, Home included: the user
             asked for it there, poking up, its light rising into the black. */}
-        <NightSky floor={floor} moonless={moonless} drag={drag} still={panel && covered} />
+        <NightSky floor={floor} moonless={moonless} drag={drag} still={tabs && covered} />
       </View>
       {children}
       {panel && corners ? <PanelCorners bottom={floor} /> : null}
