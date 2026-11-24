@@ -16,6 +16,7 @@ import { ActionSheetIOS, Alert, AppState, Linking, Platform } from 'react-native
 
 import * as haptic from '@/lib/haptics';
 import { armIfPaid } from '@/hooks/use-app-start';
+import { useTabShown } from '@/hooks/use-tab-selected';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/links';
 import { getNotificationPrefs, getTrialEnd, setNotificationPrefs, type NotificationPrefs } from '@/lib/notifications';
 import { onLockChange } from '@/lib/lock-controller';
@@ -23,7 +24,7 @@ import { getMorningsWon } from '@/lib/morning-proof';
 import { getPassesLeft } from '@/lib/passes';
 import { t } from '@/lib/i18n/core';
 import { shortDate } from '@/lib/i18n/format';
-import { currentEnding, currentPlan, currentTrialEnd, manageSubscriptions, restore, type PlanId } from '@/lib/purchases';
+import { currentEnding, currentPlan, currentTrialEnd, manageSubscriptions, onEntitled, restore, type PlanId } from '@/lib/purchases';
 
 import { getOwned, settleMoons } from '@/features/moons/moon-collection';
 import { MOONS } from '@/features/moons/moon-data';
@@ -166,11 +167,28 @@ export function useSettings() {
     askPlan();
   }, []);
   useFocusEffect(refresh);
-  useEffect(() => onLockChange(refresh), [refresh]);
+  // With another tab picked, only the moons settle (as before): the page is re-read by the focus
+  // refresh on the way back. A sync doesn't ask the store again (three RevenueCat calls): the
+  // plan is asked on focus, on each return to the front, after Manage and Restore, and when a
+  // subscription turns on while the app runs (an Ask to Buy approval, whose sync used to ask).
+  useEffect(() => onEntitled(askPlan), []);
+  const shown = useTabShown();
+  useEffect(
+    () =>
+      onLockChange(() => {
+        settleMoons();
+        if (shown()) setFacts(read());
+      }),
+    [shown],
+  );
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      if (shown()) refresh();
+      else settleMoons();
+    });
     return () => sub.remove();
-  }, [refresh]);
+  }, [refresh, shown]);
 
   // Apple's sheet (cancel, or switch plans in the group); its web page where there's no sheet.
   const manage = () => {
