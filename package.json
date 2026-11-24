@@ -88,6 +88,7 @@
     "orb-wheel-lab": "node tools/orb-wheel-lab/server.mjs",
     "clip-viewer": "node tools/clip-viewer/server.mjs",
     "top10": "node tools/clip-viewer/server.mjs",
+    "shiny-studio": "node tools/shiny-studio/server.mjs",
     "clip-viewer:fetch": "python3 tools/clip-viewer/fetch.py",
     "cut-studio": "node tools/cut-studio/server.mjs",
     "slides": "node tools/slides/server.mjs",

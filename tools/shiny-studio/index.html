@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shiny Studio</title>
+<style>
+  :root { --bg: #0b0c10; --panel: #15161c; --line: #262833; --ink: #eceef3; --dim: #8e93a3; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 -apple-system, system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px 16px; background: rgba(11,12,16,.92); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  button { background: #eceef3; color: #0b0c10; border: 0; border-radius: 999px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+  button.ghost { background: #22242d; color: var(--ink); }
+  #status { color: var(--dim); min-width: 200px; text-align: center; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; padding: 16px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 12px; }
+  .tile h2 { font-size: 14px; margin: 0 0 8px; text-align: center; }
+  .pair { display: flex; gap: 8px; justify-content: center; }
+  .pair figure { margin: 0; text-align: center; }
+  .pair figcaption { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  canvas { width: 150px; height: 266px; border-radius: 14px; display: block; background: #000; }
+  .ctl { display: grid; grid-template-columns: 60px 1fr 40px; gap: 4px 8px; align-items: center; margin-top: 10px; }
+  .ctl label { color: var(--dim); }
+  .ctl output { text-align: right; font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; align-items: center; }
+  .chips { display: flex; gap: 3px; }
+  .chips i { width: 14px; height: 14px; border-radius: 4px; display: block; }
+  .tile.edited { border-color: #5a6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shiny studio</h1>
+  <button id="bake">Bake into the app</button>
+  <button class="ghost" id="reset">Reset all to the starting looks</button>
+  <span id="status">Loading…</span>
+</header>
+<main id="grid"></main>
+<script>
+// Must match shinylib.py / bake.py exactly: HSV; hue from `a` (shadows) to `b` (highlights) by brightness, plus `sweep`
+// degrees along the picture's diagonal; saturation max(s, min) * sat; brightness kept.
+const W = 150, H = 266, DISC = W * 0.92;
+let params = {}, moons = [], dirty = false, saveTimer;
+const status = (t) => (document.getElementById('status').textContent = t);
+const img = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+
+function rgb2hsv(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d > 1e-6) {
+    const rc = (mx - r) / d, gc = (mx - g) / d, bc = (mx - b) / d;
+    h = r === mx ? bc - gc : g === mx ? 2 + rc - bc : 4 + gc - rc;
+    h = (((h / 6) % 1) + 1) % 1;
+  }
+  return [h, mx > 1e-6 ? d / mx : 0, mx];
+}
+function hsv2rgb(h, s, v) {
+  const i = Math.floor(h * 6) % 6, f = h * 6 - Math.floor(h * 6);
+  const p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+  return [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i];
+}
+function shiftHSV(h, s, v, p, pos = 0.5) {
+  const hh = ((((p.a + (p.b - p.a) * v + p.sweep * (pos - 0.5)) / 360) % 1) + 1) % 1;
+  return [hh, Math.min(1, Math.max(0, Math.max(s, p.min) * p.sat)), v];
+}
+function shiftHex(hex, p) {
+  const n = parseInt(hex.slice(1), 16);
+  const [h, s, v] = rgb2hsv(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+  const [r, g, b] = hsv2rgb(...shiftHSV(h, s, v, p));
+  return '#' + [r, g, b].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+function shiftCanvas(src, p) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const x = c.getContext('2d'); x.drawImage(src, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height), a = d.data;
+  const w = c.width, hgt = c.height;
+  for (let i = 0; i < a.length; i += 4) {
+    const px = (i / 4) % w, py = Math.floor(i / 4 / w);
+    const pos = (px / Math.max(1, w - 1) + py / Math.max(1, hgt - 1)) / 2;
+    const [h, s, v] = rgb2hsv(a[i] / 255, a[i + 1] / 255, a[i + 2] / 255);
+    const [r, g, b] = hsv2rgb(...shiftHSV(h, s, v, p, pos));
+    a[i] = r * 255; a[i + 1] = g * 255; a[i + 2] = b * 255;
+  }
+  x.putImageData(d, 0, 0); return c;
+}
+/** A downscaled copy, so the per-pixel shift stays quick. */
+function small(i, w) { const c = document.createElement('canvas'); c.width = w; c.height = Math.round(i.height * w / i.width); c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); return c; }
+
+let GLOW;
+function tinted(color, size) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, size, size);
+  x.globalCompositeOperation = 'destination-in'; x.drawImage(GLOW, 0, 0, size, size); return c;
+}
+/** The card as the app's moon page draws it: the sky flipped so its light comes up from below, the glow
+ * washed up from the bottom, two halos, the moon half risen out of the bottom edge. */
+function drawCard(cv, sky, moon, glow) {
+  const x = cv.getContext('2d'); cv.width = W * 2; cv.height = H * 2; x.scale(2, 2);
+  x.save(); x.translate(0, H); x.scale(1, -1);
+  const sc = Math.max(W / sky.width, H / sky.height);
+  x.drawImage(sky, W - sky.width * sc, 0, sky.width * sc, sky.height * sc); x.restore();
+  const g = x.createLinearGradient(0, H, 0, 0);
+  [[0, .34], [.18, .26], [.36, .15], [.52, .07], [.68, .02], [.82, 0]].forEach(([o, a]) => g.addColorStop(o, glow + Math.round(a * 255).toString(16).padStart(2, '0')));
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = H; const halo = DISC * 2; const face = DISC * 1.5; // the app's GLOW_PAD and FROST_PAD
+  x.globalAlpha = .45; x.drawImage(tinted(glow, 256), cx - halo * .85, cy - halo * .85, halo * 1.7, halo * 1.7);
+  x.globalAlpha = .85; x.drawImage(tinted(glow, 256), cx - halo / 2, cy - halo / 2, halo, halo);
+  x.globalAlpha = 1; x.drawImage(moon, cx - face / 2, cy - face / 2, face, face);
+}
+
+const sources = {};
+async function load(m) {
+  if (!sources[m.id]) {
+    const [s, mo] = await Promise.all([img('/assets/' + m.skyImg), img('/assets/' + m.moonImg)]);
+    sources[m.id] = { sky: small(s, 180), moon: small(mo, 160) };
+  }
+  return sources[m.id];
+}
+
+function tile(m) {
+  const el = document.createElement('section'); el.className = 'tile'; el.id = 't-' + m.id;
+  el.innerHTML = `<h2>${m.name}</h2>
+    <div class="pair"><figure><canvas class="plain"></canvas><figcaption>Default</figcaption></figure>
+      <figure><canvas class="shiny"></canvas><figcaption>Shiny ✨</figcaption></figure></div>
+    <div class="ctl">
+      <label>Shadows</label><input type="range" min="0" max="359" data-k="a"><output data-o="a"></output>
+      <label>Lights</label><input type="range" min="0" max="719" data-k="b"><output data-o="b"></output>
+      <label>Sweep</label><input type="range" min="0" max="240" data-k="sweep"><output data-o="sweep"></output>
+      <label>Colour</label><input type="range" min="0.5" max="1.6" step="0.05" data-k="sat"><output data-o="sat"></output>
+      <label>Min col.</label><input type="range" min="0" max="1" step="0.05" data-k="min"><output data-o="min"></output>
+    </div>
+    <div class="row"><span class="chips"></span></div>`;
+  return el;
+}
+
+async function paint(m, which = 'both') {
+  const el = document.getElementById('t-' + m.id), p = params[m.id], s = await load(m);
+  if (which !== 'shiny') drawCard(el.querySelector('.plain'), s.sky, s.moon, m.glow);
+  const glow = shiftHex(m.glow, p);
+  drawCard(el.querySelector('.shiny'), shiftCanvas(s.sky, p), shiftCanvas(s.moon, p), glow);
+  for (const k of ['a', 'b', 'sweep', 'sat', 'min']) {
+    el.querySelector(`[data-k=${k}]`).value = p[k];
+    el.querySelector(`[data-o=${k}]`).textContent = p[k];
+  }
+  el.querySelector('.chips').innerHTML = [glow, ...m.orb.map((c) => shiftHex(c, p))].map((c) => `<i style="background:${c}" title="${c}"></i>`).join('');
+}
+
+function save() {
+  dirty = true; status('Edited (not baked yet)');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => fetch('/api/params', { method: 'POST', body: JSON.stringify(params) }), 400);
+}
+
+async function main() {
+  GLOW = await img('/assets/onboarding/moon-glow.png');
+  const r = await fetch('/api/moons').then((x) => x.json());
+  moons = r.moons; params = r.params;
+  const grid = document.getElementById('grid');
+  for (const m of moons) {
+    const el = tile(m); grid.appendChild(el);
+    el.querySelectorAll('input').forEach((inp) => inp.addEventListener('input', () => {
+      const k = inp.dataset.k, v = Number(inp.value);
+      params[m.id][k] = v;
+      el.classList.add('edited'); paint(m, 'shiny'); save();
+    }));
+  }
+  status(`${moons.length} moons`);
+  for (const m of moons) await paint(m);
+  status(`${moons.length} moons · drag a slider to change a shiny, then Bake`);
+}
+
+document.getElementById('bake').onclick = async () => {
+  clearTimeout(saveTimer); await fetch('/api/params', { method: 'POST', body: JSON.stringify(params) });
+  status('Baking… (re-renders only the moons you changed)');
+  const out = await fetch('/api/bake', { method: 'POST' }).then((x) => x.text());
+  dirty = false; status(out.trim()); document.querySelectorAll('.tile.edited').forEach((t) => t.classList.remove('edited'));
+};
+document.getElementById('reset').onclick = async () => {
+  if (!confirm('Put every shiny back to its starting look?')) return;
+  status('Resetting…');
+  await fetch('/api/params', { method: 'POST', body: '{}' });
+  await fetch('/api/reset', { method: 'POST' });
+  location.reload();
+};
+main();
+</script>
+</body>
+</html>

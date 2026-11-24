@@ -183,6 +183,12 @@ function CardSky({ slot, w, h, disc, wearing, away, children }: { slot: MoonSlot
         {shinyLook ? <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>{halos(shinyLook)}</Animated.View> : null}
         <View style={[styles.abs, { left: (halo - disc) / 2, top: (halo - disc) / 2 }, !slot.owned && styles.shadow]}>
           <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
+          {/* The shiny's own recoloured moon fades in over it. */}
+          {shinyLook ? (
+            <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>
+              <MoonThumb moon={shinyLook} size={disc} round />
+            </Animated.View>
+          ) : null}
         </View>
       </Animated.View>
       {slot.secret ? (

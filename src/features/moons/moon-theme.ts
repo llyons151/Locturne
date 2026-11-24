@@ -5,7 +5,8 @@ import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER, MOONS } from './moon-data';
 import type { MoonDef } from './moon-types';
-import { shinyOf } from './shiny-look';
+import { SHINY_COLORS } from './shiny-colors';
+import { registerShinyColors, shinyOf } from './shiny-look';
 import { isShinyOn, onShinyChange } from './shiny-store';
 
 /**
@@ -15,6 +16,8 @@ import { isShinyOn, onShinyChange } from './shiny-store';
  * comes later.
  */
 const KEY = 'locturne.moon';
+
+registerShinyColors(SHINY_COLORS);
 
 export const DEFAULT_MOON = MOONS[0];
 const BY_ID = new Map(MOONS.map((m) => [m.id, m]));

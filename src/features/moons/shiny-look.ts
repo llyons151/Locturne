@@ -1,10 +1,10 @@
 import type { MoonDef } from './moon-types.ts';
 
 /**
- * How a shiny moon looks. NOT DESIGNED YET (user, 2026-11-23: "don't design them yet"): until each moon
- * gets its own shiny colours in the moon studio, a shiny is its moon with the sky's, halo's and orb's
- * colours turned round the colour wheel by `PLACEHOLDER_TURN`. The moon's own picture is unchanged.
- * When the studio bakes shiny colours, put them on the moon as `shinyColors` and they win.
+ * How a shiny moon looks. Designed in the shiny studio (tools/shiny-studio, `npm run shiny-studio`), which bakes
+ * each moon's shiny colours and recoloured sky and moon pictures into shiny-colors.ts; moon-theme.ts hands them
+ * over with `registerShinyColors`. A moon the studio hasn't baked falls back to its colours turned round the
+ * colour wheel by `PLACEHOLDER_TURN`, with its own pictures.
  */
 export const PLACEHOLDER_TURN = 150;
 
@@ -42,17 +42,28 @@ const turn4 = (c: Four, deg: number) => c.map((x) => turnHue(x, deg)) as Four;
 
 const cache = new Map<string, MoonDef>();
 
+type Baked = { glow: string; orb: Four; skyColors: Four; sky?: MoonDef['sky']; moon?: MoonDef['moon'] };
+let baked: Record<string, Baked> = {};
+/** The studio's baked shinies (shiny-colors.ts), handed over once at launch by moon-theme.ts. */
+export function registerShinyColors(map: Record<string, Baked>) {
+  baked = map;
+  cache.clear();
+}
+
 /** Pure: a moon's shiny version. Same id (so everything keyed by moon still finds it), `shiny: true`. */
 export function shinyOf(moon: MoonDef): MoonDef {
   const hit = cache.get(moon.id);
   if (hit) return hit;
-  const set = moon.shinyColors;
+  const set = baked[moon.id] ?? moon.shinyColors;
   const shiny: MoonDef = {
     ...moon,
     shiny: true,
     glow: set?.glow ?? turnHue(moon.glow, PLACEHOLDER_TURN),
     orb: set?.orb ?? turn4(moon.orb, PLACEHOLDER_TURN),
     skyColors: set?.skyColors ?? turn4(moon.skyColors, PLACEHOLDER_TURN),
+    // The recoloured pictures, once baked (a moon without its own, like Moonlight, gets them too).
+    ...(baked[moon.id]?.sky ? { sky: baked[moon.id].sky } : {}),
+    ...(baked[moon.id]?.moon ? { moon: baked[moon.id].moon } : {}),
   };
   cache.set(moon.id, shiny);
   return shiny;
