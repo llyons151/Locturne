@@ -148,12 +148,21 @@ function CardSky({ slot, w, h, disc, wearing, caught, on, away, children }: { sl
   const halo = disc * MOON_PADS.glow;
   // Its shiny, when caught and switched on (shiny.ts; read by `SkyCards`): the colours only, for now. Switching
   // fades one into the other (user, 2026-11-23): the shiny's sky, wash and halos sit over the plain ones and fade in or out.
-  const shinyLook = caught ? shinyOf(slot.moon) : null;
+  // Drawn from the first time it's on, not before: a caught shiny that's never worn costs the card nothing.
+  const [drawn, setDrawn] = useState(on);
+  if (on && !drawn) setDrawn(true);
+  const shinyLook = caught && drawn ? shinyOf(slot.moon) : null;
   const shown = useSharedValue(on ? 1 : 0);
   useEffect(() => {
     shown.value = withTiming(on ? 1 : 0, { duration: SHINY_FADE_MS, easing: Easing.inOut(Easing.cubic) });
   }, [on, shown]);
   const shinyFade = useAnimatedStyle(() => ({ opacity: shown.value }));
+  // The plain sky and moon go once the shiny is fully over them. Both moons have a soft edge, and the two
+  // stacked thickened it into a whitish ring round the shiny (docs/perf-2026-11-24/fuzzy-moons.md, cause 3).
+  // They stay at full strength under a fade, so the moon never turns see-through halfway.
+  const plainUnder = useAnimatedStyle(() => ({ opacity: shown.value > 0.999 ? 0 : 1 }));
+  // The plain halos are soft all over, so they simply cross-fade with the shiny's.
+  const plainHalo = useAnimatedStyle(() => ({ opacity: 1 - shown.value }));
   const halos = (moon: MoonDef) => (
     <>
       <View style={[styles.abs, styles.wide, { width: halo * WIDE, height: halo * WIDE, left: (halo - halo * WIDE) / 2, top: (halo - halo * WIDE) / 2 }]}>
@@ -168,8 +177,12 @@ function CardSky({ slot, w, h, disc, wearing, caught, on, away, children }: { sl
     <View style={[styles.card, { width: w, height: h }, !slot.owned && styles.coming]}>
       {/* As Home draws it (night-sky.tsx): the sky flipped so its light comes up from behind the moon, the
           moon's light washed up from the bottom, and its halo (user asked for Home's glow here, 2026-11-19). */}
-      {slot.owned ? <SkyPicture moon={slot.moon} /> : null}
-      {slot.owned ? <GlowWash color={slot.moon.glow} id={`w-${slot.moon.id}-${Math.round(w)}`} /> : null}
+      {slot.owned ? (
+        <Animated.View style={[StyleSheet.absoluteFill, plainUnder]}>
+          <SkyPicture moon={slot.moon} />
+          <GlowWash color={slot.moon.glow} id={`w-${slot.moon.id}-${Math.round(w)}`} />
+        </Animated.View>
+      ) : null}
       {shinyLook ? (
         <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>
           <SkyPicture moon={shinyLook} />
@@ -177,10 +190,12 @@ function CardSky({ slot, w, h, disc, wearing, caught, on, away, children }: { sl
         </Animated.View>
       ) : null}
       <Animated.View style={[styles.abs, { width: halo, height: halo, left: (w - halo) / 2, top: h - showing * disc + disc / 2 - halo / 2 }, lifted]}>
-        {slot.owned ? halos(slot.moon) : null}
+        {slot.owned ? <Animated.View style={[StyleSheet.absoluteFill, plainHalo]}>{halos(slot.moon)}</Animated.View> : null}
         {shinyLook ? <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>{halos(shinyLook)}</Animated.View> : null}
         <View style={[styles.abs, { left: (halo - disc) / 2, top: (halo - disc) / 2 }, !slot.owned && styles.shadow]}>
-          <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
+          <Animated.View style={plainUnder}>
+            <MoonThumb moon={slot.owned ? slot.moon : DEFAULT_MOON} size={disc} round />
+          </Animated.View>
           {/* The shiny's own recoloured moon fades in over it. */}
           {shinyLook ? (
             <Animated.View style={[StyleSheet.absoluteFill, shinyFade]}>
