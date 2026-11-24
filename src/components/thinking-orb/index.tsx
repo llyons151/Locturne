@@ -7,6 +7,9 @@ import { Nocturne } from '@/theme';
 
 import { globeFrame, orbTime, type OrbSize } from './globe';
 
+/** 30 fps, less a few ms so a 60 Hz frame landing a touch early still counts. */
+const FRAME_MS = 1000 / 30 - 4;
+
 /**
  * A dotted globe with a scan sweeping it (thinking-orbs' "searching"), for a short wait on a
  * location read, or on a button waiting for Apple's permission sheet (`PrimaryButton`'s `busy`). Decorative: whatever it sits beside says what's happening. Every orb runs off
@@ -30,8 +33,15 @@ export function SearchingOrb({
   useEffect(() => {
     if (reduced) return;
     let frame = 0;
+    let last = -Infinity;
+    // About 30 redraws a second, whatever the screen's rate: each one is a React render and new
+    // SVG paths over the bridge, and at 20 pt 30 fps looks the same as 60.
     const tick = () => {
-      setT(orbTime(size, performance.now() / 1000));
+      const now = performance.now();
+      if (now - last >= FRAME_MS) {
+        last = now;
+        setT(orbTime(size, now / 1000));
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
