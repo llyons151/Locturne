@@ -438,10 +438,22 @@ function bedtimePicksForTest(): SelectionId | null {
   return null;
 }
 
-export function startTestLock(method: string, now = new Date()): boolean {
+/**
+ * `words`: the morning shield for the method under test (`shieldCopy('morning', …)`), written for
+ * the test's own list, which the shield extension reads first while the test is on
+ * (`locturneTestLockLive` in Shared.swift). Before, it showed the bedtime words, so the method and
+ * its icon never appeared on the shield you'd film (user 2026-11-24). Its "I'm up" sends `tap`,
+ * which opens Locturne onto the test morning: the extension's own check knows only real mornings.
+ */
+export function startTestLock(method: string, words: ShieldText, tap: ShieldTap, now = new Date()): boolean {
   const picks = isAvailable() && getAccess() === 'approved' ? bedtimePicksForTest() : null;
   if (!picks) return false;
   copySelection(picks, TEST_LOCK);
+  userDefaultsSet(`${CONFIG_FOR_LIST}${TEST_LOCK}`, shieldConfig(words));
+  userDefaultsSet(
+    `${ACTIONS_FOR_LIST}${TEST_LOCK}`,
+    tap ? { primary: { behavior: 'defer', actions: [{ type: 'sendNotification', payload: tap }] } } : shieldActions(null),
+  );
   sharedSet(TEST_LOCK_KEY, { method, since: now.getTime() } satisfies TestLock);
   shield(TEST_LOCK);
   return true;
@@ -451,6 +463,7 @@ export function startTestLock(method: string, now = new Date()): boolean {
 export function endTestLock(): void {
   sharedRemove(TEST_LOCK_KEY);
   if (!isAvailable()) return;
+  for (const key of [`${CONFIG_FOR_LIST}${TEST_LOCK}`, `${ACTIONS_FOR_LIST}${TEST_LOCK}`]) userDefaultsRemove(key);
   unshield(TEST_LOCK);
   clearSelection(TEST_LOCK);
   reapplyStandingBlocks();
@@ -647,7 +660,7 @@ export function isAnyShieldUp(): boolean {
 }
 
 /** The block screen's words: his line is the title, plus one button. */
-export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number } };
+export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number }; icon?: string };
 
 /** What tapping the shield's button sends: a notification that opens Locturne, or nothing. */
 export type ShieldTap = { title: string; body: string; identifier?: string; userInfo?: Record<string, unknown> } | null;
@@ -676,7 +689,7 @@ export const LIMIT_SHIELD = 'locturne-limit';
 /** The worn moon's icon in the app group's folder, once copied there (features/moons/shield-moon.ts). */
 export const SHIELD_MOON_KEY = 'locturne.shieldMoon';
 
-function shieldConfig({ title, subtitle, button }: ShieldText) {
+function shieldConfig({ title, subtitle, button, icon }: ShieldText) {
   return {
     title,
     subtitle,
@@ -686,7 +699,8 @@ function shieldConfig({ title, subtitle, button }: ShieldText) {
     // The ring's drawing is still in the extension (LocturneShieldRing.swift); it only runs when
     // `ringFromMinutes` is sent.
     backgroundColor: { red: 11, green: 11, blue: 12 },
-    iconSystemName: 'moon.zzz.fill',
+    // The morning's is its wake-up method's icon (`METHOD_SYMBOL` in shield-copy.ts).
+    iconSystemName: icon ?? 'moon.zzz.fill',
     iconTint: { red: 255, green: 255, blue: 255 },
     titleColor: { red: 255, green: 255, blue: 255 },
     subtitleColor: { red: 161, green: 161, blue: 166 },

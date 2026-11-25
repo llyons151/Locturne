@@ -121,11 +121,12 @@ export function markFirstSeen(moment: FirstMoment, morningKey: string): void {
 export type ReviewAsk = { at: string; wins: number };
 
 /**
- * Mornings won that earn an ask: the 3rd (enough to mean it, still inside the trial), the 30th,
- * the 100th. Apple shows its sheet at most three times in 365 days, so each ask is spent on a
- * milestone, never on an app update (docs/reports/App Store review rate.md).
+ * Mornings won that earn an ask: the 1st (right after the first wake-up that worked, while it's
+ * still a surprise; user 2026-11-24, was the 3rd), the 30th, the 100th. Apple shows its sheet at
+ * most three times in 365 days, so each ask is spent on a milestone, never on an app update
+ * (docs/reports/App Store review rate.md).
  */
-export const REVIEW_MILESTONES = [3, 30, 100];
+export const REVIEW_MILESTONES = [1, 30, 100];
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** The least time between two asks. Past the last milestone, once a year. */
 export const REVIEW_GAP_DAYS = 60;

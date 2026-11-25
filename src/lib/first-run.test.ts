@@ -102,23 +102,23 @@ describe('the rating prompt', () => {
   const now = new Date('2026-12-01T09:00:00Z');
   const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
 
-  test('first on the 3rd morning won, not before', () => {
-    assert.equal(fr.shouldAskForReview(walked, day, 1, [], now), false);
-    assert.equal(fr.shouldAskForReview(walked, day, 2, [], now), false);
+  test('first on the 1st morning won, not before', () => {
+    assert.equal(fr.shouldAskForReview(walked, day, 0, [], now), false);
+    assert.equal(fr.shouldAskForReview(walked, day, 1, [], now), true);
     assert.equal(fr.shouldAskForReview(walked, day, 3, [], now), true);
     assert.equal(fr.shouldAskForReview(walked, day, 7, [], now), true, 'a late install of this rule still asks');
   });
 
   test('then on the 30th, and only 60 days after the last ask', () => {
-    const first = [{ at: daysAgo(70), wins: 3 }];
+    const first = [{ at: daysAgo(70), wins: 1 }];
     assert.equal(fr.shouldAskForReview(walked, day, 29, first, now), false);
     assert.equal(fr.shouldAskForReview(walked, day, 30, first, now), true);
-    const recent = [{ at: daysAgo(59), wins: 3 }];
+    const recent = [{ at: daysAgo(59), wins: 1 }];
     assert.equal(fr.shouldAskForReview(walked, day, 45, recent, now), false, '30 won but too soon');
   });
 
   test('then the 100th, then once a year with a new morning won', () => {
-    const two = [{ at: daysAgo(200), wins: 3 }, { at: daysAgo(61), wins: 30 }];
+    const two = [{ at: daysAgo(200), wins: 1 }, { at: daysAgo(61), wins: 30 }];
     assert.equal(fr.shouldAskForReview(walked, day, 99, two, now), false);
     assert.equal(fr.shouldAskForReview(walked, day, 100, two, now), true);
     const three = [...two, { at: daysAgo(364), wins: 100 }];

@@ -48,7 +48,7 @@ mock.module('react-native-device-activity', {
   },
 });
 
-const { clockLabel, shieldCopy, shieldRule, shieldTap, shieldTextFor } = await import('./shield-copy.ts');
+const { clockLabel, METHOD_SYMBOL, shieldCopy, shieldRule, shieldTap, shieldTextFor, testLockShield } = await import('./shield-copy.ts');
 const { DEFAULT_ROUTINE } = await import('./routine.ts');
 
 type Rule = ReturnType<typeof shieldRule>;
@@ -159,5 +159,22 @@ describe('shieldTap', () => {
     assert.equal(shieldTap('day'), null);
     assert.equal(shieldTap('off'), null);
     assert.equal(shieldTap('morning')?.userInfo.url, 'locturne://wake');
+  });
+});
+
+describe('the morning shield shows the wake-up method (user 2026-11-24)', () => {
+  test("its icon is the method's, not the moon, and only the morning's", () => {
+    for (const method of Object.keys(METHOD_SYMBOL) as (keyof typeof METHOD_SYMBOL)[]) {
+      assert.equal(shieldCopy('morning', { ...DEFAULT_ROUTINE, method }).icon, METHOD_SYMBOL[method]);
+    }
+    for (const rule of RULES.filter((r) => r !== 'morning')) assert.equal(shieldCopy(rule, DEFAULT_ROUTINE).icon, undefined);
+  });
+
+  test('Test the lock puts up the morning shield for the method under test, with its tap', () => {
+    const { words, tap } = testLockShield('pushups', { ...DEFAULT_ROUTINE, method: 'steps' });
+    assert.deepEqual(words, shieldCopy('morning', { ...DEFAULT_ROUTINE, method: 'pushups' }));
+    assert.equal(words.icon, 'figure.strengthtraining.functional');
+    assert.match(words.subtitle, /push-ups/);
+    assert.deepEqual(tap, shieldTap('morning'));
   });
 });

@@ -12,7 +12,7 @@ const DELAY_MS = 2500;
 
 /**
  * Apple's rating sheet after a morning that worked (a real wake-up, never a pass or the
- * emergency unlock), on the 3rd, 30th and 100th mornings won, 60+ days apart
+ * emergency unlock), on the 1st, 30th and 100th mornings won, 60+ days apart
  * (`shouldAskForReview`). Only Home calls this, so it never shows during onboarding, at night
  * or at the paywall. iOS decides whether the sheet actually appears and caps it at three a year.
  */

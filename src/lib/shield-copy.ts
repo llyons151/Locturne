@@ -23,7 +23,27 @@ export { clockLabel };
  * `ring`: the block's start and end as minutes of the day. The shield extension draws the moon
  * ring and "Asleep for 6h 12m more." from it each time the shield appears (LocturneShieldRing.swift).
  */
-export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number } };
+export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number }; icon?: string };
+
+/**
+ * The SF Symbol at the top of the morning shield: the wake-up method's own icon, as on the
+ * Routine tab (`sf` in features/routine/method-options.ts), so the shield says what to do at a
+ * glance (user 2026-11-24). The other shields keep Apple's moon.
+ */
+export const METHOD_SYMBOL: Record<WakeMethod, string> = {
+  steps: 'figure.walk',
+  dance: 'figure.dance',
+  scan: 'barcode.viewfinder',
+  place: 'mappin.and.ellipse',
+  pushups: 'figure.strengthtraining.functional',
+  pullups: 'figure.climbing',
+  bench: 'figure.strengthtraining.traditional',
+  grass: 'leaf',
+  sun: 'sun.max',
+  pet: 'pawprint',
+  bed: 'bed.double',
+  downtime: 'hourglass',
+};
 
 /** The onboarding demos have no bedtime: no ring. */
 type ShieldRoutine = Pick<Routine, 'morningStart' | 'method' | 'stepGoal' | 'downtimeSteps'> & Partial<Pick<Routine, 'bedtime'>>;
@@ -124,6 +144,7 @@ export function shieldCopy(
         title: timer ? t('shield.notYet') : t('shield.no'),
         subtitle: timer ? timerLine(timer) : (PROOF[routine.method] ?? PROOF.steps)(routine),
         button: t('shield.imUp'),
+        icon: METHOD_SYMBOL[routine.method] ?? METHOD_SYMBOL.steps,
       };
     case 'blockNow':
       return {
@@ -188,4 +209,12 @@ export function shieldTap(phase: Phase) {
     identifier: 'locturne.shieldTap',
     userInfo: { url: 'locturne://wake' },
   };
+}
+
+/**
+ * You → Test the lock's shield (`startTestLock`): the real morning shield for the method under
+ * test, with the person's own step goal, and its tap that opens Locturne.
+ */
+export function testLockShield(method: WakeMethod, routine: ShieldRoutine) {
+  return { words: shieldCopy('morning', { ...routine, method }), tap: shieldTap('morning') };
 }

@@ -13,7 +13,8 @@ import { MenuRow, SwitchRow } from '@/components/controls';
 import { sym, ValueRow } from '@/components/grouped-list';
 import { Text } from '@/components/text';
 import * as haptic from '@/lib/haptics';
-import type { WakeMethod } from '@/lib/routine';
+import { getRoutine, type WakeMethod } from '@/lib/routine';
+import { testLockShield } from '@/lib/shield-copy';
 import { getReelFrame, setReelFrameOn } from '@/lib/reel-frame';
 import { measureReelFrame } from 'reel-frame';
 import { backupAvailable, hasCloudAccount, readBackup } from 'progress-backup';
@@ -86,7 +87,8 @@ function testLock(method: WakeMethod) {
       { text: ask.button, onPress: () => router.push(ask.to) },
     ]);
   }
-  if (!startTestLock(method)) {
+  const { words, tap } = testLockShield(method, getRoutine());
+  if (!startTestLock(method, words, tap)) {
     return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');
   }
   haptic.done();

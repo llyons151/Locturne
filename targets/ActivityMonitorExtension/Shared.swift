@@ -935,7 +935,12 @@ func renameFamilyActivitySelectionId(previousId: String, newId: String) {
 /// and its "I'm up" come first; awake, a schedule's ("Asleep until 5 PM."). Anything else keeps
 /// its place: the always list's words still win, as "I'm up" can't wake those apps.
 func locturneNightFirst(_ ids: [FamilyActivitySelectionWithIdWithMatching]) -> [FamilyActivitySelectionWithIdWithMatching] {
-  let ordered = locturneNightOrder(ids)
+  var ordered = locturneNightOrder(ids)
+  // You → Test the lock speaks first while it's on: its copy holds the bedtime apps, and its
+  // words are the morning shield for the method under test (`startTestLock`).
+  if locturneTestLockLive(), let test = ordered.firstIndex(where: { $0.id == "test-lock" }), test > 0 {
+    ordered.insert(ordered.remove(at: test), at: 0)
+  }
   // A rehearsal under way speaks just ahead of the bedtime list it copies: its night's words,
   // then its own "I'm up".
   guard locturneRehearsalLive(),
@@ -946,6 +951,12 @@ func locturneNightFirst(_ ids: [FamilyActivitySelectionWithIdWithMatching]) -> [
   var moved = ordered
   moved.insert(moved.remove(at: rehearsal), at: night)
   return moved
+}
+
+/// Locturne: You → Test the lock is on (`TEST_LOCK_KEY` in src/lib/screen-time.ts). Here, not in
+/// Locturne.swift, because the ShieldConfiguration extension has only this file.
+func locturneTestLockLive() -> Bool {
+  return userDefaults?.object(forKey: "locturne.testLock") != nil
 }
 
 /// Locturne: a rehearsal night under way (dev and preview builds: `startRehearsal` in
@@ -1038,6 +1049,7 @@ func getPossibleFamilyActivitySelectionIds(
       let isActivityMonitored = monitoredActivities.contains(where: {
         return $0.self.rawValue.contains(activitySelection.id)
       }) || (activitySelection.id == "rehearsal" && locturneRehearsalLive())
+        || (activitySelection.id == "test-lock" && locturneTestLockLive())
 
       if !isActivityMonitored {
         return FamilyActivitySelectionWithIdWithMatching(

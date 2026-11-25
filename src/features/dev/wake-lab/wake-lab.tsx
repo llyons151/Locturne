@@ -12,6 +12,7 @@ import { getMorningPlace, judgeFix } from '@/lib/place';
 import { cameraGoalOf, downtimeMinutesOf, downtimeStepsOf, getRoutine, isCameraMethod, type WakeMethod } from '@/lib/routine';
 import { getScanCode, matches } from '@/lib/scan';
 import { endTestLock, getTestLock, startTestLock } from '@/lib/screen-time';
+import { testLockShield } from '@/lib/shield-copy';
 import { downtimeLine } from '@/lib/wake/lines';
 import { minutesLabel, minutesLeft } from '@/lib/wake/downtime';
 import { Gap, Nocturne, Space, Type } from '@/theme';
@@ -72,7 +73,10 @@ export function WakeLab({ method: first, lock = false }: { method: WakeMethod; l
   };
   const again = () => {
     const now = new Date();
-    if (lock) startTestLock(method, now);
+    if (lock) {
+      const { words, tap } = testLockShield(method, getRoutine());
+      startTestLock(method, words, tap, now);
+    }
     setPassed(false);
     setStartedAt(now);
     setRun((n) => n + 1);
