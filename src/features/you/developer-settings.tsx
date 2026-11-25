@@ -27,8 +27,8 @@ import { MOON_RENDER_STYLES, setMoonRender, useMoonRender } from '@/features/dev
 import { RehearsalSection } from '@/features/dev/rehearsal/rehearsal-section';
 import { backToRealApp, SHOT_GROUPS } from '@/features/dev/screenshots/screenshot-pages';
 import { LAB_METHODS } from '@/features/dev/wake-lab/wake-lab';
-import { fakeTheMorning } from '@/features/dev/wake-lab/wake-preview';
-import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, getMoonsAsPage, ownsMoon, setMoonsAsPage } from '@/features/moons/moon-collection';
+import { dropCountedTest, fakeTheMorning, startCountedTest } from '@/features/dev/wake-lab/wake-preview';
+import { devEarnAll, devEarnNext, devForgetMoons, devSeedHistory, devSeedRunHistory, getMoonsAsPage, ownsMoon, setMoonsAsPage } from '@/features/moons/moon-collection';
 import { armMoonSim, isMoonSimArmed } from '@/features/moons/moon-sim';
 import { DEFAULT_MOON, getWornMoon, useMoon } from '@/features/moons/moon-theme';
 import { replaceProgressBackup } from '@/features/moons/progress-backup';
@@ -36,6 +36,9 @@ import { devCatchAllShinies, devCatchShiny, devResetShiny } from '@/features/moo
 import { setShinyNext, shinyNextOn } from '@/features/moons/shiny-dev';
 import { MOONS } from '@/features/moons/moon-data';
 import { getMorningsWon } from '@/lib/morning-proof';
+import { readLock } from '@/lib/lock-controller';
+import { getStreak, prevKey } from '@/lib/streak';
+import { devPayoffShownThrough, duePayoffKey } from '@/features/wake/open-payoff';
 
 import { SETTINGS_BG } from './settings-actions';
 
@@ -71,7 +74,7 @@ const METHOD_ICONS: Record<WakeMethod, ReturnType<typeof sym>> = {
  * The bedtime apps really sleep, then Home's test morning for `method` (user 2026-10-28: test it
  * as it really appears, from Home's button); winning it wakes them (`pretendWoke`).
  */
-function testLock(method: WakeMethod) {
+function testLock(method: WakeMethod, counted = false) {
   if (!isScreenTimeAvailable()) return Alert.alert('iPhone only', 'The test lock needs Screen Time, so run it on the phone.');
   // Tests the real thing (user 2026-10-29): with no code or place set up, the test morning fell
   // back on a made-up one that can never be reached.
@@ -87,12 +90,83 @@ function testLock(method: WakeMethod) {
       { text: ask.button, onPress: () => router.push(ask.to) },
     ]);
   }
-  const { words, tap } = testLockShield(method, getRoutine());
-  if (!startTestLock(method, words, tap)) {
-    return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');
-  }
+  const begin = (run?: { mornings: number; streak: number }) => {
+    const { words, tap } = testLockShield(method, getRoutine());
+    if (!startTestLock(method, words, tap)) {
+      return Alert.alert('Nothing to lock', 'Allow Screen Time and pick some bedtime apps in Apps first. The test locks those.');
+    }
+    if (run) {
+      // The mornings before this one, made up; this morning's real proof waits out the test.
+      const key = readLock().morningKey;
+      startCountedTest(key, devSeedRunHistory(run.mornings, run.streak, key, false));
+      devPayoffShownThrough(prevKey(key));
+      replaceProgressBackup();
+    }
+    haptic.done();
+    preview('/', method);
+  };
+  if (!counted) return begin();
+  askRun(
+    { mornings: 'Mornings got up before this one. Their moons come unlocked.', go: 'Start' },
+    (mornings, streak) => begin({ mornings, streak }),
+  );
+}
+
+/** A whole number typed into a prompt, or `fallback` for anything else. */
+function typedCount(text: string | undefined, fallback: number): number {
+  const n = Number.parseInt((text ?? '').trim(), 10);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, 2000) : fallback;
+}
+
+/**
+ * Two of Apple's prompts (user 2026-11-25: wake-up posts that line up): how many mornings, then
+ * how many of them in a row. Both start at the phone's own.
+ */
+function askRun(words: { mornings: string; go: string }, go: (mornings: number, streak: number) => void) {
+  if (typeof Alert.prompt !== 'function') return Alert.alert('iPhone only', 'The prompts are iOS alerts.');
+  const today = readLock().morningKey;
+  const ownMornings = getMorningsWon();
+  const ownStreak = getStreak(today);
+  Alert.prompt(
+    'Mornings',
+    words.mornings,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Next',
+        onPress: (text?: string) => {
+          const mornings = typedCount(text, ownMornings);
+          Alert.prompt(
+            'Streak',
+            `How many of those ${mornings} in a row, up to yesterday. Fewer than all of them leaves one missed morning before the run.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: words.go, onPress: (t?: string) => go(mornings, Math.min(mornings, typedCount(t, Math.min(ownStreak, mornings)))) },
+            ],
+            'plain-text',
+            String(Math.min(ownStreak, mornings)),
+            'number-pad',
+          );
+        },
+      },
+    ],
+    'plain-text',
+    String(ownMornings),
+    'number-pad',
+  );
+}
+
+/**
+ * Demo data's rows: `mornings` with a `streak` run, today's morning left as it is. The made-up
+ * mornings count as celebrated, so Home doesn't open a payoff for yesterday's.
+ */
+function seedRun(mornings: number, streak: number) {
+  const today = readLock().morningKey;
+  devSeedRunHistory(mornings, streak, today, true);
+  const due = duePayoffKey();
+  if (due && due < today) devPayoffShownThrough(due);
+  replaceProgressBackup();
   haptic.done();
-  preview('/', method);
 }
 
 /** One line per copy: its mornings, moons and proofs, or why there's nothing. */
@@ -125,6 +199,8 @@ export function DeveloperSettings() {
   const [measured, setMeasured] = useState<string | null>(null);
   // Only so the row's "On next open" shows straight away.
   const [, setArmed] = useState(false);
+  // Only so Demo data's counts show the new ones straight away.
+  const [, redraw] = useState(0);
   const refresh = useCallback(() => setTestRun(getTestLock()), []);
   useFocusEffect(refresh);
   const icon = (ios: Parameters<typeof sym>[0], android: Parameters<typeof sym>[1]) => ({ iconTint: Nocturne.text, icon: sym(ios, android) });
@@ -245,7 +321,7 @@ export function DeveloperSettings() {
       {/* A lived-in app for recording demos: mornings got up and the moons they brought. */}
       <Group
         label="Demo data"
-        note="31 mornings got up in a row, the last one yesterday, and the five moons they bring. Replaces this phone's real mornings and moons; today's morning is left as it is."
+        note="31 mornings got up in a row, the last one yesterday, and the five moons they bring; or any count and streak you type, or none. Replaces this phone's real mornings and moons; today's morning is left as it is."
       >
         <ValueRow
           {...icon('calendar.badge.plus', 'event_available')}
@@ -261,6 +337,40 @@ export function DeveloperSettings() {
                   devSeedHistory(31);
                   replaceProgressBackup();
                   haptic.done();
+                },
+              },
+            ])
+          }
+          last
+        />
+        <ValueRow
+          {...icon('number', 'pin')}
+          title="Set mornings and streak"
+          value={`${getMorningsWon()} · ${getStreak(readLock().morningKey)}`}
+          onPress={() =>
+            askRun(
+              { mornings: "Mornings got up, counting today's if you've done it. Their moons come unlocked; this phone's real mornings and moons are replaced.", go: 'Set' },
+              (mornings, streak) => {
+                seedRun(mornings, streak);
+                redraw((n) => n + 1);
+              },
+            )
+          }
+          last
+        />
+        <ValueRow
+          {...icon('arrow.counterclockwise', 'replay')}
+          title="Reset mornings"
+          value=""
+          onPress={() =>
+            Alert.alert('Reset mornings?', "Mornings, streak and moons go back to none. Today's wake-up, if you've done it, stays.", [
+              { text: 'Not now', style: 'cancel' },
+              {
+                text: 'Reset',
+                style: 'destructive',
+                onPress: () => {
+                  seedRun(0, 0);
+                  redraw((n) => n + 1);
                 },
               },
             ])
@@ -411,6 +521,7 @@ export function DeveloperSettings() {
             onPress={() => {
               haptic.tap();
               endTestLock();
+              dropCountedTest();
               refresh();
             }}
             last
@@ -419,10 +530,10 @@ export function DeveloperSettings() {
       ) : (
         <Group
           label="Morning unlocks"
-          note="Your bedtime apps sleep right away, for real. Home opens a test morning for the method: win it to wake them. Nothing is recorded and your routine doesn't change."
+          note="Your bedtime apps sleep right away, for real. First set the mornings and streak before this one (their moons come unlocked), then win Home's test morning: it counts as today's real wake-up, so the payoff, any new moon and the streak play out as normal. Exit test puts today back as it was."
         >
           {LAB_METHODS.map((m) => (
-            <ValueRow key={m.value} iconTint={Nocturne.text} icon={METHOD_ICONS[m.value]} title={m.title} value="" onPress={() => testLock(m.value)} last />
+            <ValueRow key={m.value} iconTint={Nocturne.text} icon={METHOD_ICONS[m.value]} title={m.title} value="" onPress={() => testLock(m.value, true)} last />
           ))}
         </Group>
       )}

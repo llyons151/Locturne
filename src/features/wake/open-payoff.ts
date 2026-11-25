@@ -77,6 +77,15 @@ export function markPayoffShown(key: string) {
   markLocSaid(`woke:${key}`);
 }
 
+/**
+ * Dev and preview builds: made-up mornings up to `key` count as already celebrated, so only a
+ * counted test's own win opens the payoff (wake-preview.ts), not the made-up yesterday's.
+ */
+export function devPayoffShownThrough(key: string) {
+  opening = null;
+  sharedSet(PAYOFF_KEY, key);
+}
+
 /** The payoff for the real morning under way, as the camera closes on its win. */
 export function openPayoffNow(how: How = 'replace'): boolean {
   return openPayoff(readLock().morningKey, how);

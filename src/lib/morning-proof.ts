@@ -237,6 +237,78 @@ export function devSeedMornings(count: number, now = new Date()): string[] {
   return keys;
 }
 
+/** Pure: the morning key `days` after `key` (before it, for a negative `days`). */
+function shiftKey(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return dateKey(new Date(y, m - 1, d + days));
+}
+
+/**
+ * Dev and preview builds (Developer → Demo data, and the counted test wake-ups, for recording
+ * posts that line up): a made-up history of `mornings` got up, the last `streak` of them in a row
+ * ending the morning before `today` (`LockState.morningKey`), one missed morning before those
+ * when the run is shorter than the count, and the rest in a row before that.
+ *
+ * `keepToday`: `today`'s proofs stay and a wake-up among them is the newest of the `mornings`
+ * (Developer's rows: the morning under way is left as it really is). Otherwise they're taken
+ * out and handed back as `held` (a counted test: its win is `today`'s wake-up, and leaving the
+ * test unwon puts them back, `devPutBackProofs`). Returns the morning keys of all the mornings,
+ * the oldest first (moon-collection.ts dates the ladder's moons by them).
+ */
+export function devSeedRun(mornings: number, streak: number, today: string, keepToday: boolean, now = new Date()): { keys: string[]; held: MorningProof[] } {
+  const routine = getRoutine(now);
+  const later = getProofs().filter((p) => p.morningKey >= today);
+  const kept = keepToday ? later : [];
+  const keptWins = [...winsIn(kept)].sort();
+  const total = Math.max(0, Math.floor(mornings), keptWins.length);
+  // A wake-up today is part of the run: it can't be shorter than that, or longer than the count.
+  const run = Math.min(total, Math.max(0, Math.floor(streak), keptWins.length));
+  const made: MorningProof[] = [];
+  let back = 1;
+  for (let i = 0; i < total - keptWins.length; i++, back++) {
+    // The run's mornings, then one missed, then the rest.
+    if (i === run - keptWins.length && run < total) back++;
+    const morningKey = shiftKey(today, -back);
+    const start = nightInto(morningKey, routine).end.getTime();
+    // A few minutes after morning start, not the same minute every day.
+    const at = start + (2 + ((back * 7) % 11)) * 60_000;
+    made.push({ morningKey, kind: routine.method, at, bedtime: routine.bedtime, morningStart: routine.morningStart });
+  }
+  const keys = [...made.map((p) => p.morningKey).reverse(), ...keptWins];
+  const last = keys[keys.length - 1];
+  sharedSet(FIRST_KEY, keys[0] ?? null);
+  sharedSet(WON_KEY, keys.length);
+  // Judged through yesterday: the run, or 0 after the missed morning.
+  saveStreak(last ? { count: run, key: last, checked: last > shiftKey(today, -1) ? last : shiftKey(today, -1) } : null);
+  sharedSet(KEY, [...kept, ...made].slice(0, KEEP));
+  for (const listener of listeners) listener();
+  return { keys, held: keepToday ? [] : later };
+}
+
+/**
+ * Dev and preview builds: a counted test wake-up won (wake-preview.ts), recorded as a real one
+ * for `morningKey` at `at`, whatever the hour: the real payoff, moon and streak follow from it.
+ */
+export function devWinMorning(morningKey: string, kind: WakeMethod, at: number) {
+  const routine = getRoutine(new Date(at));
+  const all = getProofs().filter((p) => p.morningKey !== morningKey);
+  const won = winsIn(all).has(morningKey) ? 0 : 1;
+  if (!sharedGet<string>(FIRST_KEY)) sharedSet(FIRST_KEY, getFirstMorning() ?? morningKey);
+  sharedSet(WON_KEY, getMorningsWon() + won);
+  sharedSet(KEY, [{ morningKey, kind, at, bedtime: routine.bedtime, morningStart: routine.morningStart }, ...all].slice(0, KEEP));
+  for (const listener of listeners) listener();
+}
+
+/** Dev and preview builds: a counted test left unwon puts back the morning's real proofs it took out (`devSeedRun`). */
+export function devPutBackProofs(held: MorningProof[]) {
+  if (!held.length) return;
+  const keys = new Set(held.map((p) => p.morningKey));
+  const rest = getProofs().filter((p) => !keys.has(p.morningKey));
+  sharedSet(WON_KEY, getMorningsWon() + [...winsIn(held)].filter((k) => !winsIn(rest).has(k)).length);
+  sharedSet(KEY, [...held, ...rest].slice(0, KEEP));
+  for (const listener of listeners) listener();
+}
+
 /** The progress backup (features/moons/progress-backup.ts): the count, first morning and proofs, as kept. */
 export function getSavedMornings(): { won: number; first: string | null; proofs: MorningProof[]; streak: Streak | null } {
   return { won: getMorningsWon(), first: getFirstMorning(), proofs: getProofs(), streak: getSavedStreak() };

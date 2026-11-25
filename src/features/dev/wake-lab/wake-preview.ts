@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { isWakeMethod, type WakeMethod } from '@/lib/routine';
+import { nightInto } from '@/lib/lock-state';
+import { devPutBackProofs, devWinMorning, type MorningProof } from '@/lib/morning-proof';
+import { getRoutine, isWakeMethod, type WakeMethod } from '@/lib/routine';
 import { nextBedtime, syncLock } from '@/lib/lock-controller';
 import { armRehearsalTimerEnd, endTestLock, finishRehearsal, getRehearsal, getTestLock, rehearsalHeld, sharedGet, sharedSet, winRehearsal } from '@/lib/screen-time';
 
@@ -92,6 +94,7 @@ export const pretendNightEnd = (): Date | null => (current.phase === 'night' ? n
  * some of it is just checking the screens). The tab bar's Exit test (app-tabs.tsx).
  */
 export function exitTestMorning() {
+  dropCountedTest();
   if (getTestLock()) endTestLock();
   if (getRehearsal()) endRehearsal();
   setWakePreview({ phase: 'real', won: null });
@@ -139,6 +142,15 @@ export const pretendWoke = (method?: WakeMethod) => {
   if (current.phase === 'morning') wonSince = current.since;
   // You → Test the lock: the bedtime apps really sleep until the test morning on Home is won.
   if (method && getTestLock()) endTestLock();
+  // A counted test: recorded as the morning's real wake-up, so the real payoff, moon and streak play.
+  const counted = method ? getCountedTest() : null;
+  if (method && counted) {
+    sharedSet(COUNTED_KEY, null);
+    devWinMorning(counted.key, method, countedWinAt(counted.key));
+    syncLock();
+    setWakePreview({ phase: 'real', won: null });
+    return;
+  }
   // You → Rehearse a night: won in Locturne rather than from the shield.
   if (method && rehearsalHeld(getRehearsal())) {
     winRehearsal();
@@ -146,6 +158,41 @@ export const pretendWoke = (method?: WakeMethod) => {
   }
   setWakePreview({ phase: 'woke', won: method ? { method, at: Date.now() } : null });
 };
+
+/**
+ * A counted test wake-up (You → Developer → Morning unlocks, user 2026-11-25: wake-up posts that
+ * line up): the mornings and streak before it were made up (`devSeedRunHistory`) and its win is
+ * recorded as the morning `key`'s real wake-up. `held`: that morning's real proofs, taken out
+ * for it and put back if it's left unwon. Saved in the App Group, so a relaunch mid-test keeps it.
+ */
+type CountedTest = { key: string; held: MorningProof[] };
+const COUNTED_KEY = 'locturne.countedTest';
+
+export const getCountedTest = () => sharedGet<CountedTest>(COUNTED_KEY);
+
+export function startCountedTest(key: string, held: MorningProof[]) {
+  sharedSet(COUNTED_KEY, { key, held });
+}
+
+/** A counted test left unwon: the morning's real proofs come back. */
+export function dropCountedTest() {
+  const counted = getCountedTest();
+  if (!counted) return;
+  sharedSet(COUNTED_KEY, null);
+  devPutBackProofs(counted.held);
+  syncLock();
+}
+
+/**
+ * When a counted test's win says you got up: a few minutes after the routine's morning start
+ * (posts filmed at any hour read as a morning, as the pretend payoff's 7-something), or now if
+ * that's still to come.
+ */
+function countedWinAt(key: string, now = Date.now()): number {
+  const start = nightInto(key, getRoutine(new Date(now))).end.getTime();
+  const at = start + (2 + (new Date(now).getMinutes() % 12)) * 60_000;
+  return at <= now ? at : now;
+}
 
 /** Ends a rehearsal unwon (You, or Exit test on its morning), then puts the day's shield words back. */
 export function endRehearsal() {
@@ -185,6 +232,7 @@ export function resumeTestLock(now = new Date()) {
   if (!lock) return;
   if (nextBedtime(new Date(lock.since)).getTime() <= now.getTime()) {
     endTestLock();
+    dropCountedTest();
     if (current.phase === 'morning') setWakePreview({ phase: 'real', won: null });
     return;
   }

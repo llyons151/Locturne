@@ -1,6 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { useSyncExternalStore } from 'react';
-import { devSeedMornings, getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
+import { devSeedMornings, devSeedRun, getFirstMorning, getMorningsWon, getProofs, onProofChange, type MorningProof } from '@/lib/morning-proof';
 import { sharedGet, sharedSet } from '@/lib/screen-time';
 
 import { LADDER, MOONS } from './moon-data';
@@ -217,7 +217,22 @@ export function devEarnAll(): number {
  */
 export function devSeedHistory(count: number): number {
   // The proofs' change settles the ladder, dating every moon yesterday: the save below replaces that.
-  const keys = devSeedMornings(count);
+  return ownLadderFor(devSeedMornings(count));
+}
+
+/**
+ * Dev and preview builds, for wake-up posts that line up: `mornings` got up with a `streak` run
+ * before morning `today` (`devSeedRun`) and the ladder moons they'd have brought, as above.
+ * Returns the proofs of `today` taken out when `keepToday` is false (a counted test, wake-preview.ts).
+ */
+export function devSeedRunHistory(mornings: number, streak: number, today: string, keepToday: boolean): MorningProof[] {
+  const { keys, held } = devSeedRun(mornings, streak, today, keepToday);
+  ownLadderFor(keys);
+  return held;
+}
+
+/** The ladder's moons for the made-up mornings `keys` (oldest first), each on its morning, already shown. */
+function ownLadderFor(keys: string[]): number {
   const owned: Record<string, OwnedMoon> = {};
   LADDER_MORNINGS.forEach((morning, i) => {
     const id = LADDER[i];
