@@ -37,11 +37,11 @@ test('the stub offers the decided plans, with trials only on annual', async () =
   assert.equal(offers.monthly.trialDays, null);
   assert.equal(offers.exitOffers['half-price']?.priceString, '$29.99');
   assert.equal(offers.exitOffers['longer-trial']?.trialDays, 14);
-  assert.equal(offers.exitArm, 'longer-trial');
+  assert.equal(offers.exitArm, 'half-price');
 });
 
 test('no intro-offer eligibility: no trial anywhere, and no longer-trial arm', async () => {
-  const offers = await createDevPurchases({ trialEligible: false }).getOffers();
+  const offers = await createDevPurchases({ trialEligible: false, exitArm: 'longer-trial' }).getOffers();
   assert.equal(offers.annual.trialDays, null);
   assert.equal(offers.exitOffers['half-price']?.trialDays, null);
   assert.equal(offers.exitArm, 'none');

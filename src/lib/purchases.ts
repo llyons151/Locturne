@@ -29,11 +29,12 @@ export type PlanId = 'annual' | 'monthly';
 export const EXIT_ARMS = ['none', 'half-price', 'longer-trial'] as const;
 
 /**
- * Whether the exit offer can show outside the review tools. Off for 1.0: Apple has rejected
- * offers shown on closing the paywall under 5.6 (docs/APP_REVIEW_AUDIT.md, R2). Turn it on
- * only in a build that goes through review with it on, never from the dashboard.
+ * Whether the exit offer can show outside the review tools. Off for 1.0; on from the build after
+ * (user 2026-11-25: nobody who debated the price ever saw it). Apple has rejected offers shown on
+ * closing the paywall under 5.6 (docs/APP_REVIEW_AUDIT.md, R2), so the build that turns it on
+ * says so in the review notes. Never switched on from the dashboard.
  */
-export const EXIT_OFFER_LIVE = false;
+export const EXIT_OFFER_LIVE = true;
 /**
  * Whether the cancel flow's half-price save offer can show outside its preview. Off for 1.0
  * (user, 2026-11-11: not live on day one): cancelling goes straight to Apple's sheet, whatever
@@ -42,6 +43,12 @@ export const EXIT_OFFER_LIVE = false;
 export const SAVE_OFFER_LIVE = false;
 export type ExitArm = (typeof EXIT_ARMS)[number];
 export type ExitOfferArm = Exclude<ExitArm, 'none'>;
+
+/**
+ * The test is paused: every install gets half price with the 7-day trial (user 2026-11-25),
+ * not a random arm. Offering metadata (`exit_arm`) can still override it, `none` included.
+ */
+export const LIVE_EXIT_ARM: ExitOfferArm = 'half-price';
 
 /** What can be bought: a paywall plan, or the exit offer of one arm. */
 export type PurchaseTarget = PlanId | ExitOfferArm;
@@ -300,8 +307,8 @@ export const DEV_CATALOG = {
   extendedTrialDays: 14,
 } as const;
 
-/** The stub's arm, and the one to ship if the test is stopped (GAME_PLAN: 14 days free leads). */
-export const DEFAULT_EXIT_ARM: ExitArm = 'longer-trial';
+/** The stub's arm: the one that ships (`LIVE_EXIT_ARM`). */
+export const DEFAULT_EXIT_ARM: ExitArm = LIVE_EXIT_ARM;
 
 type DevEntitlement = { target: PurchaseTarget; at: number; trialEndsAt: number | null };
 const DEV_KEY = 'locturne.devEntitlement';

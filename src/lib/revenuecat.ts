@@ -11,9 +11,9 @@
  *   paywall shows no trial (RevenueCat's advice: never promise a trial that may not come).
  * - Entitlement: `ENTITLEMENT_ID` active, including a trial. Every answer is cached in the App
  *   Group, so a launch with no network still knows a paid user and re-arms a lost night.
- * - Exit-offer arm: picked at random once per install, kept in the App Group and sent to
- *   RevenueCat as the `exit_arm` attribute. `exit_arm` in the current offering's metadata
- *   overrides it for everyone (to end the test without an app update).
+ * - Exit-offer arm: `LIVE_EXIT_ARM` for every install while the test is paused, kept in the App
+ *   Group and sent to RevenueCat as the `exit_arm` attribute. `exit_arm` in the current
+ *   offering's metadata overrides it for everyone (`none` turns the offer off without an update).
  */
 import type {
   CustomerInfo,
@@ -37,7 +37,7 @@ import {
   isExitArm,
   OFFERING_IDS,
   percentOff,
-  pickExitArm,
+  LIVE_EXIT_ARM,
   planOf,
   resolveExitArm,
   SAVE_OFFER_IDS,
@@ -322,12 +322,13 @@ export function purchaseFailure(error: unknown): PurchaseResult {
 export type RevenueCatOptions = {
   /** Where the entitlement cache and the exit arm live: the App Group on iOS. */
   store: KeyValue;
+  /** Unused while the exit-offer test is paused (`LIVE_EXIT_ARM`); kept for when it restarts. */
   random?: () => number;
   now?: () => Date;
 };
 
 export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCatOptions): PurchasesProvider {
-  const { store, random = Math.random, now = () => new Date() } = options;
+  const { store, now = () => new Date() } = options;
   const listeners = new Set<() => void>();
   // While `purchase` or `restore` runs, the update listener stays quiet: their callers arm.
   let inFlight = 0;
@@ -418,12 +419,10 @@ export function createRevenueCatPurchases(sdk: RevenueCatSdk, options: RevenueCa
     return signed ? { ...found, signed } : null;
   };
 
+  // The test is paused (`LIVE_EXIT_ARM`): everyone gets the same arm, an earlier random one included.
   const assignedArm = (): ExitArm => {
-    const saved = store.get<string>(EXIT_ARM_KEY);
-    if (isExitArm(saved)) return saved;
-    const arm = pickExitArm(random());
-    store.set(EXIT_ARM_KEY, arm);
-    return arm;
+    if (store.get<string>(EXIT_ARM_KEY) !== LIVE_EXIT_ARM) store.set(EXIT_ARM_KEY, LIVE_EXIT_ARM);
+    return LIVE_EXIT_ARM;
   };
   // Every install carries its arm, so the arms compare per install, not per paywall view.
   tag({ [ATTRIBUTES.exitArm]: assignedArm() });

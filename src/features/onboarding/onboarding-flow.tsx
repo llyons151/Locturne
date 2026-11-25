@@ -71,7 +71,15 @@ import { methodAccessFor, methodAccessPending, requestMethodAccess } from './met
 import { checkMotion, requestMotion, type MotionAccess } from './motion';
 import { canGoBack, currentStep, isStep, moonQuizFor, navigate, startNav, stepsFor } from './navigation';
 import { closeNightPicker, openNightPicker } from './night-picker';
-import { markExitOfferShown, saveSetup, saveTrialReminder, savedQuizAnswers, setPaywallOpen, wasExitOfferShown } from './setup';
+import {
+  markExitOfferShown,
+  saveSetup,
+  saveTrialReminder,
+  savedQuizAnswers,
+  setPaywallOpen,
+  wasClosedAtPaywall,
+  wasExitOfferShown,
+} from './setup';
 import { SimulatedPrompt, type Simulated } from './simulated-prompt';
 import { BUILD_EXIT_MS, BUILD_RISE_FIRST_MS, BuildFloor, moonBelow } from './screens/build-chapter';
 import { REVEAL_EXIT_MS, REVEAL_MOON_MS, REVEAL_SKY_MS, RevealDark } from './screens/reveal-screen';
@@ -91,6 +99,8 @@ const WARM_LOC_DOM = {
   bounces: false,
   contentInsetAdjustmentBehavior: 'never',
 } as const;
+/** How long the paywall waits before its X shows (user 2026-11-25: "after like 4 seconds"). */
+const CLOSE_X_AFTER_MS = 4000;
 /** The two paywall pages. Exit from either goes to `declined` instead of closing. */
 const PAYWALL: StepId[] = ['offer', 'plans'];
 
@@ -198,6 +208,7 @@ export function OnboardingFlow({
   newYear: previewNewYear = false,
   pain: previewPain,
   showPaywall = false,
+  asStore = false,
   preview,
 }: {
   initialStep?: string;
@@ -210,6 +221,8 @@ export function OnboardingFlow({
   resumeAtPaywall?: boolean;
   /** Review only (You → Redo onboarding): show the paywall even when already subscribed. */
   showPaywall?: boolean;
+  /** Review tools (`?store=1`): the paywall acts as the App Store build's, no Exit or skip, so the X and the offer can be tried. */
+  asStore?: boolean;
   /** Review only: the onboarding preview's edge cases (its Tree view). */
   preview?: PreviewEdge;
 }) {
@@ -319,7 +332,8 @@ export function OnboardingFlow({
   }, []);
   const [entitled, setEntitled] = useState(false);
   useEffect(() => {
-    if (!showPaywall) isEntitled().then(setEntitled, () => {});
+    // A `?store=1` preview is always a stranger who hasn't paid, whatever this browser bought while testing.
+    if (!showPaywall && !asStore) isEntitled().then(setEntitled, () => {});
   }, []);
   const [busy, setBusy] = useState(false);
   /** Bought or restored in this session (`finishSetup`). */
@@ -331,7 +345,8 @@ export function OnboardingFlow({
   }, [flowActive]);
 
   // The exit offer shows once per install, so rerunning onboarding can't farm it.
-  const [offerShownBefore] = useState(wasExitOfferShown);
+  // A `?store=1` preview can be reloaded to try it again.
+  const [offerShownBefore] = useState(() => !asStore && wasExitOfferShown());
   // Set once `declined` shows (Back from it mustn't bring it round again) or a purchase is
   // waiting for approval (no half price right after asking a parent for full price).
   const [noMoreExitOffer, setNoMoreExitOffer] = useState(() => isPurchasePending());
@@ -523,7 +538,47 @@ export function OnboardingFlow({
   // used to count, and reopening at the paywall after closing the app reads as one (the setup was
   // saved), which let a real unpaid TikTok install straight into the app. Subscribed reruns (See
   // plans, Redo setup) still leave via `entitled`.
-  const canLeave = __DEV__ || finished || entitled || awaitingApproval || (onMoneyStep && canSkipPaywall());
+  const canLeave = asStore ? finished || entitled || awaitingApproval : __DEV__ || finished || entitled || awaitingApproval || (onMoneyStep && canSkipPaywall());
+
+  /*
+   * The exit offer (docs/EXIT_OFFER_MOBBIN.md, user 2026-11-25). An unpaid first run can't leave,
+   * but the paywall gets an X CLOSE_X_AFTER_MS after it opens, and the X leads only to the
+   * one-time offer (half price, 7 days free). The offer's own X goes back to the plans. Shown once
+   * per install either way (`go('declined')` marks it), so it's never a loop.
+   */
+  const offerOnClose = PAYWALL.includes(step) && exitArm !== 'none' && !noMoreExitOffer;
+  const [closeXReady, setCloseXReady] = useState(false);
+  useEffect(() => {
+    if (!onMoneyStep || closeXReady) return;
+    const t = setTimeout(() => setCloseXReady(true), CLOSE_X_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [onMoneyStep, closeXReady]);
+  const closeX = offerOnClose && closeXReady ? () => go('declined') : undefined;
+  // Most who don't buy swipe home from the plans (docs/PAYWALL_DROPOFF_2026-11-24.md) and never touch
+  // the X. Coming back to the app after that, or a launch that reopens the paywall they closed the
+  // app on, opens the offer instead.
+  const unpaid = !finished && !entitled && !awaitingApproval;
+  const [reopenedAtPaywall] = useState(() => resumeAtPaywall && wasClosedAtPaywall());
+  const offerOnReturn = useEffectEvent(() => {
+    if (unpaid && offerOnClose && !busy && !isPurchasing()) go('declined');
+  });
+  useEffect(() => {
+    let away = false;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background') away = true;
+      else if (state === 'active' && away) {
+        away = false;
+        offerOnReturn();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+  // Once the prices are in (the offer needs them), a beat after the paywall has drawn.
+  useEffect(() => {
+    if (!reopenedAtPaywall || !offerOnClose) return;
+    const t = setTimeout(offerOnReturn, 600);
+    return () => clearTimeout(t);
+  }, [reopenedAtPaywall, offerOnClose]);
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => dispatch({ type: 'set', answers: { [key]: value } as Partial<Answers> });
   // A second tap during the short advance delay must not skip a screen, and Back cancels it.
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1136,15 +1191,18 @@ export function OnboardingFlow({
       {buildPage ? <BuildFloor key={buildPage.key} leaving={buildPage.leaving !== null} after={buildPage.held} /> : null}
       <Animated.View style={[styles.fill, pageStyle]} pointerEvents={sleepFrom ? 'none' : 'auto'}>
         <Shell
-          progress={progress}
+          progress={step === 'declined' ? null : progress}
           centered
           // Unclipped while a page runs its own way out: Loc and the reveal's squares leave past the body's edge.
           // And on the paywall, whose heading sits up in the top bar's empty middle (user 2026-10-27).
           clip={step !== 'plans' && !buildPage?.leaving && !pages.some((page) => page.leaving && isReveal(page.key))}
           onBack={back}
+          // The one-time offer is Sunlitt's (user 2026-11-25): only an X, top left, back to the plans.
+          backIcon={step === 'declined' ? 'close' : 'back'}
           // Restore is never up here: it's always under Get started, the corner empty on a first run (user 2026-11-12).
-          onExit={canLeave ? leave : undefined}
+          onExit={step === 'declined' ? undefined : canLeave ? leave : closeX}
           exitLabel="Exit"
+          exitIcon={onMoneyStep}
           footer={
             footers.length > 0 ? (
               <View>

@@ -226,10 +226,11 @@ test('offers come from the store, localized, with the exit products', async () =
   assert.equal(offers.exitOffers['longer-trial']?.trialDays, 14);
 });
 
-test('a used-up trial: no trial strings and no longer-trial arm', async () => {
+test('a used-up trial: no trial strings, and half price still offered without one', async () => {
   const offers = await provider(fakeSdk({ eligibility: () => INELIGIBLE }), memoryKeyValue(), 0.9).getOffers();
   assert.equal(offers.annual.trialDays, null);
-  assert.equal(offers.exitArm, 'none');
+  assert.equal(offers.exitArm, 'half-price');
+  assert.equal(offers.exitOffers['half-price']?.trialDays, null);
 });
 
 test('eligibility that fails to load shows no trial rather than a wrong one', async () => {
@@ -245,14 +246,15 @@ test('no Annual or Monthly in the current offering fails, so the paywall says th
   await assert.rejects(provider(fakeSdk({ offerings })).getOffers());
 });
 
-test('the exit arm is picked once, kept, and sent as an attribute', async () => {
+test('every install gets the live exit arm (half price), kept and sent as an attribute', async () => {
   const store = memoryKeyValue();
   const sdk = fakeSdk();
-  assert.equal((await provider(sdk, store, 0.5).getOffers()).exitArm, 'half-price');
+  assert.equal((await provider(sdk, store, 0.1).getOffers()).exitArm, 'half-price');
   assert.equal(store.get(EXIT_ARM_KEY), 'half-price');
   assert.equal(sdk.attributes[ATTRIBUTES.exitArm], 'half-price');
-  // A later launch draws a different number but keeps the arm.
-  assert.equal((await provider(fakeSdk(), store, 0.1).getOffers()).exitArm, 'half-price');
+  // An install that drew another arm while the test ran gets half price too.
+  store.set(EXIT_ARM_KEY, 'none');
+  assert.equal((await provider(fakeSdk(), store).getOffers()).exitArm, 'half-price');
 });
 
 test('offering metadata overrides the arm; missing exit offerings mean no offer', async () => {

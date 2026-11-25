@@ -225,14 +225,17 @@ export function declinedStep(ctx: StepContext): StepView {
   const price = offer.priceString;
   const monthly = perMonth(offer);
   // Sunlitt's one-time offer (user 2026-11-05): eyebrow, headline, the price alone mid-screen,
-  // one "gone forever" line over the button, "Cancel anytime" under it. The top bar's Exit is the way out.
+  // one "gone forever" line over the button, "Cancel anytime" under it. The X top left is the way out (back to the plans).
   return {
     body: (
       <View style={[page.top, styles.offerPage]}>
-        <Text style={styles.offerEyebrow}>One-time offer</Text>
-        <Voice text={longer ? 'Fair. Take longer to decide.' : 'Half price, every year.'} size={VoiceSize.headline} header />
+        {/* Top to bottom in the page's sequence: eyebrow, headline, then the price (user 2026-11-25). */}
+        <Reveal>
+          <Text style={styles.offerEyebrow}>One-time offer</Text>
+        </Reveal>
+        <Voice text={longer ? 'Fair. Take longer to decide.' : 'Save 50% every year'} size={VoiceSize.headline} header />
         {/* Longer trial: the free days are the big line, the monthly price under it (user 2026-11-05). */}
-        <View style={styles.offerMiddle}>
+        <Reveal style={styles.offerMiddle}>
           {longer ? null : <Text style={styles.offerWas}>{full}</Text>}
           {longer ? (
             <Text style={styles.offerPrice}>{`${days} days free`}</Text>
@@ -245,9 +248,11 @@ export function declinedStep(ctx: StepContext): StepView {
           <Text style={styles.offerSub}>
             {longer
               ? `Just ${monthly.replace(/[.,]00$/, '')} a month after`
-              : `It's less than ${monthly}/month${days ? `,\nstill ${days} days free` : ''}.`}
+              : days
+                ? `${days} days free, then less than ${monthly}/month.`
+                : `It's less than ${monthly}/month.`}
           </Text>
-        </View>
+        </Reveal>
       </View>
     ),
     footer: (

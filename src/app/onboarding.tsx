@@ -16,7 +16,9 @@ export default function OnboardingScreen() {
   // link would open the one-time exit offer for anyone, as often as they liked.
   // `?paywall=1` (You → Redo onboarding): the paywall shows even on a subscribed phone.
   // `?answers=<json>`, `?offers=fail`, `?screentime=refused`: the onboarding preview's edge cases.
-  const { step, exit, resume, newyear, insets, pain, paywall, answers, offers, screentime } = useLocalSearchParams<{
+  // `?store=1`: the paywall as the App Store build has it (no Exit or skip; the X after 4 s), to try the exit offer.
+  const { step, exit, resume, newyear, insets, pain, paywall, answers, offers, screentime, store } = useLocalSearchParams<{
+    store?: string;
     step?: string;
     pain?: string;
     exit?: string;
@@ -49,6 +51,7 @@ export default function OnboardingScreen() {
       newYear={review && newyear === '1'}
       pain={devLabs ? pain : undefined}
       showPaywall={devLabs && paywall === '1'}
+      asStore={review && store === '1'}
       preview={review ? previewEdge(answers, offers, screentime) : undefined}
     />
   );

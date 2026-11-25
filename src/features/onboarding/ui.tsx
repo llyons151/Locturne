@@ -34,17 +34,21 @@ type ShellProps = PropsWithChildren<{
   /** Every heading, line and caption centred (onboarding). Off, they start at the left (the cancel flow). */
   centered?: boolean;
   onBack?: () => void;
+  /** `close` draws the left button as an X (the one-time offer, Sunlitt's corner; user 2026-11-25). */
+  backIcon?: 'back' | 'close';
   /** Missing hides Exit: a first setup can't be left before it's saved. */
   onExit?: () => void;
   /** The top-right link's word: "Exit", or "Restore" on a first run's welcome (user 2026-11-07, Jomo mockup). */
   exitLabel?: string;
+  /** An X in the corner instead of the word, fading in when `onExit` arrives (the paywall's close, user 2026-11-25). */
+  exitIcon?: boolean;
   footer?: ReactNode;
   /** Off lets a page run past the body's bottom, over the button's area (`build`'s ground sliding off). */
   clip?: boolean;
 }>;
 
 /** Fixed full-screen page: top bar, content, and a bottom action that never scrolls away. */
-export function Shell({ progress, centered = false, onBack, onExit, exitLabel, footer, clip = true, children }: ShellProps) {
+export function Shell({ progress, centered = false, onBack, backIcon, onExit, exitLabel, exitIcon, footer, clip = true, children }: ShellProps) {
   // Pad with the provider's window insets; the native SafeAreaView can measure zero inside a full-screen modal.
   const insets = useSafeAreaInsets();
   // Pages are laid out to fit at the standard text sizes. Past that (B13: larger Dynamic Type
@@ -54,7 +58,7 @@ export function Shell({ progress, centered = false, onBack, onExit, exitLabel, f
   return (
     // The button floats clear of the bottom (Insight Timer, user 2026-10-26): never flush on a phone without a home bar.
     <View style={[styles.shell, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, Space.l) }]}>
-      <TopBar progress={progress} onBack={onBack} onExit={onExit} exitLabel={exitLabel} />
+      <TopBar progress={progress} onBack={onBack} backIcon={backIcon} onExit={onExit} exitLabel={exitLabel} exitIcon={exitIcon} />
       {/* At standard text sizes pages never scroll: every screen is laid out to fit, with tighter layouts on short phones. */}
       <Centered.Provider value={centered}>
         {scrolls ? (
@@ -81,7 +85,15 @@ export function Shell({ progress, centered = false, onBack, onExit, exitLabel, f
  * the flow opens (the place map, the code setup), so they read as part of it (user, 2026-10-26).
  * No inset padding: whoever places it is under the status bar already.
  */
-export function TopBar({ progress, onBack, onExit, exitLabel = 'Exit' }: Pick<ShellProps, 'progress' | 'onBack' | 'onExit' | 'exitLabel'>) {
+export function TopBar({
+  progress,
+  onBack,
+  backIcon = 'back',
+  onExit,
+  exitLabel = 'Exit',
+  exitIcon = false,
+}: Pick<ShellProps, 'progress' | 'onBack' | 'backIcon' | 'onExit' | 'exitLabel' | 'exitIcon'>) {
+  const close = backIcon === 'close';
   return (
     <View style={styles.topBar}>
       <Pressable
@@ -89,29 +101,61 @@ export function TopBar({ progress, onBack, onExit, exitLabel = 'Exit' }: Pick<Sh
         disabled={!onBack}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel="Back"
+        accessibilityLabel={close ? 'Close' : 'Back'}
         style={[styles.roundButton, !onBack && styles.hidden]}
       >
         <SymbolView
-          name={{ ios: 'arrow.left', android: 'arrow_back', web: 'arrow_back' }}
-          size={20}
+          name={close ? { ios: 'xmark', android: 'close', web: 'close' } : { ios: 'arrow.left', android: 'arrow_back', web: 'arrow_back' }}
+          size={close ? 18 : 20}
           weight="semibold"
           tintColor={Nocturne.text}
         />
       </Pressable>
       {progress === null ? <View style={styles.progress} /> : <ChapterBar progress={progress} />}
-      <Pressable
-        onPress={onExit}
-        disabled={!onExit}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={exitLabel}
-        accessibilityElementsHidden={!onExit}
-        style={[styles.exitButton, !onExit && styles.hidden]}
-      >
-        <Text style={styles.exit}>{exitLabel}</Text>
-      </Pressable>
+      {exitIcon ? (
+        <CloseX onPress={onExit} />
+      ) : (
+        <Pressable
+          onPress={onExit}
+          disabled={!onExit}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={exitLabel}
+          accessibilityElementsHidden={!onExit}
+          style={[styles.exitButton, !onExit && styles.hidden]}
+        >
+          <Text style={styles.exit}>{exitLabel}</Text>
+        </Pressable>
+      )}
     </View>
+  );
+}
+
+/**
+ * The paywall's close: an X in the bar's white, the Back arrow's twin, fading in when it's given
+ * an `onPress` (shown a few seconds late, Sunlitt/QUITTR style). Opacity only (iOS fast path).
+ */
+function CloseX({ onPress }: { onPress?: () => void }) {
+  const reduced = useReducedMotion();
+  const shown = useSharedValue(onPress ? 1 : 0);
+  useEffect(() => {
+    shown.set(withTiming(onPress ? 1 : 0, { duration: reduced ? 0 : 450, easing: Easing.out(Easing.quad) }));
+  }, [onPress, reduced, shown]);
+  const fade = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  return (
+    <Animated.View style={fade}>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        accessibilityElementsHidden={!onPress}
+        style={styles.closeX}
+      >
+        <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={18} weight="semibold" tintColor={Nocturne.text} />
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -867,6 +911,7 @@ const styles = StyleSheet.create({
   trackFill: { width: '100%', height: '100%', borderRadius: 4, backgroundColor: Nocturne.text },
   exitButton: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   exit: { color: Nocturne.text2, fontSize: 15, fontWeight: '500' },
+  closeX: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   body: { paddingHorizontal: Gap.gutter, paddingBottom: Space.l },
   /** A scrolling body still fills the page, so flex layouts inside it keep their shape. */
   grow: { flexGrow: 1 },
