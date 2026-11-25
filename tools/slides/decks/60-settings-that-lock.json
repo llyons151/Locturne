@@ -1,0 +1,82 @@
+{
+ "title": "the iPhone settings that actually stop 1am scrolling",
+ "format": "Notes listicle, one setting per slide with its Settings path; app as the method",
+ "job": "save",
+ "app": "method",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "why": "Reference content people follow later (save) with a send reason (whoever holds your passcode). Surprise: Focus doesn't block apps; Block at Downtime is hidden until a passcode exists. The app is the one thing Screen Time can't do: the morning.",
+ "caption": "save this and set it up tonight. send it to whoever's holding your passcode 🔒 #screentime #iphonetips #doomscrolling #sleep",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "on your phone: confirm Sleep Focus really lets Instagram open, and where Block at Downtime shows up",
+  "open every Settings path on your own iPhone and confirm the menu names (Apple's guide is iOS 26; iOS 27 changed Screen Time)",
+  "confirm Color Filters can be added to the Accessibility Shortcut on your iOS",
+  "slide 6 says 'i use locturne': true for you?",
+  "AI-made photos (gen-s): turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "3 iPhone settings that actually stop 1am scrolling",
+   "image": "/photos/gen-s/settings-hook.png",
+   "narrow": true,
+   "aside": "(and the one everyone turns on that doesn't. save this for tonight)"
+  },
+  {
+   "layout": "point",
+   "heading": "Sleep Focus _doesn't lock anything_",
+   "top": "*Settings → Focus → Sleep*",
+   "text": "it only picks which apps can _send notifications_\n\ninstagram still opens. it just stops buzzing",
+   "bottom": "keep it for the noise, not the scrolling",
+   "image": "/photos/gen-s/focus.png"
+  },
+  {
+   "layout": "point",
+   "heading": "Downtime has a _hidden switch_",
+   "top": "*Settings → Screen Time → Downtime → Scheduled*",
+   "text": "on its own, Downtime is a reminder you can _tap straight past_\n\nset a Screen Time passcode (next slide) and you can turn on _Block at Downtime_. then the apps actually grey out",
+   "bottom": "",
+   "image": "/photos/gen-s/downtime.png",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "let _someone else_ set the passcode",
+   "top": "*Settings → Screen Time → Lock Screen Time Settings*",
+   "text": "a code you know is a code you'll type at 1am\n\nhand your phone to a roommate or partner and let them pick 4 digits _you don't see_. skip passcode recovery",
+   "bottom": "(send this to whoever's holding yours)",
+   "image": "/photos/gen-s/passcode.png"
+  },
+  {
+   "layout": "point",
+   "heading": "grayscale on a _triple-click_",
+   "top": "*Settings → Accessibility → Display & Text Size → Color Filters → Grayscale*",
+   "text": "add Color Filters to the _Accessibility Shortcut_ and the side button flips it\n\ngrey tiktok is _boring tiktok_. small studies saw people use their phones a bit less, but it wears off",
+   "bottom": "",
+   "image": "/photos/gen-s/gray.png",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "the part settings _can't do_",
+   "top": "downtime ends at 7. the scroll starts at 7:01",
+   "text": "so i use _locturne_. my apps stay asleep in the morning until i've _walked 200 steps_\n\nscreen time can't make you get up. this can",
+   "bottom": "",
+   "phone": "/photos/renders/02-steps-clean.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/gen-s/settings-hook.png",
+   "question": "which one are you setting up tonight? 👇",
+   "lines": [
+    "start with the passcode one. it takes 2 minutes",
+    "locturne is on the App Store"
+   ]
+  }
+ ]
+}

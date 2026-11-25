@@ -53,8 +53,6 @@ export type Answers = {
   bedtime: number;
   wake: number;
   morningMinutes?: number;
-  /** What they've tried before. Only feeds his reply under it. */
-  tried?: string;
   timeBack?: string;
   /** `age`, as the middle of the band they picked: only for the reveal's lifetime number. */
   age?: number;
@@ -208,26 +206,6 @@ const WORST_TIME_OFFER: Record<string, string> = {
   bored: 'Bed first. The rest of the day follows.',
 };
 
-// Single choice, so the question asks for the one that lasted longest.
-export const TRIED: Choice<string>[] = [
-  { label: 'Screen Time limits', value: 'screen-time' },
-  { label: 'Another blocker app', value: 'blocker' },
-  { label: 'Willpower', value: 'willpower' },
-  { label: 'Nothing yet', value: 'nothing' },
-];
-
-/** Each branch swaps in the thing its people most often tried for "Willpower", so every list is four. */
-const TRIED_EXTRA: Partial<Record<Pain, Choice<string>>> = {
-  night: { label: 'Sleep Focus or Downtime', value: 'sleep-focus' },
-  morning: { label: 'An alarm across the room', value: 'alarm' },
-  overall: { label: 'Deleting the apps', value: 'delete' },
-};
-
-export function triedChoices(pain: Pain | undefined): Choice<string>[] {
-  const extra = TRIED_EXTRA[pain ?? 'all'];
-  return extra ? TRIED.map((choice) => (choice.value === 'willpower' ? extra : choice)) : TRIED;
-}
-
 export const TIME_BACK: Choice<string>[] = [
   { label: 'Sleep more', value: 'sleep' },
   { label: 'Read', value: 'read' },
@@ -297,7 +275,6 @@ export const REPLY_BUTTON: Partial<Record<StepId, string>> = {
   'night-minutes': 'Roughly.',
   'nights-per-week': 'That’s the lot.',
   'morning-minutes': 'Sounds right.',
-  tried: 'Fair point.',
   'time-back': 'That’s the plan.',
   method: 'That’s my morning.',
 };

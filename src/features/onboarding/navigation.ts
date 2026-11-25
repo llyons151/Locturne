@@ -30,7 +30,6 @@ export const STEPS = [
   'nights-per-week',
   // Straight after the running total ("6 hours lost a week"): what they'd do with them back.
   'time-back',
-  'tried',
   // Attribution inside the quiz, so non-buyers answer it too and nothing passive sits between
   // the deal and the price (docs/PAYWALL_PRIMING.md, 2026-10-26).
   'found',
@@ -95,7 +94,7 @@ export function stepsFor(pain: Pain | undefined): StepId[] {
 
 /** The quiz questions asked on the risen moon: everything after the times, through `age`. */
 export function moonQuizFor(pain: Pain | undefined): StepId[] {
-  return [...BRANCH_QUIZ[pain ?? 'all'].slice(2), 'time-back', 'tried', 'found', 'age'];
+  return [...BRANCH_QUIZ[pain ?? 'all'].slice(2), 'time-back', 'found', 'age'];
 }
 
 /**

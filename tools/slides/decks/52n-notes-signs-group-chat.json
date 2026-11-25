@@ -1,0 +1,81 @@
+{
+ "title": "5 signs your group chat is why nobody sleeps",
+ "format": "Notes listicle, app on one point",
+ "job": "share",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Third send-to-someone variant: 52f (send to partner) hit 1.3K vs 52c 100. Group chat = one send reaches several people.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "send this to the group chat. who's 5/5? #groupchat #friends #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'i was 5/5'. Only if true for you",
+  "slide 1 photo (dark-closeup-girl) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your group chat is why nobody sleeps",
+   "image": "/photos/dark-closeup-girl.jpg",
+   "narrow": true,
+   "aside": "(send this to the gc)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "it _comes alive at 1am_",
+   "top": "dead all day, then _47 messages_",
+   "text": "nobody says anything important\n\nyou _still can't put it down_",
+   "bottom": "",
+   "image": "/photos/phone-glow-dark.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "\"goodnight\" means _nothing_",
+   "top": "everyone said it. _everyone's still online_",
+   "text": "one meme _restarts the whole night_",
+   "bottom": "",
+   "image": "/photos/clock-midnight-black.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "you send tiktoks _instead of sleeping_",
+   "top": "\"this is so us\" _at 2:14am_",
+   "text": "you found it because _you were still scrolling_",
+   "bottom": "",
+   "image": "/photos/pov-bed-phone.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you catch up _before you get up_",
+   "top": "the first thing you read is _the chat_",
+   "text": "your alarm went off 20 minutes ago\n\nyou're _still in bed reading_",
+   "bottom": "",
+   "image": "/photos/blinds-sunrise.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "someone has to _leave first_",
+   "top": "nobody wants to _miss something_",
+   "text": "so when it starts up at 1am i hit _block now_\n\nmy apps _go to sleep_ and the chat _can wait_",
+   "bottom": "",
+   "phone": "/photos/renders/10-block-now-clean.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "send this to the group chat 👀 who's 5/5?",
+   "lines": [
+    "i was 5/5",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

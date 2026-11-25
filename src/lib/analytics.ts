@@ -214,7 +214,6 @@ type QuizAnswers = {
   morningMinutes?: number;
   found?: string;
   age?: number;
-  tried?: string;
   timeBack?: string;
   method?: string;
 };
@@ -228,7 +227,6 @@ const QUESTION_FOR_STEP: Record<string, keyof QuizAnswers> = {
   'morning-minutes': 'morningMinutes',
   found: 'found',
   age: 'age',
-  tried: 'tried',
   'time-back': 'timeBack',
   method: 'method',
 };

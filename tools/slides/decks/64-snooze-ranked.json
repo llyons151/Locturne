@@ -1,0 +1,90 @@
+{
+ "title": "every way to stop snoozing, ranked by how easy it is to cheat",
+ "format": "Notes-app ranking table (method | how you cheat it) + question closer; app as punchline",
+ "job": "save",
+ "app": "punchline",
+ "compare": "heyitsliiv-past-me",
+ "account": "@locturne",
+ "why": "Comparison/ranking hook (best median views in Virlo's data) aimed at people who already beat every tool. The cheat column is the relatable part; the last row is the app.",
+ "caption": "which one have you beaten? be honest 👇 #snooze #alarm #morningroutine #college",
+ "sound": "trending, upbeat",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "AI-made hook photo: turn ON the AI label",
+  "passes row: 2 passes a month is still the rule in the app",
+  "'mine: the math alarm' and 'the app i use' must be true"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "8 ways to stop snoozing, ranked by how easy they are to cheat",
+   "image": "/photos/gen-s/ranked-hook.png",
+   "narrow": true,
+   "aside": "(from easiest to beat to hardest)"
+  },
+  {
+   "layout": "notes",
+   "title": "Ways to stop snoozing ⏰",
+   "sub": "ranked: easiest to cheat first",
+   "rows": [
+    [
+     "6 alarms, 5 min apart",
+     "you learn to sleep through _all six_"
+    ],
+    [
+     "sunrise lamp",
+     "nice light. you _roll over_"
+    ],
+    [
+     "friend calls you",
+     "you answer _from bed_"
+    ],
+    [
+     "alarm across the room",
+     "walk over, off, _back to bed_"
+    ],
+    [
+     "math puzzle alarm",
+     "solved it _half asleep_. back to bed"
+    ]
+   ]
+  },
+  {
+   "layout": "notes",
+   "title": "Ways to stop snoozing ⏰",
+   "sub": "…the hard ones",
+   "rows": [
+    [
+     "phone charging in the kitchen",
+     "you get up… and _scroll on the couch_"
+    ],
+    [
+     "same wake time every day",
+     "the only one with _research behind it_. weekends break it"
+    ],
+    [
+     "apps locked until you walk 200 steps",
+     "you can't walk _lying down_. 2 passes a month, that's it"
+    ]
+   ]
+  },
+  {
+   "layout": "screen",
+   "line": "the last one is the app i use. it's called locturne",
+   "phone": "/photos/renders/02-steps-clean.png",
+   "bg": "/photos/gen-s/ranked-hook.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/gen-s/ranked-hook.png",
+   "question": "which one have you beaten? be honest 👇",
+   "lines": [
+    "mine: the math alarm. every single day",
+    "locturne is on the App Store"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,82 @@
+{
+ "title": "5 signs your best friend is why you're up at 3am",
+ "format": "Notes listicle, app on one point",
+ "job": "share",
+ "app": "punchline",
+ "variantOf": "52-notes-signs",
+ "why": "Fourth send-to-someone variant (52f partner 1.3K, 52m roommate, 52n group chat). One person you'd actually send it to; FaceTime and reels instead of a group thread.",
+ "compare": "amayareading-10-things",
+ "account": "@locturne",
+ "caption": "send this to your best friend. who's worse? #bestfriend #bff #screentime",
+ "sound": "moody, low volume",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "closer: 'we were 5/5'. Only if true for you",
+  "point 5: shield render shows 11:42, matches 'apps go to sleep at 11:30'",
+  "slide 1 photo (moody-selfie) is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "5 signs your best friend is why you're up at 3am",
+   "image": "/photos/moody-selfie.jpg",
+   "narrow": true,
+   "aside": "(send this to them)",
+   "asideRight": true
+  },
+  {
+   "layout": "point",
+   "heading": "\"one more reel\" _goes both ways_",
+   "top": "you send one, _they send three back_",
+   "text": "neither of you can _be the one who stops_",
+   "bottom": "",
+   "image": "/photos/scrolling-overhead.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "the facetime _never actually ends_",
+   "top": "nobody's talking. _nobody hangs up_",
+   "text": "you both fell asleep _with it still on_",
+   "bottom": "",
+   "image": "/photos/bedroom-night-purple.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "\"ok goodnight\" _then a voice memo_",
+   "top": "_4 minutes long_. about nothing",
+   "text": "you replied with _a 6 minute one_",
+   "bottom": "",
+   "image": "/photos/hand-phone-blanket.jpg"
+  },
+  {
+   "layout": "point",
+   "heading": "you're both _late the next morning_",
+   "top": "same excuse, _same 3am screenshot_",
+   "text": "and you're already _texting each other about it_",
+   "bottom": "",
+   "image": "/photos/bed-white-bright.jpg",
+   "imageSide": "left"
+  },
+  {
+   "layout": "point",
+   "heading": "one of you _has to be the adult_",
+   "top": "so now my apps _go to sleep at 11:30_",
+   "text": "they can send 40 reels\n\nthey'll _still be there in the morning_",
+   "bottom": "",
+   "phone": "/photos/renders/13-shield-night.png"
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/locturne-icon.png",
+   "question": "send this to your best friend 👀 who's worse?",
+   "lines": [
+    "we were 5/5",
+    "the app is locturne, it's on the App Store"
+   ]
+  }
+ ]
+}

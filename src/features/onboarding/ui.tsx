@@ -445,7 +445,7 @@ export function Ready({ ready, children }: PropsWithChildren<{ ready: boolean }>
 
 /**
  * His reply to the answer just picked, on the question's own screen: one voice line (and,
- * for `tried`, a plain sentence under it). Keyed by the answer, so a new pick replays it.
+ * optionally, a plain sentence under it). Keyed by the answer, so a new pick replays it.
  */
 export function Reply({ text, detail, children }: PropsWithChildren<{ text?: string; detail?: string }>) {
   return (

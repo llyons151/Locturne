@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- Pinned-post trio renderer. trio.html?v=<id> draws one 3240x1440 canvas = three 1080x1440 (3:4) tiles.
+     Versions live in versions.js. Phones are real 3D renders from tools/store-shots/phone3d (compose.py) in ph/. -->
+<html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 3240px; height: 1440px; overflow: hidden; background: #000; }
+  #c { position: relative; width: 3240px; height: 1440px; overflow: hidden; font-family: Inter, sans-serif; color: #EDEBE6;
+       -webkit-font-smoothing: antialiased; }
+  .layer { position: absolute; inset: 0; }
+  .grain { background: url(../../../locturne_landing/public/sky/grain.webp); opacity: .05; mix-blend-mode: overlay; }
+  .star { position: absolute; border-radius: 50%; background: #fff; }
+  .phone { position: absolute; transform-origin: 50% 50%; }
+  .phone img { display: block; height: 100%; }
+  .txt { position: absolute; text-align: center; letter-spacing: -0.025em; }
+  .txt .h { font-weight: 500; line-height: 1.04; }
+  .txt .h b { font-weight: 800; }
+  .txt .k { font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .62; }
+  .txt .s { font-weight: 500; opacity: .7; letter-spacing: -0.01em; line-height: 1.3; }
+  .pill { display: inline-block; padding: .62em 1.15em; border-radius: 999px; font-weight: 600;
+          letter-spacing: -0.01em; }
+  .img { position: absolute; }
+  .seam { position: absolute; top: 0; bottom: 0; width: 2px; background: #f00; display: none; }
+  body.debug .seam { display: block; }
+</style></head>
+<body><div id="c"></div>
+<script src="versions.js"></script>
+<script src="versions-moon.js"></script>
+<script>
+const q = new URLSearchParams(location.search);
+const ALL = VERSIONS.concat(typeof MOON !== 'undefined' ? MOON : []);
+const V = ALL.find(v => v.id === q.get('v')) || VERSIONS[0];
+if (q.has('debug')) document.body.classList.add('debug');
+const c = document.getElementById('c');
+const el = (tag, cls, css, html) => { const e = document.createElement(tag); if (cls) e.className = cls;
+  if (css) Object.assign(e.style, css); if (html != null) e.innerHTML = html; c.appendChild(e); return e; };
+
+// background: CSS background string(s), stacked
+(V.bg || []).forEach(b => el('div', 'layer', typeof b === 'string' ? { background: b } : b));
+// stars: seeded so every render matches
+if (V.stars) { let s = V.stars.seed || 7; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < V.stars.n; i++) { const d = 1.4 + r() * (V.stars.max || 3); const y = r() * (V.stars.h || 700);
+    el('div', 'star', { left: r() * 3240 + 'px', top: y + 'px', width: d + 'px', height: d + 'px',
+      opacity: (0.25 + r() * 0.6) * (1 - y / (V.stars.h || 700) * 0.7) }); } }
+// images below phones (moon, Loc, icon...)
+(V.under || []).forEach(i => el('img', 'img', i.css).src = i.src);
+// phones: {s: shot, a: angle, x, y (centre), h (height), r (roll), z, shadow}
+(V.phones || []).forEach(p => {
+  const d = el('div', 'phone', { left: p.x + 'px', top: p.y + 'px', height: p.h + 'px', zIndex: p.z || 1,
+    transform: `translate(-50%,-50%) rotate(${p.r || 0}deg)`,
+    filter: p.shadow === false ? 'none' : `drop-shadow(0 ${p.h * .03}px ${p.h * .045}px rgba(0,0,0,${p.so || .55}))` });
+  const im = document.createElement('img'); im.src = q.has('hq') ? `phones/${p.s}__${p.a || 'yawp000_pitchp00'}.png` : `ph/${p.s}__${p.a || 'yawp000_pitchp00'}.webp`; d.appendChild(im);
+});
+(V.over || []).forEach(i => el('img', 'img', i.css).src = i.src);
+// raw html layers: {css, html}
+(V.html || []).forEach(h => el('div', '', { position: 'absolute', ...h.css }, h.html));
+// text blocks: {x (centre), y (top), w, html, size, color, align, z}
+(V.text || []).forEach(t => el('div', 'txt', { left: (t.x - (t.w || 960) / 2) + 'px', top: t.y + 'px', width: (t.w || 960) + 'px',
+  fontSize: (t.size || 92) + 'px', color: t.color, textAlign: t.align || 'center', zIndex: t.z || 5 }, t.html));
+if (V.grain !== false) el('div', 'layer grain', { zIndex: 9 });
+[1080, 2160].forEach(x => el('div', 'seam', { left: x - 1 + 'px', zIndex: 20 }));
+document.fonts.ready.then(() => Promise.all([...document.images].map(i => i.decode().catch(() => 0))))
+  .then(() => { document.title = 'ready'; });
+</script></body></html>

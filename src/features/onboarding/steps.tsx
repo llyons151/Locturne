@@ -45,7 +45,6 @@ import {
   REPLY_BUTTON,
   timeBackChoices,
   timeBackQuestion,
-  triedChoices,
   type Answers,
   type ExitOffer,
   type StepId,
@@ -502,16 +501,6 @@ export function renderStep(ctx: StepContext): StepView {
           />,
         ),
         ...replyButton(answers.morningMinutes !== undefined),
-      };
-    }
-
-    case 'tried': {
-      return {
-        ...moonQuestion(
-          'What have you tried?',
-          <Options options={triedChoices(answers.pain)} value={answers.tried} onChoose={(value) => set('tried', value)} tone="moon" dense />,
-        ),
-        ...replyButton(answers.tried !== undefined),
       };
     }
 

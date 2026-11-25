@@ -1,0 +1,91 @@
+{
+ "title": "the night-before checklist for an 8am",
+ "format": "Checklist (20 items) + how i actually do it + question closer",
+ "job": "save",
+ "app": "method",
+ "compare": "growing-diaries-50-things",
+ "account": "@locturne",
+ "why": "A long checklist is pure save bait, aimed by prop (8am lecture/shift) at the 18-26 fixed-morning bullseye. The app is one item and then the method.",
+ "caption": "save this for sunday night. send it to the friend with the 8am 😭 #college #8amclass #morningroutine #studentlife",
+ "sound": "soft, lo-fi",
+ "size": [
+  1080,
+  1350
+ ],
+ "check": [
+  "AI-made photos (gen-s): turn ON the AI label",
+  "closer line must be true",
+  "closer 'mine was 8:00. every day.' must be true, or change it"
+ ],
+ "slides": [
+  {
+   "layout": "hook",
+   "title": "20 things to do the night before an 8am",
+   "image": "/photos/gen-s/8am-hook.png",
+   "narrow": true,
+   "aside": "(so you're not waking up at 7:52. send it to the friend with the 8am)"
+  },
+  {
+   "layout": "checklist",
+   "heading": "before 11",
+   "start": 1,
+   "images": [
+    "/photos/gen-s/check-clothes.png",
+    "/photos/gen-s/check-bag.png"
+   ],
+   "items": [
+    "lay out tomorrow's clothes",
+    "pack the bag, by the door",
+    "keys + ID in the same spot",
+    "fill a water bottle",
+    "check where the class is",
+    "prep breakfast you can grab",
+    "charge headphones, laptop",
+    "shower tonight, not at 7",
+    "write the first task down",
+    "set the coffee up"
+   ]
+  },
+  {
+   "layout": "checklist",
+   "heading": "lights out",
+   "start": 11,
+   "images": [
+    "/photos/gen-s/check-water.png",
+    "/photos/gen-s/check-walk.png"
+   ],
+   "items": [
+    "count back 8 hours from your alarm",
+    "alarm volume up, not vibrate",
+    "phone charging away from the pillow",
+    "apps go to sleep at bedtime",
+    "glass of water by the bed",
+    "curtains open a crack",
+    "same wake time on weekends",
+    "feet on the floor before the phone",
+    "walk before you scroll",
+    "leave 15 min of buffer"
+   ]
+  },
+  {
+   "layout": "demo",
+   "heading": "how i actually do #14 and #19",
+   "phone": "/photos/renders/02-steps-clean.png",
+   "text": "my apps _go to sleep_ at bedtime and stay asleep until i've _walked 200 steps_\n\nby the time instagram wakes up, i'm already up\n\n*(the rest of the list is just habit)*",
+   "card": {
+    "icon": "/demo/icon.png",
+    "name": "Locturne",
+    "subtitle": "Bedtime lock. Walk to unlock."
+   }
+  },
+  {
+   "layout": "closer",
+   "avatar": "/photos/gen-s/8am-hook.png",
+   "question": "what time is your earliest class? 👇",
+   "lines": [
+    "mine was 8:00. every day.",
+    "locturne is on the App Store"
+   ]
+  }
+ ]
+}

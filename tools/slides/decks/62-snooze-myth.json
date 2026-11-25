@@ -1,0 +1,80 @@
+{
+ "title": "snoozing isn't what's ruining your mornings",
+ "format": "Dark photo cover + one line per paper slide, bold numbers; app as the method",
+ "job": "save",
+ "app": "method",
+ "compare": "sumimxojpd0-dark-art-list",
+ "account": "@locturne",
+ "why": "Contrarian myth-bust (shock-statement hook) with real numbers on every slide. Reframes the problem from the snooze to the phone, which is exactly what the app fixes.",
+ "caption": "sources on the last slide. how many alarms do you set? 👇 #snooze #morningroutine #sleep #college",
+ "sound": "slow dark ambient",
+ "size": [
+  1080,
+  1920
+ ],
+ "check": [
+  "AI-made cover photo: turn ON the AI label",
+  "slide 8 first-person: true for you?",
+  "tap each source name in the report (docs/reports/Save-worthy slideshows.md) if anyone asks for links"
+ ],
+ "slides": [
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/snooze-cover.png",
+   "caps": [
+    {
+     "text": "SNOOZING ISN'T WHAT'S RUINING YOUR MORNINGS..",
+     "y": 52,
+     "size": 58,
+     "style": "outline",
+     "w": 90
+    }
+   ]
+  },
+  {
+   "layout": "paper",
+   "text": "**56%** of mornings in a study of 3 million nights ended in a snooze.\nyou're **normal**."
+  },
+  {
+   "layout": "paper",
+   "text": "in a lab study, **30 minutes of snoozing** didn't make regular snoozers groggier.\nthey did **slightly better** on tests right after."
+  },
+  {
+   "layout": "paper",
+   "text": "grogginess after waking can last **up to about half an hour**.\nafter a short night it lasts **longer**."
+  },
+  {
+   "layout": "paper",
+   "text": "what heavy snoozers did have: **messier sleep schedules**."
+  },
+  {
+   "layout": "paper",
+   "text": "students with **regular sleep times** got better grades than irregular ones, on **similar hours** of sleep."
+  },
+  {
+   "layout": "paper",
+   "text": "the part that eats your morning:\n**6 in 10** people under 30 are on their phone within **10 minutes** of waking."
+  },
+  {
+   "layout": "paper",
+   "text": "what fixed mine: my apps **stay asleep** until i've **walked 200 steps**.\nsnooze all you want. **tiktok waits**."
+  },
+  {
+   "layout": "full",
+   "image": "/photos/renders/02-steps-clean.png",
+   "caps": [
+    {
+     "text": "it's called locturne",
+     "y": 12,
+     "size": 56,
+     "style": "box",
+     "w": 80
+    }
+   ]
+  },
+  {
+   "layout": "paper",
+   "text": "**sources**\nRobbins 2025\nSundelin 2023\nHilditch & McHill 2019\nPhillips 2017\nYouGov survey"
+  }
+ ]
+}

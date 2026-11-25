@@ -50,7 +50,6 @@ const BRANCHED: StepId[] = [
   'worst-time',
   'nights-per-week',
   'time-back',
-  'tried',
   'reveal',
   'tomorrow',
   'apps',
@@ -185,7 +184,6 @@ function treeOf(pain: Pain): Stage[] {
       })),
     },
     shared('time-back'),
-    shared('tried'),
     shared('found'),
     shared('age'),
     shared('reveal', [

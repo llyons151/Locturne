@@ -1,0 +1,144 @@
+{
+ "title": "things i learned reading sleep studies for my app",
+ "format": "Same selfie on every slide, one finding + why it matters in white boxes; sources slide",
+ "job": "save",
+ "app": "confession",
+ "compare": "helen-psychiatrist-hacks",
+ "account": "face account",
+ "why": "The 974K-save helen format (tip + why per slide) with authority we actually have: the founder read the studies. Each finding contradicts something the viewer believes, which drives saves and 'wait what' comments.",
+ "caption": "sources on the last slide. which one surprised you? #sleep #screentime #college #science",
+ "sound": "soft upbeat",
+ "size": [
+  1080,
+  1920
+ ],
+ "check": [
+  "SWAP the background for your own real selfie (same photo on every box slide, like the helen ref): this is the founder-voice deck",
+  "you really read these studies (sources slide): skim each before posting",
+  "slide 8: 'i built' is true",
+  "until swapped, the desk photo is AI-made: turn ON the AI label"
+ ],
+ "slides": [
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "6 things i learned reading sleep studies\n(some of them annoyed me)",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "Night Shift didn't help\n\nin a trial of 167 people aged 18–24, sleep was the same with Night Shift on or off. the filter isn't the fix",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "30 minutes changes a lot\n\nstudents who slept badly put the phone down 30 min before bed: they fell asleep ~12 min faster and slept ~18 min longer",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "\"bedtime procrastination\" is a real research term\n\ngoing to bed late when nothing is stopping you. nothing except the phone",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "6 in 10 people under 30 are on their phone in the last 10 minutes before sleep\n\nand in the first 10 after waking",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "snoozing isn't the villain\n\nin a lab study, 30 min of snoozing didn't make regular snoozers groggier or moodier",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "a regular schedule mattered\n\nstudents who slept at the same times got better grades than ones who didn't, even with similar hours",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "pic",
+   "image": "/photos/gen-s/studies-desk.png",
+   "caps": [
+    {
+     "text": "so i built my app around the phone, not the alarm\n\nmy apps stay asleep in the morning until i've walked 200 steps",
+     "y": 67,
+     "size": 54,
+     "style": "box",
+     "w": 88
+    }
+   ]
+  },
+  {
+   "layout": "full",
+   "image": "/photos/renders/02-steps-clean.png",
+   "caps": [
+    {
+     "text": "it's called locturne",
+     "y": 12,
+     "size": 56,
+     "style": "box",
+     "w": 80
+    }
+   ]
+  },
+  {
+   "layout": "paper",
+   "text": "**sources**\nDuraccio 2021\nPLoS ONE 2020\nKroese 2014\nYouGov survey\nSundelin 2023\nPhillips 2017"
+  }
+ ]
+}

@@ -102,10 +102,9 @@ describe('back', () => {
 
   test('what they would do with the time comes right after the running total', () => {
     assert.equal(nextStep('nights-per-week'), 'time-back');
-    assert.equal(nextStep('time-back'), 'tried');
+    assert.equal(nextStep('time-back'), 'found');
     assert.equal(nextStep('reveal'), 'build');
     assert.equal(nextStep('build'), 'method');
-    assert.equal(nextStep('tried'), 'found');
     assert.equal(nextStep('found'), 'age');
     assert.equal(nextStep('commit'), 'founder');
     assert.equal(nextStep('founder'), 'offer');
@@ -256,7 +255,7 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
   test('every branch asks both minutes questions, so the estimate is whole', () => {
     for (const pain of PAINS) {
       const steps = stepsFor(pain);
-      for (const s of ['bedtime', 'wake', 'night-minutes', 'morning-minutes', 'nights-per-week', 'tried', 'reveal'] as const)
+      for (const s of ['bedtime', 'wake', 'night-minutes', 'morning-minutes', 'nights-per-week', 'reveal'] as const)
         assert.ok(steps.includes(s), `${pain} asks ${s}`);
       assert.ok(steps.indexOf('nights-per-week') < steps.indexOf('reveal'));
     }
@@ -293,7 +292,7 @@ describe('the pain branches (ONBOARDING_BRANCHES §5.1)', () => {
 
 test('restored on hello: the quiz is skipped, the setup isn’t', () => {
   // `QUIZ_ONLY` in onboarding-flow.tsx.
-  const quiz = ['pain', 'morning-minutes', 'night-minutes', 'night-feel', 'worst-time', 'nights-per-week', 'time-back', 'tried', 'found', 'age', 'reveal', 'build', 'founder', 'offer', 'plans'] as const;
+  const quiz = ['pain', 'morning-minutes', 'night-minutes', 'night-feel', 'worst-time', 'nights-per-week', 'time-back', 'found', 'age', 'reveal', 'build', 'founder', 'offer', 'plans'] as const;
   const skip = [...quiz];
   const path = ['bedtime'];
   while (path.at(-1) !== 'commit') path.push(nextStep(path.at(-1) as never, skip));

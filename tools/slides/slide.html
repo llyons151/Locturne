@@ -188,7 +188,8 @@ const phone = (src) => /\/renders\//.test(src) ? `<img class="render" src="${esc
 
 const caps = (list) => (list ?? []).map((c) => {
   const lines = md(c.text).split('\n');
-  const inner = c.style === 'box' ? lines.map((l) => `<span>${l}</span>`).join('<br>') : lines.join('<br>');
+  // box: a blank line is a gap between two boxes, not an empty white stub
+  const inner = c.style === 'box' ? lines.map((l) => (l.trim() ? `<span>${l}</span>` : '')).join('<br>') : lines.join('<br>');
   return `<div class="cap ${c.style ?? 'classic'} ${c.align ?? ''}" style="top:${(IGMODE && c.igY != null) ? c.igY : (c.y ?? 50)}%;width:${c.w ?? 78}%;font-size:${c.size ?? 56}px;${c.color ? 'color:' + c.color + ';' : ''}">${inner}</div>`;
 }).join('');
 const half = (h, k) => `<div class="half ${k}">${pic(h.image, 'bg')}${caps(h.caps)}</div>`;
