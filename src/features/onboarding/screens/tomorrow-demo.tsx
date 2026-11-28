@@ -384,7 +384,7 @@ export function TomorrowDemo({
                 width={phoneWidth}
                 clock={atNight && night ? night.clock : clock}
                 phase={phase}
-                shieldTitle={shield.title}
+                shieldTitle={shield.title.replace('{applicationOrDomainDisplayName}', 'Instagram')}
                 shieldLine={shield.subtitle}
                 buttonLabel={shield.button}
                 press={press}

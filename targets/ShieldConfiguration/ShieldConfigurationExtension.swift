@@ -83,7 +83,10 @@ func buildShield(placeholders: [String: String?], config: [String: Any]?)
   if let config = config {
     let backgroundColor = getColor(color: config["backgroundColor"] as? [String: Double])
 
-    let title = config["title"] as? String
+    // "Shh. {applicationOrDomainDisplayName} is asleep.": iOS can leave the name out, and the
+    // placeholder would then show as written, so those shields fall back to `titleNoApp`.
+    let named = (placeholders["applicationOrDomainDisplayName"] ?? nil).map { !$0.isEmpty } ?? false
+    let title = named ? config["title"] as? String : (config["titleNoApp"] as? String ?? config["title"] as? String)
     let titleColor = getColor(color: config["titleColor"] as? [String: Double])
 
     // The moon ring: time left ahead of the subtitle, and the ring drawn around the icon

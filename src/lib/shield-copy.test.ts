@@ -109,7 +109,7 @@ describe('the words', () => {
   });
 
   test('blocked-app line from the line bank at night', () => {
-    assert.equal(shieldCopy('night', DEFAULT_ROUTINE).title, 'Shh. I’m sleeping. So are they.');
+    assert.equal(shieldCopy('night', DEFAULT_ROUTINE).title, 'Shh. {applicationOrDomainDisplayName} is asleep.');
     assert.match(shieldCopy('night', DEFAULT_ROUTINE).subtitle, /after 7 am/);
   });
 

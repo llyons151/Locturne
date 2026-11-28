@@ -15,12 +15,13 @@ import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 const { simDevice, token } = await import('./sim-device.ts');
 const device = simDevice();
+// Subtitles: the night and always shields share "Shh. {app} is asleep." (shield 100), so the line under it tells them apart.
 const fallback: string[] = [];
 mock.module('react-native-device-activity', {
   namedExports: {
     ...device.exports,
-    updateShield: (config: { title: string }) => {
-      fallback.push(config.title);
+    updateShield: (config: { title: string; subtitle: string }) => {
+      fallback.push(config.subtitle);
     },
   },
 });
@@ -266,8 +267,8 @@ test('the shield fallback during a paused night is the always list’s, not the 
   assert.ok(em.emergencyUnlock()?.pauseNight);
   assert.equal(lc.readLock().phase, 'night');
   assert.ok(device.state.shielded.has('reddit'), 'the always list stays asleep');
-  assert.doesNotMatch(fallback.at(-1) ?? '', /sleeping/i);
-  assert.equal(fallback.at(-1), 'Shh. It’s asleep.');
+  assert.doesNotMatch(fallback.at(-1) ?? '', /out of bed/i);
+  assert.equal(fallback.at(-1), 'You put this one to sleep. It stays that way for now.');
 });
 
 test('the shield fallback on a night with an empty bedtime list is the always list’s, not the bedtime words', async () => {
@@ -281,13 +282,13 @@ test('the shield fallback on a night with an empty bedtime list is the always li
   fallback.length = 0;
   assert.equal(lc.syncLock().phase, 'night');
   assert.ok(device.state.shielded.has('reddit'), 'the always list stays asleep');
-  assert.doesNotMatch(fallback.at(-1) ?? '', /sleeping/i);
-  assert.equal(fallback.at(-1), 'Shh. It’s asleep.');
+  assert.doesNotMatch(fallback.at(-1) ?? '', /out of bed/i);
+  assert.equal(fallback.at(-1), 'You put this one to sleep. It stays that way for now.');
   advance(at(6, 2));
   fallback.length = 0;
   lc.syncLock();
   assert.doesNotMatch(fallback.at(-1) ?? '', /awake/i);
-  assert.equal(fallback.at(-1), 'Shh. It’s asleep.');
+  assert.equal(fallback.at(-1), 'You put this one to sleep. It stays that way for now.');
 });
 
 test('a morning the old routine held stays locked when the edit switches that evening off', async () => {

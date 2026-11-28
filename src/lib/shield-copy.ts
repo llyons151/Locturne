@@ -23,7 +23,21 @@ export { clockLabel };
  * `ring`: the block's start and end as minutes of the day. The shield extension draws the moon
  * ring and "Asleep for 6h 12m more." from it each time the shield appears (LocturneShieldRing.swift).
  */
-export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number }; icon?: string };
+export type ShieldText = {
+  title: string;
+  subtitle: string;
+  button: string;
+  ring?: { from: number; until: number };
+  icon?: string;
+  /** The title when iOS gives the shield no app name to put in `title` (ShieldConfigurationExtension.swift). */
+  titleNoApp?: string;
+};
+
+/** Filled in by the shield extension with the blocked app's or site's name. */
+const APP = '{applicationOrDomainDisplayName}';
+
+/** Shield 100 no. 100 (user, 2026-11-28): "Shh. Instagram is asleep.", or "Shh. It's asleep." without a name. */
+const asleepTitle = () => ({ title: t('shield.appAsleep', { app: APP }), titleNoApp: t('shield.alwaysTitle') });
 
 /**
  * The SF Symbol at the top of the morning shield: the wake-up method's own icon, as on the
@@ -126,7 +140,7 @@ export function shieldCopy(
   switch (rule) {
     case 'night':
       return {
-        title: t('shield.nightTitle'),
+        ...asleepTitle(),
         subtitle: t('shield.nightSubtitle', { wake }),
         button: t('shield.fine'),
         ...nightRing(routine),
@@ -148,7 +162,7 @@ export function shieldCopy(
       };
     case 'blockNow':
       return {
-        title: t('shield.napTitle'),
+        ...asleepTitle(),
         subtitle: until
           ? t('shield.napUntil', { clock: clockLabel(until.getHours() * 60 + until.getMinutes()) })
           : t('shield.napOpen'),
@@ -160,7 +174,7 @@ export function shieldCopy(
       };
     case 'limit':
       return {
-        title: t('shield.limitTitle'),
+        ...asleepTitle(),
         subtitle: t('shield.limitSubtitle'),
         button: t('shield.fine'),
         ring: { from: 0, until: 1440 },
@@ -170,7 +184,7 @@ export function shieldCopy(
       // night windows switch the text themselves (docs/v1-build/v1-screens.md). So it has to
       // be true of both lists.
       return {
-        title: t('shield.alwaysTitle'),
+        ...asleepTitle(),
         subtitle: t('shield.alwaysSubtitle'),
         button: t('shield.fine'),
       };

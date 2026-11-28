@@ -661,7 +661,7 @@ export function isAnyShieldUp(): boolean {
 }
 
 /** The block screen's words: his line is the title, plus one button. */
-export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number }; icon?: string };
+export type ShieldText = { title: string; subtitle: string; button: string; ring?: { from: number; until: number }; icon?: string; titleNoApp?: string };
 
 /** What tapping the shield's button sends: a notification that opens Locturne, or nothing. */
 export type ShieldTap = { title: string; body: string; identifier?: string; userInfo?: Record<string, unknown> } | null;
@@ -693,7 +693,7 @@ export const SHIELD_MOON_KEY = 'locturne.shieldMoon';
 /** Morning methods whose steps the shield's I'm up reads, so the morning ring can fill. */
 const STEP_SYMBOLS = new Set([METHOD_SYMBOL.steps, METHOD_SYMBOL.downtime]);
 
-function shieldConfig({ title, subtitle, button, icon, ring }: ShieldText) {
+function shieldConfig({ title, subtitle, button, icon, ring, titleNoApp }: ShieldText) {
   // Shield 100's "Method ring" (user 2026-11-28): solid near-black (no frost: it made the shield
   // lag, 2026-11-20). At night the worn moon sits in a ring that fills as the block runs out, with
   // the time left ahead of the subtitle (LocturneShieldRing.swift). In the morning the method's
@@ -702,6 +702,8 @@ function shieldConfig({ title, subtitle, button, icon, ring }: ShieldText) {
   const moonIcon = icon ? null : sharedGet<string>(SHIELD_MOON_KEY);
   return {
     title,
+    // Night titles name the app (shield 100 no. 100, on #96's black); this one is for when iOS gives no name.
+    ...(titleNoApp ? { titleNoApp } : {}),
     subtitle,
     primaryButtonLabel: button,
     ...(ring ? { ringFromMinutes: ring.from, ringUntilMinutes: ring.until } : {}),

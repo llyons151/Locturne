@@ -284,7 +284,7 @@ describe('the shield', () => {
     syncLock(at(7, 30));
     assert.deepEqual(shieldTexts.at(-1), { title: 'No.', tap: true });
     syncLock(at(23, 30));
-    assert.deepEqual(shieldTexts.at(-1), { title: 'Shh. I’m sleeping. So are they.', tap: false });
+    assert.deepEqual(shieldTexts.at(-1), { title: 'Shh. {applicationOrDomainDisplayName} is asleep.', tap: false });
   });
 
   test('a scan morning with no code yet asks for steps, like the wake screen; a saved code switches it', async () => {
