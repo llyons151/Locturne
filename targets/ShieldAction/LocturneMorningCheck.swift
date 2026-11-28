@@ -129,7 +129,9 @@ func locturneRehearsalCheck(config: [String: Any], completion: @escaping (Shield
         locturneNoteRehearsal(["lastCheck": kind])
         locturneWakeRehearsal(steps: steps, floors: floors)
       } else {
-        locturneShowRehearsalProgress(locturneMorningProgress(method: method, stepGoal: stepGoal, steps: steps))
+        locturneShowRehearsalProgress(
+          locturneMorningProgress(method: method, stepGoal: stepGoal, steps: steps),
+          done: steps.map { Double($0) / Double(max(stepGoal, 1)) })
         locturneNoteRehearsal(["lastCheck": steps == nil ? "noHistory" : "short", "steps": steps ?? -1, "floors": floors])
         if steps == nil || method != "steps" {
           for action in config["actions"] as? [[String: Any]] ?? [] where action["type"] as? String == "sendNotification" {

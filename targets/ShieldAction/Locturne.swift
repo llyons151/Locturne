@@ -923,10 +923,12 @@ func locturneWakeMorning(triggeredBy: String) {
 /// Puts how far they've got on the morning shield (the bedtime list's words, and the app-wide
 /// ones the app also sets in the morning). The app rewrites both at its next sync, and the next
 /// morning's start copies fresh ones in.
-func locturneShowMorningProgress(_ subtitle: String) {
+func locturneShowMorningProgress(_ subtitle: String, done: Double? = nil) {
   for key in ["\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_night", FALLBACK_SHIELD_CONFIGURATION_KEY] {
     guard var config = userDefaults?.dictionary(forKey: key) else { continue }
     config["subtitle"] = subtitle
+    // The morning shield's steps ring (LocturneShieldRing.swift), 0...1 of the goal.
+    if let done { config["ringDone"] = min(max(done, 0), 1) }
     userDefaults?.set(config, forKey: key)
   }
 }
@@ -957,7 +959,9 @@ func locturneJudgeMorning(steps: Int?, floors: Int, now: Date = Date(), reachedA
     locturneLogMorningCheck(["verdict": kind, "steps": steps, "floors": floors], now: now)
     return true
   }
-  locturneShowMorningProgress(locturneMorningProgress(method: morning.method, stepGoal: morning.stepGoal, steps: steps))
+  locturneShowMorningProgress(
+    locturneMorningProgress(method: morning.method, stepGoal: morning.stepGoal, steps: steps),
+    done: steps.map { Double($0) / Double(max(morning.stepGoal, 1)) })
   locturneLogMorningCheck(["verdict": steps == nil ? "noHistory" : "short", "steps": steps ?? -1, "floors": floors], now: now)
   return false
 }
@@ -1104,7 +1108,9 @@ func locturneJudgeDowntime(_ morning: LocturneMorning, steps: Int?, reachedAt: D
     locturneLogMorningCheck(["verdict": "downtime", "by": by, "steps": steps ?? -1, "floors": 0], now: now)
     return true
   }
-  locturneShowMorningProgress(locturneDowntimeLine(morning, steps: steps, timer: timer))
+  locturneShowMorningProgress(
+    locturneDowntimeLine(morning, steps: steps, timer: timer),
+    done: timer != nil ? 1 : steps.map { Double($0) / Double(max(morning.downtimeSteps, 1)) })
   let verdict = timer != nil ? "timerRunning" : steps == nil ? "noHistory" : "short"
   locturneLogMorningCheck(["verdict": verdict, "by": by, "steps": steps ?? -1, "floors": 0], now: now)
   return false
@@ -1355,10 +1361,11 @@ func locturneRehearsalTimerEnded(now: Date = Date()) {
 
 /// Puts how far they've got on the rehearsal's morning shield, as `locturneShowMorningProgress`
 /// does on the bedtime list's.
-func locturneShowRehearsalProgress(_ subtitle: String) {
+func locturneShowRehearsalProgress(_ subtitle: String, done: Double? = nil) {
   for key in ["\(SHIELD_CONFIGURATION_FOR_SELECTION_PREFIX)_\(LOCTURNE_REHEARSAL_LIST)", FALLBACK_SHIELD_CONFIGURATION_KEY] {
     guard var config = userDefaults?.dictionary(forKey: key) else { continue }
     config["subtitle"] = subtitle
+    if let done { config["ringDone"] = min(max(done, 0), 1) }
     userDefaults?.set(config, forKey: key)
   }
 }

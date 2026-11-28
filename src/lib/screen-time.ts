@@ -56,6 +56,7 @@ import {
   type Schedule,
   type ScheduleId,
 } from './schedules.ts';
+import { METHOD_SYMBOL } from './shield-copy.ts';
 import { formatPreset } from './text.ts';
 import { downtimeDue, type DowntimeRecord } from './wake/downtime.ts';
 
@@ -689,18 +690,27 @@ export const LIMIT_SHIELD = 'locturne-limit';
 /** The worn moon's icon in the app group's folder, once copied there (features/moons/shield-moon.ts). */
 export const SHIELD_MOON_KEY = 'locturne.shieldMoon';
 
-function shieldConfig({ title, subtitle, button, icon }: ShieldText) {
+/** Morning methods whose steps the shield's I'm up reads, so the morning ring can fill. */
+const STEP_SYMBOLS = new Set([METHOD_SYMBOL.steps, METHOD_SYMBOL.downtime]);
+
+function shieldConfig({ title, subtitle, button, icon, ring }: ShieldText) {
+  // Shield 100's "Method ring" (user 2026-11-28): solid near-black (no frost: it made the shield
+  // lag, 2026-11-20). At night the worn moon sits in a ring that fills as the block runs out, with
+  // the time left ahead of the subtitle (LocturneShieldRing.swift). In the morning the method's
+  // symbol sits in a dark disc, ringed by the steps so far on step mornings: the ring fills from
+  // `ringDone`, which "I'm up" writes (`locturneShowMorningProgress`), so it starts empty.
+  const moonIcon = icon ? null : sharedGet<string>(SHIELD_MOON_KEY);
   return {
     title,
     subtitle,
     primaryButtonLabel: button,
-    // Shield lab's "1 · Today" (user 2026-11-20): Apple's moon on solid near-black, white pill. No
-    // frost, no moon ring and no worn moon on it: the blur over the app made the shield lag.
-    // The ring's drawing is still in the extension (LocturneShieldRing.swift); it only runs when
-    // `ringFromMinutes` is sent.
+    ...(ring ? { ringFromMinutes: ring.from, ringUntilMinutes: ring.until } : {}),
+    ...(icon ? { methodRing: STEP_SYMBOLS.has(icon) ? 'steps' : 'plain' } : {}),
     backgroundColor: { red: 11, green: 11, blue: 12 },
-    // The morning's is its wake-up method's icon (`METHOD_SYMBOL` in shield-copy.ts).
+    // The morning's is its wake-up method's icon (`METHOD_SYMBOL` in shield-copy.ts). Otherwise the
+    // worn moon's icon; the extension falls back to the symbol if the file can't be read.
     iconSystemName: icon ?? 'moon.zzz.fill',
+    ...(moonIcon ? { iconAppGroupRelativePath: moonIcon } : {}),
     iconTint: { red: 255, green: 255, blue: 255 },
     titleColor: { red: 255, green: 255, blue: 255 },
     subtitleColor: { red: 161, green: 161, blue: 166 },

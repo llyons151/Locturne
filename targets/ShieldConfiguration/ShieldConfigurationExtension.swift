@@ -109,7 +109,7 @@ func buildShield(placeholders: [String: String?], config: [String: Any]?)
       backgroundBlurStyle: config["backgroundBlurStyle"] != nil
         ? (config["backgroundBlurStyle"] as? Int).flatMap(UIBlurEffect.Style.init) : nil,
       backgroundColor: backgroundColor,
-      icon: ring.flatMap { locturneRingIcon(moon: resolveIcon(dict: config), done: $0.done) } ?? resolveIcon(dict: config),
+      icon: locturneShieldIcon(config: config, ring: ring, picture: resolveIcon(dict: config)),
       title: buildLabel(text: title, with: titleColor, placeholders: placeholders),
       subtitle: buildLabel(text: subtitle, with: subtitleColor, placeholders: placeholders),
       primaryButtonLabel: buildLabel(
